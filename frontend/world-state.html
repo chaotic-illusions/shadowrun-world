@@ -224,16 +224,30 @@ function section(key, title, html, manageUrl) {
 }
 
 // ── Org grouping config ───────────────────────────────────────
-const ORG_ORDER  = ['megacorp','government','syndicate','gang','fixer_network','cult','other',''];
+// Maps every known org_type value → canonical display group
+const TYPE_GROUP = {
+  'megacorp':              'megacorp',
+  'government':            'government',
+  'nation-state':          'government',
+  'security contractor':   'government',
+  'corporation':           'government',
+  'syndicate':             'syndicate',
+  'crime syndicate':       'syndicate',
+  'gang':                  'gang',
+  'fixer_network':         'fixer_network',
+  'cult':                  'cult',
+  'political organization':'cult',
+  'other':                 'other',
+};
+const ORG_ORDER  = ['megacorp','government','syndicate','gang','fixer_network','cult','other'];
 const ORG_LABELS = {
-  megacorp:      'Megacorporate Presence',
-  government:    'Law Enforcement & Government',
-  syndicate:     'Organized Crime — Syndicates',
-  gang:          'Street Gangs',
+  megacorp:   'Megacorporate Presence',
+  government: 'Law Enforcement & Government',
+  syndicate:  'Organized Crime — Syndicates',
+  gang:       'Street Gangs',
   fixer_network: 'Fixer Networks',
-  cult:          'Cults & Fringe Groups',
-  other:         'Other Organizations',
-  '':            'Unclassified',
+  cult:       'Cults & Fringe Groups',
+  other:      'Other Organizations',
 };
 
 // ── Main data load ────────────────────────────────────────────
@@ -266,16 +280,18 @@ async function loadAll() {
     let html = '';
 
     const activeOrgs = orgs.filter(o => o.is_active);
-    const byType = {};
-    activeOrgs.forEach(o => { const k = o.org_type || ''; (byType[k] = byType[k] || []).push(o); });
+    const byGroup = {};
+    activeOrgs.forEach(o => {
+      const g = TYPE_GROUP[o.org_type] || 'other';
+      (byGroup[g] = byGroup[g] || []).push(o);
+    });
 
-    ORG_ORDER.forEach(type => {
-      const group = byType[type];
-      if (!group?.length) return;
-      group.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
-      const key = `org-${type || 'unclassified'}`;
-      html += section(key, ORG_LABELS[type] || type,
-        `<div class="org-grid">${group.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
+    ORG_ORDER.forEach(group => {
+      const orgsInGroup = byGroup[group];
+      if (!orgsInGroup?.length) return;
+      orgsInGroup.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
+      html += section(`org-${group}`, ORG_LABELS[group] || group,
+        `<div class="org-grid">${orgsInGroup.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
         'create-org.html');
     });
 
