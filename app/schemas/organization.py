@@ -9,6 +9,10 @@ class OrganizationBase(BaseModel):
     description: Optional[str] = None
     headquarters: Optional[str] = None
     leadership: list[dict[str, Any]] = []
+    # Each entry is one of:
+    #   telecom:     {type, number, description, visibility}
+    #   matrix_host: {type, rtg, ltg, id_code, description, visibility, host_rating, notes?}
+    ltgs: list[dict[str, Any]] = []
     ally_ids: list[int] = []
     enemy_ids: list[int] = []
     is_active: bool = True
@@ -26,6 +30,7 @@ class OrganizationUpdate(BaseModel):
     description: Optional[str] = None
     headquarters: Optional[str] = None
     leadership: Optional[list[dict[str, Any]]] = None
+    ltgs: Optional[list[dict[str, Any]]] = None
     ally_ids: Optional[list[int]] = None
     enemy_ids: Optional[list[int]] = None
     is_active: Optional[bool] = None

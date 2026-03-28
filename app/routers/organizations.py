@@ -14,7 +14,7 @@ def _get_or_404(db: Session, org_id: int) -> Organization:
     return org
 
 
-@router.get("/", response_model=list[OrganizationSummary])
+@router.get("/", response_model=list[OrganizationRead])
 def list_organizations(
     org_type: str | None = Query(None),
     is_active: bool | None = Query(None),

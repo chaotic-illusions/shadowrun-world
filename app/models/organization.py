@@ -19,6 +19,9 @@ class Organization(Base):
     # List of {name, title, character_id (nullable), notes} dicts
     leadership = Column(JSON, default=list)
 
+    # List of {type, visibility, ...} dicts — see schema for full shape
+    ltgs = Column(JSON, default=list)
+
     # Lists of organization IDs (int); no FK constraint for flexibility
     ally_ids = Column(JSON, default=list)
     enemy_ids = Column(JSON, default=list)

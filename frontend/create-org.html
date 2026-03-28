@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Organization | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="create-org.html" class="active">+ Organization</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> New Entry</div>
+  <div class="page-sub">CLASSIFICATION: RESTRICTED &nbsp;|&nbsp; ENTER ALL KNOWN INTEL BELOW</div>
+
+  <div id="alert" class="alert"></div>
+
+  <form id="orgForm" autocomplete="off">
+
+    <!-- ── CORE IDENTITY ── -->
+    <div class="section-head">Core Identity</div>
+    <div class="grid2">
+      <div class="field">
+        <label>Designation *</label>
+        <input type="text" id="name" placeholder="Organization name..." required>
+      </div>
+      <div class="field">
+        <label>Classification</label>
+        <select id="org_type">
+          <option value="">— Unknown —</option>
+          <option value="megacorp">Megacorp</option>
+          <option value="government">Government</option>
+          <option value="syndicate">Syndicate</option>
+          <option value="gang">Gang</option>
+          <option value="fixer_network">Fixer Network</option>
+          <option value="cult">Cult</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid3">
+      <div class="field">
+        <label>Threat Tier</label>
+        <div class="tier-row" id="tierRow">
+          <button type="button" class="t-dot" data-v="1" onclick="setTier(1)">1</button>
+          <button type="button" class="t-dot" data-v="2" onclick="setTier(2)">2</button>
+          <button type="button" class="t-dot" data-v="3" onclick="setTier(3)">3</button>
+          <button type="button" class="t-dot" data-v="4" onclick="setTier(4)">4</button>
+          <button type="button" class="t-dot" data-v="5" onclick="setTier(5)">5</button>
+          <button type="button" class="t-dot" data-v="6" onclick="setTier(6)">6</button>
+          <span class="tier-name" id="tierName">Street Level</span>
+        </div>
+        <input type="hidden" id="tier" value="1">
+      </div>
+      <div class="field">
+        <label>Headquarters</label>
+        <input type="text" id="headquarters" placeholder="City, Region...">
+      </div>
+      <div class="field">
+        <label>Operational Status</label>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" id="is_active" checked onchange="updateStatus()">
+            <span class="tog-sl"></span>
+          </label>
+          <span class="tog-label" id="activeStatus" style="color:var(--green)">ACTIVE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PROFILE ── -->
+    <hr class="rule">
+    <div class="section-head">Intel Profile</div>
+    <div class="grid1">
+      <div class="field">
+        <label>Description / Known Intel</label>
+        <textarea id="description" rows="5" placeholder="What do the runners know about this org? Public face, known operations, reputation..."></textarea>
+      </div>
+      <div class="field">
+        <label>Field Notes (GM Only)</label>
+        <textarea id="notes" rows="3" placeholder="Hidden agendas, secret connections, plot hooks..."></textarea>
+      </div>
+    </div>
+
+    <!-- ── COMMAND STRUCTURE ── -->
+    <hr class="rule">
+    <div class="section-head">Command Structure</div>
+    <div style="margin-bottom:12px">
+      <button type="button" class="btn btn-amber" onclick="addLeader()">+ Add Executive</button>
+    </div>
+    <div class="lead-wrap">
+      <table class="lead-table" id="leadTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Title / Role</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="leadBody">
+          <tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── POLITICAL RELATIONSHIPS ── -->
+    <hr class="rule">
+    <div class="section-head">Political Relationships</div>
+    <div class="grid2">
+      <div class="field">
+        <label>Allied Organizations</label>
+        <div class="chk-list" id="allyList">
+          <div class="loading" style="padding:16px">Loading</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Hostile Organizations</label>
+        <div class="chk-list" id="enemyList">
+          <div class="loading" style="padding:16px">Loading</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUBMIT ── -->
+    <hr class="rule">
+    <div id="alertBottom" class="alert"></div>
+    <button type="submit" class="btn btn-green btn-submit">&gt;&gt; SUBMIT TO DATABASE</button>
+
+  </form>
+</main>
+
+<script>
+const API = '';
+let tierVal = 1;
+let leaderCount = 0;
+let allOrgs = [];
+
+const TIER_NAMES = {
+  1: 'Street Level',
+  2: 'Local / District',
+  3: 'City-Wide',
+  4: 'Regional',
+  5: 'National / AAA',
+  6: 'Global / AAA+',
+};
+
+function setTier(n) {
+  tierVal = n;
+  document.getElementById('tier').value = n;
+  document.getElementById('tierName').textContent = TIER_NAMES[n];
+  document.querySelectorAll('.t-dot').forEach(d => {
+    d.classList.toggle('on', parseInt(d.dataset.v) === n);
+  });
+}
+setTier(1);
+
+function updateStatus() {
+  const cb = document.getElementById('is_active');
+  const lbl = document.getElementById('activeStatus');
+  lbl.textContent = cb.checked ? 'ACTIVE' : 'INACTIVE';
+  lbl.style.color = cb.checked ? 'var(--green)' : 'var(--text-dim)';
+}
+
+function addLeader() {
+  const tbody = document.getElementById('leadBody');
+  const empty = document.getElementById('emptyLead');
+  if (empty) empty.remove();
+  leaderCount++;
+  const id = `lead_${leaderCount}`;
+  const tr = document.createElement('tr');
+  tr.id = id;
+  tr.innerHTML = `
+    <td><input type="text" placeholder="Name..." data-field="name"></td>
+    <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title"></td>
+    <td><input type="text" placeholder="Known info..." data-field="notes"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeLeader('${id}')">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function removeLeader(id) {
+  document.getElementById(id)?.remove();
+  if (document.querySelectorAll('#leadBody tr:not(#emptyLead)').length === 0) {
+    const tbody = document.getElementById('leadBody');
+    const tr = document.createElement('tr');
+    tr.id = 'emptyLead';
+    tr.innerHTML = '<td colspan="4" class="empty-lead">No executives defined</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+function getLeadership() {
+  const rows = document.querySelectorAll('#leadBody tr:not(#emptyLead)');
+  return Array.from(rows).map(row => ({
+    name:  row.querySelector('[data-field=name]')?.value.trim() || '',
+    title: row.querySelector('[data-field=title]')?.value.trim() || '',
+    notes: row.querySelector('[data-field=notes]')?.value.trim() || undefined,
+  })).filter(r => r.name || r.title);
+}
+
+function getChecked(containerId) {
+  return Array.from(
+    document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
+  ).map(cb => parseInt(cb.value));
+}
+
+async function loadOrgs() {
+  try {
+    const res = await fetch(`${API}/organizations/?limit=200`);
+    allOrgs = await res.json();
+    renderOrgChecks(allOrgs);
+  } catch (e) {
+    document.getElementById('allyList').innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load organizations</div>';
+    document.getElementById('enemyList').innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load organizations</div>';
+  }
+}
+
+function renderOrgChecks(orgs) {
+  ['allyList', 'enemyList'].forEach(lid => {
+    const el = document.getElementById(lid);
+    if (!orgs.length) { el.innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">No organizations found</div>'; return; }
+    el.innerHTML = orgs.map(o => `
+      <label class="chk-item">
+        <input type="checkbox" value="${o.id}">
+        <span>${o.name} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
+      </label>
+    `).join('');
+  });
+}
+
+function showAlert(el, msg, isError) {
+  el.textContent = msg;
+  el.className = `alert show ${isError ? 'alert-err' : 'alert-ok'}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('orgForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const topAlert = document.getElementById('alert');
+  const botAlert = document.getElementById('alertBottom');
+
+  const name = document.getElementById('name').value.trim();
+  if (!name) { showAlert(topAlert, 'ERROR // Designation is required.', true); return; }
+
+  const payload = {
+    name,
+    org_type:     document.getElementById('org_type').value || null,
+    tier:         tierVal,
+    headquarters: document.getElementById('headquarters').value.trim() || null,
+    description:  document.getElementById('description').value.trim() || null,
+    notes:        document.getElementById('notes').value.trim() || null,
+    is_active:    document.getElementById('is_active').checked,
+    leadership:   getLeadership(),
+    ally_ids:     getChecked('allyList'),
+    enemy_ids:    getChecked('enemyList'),
+    ltgs:         [],
+  };
+
+  const submitBtn = e.target.querySelector('button[type=submit]');
+  submitBtn.textContent = '>> TRANSMITTING...';
+  submitBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/organizations/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    const created = await res.json();
+    showAlert(topAlert, `>> ACCESS GRANTED // Organization "${created.name}" registered as ID ${created.id}.`, false);
+    showAlert(botAlert, `>> ACCESS GRANTED // Organization "${created.name}" registered as ID ${created.id}.`, false);
+    e.target.reset();
+    setTier(1);
+    updateStatus();
+    document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+    leaderCount = 0;
+    loadOrgs();
+  } catch (err) {
+    showAlert(topAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
+    showAlert(botAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
+  } finally {
+    submitBtn.textContent = '>> SUBMIT TO DATABASE';
+    submitBtn.disabled = false;
+  }
+});
+
+loadOrgs();
+</script>
+</body>
+</html>
