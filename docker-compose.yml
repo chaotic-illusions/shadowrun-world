@@ -7,4 +7,5 @@ services:
       - ./data:/app/data
     environment:
       - DATABASE_URL=sqlite:///./data/shadowrun.db
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     restart: unless-stopped
