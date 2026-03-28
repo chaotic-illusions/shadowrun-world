@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Locations | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="create-org.html">Organizations</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-locations.html" class="active">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Location Registry <em style="font-style:normal;color:var(--text-dim)">//</em> Known Sites &amp; Territories</div>
+  <div class="page-sub">GEOGRAPHICAL INTEL — SEATTLE METROPLEX &amp; SURROUNDING REGIONS</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;gap:10px;align-items:center">
+      <input type="text" id="filterInput" placeholder="Filter by name or description..." style="width:280px" oninput="applyFilter()">
+      <select id="filterType" onchange="applyFilter()" style="width:160px">
+        <option value="">All Types</option>
+      </select>
+    </div>
+    <button class="btn btn-green" onclick="openModal()">+ New Location</button>
+  </div>
+
+  <div id="tableWrap">
+    <div class="loading">Loading locations</div>
+  </div>
+</main>
+
+<!-- ── EDIT MODAL ─────────────────────────────────────── -->
+<div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">New Location</div>
+      <button class="btn btn-red" onclick="closeModal()">✕</button>
+    </div>
+    <div class="edit-modal-body">
+      <div id="modalAlert" class="alert"></div>
+
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Name *</label>
+          <input type="text" id="f-name" placeholder="Aztechnology Pyramid...">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="f-location_type">
+            <option value="">— Unknown —</option>
+            <option value="corporate">Corporate</option>
+            <option value="government">Government</option>
+            <option value="residential">Residential</option>
+            <option value="commercial">Commercial</option>
+            <option value="industrial">Industrial</option>
+            <option value="criminal">Criminal</option>
+            <option value="barrens">Barrens</option>
+            <option value="matrix">Matrix / Virtual</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>City</label>
+          <input type="text" id="f-city" placeholder="Seattle">
+        </div>
+        <div class="field">
+          <label>District</label>
+          <input type="text" id="f-district" placeholder="Bellevue, Redmond...">
+        </div>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Security Level</label>
+          <select id="f-security_level">
+            <option value="">— Unknown —</option>
+            <option value="AA">AA — Corporate Extraterritorial</option>
+            <option value="A">A — Corporate High Security</option>
+            <option value="B">B — Corporate Standard</option>
+            <option value="C">C — Patrolled / Commercial</option>
+            <option value="D">D — Low Security</option>
+            <option value="E">E — No Security / Barrens</option>
+            <option value="Z">Z — Corporate Zero Zone</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Controlling Organization</label>
+          <select id="f-controlling_org_id">
+            <option value="">— None —</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Description / Known Intel</label>
+        <textarea id="f-description" rows="4" placeholder="What the runners know..."></textarea>
+      </div>
+      <div class="field">
+        <label>GM Notes</label>
+        <textarea id="f-notes" rows="2" placeholder="Hidden details, plot hooks..."></textarea>
+      </div>
+    </div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green" style="flex:1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
+      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
+      <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let allLocs = [];
+let allOrgs = [];
+let editingId = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+
+// ── Render table ──────────────────────────────────────────────
+function renderTable(data) {
+  const orgMap = Object.fromEntries(allOrgs.map(o => [o.id, o.name]));
+  const wrap = document.getElementById('tableWrap');
+  if (!data.length) {
+    wrap.innerHTML = '<div class="loading">No locations found</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="manage-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>City / District</th>
+          <th>Security</th>
+          <th>Controlling Org</th>
+          <th class="td-act"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(l => `
+          <tr>
+            <td style="color:var(--cyan)">${esc(l.name)}</td>
+            <td style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;text-transform:uppercase">${esc(l.location_type||'—')}</td>
+            <td style="color:var(--text-dim)">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
+            <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'—')}</td>
+            <td style="color:var(--text-dim);font-size:.75rem">${esc(orgMap[l.controlling_org_id]||'—')}</td>
+            <td class="td-act"><button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function applyFilter() {
+  const q = document.getElementById('filterInput').value.toLowerCase();
+  const t = document.getElementById('filterType').value;
+  const filtered = allLocs.filter(l =>
+    (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q)) &&
+    (!t || l.location_type === t)
+  );
+  renderTable(filtered);
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+function openModal(id) {
+  editingId = id || null;
+  const loc = id ? allLocs.find(l => l.id === id) : null;
+  document.getElementById('modalTitle').textContent = loc ? `Edit: ${loc.name}` : 'New Location';
+  document.getElementById('deleteBtn').style.display = loc ? '' : 'none';
+  document.getElementById('modalAlert').className = 'alert';
+
+  document.getElementById('f-name').value             = loc?.name || '';
+  document.getElementById('f-location_type').value    = loc?.location_type || '';
+  document.getElementById('f-city').value             = loc?.city || '';
+  document.getElementById('f-district').value         = loc?.district || '';
+  document.getElementById('f-security_level').value   = loc?.security_level || '';
+  document.getElementById('f-controlling_org_id').value = loc?.controlling_org_id || '';
+  document.getElementById('f-description').value      = loc?.description || '';
+  document.getElementById('f-notes').value            = loc?.notes || '';
+
+  document.getElementById('editOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('editOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('editOverlay')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function saveLoc() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
+
+  const orgId = parseInt(document.getElementById('f-controlling_org_id').value) || null;
+  const payload = {
+    name,
+    location_type:      document.getElementById('f-location_type').value || null,
+    city:               document.getElementById('f-city').value.trim() || null,
+    district:           document.getElementById('f-district').value.trim() || null,
+    security_level:     document.getElementById('f-security_level').value || null,
+    controlling_org_id: orgId,
+    description:        document.getElementById('f-description').value.trim() || null,
+    notes:              document.getElementById('f-notes').value.trim() || null,
+  };
+
+  try {
+    const url    = editingId ? `${API}/locations/${editingId}` : `${API}/locations/`;
+    const method = editingId ? 'PATCH' : 'POST';
+    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: res.statusText}));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    closeModal();
+    showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // Location "${name}" saved.`, false);
+    await loadAll();
+  } catch(e) {
+    showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
+async function deleteLoc() {
+  if (!editingId) return;
+  const name = document.getElementById('f-name').value;
+  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    closeModal();
+    showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
+    await loadAll();
+  } catch(e) {
+    showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Load data ─────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [locRes, orgRes] = await Promise.all([
+      fetch(`${API}/locations/`),
+      fetch(`${API}/organizations/`),
+    ]);
+    allLocs = await locRes.json();
+    allOrgs = await orgRes.json();
+
+    // Populate org dropdown in modal
+    const orgSel = document.getElementById('f-controlling_org_id');
+    orgSel.innerHTML = '<option value="">— None —</option>' +
+      allOrgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+
+    // Build type filter
+    const types = [...new Set(allLocs.map(l => l.location_type).filter(Boolean))].sort();
+    const typeSel = document.getElementById('filterType');
+    const cur = typeSel.value;
+    typeSel.innerHTML = '<option value="">All Types</option>' +
+      types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    if (cur) typeSel.value = cur;
+
+    applyFilter();
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
