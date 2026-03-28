@@ -325,11 +325,11 @@ function buildRTGOptions(selected) {
   return `<option value="">— Select RTG —</option>${opts}`;
 }
 
-function generateIdCode() {
-  // Collect all id_codes already in the DB (from all loaded orgs) plus any in the current form
+function generateLTG() {
+  // Collect all ltg codes already in the DB (from all loaded orgs) plus any in the current form
   const existing = new Set();
-  allOrgs.forEach(org => (org.ltgs || []).forEach(l => { if (l.id_code) existing.add(l.id_code.toUpperCase()); }));
-  document.querySelectorAll('#hostBody [data-field="id_code"]').forEach(el => { if (el.value.trim()) existing.add(el.value.trim().toUpperCase()); });
+  allOrgs.forEach(org => (org.ltgs || []).forEach(l => { if (l.ltg) existing.add(l.ltg.toUpperCase()); }));
+  document.querySelectorAll('#hostBody [data-field="ltg"]').forEach(el => { if (el.value.trim()) existing.add(el.value.trim().toUpperCase()); });
   const HEX = '0123456789ABCDEF';
   let code;
   do { code = Array.from({ length: 5 }, () => HEX[Math.floor(Math.random() * 16)]).join(''); } while (existing.has(code));
@@ -343,13 +343,13 @@ function addHost(data) {
   const id = `host_${hostCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
-  const idCode = data?.id_code || generateIdCode();
+  const ltgCode = data?.ltg || generateLTG();
   const selVis = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
   const selRating = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
   tr.innerHTML = `
     <td><select data-field="rtg" style="min-width:160px">${buildRTGOptions(data?.rtg||'')}</select></td>
-    <td><input type="text" placeholder="SEA" data-field="ltg" value="${esc(data?.ltg||'')}" style="width:70px"></td>
-    <td><input type="text" data-field="id_code" value="${esc(idCode)}" style="width:105px;color:var(--text-dim)" readonly title="Auto-generated unique ID"></td>
+    <td><input type="text" data-field="ltg" value="${esc(ltgCode)}" style="width:70px;color:var(--text-dim)" readonly title="Auto-generated unique LTG code"></td>
+    <td><input type="text" placeholder="ID-001" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:105px"></td>
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="host_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
