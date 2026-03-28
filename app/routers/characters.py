@@ -17,7 +17,7 @@ def _get_or_404(db: Session, character_id: int) -> Character:
     return char
 
 
-@router.get("/", response_model=list[CharacterSummary])
+@router.get("/", response_model=list[CharacterRead])
 def list_characters(
     is_pc: bool | None = Query(None, description="Filter by PC (true) or NPC (false)"),
     is_active: bool | None = Query(None),

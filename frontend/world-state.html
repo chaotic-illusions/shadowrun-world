@@ -12,7 +12,10 @@
   <div class="logo">Shadowrun <em>//</em> World Engine</div>
   <nav>
     <a href="world-state.html" class="active">World State</a>
-    <a href="create-org.html">+ Organization</a>
+    <a href="create-org.html">Organizations</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
   </nav>
 </header>
 
@@ -29,11 +32,12 @@
     <div class="status-item" id="lastRefresh" style="margin-left:auto">LAST REFRESH: —</div>
   </div>
 
-  <div class="stat-bar">
+  <div class="stat-bar" id="statBar">
     <div class="stat-card"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-chars">—</span><div class="stat-lbl">Characters</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+    <div class="stat-card"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
   </div>
 
   <div id="worldContent"><div class="loading">Loading world data</div></div>
@@ -67,6 +71,17 @@ function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
 function orgClass(t) { return `oc-${t || 'other'}`; }
+function fmt¥(n) { return '¥' + Number(n || 0).toLocaleString(); }
+
+// ── Section collapse state ────────────────────────────────────
+const collapsed = {};
+function toggleSection(key) {
+  collapsed[key] = !collapsed[key];
+  const body = document.getElementById(`sec-body-${key}`);
+  const btn  = document.getElementById(`sec-btn-${key}`);
+  if (body) body.style.display = collapsed[key] ? 'none' : '';
+  if (btn)  btn.textContent    = collapsed[key] ? '[+]' : '[–]';
+}
 
 // ── LTG Modal ─────────────────────────────────────────────────
 function ratingClass(r) {
@@ -131,7 +146,6 @@ function closeLTG() {
 }
 
 function overlayClick(e) {
-  // Close only when clicking the backdrop, not the modal panel itself
   if (e.target === document.getElementById('ltgOverlay')) closeLTG();
 }
 
@@ -146,7 +160,10 @@ function buildOrgCard(org, orgMap) {
     <div class="org-card ${orgClass(org.org_type)}">
       <div class="oc-head">
         <div class="oc-name">${esc(org.name)}</div>
-        <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <a href="create-org.html?id=${org.id}" class="oc-edit-link">Edit</a>
+          <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
+        </div>
       </div>
       <div class="oc-type">${esc(org.org_type || 'unclassified')}</div>
       ${org.headquarters ? `<div class="oc-hq">${esc(org.headquarters)}</div>` : ''}
@@ -174,7 +191,9 @@ function buildLocCard(loc, orgMap) {
 }
 
 function buildCharCard(char) {
-  const meta = [char.metatype, char.archetype, char.nationality].filter(Boolean);
+  const meta = [char.metatype || char.race, char.archetype, char.nationality].filter(Boolean);
+  const nuyenStr = char.nuyen != null ? fmt¥(char.nuyen) : null;
+  const karmaStr = char.karma_current != null ? `${char.karma_current} karma` : null;
   return `
     <div class="char-card ${char.is_pc ? 'is-pc' : ''}">
       <div class="ch-name">${esc(char.name)}</div>
@@ -184,12 +203,24 @@ function buildCharCard(char) {
         ${char.description
           ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
           : ''}
+        ${(nuyenStr || karmaStr) ? `<div class="ch-finance">${[nuyenStr, karmaStr].filter(Boolean).join(' &nbsp;|&nbsp; ')}</div>` : ''}
       </div>
     </div>`;
 }
 
-function section(title, html) {
-  return `<div class="section-head">${esc(title)}</div>${html}<hr class="rule">`;
+function section(key, title, html, manageUrl) {
+  const manageLink = manageUrl ? `<a href="${manageUrl}" class="sec-manage-link">Manage</a>` : '';
+  return `
+    <div class="section-head">
+      <span>${esc(title)}</span>
+      <span style="flex:1"></span>
+      ${manageLink}
+      <button id="sec-btn-${key}" class="sec-toggle" onclick="toggleSection('${key}')">[–]</button>
+    </div>
+    <div id="sec-body-${key}">
+      ${html}
+    </div>
+    <hr class="rule">`;
 }
 
 // ── Org grouping config ───────────────────────────────────────
@@ -218,15 +249,19 @@ async function loadAll() {
       orgsRes.json(), locsRes.json(), charsRes.json(), contactsRes.json(),
     ]);
 
+    const pcs = chars.filter(c => c.is_pc);
+    const partyNuyen = pcs.reduce((sum, c) => sum + (c.nuyen || 0), 0);
+
     document.getElementById('sc-orgs').textContent     = orgs.length;
     document.getElementById('sc-locs').textContent     = locs.length;
     document.getElementById('sc-chars').textContent    = chars.length;
     document.getElementById('sc-contacts').textContent = contacts.length;
+    document.getElementById('sc-nuyen').textContent    = '¥' + partyNuyen.toLocaleString();
     document.getElementById('lastRefresh').textContent =
       'LAST REFRESH: ' + new Date().toLocaleTimeString();
 
     const orgMap = Object.fromEntries(orgs.map(o => [o.id, o]));
-    orgStore = orgMap;   // make available to modal
+    orgStore = orgMap;
 
     let html = '';
 
@@ -238,20 +273,24 @@ async function loadAll() {
       const group = byType[type];
       if (!group?.length) return;
       group.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
-      html += section(ORG_LABELS[type] || type,
-        `<div class="org-grid">${group.map(o => buildOrgCard(o, orgMap)).join('')}</div>`);
+      const key = `org-${type || 'unclassified'}`;
+      html += section(key, ORG_LABELS[type] || type,
+        `<div class="org-grid">${group.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
+        'create-org.html');
     });
 
     if (locs.length)
-      html += section('Known Locations',
-        `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`);
+      html += section('locs', 'Known Locations',
+        `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
+        'manage-locations.html');
 
-    const pcs  = chars.filter(c =>  c.is_pc);
     const npcs = chars.filter(c => !c.is_pc);
-    if (pcs.length)  html += section('Runner Team',
-      `<div class="char-grid">${pcs.map(buildCharCard).join('')}</div>`);
-    if (npcs.length) html += section('Known Persons — NPC Roster',
-      `<div class="char-grid">${npcs.map(buildCharCard).join('')}</div>`);
+    if (pcs.length)  html += section('pcs', 'Runner Team',
+      `<div class="char-grid">${pcs.map(buildCharCard).join('')}</div>`,
+      'manage-characters.html');
+    if (npcs.length) html += section('npcs', 'Known Persons — NPC Roster',
+      `<div class="char-grid">${npcs.map(buildCharCard).join('')}</div>`,
+      'manage-characters.html');
 
     document.getElementById('worldContent').innerHTML =
       html || '<div class="loading">No world data found — run the seed script.</div>';

@@ -1,6 +1,9 @@
 {
   "_comment": "Shadowrun World Seed Data. Use names as references — the seed script resolves them to IDs automatically.",
-  "_todo": "TODO: Review LTG host_ratings across all organizations and adjust values as needed.",
+  "_todo": "TODO: #1 Review LTG host_ratings across all organizations and adjust values as needed.",
+  "_todo": "TODO: #2 Implement a mechanism to show/hide data for each data type in the world seed, as well as the ability to edit existing entries and add new ones.  For example, for organizations, the UI should allow users to toggle the visibility of the entire organizations section, edit existing organizations (including their LTGs), and add new organizations with all relevant fields. This will make the world seed more dynamic and adaptable to different campaigns.  The user should be able to select which organization they want to edit.",
+  "_todo": "TODO: #3 Add nuyen tracking for player characters and party (by summing PC nuyen), and use the correct unicode character for nuyen (¥) across all entries.",
+  "_todo": "TODO: #4 Implement additional screens for other data types in the world, using the organizations screen as a template. For example, create separate screens for RTGs, LTGs, and other relevant data types. Each screen should allow users to view, edit, and add entries specific to that data type, with appropriate fields and functionality. This will help organize the world seed data and make it easier for users to manage different aspects of the setting.",
   "rtgs": [
     {
       "code": "NA/UCAS-NE",
@@ -2326,6 +2329,7 @@
       ],
       "karma_total": 52,
       "karma_current": 3,
+      "nuyen": 8500,
       "is_active": true,
       "notes": "Owes a favor to Mr. Johnson at Ares. Don't bring it up."
     },
@@ -2395,6 +2399,7 @@
       ],
       "karma_total": 48,
       "karma_current": 8,
+      "nuyen": 12000,
       "is_active": true,
       "notes": "Has a backdoor into the Lone Star dispatch grid. Valuable asset."
     },
