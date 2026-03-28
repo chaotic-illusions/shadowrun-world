@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>World State | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <nav>
+    <a href="world-state.html" class="active">World State</a>
+    <a href="create-org.html">+ Organization</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; World State <em style="font-style:normal;color:var(--text-dim)">//</em> Seattle Metroplex <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="srDate"></span> <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="liveClock"></span></div>
+  <div style="font-family:var(--font);font-size:0.78rem;letter-spacing:2px;color:#aa2a2a;margin-bottom:20px;text-align:right">... do you know where your meat-body is?</div>
+  <div class="page-sub" style="margin-top:-14px">INTEL BRIEF — NEW TEAM ARRIVAL — DAY 1 — NO PRIOR HEAT</div>
+
+  <div class="status-bar">
+    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>GREEN</span></div>
+    <div class="status-item">TEAM HEAT: <span>NONE</span></div>
+    <div class="status-item">REPUTATION: <span>UNKNOWN</span></div>
+    <div class="status-item">ACTIVE CONTRACTS: <span>NONE</span></div>
+    <div class="status-item" id="lastRefresh" style="margin-left:auto">LAST REFRESH: —</div>
+  </div>
+
+  <div class="stat-bar">
+    <div class="stat-card"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
+    <div class="stat-card"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
+    <div class="stat-card"><span class="stat-num" id="sc-chars">—</span><div class="stat-lbl">Characters</div></div>
+    <div class="stat-card"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+  </div>
+
+  <div id="worldContent"><div class="loading">Loading world data</div></div>
+</main>
+
+<!-- ── LTG MODAL ─────────────────────────────────────────────── -->
+<div id="ltgOverlay" class="ltg-overlay" onclick="overlayClick(event)">
+  <div class="ltg-modal" id="ltgModal">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="ltgOrgName"></div>
+        <div class="ltg-modal-sub">Matrix &amp; Telecom Directory</div>
+      </div>
+      <button class="btn btn-red" onclick="closeLTG()" style="align-self:center">✕ Close</button>
+    </div>
+    <div class="ltg-modal-body" id="ltgBody"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let orgStore = {};   // id -> org, populated after fetch
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function tierLabel(n) {
+  return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
+}
+function orgClass(t) { return `oc-${t || 'other'}`; }
+
+// ── LTG Modal ─────────────────────────────────────────────────
+function ratingClass(r) {
+  const color = (r || '').split('-')[0].toLowerCase();
+  return { blue:'r-blue', green:'r-green', orange:'r-orange', red:'r-red', black:'r-black' }[color] || 'r-green';
+}
+
+function buildLTGContent(org) {
+  const ltgs = org.ltgs || [];
+  if (!ltgs.length) return '<div class="ltg-empty">NO NETWORK DATA ON FILE</div>';
+
+  const telecoms = ltgs.filter(e => e.type === 'telecom');
+  const hosts    = ltgs.filter(e => e.type === 'matrix_host');
+  let html = '';
+
+  if (telecoms.length) {
+    html += '<div class="ltg-sec">Telecom Numbers</div>';
+    html += telecoms.map(t => `
+      <div class="ltg-entry">
+        <div>
+          <div class="ltg-number">${esc(t.number)}</div>
+          <div class="ltg-desc">${esc(t.description || '')}</div>
+        </div>
+        <div class="ltg-vis v-${t.visibility || 'listed'}">${t.visibility || 'listed'}</div>
+      </div>`).join('');
+  }
+
+  if (hosts.length) {
+    html += '<div class="ltg-sec">Matrix Hosts</div>';
+    html += hosts.map(h => `
+      <div class="ltg-entry">
+        <div>
+          <div class="ltg-addr">
+            <span class="p-rtg">${esc(h.rtg)}</span>
+            <span class="p-sep"> // </span>
+            <span class="p-ltg">${esc(h.ltg)}</span>
+            ${h.id_code ? `<span class="p-sep"> [</span><span class="p-idcode">${esc(h.id_code)}</span><span class="p-sep">]</span>` : ''}
+          </div>
+          <div class="ltg-desc">${esc(h.description || '')}</div>
+          <div class="ltg-rating ${ratingClass(h.host_rating)}">${esc(h.host_rating || 'UNRATED')}</div>
+          ${h.notes ? `<div class="ltg-host-notes">${esc(h.notes)}</div>` : ''}
+        </div>
+        <div class="ltg-vis v-${h.visibility || 'listed'}">${h.visibility || 'listed'}</div>
+      </div>`).join('');
+  }
+
+  return html;
+}
+
+function openLTG(orgId) {
+  const org = orgStore[orgId];
+  if (!org) return;
+  document.getElementById('ltgOrgName').textContent = org.name;
+  document.getElementById('ltgBody').innerHTML = buildLTGContent(org);
+  document.getElementById('ltgOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLTG() {
+  document.getElementById('ltgOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function overlayClick(e) {
+  // Close only when clicking the backdrop, not the modal panel itself
+  if (e.target === document.getElementById('ltgOverlay')) closeLTG();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLTG(); });
+
+// ── Card Builders ─────────────────────────────────────────────
+function buildOrgCard(org, orgMap) {
+  const allies  = (org.ally_ids  || []).map(id => orgMap[id]?.name).filter(Boolean);
+  const enemies = (org.enemy_ids || []).map(id => orgMap[id]?.name).filter(Boolean);
+  const hasNet  = (org.ltgs || []).length > 0;
+  return `
+    <div class="org-card ${orgClass(org.org_type)}">
+      <div class="oc-head">
+        <div class="oc-name">${esc(org.name)}</div>
+        <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
+      </div>
+      <div class="oc-type">${esc(org.org_type || 'unclassified')}</div>
+      ${org.headquarters ? `<div class="oc-hq">${esc(org.headquarters)}</div>` : ''}
+      ${org.description
+        ? `<div class="oc-desc">${esc(org.description)}</div>`
+        : '<div class="oc-desc" style="color:#333">No public intel available.</div>'}
+      ${(allies.length || enemies.length) ? `
+        <div class="oc-foot">
+          ${allies.length  ? `<span class="rel-ally">▲ ALLIES: ${allies.map(esc).join(', ')}</span>` : ''}
+          ${enemies.length ? `<span class="rel-enemy">▼ HOSTILE: ${enemies.map(esc).join(', ')}</span>` : ''}
+        </div>` : ''}
+      ${hasNet ? `<button class="oc-network-link" onclick="openLTG(${org.id})">&gt; View Network Directory</button>` : ''}
+    </div>`;
+}
+
+function buildLocCard(loc, orgMap) {
+  const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
+  return `
+    <div class="loc-card">
+      <div class="lc-name">${esc(loc.name)}</div>
+      <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
+      ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
+      ${loc.description ? `<div class="lc-desc">${esc(loc.description)}</div>` : ''}
+    </div>`;
+}
+
+function buildCharCard(char) {
+  const meta = [char.metatype, char.archetype, char.nationality].filter(Boolean);
+  return `
+    <div class="char-card ${char.is_pc ? 'is-pc' : ''}">
+      <div class="ch-name">${esc(char.name)}</div>
+      <span class="ch-badge ${char.is_pc ? 'badge-pc' : 'badge-npc'}">${char.is_pc ? 'PC // Runner' : 'NPC'}</span>
+      <div class="ch-meta">
+        ${meta.length ? `<div>${meta.map(esc).join(' / ')}</div>` : ''}
+        ${char.description
+          ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
+          : ''}
+      </div>
+    </div>`;
+}
+
+function section(title, html) {
+  return `<div class="section-head">${esc(title)}</div>${html}<hr class="rule">`;
+}
+
+// ── Org grouping config ───────────────────────────────────────
+const ORG_ORDER  = ['megacorp','government','syndicate','gang','fixer_network','cult','other',''];
+const ORG_LABELS = {
+  megacorp:      'Megacorporate Presence',
+  government:    'Law Enforcement & Government',
+  syndicate:     'Organized Crime — Syndicates',
+  gang:          'Street Gangs',
+  fixer_network: 'Fixer Networks',
+  cult:          'Cults & Fringe Groups',
+  other:         'Other Organizations',
+  '':            'Unclassified',
+};
+
+// ── Main data load ────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [orgsRes, locsRes, charsRes, contactsRes] = await Promise.all([
+      fetch(`${API}/organizations/`),
+      fetch(`${API}/locations/`),
+      fetch(`${API}/characters/`),
+      fetch(`${API}/contacts/`),
+    ]);
+    const [orgs, locs, chars, contacts] = await Promise.all([
+      orgsRes.json(), locsRes.json(), charsRes.json(), contactsRes.json(),
+    ]);
+
+    document.getElementById('sc-orgs').textContent     = orgs.length;
+    document.getElementById('sc-locs').textContent     = locs.length;
+    document.getElementById('sc-chars').textContent    = chars.length;
+    document.getElementById('sc-contacts').textContent = contacts.length;
+    document.getElementById('lastRefresh').textContent =
+      'LAST REFRESH: ' + new Date().toLocaleTimeString();
+
+    const orgMap = Object.fromEntries(orgs.map(o => [o.id, o]));
+    orgStore = orgMap;   // make available to modal
+
+    let html = '';
+
+    const activeOrgs = orgs.filter(o => o.is_active);
+    const byType = {};
+    activeOrgs.forEach(o => { const k = o.org_type || ''; (byType[k] = byType[k] || []).push(o); });
+
+    ORG_ORDER.forEach(type => {
+      const group = byType[type];
+      if (!group?.length) return;
+      group.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
+      html += section(ORG_LABELS[type] || type,
+        `<div class="org-grid">${group.map(o => buildOrgCard(o, orgMap)).join('')}</div>`);
+    });
+
+    if (locs.length)
+      html += section('Known Locations',
+        `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`);
+
+    const pcs  = chars.filter(c =>  c.is_pc);
+    const npcs = chars.filter(c => !c.is_pc);
+    if (pcs.length)  html += section('Runner Team',
+      `<div class="char-grid">${pcs.map(buildCharCard).join('')}</div>`);
+    if (npcs.length) html += section('Known Persons — NPC Roster',
+      `<div class="char-grid">${npcs.map(buildCharCard).join('')}</div>`);
+
+    document.getElementById('worldContent').innerHTML =
+      html || '<div class="loading">No world data found — run the seed script.</div>';
+
+  } catch(e) {
+    document.getElementById('worldContent').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+  }
+}
+
+loadAll();
+
+(function() {
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function tick() {
+    const t = new Date();
+    const srYear = t.getFullYear() + 24;
+    const month  = t.toLocaleString('en-US', { month: 'long' }).toUpperCase();
+    document.getElementById('srDate').textContent    = `${month} ${t.getDate()} ${srYear}`;
+    document.getElementById('liveClock').textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
