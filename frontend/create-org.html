@@ -16,6 +16,7 @@
     <a href="manage-characters.html">Characters</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
   </nav>
 </header>
 
@@ -214,7 +215,17 @@ let leaderCount = 0;
 let telecomCount = 0;
 let hostCount = 0;
 let allOrgs = [];
+let allRTGs = [];
 let editingId = null;  // null = create mode, number = edit mode
+
+// ── Sorting helpers ───────────────────────────────────────────
+const VIS_ORDER = { listed: 0, unlisted: 1, black: 2 };
+const COLOR_ORDER = { blue: 0, green: 1, orange: 2, red: 3, black: 4 };
+function ratingSort(r) {
+  if (!r) return 999;
+  const [color, num] = r.toLowerCase().split('-');
+  return (COLOR_ORDER[color] ?? 5) * 100 + (parseInt(num) || 0);
+}
 
 const TIER_NAMES = {
   1: 'Street Level',
@@ -307,6 +318,24 @@ function addTelecom(data) {
 }
 
 // ── Matrix host table ─────────────────────────────────────────
+function buildRTGOptions(selected) {
+  const opts = allRTGs.map(r =>
+    `<option value="${esc(r.code)}"${r.code === selected ? ' selected' : ''}>${esc(r.code)} — ${esc(r.region || '')}</option>`
+  ).join('');
+  return `<option value="">— Select RTG —</option>${opts}`;
+}
+
+function generateIdCode() {
+  // Collect all id_codes already in the DB (from all loaded orgs) plus any in the current form
+  const existing = new Set();
+  allOrgs.forEach(org => (org.ltgs || []).forEach(l => { if (l.id_code) existing.add(l.id_code.toUpperCase()); }));
+  document.querySelectorAll('#hostBody [data-field="id_code"]').forEach(el => { if (el.value.trim()) existing.add(el.value.trim().toUpperCase()); });
+  const HEX = '0123456789ABCDEF';
+  let code;
+  do { code = Array.from({ length: 5 }, () => HEX[Math.floor(Math.random() * 16)]).join(''); } while (existing.has(code));
+  return code;
+}
+
 function addHost(data) {
   const tbody = document.getElementById('hostBody');
   document.getElementById('emptyHost')?.remove();
@@ -314,14 +343,15 @@ function addHost(data) {
   const id = `host_${hostCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
+  const idCode = data?.id_code || generateIdCode();
   const selVis = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
-  const selRtg = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
+  const selRating = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
   tr.innerHTML = `
-    <td><input type="text" placeholder="NA/UCAS-SEA" data-field="rtg" value="${esc(data?.rtg||'')}" style="width:120px"></td>
-    <td><input type="text" placeholder="SEA" data-field="ltg" value="${esc(data?.ltg||'')}" style="width:80px"></td>
-    <td><input type="text" placeholder="AZT-EXEC" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:100px"></td>
+    <td><select data-field="rtg" style="min-width:160px">${buildRTGOptions(data?.rtg||'')}</select></td>
+    <td><input type="text" placeholder="SEA" data-field="ltg" value="${esc(data?.ltg||'')}" style="width:70px"></td>
+    <td><input type="text" data-field="id_code" value="${esc(idCode)}" style="width:105px;color:var(--text-dim)" readonly title="Auto-generated unique ID"></td>
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
-    <td><select data-field="host_rating" style="width:110px">${selRtg}</select></td>
+    <td><select data-field="host_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
     <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>
   `;
@@ -361,9 +391,16 @@ function getLeadership() {
 
 function getLTGs() {
   const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility'])
-    .map(t => ({ type: 'telecom', ...t }));
+    .map(t => ({ type: 'telecom', ...t }))
+    .sort((a, b) => (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9));
+
   const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','host_rating','visibility'])
-    .map(h => ({ type: 'matrix_host', ...h }));
+    .map(h => ({ type: 'matrix_host', ...h }))
+    .sort((a, b) => {
+      const vd = (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9);
+      return vd !== 0 ? vd : ratingSort(a.host_rating) - ratingSort(b.host_rating);
+    });
+
   return [...telecoms, ...hosts];
 }
 
@@ -371,6 +408,16 @@ function getChecked(containerId) {
   return Array.from(
     document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
   ).map(cb => parseInt(cb.value));
+}
+
+// ── RTG list ──────────────────────────────────────────────────
+async function loadRTGs() {
+  try {
+    const res = await fetch(`${API}/rtgs/`);
+    allRTGs = (await res.json()).sort((a, b) => a.code.localeCompare(b.code));
+  } catch(e) {
+    console.warn('Could not load RTGs:', e.message);
+  }
 }
 
 // ── Org list (for selector and checkboxes) ────────────────────
@@ -563,7 +610,7 @@ document.getElementById('orgForm').addEventListener('submit', async e => {
 
 // ── Init ──────────────────────────────────────────────────────
 (async function init() {
-  await loadOrgs();
+  await Promise.all([loadOrgs(), loadRTGs()]);
   document.getElementById('orgSelectorWrap').style.display = '';
 
   // Check URL for ?id= param

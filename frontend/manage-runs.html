@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adventure Logs | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .run-card {
+      background: var(--bg-card);
+      border: 1px solid #111;
+      border-left: 3px solid var(--text-dim);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .run-card:hover { border-color: #2a3a2a; border-left-color: inherit; }
+    .run-card.outcome-success        { border-left-color: var(--green)  !important; }
+    .run-card.outcome-partial_success{ border-left-color: var(--amber)  !important; }
+    .run-card.outcome-failure,
+    .run-card.outcome-critical_failure{ border-left-color: var(--red)   !important; }
+    .run-card.outcome-abandoned      { border-left-color: var(--text-dim)!important; }
+
+    .run-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+    .run-title { font-size: 0.92rem; color: var(--text-bright); letter-spacing: 1px; }
+    .run-meta  { font-size: 0.65rem; letter-spacing: 1px; color: var(--text-dim); }
+    .run-outcome {
+      font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase;
+      padding: 2px 8px; border: 1px solid;
+    }
+    .out-success         { color: var(--green); border-color: #003300; }
+    .out-partial_success { color: var(--amber); border-color: #331a00; }
+    .out-failure,
+    .out-critical_failure{ color: var(--red);   border-color: #330000; }
+    .out-abandoned       { color: var(--text-dim); border-color: #222; }
+
+    .run-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #1a1a1a; font-size: 0.78rem; line-height: 1.6; }
+    .run-detail.open { display: block; }
+    .run-detail-label { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-top: 10px; margin-bottom: 2px; }
+
+    /* AI parse panel */
+    .parse-panel { background: #0a0a0a; border: 1px solid #1a2a1a; padding: 20px; margin-top: 20px; }
+    .change-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; border: 1px solid #111; margin-bottom: 6px;
+      background: #0d0d0d;
+    }
+    .change-item label { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; width: 100%; }
+    .change-item input[type=checkbox] { margin-top: 2px; accent-color: var(--green); flex-shrink: 0; }
+    .change-type {
+      font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase;
+      padding: 2px 7px; border: 1px solid; white-space: nowrap; flex-shrink: 0;
+    }
+    .ct-nuyen           { color: var(--green-dim); border-color: var(--green-dark); }
+    .ct-street_cred     { color: var(--cyan);      border-color: #003344; }
+    .ct-notoriety       { color: var(--red);        border-color: #330000; }
+    .ct-public_awareness{ color: var(--amber);      border-color: #331a00; }
+    .ct-org_standing    { color: var(--purple);     border-color: #2a0044; }
+    .change-desc { font-size: 0.8rem; color: var(--text); }
+    .change-reason { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+    .change-delta-pos { color: var(--green-dim); font-weight: bold; }
+    .change-delta-neg { color: var(--red);       font-weight: bold; }
+
+    .extracted-field { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 10px 14px; margin-bottom: 8px; }
+    .extracted-label { font-size: 0.6rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
+    .extracted-value { font-size: 0.82rem; color: var(--text-bright); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="create-org.html">Organizations</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html" class="active">Runs</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Adventure Logs <em style="font-style:normal;color:var(--text-dim)">//</em> Run History</div>
+  <div class="page-sub">GM EYES ONLY — RESTRICTED OPERATIONAL RECORDS</div>
+
+  <div id="globalAlert" class="alert"></div>
+
+  <!-- ── New Run Section ──────────────────────────────────── -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="section-head" style="margin:0;border:none">Log a New Run</div>
+    <button class="sec-toggle" id="newRunToggle" onclick="toggleNewRun()" style="font-size:0.8rem;padding:4px 10px;border:1px solid #1a2a1a;color:var(--green)">[+] New Run</button>
+  </div>
+
+  <div id="newRunPanel" style="display:none;margin-bottom:32px">
+    <!-- Mode toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn" id="modeAI"     onclick="setMode('ai')"     style="border-color:var(--green);color:var(--green)">AI Parse from Narrative</button>
+      <button class="btn" id="modeManual" onclick="setMode('manual')" style="border-color:#222;color:var(--text-dim)">Manual Entry</button>
+    </div>
+
+    <!-- ── AI Mode ─────────────────────────────────────────── -->
+    <div id="aiMode">
+      <div class="field" style="margin-bottom:14px">
+        <label>Session Date</label>
+        <input type="date" id="ai-date" style="max-width:200px">
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>GM Narrative — describe what happened during the run</label>
+        <textarea id="aiNarrative" rows="8"
+          placeholder="The team accepted a job from Mr. Johnson — a well-dressed corp type — to extract a researcher from Aztechnology's Bellevue campus. The payout was ¥15,000 per runner...&#10;&#10;Describe the run: who hired them, the terms, what the objectives were, what actually happened, notable events, injuries, witnesses, etc."></textarea>
+      </div>
+      <button class="btn btn-green" id="parseBtn" onclick="parseNarrative()">&gt;&gt; Parse with AI</button>
+      <div id="parseSpinner" style="display:none;margin-top:10px;color:var(--text-dim);font-size:.8rem;letter-spacing:2px">TRANSMITTING TO MATRIX... STAND BY</div>
+
+      <!-- Parsed results -->
+      <div id="parseResults" style="display:none;margin-top:20px">
+        <div class="section-head" style="margin-bottom:12px">Extracted Run Data</div>
+        <div class="grid2" style="margin-bottom:16px">
+          <div class="extracted-field"><div class="extracted-label">Title</div><div class="extracted-value" id="pr-title">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Outcome</div><div class="extracted-value" id="pr-outcome">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Objective</div><div class="extracted-value" id="pr-objective">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Employer</div><div class="extracted-value" id="pr-employer">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Result</div><div class="extracted-value" id="pr-result">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Payout</div><div class="extracted-value" id="pr-payout">—</div></div>
+        </div>
+
+        <div class="section-head" style="margin-bottom:12px">Proposed World Changes
+          <span style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;font-weight:normal;margin-left:8px">Check the changes you want to apply</span>
+        </div>
+        <div id="changesList"></div>
+
+        <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+          <button class="btn btn-green" onclick="applyAndLog()" style="flex:1">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
+          <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="cancelParse()">Discard</button>
+        </div>
+        <div id="applyAlert" class="alert" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- ── Manual Mode ─────────────────────────────────────── -->
+    <div id="manualMode" style="display:none">
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Title *</label>
+          <input type="text" id="m-title" placeholder="The Aztechnology Extraction...">
+        </div>
+        <div class="field">
+          <label>Session Date *</label>
+          <input type="date" id="m-date">
+        </div>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Run Number</label>
+          <input type="number" id="m-run_number" placeholder="1" min="1">
+        </div>
+        <div class="field">
+          <label>Outcome</label>
+          <select id="m-outcome">
+            <option value="">— Unknown —</option>
+            <option value="success">Success</option>
+            <option value="partial_success">Partial Success</option>
+            <option value="failure">Failure</option>
+            <option value="critical_failure">Critical Failure</option>
+            <option value="abandoned">Abandoned</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Objective</label>
+        <textarea id="m-objective" rows="2" placeholder="What the team was hired to do..."></textarea>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Result</label>
+        <textarea id="m-result" rows="3" placeholder="What actually happened..."></textarea>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Payout</label>
+          <input type="text" id="m-payout" placeholder="¥10,000 per runner">
+        </div>
+        <div class="field">
+          <label>Casualties / Injuries</label>
+          <input type="text" id="m-casualties" placeholder="Minor wounds, one contact burned...">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>GM Notes (not visible to players)</label>
+        <textarea id="m-gm_notes" rows="3" placeholder="Hidden plot threads, NPC motivations, loose ends..."></textarea>
+      </div>
+
+      <!-- Participants / Locations / Orgs -->
+      <div class="grid3" style="margin-bottom:14px">
+        <div class="field">
+          <label>Participants</label>
+          <div class="chk-list" id="m-participants" style="max-height:120px"></div>
+        </div>
+        <div class="field">
+          <label>Locations</label>
+          <div class="chk-list" id="m-locations" style="max-height:120px"></div>
+        </div>
+        <div class="field">
+          <label>Organizations Involved</label>
+          <div class="chk-list" id="m-orgs" style="max-height:120px"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-green btn-submit" onclick="submitManual()">&gt;&gt; Create Run Log</button>
+      <div id="manualAlert" class="alert" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ── Existing Runs ────────────────────────────────────── -->
+  <div class="section-head" style="margin-bottom:16px">Run History</div>
+  <div id="runsList"><div class="loading">Loading run history</div></div>
+</main>
+
+<script>
+const API = '';
+let parsedData = null;
+let allChars = [], allLocs = [], allOrgs = [];
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ── UI helpers ────────────────────────────────────────────────
+function toggleNewRun() {
+  const panel = document.getElementById('newRunPanel');
+  const btn   = document.getElementById('newRunToggle');
+  const open  = panel.style.display === 'none';
+  panel.style.display = open ? '' : 'none';
+  btn.textContent = open ? '[–] Close' : '[+] New Run';
+  btn.style.color = open ? 'var(--red)' : 'var(--green)';
+}
+
+function setMode(mode) {
+  document.getElementById('aiMode').style.display     = mode === 'ai'     ? '' : 'none';
+  document.getElementById('manualMode').style.display = mode === 'manual' ? '' : 'none';
+  document.getElementById('modeAI').style.borderColor     = mode === 'ai'     ? 'var(--green)' : '#222';
+  document.getElementById('modeAI').style.color           = mode === 'ai'     ? 'var(--green)' : 'var(--text-dim)';
+  document.getElementById('modeManual').style.borderColor = mode === 'manual' ? 'var(--amber)' : '#222';
+  document.getElementById('modeManual').style.color       = mode === 'manual' ? 'var(--amber)' : 'var(--text-dim)';
+}
+
+// ── AI parse flow ─────────────────────────────────────────────
+async function parseNarrative() {
+  const narrative = document.getElementById('aiNarrative').value.trim();
+  if (!narrative) return;
+
+  document.getElementById('parseBtn').disabled = true;
+  document.getElementById('parseSpinner').style.display = '';
+  document.getElementById('parseResults').style.display = 'none';
+
+  try {
+    const res = await fetch(`${API}/runs/parse-narrative`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ narrative }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    parsedData = await res.json();
+    renderParsedResults(parsedData);
+    document.getElementById('parseResults').style.display = '';
+  } catch(e) {
+    showAlert(document.getElementById('applyAlert'), `>> PARSE FAILED // ${e.message}`, true);
+    document.getElementById('parseResults').style.display = '';
+  } finally {
+    document.getElementById('parseBtn').disabled = false;
+    document.getElementById('parseSpinner').style.display = 'none';
+  }
+}
+
+function renderParsedResults(data) {
+  document.getElementById('pr-title').textContent    = data.title    || '—';
+  document.getElementById('pr-outcome').textContent  = (data.outcome || '—').replace(/_/g,' ').toUpperCase();
+  document.getElementById('pr-objective').textContent= data.objective || '—';
+  document.getElementById('pr-employer').textContent = data.employer  || '—';
+  document.getElementById('pr-result').textContent   = data.result    || '—';
+  document.getElementById('pr-payout').textContent   = data.payout    || '—';
+
+  const changes = data.proposed_changes || [];
+  const list = document.getElementById('changesList');
+  if (!changes.length) {
+    list.innerHTML = '<div style="color:var(--text-dim);font-size:.8rem;padding:10px">No world-state changes proposed.</div>';
+    return;
+  }
+  list.innerHTML = changes.map((c, i) => {
+    const deltaClass = c.delta >= 0 ? 'change-delta-pos' : 'change-delta-neg';
+    const deltaStr   = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;
+    let label = '';
+    if (c.type === 'nuyen') label = `¥${Math.abs(c.delta).toLocaleString()} ${c.delta >= 0 ? 'received' : 'lost'}`;
+    else if (c.type === 'org_standing') label = `${c.org_name || 'org'} standing ${deltaStr}`;
+    else label = `${c.type.replace(/_/g,' ')} ${deltaStr}`;
+    return `
+      <div class="change-item">
+        <label>
+          <input type="checkbox" id="ch-${i}" data-idx="${i}" checked>
+          <div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:3px">
+              <span class="change-type ct-${c.type}">${c.type.replace(/_/g,' ')}</span>
+              <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> — <span class="${deltaClass}">${label}</span></span>
+            </div>
+            <div class="change-reason">${esc(c.reason || '')}</div>
+          </div>
+        </label>
+      </div>`;
+  }).join('');
+  document.getElementById('applyAlert').className = 'alert';
+}
+
+function cancelParse() {
+  parsedData = null;
+  document.getElementById('parseResults').style.display = 'none';
+  document.getElementById('aiNarrative').value = '';
+  document.getElementById('applyAlert').className = 'alert';
+}
+
+async function applyAndLog() {
+  if (!parsedData) return;
+
+  // Collect checked changes
+  const allChanges = parsedData.proposed_changes || [];
+  const selected = allChanges.filter((_, i) => {
+    const cb = document.getElementById(`ch-${i}`);
+    return cb && cb.checked;
+  });
+
+  // Apply world changes
+  if (selected.length) {
+    try {
+      const res = await fetch(`${API}/runs/apply-changes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changes: selected }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || JSON.stringify(err));
+      }
+      const result = await res.json();
+      if (result.errors?.length) {
+        console.warn('Apply errors:', result.errors);
+      }
+    } catch(e) {
+      showAlert(document.getElementById('applyAlert'), `>> APPLY FAILED // ${e.message}`, true);
+      return;
+    }
+  }
+
+  // Create the adventure log entry
+  const dateVal = document.getElementById('ai-date').value || today();
+  const payload = {
+    title:       parsedData.title       || 'Untitled Run',
+    session_date: dateVal,
+    objective:   parsedData.objective   || '',
+    result:      parsedData.result      || '',
+    outcome:     parsedData.outcome     || null,
+    payout:      parsedData.payout      || null,
+    outcome_tags: parsedData.outcome_tags || [],
+    gm_notes:    document.getElementById('aiNarrative').value.trim(),
+    participant_ids: [],
+    location_ids: [],
+    org_ids: [],
+  };
+
+  try {
+    const res = await fetch(`${API}/runs/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    showAlert(document.getElementById('globalAlert'), `>> RUN LOGGED // "${payload.title}" — changes applied.`, false);
+    cancelParse();
+    toggleNewRun();
+    await loadRuns();
+  } catch(e) {
+    showAlert(document.getElementById('applyAlert'), `>> LOG FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Manual entry ──────────────────────────────────────────────
+function getChecked(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`))
+    .map(cb => parseInt(cb.value));
+}
+
+async function submitManual() {
+  const title = document.getElementById('m-title').value.trim();
+  const date  = document.getElementById('m-date').value;
+  const obj   = document.getElementById('m-objective').value.trim();
+  const res_  = document.getElementById('m-result').value.trim();
+  if (!title || !date || !obj || !res_) {
+    showAlert(document.getElementById('manualAlert'), 'Title, date, objective, and result are required.', true);
+    return;
+  }
+  const payload = {
+    title, session_date: date,
+    run_number:  parseInt(document.getElementById('m-run_number').value) || null,
+    outcome:     document.getElementById('m-outcome').value || null,
+    objective:   obj,
+    result:      res_,
+    payout:      document.getElementById('m-payout').value.trim() || null,
+    casualties:  document.getElementById('m-casualties').value.trim() || null,
+    gm_notes:    document.getElementById('m-gm_notes').value.trim() || null,
+    outcome_tags: [],
+    participant_ids: getChecked('m-participants'),
+    location_ids:    getChecked('m-locations'),
+    org_ids:         getChecked('m-orgs'),
+  };
+  try {
+    const r = await fetch(`${API}/runs/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    showAlert(document.getElementById('globalAlert'), `>> RUN LOGGED // "${title}" created.`, false);
+    toggleNewRun();
+    await loadRuns();
+  } catch(e) {
+    showAlert(document.getElementById('manualAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Run list ──────────────────────────────────────────────────
+function outcomeClass(o) {
+  return { success:'out-success', partial_success:'out-partial_success', failure:'out-failure',
+           critical_failure:'out-critical_failure', abandoned:'out-abandoned' }[o] || 'out-abandoned';
+}
+
+function renderRuns(runs) {
+  const el = document.getElementById('runsList');
+  if (!runs.length) {
+    el.innerHTML = '<div class="loading">No runs logged yet</div>';
+    return;
+  }
+  el.innerHTML = runs.map(r => `
+    <div class="run-card outcome-${r.outcome||''}">
+      <div class="run-head" onclick="toggleRunDetail('rd-${r.id}')">
+        <div>
+          <div class="run-title">${r.run_number ? `#${r.run_number} — ` : ''}${esc(r.title)}</div>
+          <div class="run-meta">${r.session_date}</div>
+        </div>
+        <span class="run-outcome ${outcomeClass(r.outcome)}">${(r.outcome||'unknown').replace(/_/g,' ')}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function loadRuns() {
+  try {
+    const res = await fetch(`${API}/runs/`);
+    renderRuns(await res.json());
+  } catch(e) {
+    document.getElementById('runsList').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+  }
+}
+
+// ── World data for manual form ────────────────────────────────
+async function loadWorldData() {
+  try {
+    const [cr, lr, or_] = await Promise.all([
+      fetch(`${API}/characters/`), fetch(`${API}/locations/`), fetch(`${API}/organizations/`),
+    ]);
+    allChars = await cr.json();
+    allLocs  = await lr.json();
+    allOrgs  = await or_.json();
+
+    document.getElementById('m-participants').innerHTML =
+      allChars.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}"><span>${esc(c.name)} <span style="color:var(--text-dim);font-size:.7rem">[${c.is_pc?'PC':'NPC'}]</span></span></label>`).join('');
+    document.getElementById('m-locations').innerHTML =
+      allLocs.map(l => `<label class="chk-item"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('');
+    document.getElementById('m-orgs').innerHTML =
+      allOrgs.map(o => `<label class="chk-item"><input type="checkbox" value="${o.id}"><span>${esc(o.name)}</span></label>`).join('');
+  } catch(e) { console.warn('Could not load world data for manual form:', e.message); }
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.getElementById('ai-date').value  = today();
+document.getElementById('m-date').value   = today();
+setMode('ai');
+loadRuns();
+loadWorldData();
+</script>
+</body>
+</html>
