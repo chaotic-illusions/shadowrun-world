@@ -33,6 +33,7 @@ class Character(Base):
 
     karma_total = Column(Integer, default=0)
     karma_current = Column(Integer, default=0)
+    nuyen = Column(Integer, default=0)
 
     is_active = Column(Boolean, default=True)
     notes = Column(Text)
