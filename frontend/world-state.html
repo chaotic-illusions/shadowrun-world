@@ -71,7 +71,7 @@ function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
 function orgClass(t) { return `oc-${t || 'other'}`; }
-function fmt¥(n) { return '¥' + Number(n || 0).toLocaleString(); }
+function fmtNuyen(n) { return '¥' + Number(n || 0).toLocaleString(); }
 
 // ── Section collapse state ────────────────────────────────────
 const collapsed = {};
@@ -192,7 +192,7 @@ function buildLocCard(loc, orgMap) {
 
 function buildCharCard(char) {
   const meta = [char.metatype || char.race, char.archetype, char.nationality].filter(Boolean);
-  const nuyenStr = char.nuyen != null ? fmt¥(char.nuyen) : null;
+  const nuyenStr = char.nuyen != null ? fmtNuyen(char.nuyen) : null;
   const karmaStr = char.karma_current != null ? `${char.karma_current} karma` : null;
   return `
     <div class="char-card ${char.is_pc ? 'is-pc' : ''}">
