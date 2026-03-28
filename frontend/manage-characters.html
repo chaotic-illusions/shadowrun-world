@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Characters | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="create-org.html">Organizations</a>
+    <a href="manage-characters.html" class="active">Characters</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Personnel Registry <em style="font-style:normal;color:var(--text-dim)">//</em> Runners &amp; Known Persons</div>
+  <div class="page-sub">DOSSIER FILES — PCs &amp; NPCs — RESTRICTED INTEL</div>
+
+  <div id="alert" class="alert"></div>
+
+  <!-- Party nuyen summary (PCs only) -->
+  <div id="partyBar" class="status-bar" style="margin-bottom:24px;display:none">
+    <div class="status-item">RUNNER TEAM NUYEN TOTAL: <span id="partyNuyen" style="color:var(--green)">¥0</span></div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;gap:10px;align-items:center">
+      <input type="text" id="filterInput" placeholder="Filter by name or archetype..." style="width:260px" oninput="applyFilter()">
+      <select id="filterType" onchange="applyFilter()" style="width:130px">
+        <option value="">All</option>
+        <option value="pc">PCs Only</option>
+        <option value="npc">NPCs Only</option>
+      </select>
+    </div>
+    <button class="btn btn-green" onclick="openModal()">+ New Character</button>
+  </div>
+
+  <div id="tableWrap">
+    <div class="loading">Loading characters</div>
+  </div>
+</main>
+
+<!-- ── EDIT MODAL ─────────────────────────────────────── -->
+<div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
+  <div class="edit-modal" style="max-width:720px">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">New Character</div>
+      <button class="btn btn-red" onclick="closeModal()">✕</button>
+    </div>
+    <div class="edit-modal-body">
+      <div id="modalAlert" class="alert"></div>
+
+      <!-- Core -->
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Name *</label>
+          <input type="text" id="f-name" placeholder="Razor, Static...">
+        </div>
+        <div class="field">
+          <label>Archetype</label>
+          <select id="f-archetype">
+            <option value="">— Unknown —</option>
+            <option value="Street Samurai">Street Samurai</option>
+            <option value="Decker">Decker</option>
+            <option value="Mage">Mage</option>
+            <option value="Shaman">Shaman</option>
+            <option value="Rigger">Rigger</option>
+            <option value="Face">Face</option>
+            <option value="Adept">Adept</option>
+            <option value="Technomancer">Technomancer</option>
+            <option value="Fixer">Fixer</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid3" style="margin-bottom:14px">
+        <div class="field">
+          <label>Race / Metatype</label>
+          <select id="f-race">
+            <option value="Human">Human</option>
+            <option value="Elf">Elf</option>
+            <option value="Dwarf">Dwarf</option>
+            <option value="Ork">Ork</option>
+            <option value="Troll">Troll</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Gender</label>
+          <input type="text" id="f-gender" placeholder="Male, Female, Non-binary...">
+        </div>
+        <div class="field">
+          <label>Age</label>
+          <input type="number" id="f-age" placeholder="28" min="1" max="200">
+        </div>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Type</label>
+          <div class="toggle-wrap" style="padding-top:6px">
+            <label class="toggle">
+              <input type="checkbox" id="f-is_pc" checked onchange="updatePCLabel()">
+              <span class="tog-sl"></span>
+            </label>
+            <span class="tog-label" id="pcLabel">PC // Runner</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Active</label>
+          <div class="toggle-wrap" style="padding-top:6px">
+            <label class="toggle">
+              <input type="checkbox" id="f-is_active" checked>
+              <span class="tog-sl"></span>
+            </label>
+            <span class="tog-label">Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Finances & Karma -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">Finances &amp; Advancement</div>
+      <div class="grid3" style="margin-bottom:14px">
+        <div class="field">
+          <label>Nuyen (¥)</label>
+          <input type="number" id="f-nuyen" placeholder="0" min="0">
+        </div>
+        <div class="field">
+          <label>Karma Total</label>
+          <input type="number" id="f-karma_total" placeholder="0" min="0">
+        </div>
+        <div class="field">
+          <label>Karma Available</label>
+          <input type="number" id="f-karma_current" placeholder="0" min="0">
+        </div>
+      </div>
+
+      <!-- Description -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">Profile</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Description</label>
+        <textarea id="f-description" rows="3" placeholder="Physical appearance, manner, street rep..."></textarea>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Background (GM Only)</label>
+        <textarea id="f-background" rows="3" placeholder="History, motivations, secrets..."></textarea>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="f-notes" rows="2" placeholder="Current situation, loose ends..."></textarea>
+      </div>
+    </div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green" style="flex:1" onclick="saveChar()">&gt;&gt; Save Entry</button>
+      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteChar()">&gt;&gt; Delete</button>
+      <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let allChars = [];
+let editingId = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+
+function updatePCLabel() {
+  const isPC = document.getElementById('f-is_pc').checked;
+  document.getElementById('pcLabel').textContent = isPC ? 'PC // Runner' : 'NPC';
+}
+
+// ── Render table ──────────────────────────────────────────────
+function renderTable(data) {
+  const wrap = document.getElementById('tableWrap');
+
+  // Update party nuyen bar
+  const pcs = data.filter(c => c.is_pc);
+  const partyTotal = pcs.reduce((s, c) => s + (c.nuyen || 0), 0);
+  const partyBar = document.getElementById('partyBar');
+  if (pcs.length) {
+    partyBar.style.display = '';
+    document.getElementById('partyNuyen').textContent = '¥' + partyTotal.toLocaleString();
+  } else {
+    partyBar.style.display = 'none';
+  }
+
+  if (!data.length) {
+    wrap.innerHTML = '<div class="loading">No characters found</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="manage-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Archetype</th>
+          <th>Race</th>
+          <th>Nuyen ¥</th>
+          <th>Karma</th>
+          <th>Status</th>
+          <th class="td-act"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(c => `
+          <tr>
+            <td style="color:var(--text-bright)">${esc(c.name)}</td>
+            <td><span class="ch-badge ${c.is_pc ? 'badge-pc' : 'badge-npc'}" style="display:inline-block">${c.is_pc ? 'PC' : 'NPC'}</span></td>
+            <td style="color:var(--text-dim)">${esc(c.archetype||'—')}</td>
+            <td style="color:var(--text-dim);font-size:.75rem">${esc(c.race||'—')}</td>
+            <td style="color:${c.is_pc ? 'var(--green-dim)' : 'var(--text-dim)'};font-size:.78rem">¥${(c.nuyen||0).toLocaleString()}</td>
+            <td style="color:var(--amber);font-size:.75rem">${c.karma_current ?? 0} / ${c.karma_total ?? 0}</td>
+            <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
+            <td class="td-act"><button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function applyFilter() {
+  const q = document.getElementById('filterInput').value.toLowerCase();
+  const t = document.getElementById('filterType').value;
+  const filtered = allChars.filter(c =>
+    (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q)) &&
+    (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc))
+  );
+  renderTable(filtered);
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+function openModal(id) {
+  editingId = id || null;
+  const ch = id ? allChars.find(c => c.id === id) : null;
+  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Character';
+  document.getElementById('deleteBtn').style.display = ch ? '' : 'none';
+  document.getElementById('modalAlert').className = 'alert';
+
+  document.getElementById('f-name').value         = ch?.name || '';
+  document.getElementById('f-archetype').value    = ch?.archetype || '';
+  document.getElementById('f-race').value         = ch?.race || 'Human';
+  document.getElementById('f-gender').value       = ch?.gender || '';
+  document.getElementById('f-age').value          = ch?.age ?? '';
+  document.getElementById('f-is_pc').checked      = ch?.is_pc !== false;
+  document.getElementById('f-is_active').checked  = ch?.is_active !== false;
+  document.getElementById('f-nuyen').value        = ch?.nuyen ?? 0;
+  document.getElementById('f-karma_total').value  = ch?.karma_total ?? 0;
+  document.getElementById('f-karma_current').value= ch?.karma_current ?? 0;
+  document.getElementById('f-description').value  = ch?.description || '';
+  document.getElementById('f-background').value   = ch?.background || '';
+  document.getElementById('f-notes').value        = ch?.notes || '';
+  updatePCLabel();
+
+  document.getElementById('editOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('editOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('editOverlay')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function saveChar() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
+
+  const payload = {
+    name,
+    archetype:     document.getElementById('f-archetype').value || null,
+    race:          document.getElementById('f-race').value || 'Human',
+    gender:        document.getElementById('f-gender').value.trim() || null,
+    age:           parseInt(document.getElementById('f-age').value) || null,
+    is_pc:         document.getElementById('f-is_pc').checked,
+    is_active:     document.getElementById('f-is_active').checked,
+    nuyen:         parseInt(document.getElementById('f-nuyen').value) || 0,
+    karma_total:   parseInt(document.getElementById('f-karma_total').value) || 0,
+    karma_current: parseInt(document.getElementById('f-karma_current').value) || 0,
+    description:   document.getElementById('f-description').value.trim() || null,
+    background:    document.getElementById('f-background').value.trim() || null,
+    notes:         document.getElementById('f-notes').value.trim() || null,
+  };
+
+  try {
+    const url    = editingId ? `${API}/characters/${editingId}` : `${API}/characters/`;
+    const method = editingId ? 'PATCH' : 'POST';
+    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: res.statusText}));
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    closeModal();
+    showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // "${name}" saved.`, false);
+    await loadChars();
+  } catch(e) {
+    showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
+async function deleteChar() {
+  if (!editingId) return;
+  const name = document.getElementById('f-name').value;
+  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/characters/${editingId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    closeModal();
+    showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
+    await loadChars();
+  } catch(e) {
+    showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Load data ─────────────────────────────────────────────────
+async function loadChars() {
+  try {
+    const res = await fetch(`${API}/characters/`);
+    if (!res.ok) throw new Error(res.statusText);
+    allChars = await res.json();
+    applyFilter();
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+  }
+}
+
+loadChars();
+</script>
+</body>
+</html>

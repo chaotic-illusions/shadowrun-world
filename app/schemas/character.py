@@ -18,6 +18,7 @@ class CharacterBase(BaseModel):
     gear: list[dict[str, Any]] = []
     karma_total: int = 0
     karma_current: int = 0
+    nuyen: int = 0
     is_active: bool = True
     notes: Optional[str] = None
 
@@ -41,6 +42,7 @@ class CharacterUpdate(BaseModel):
     gear: Optional[list[dict[str, Any]]] = None
     karma_total: Optional[int] = None
     karma_current: Optional[int] = None
+    nuyen: Optional[int] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 

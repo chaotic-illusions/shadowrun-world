@@ -556,6 +556,151 @@ select option { background: #090909; }
   text-shadow: var(--glow-green);
 }
 
+/* ── SECTION TOGGLES & MANAGE LINKS ────────────────── */
+.sec-toggle {
+  font-family: var(--font);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  letter-spacing: 1px;
+  transition: color .15s;
+}
+.sec-toggle:hover { color: var(--amber); }
+
+.sec-manage-link {
+  font-size: 0.62rem;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid #1a1a1a;
+  text-transform: uppercase;
+  transition: all .15s;
+  margin-right: 4px;
+}
+.sec-manage-link:hover {
+  color: var(--amber);
+  border-color: #442200;
+  background: rgba(255,153,0,.05);
+}
+
+/* Org card edit link */
+.oc-edit-link {
+  font-size: 0.58rem;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 1px 6px;
+  border: 1px solid #1a1a1a;
+  text-transform: uppercase;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.oc-edit-link:hover {
+  color: var(--amber);
+  border-color: #442200;
+}
+
+/* Stat bar 5-column layout */
+.stat-bar { grid-template-columns: repeat(5, 1fr); }
+
+/* Character nuyen/karma finance line */
+.ch-finance {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--green-dim);
+  letter-spacing: 1px;
+}
+
+/* ── MANAGE PAGES (RTGs / Locations / Characters) ─── */
+.manage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.manage-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 0.62rem;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  border-bottom: 1px solid #1a2a1a;
+  white-space: nowrap;
+}
+.manage-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #0f0f0f;
+  vertical-align: middle;
+}
+.manage-table tr:hover td { background: rgba(0,255,65,.02); }
+.manage-table .td-act { white-space: nowrap; }
+
+/* Generic edit modal (manage pages) */
+.edit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.82);
+  backdrop-filter: blur(3px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+}
+.edit-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.edit-modal {
+  background: #060606;
+  border: 1px solid var(--amber);
+  box-shadow: 0 0 60px rgba(255,153,0,.1);
+  width: 90%;
+  max-width: 640px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(14px);
+  transition: transform .25s;
+}
+.edit-overlay.open .edit-modal { transform: translateY(0); }
+.edit-modal-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid #2a1a00;
+  background: #040404;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.edit-modal-title {
+  font-size: 0.88rem;
+  color: var(--amber);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.edit-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.edit-modal-body::-webkit-scrollbar { width: 4px; }
+.edit-modal-body::-webkit-scrollbar-track { background: #040404; }
+.edit-modal-body::-webkit-scrollbar-thumb { background: #331a00; }
+.edit-modal-foot {
+  padding: 12px 20px;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #040404; }

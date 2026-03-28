@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Create Organization | Shadowrun World Engine</title>
+  <title>Organization | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,13 +12,28 @@
   <div class="logo">Shadowrun <em>//</em> World Engine</div>
   <nav>
     <a href="world-state.html">World State</a>
-    <a href="create-org.html" class="active">+ Organization</a>
+    <a href="create-org.html" class="active">Organizations</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> New Entry</div>
+  <div class="page-title" id="pageTitle">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="pageTitleMode">New Entry</span></div>
   <div class="page-sub">CLASSIFICATION: RESTRICTED &nbsp;|&nbsp; ENTER ALL KNOWN INTEL BELOW</div>
+
+  <!-- Existing org selector (shown when not editing a specific org) -->
+  <div id="orgSelectorWrap" style="margin-bottom:24px;display:none">
+    <div class="section-head">Select Organization to Edit</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <select id="orgSelector" style="max-width:400px" onchange="loadOrgForEdit(this.value)">
+        <option value="">— Select an existing organization —</option>
+      </select>
+      <button class="btn btn-green" onclick="resetForm()">+ New Organization</button>
+    </div>
+    <hr class="rule">
+  </div>
 
   <div id="alert" class="alert"></div>
 
@@ -130,10 +145,64 @@
       </div>
     </div>
 
+    <!-- ── LTG NETWORK ── -->
+    <hr class="rule">
+    <div class="section-head">LTG Network Directory</div>
+
+    <div style="margin-bottom:18px">
+      <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
+      <div style="margin-bottom:8px">
+        <button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button>
+      </div>
+      <div class="lead-wrap">
+        <table class="lead-table" id="telecomTable">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Description</th>
+              <th>Visibility</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="telecomBody">
+            <tr id="emptyTelecom"><td colspan="4" class="empty-lead">No telecom numbers</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
+      <div style="margin-bottom:8px">
+        <button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button>
+      </div>
+      <div class="lead-wrap">
+        <table class="lead-table" id="hostTable">
+          <thead>
+            <tr>
+              <th>RTG</th>
+              <th>LTG</th>
+              <th>ID Code</th>
+              <th>Description</th>
+              <th>Rating</th>
+              <th>Visibility</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="hostBody">
+            <tr id="emptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ── SUBMIT ── -->
     <hr class="rule">
     <div id="alertBottom" class="alert"></div>
-    <button type="submit" class="btn btn-green btn-submit">&gt;&gt; SUBMIT TO DATABASE</button>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button type="submit" class="btn btn-green btn-submit" id="submitBtn" style="flex:1">&gt;&gt; SUBMIT TO DATABASE</button>
+      <button type="button" class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; DELETE ORGANIZATION</button>
+    </div>
 
   </form>
 </main>
@@ -142,7 +211,10 @@
 const API = '';
 let tierVal = 1;
 let leaderCount = 0;
+let telecomCount = 0;
+let hostCount = 0;
 let allOrgs = [];
+let editingId = null;  // null = create mode, number = edit mode
 
 const TIER_NAMES = {
   1: 'Street Level',
@@ -152,6 +224,35 @@ const TIER_NAMES = {
   5: 'National / AAA',
   6: 'Global / AAA+',
 };
+
+const VIS_OPTS = `
+  <option value="listed">Listed</option>
+  <option value="unlisted">Unlisted</option>
+  <option value="black">Black</option>
+`;
+
+const RATING_OPTS = `
+  <option value="">— Unrated —</option>
+  <option value="Blue-3">Blue-3</option>
+  <option value="Green-3">Green-3</option>
+  <option value="Green-4">Green-4</option>
+  <option value="Green-5">Green-5</option>
+  <option value="Orange-4">Orange-4</option>
+  <option value="Orange-5">Orange-5</option>
+  <option value="Orange-6">Orange-6</option>
+  <option value="Orange-7">Orange-7</option>
+  <option value="Orange-8">Orange-8</option>
+  <option value="Red-5">Red-5</option>
+  <option value="Red-6">Red-6</option>
+  <option value="Red-7">Red-7</option>
+  <option value="Red-8">Red-8</option>
+  <option value="Red-9">Red-9</option>
+  <option value="Black-6">Black-6</option>
+  <option value="Black-7">Black-7</option>
+  <option value="Black-8">Black-8</option>
+  <option value="Black-9">Black-9</option>
+  <option value="Black-10">Black-10</option>
+`;
 
 function setTier(n) {
   tierVal = n;
@@ -170,41 +271,100 @@ function updateStatus() {
   lbl.style.color = cb.checked ? 'var(--green)' : 'var(--text-dim)';
 }
 
-function addLeader() {
+// ── Leadership table ──────────────────────────────────────────
+function addLeader(data) {
   const tbody = document.getElementById('leadBody');
-  const empty = document.getElementById('emptyLead');
-  if (empty) empty.remove();
+  document.getElementById('emptyLead')?.remove();
   leaderCount++;
   const id = `lead_${leaderCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
   tr.innerHTML = `
-    <td><input type="text" placeholder="Name..." data-field="name"></td>
-    <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title"></td>
-    <td><input type="text" placeholder="Known info..." data-field="notes"></td>
-    <td><button type="button" class="btn btn-red" onclick="removeLeader('${id}')">✕</button></td>
+    <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
+    <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title" value="${esc(data?.title||'')}"></td>
+    <td><input type="text" placeholder="Known info..." data-field="notes" value="${esc(data?.notes||'')}"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',4)">✕</button></td>
   `;
   tbody.appendChild(tr);
 }
 
-function removeLeader(id) {
+// ── Telecom table ─────────────────────────────────────────────
+function addTelecom(data) {
+  const tbody = document.getElementById('telecomBody');
+  document.getElementById('emptyTelecom')?.remove();
+  telecomCount++;
+  const id = `tc_${telecomCount}`;
+  const tr = document.createElement('tr');
+  tr.id = id;
+  const selVis = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
+  tr.innerHTML = `
+    <td><input type="text" placeholder="206-555-0100" data-field="number" value="${esc(data?.number||'')}"></td>
+    <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
+    <td><select data-field="visibility">${selVis}</select></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',4)">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ── Matrix host table ─────────────────────────────────────────
+function addHost(data) {
+  const tbody = document.getElementById('hostBody');
+  document.getElementById('emptyHost')?.remove();
+  hostCount++;
+  const id = `host_${hostCount}`;
+  const tr = document.createElement('tr');
+  tr.id = id;
+  const selVis = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
+  const selRtg = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
+  tr.innerHTML = `
+    <td><input type="text" placeholder="NA/UCAS-SEA" data-field="rtg" value="${esc(data?.rtg||'')}" style="width:120px"></td>
+    <td><input type="text" placeholder="SEA" data-field="ltg" value="${esc(data?.ltg||'')}" style="width:80px"></td>
+    <td><input type="text" placeholder="AZT-EXEC" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:100px"></td>
+    <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
+    <td><select data-field="host_rating" style="width:110px">${selRtg}</select></td>
+    <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function removeRow(id, tbodyId, emptyId, cols) {
   document.getElementById(id)?.remove();
-  if (document.querySelectorAll('#leadBody tr:not(#emptyLead)').length === 0) {
-    const tbody = document.getElementById('leadBody');
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody.querySelector('tr:not(#' + emptyId + ')')) {
     const tr = document.createElement('tr');
-    tr.id = 'emptyLead';
-    tr.innerHTML = '<td colspan="4" class="empty-lead">No executives defined</td>';
+    tr.id = emptyId;
+    tr.innerHTML = `<td colspan="${cols}" class="empty-lead">None defined</td>`;
     tbody.appendChild(tr);
   }
 }
 
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getTableData(tbodyId, emptyId, fields) {
+  return Array.from(document.querySelectorAll(`#${tbodyId} tr:not(#${emptyId})`)).map(row => {
+    const obj = {};
+    fields.forEach(f => {
+      const el = row.querySelector(`[data-field="${f}"]`);
+      obj[f] = el?.value?.trim() || null;
+    });
+    return obj;
+  }).filter(obj => Object.values(obj).some(v => v));
+}
+
 function getLeadership() {
-  const rows = document.querySelectorAll('#leadBody tr:not(#emptyLead)');
-  return Array.from(rows).map(row => ({
-    name:  row.querySelector('[data-field=name]')?.value.trim() || '',
-    title: row.querySelector('[data-field=title]')?.value.trim() || '',
-    notes: row.querySelector('[data-field=notes]')?.value.trim() || undefined,
-  })).filter(r => r.name || r.title);
+  return getTableData('leadBody', 'emptyLead', ['name','title','notes'])
+    .filter(r => r.name || r.title);
+}
+
+function getLTGs() {
+  const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility'])
+    .map(t => ({ type: 'telecom', ...t }));
+  const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','host_rating','visibility'])
+    .map(h => ({ type: 'matrix_host', ...h }));
+  return [...telecoms, ...hosts];
 }
 
 function getChecked(containerId) {
@@ -213,36 +373,135 @@ function getChecked(containerId) {
   ).map(cb => parseInt(cb.value));
 }
 
+// ── Org list (for selector and checkboxes) ────────────────────
 async function loadOrgs() {
   try {
-    const res = await fetch(`${API}/organizations/?limit=200`);
+    const res = await fetch(`${API}/organizations/`);
     allOrgs = await res.json();
     renderOrgChecks(allOrgs);
+    renderOrgSelector(allOrgs);
   } catch (e) {
-    document.getElementById('allyList').innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load organizations</div>';
-    document.getElementById('enemyList').innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load organizations</div>';
+    ['allyList','enemyList'].forEach(id => {
+      document.getElementById(id).innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load</div>';
+    });
   }
+}
+
+function renderOrgSelector(orgs) {
+  const sel = document.getElementById('orgSelector');
+  sel.innerHTML = '<option value="">— Select an existing organization —</option>' +
+    orgs.map(o => `<option value="${o.id}">${esc(o.name)} [T${o.tier}]</option>`).join('');
+  // Restore selection if editing
+  if (editingId) sel.value = editingId;
 }
 
 function renderOrgChecks(orgs) {
   ['allyList', 'enemyList'].forEach(lid => {
     const el = document.getElementById(lid);
-    if (!orgs.length) { el.innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">No organizations found</div>'; return; }
-    el.innerHTML = orgs.map(o => `
+    const filtered = orgs.filter(o => o.id !== editingId);
+    if (!filtered.length) { el.innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">No organizations</div>'; return; }
+    el.innerHTML = filtered.map(o => `
       <label class="chk-item">
         <input type="checkbox" value="${o.id}">
-        <span>${o.name} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
+        <span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
       </label>
     `).join('');
   });
 }
 
+// ── Edit mode population ──────────────────────────────────────
+async function loadOrgForEdit(id) {
+  if (!id) { resetForm(); return; }
+  try {
+    const res = await fetch(`${API}/organizations/${id}`);
+    if (!res.ok) throw new Error('Not found');
+    const org = await res.json();
+    populateForm(org);
+  } catch(e) {
+    showAlert(document.getElementById('alert'), `>> LOAD FAILED // ${e.message}`, true);
+  }
+}
+
+function populateForm(org) {
+  editingId = org.id;
+  document.getElementById('pageTitleMode').textContent = `Edit — ${org.name}`;
+  document.getElementById('name').value = org.name || '';
+  document.getElementById('org_type').value = org.org_type || '';
+  document.getElementById('headquarters').value = org.headquarters || '';
+  document.getElementById('description').value = org.description || '';
+  document.getElementById('notes').value = org.notes || '';
+  document.getElementById('is_active').checked = org.is_active !== false;
+  updateStatus();
+  setTier(org.tier || 1);
+
+  // Leadership
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+  leaderCount = 0;
+  (org.leadership || []).forEach(l => addLeader(l));
+
+  // LTGs
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  telecomCount = 0; hostCount = 0;
+  (org.ltgs || []).forEach(e => {
+    if (e.type === 'telecom') addTelecom(e);
+    else if (e.type === 'matrix_host') addHost(e);
+  });
+
+  // Ally/enemy checkboxes
+  const allySet  = new Set(org.ally_ids  || []);
+  const enemySet = new Set(org.enemy_ids || []);
+  renderOrgChecks(allOrgs);
+  document.querySelectorAll('#allyList  input[type=checkbox]').forEach(cb => { if (allySet.has(parseInt(cb.value)))  cb.checked = true; });
+  document.querySelectorAll('#enemyList input[type=checkbox]').forEach(cb => { if (enemySet.has(parseInt(cb.value))) cb.checked = true; });
+
+  document.getElementById('submitBtn').textContent  = '>> UPDATE DATABASE ENTRY';
+  document.getElementById('deleteBtn').style.display = '';
+  document.getElementById('orgSelector').value = org.id;
+}
+
+function resetForm() {
+  editingId = null;
+  document.getElementById('pageTitleMode').textContent = 'New Entry';
+  document.getElementById('orgForm').reset();
+  setTier(1);
+  updateStatus();
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  leaderCount = telecomCount = hostCount = 0;
+  document.getElementById('submitBtn').textContent  = '>> SUBMIT TO DATABASE';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('orgSelector').value = '';
+  document.getElementById('alert').className = 'alert';
+  document.getElementById('alertBottom').className = 'alert';
+  renderOrgChecks(allOrgs);
+}
+
+// ── Alert helper ──────────────────────────────────────────────
 function showAlert(el, msg, isError) {
   el.textContent = msg;
   el.className = `alert show ${isError ? 'alert-err' : 'alert-ok'}`;
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// ── Delete org ────────────────────────────────────────────────
+async function deleteOrg() {
+  if (!editingId) return;
+  const name = document.getElementById('name').value || 'this organization';
+  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    showAlert(document.getElementById('alert'), `>> ENTRY PURGED // "${name}" deleted.`, false);
+    resetForm();
+    await loadOrgs();
+  } catch(e) {
+    showAlert(document.getElementById('alert'), `>> DELETE FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Submit (create or update) ─────────────────────────────────
 document.getElementById('orgForm').addEventListener('submit', async e => {
   e.preventDefault();
   const topAlert = document.getElementById('alert');
@@ -262,16 +521,18 @@ document.getElementById('orgForm').addEventListener('submit', async e => {
     leadership:   getLeadership(),
     ally_ids:     getChecked('allyList'),
     enemy_ids:    getChecked('enemyList'),
-    ltgs:         [],
+    ltgs:         getLTGs(),
   };
 
-  const submitBtn = e.target.querySelector('button[type=submit]');
+  const submitBtn = document.getElementById('submitBtn');
   submitBtn.textContent = '>> TRANSMITTING...';
   submitBtn.disabled = true;
 
   try {
-    const res = await fetch(`${API}/organizations/`, {
-      method: 'POST',
+    const url    = editingId ? `${API}/organizations/${editingId}` : `${API}/organizations/`;
+    const method = editingId ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -279,25 +540,39 @@ document.getElementById('orgForm').addEventListener('submit', async e => {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || JSON.stringify(err));
     }
-    const created = await res.json();
-    showAlert(topAlert, `>> ACCESS GRANTED // Organization "${created.name}" registered as ID ${created.id}.`, false);
-    showAlert(botAlert, `>> ACCESS GRANTED // Organization "${created.name}" registered as ID ${created.id}.`, false);
-    e.target.reset();
-    setTier(1);
-    updateStatus();
-    document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
-    leaderCount = 0;
-    loadOrgs();
+    const saved = await res.json();
+    const verb = editingId ? 'UPDATED' : 'REGISTERED';
+    showAlert(topAlert, `>> ACCESS GRANTED // Organization "${saved.name}" ${verb} (ID ${saved.id}).`, false);
+    showAlert(botAlert, `>> ACCESS GRANTED // Organization "${saved.name}" ${verb} (ID ${saved.id}).`, false);
+    if (!editingId) {
+      resetForm();
+    } else {
+      // Refresh to pull latest from API (ally/enemy names etc.)
+      populateForm(saved);
+    }
+    await loadOrgs();
   } catch (err) {
     showAlert(topAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
     showAlert(botAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
   } finally {
-    submitBtn.textContent = '>> SUBMIT TO DATABASE';
     submitBtn.disabled = false;
+    if (!editingId) submitBtn.textContent = '>> SUBMIT TO DATABASE';
+    else submitBtn.textContent = '>> UPDATE DATABASE ENTRY';
   }
 });
 
-loadOrgs();
+// ── Init ──────────────────────────────────────────────────────
+(async function init() {
+  await loadOrgs();
+  document.getElementById('orgSelectorWrap').style.display = '';
+
+  // Check URL for ?id= param
+  const params = new URLSearchParams(window.location.search);
+  const idParam = parseInt(params.get('id'));
+  if (idParam) {
+    await loadOrgForEdit(idParam);
+  }
+})();
 </script>
 </body>
 </html>
