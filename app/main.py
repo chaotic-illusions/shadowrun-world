@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.db.base import Base
 from app.db.session import engine
@@ -9,7 +10,7 @@ import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 
 from app.routers import (
     characters, contacts, locations, organizations,
-    reputation, adventure_logs, house_rules, consequences,
+    reputation, adventure_logs, house_rules, consequences, rtgs,
 )
 
 
@@ -46,6 +47,9 @@ app.include_router(reputation.router,     prefix="/reputation",   tags=["Reputat
 app.include_router(adventure_logs.router, prefix="/runs",         tags=["Adventure Logs"])
 app.include_router(house_rules.router,    prefix="/house-rules",  tags=["House Rules"])
 app.include_router(consequences.router,   prefix="/consequences", tags=["Consequence Engine"])
+app.include_router(rtgs.router,           prefix="/rtgs",         tags=["RTGs"])
+
+app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
 @app.get("/", tags=["Info"])
