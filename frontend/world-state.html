@@ -288,6 +288,9 @@
       <div id="ceAlert" class="alert"></div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
+        <div class="field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
+      </div>
+      <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Archetype</label>
           <select id="ce-archetype" onchange="onCeArchChange()">
             <optgroup label="── Runners ──">
@@ -1484,7 +1487,8 @@ function openCharEditModal(charId) {
   if (!char) return;
   ceEditingId = charId;
   document.getElementById('ceTitle').textContent = `Edit // ${char.name}`;
-  document.getElementById('ce-name').value = char.name || '';
+  document.getElementById('ce-name').value  = char.name  || '';
+  document.getElementById('ce-title').value = char.title || '';
 
   const archSel = document.getElementById('ce-archetype');
   const arch = char.archetype || '';
@@ -1531,10 +1535,11 @@ function closeCharEditModal() {
 }
 
 async function saveCharEdit() {
-  const name = document.getElementById('ce-name').value.trim();
-  if (!name) {
+  const name  = document.getElementById('ce-name').value.trim();
+  const title = document.getElementById('ce-title').value.trim();
+  if (!name || !title) {
     const a = document.getElementById('ceAlert');
-    a.textContent = 'ERROR // Name is required.';
+    a.textContent = `ERROR // ${!name ? 'Name' : 'Title'} is required.`;
     a.className = 'alert show alert-err';
     return;
   }
@@ -1547,6 +1552,7 @@ async function saveCharEdit() {
   const race = document.getElementById('ce-race').value;
   const payload = {
     name,
+    title:           title || null,
     archetype:       arch || null,
     metatype:        race || null,
     race:            race || null,

@@ -62,8 +62,8 @@
           <input type="text" id="f-name" placeholder="Razor, Static...">
         </div>
         <div class="field">
-          <label>Title</label>
-          <input type="text" id="f-title" placeholder="Yakuza Underboss, Corporate Decker...">
+          <label>Title *</label>
+          <input type="text" id="f-title" placeholder="Yakuza Underboss, Corporate Decker..." required>
         </div>
         <div class="field">
           <label>Archetype</label>
@@ -369,8 +369,10 @@ function overlayClick(e) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 async function saveChar() {
-  const name = document.getElementById('f-name').value.trim();
-  if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
+  const name  = document.getElementById('f-name').value.trim();
+  const title = document.getElementById('f-title').value.trim();
+  if (!name)  { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
+  if (!title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
 
   const isPC = document.getElementById('f-is_pc').checked;
   const orgVal = document.getElementById('f-organization_id').value;
