@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Organization | Shadowrun World Engine</title>
+  <title>Organizations | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,192 +21,186 @@
 </header>
 
 <main>
-  <div class="page-title" id="pageTitle">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="pageTitleMode">New Entry</span></div>
-  <div class="page-sub">CLASSIFICATION: RESTRICTED &nbsp;|&nbsp; ENTER ALL KNOWN INTEL BELOW</div>
+  <div class="page-title">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> All Known Factions</div>
+  <div class="page-sub">CLASSIFICATION: RESTRICTED &nbsp;|&nbsp; MEGACORPS, SYNDICATES, GANGS &amp; MORE</div>
 
-  <!-- Existing org selector (shown when not editing a specific org) -->
-  <div id="orgSelectorWrap" style="margin-bottom:24px;display:none">
-    <div class="section-head">Select Organization to Edit</div>
+  <div id="mainAlert" class="alert"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:center">
-      <select id="orgSelector" style="max-width:400px" onchange="loadOrgForEdit(this.value)">
-        <option value="">— Select an existing organization —</option>
+      <input type="text" id="filterInput" placeholder="Filter by name or HQ..." style="width:240px" oninput="applyFilter()">
+      <select id="filterType" onchange="applyFilter()" style="width:180px">
+        <option value="">All Types</option>
       </select>
-      <button class="btn btn-green" onclick="resetForm()">+ New Organization</button>
+      <select id="filterStatus" onchange="applyFilter()" style="width:120px">
+        <option value="">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
     </div>
-    <hr class="rule">
+    <button class="btn btn-green" onclick="openModal()">+ New Organization</button>
   </div>
 
-  <div id="alert" class="alert"></div>
+  <div id="tableWrap"><div class="loading">Loading organizations</div></div>
+</main>
 
-  <form id="orgForm" autocomplete="off">
-
-    <!-- ── CORE IDENTITY ── -->
-    <div class="section-head">Core Identity</div>
-    <div class="grid2">
-      <div class="field">
-        <label>Designation *</label>
-        <input type="text" id="name" placeholder="Organization name..." required>
-      </div>
-      <div class="field">
-        <label>Classification</label>
-        <select id="org_type">
-          <option value="">— Unknown —</option>
-          <option value="megacorp">Megacorp</option>
-          <option value="government">Government</option>
-          <option value="syndicate">Syndicate</option>
-          <option value="gang">Gang</option>
-          <option value="fixer_network">Fixer Network</option>
-          <option value="cult">Cult</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
+<!-- ── EDIT MODAL ──────────────────────────────────────────── -->
+<div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="edit-modal" style="max-width:860px">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">New Organization</div>
+      <button class="btn btn-red" onclick="closeModal()">✕</button>
     </div>
+    <div class="edit-modal-body">
+      <div id="alert" class="alert"></div>
 
-    <div class="grid3">
-      <div class="field">
-        <label>Threat Tier</label>
-        <div class="tier-row" id="tierRow">
-          <button type="button" class="t-dot" data-v="1" onclick="setTier(1)">1</button>
-          <button type="button" class="t-dot" data-v="2" onclick="setTier(2)">2</button>
-          <button type="button" class="t-dot" data-v="3" onclick="setTier(3)">3</button>
-          <button type="button" class="t-dot" data-v="4" onclick="setTier(4)">4</button>
-          <button type="button" class="t-dot" data-v="5" onclick="setTier(5)">5</button>
-          <button type="button" class="t-dot" data-v="6" onclick="setTier(6)">6</button>
-          <span class="tier-name" id="tierName">Street Level</span>
+      <!-- ── CORE IDENTITY ── -->
+      <div class="section-head" style="margin-bottom:12px">Core Identity</div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Designation *</label>
+          <input type="text" id="name" placeholder="Organization name..." required>
         </div>
-        <input type="hidden" id="tier" value="1">
-      </div>
-      <div class="field">
-        <label>Headquarters</label>
-        <input type="text" id="headquarters" placeholder="City, Region...">
-      </div>
-      <div class="field">
-        <label>Operational Status</label>
-        <div class="toggle-wrap">
-          <label class="toggle">
-            <input type="checkbox" id="is_active" checked onchange="updateStatus()">
-            <span class="tog-sl"></span>
-          </label>
-          <span class="tog-label" id="activeStatus" style="color:var(--green)">ACTIVE</span>
+        <div class="field">
+          <label>Classification</label>
+          <select id="org_type" onchange="onOrgTypeChange()">
+            <optgroup label="── Corporate ──">
+              <option value="megacorp">Megacorp</option>
+              <option value="corporation">Corporation</option>
+              <option value="security contractor">Security Contractor</option>
+            </optgroup>
+            <optgroup label="── Government &amp; Authority ──">
+              <option value="government">Government</option>
+              <option value="nation-state">Nation-State</option>
+            </optgroup>
+            <optgroup label="── Criminal ──">
+              <option value="crime syndicate">Crime Syndicate</option>
+              <option value="gang">Gang</option>
+            </optgroup>
+            <optgroup label="── Fringe &amp; Other ──">
+              <option value="fixer_network">Fixer Network</option>
+              <option value="political organization">Political Organization</option>
+              <option value="cult">Cult</option>
+            </optgroup>
+            <optgroup label="──────────────────">
+              <option value="Custom">Custom…</option>
+            </optgroup>
+          </select>
+          <div id="org_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="org_type-custom" placeholder="Enter classification..." style="width:100%">
+          </div>
         </div>
       </div>
-    </div>
+      <div class="grid3" style="margin-bottom:14px">
+        <div class="field">
+          <label>Threat Tier</label>
+          <div class="tier-row" id="tierRow">
+            <button type="button" class="t-dot" data-v="1" onclick="setTier(1)">1</button>
+            <button type="button" class="t-dot" data-v="2" onclick="setTier(2)">2</button>
+            <button type="button" class="t-dot" data-v="3" onclick="setTier(3)">3</button>
+            <button type="button" class="t-dot" data-v="4" onclick="setTier(4)">4</button>
+            <button type="button" class="t-dot" data-v="5" onclick="setTier(5)">5</button>
+            <button type="button" class="t-dot" data-v="6" onclick="setTier(6)">6</button>
+            <span class="tier-name" id="tierName">Street Level</span>
+          </div>
+          <input type="hidden" id="tier" value="1">
+        </div>
+        <div class="field">
+          <label>Headquarters</label>
+          <input type="text" id="headquarters" placeholder="City, Region...">
+        </div>
+        <div class="field">
+          <label>Operational Status</label>
+          <div class="toggle-wrap">
+            <label class="toggle">
+              <input type="checkbox" id="is_active" checked onchange="updateStatus()">
+              <span class="tog-sl"></span>
+            </label>
+            <span class="tog-label" id="activeStatus" style="color:var(--green)">ACTIVE</span>
+          </div>
+        </div>
+      </div>
 
-    <!-- ── PROFILE ── -->
-    <hr class="rule">
-    <div class="section-head">Intel Profile</div>
-    <div class="grid1">
-      <div class="field">
+      <!-- ── PROFILE ── -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">Intel Profile</div>
+      <div class="field" style="margin-bottom:14px">
         <label>Description / Known Intel</label>
-        <textarea id="description" rows="5" placeholder="What do the runners know about this org? Public face, known operations, reputation..."></textarea>
+        <textarea id="description" rows="5" placeholder="What do the runners know about this org?"></textarea>
       </div>
-      <div class="field">
+      <div class="field" style="margin-bottom:14px">
         <label>Field Notes (GM Only)</label>
         <textarea id="notes" rows="3" placeholder="Hidden agendas, secret connections, plot hooks..."></textarea>
       </div>
-    </div>
 
-    <!-- ── COMMAND STRUCTURE ── -->
-    <hr class="rule">
-    <div class="section-head">Command Structure</div>
-    <div style="margin-bottom:12px">
-      <button type="button" class="btn btn-amber" onclick="addLeader()">+ Add Executive</button>
-    </div>
-    <div class="lead-wrap">
-      <table class="lead-table" id="leadTable">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Title / Role</th>
-            <th>Notes</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="leadBody">
-          <tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ── POLITICAL RELATIONSHIPS ── -->
-    <hr class="rule">
-    <div class="section-head">Political Relationships</div>
-    <div class="grid2">
-      <div class="field">
-        <label>Allied Organizations</label>
-        <div class="chk-list" id="allyList">
-          <div class="loading" style="padding:16px">Loading</div>
-        </div>
-      </div>
-      <div class="field">
-        <label>Hostile Organizations</label>
-        <div class="chk-list" id="enemyList">
-          <div class="loading" style="padding:16px">Loading</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── LTG NETWORK ── -->
-    <hr class="rule">
-    <div class="section-head">LTG Network Directory</div>
-
-    <div style="margin-bottom:18px">
-      <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
+      <!-- ── COMMAND STRUCTURE ── -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">Command Structure</div>
       <div style="margin-bottom:8px">
-        <button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button>
+        <button type="button" class="btn btn-amber" onclick="addLeader()">+ Add Executive</button>
       </div>
       <div class="lead-wrap">
-        <table class="lead-table" id="telecomTable">
+        <table class="lead-table" id="leadTable">
           <thead>
-            <tr>
-              <th>Number</th>
-              <th>Description</th>
-              <th>Visibility</th>
-              <th></th>
-            </tr>
+            <tr><th>Name</th><th>Title / Role</th><th>Notes</th><th></th></tr>
           </thead>
-          <tbody id="telecomBody">
-            <tr id="emptyTelecom"><td colspan="4" class="empty-lead">No telecom numbers</td></tr>
+          <tbody id="leadBody">
+            <tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>
           </tbody>
         </table>
       </div>
-    </div>
 
-    <div>
-      <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
-      <div style="margin-bottom:8px">
-        <button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button>
+      <!-- ── POLITICAL RELATIONSHIPS ── -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">Political Relationships</div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div class="field">
+          <label>Allied Organizations</label>
+          <div class="chk-list" id="allyList"><div class="loading" style="padding:16px">Loading</div></div>
+        </div>
+        <div class="field">
+          <label>Hostile Organizations</label>
+          <div class="chk-list" id="enemyList"><div class="loading" style="padding:16px">Loading</div></div>
+        </div>
       </div>
-      <div class="lead-wrap">
-        <table class="lead-table" id="hostTable">
-          <thead>
-            <tr>
-              <th>RTG</th>
-              <th>LTG</th>
-              <th>ID Code</th>
-              <th>Description</th>
-              <th>Rating</th>
-              <th>Visibility</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="hostBody">
-            <tr id="emptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr>
-          </tbody>
-        </table>
+
+      <!-- ── LTG NETWORK ── -->
+      <hr class="rule" style="margin:14px 0">
+      <div class="section-head" style="margin-bottom:12px">LTG Network Directory</div>
+
+      <div style="margin-bottom:18px">
+        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
+        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button></div>
+        <div class="lead-wrap">
+          <table class="lead-table" id="telecomTable">
+            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th></th></tr></thead>
+            <tbody id="telecomBody">
+              <tr id="emptyTelecom"><td colspan="4" class="empty-lead">No telecom numbers</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
+        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button></div>
+        <div class="lead-wrap">
+          <table class="lead-table" id="hostTable">
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>Rating</th><th>Visibility</th><th></th></tr></thead>
+            <tbody id="hostBody">
+              <tr id="emptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-
-    <!-- ── SUBMIT ── -->
-    <hr class="rule">
-    <div id="alertBottom" class="alert"></div>
-    <div style="display:flex;gap:12px;align-items:center">
-      <button type="submit" class="btn btn-green btn-submit" id="submitBtn" style="flex:1">&gt;&gt; SUBMIT TO DATABASE</button>
-      <button type="button" class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; DELETE ORGANIZATION</button>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green" onclick="submitForm()" id="submitBtn" style="flex:1;justify-content:center">&gt;&gt; Submit to Database</button>
+      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
+      <button class="btn" onclick="closeModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
     </div>
-
-  </form>
-</main>
+  </div>
+</div>
 
 <script>
 const API = '';
@@ -216,10 +210,9 @@ let telecomCount = 0;
 let hostCount = 0;
 let allOrgs = [];
 let allRTGs = [];
-let editingId = null;  // null = create mode, number = edit mode
+let editingId = null;
 
-// ── Sorting helpers ───────────────────────────────────────────
-const VIS_ORDER = { listed: 0, unlisted: 1, black: 2 };
+const VIS_ORDER   = { listed: 0, unlisted: 1, black: 2 };
 const COLOR_ORDER = { blue: 0, green: 1, orange: 2, red: 3, black: 4 };
 function ratingSort(r) {
   if (!r) return 999;
@@ -228,58 +221,59 @@ function ratingSort(r) {
 }
 
 const TIER_NAMES = {
-  1: 'Street Level',
-  2: 'Local / District',
-  3: 'City-Wide',
-  4: 'Regional',
-  5: 'National / AAA',
-  6: 'Global / AAA+',
+  1:'Street Level', 2:'Local / District', 3:'City-Wide',
+  4:'Regional',     5:'National / AAA',   6:'Global / AAA+',
 };
 
 const VIS_OPTS = `
   <option value="listed">Listed</option>
   <option value="unlisted">Unlisted</option>
-  <option value="black">Black</option>
-`;
+  <option value="black">Black</option>`;
 
 const RATING_OPTS = `
   <option value="">— Unrated —</option>
   <option value="Blue-3">Blue-3</option>
-  <option value="Green-3">Green-3</option>
-  <option value="Green-4">Green-4</option>
-  <option value="Green-5">Green-5</option>
-  <option value="Orange-4">Orange-4</option>
-  <option value="Orange-5">Orange-5</option>
-  <option value="Orange-6">Orange-6</option>
-  <option value="Orange-8">Orange-8</option>
-  <option value="Red-5">Red-5</option>
-  <option value="Red-6">Red-6</option>
-  <option value="Red-8">Red-8</option>
-  <option value="Red-9">Red-9</option>
-  <option value="Black-6">Black-6</option>
-  <option value="Black-8">Black-8</option>
-  <option value="Black-9">Black-9</option>
-  <option value="Black-10">Black-10</option>
-`;
+  <option value="Green-3">Green-3</option><option value="Green-4">Green-4</option><option value="Green-5">Green-5</option>
+  <option value="Orange-4">Orange-4</option><option value="Orange-5">Orange-5</option><option value="Orange-6">Orange-6</option><option value="Orange-8">Orange-8</option>
+  <option value="Red-5">Red-5</option><option value="Red-6">Red-6</option><option value="Red-8">Red-8</option><option value="Red-9">Red-9</option>
+  <option value="Black-6">Black-6</option><option value="Black-8">Black-8</option><option value="Black-9">Black-9</option><option value="Black-10">Black-10</option>`;
+
+function fmtType(s) {
+  return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+const PREDEFINED_ORG_TYPES = [
+  'megacorp','corporation','security contractor',
+  'government','nation-state',
+  'crime syndicate','gang',
+  'fixer_network','political organization','cult',
+];
+
+function onOrgTypeChange() {
+  const val = document.getElementById('org_type').value;
+  document.getElementById('org_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+}
 
 function setTier(n) {
   tierVal = n;
   document.getElementById('tier').value = n;
   document.getElementById('tierName').textContent = TIER_NAMES[n];
-  document.querySelectorAll('.t-dot').forEach(d => {
-    d.classList.toggle('on', parseInt(d.dataset.v) === n);
-  });
+  document.querySelectorAll('.t-dot').forEach(d => d.classList.toggle('on', parseInt(d.dataset.v) === n));
 }
 setTier(1);
 
 function updateStatus() {
-  const cb = document.getElementById('is_active');
+  const cb  = document.getElementById('is_active');
   const lbl = document.getElementById('activeStatus');
   lbl.textContent = cb.checked ? 'ACTIVE' : 'INACTIVE';
   lbl.style.color = cb.checked ? 'var(--green)' : 'var(--text-dim)';
 }
 
-// ── Leadership table ──────────────────────────────────────────
+// ── Leadership ────────────────────────────────────────────────
 function addLeader(data) {
   const tbody = document.getElementById('leadBody');
   document.getElementById('emptyLead')?.remove();
@@ -291,18 +285,16 @@ function addLeader(data) {
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title" value="${esc(data?.title||'')}"></td>
     <td><input type="text" placeholder="Known info..." data-field="notes" value="${esc(data?.notes||'')}"></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',4)">✕</button></td>
-  `;
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',4)">✕</button></td>`;
   tbody.appendChild(tr);
 }
 
 // ── Input formatters ──────────────────────────────────────────
 function formatTelecomInput(input) {
-  // Strip everything except digits
   const digits = input.value.replace(/\D/g, '').slice(0, 10);
   if (digits.length === 0) { input.value = ''; return; }
-  if (digits.length <= 3) { input.value = '(' + digits; return; }
-  if (digits.length <= 6) { input.value = '(' + digits.slice(0,3) + ') ' + digits.slice(3); return; }
+  if (digits.length <= 3)  { input.value = '(' + digits; return; }
+  if (digits.length <= 6)  { input.value = '(' + digits.slice(0,3) + ') ' + digits.slice(3); return; }
   input.value = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
 }
 
@@ -310,7 +302,7 @@ function enforceIdCode(input) {
   input.value = input.value.replace(/[^A-Za-z0-9\-]/g, '').slice(0, 8).toUpperCase();
 }
 
-// ── Telecom table ─────────────────────────────────────────────
+// ── Telecom ───────────────────────────────────────────────────
 function addTelecom(data) {
   const tbody = document.getElementById('telecomBody');
   document.getElementById('emptyTelecom')?.remove();
@@ -323,17 +315,16 @@ function addTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',4)">✕</button></td>
-  `;
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',4)">✕</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => formatTelecomInput(numInput));
   tbody.appendChild(tr);
 }
 
-// ── Matrix host table ─────────────────────────────────────────
+// ── Matrix hosts ──────────────────────────────────────────────
 function buildRTGOptions(selected) {
   const opts = allRTGs.map(r =>
-    `<option value="${esc(r.code)}"${r.code === selected ? ' selected' : ''}>${esc(r.code)} — ${esc(r.region || '')}</option>`
+    `<option value="${esc(r.code)}"${r.code===selected?' selected':''}>${esc(r.code)} — ${esc(r.region||'')}</option>`
   ).join('');
   return `<option value="">— Select RTG —</option>${opts}`;
 }
@@ -341,13 +332,12 @@ function buildRTGOptions(selected) {
 const DEFAULT_RTG = 'NA/UCAS-SEA';
 
 function generateLTG() {
-  // Collect all ltg codes already in the DB (from all loaded orgs) plus any in the current form
   const existing = new Set();
   allOrgs.forEach(org => (org.ltgs || []).forEach(l => { if (l.ltg) existing.add(l.ltg.toUpperCase()); }));
   document.querySelectorAll('#hostBody [data-field="ltg"]').forEach(el => { if (el.value.trim()) existing.add(el.value.trim().toUpperCase()); });
   const HEX = '0123456789ABCDEF';
   let code;
-  do { code = Array.from({ length: 5 }, () => HEX[Math.floor(Math.random() * 16)]).join(''); } while (existing.has(code));
+  do { code = Array.from({length:5}, () => HEX[Math.floor(Math.random()*16)]).join(''); } while (existing.has(code));
   return code;
 }
 
@@ -358,9 +348,9 @@ function addHost(data) {
   const id = `host_${hostCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
-  const ltgCode = data?.ltg || generateLTG();
+  const ltgCode    = data?.ltg || generateLTG();
   const defaultRTG = data?.rtg ?? DEFAULT_RTG;
-  const selVis = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
+  const selVis    = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
   const selRating = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
   tr.innerHTML = `
     <td><select data-field="rtg" style="min-width:160px">${buildRTGOptions(defaultRTG)}</select></td>
@@ -369,8 +359,7 @@ function addHost(data) {
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="host_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>
-  `;
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => enforceIdCode(idInput));
   tbody.appendChild(tr);
@@ -387,10 +376,6 @@ function removeRow(id, tbodyId, emptyId, cols) {
   }
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function getTableData(tbodyId, emptyId, fields) {
   return Array.from(document.querySelectorAll(`#${tbodyId} tr:not(#${emptyId})`)).map(row => {
     const obj = {};
@@ -403,63 +388,178 @@ function getTableData(tbodyId, emptyId, fields) {
 }
 
 function getLeadership() {
-  return getTableData('leadBody', 'emptyLead', ['name','title','notes'])
-    .filter(r => r.name || r.title);
+  return getTableData('leadBody', 'emptyLead', ['name','title','notes']).filter(r => r.name || r.title);
 }
 
 function getLTGs() {
   const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility'])
     .map(t => ({ type: 'telecom', ...t }))
     .sort((a, b) => (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9));
-
   const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','host_rating','visibility'])
     .map(h => ({ type: 'matrix_host', ...h }))
     .sort((a, b) => {
       const vd = (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9);
       return vd !== 0 ? vd : ratingSort(a.host_rating) - ratingSort(b.host_rating);
     });
-
   return [...telecoms, ...hosts];
 }
 
 function getChecked(containerId) {
-  return Array.from(
-    document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)
-  ).map(cb => parseInt(cb.value));
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(cb => parseInt(cb.value));
 }
 
-// ── RTG list ──────────────────────────────────────────────────
-async function loadRTGs() {
+// ── Alert ─────────────────────────────────────────────────────
+function showAlert(el, msg, isError) {
+  el.textContent = msg;
+  el.className = `alert show ${isError ? 'alert-err' : 'alert-ok'}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Modal open/close ──────────────────────────────────────────
+function openModal(id) {
+  if (id) {
+    loadOrgForEdit(id);
+  } else {
+    resetForm();
+  }
+  document.getElementById('editOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('editOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── Form population ───────────────────────────────────────────
+function resetForm() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'New Organization';
+  document.getElementById('name').value = '';
+  document.getElementById('org_type').value = '';
+  document.getElementById('org_type-custom').value = '';
+  document.getElementById('org_type-custom-wrap').style.display = 'none';
+  document.getElementById('headquarters').value = '';
+  document.getElementById('description').value = '';
+  document.getElementById('notes').value = '';
+  document.getElementById('is_active').checked = true;
+  updateStatus();
+  setTier(1);
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  leaderCount = telecomCount = hostCount = 0;
+  document.getElementById('submitBtn').textContent = '>> Submit to Database';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('alert').className = 'alert';
+  renderOrgChecks(allOrgs);
+}
+
+async function loadOrgForEdit(id) {
   try {
-    const res = await fetch(`${API}/rtgs/`);
-    allRTGs = (await res.json()).sort((a, b) => a.code.localeCompare(b.code));
+    const res = await fetch(`${API}/organizations/${id}`);
+    if (!res.ok) throw new Error('Not found');
+    populateForm(await res.json());
   } catch(e) {
-    console.warn('Could not load RTGs:', e.message);
+    showAlert(document.getElementById('alert'), `>> LOAD FAILED // ${e.message}`, true);
   }
 }
 
-// ── Org list (for selector and checkboxes) ────────────────────
-async function loadOrgs() {
-  try {
-    const res = await fetch(`${API}/organizations/`);
-    allOrgs = await res.json();
-    renderOrgChecks(allOrgs);
-    renderOrgSelector(allOrgs);
-  } catch (e) {
-    ['allyList','enemyList'].forEach(id => {
-      document.getElementById(id).innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">Could not load</div>';
-    });
+function populateForm(org) {
+  editingId = org.id;
+  document.getElementById('modalTitle').textContent = `Edit // ${org.name}`;
+  document.getElementById('name').value = org.name || '';
+  const orgTypeVal = org.org_type || '';
+  if (!orgTypeVal || PREDEFINED_ORG_TYPES.includes(orgTypeVal)) {
+    document.getElementById('org_type').value = orgTypeVal;
+    document.getElementById('org_type-custom').value = '';
+    document.getElementById('org_type-custom-wrap').style.display = 'none';
+  } else {
+    document.getElementById('org_type').value = 'Custom';
+    document.getElementById('org_type-custom').value = orgTypeVal;
+    document.getElementById('org_type-custom-wrap').style.display = '';
   }
+  document.getElementById('headquarters').value = org.headquarters || '';
+  document.getElementById('description').value = org.description || '';
+  document.getElementById('notes').value = org.notes || '';
+  document.getElementById('is_active').checked = org.is_active !== false;
+  updateStatus();
+  setTier(org.tier || 1);
+
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+  leaderCount = 0;
+  (org.leadership || []).forEach(l => addLeader(l));
+
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  telecomCount = 0; hostCount = 0;
+  (org.ltgs || []).forEach(e => {
+    if (e.type === 'telecom') addTelecom(e);
+    else if (e.type === 'matrix_host') addHost(e);
+  });
+
+  const allySet  = new Set(org.ally_ids  || []);
+  const enemySet = new Set(org.enemy_ids || []);
+  renderOrgChecks(allOrgs);
+  document.querySelectorAll('#allyList  input[type=checkbox]').forEach(cb => { if (allySet.has(parseInt(cb.value)))  cb.checked = true; });
+  document.querySelectorAll('#enemyList input[type=checkbox]').forEach(cb => { if (enemySet.has(parseInt(cb.value))) cb.checked = true; });
+
+  document.getElementById('submitBtn').textContent  = '>> Update Database Entry';
+  document.getElementById('deleteBtn').style.display = '';
+  document.getElementById('alert').className = 'alert';
 }
 
-function renderOrgSelector(orgs) {
-  const sel = document.getElementById('orgSelector');
-  sel.innerHTML = '<option value="">— Select an existing organization —</option>' +
-    orgs.map(o => `<option value="${o.id}">${esc(o.name)} [T${o.tier}]</option>`).join('');
-  // Restore selection if editing
-  if (editingId) sel.value = editingId;
+// ── Table rendering ───────────────────────────────────────────
+let allOrgsForTable = [];
+
+function applyFilter() {
+  const search     = document.getElementById('filterInput').value.toLowerCase();
+  const typeFilter = document.getElementById('filterType').value;
+  const statusFilter = document.getElementById('filterStatus').value;
+  const filtered = allOrgsForTable.filter(o => {
+    if (typeFilter && o.org_type !== typeFilter) return false;
+    if (statusFilter === 'active'   && !o.is_active) return false;
+    if (statusFilter === 'inactive' &&  o.is_active) return false;
+    if (search && !o.name.toLowerCase().includes(search) && !(o.headquarters||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const wrap = document.getElementById('tableWrap');
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="loading">No organizations match the filter</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="manage-table">
+      <thead>
+        <tr>
+          <th>Designation</th>
+          <th>Type</th>
+          <th>Tier</th>
+          <th>Headquarters</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(o => `
+          <tr>
+            <td style="color:var(--text-bright)">${esc(o.name)}</td>
+            <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '—')}</td>
+            <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span style="color:var(--text-dim)">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
+            <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '—')}</td>
+            <td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>
+            <td class="td-act">
+              <button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
+// ── Org checkboxes ────────────────────────────────────────────
 function renderOrgChecks(orgs) {
   ['allyList', 'enemyList'].forEach(lid => {
     const el = document.getElementById(lid);
@@ -469,88 +569,42 @@ function renderOrgChecks(orgs) {
       <label class="chk-item">
         <input type="checkbox" value="${o.id}">
         <span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
-      </label>
-    `).join('');
+      </label>`).join('');
   });
 }
 
-// ── Edit mode population ──────────────────────────────────────
-async function loadOrgForEdit(id) {
-  if (!id) { resetForm(); return; }
+// ── RTG list ──────────────────────────────────────────────────
+async function loadRTGs() {
   try {
-    const res = await fetch(`${API}/organizations/${id}`);
-    if (!res.ok) throw new Error('Not found');
-    const org = await res.json();
-    populateForm(org);
+    const res = await fetch(`${API}/rtgs/`);
+    allRTGs = (await res.json()).sort((a, b) => a.code.localeCompare(b.code));
+  } catch(e) { console.warn('Could not load RTGs:', e.message); }
+}
+
+// ── Org list ──────────────────────────────────────────────────
+async function loadOrgs() {
+  try {
+    const res = await fetch(`${API}/organizations/`);
+    allOrgs = await res.json();
+    allOrgsForTable = allOrgs;
+    renderOrgChecks(allOrgs);
+
+    // Build type filter from actual data
+    const types = [...new Set(allOrgs.map(o => o.org_type).filter(Boolean))].sort();
+    const typeSel = document.getElementById('filterType');
+    const curType = typeSel.value;
+    typeSel.innerHTML = '<option value="">All Types</option>' +
+      types.map(t => `<option value="${esc(t)}">${esc(fmtType(t))}</option>`).join('');
+    if (curType) typeSel.value = curType;
+
+    applyFilter();
   } catch(e) {
-    showAlert(document.getElementById('alert'), `>> LOAD FAILED // ${e.message}`, true);
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
   }
 }
 
-function populateForm(org) {
-  editingId = org.id;
-  document.getElementById('pageTitleMode').textContent = `Edit — ${org.name}`;
-  document.getElementById('name').value = org.name || '';
-  document.getElementById('org_type').value = org.org_type || '';
-  document.getElementById('headquarters').value = org.headquarters || '';
-  document.getElementById('description').value = org.description || '';
-  document.getElementById('notes').value = org.notes || '';
-  document.getElementById('is_active').checked = org.is_active !== false;
-  updateStatus();
-  setTier(org.tier || 1);
-
-  // Leadership
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
-  leaderCount = 0;
-  (org.leadership || []).forEach(l => addLeader(l));
-
-  // LTGs
-  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
-  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
-  telecomCount = 0; hostCount = 0;
-  (org.ltgs || []).forEach(e => {
-    if (e.type === 'telecom') addTelecom(e);
-    else if (e.type === 'matrix_host') addHost(e);
-  });
-
-  // Ally/enemy checkboxes
-  const allySet  = new Set(org.ally_ids  || []);
-  const enemySet = new Set(org.enemy_ids || []);
-  renderOrgChecks(allOrgs);
-  document.querySelectorAll('#allyList  input[type=checkbox]').forEach(cb => { if (allySet.has(parseInt(cb.value)))  cb.checked = true; });
-  document.querySelectorAll('#enemyList input[type=checkbox]').forEach(cb => { if (enemySet.has(parseInt(cb.value))) cb.checked = true; });
-
-  document.getElementById('submitBtn').textContent  = '>> UPDATE DATABASE ENTRY';
-  document.getElementById('deleteBtn').style.display = '';
-  document.getElementById('orgSelector').value = org.id;
-}
-
-function resetForm() {
-  editingId = null;
-  document.getElementById('pageTitleMode').textContent = 'New Entry';
-  document.getElementById('orgForm').reset();
-  setTier(1);
-  updateStatus();
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
-  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
-  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
-  leaderCount = telecomCount = hostCount = 0;
-  document.getElementById('submitBtn').textContent  = '>> SUBMIT TO DATABASE';
-  document.getElementById('deleteBtn').style.display = 'none';
-  document.getElementById('orgSelector').value = '';
-  document.getElementById('alert').className = 'alert';
-  document.getElementById('alertBottom').className = 'alert';
-  renderOrgChecks(allOrgs);
-}
-
-// ── Alert helper ──────────────────────────────────────────────
-function showAlert(el, msg, isError) {
-  el.textContent = msg;
-  el.className = `alert show ${isError ? 'alert-err' : 'alert-ok'}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-// ── Delete org ────────────────────────────────────────────────
+// ── Delete ────────────────────────────────────────────────────
 async function deleteOrg() {
   if (!editingId) return;
   const name = document.getElementById('name').value || 'this organization';
@@ -558,26 +612,30 @@ async function deleteOrg() {
   try {
     const res = await fetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);
-    showAlert(document.getElementById('alert'), `>> ENTRY PURGED // "${name}" deleted.`, false);
-    resetForm();
+    closeModal();
     await loadOrgs();
+    showAlert(document.getElementById('mainAlert'), `>> ENTRY PURGED // "${name}" deleted.`, false);
   } catch(e) {
     showAlert(document.getElementById('alert'), `>> DELETE FAILED // ${e.message}`, true);
   }
 }
 
-// ── Submit (create or update) ─────────────────────────────────
-document.getElementById('orgForm').addEventListener('submit', async e => {
-  e.preventDefault();
+// ── Submit ────────────────────────────────────────────────────
+async function submitForm() {
   const topAlert = document.getElementById('alert');
-  const botAlert = document.getElementById('alertBottom');
-
   const name = document.getElementById('name').value.trim();
   if (!name) { showAlert(topAlert, 'ERROR // Designation is required.', true); return; }
 
+  let orgTypeVal = document.getElementById('org_type').value;
+  if (orgTypeVal === 'Custom') {
+    orgTypeVal = document.getElementById('org_type-custom').value.trim() || null;
+  } else {
+    orgTypeVal = orgTypeVal || null;
+  }
+
   const payload = {
     name,
-    org_type:     document.getElementById('org_type').value || null,
+    org_type:     orgTypeVal,
     tier:         tierVal,
     headquarters: document.getElementById('headquarters').value.trim() || null,
     description:  document.getElementById('description').value.trim() || null,
@@ -590,16 +648,14 @@ document.getElementById('orgForm').addEventListener('submit', async e => {
   };
 
   const submitBtn = document.getElementById('submitBtn');
-  submitBtn.textContent = '>> TRANSMITTING...';
+  submitBtn.textContent = '>> Transmitting...';
   submitBtn.disabled = true;
 
   try {
     const url    = editingId ? `${API}/organizations/${editingId}` : `${API}/organizations/`;
     const method = editingId ? 'PATCH' : 'POST';
     const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -607,36 +663,25 @@ document.getElementById('orgForm').addEventListener('submit', async e => {
     }
     const saved = await res.json();
     const verb = editingId ? 'UPDATED' : 'REGISTERED';
-    showAlert(topAlert, `>> ACCESS GRANTED // Organization "${saved.name}" ${verb} (ID ${saved.id}).`, false);
-    showAlert(botAlert, `>> ACCESS GRANTED // Organization "${saved.name}" ${verb} (ID ${saved.id}).`, false);
-    if (!editingId) {
-      resetForm();
-    } else {
-      // Refresh to pull latest from API (ally/enemy names etc.)
-      populateForm(saved);
-    }
+    closeModal();
     await loadOrgs();
-  } catch (err) {
+    showAlert(document.getElementById('mainAlert'), `>> ACCESS GRANTED // "${saved.name}" ${verb}.`, false);
+  } catch(err) {
     showAlert(topAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
-    showAlert(botAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
   } finally {
     submitBtn.disabled = false;
-    if (!editingId) submitBtn.textContent = '>> SUBMIT TO DATABASE';
-    else submitBtn.textContent = '>> UPDATE DATABASE ENTRY';
+    submitBtn.textContent = editingId ? '>> Update Database Entry' : '>> Submit to Database';
   }
-});
+}
 
 // ── Init ──────────────────────────────────────────────────────
 (async function init() {
   await Promise.all([loadOrgs(), loadRTGs()]);
-  document.getElementById('orgSelectorWrap').style.display = '';
 
-  // Check URL for ?id= param
-  const params = new URLSearchParams(window.location.search);
+  // Support legacy ?id= deep links
+  const params  = new URLSearchParams(window.location.search);
   const idParam = parseInt(params.get('id'));
-  if (idParam) {
-    await loadOrgForEdit(idParam);
-  }
+  if (idParam) openModal(idParam);
 })();
 </script>
 </body>

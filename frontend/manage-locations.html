@@ -194,6 +194,10 @@ function onLocTypeChange() {
   document.getElementById('f-location_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
 }
 
+function fmtType(s) {
+  return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
+}
+
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -362,7 +366,7 @@ async function loadAll() {
     const typeSel = document.getElementById('filterType');
     const cur = typeSel.value;
     typeSel.innerHTML = '<option value="">All Types</option>' +
-      types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      types.map(t => `<option value="${esc(t)}">${esc(fmtType(t))}</option>`).join('');
     if (cur) typeSel.value = cur;
 
     applyFilter();
