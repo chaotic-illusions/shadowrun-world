@@ -17,7 +17,11 @@ class AdventureLogBase(BaseModel):
     casualties: Optional[str] = None
     outcome_tags: list[str] = []
     consequences_active: list[str] = []
+    heat: int = 0
+    employer: Optional[str] = None
     gm_notes: Optional[str] = None
+    changes_applied: list[dict[str, Any]] = []
+    changes_excluded: list[dict[str, Any]] = []
 
 
 class AdventureLogCreate(AdventureLogBase):
@@ -37,7 +41,11 @@ class AdventureLogUpdate(BaseModel):
     casualties: Optional[str] = None
     outcome_tags: Optional[list[str]] = None
     consequences_active: Optional[list[str]] = None
+    heat: Optional[int] = None
+    employer: Optional[str] = None
     gm_notes: Optional[str] = None
+    changes_applied: Optional[list[dict[str, Any]]] = None
+    changes_excluded: Optional[list[dict[str, Any]]] = None
     participant_ids: Optional[list[int]] = None
     location_ids: Optional[list[int]] = None
     org_ids: Optional[list[int]] = None
@@ -60,4 +68,6 @@ class AdventureLogSummary(BaseModel):
     session_date: date
     run_number: Optional[int] = None
     outcome: Optional[str] = None
+    heat: int = 0
+    employer: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)

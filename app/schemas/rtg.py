@@ -12,8 +12,7 @@ class RTGBase(BaseModel):
     notes: Optional[str] = None
 
 
-class RTGCreate(RTGBase):
-    pass
+RTGCreate = RTGBase
 
 
 class RTGUpdate(BaseModel):

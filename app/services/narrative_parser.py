@@ -37,14 +37,21 @@ Respond ONLY with a single valid JSON object matching this schema exactly:
 
 Rules for proposed_changes:
 - nuyen: total per-character payment (positive) or expense (negative). Use the payout figure if stated.
-- street_cred: +1 to +3 for a clean success; less for partial; 0 or negative for failure.
-- notoriety: +1 to +3 when runners were witnessed, caught on camera, left collateral damage, or acted outside shadowrunner norms.
-- public_awareness: +1 only if the event made news or caused a public scene.
+- street_cred: use this for ALL skill-based reputation changes.
+    Success: +1 to +3 depending on difficulty and cleanliness.
+    Partial success: +0 to +1.
+    Failure: -1 to -2 (the shadows talk; a botched job costs cred).
+    Do NOT use notoriety for run failures -- use a negative street_cred delta instead.
+- notoriety: ONLY for genuine infamy events distinct from run outcome:
+    collateral civilian damage, witnessed atrocities, betrayal of a Johnson or teammate,
+    unnecessary violence, breaking shadowrunner codes of conduct.
+    A run failing cleanly does NOT generate notoriety.
+- public_awareness: +1 only if the event made news or caused a public scene visible to ordinary citizens.
 - org_standing: -5 to +5 based on how the run affected that org's interests (positive = helped them, negative = harmed them).
 - Only include changes clearly supported by the narrative.
 - Match character_name and org_name exactly to the world context.
 - If a character is not named in the narrative, do not include changes for them unless they obviously participated (e.g. "the team").
-- Clamp nuyen changes to reasonable SR2 values (street runs: \\u00a55k-\\u00a550k per runner).
+- Clamp nuyen changes to reasonable SR2 values (street runs: \u00a55k-\u00a550k per runner).
 - Do not invent organizations or characters not present in the world context.
 """
 

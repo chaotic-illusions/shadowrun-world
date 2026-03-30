@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, selectinload
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.character import Character
 from app.models.reputation import Reputation
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary
@@ -8,13 +8,6 @@ from app.schemas.contact import ContactRead
 from app.schemas.reputation import ReputationRead
 
 router = APIRouter()
-
-
-def _get_or_404(db: Session, character_id: int) -> Character:
-    char = db.query(Character).filter(Character.id == character_id).first()
-    if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
-    return char
 
 
 @router.get("/", response_model=list[CharacterRead])
@@ -42,22 +35,19 @@ def create_character(body: CharacterCreate, db: Session = Depends(get_db)):
 
 @router.get("/{character_id}", response_model=CharacterRead)
 def get_character(character_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(db, character_id)
+    return get_or_404(db, Character, character_id)
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
 def update_character(character_id: int, body: CharacterUpdate, db: Session = Depends(get_db)):
-    char = _get_or_404(db, character_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(char, field, value)
-    db.commit()
-    db.refresh(char)
+    char = get_or_404(db, Character, character_id)
+    apply_update(db, char, body)
     return char
 
 
 @router.delete("/{character_id}", status_code=204)
 def delete_character(character_id: int, db: Session = Depends(get_db)):
-    char = _get_or_404(db, character_id)
+    char = get_or_404(db, Character, character_id)
     db.delete(char)
     db.commit()
 
@@ -66,11 +56,11 @@ def delete_character(character_id: int, db: Session = Depends(get_db)):
 def get_character_contacts(character_id: int, db: Session = Depends(get_db)):
     char = db.query(Character).options(selectinload(Character.contacts)).filter(Character.id == character_id).first()
     if not char:
-        raise HTTPException(status_code=404, detail="Character not found")
+        raise HTTPException(status_code=404, detail="Character not found")  # needs eager load, can't use get_or_404
     return char.contacts
 
 
 @router.get("/{character_id}/reputation", response_model=ReputationRead | None)
 def get_character_reputation(character_id: int, db: Session = Depends(get_db)):
-    _get_or_404(db, character_id)
+    get_or_404(db, Character, character_id)
     return db.query(Reputation).filter(Reputation.character_id == character_id).first()

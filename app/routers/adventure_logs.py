@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -13,6 +14,10 @@ from app.schemas.adventure_log import (
     AdventureLogCreate, AdventureLogUpdate, AdventureLogRead, AdventureLogSummary
 )
 from app.services.consequence_engine import suggest
+from app.services.heat_calculator import (
+    compute_heat, compute_ripple, heat_label,
+    decay_heat, decay_pa, pc_rep_label, team_rep_label, pa_label,
+)
 
 
 # ── Narrative parsing schemas ─────────────────────────────────
@@ -58,6 +63,73 @@ def _resolve_relations(db: Session, log: AdventureLog, participant_ids, location
         log.orgs_involved = db.query(Organization).filter(Organization.id.in_(org_ids)).all()
 
 
+@router.get("/party-stats")
+def party_stats(db: Session = Depends(get_db)):
+    """
+    Return party-wide heat (decayed, across all PCs) and team reputation
+    (average of active PCs only).
+    """
+    today = date.today()
+
+    # ── Heat: max decayed heat across all logs ────────────────────────────
+    logs = db.query(AdventureLog).all()
+    max_heat_raw = 0.0
+    for log in logs:
+        if not log.heat or log.heat <= 0:
+            continue
+        days_ago = (today - log.session_date).days if log.session_date else 0
+        dh = decay_heat(log.heat, days_ago)
+        if dh > max_heat_raw:
+            max_heat_raw = dh
+    party_heat = max(0, min(10, round(max_heat_raw)))
+
+    # ── Reputation: active PCs only ───────────────────────────────────────
+    active_pcs = db.query(Character).filter(
+        Character.is_pc == True, Character.is_active == True
+    ).all()
+    pc_ids = [c.id for c in active_pcs]
+
+    rep_scores = []
+    pa_scores  = []
+    char_rep_map = {}   # char_id -> {net_rep, net_rep_tier, pa, pa_tier}
+    if pc_ids:
+        reps = db.query(Reputation).filter(Reputation.character_id.in_(pc_ids)).all()
+        rep_by_char = {r.character_id: r for r in reps}
+        for pc in active_pcs:
+            r = rep_by_char.get(pc.id)
+            sc   = (r.street_cred       if r else 0) or 0
+            not_ = (r.notoriety         if r else 0) or 0
+            pa_raw = (r.public_awareness if r else 0) or 0
+            # Decay PA if we have a timestamp for when it was last set
+            if r and r.pa_updated_at:
+                days_since = (today - r.pa_updated_at).days
+                pa_eff = max(0, round(decay_pa(pa_raw, days_since)))
+            else:
+                pa_eff = pa_raw  # no timestamp → no decay
+            net_rep = max(0, min(40, 20 + sc - not_))
+            rep_scores.append(net_rep)
+            pa_scores.append(pa_eff)
+            char_rep_map[pc.id] = {
+                "net_rep":      net_rep,
+                "net_rep_tier": pc_rep_label(net_rep),
+                "pa":           pa_eff,
+                "pa_tier":      pa_label(pa_eff),
+            }
+
+    team_score = round(sum(rep_scores) / len(rep_scores)) if rep_scores else 20
+    avg_pa     = round(sum(pa_scores)  / len(pa_scores))  if pa_scores  else 0
+
+    return {
+        "heat":           party_heat,
+        "heat_label":     heat_label(party_heat),
+        "team_rep_score": team_score,
+        "team_rep_tier":  team_rep_label(team_score),
+        "avg_pa":         avg_pa,
+        "pa_tier":        pa_label(avg_pa),
+        "char_rep":       char_rep_map,
+    }
+
+
 @router.get("/", response_model=list[AdventureLogSummary])
 def list_logs(
     outcome: str | None = Query(None),
@@ -76,6 +148,20 @@ def create_log(body: AdventureLogCreate, db: Session = Depends(get_db)):
     # Auto-generate consequence suggestions from tags
     if data.get("outcome_tags"):
         data["consequences_suggested"] = suggest(data["outcome_tags"])
+
+    # Compute heat if not already set (e.g. manual entry)
+    if not data.get("heat"):
+        employer_name = (data.get("employer") or "").strip().lower()
+        employer_org  = db.query(Organization).filter(
+            Organization.is_active == True
+        ).all()
+        employer_org  = next((o for o in employer_org if o.name.lower() == employer_name), None)
+        data["heat"] = compute_heat(
+            outcome           = data.get("outcome"),
+            outcome_tags      = data.get("outcome_tags"),
+            employer_tier     = employer_org.tier     if employer_org else None,
+            employer_org_type = employer_org.org_type if employer_org else None,
+        )
 
     log = AdventureLog(**data)
     db.add(log)
@@ -116,6 +202,37 @@ def parse_run_narrative(body: NarrativeParseRequest, db: Session = Depends(get_d
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Narrative parsing failed: {e}")
 
+    # ── Heat calculation ──────────────────────────────────────────
+    # Look up employer org by name (case-insensitive) to get tier/type
+    employer_name = (result.get("employer") or "").strip().lower()
+    employer_org  = next((o for o in orgs if o.name.lower() == employer_name), None)
+    heat = compute_heat(
+        outcome          = result.get("outcome"),
+        outcome_tags     = result.get("outcome_tags"),
+        employer_tier    = employer_org.tier    if employer_org else None,
+        employer_org_type= employer_org.org_type if employer_org else None,
+    )
+    result["heat"]       = heat
+    result["heat_label"] = heat_label(heat)
+
+    # ── Faction ripple ────────────────────────────────────────────
+    # Build a lightweight org map for ripple lookups
+    org_map = {
+        o.id: {"name": o.name, "ally_ids": o.ally_ids or [], "enemy_ids": o.enemy_ids or []}
+        for o in orgs
+    }
+    # Deduplicate ripple: keep the largest-magnitude entry per (character_id, org_id)
+    ripple_index: dict[tuple, dict] = {}
+    for ch in result.get("proposed_changes", []):
+        if ch.get("type") == "org_standing" and ch.get("org_id") and ch.get("delta"):
+            for rpl in compute_ripple(ch["org_id"], ch["delta"], org_map):
+                rpl["character_id"]   = ch["character_id"]
+                rpl["character_name"] = ch.get("character_name")
+                key = (rpl["character_id"], rpl["org_id"])
+                if key not in ripple_index or abs(rpl["delta"]) > abs(ripple_index[key]["delta"]):
+                    ripple_index[key] = rpl
+    result["proposed_changes"] = result.get("proposed_changes", []) + list(ripple_index.values())
+
     return result
 
 
@@ -140,6 +257,8 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                     errors.append(f"No reputation record for character {ch.character_id}"); continue
                 old = getattr(rep, ch.type, 0) or 0
                 setattr(rep, ch.type, max(0, old + ch.delta))
+                if ch.type == "public_awareness":
+                    rep.pa_updated_at = date.today()
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
 
             elif ch.type == "org_standing":

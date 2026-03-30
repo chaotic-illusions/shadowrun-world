@@ -1,17 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.contact import Contact
 from app.schemas.contact import ContactCreate, ContactUpdate, ContactRead
 
 router = APIRouter()
-
-
-def _get_or_404(db: Session, contact_id: int) -> Contact:
-    contact = db.query(Contact).filter(Contact.id == contact_id).first()
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
-    return contact
 
 
 @router.get("/", response_model=list[ContactRead])
@@ -39,21 +32,18 @@ def create_contact(body: ContactCreate, db: Session = Depends(get_db)):
 
 @router.get("/{contact_id}", response_model=ContactRead)
 def get_contact(contact_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(db, contact_id)
+    return get_or_404(db, Contact, contact_id)
 
 
 @router.patch("/{contact_id}", response_model=ContactRead)
 def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(get_db)):
-    contact = _get_or_404(db, contact_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(contact, field, value)
-    db.commit()
-    db.refresh(contact)
+    contact = get_or_404(db, Contact, contact_id)
+    apply_update(db, contact, body)
     return contact
 
 
 @router.delete("/{contact_id}", status_code=204)
 def delete_contact(contact_id: int, db: Session = Depends(get_db)):
-    contact = _get_or_404(db, contact_id)
+    contact = get_or_404(db, Contact, contact_id)
     db.delete(contact)
     db.commit()

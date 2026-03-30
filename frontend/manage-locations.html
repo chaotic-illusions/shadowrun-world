@@ -58,18 +58,70 @@
         </div>
         <div class="field">
           <label>Type</label>
-          <select id="f-location_type">
-            <option value="">— Unknown —</option>
-            <option value="corporate">Corporate</option>
-            <option value="government">Government</option>
-            <option value="residential">Residential</option>
-            <option value="commercial">Commercial</option>
-            <option value="industrial">Industrial</option>
-            <option value="criminal">Criminal</option>
-            <option value="barrens">Barrens</option>
-            <option value="matrix">Matrix / Virtual</option>
-            <option value="other">Other</option>
+          <select id="f-location_type" onchange="onLocTypeChange()">
+            <optgroup label="── Entertainment ──">
+              <option value="nightclub">Nightclub</option>
+              <option value="bar">Bar / Tavern</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="casino">Casino</option>
+              <option value="btl den">BTL Den</option>
+              <option value="brothel">Brothel</option>
+            </optgroup>
+            <optgroup label="── Corporate ──">
+              <option value="corporate facility">Corporate Facility</option>
+              <option value="corporate headquarters">Corporate Headquarters</option>
+              <option value="corporate megastructure">Corporate Megastructure</option>
+              <option value="research lab">Research Lab</option>
+              <option value="data center">Data Center</option>
+              <option value="corporate arcology">Corporate Arcology</option>
+            </optgroup>
+            <optgroup label="── Retail &amp; Commercial ──">
+              <option value="commercial district">Commercial District</option>
+              <option value="convenience store">Convenience Store</option>
+              <option value="mall">Mall</option>
+              <option value="street market">Street Market</option>
+              <option value="pawn shop">Pawn Shop / Fence</option>
+              <option value="black market">Black Market</option>
+            </optgroup>
+            <optgroup label="── Residential ──">
+              <option value="residential community">Residential Community</option>
+              <option value="apartment complex">Apartment Complex</option>
+              <option value="squatter camp">Squatter Camp</option>
+              <option value="subterranean community">Subterranean Community</option>
+              <option value="penthouse">Penthouse / High-Rise</option>
+            </optgroup>
+            <optgroup label="── Government &amp; Infrastructure ──">
+              <option value="government building">Government Building</option>
+              <option value="military installation">Military Installation</option>
+              <option value="police station">Police Station</option>
+              <option value="hospital">Hospital / Clinic</option>
+              <option value="transportation hub">Transportation Hub</option>
+              <option value="power plant">Power Plant / Utility</option>
+            </optgroup>
+            <optgroup label="── Underground &amp; Criminal ──">
+              <option value="gang territory">Gang Territory</option>
+              <option value="safehouse">Safehouse</option>
+              <option value="smugglers den">Smuggler's Den</option>
+              <option value="underground bunker">Underground Bunker</option>
+              <option value="chop shop">Chop Shop</option>
+            </optgroup>
+            <optgroup label="── Matrix ──">
+              <option value="matrix host">Matrix Host / Node</option>
+              <option value="virtual space">Virtual Space</option>
+              <option value="pirate node">Pirate Node</option>
+            </optgroup>
+            <optgroup label="── Landmark ──">
+              <option value="landmark / restaurant">Landmark / Restaurant</option>
+              <option value="landmark / monument">Landmark / Monument</option>
+              <option value="ruins">Ruins</option>
+            </optgroup>
+            <optgroup label="── Other ──">
+              <option value="Custom">Custom…</option>
+            </optgroup>
           </select>
+          <div id="f-location_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="f-location_type-custom" placeholder="Enter location type..." style="width:100%">
+          </div>
         </div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
@@ -87,13 +139,13 @@
           <label>Security Level</label>
           <select id="f-security_level">
             <option value="">— Unknown —</option>
-            <option value="AA">AA — Corporate Extraterritorial</option>
-            <option value="A">A — Corporate High Security</option>
-            <option value="B">B — Corporate Standard</option>
-            <option value="C">C — Patrolled / Commercial</option>
-            <option value="D">D — Low Security</option>
-            <option value="E">E — No Security / Barrens</option>
-            <option value="Z">Z — Corporate Zero Zone</option>
+            <option value="Corporate Extraterritorial">Corporate Extraterritorial</option>
+            <option value="Corporate High Security">Corporate High Security</option>
+            <option value="Corporate Standard">Corporate Standard</option>
+            <option value="Patrolled / Commercial">Patrolled / Commercial</option>
+            <option value="Low Security">Low Security</option>
+            <option value="No Security / Barrens">No Security / Barrens</option>
+            <option value="Zero Zone — Lethal Response">Zero Zone — Lethal Response</option>
           </select>
         </div>
         <div class="field">
@@ -125,6 +177,22 @@ const API = '';
 let allLocs = [];
 let allOrgs = [];
 let editingId = null;
+
+const PREDEFINED_LOC_TYPES = [
+  'nightclub','bar','restaurant','casino','btl den','brothel',
+  'corporate facility','corporate headquarters','corporate megastructure','research lab','data center','corporate arcology',
+  'commercial district','convenience store','mall','street market','pawn shop','black market',
+  'residential community','apartment complex','squatter camp','subterranean community','penthouse',
+  'government building','military installation','police station','hospital','transportation hub','power plant',
+  'gang territory','safehouse','smugglers den','underground bunker','chop shop',
+  'matrix host','virtual space','pirate node',
+  'landmark / restaurant','landmark / monument','ruins',
+];
+
+function onLocTypeChange() {
+  const val = document.getElementById('f-location_type').value;
+  document.getElementById('f-location_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+}
 
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -187,14 +255,24 @@ function openModal(id) {
   document.getElementById('deleteBtn').style.display = loc ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
 
-  document.getElementById('f-name').value             = loc?.name || '';
-  document.getElementById('f-location_type').value    = loc?.location_type || '';
-  document.getElementById('f-city').value             = loc?.city || '';
-  document.getElementById('f-district').value         = loc?.district || '';
-  document.getElementById('f-security_level').value   = loc?.security_level || '';
+  document.getElementById('f-name').value               = loc?.name || '';
+  document.getElementById('f-city').value               = loc?.city || '';
+  document.getElementById('f-district').value           = loc?.district || '';
+  document.getElementById('f-security_level').value     = loc?.security_level || '';
   document.getElementById('f-controlling_org_id').value = loc?.controlling_org_id || '';
-  document.getElementById('f-description').value      = loc?.description || '';
-  document.getElementById('f-notes').value            = loc?.notes || '';
+  document.getElementById('f-description').value        = loc?.description || '';
+  document.getElementById('f-notes').value              = loc?.notes || '';
+
+  const locTypeVal = loc?.location_type || '';
+  if (!locTypeVal || PREDEFINED_LOC_TYPES.includes(locTypeVal)) {
+    document.getElementById('f-location_type').value = locTypeVal;
+    document.getElementById('f-location_type-custom').value = '';
+    document.getElementById('f-location_type-custom-wrap').style.display = 'none';
+  } else {
+    document.getElementById('f-location_type').value = 'Custom';
+    document.getElementById('f-location_type-custom').value = locTypeVal;
+    document.getElementById('f-location_type-custom-wrap').style.display = '';
+  }
 
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -216,9 +294,15 @@ async function saveLoc() {
   if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
 
   const orgId = parseInt(document.getElementById('f-controlling_org_id').value) || null;
+  let locType = document.getElementById('f-location_type').value;
+  if (locType === 'Custom') {
+    locType = document.getElementById('f-location_type-custom').value.trim() || null;
+  } else {
+    locType = locType || null;
+  }
   const payload = {
     name,
-    location_type:      document.getElementById('f-location_type').value || null,
+    location_type:      locType,
     city:               document.getElementById('f-city').value.trim() || null,
     district:           document.getElementById('f-district').value.trim() || null,
     security_level:     document.getElementById('f-security_level').value || null,

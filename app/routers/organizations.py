@@ -1,17 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.organization import Organization
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary
 
 router = APIRouter()
-
-
-def _get_or_404(db: Session, org_id: int) -> Organization:
-    org = db.query(Organization).filter(Organization.id == org_id).first()
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    return org
 
 
 @router.get("/", response_model=list[OrganizationRead])
@@ -39,21 +32,18 @@ def create_organization(body: OrganizationCreate, db: Session = Depends(get_db))
 
 @router.get("/{org_id}", response_model=OrganizationRead)
 def get_organization(org_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(db, org_id)
+    return get_or_404(db, Organization, org_id)
 
 
 @router.patch("/{org_id}", response_model=OrganizationRead)
 def update_organization(org_id: int, body: OrganizationUpdate, db: Session = Depends(get_db)):
-    org = _get_or_404(db, org_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(org, field, value)
-    db.commit()
-    db.refresh(org)
+    org = get_or_404(db, Organization, org_id)
+    apply_update(db, org, body)
     return org
 
 
 @router.delete("/{org_id}", status_code=204)
 def delete_organization(org_id: int, db: Session = Depends(get_db)):
-    org = _get_or_404(db, org_id)
+    org = get_or_404(db, Organization, org_id)
     db.delete(org)
     db.commit()

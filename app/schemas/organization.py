@@ -19,8 +19,7 @@ class OrganizationBase(BaseModel):
     notes: Optional[str] = None
 
 
-class OrganizationCreate(OrganizationBase):
-    pass
+OrganizationCreate = OrganizationBase
 
 
 class OrganizationUpdate(BaseModel):

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class ContactBase(BaseModel):
     name: str
     profession: Optional[str] = None
+    race: Optional[str] = None
     loyalty: int = 1
     connection: int = 1
     description: Optional[str] = None
@@ -22,13 +23,13 @@ class ContactBase(BaseModel):
         return v
 
 
-class ContactCreate(ContactBase):
-    pass
+ContactCreate = ContactBase
 
 
 class ContactUpdate(BaseModel):
     name: Optional[str] = None
     profession: Optional[str] = None
+    race: Optional[str] = None
     loyalty: Optional[int] = None
     connection: Optional[int] = None
     description: Optional[str] = None

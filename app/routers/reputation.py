@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.reputation import Reputation, OrgStanding
 from app.schemas.reputation import (
     ReputationCreate, ReputationUpdate, ReputationRead,
@@ -37,21 +37,14 @@ def create_reputation(body: ReputationCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{rep_id}", response_model=ReputationRead)
 def update_reputation(rep_id: int, body: ReputationUpdate, db: Session = Depends(get_db)):
-    rep = db.query(Reputation).filter(Reputation.id == rep_id).first()
-    if not rep:
-        raise HTTPException(status_code=404, detail="Reputation record not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(rep, field, value)
-    db.commit()
-    db.refresh(rep)
+    rep = get_or_404(db, Reputation, rep_id)
+    apply_update(db, rep, body)
     return rep
 
 
 @router.delete("/{rep_id}", status_code=204)
 def delete_reputation(rep_id: int, db: Session = Depends(get_db)):
-    rep = db.query(Reputation).filter(Reputation.id == rep_id).first()
-    if not rep:
-        raise HTTPException(status_code=404, detail="Reputation record not found")
+    rep = get_or_404(db, Reputation, rep_id)
     db.delete(rep)
     db.commit()
 
@@ -89,20 +82,13 @@ def create_org_standing(body: OrgStandingCreate, db: Session = Depends(get_db)):
 
 @router.patch("/standings/{standing_id}", response_model=OrgStandingRead)
 def update_org_standing(standing_id: int, body: OrgStandingUpdate, db: Session = Depends(get_db)):
-    standing = db.query(OrgStanding).filter(OrgStanding.id == standing_id).first()
-    if not standing:
-        raise HTTPException(status_code=404, detail="Standing not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(standing, field, value)
-    db.commit()
-    db.refresh(standing)
+    standing = get_or_404(db, OrgStanding, standing_id)
+    apply_update(db, standing, body)
     return standing
 
 
 @router.delete("/standings/{standing_id}", status_code=204)
 def delete_org_standing(standing_id: int, db: Session = Depends(get_db)):
-    standing = db.query(OrgStanding).filter(OrgStanding.id == standing_id).first()
-    if not standing:
-        raise HTTPException(status_code=404, detail="Standing not found")
+    standing = get_or_404(db, OrgStanding, standing_id)
     db.delete(standing)
     db.commit()
