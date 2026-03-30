@@ -28,7 +28,7 @@
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:center">
-      <input type="text" id="filterInput" placeholder="Filter by name or description..." style="width:280px" oninput="applyFilter()">
+      <input type="text" id="filterInput" placeholder="Filter by name, description, or district..." style="width:340px" oninput="applyFilter()">
       <select id="filterType" onchange="applyFilter()" style="width:160px">
         <option value="">All Types</option>
       </select>
@@ -245,7 +245,7 @@ function applyFilter() {
   const q = document.getElementById('filterInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
   const filtered = allLocs.filter(l =>
-    (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q)) &&
+    (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q) || (l.district||'').toLowerCase().includes(q)) &&
     (!t || l.location_type === t)
   );
   renderTable(filtered);

@@ -56,6 +56,7 @@ class CharacterRead(CharacterBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    organization_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

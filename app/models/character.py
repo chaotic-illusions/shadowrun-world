@@ -50,6 +50,10 @@ class Character(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     organization = relationship("Organization", foreign_keys=[organization_id])
+
+    @property
+    def organization_name(self):
+        return self.organization.name if self.organization else None
     contacts = relationship("Contact", foreign_keys="Contact.owner_id", back_populates="owner", cascade="all, delete-orphan")
     reputation = relationship("Reputation", back_populates="character", uselist=False, cascade="all, delete-orphan")
     org_standings = relationship("OrgStanding", back_populates="character", cascade="all, delete-orphan")
