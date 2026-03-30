@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from app.data.consequence_tags import get_all_tags, get_tag_info, SINGLE_TAG_RULES
 from app.services.consequence_engine import suggest
 
@@ -31,6 +31,5 @@ def get_suggestions(
 def get_tag(tag: str):
     info = get_tag_info(tag)
     if not info:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Unknown tag: {tag}")
     return {"tag": tag, **info}

@@ -1,10 +1,8 @@
 {
   "_comment": "Shadowrun World Seed Data. Use names as references — the seed script resolves them to IDs automatically.",
-  "_todo": "TODO: #1 Review LTG host_ratings across all organizations and adjust values as needed.",
-  "_todo": "TODO: #2 Determine system for determining team heat and reputation with various factions.  Heat level should be a function of the notoriety of the job, the profile of the employer, and the outcome of the run.  Reputation changes should be based on similar factors, but also account for the specific factions involved and the nature of the run's success or failure.  For example, a high-profile assassination job for a powerful employer that succeeds would generate significant heat and increase reputation with that employer's faction, while severely damaging reputation with any factions opposed to them.  Conversely, a low-profile data theft job that goes unnoticed might generate minimal heat and have a small positive impact on reputation with the employer's faction, while not affecting other factions at all.  Define thresholds for heat levels (e.g., low, moderate, high) and reputation tiers (e.g., hostile, neutral, friendly) to guide gameplay and consequences in the world.",
+  "_todo": "TODO: #1 Remove the scroll to functionality from the world state.  I just want the buttons to either expand a section, or collapse it.  Further, the organizations button should expand/collapse all organizations (which includes corps, law enf, org crime, gangs, and cults.",
+  "_todo": "TODO: #2.  How are the number of characters calculated?  There are 2 PCs, 2 (unique) contacts, and 5 known persons (one of which is also a contact).  The math doesn't add up.  Let's make more sense of this.  The characters should reference PCs.  Let's change the label on the characters button to read 'Shadowrunners'.  For the contacts and known persons, let's consolidate.  Each NPC will be a single entity with a flag that marks them as just an NPC, or an upgraded contact that can be used in the future.  Essentially, transient vs. permanent.  I really like the Loyalty/Connection meters you implemented, nice touch.  Let's keep those.  If a contact shares a connection via multiple PCs, show it as a comma separated list.  (e.g. via Razor, Static) instead of making 2 cards.  Also check the formatting, on the world page, 'via' is shown twice.  Do not display nuyen or karma on contacts, it isn't relevant.  Add a section for special skills they have.  This will be hidden if they are a known person, and exposed if they are a contact.  For example, Fingers (a fixer) would have Evaluate Value of Hi-Tech Items, and Equipment Acquisition.  Ask for more input if this is unclear.  When clicking the Contacts button, it should expand/collapse both the contacts and known persons sections in the main page.",
   "_todo": "TODO: #3 Basic authentication for user access.  Players should be able to create accounts, view their own character sheets and run history, and track their reputation with various factions. They should also be able to see a party overview, showing data known the whole group, but not edit it.  GMs should have additional permissions to manage world data.",
-  "_todo": "TODO: #4 In LTG management, provide a dropdown of all RTGs in the world for easy association.  For the LTG, suggest a randomly generated 5-character hex code for the ID code, but allow manual override.  The value must be unique.  Host rating should be a dropdown with standard values (Green-2, Orange-4, Red-6, etc.)  Upon submission, sort the LTG list by listed/unlisted/black, then by host rating.",
-  "_todo": "TODO: #5 Add a GM only summary field that allows the GM to enter adventure summaries.  This would be a freeform text field that can be used to track the history of runs, major events, and other world developments.  It would not be visible to players.  Expected information would be adventure details; who hired the team, what were the terms of the contract, what were the objective(s), and what was the outcome.  If possible, automatically extract and summarize this information from the GM's input using an LLM, to modify the world state to account for the new data.  For example, the party accepted a job from Mr. Johnson for 10,000 ¥ to provide bodyguard duty.  Ultimately, the run was successful, but the street samurai was caught on camera, increasing his wanted level with Lone Star.  Street reputation would increase because it was successful, party nuyen would increase by the agreed-upon amount, and the heat level with Lone Star would increase as well.",
   "rtgs": [
     {
       "code": "NA/UCAS-NE",
@@ -2093,7 +2091,7 @@
       "city": "Seattle",
       "district": "Downtown",
       "description": "Multi-level nightclub with a hell theme. Popular with shadowrunners and corporate suits alike.",
-      "security_level": "medium",
+      "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
       "notes": "Good place to meet fixers. Avoid the upper floors — Yakuza territory."
     },
@@ -2103,7 +2101,7 @@
       "city": "Seattle",
       "district": "Redmond Barrens",
       "description": "Grimy dive bar. No questions asked, cheap synthahol.",
-      "security_level": "low",
+      "security_level": "No Security / Barrens",
       "controlling_org_name": "The Cutters",
       "notes": "Default runner hangout between jobs."
     },
@@ -2113,7 +2111,7 @@
       "city": "Seattle",
       "district": "Bellevue",
       "description": "High-security R&D campus. Magical wards, HTR teams, dual-natured guards. Primary site for magical research in the Pacific Northwest division.",
-      "security_level": "high",
+      "security_level": "Corporate High Security",
       "controlling_org_name": "Aztechnology",
       "notes": "HTR response time ~4 minutes. Mana barriers on all labs. Dr. Quijada's primary workspace. Sub-basement levels are rumored to house blood magic ritual spaces — unconfirmed."
     },
@@ -2123,7 +2121,7 @@
       "city": "Seattle",
       "district": "Downtown",
       "description": "Aztechnology's Seattle regional headquarters. A stepped pyramid tower that dominates the downtown skyline. Houses executive offices, a host node rated among the most secure in the city, Jaguar Guard barracks, and a public-facing corporate gallery and Soykaf cafe on the ground floor.",
-      "security_level": "extreme",
+      "security_level": "Corporate Extraterritorial",
       "controlling_org_name": "Aztechnology",
       "notes": "Extraterritorial — Aztlan sovereign soil. Jaguar Guards patrol all floors. The public ground floor is safe; anything above level 3 requires corporate ID. The host is considered a black IC deathtrap by every decker who's discussed it. HTR launches from here for all Seattle Aztechnology sites."
     },
@@ -2133,7 +2131,7 @@
       "city": "Seattle",
       "district": "Redmond Barrens",
       "description": "One of dozens of Aztechnology-owned Stuffer Shack franchise locations scattered across Seattle. 24-hour, sells cheap soykaf, nutrisoy, and BTL chips under the counter.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": "Aztechnology",
       "notes": "Surveillance cameras feed back to an Aztechnology monitoring node. The night manager, a troll named Gus, supplements income by moving BTL chips sourced through the Cutters. He does not know who actually owns the franchise."
     },
@@ -2143,7 +2141,7 @@
       "city": "Seattle",
       "district": "Downtown",
       "description": "Higher-end Stuffer Shack location near the corporate towers. Cleaner, better stocked, but the surveillance is tighter.",
-      "security_level": "medium",
+      "security_level": "Patrolled / Commercial",
       "controlling_org_name": "Aztechnology",
       "notes": "Corporate foot traffic means this location gets audited more frequently. Not a safe place for runners to linger. The host node here has a direct uplink to the Pyramid."
     },
@@ -2153,7 +2151,7 @@
       "city": "Seattle",
       "district": "Downtown / Waterfront",
       "description": "One of the most famous shadowrunner-friendly establishments in Seattle. Club Penumbra occupies a converted waterfront warehouse and runs three floors of live music, dancing, and private booths with Matrix terminals. It operates as genuine neutral ground — corp suits, runners, gangers, fixers, and syndicate representatives all drink here, and the management enforces the peace with professional security that has no loyalties to any faction.",
-      "security_level": "medium",
+      "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
       "notes": "Penumbra's neutrality is its product. The owner, a human woman known only as Doris, has maintained independence from every faction that has tried to claim the club through a combination of leverage, paid-for protection, and a security team that is unusually well-equipped for a nightclub.\n\nThe Matrix terminals in the private booths are hardened against passive surveillance and are the de facto standard meeting infrastructure for runners who need a secure channel in meat space. Do not assume they are completely clean — they are safer than most alternatives, not safe.\n\nFixers use the booths for introductions. Mr. Johnsons use them for initial contact. Syndicate intermediaries use them for cross-faction negotiation. If something shadow-related is happening in Seattle, someone in this building probably knows about it.\n\nThe live music is legitimately good. The cover is 20 nuyen and the synthahol is overpriced. Both are worth it."
     },
@@ -2163,7 +2161,7 @@
       "city": "Seattle",
       "district": "Downtown",
       "description": "An underground club in the literal sense — built into a network of converted utility tunnels and maintenance spaces beneath Downtown Seattle. Underworld 93 is darker, louder, and less curated than Club Penumbra. The clientele skews toward the harder end of the shadow community: gangers, smugglers, BTL dealers, and runners who prefer their meeting spots to not have security cameras.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "Underworld 93 has no visible ownership. The staff rotate constantly and none of them will give you a name. There are four known entrances, two of which are through adjacent buildings whose owners claim ignorance. Lone Star has raided the club three times; each time it was empty an hour before they arrived.\n\nBTL chips are openly traded in the back corridors. Stolen cyberware, weapons, and forged SINs can be sourced here with minimal effort. If you need something quickly and don't want to explain yourself to a fixer, Underworld 93 is the market.\n\nThere are persistent rumors of a fifth sub-level that doesn't appear on any building schematic, used for high-value exchanges that require even less visibility than the main club. No runner interviewed has claimed to have personally accessed it — only heard about it from someone who knew someone."
     },
@@ -2173,7 +2171,7 @@
       "city": "Seattle",
       "district": "Puyallup Barrens",
       "description": "A runner and low-life bar in the volcanic Puyallup district, built into the reinforced lower level of a building that has survived three nearby lava flow events through sheer construction stubbornness. The Jackal's Lantern is the primary runner watering hole for the southern Barrens — rougher than Club Penumbra, cheaper than Dante's, and completely disinterested in your business unless your business is causing problems.",
-      "security_level": "low",
+      "security_level": "No Security / Barrens",
       "controlling_org_name": null,
       "notes": "The bar is run by a dwarf named Cutter MacAllister who has tended bar here for fifteen years and will continue to do so until either the volcano or someone's bullet ends the arrangement. He hears everything, repeats nothing without payment, and pours generous measures.\n\nPuyallup's volcanic activity means ash falls are common and the air outside carries particulate. The Lantern's filtered interior is one reason people stay longer than they planned. The bar stocks respirators behind the counter for customers who arrive underprepared.\n\nHelloweener territory begins three blocks east. MacAllister has a long-standing informal arrangement with the gang — they don't come inside, and he doesn't ask where the credsticks his regulars spend came from. It is an arrangement that has held for seven years and will eventually not hold."
     },
@@ -2183,7 +2181,7 @@
       "city": "Seattle",
       "district": "Downtown",
       "description": "The largest single structure in the Pacific Northwest — a 100-story stepped arcology tower housing approximately 90,000 residents, Renraku's Seattle corporate headquarters, manufacturing floors, schools, hospitals, shopping centers, a full agricultural level, and its own power generation. The SCIRE is functionally a self-contained city inside Seattle's city limits. It is extraterritorial Renraku sovereign space from the parking structure to the roof.",
-      "security_level": "extreme",
+      "security_level": "Corporate Extraterritorial",
       "controlling_org_name": "Renraku Computer Systems",
       "notes": "Entry to the public-accessible lower levels (floors 1-3) requires a valid SIN scan and biometric registration. Everything above floor 3 requires Renraku corporate credentials. The residential levels are accessible only to registered residents and their logged guests. The upper corporate floors are Red Samurai territory.\n\nThe SCIRE has its own Matrix host architecture — a fully internal grid that is hardened against external intrusion and maintained separately from the public Seattle grid. Static's assessment: the host is extremely dangerous and she will not jack into it without significant preparation and a very good reason.\n\nFor scale: the SCIRE's internal population is larger than many UCAS cities. It has its own transit system, internal law enforcement (Renraku Security, separate from Red Samurai), and a judicial system. A person could theoretically never leave and have every material need met.\n\nRunner operations targeting the SCIRE require treating it as a full infiltration of a sovereign corporate state, not a building. Floor plans above level 10 are not available on any public or shadow market source at any confirmed price."
     },
@@ -2193,7 +2191,7 @@
       "city": "Seattle",
       "district": "Redmond Barrens",
       "description": "The commercial strip on the outer edge of the Redmond Barrens — close enough to the sprawl to feel dangerous, far enough from the deep Barrens to be survivable for outsiders. Touristville exists to sell the Barrens experience to people who don't actually live there: cheap bars, black market stalls, shadow services brokers, and enough controlled grit to satisfy the curiosity of corporate wage slaves who want a story to tell on Monday. Locals regard it with a mixture of economic dependence and contempt.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "Despite the name, Touristville has genuine utility for runners. It is the most accessible point to acquire Barrens-sourced goods and services without going deep into gang territory. Fences, forgers, low-end ripperdocs, and information brokers all maintain presences here.\n\nLone Star does patrol Touristville — more than they patrol the actual Barrens — because the tourists represent a complaint demographic that has political pull. This makes it safer than most of Redmond but means the patrols are a factor to account for.\n\nThe Avalon is the most notable bar in Touristville — a British-themed establishment with pretensions to class that is undercut by its location and clientele. It serves as a middle-ground meeting spot for runners who find Club Penumbra too expensive and the Rusty Nail too deep in gang territory."
     },
@@ -2203,7 +2201,7 @@
       "city": "Seattle",
       "district": "Redmond Barrens (Touristville)",
       "description": "A British Isles-themed bar occupying a converted two-story building in Touristville. Dark wood paneling, Union Jack memorabilia, and a bartender who insists on being called 'the Publican' despite being a third-generation Seattle native. The Avalon positions itself as a cut above the surrounding Touristville establishments, which is a low bar it meets adequately.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "The Avalon functions as a middle-ground meeting spot — accessible from both the corporate side and the deep Barrens, neutral enough that most factions leave it alone, and cheap enough that runners without a current income can still afford a booth.\n\nThe Publican (real name: Gerald) knows everyone in Touristville and has strong opinions about all of them. He does not sell information directly but will steer people toward the right introductions if the tip is appropriate.\n\nThe upstairs function room can be rented by the hour for private meetings. It is not swept for surveillance devices. Assume it is monitored."
     },
@@ -2213,7 +2211,7 @@
       "city": "Seattle",
       "district": "Puyallup Barrens",
       "description": "A predominantly elven community in the Puyallup district, established by elven refugees and economic migrants who were unwelcome in both the UCAS mainstream and the Tir Tairngire nation. Tarislar is politically active, culturally distinct, and deeply suspicious of outsiders — particularly humans, corps, and anyone associated with either Tir Tairngire's government or UCAS law enforcement. Despite its Barrens location, Tarislar maintains internal organization and community cohesion that most Barrens settlements lack entirely.",
-      "security_level": "medium",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "Tarislar's community security is informal but effective — elven residents watch the neighborhood and respond to threats collectively. Outsiders who enter respectfully and have legitimate business are tolerated; outsiders who enter with aggression or corp affiliations will find the neighborhood extremely difficult to navigate and exit.\n\nThe community has complicated, contested feelings about Tir Tairngire. Some residents fled the Tir's rigid social hierarchy (the Danaan social rating system) and want nothing to do with the elven nation. Others maintain contact with Tir intelligence services or political factions. Runners who need a connection into Tir Tairngire shadow networks should start here — carefully.\n\nHumanis Policlub has targeted Tarislar twice with arson and violence. Both times, Humanis operatives did not leave the neighborhood. This is not discussed openly.\n\nThe Ancients maintain a respectful distance from Tarislar — they recruit from the community but do not claim it as territory."
     },
@@ -2223,7 +2221,7 @@
       "city": "Seattle",
       "district": "South Seattle / Tacoma border",
       "description": "The primary UCAS Army installation in the Pacific Northwest, located south of the Seattle metroplex near the Tacoma border. Fort Lewis houses a full combined-arms brigade, aviation assets, military intelligence operations, and several restricted research programs. It is the largest concentration of conventional military force within several hundred kilometers of Seattle.",
-      "security_level": "extreme",
+      "security_level": "Zero Zone — Lethal Response",
       "controlling_org_name": null,
       "notes": "Fort Lewis is not a runner target — it is the definition of a hard site. Physical security includes lethal perimeter defense, standing armed patrols, air assets, and a response force that can be combat-ready in under four minutes. Matrix security is maintained by dedicated military IC that operates under different rules than corporate hosts.\n\nHowever, Fort Lewis is a source of military-grade equipment on the black market. Supply chain corruption exists at the NCO level — stolen milspec weapons, armor, and occasionally vehicles circulate through Seattle's shadow market with Fort Lewis provenance. The Mafia controls most of the established theft pipeline.\n\nThe installation houses a UCAS military intelligence detachment (designation classified) that occasionally runs deniable operations in Seattle using civilian assets. Runners who are hired for jobs that seem unusually well-resourced and vague about who the client is should consider whether the UCAS military is the actual employer.\n\nFort Lewis and Knight Errant have a formal mutual aid agreement for metropolitan defense scenarios. This means a major incident in Seattle could bring military assets into the city faster than most people expect."
     },
@@ -2233,7 +2231,7 @@
       "city": "Seattle",
       "district": "Seattle Center",
       "description": "The pre-Awakening landmark that somehow survived Seattle's transformation into a sprawl. The Space Needle still stands at Seattle Center, now housing a high-end rotating restaurant at the observation level and a corporate event venue on the floors below. The view from the top — corporate towers, Renraku Arcology, the distant Barrens fires, and on clear days the volcanic plume from Puyallup — is the most complete single visual summary of what Seattle has become.",
-      "security_level": "medium",
+      "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
       "notes": "The Space Needle restaurant is a legitimate high-end establishment. Dinner reservations run 200-400 nuyen per person and require a valid SIN. Corporate executives use it for client entertainment. The occasional Mr. Johnson meeting happens here precisely because it is so visible — nobody assumes the contact is shadow business when the setting is this conspicuous.\n\nThe observation deck is open to the public at 50 nuyen admission with SIN scan. It is a genuinely useful overwatch position for anyone planning operations in the Seattle Center area or mapping sightlines into the Downtown corporate district.\n\nThe building's age means its structural systems are pre-Matrix era — the security host is a bolted-on afterthought with limited integration. A decker looking to access the camera system will find it easier than most Downtown targets."
     },
@@ -2243,7 +2241,7 @@
       "city": "Seattle",
       "district": "First Hill",
       "description": "The largest public hospital in the Seattle metroplex and one of the few medical facilities that will treat patients regardless of SIN status — at a price. Harborview handles trauma, surgery, and emergency care for the portion of Seattle's population that cannot afford DocWagon contracts or corporate medical plans. The facility is perpetually understaffed and overextended, operating on public funding that has been cut four times in the last decade.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "SINless patients are accepted but the pricing structure is punishing. A SIN-verified patient pays standard rates (already high by Barrens standards). A SINless patient pays a 'risk surcharge' that typically runs 3-5x the base rate, justified by the hospital administration as covering the legal liability of treating an unregistered individual. In practice, runners who need legitimate trauma care without DocWagon involvement should budget 5,000-15,000 nuyen for anything serious, payable in certified credstick on admission.\n\nHarborview's ER staff are experienced with gunshot wounds, blade trauma, and cyberware-related complications and ask far fewer questions than their corporate equivalents. Two of the attending trauma surgeons moonlight as informal ripperdocs for the shadow community and can be reached through Fingers.\n\nThe hospital maintains a Lone Star liaison office on the second floor. Officers respond to criminal incidents in the facility, which creates complications for runners seeking treatment after a high-profile job. The liaison office is understaffed and the officer on overnight shift is known to accept nuyen to delay filing incident reports.\n\nDocWagon has a standing contract dispute with Harborview over patient acquisition — DocWagon claims the hospital is poaching their contract clients during emergencies. The dispute is ongoing and creates occasional friction between DocWagon HTR teams and Harborview admission staff."
     },
@@ -2253,7 +2251,7 @@
       "city": "Seattle",
       "district": "Beneath Downtown / Pioneer Square",
       "description": "A sprawling network of tunnels, converted utility spaces, and repurposed underground infrastructure beneath Downtown Seattle and the Pioneer Square district, inhabited primarily by orks and trolls who were pushed out of surface Seattle by economics, discrimination, and Humanis violence. The Ork Underground is not a single location but an entire subterranean community — with permanent residences, markets, workshops, and its own social hierarchy — that exists entirely below the surface city.",
-      "security_level": "low",
+      "security_level": "Low Security",
       "controlling_org_name": null,
       "notes": "The Underground is most prominently an SR3-era development, but its roots as an ork refuge are present in earlier Seattle lore. Use accordingly.\n\nLone Star has no jurisdiction underground — their charter covers the surface metroplex, and they have no formal enforcement presence in the tunnels. This makes the Underground a useful refuge for runners who need to disappear quickly after a Downtown operation.\n\nNavigation without a guide is genuinely dangerous — the tunnel network is unmapped, partially flooded in sections, and patrolled by Underground security that does not extend courtesy to outsiders. A contact within the Underground community is necessary for safe transit.\n\nThe Crimson Crush has surface-level connections with Underground leadership — ork solidarity extends across the surface/underground divide — and can provide introductions for runners with appropriate standing."
     }
@@ -2332,7 +2330,13 @@
       "karma_current": 3,
       "nuyen": 8500,
       "is_active": true,
-      "notes": "Owes a favor to Mr. Johnson at Ares. Don't bring it up."
+      "notes": "Owes a favor to Mr. Johnson at Ares. Don't bring it up.",
+      "reputation": {
+        "street_cred": 8,
+        "notoriety": 2,
+        "public_awareness": 0,
+        "notes": "Known in Redmond circles as reliable muscle."
+      }
     },
     {
       "name": "Static",
@@ -2402,7 +2406,13 @@
       "karma_current": 8,
       "nuyen": 12000,
       "is_active": true,
-      "notes": "Has a backdoor into the Lone Star dispatch grid. Valuable asset."
+      "notes": "Has a backdoor into the Lone Star dispatch grid. Valuable asset.",
+      "reputation": {
+        "street_cred": 6,
+        "notoriety": 1,
+        "public_awareness": 0,
+        "notes": "Ghost on the grid. Hard to trace."
+      }
     },
     {
       "name": "Fingers",
@@ -2452,11 +2462,19 @@
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
-      "notes": "Primary fixer. Charges 10% on all job referrals."
+      "notes": "Primary fixer. Charges 10% on all job referrals.",
+      "connection": 5,
+      "contact_skills": [
+        "Equipment Acquisition",
+        "Evaluate Value of Hi-Tech Items",
+        "Job Referrals",
+        "Fence — Stolen Goods"
+      ]
     },
     {
       "name": "Captain Tezca",
       "is_pc": false,
+      "organization_name": "Aztechnology",
       "archetype": "Jaguar Guard Commander",
       "race": "Human",
       "gender": "Male",
@@ -2519,11 +2537,13 @@
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
+      "connection": 4,
       "notes": "Physical adept powers include Killing Hands, Improved Reflexes 2, Astral Perception, and Freefall. Dual-natured — perceives astral and physical simultaneously at all times. If the runners hit any Aztechnology facility in Seattle, Tezca will eventually be assigned to find them personally. He does not fail."
     },
     {
       "name": "Jaguar Guard - Standard",
       "is_pc": false,
+      "organization_name": "Aztechnology",
       "archetype": "Jaguar Warrior",
       "race": "Human",
       "gender": "Male",
@@ -2578,11 +2598,13 @@
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
+      "connection": 2,
       "notes": "Physical adept variant: Improved Reflexes 1, Killing Hands. Shaman variant: typically Jaguar or Eagle totem, carries sustaining foci, can astrally project. All guards can astrally perceive — runners cannot cloak in astral without being detected. Deploy in groups of 4 minimum."
     },
     {
       "name": "Dr. Esteban Quijada",
       "is_pc": false,
+      "organization_name": "Aztechnology",
       "archetype": "Corporate Mage",
       "race": "Human",
       "gender": "Male",
@@ -2637,11 +2659,13 @@
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
+      "connection": 4,
       "notes": "Hermetic mage, Aztechnology tradition. Has knowledge of blood magic theory that he will deny under any circumstance. If the runners ever get close to the sub-basement research, he becomes a direct antagonist. He is extremely dangerous in astral space and will call Jaguar Guards immediately if threatened physically."
     },
     {
       "name": "Claudia Hernandez",
       "is_pc": false,
+      "organization_name": "Aztechnology",
       "archetype": "Corporate Executive",
       "race": "Human",
       "gender": "Female",
@@ -2706,7 +2730,49 @@
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
+      "connection": 5,
       "notes": "Hernandez is the public face of Aztechnology in Seattle. She gives press statements, handles city council relationships, and chairs the Seattle extraterritoriality board. Runners who need a Mr. Johnson with corporate backing may encounter her. She pays well and never gives real names. If crossed, she has Tezca's direct comm code."
+    },
+    {
+      "name": "Chief Hargrove",
+      "is_pc": false,
+      "organization_name": "Lone Star Security",
+      "archetype": "Lone Star Director",
+      "race": "Dwarf",
+      "gender": "Male",
+      "age": 58,
+      "description": "Stocky, silver-haired, perpetually scowling. Twenty years in Lone Star. Knows where every body is buried — including several, literally.",
+      "background": "Rose through Lone Star's ranks during the corp's prime. Now managing decline while keeping his own hands clean enough. Maintains quiet relationships with organized crime that have long since compromised his integrity. Razor knows enough to be a problem. He tips Razor off occasionally in exchange for silence, but the arrangement is entirely transactional.",
+      "attributes": {
+        "body": 5,
+        "agility": 2,
+        "reaction": 3,
+        "strength": 4,
+        "charisma": 5,
+        "intuition": 5,
+        "logic": 4,
+        "willpower": 5,
+        "essence": 5.0
+      },
+      "skills": [
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Negotiation", "rating": 5 },
+        { "name": "Intimidation", "rating": 5 },
+        { "name": "Law Enforcement Procedures", "rating": 7 }
+      ],
+      "augmentations": [],
+      "gear": [],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 6,
+      "contact_skills": [
+        "Law Enforcement Intel",
+        "Criminal Record Suppression",
+        "Warrant Delays",
+        "Crime Scene Access"
+      ],
+      "notes": "Has standing arrangements with the Yakuza's Watada-rengo. His private node (LST-DIR1) contains enough to end careers — including his own. Razor worked under him briefly and knows too much for Hargrove's comfort."
     }
   ],
   "contacts": [
@@ -2715,6 +2781,7 @@
       "npc_name": "Fingers",
       "loyalty": 4,
       "connection": 5,
+      "organization_name": "Unknown",
       "notes": "Fingers got Razor his first job out of Lone Star. Solid relationship."
     },
     {
@@ -2722,32 +2789,16 @@
       "npc_name": "Fingers",
       "loyalty": 2,
       "connection": 5,
+      "organization_name": "Unknown",
       "notes": "Static doesn't fully trust fixers but Fingers delivers."
     },
     {
       "owner_name": "Razor",
-      "name": "Chief Hargrove",
-      "profession": "Lone Star Director",
+      "npc_name": "Chief Hargrove",
       "loyalty": 1,
       "connection": 6,
       "organization_name": "Lone Star Security",
       "notes": "Former boss. Tense. Will tip off Razor occasionally in exchange for keeping quiet."
-    }
-  ],
-  "reputation": [
-    {
-      "character_name": "Razor",
-      "street_cred": 8,
-      "notoriety": 2,
-      "public_awareness": 1,
-      "notes": "Known in Redmond circles as reliable muscle."
-    },
-    {
-      "character_name": "Static",
-      "street_cred": 6,
-      "notoriety": 1,
-      "public_awareness": 0,
-      "notes": "Ghost on the grid. Hard to trace."
     }
   ],
   "org_standings": [

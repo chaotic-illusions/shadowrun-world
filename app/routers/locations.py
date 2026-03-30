@@ -1,17 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.location import Location
 from app.schemas.location import LocationCreate, LocationUpdate, LocationRead
 
 router = APIRouter()
-
-
-def _get_or_404(db: Session, location_id: int) -> Location:
-    loc = db.query(Location).filter(Location.id == location_id).first()
-    if not loc:
-        raise HTTPException(status_code=404, detail="Location not found")
-    return loc
 
 
 @router.get("/", response_model=list[LocationRead])
@@ -42,21 +35,18 @@ def create_location(body: LocationCreate, db: Session = Depends(get_db)):
 
 @router.get("/{location_id}", response_model=LocationRead)
 def get_location(location_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(db, location_id)
+    return get_or_404(db, Location, location_id)
 
 
 @router.patch("/{location_id}", response_model=LocationRead)
 def update_location(location_id: int, body: LocationUpdate, db: Session = Depends(get_db)):
-    loc = _get_or_404(db, location_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(loc, field, value)
-    db.commit()
-    db.refresh(loc)
+    loc = get_or_404(db, Location, location_id)
+    apply_update(db, loc, body)
     return loc
 
 
 @router.delete("/{location_id}", status_code=204)
 def delete_location(location_id: int, db: Session = Depends(get_db)):
-    loc = _get_or_404(db, location_id)
+    loc = get_or_404(db, Location, location_id)
     db.delete(loc)
     db.commit()

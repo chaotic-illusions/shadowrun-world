@@ -1,17 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from app.dependencies import get_db
+from app.dependencies import get_db, get_or_404, apply_update
 from app.models.house_rule import HouseRule
 from app.schemas.house_rule import HouseRuleCreate, HouseRuleUpdate, HouseRuleRead
 
 router = APIRouter()
-
-
-def _get_or_404(db: Session, rule_id: int) -> HouseRule:
-    rule = db.query(HouseRule).filter(HouseRule.id == rule_id).first()
-    if not rule:
-        raise HTTPException(status_code=404, detail="House rule not found")
-    return rule
 
 
 @router.get("/", response_model=list[HouseRuleRead])
@@ -39,21 +32,18 @@ def create_house_rule(body: HouseRuleCreate, db: Session = Depends(get_db)):
 
 @router.get("/{rule_id}", response_model=HouseRuleRead)
 def get_house_rule(rule_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(db, rule_id)
+    return get_or_404(db, HouseRule, rule_id)
 
 
 @router.patch("/{rule_id}", response_model=HouseRuleRead)
 def update_house_rule(rule_id: int, body: HouseRuleUpdate, db: Session = Depends(get_db)):
-    rule = _get_or_404(db, rule_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(rule, field, value)
-    db.commit()
-    db.refresh(rule)
+    rule = get_or_404(db, HouseRule, rule_id)
+    apply_update(db, rule, body)
     return rule
 
 
 @router.delete("/{rule_id}", status_code=204)
 def delete_house_rule(rule_id: int, db: Session = Depends(get_db)):
-    rule = _get_or_404(db, rule_id)
+    rule = get_or_404(db, HouseRule, rule_id)
     db.delete(rule)
     db.commit()

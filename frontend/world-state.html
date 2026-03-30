@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>World State | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
 </head>
 <body>
 
@@ -27,24 +28,66 @@
 
   <div class="status-bar">
     <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>GREEN</span></div>
-    <div class="status-item">TEAM HEAT: <span>NONE</span></div>
-    <div class="status-item">REPUTATION: <span>UNKNOWN</span></div>
+    <div class="status-item">TEAM HEAT: <span id="sb-heat">—</span></div>
+    <div class="status-item">REPUTATION: <span id="sb-rep">—</span></div>
     <div class="status-item">ACTIVE CONTRACTS: <span>NONE</span></div>
     <div class="status-item" id="lastRefresh" style="margin-left:auto">LAST REFRESH: —</div>
   </div>
 
   <div class="stat-bar" id="statBar">
-    <div class="stat-card"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
-    <div class="stat-card"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
-    <div class="stat-card"><span class="stat-num" id="sc-chars">—</span><div class="stat-lbl">Characters</div></div>
-    <div class="stat-card"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleSection('pcs')" title="Toggle Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div style="display:flex;gap:16px;align-items:center;justify-content:center">
+        <div style="text-align:center">
+          <div class="stat-num" id="sc-chars" style="font-size:1.8rem">—</div>
+          <div style="font-size:0.58rem;letter-spacing:2px;color:#b8d4ff;text-transform:uppercase;margin-top:3px">Active</div>
+        </div>
+        <div style="width:1px;height:36px;background:#1a1a1a"></div>
+        <div style="text-align:center">
+          <div class="stat-num" id="sc-chars-inactive" style="font-size:1.8rem;color:var(--red);text-shadow:0 0 8px #ff333355">—</div>
+          <div style="font-size:0.58rem;letter-spacing:2px;color:#b8d4ff;text-transform:uppercase;margin-top:3px">Inactive</div>
+        </div>
+      </div>
+      <div class="stat-lbl">Shadowrunners</div>
+    </div>
+    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Toggle Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Toggle Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Toggle Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
   </div>
 
   <div id="worldContent"><div class="loading">Loading world data</div></div>
 </main>
 
+<!-- ── NPC DOSSIER MODAL ────────────────────────────────────────── -->
+<div id="npcOverlay" class="ltg-overlay" onclick="npcOverlayClick(event)">
+  <div class="ltg-modal" id="npcModal" style="max-width:640px">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="npcModalName"></div>
+        <div id="npcModalBadge" style="margin-top:4px"></div>
+      </div>
+      <button class="btn btn-red" onclick="closeNpcModal()" style="align-self:center">✕ Close</button>
+    </div>
+    <div class="ltg-modal-body" id="npcModalBody"></div>
+  </div>
+</div>
+
 <!-- ── LTG MODAL ─────────────────────────────────────────────── -->
+<!-- ── EDIT MODAL ──────────────────────────────────────────────── -->
+<div id="editOverlay" class="ltg-overlay" onclick="editOverlayClick(event)">
+  <div class="edit-modal">
+    <div class="edit-modal-title" id="editModalTitle"></div>
+    <div class="arch-opt-list" id="archOptList"></div>
+    <input type="text" id="archCustomInput" class="edit-modal-input" placeholder="Enter archetype..." style="display:none"
+      oninput="selectedArch=this.value"
+      onkeydown="if(event.key==='Enter')saveEditModal();if(event.key==='Escape')closeEditModal();">
+    <div class="edit-modal-btns">
+      <button class="btn btn-green" onclick="saveEditModal()">Save</button>
+      <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="ltgOverlay" class="ltg-overlay" onclick="overlayClick(event)">
   <div class="ltg-modal" id="ltgModal">
     <div class="ltg-modal-head">
@@ -60,7 +103,114 @@
 
 <script>
 const API = '';
-let orgStore = {};   // id -> org, populated after fetch
+let orgStore     = {};
+let charMapStore = {};
+let contactStore = [];   // raw contacts array, refreshed on loadAll
+let nonNpcContactStore = {};  // merged contacts without character records, keyed by id
+let npcModalCharId = null;
+
+// ── Archetype Edit Modal ──────────────────────────────────────
+const ARCHETYPES = [
+  { label: 'Street Samurai', cls: 'arch-samurai' },
+  { label: 'Decker',         cls: 'arch-decker'  },
+  { label: 'Rigger',         cls: 'arch-rigger'  },
+  { label: 'Mage',           cls: 'arch-mage'    },
+  { label: 'Shaman',         cls: 'arch-shaman'  },
+  { label: 'Adept',          cls: 'arch-adept'   },
+  { label: 'Custom',         cls: 'arch-custom'  },
+];
+
+let selectedArch = '';
+let archModalCharId = null;
+
+function selectArchOpt(label) {
+  selectedArch = label;
+  document.querySelectorAll('.arch-opt').forEach(el => {
+    el.classList.toggle('arch-opt-selected', el.dataset.label === label);
+  });
+  const isCustom = label === 'Custom';
+  const customInput = document.getElementById('archCustomInput');
+  customInput.style.display = isCustom ? '' : 'none';
+  if (isCustom) {
+    if (!customInput.value) customInput.value = 'Hybrid';
+    selectedArch = customInput.value;
+    setTimeout(() => customInput.focus(), 30);
+  }
+}
+
+function openArchModal(charId) {
+  const current = charMapStore[charId]?.archetype || '';
+  archModalCharId = charId;
+
+  const named = ARCHETYPES.slice(0, -1).find(a => a.label.toLowerCase() === current.toLowerCase());
+  const customInput = document.getElementById('archCustomInput');
+
+  document.getElementById('archOptList').innerHTML = ARCHETYPES.map(a => `
+    <div class="arch-opt ${a.cls}" data-label="${a.label}" onclick="selectArchOpt('${a.label}')">${a.label}</div>
+  `).join('');
+
+  if (named) {
+    selectedArch = named.label;
+    customInput.style.display = 'none';
+    customInput.value = '';
+  } else {
+    selectedArch = current || 'Hybrid';
+    customInput.value = current || 'Hybrid';
+    customInput.style.display = '';
+  }
+
+  document.querySelectorAll('.arch-opt').forEach(el => {
+    el.classList.toggle('arch-opt-selected', el.dataset.label === (named?.label ?? 'Custom'));
+  });
+
+  document.getElementById('editModalTitle').textContent = 'Select Archetype';
+  document.getElementById('editOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditModal() {
+  document.getElementById('editOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  archModalCharId = null;
+}
+
+function editOverlayClick(e) {
+  if (e.target === document.getElementById('editOverlay')) closeEditModal();
+}
+
+async function saveEditModal() {
+  const val = selectedArch === 'Custom'
+    ? document.getElementById('archCustomInput').value.trim()
+    : selectedArch;
+  if (archModalCharId && val !== (charMapStore[archModalCharId]?.archetype || '')) {
+    await fetch(`${API}/characters/${archModalCharId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({archetype: val || null})
+    });
+    loadAll();
+  }
+  closeEditModal();
+}
+
+// ── Tooltip definitions ───────────────────────────────────────
+const PA_TIPS = {
+  'Shadow':           'Unknown to the public — identity fully secure.',
+  'Seen':             'Noticed — face has surfaced; word is starting to spread in certain circles.',
+  'Recognized':       'Known — regularly recognized on the street or picked up in news feeds.',
+  'In the Spotlight': 'Exposed — featured in media coverage; corp security may already have a file.',
+  'Burned':           'Compromised — identity widely known; too hot to work openly without serious risk.',
+};
+
+const CONNECTION_TIPS = [
+  '',
+  'Connection 1 — Street-level only. Knows a handful of people; handles small-time requests with limited reach.',
+  'Connection 2 — Neighborhood reach. Reliable within their own community; limited contacts outside it.',
+  'Connection 3 — City-wide network. Can pull strings across Seattle and is trusted in their field.',
+  'Connection 4 — Regional influence. Cross-sector contacts with access to restricted resources and information.',
+  'Connection 5 — National reach. A major player operating in high-stakes circles with serious leverage.',
+  'Connection 6 — Global or corporate-tier. Extraordinary access across borders — very few doors are closed.',
+];
 
 // ── Helpers ───────────────────────────────────────────────────
 function esc(s) {
@@ -71,7 +221,7 @@ function esc(s) {
 function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
-function orgClass(t) { return `oc-${t || 'other'}`; }
+function orgClass(t) { return `oc-${TYPE_GROUP[t] || 'other'}`; }
 function fmtNuyen(n) { return '¥' + Number(n || 0).toLocaleString(); }
 
 // ── Section collapse state ────────────────────────────────────
@@ -82,6 +232,37 @@ function toggleSection(key) {
   const btn  = document.getElementById(`sec-btn-${key}`);
   if (body) body.style.display = collapsed[key] ? 'none' : '';
   if (btn)  btn.textContent    = collapsed[key] ? '[+]' : '[–]';
+}
+
+function toggleContactSections() {
+  // Expand both if either is collapsed; collapse both if both are expanded
+  const anyCollapsed = collapsed['contacts'] || collapsed['npcs'];
+  ['contacts', 'npcs'].forEach(key => {
+    if (document.getElementById(`sec-body-${key}`)) {
+      if (anyCollapsed && collapsed[key]) toggleSection(key);
+      if (!anyCollapsed && !collapsed[key]) toggleSection(key);
+    }
+  });
+}
+
+function toggleAllOrgs() {
+  const orgKeys = ORG_ORDER.map(g => `org-${g}`)
+    .filter(k => document.getElementById(`sec-body-${k}`));
+  const anyExpanded = orgKeys.some(k => !collapsed[k]);
+  orgKeys.forEach(key => {
+    if (anyExpanded && !collapsed[key]) toggleSection(key);
+    if (!anyExpanded && collapsed[key]) toggleSection(key);
+  });
+}
+
+// ── Org description expand ────────────────────────────────────
+const expandedOrgs = {};
+function toggleOrgDesc(orgId) {
+  expandedOrgs[orgId] = !expandedOrgs[orgId];
+  const el  = document.getElementById(`oc-desc-${orgId}`);
+  const btn = document.getElementById(`oc-xbtn-${orgId}`);
+  if (el)  el.classList.toggle('oc-desc-expanded', expandedOrgs[orgId]);
+  if (btn) btn.textContent = expandedOrgs[orgId] ? '[ collapse ]' : '[ expand ]';
 }
 
 // ── LTG Modal ─────────────────────────────────────────────────
@@ -157,6 +338,7 @@ function buildOrgCard(org, orgMap) {
   const allies  = (org.ally_ids  || []).map(id => orgMap[id]?.name).filter(Boolean);
   const enemies = (org.enemy_ids || []).map(id => orgMap[id]?.name).filter(Boolean);
   const hasNet  = (org.ltgs || []).length > 0;
+  const longDesc = org.description && org.description.length > 160;
   return `
     <div class="org-card ${orgClass(org.org_type)}">
       <div class="oc-head">
@@ -169,14 +351,373 @@ function buildOrgCard(org, orgMap) {
       <div class="oc-type">${esc(org.org_type || 'unclassified')}</div>
       ${org.headquarters ? `<div class="oc-hq">${esc(org.headquarters)}</div>` : ''}
       ${org.description
-        ? `<div class="oc-desc">${esc(org.description)}</div>`
+        ? `<div class="oc-desc" id="oc-desc-${org.id}">${esc(org.description)}</div>`
         : '<div class="oc-desc" style="color:#333">No public intel available.</div>'}
+      ${longDesc ? `<div><button class="oc-expand-btn" id="oc-xbtn-${org.id}" onclick="toggleOrgDesc(${org.id})">[ expand ]</button></div>` : ''}
       ${(allies.length || enemies.length) ? `
         <div class="oc-foot">
           ${allies.length  ? `<span class="rel-ally">▲ ALLIES: ${allies.map(esc).join(', ')}</span>` : ''}
           ${enemies.length ? `<span class="rel-enemy">▼ HOSTILE: ${enemies.map(esc).join(', ')}</span>` : ''}
         </div>` : ''}
-      ${hasNet ? `<button class="oc-network-link" onclick="openLTG(${org.id})">&gt; View Network Directory</button>` : ''}
+      ${hasNet ? `<div><button class="oc-network-link" onclick="openLTG(${org.id})">&gt; View Network Directory</button></div>` : ''}
+    </div>`;
+}
+
+function archetypeClass(arch) {
+  if (!arch) return 'arch-custom';
+  const a = arch.toLowerCase();
+  if (a.includes('samurai') || a.includes('street sam')) return 'arch-samurai';
+  if (a.includes('decker'))   return 'arch-decker';
+  if (a.includes('rigger'))   return 'arch-rigger';
+  if (a.includes('shaman'))   return 'arch-shaman';
+  if (a.includes('adept'))    return 'arch-adept';   // matches 'adept' and 'physical adept'
+  if (a.includes('mage'))     return 'arch-mage';
+  return 'arch-custom';
+}
+
+function editCharArchetype(charId) {
+  openArchModal(charId);
+}
+
+function loyaltyDots(n, max) {
+  return Array.from({length: max}, (_, i) =>
+    `<span style="color:${i < n ? 'var(--amber)' : '#333'}">●</span>`
+  ).join('');
+}
+
+// Merge raw contacts array: group by npc_id (or by name if no npc_id)
+function mergeContacts(contacts) {
+  const byNpc  = {};  // npc_id (int) -> merged
+  const byName = {};  // name (lowercase) -> merged
+  contacts.forEach(c => {
+    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection };
+    if (c.npc_id) {
+      if (!byNpc[c.npc_id]) byNpc[c.npc_id] = { ...c, owners: [] };
+      byNpc[c.npc_id].owners.push(ownerEntry);
+    } else {
+      const key = c.name.toLowerCase();
+      if (!byName[key]) byName[key] = { ...c, owners: [] };
+      byName[key].owners.push(ownerEntry);
+    }
+  });
+  return [...Object.values(byNpc), ...Object.values(byName)];
+}
+
+// ── NPC Dossier Modal ─────────────────────────────────────────
+function openNpcModal(charId) {
+  const char = charMapStore[charId];
+  if (!char || char.is_pc) return;
+  npcModalCharId = charId;
+  const metatype  = char.metatype || char.race || null;
+  const archetype = char.archetype || null;
+  const raceProf  = [metatype, archetype].filter(Boolean).join(' | ');
+  const org = char.organization_id ? orgStore[char.organization_id] : null;
+
+  document.getElementById('npcModalName').textContent = char.name;
+  document.getElementById('npcModalBadge').innerHTML =
+    raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
+
+  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+
+  const attrMap = char.attributes || {};
+  const attrOrder = ['body','quickness','strength','charisma','intelligence','willpower','essence','magic','reaction'];
+  const attrLabels = {body:'BOD',quickness:'QUI',strength:'STR',charisma:'CHA',intelligence:'INT',willpower:'WIL',essence:'ESS',magic:'MAG',reaction:'REA'};
+  const attrHtml = attrOrder.filter(k => attrMap[k] != null).map(k =>
+    `<div class="npc-attr"><span class="npc-attr-lbl">${attrLabels[k]}</span><span class="npc-attr-val">${attrMap[k]}</span></div>`
+  ).join('');
+
+  const skills = (char.skills || []).map(s => {
+    const spec = s.specialization ? ` (${esc(s.specialization)})` : '';
+    return `<div class="npc-skill">&#8250; ${esc(s.name)} ${s.rating ?? ''}${spec}</div>`;
+  }).join('');
+
+  const augs = (char.augmentations || []).map(a =>
+    `<div class="npc-aug">&#8250; ${esc(a.name)}${a.rating ? ` [${a.rating}]` : ''}${a.notes ? ` — <span style="color:#555">${esc(a.notes)}</span>` : ''}</div>`
+  ).join('');
+
+  const gear = (char.gear || []).map(g =>
+    `<div class="npc-gear">&#8250; ${esc(g.name)}${g.qty && g.qty > 1 ? ` ×${g.qty}` : ''}</div>`
+  ).join('');
+
+  const contactSkills = (char.contact_skills || []);
+
+  document.getElementById('npcModalBody').innerHTML = `
+    ${orgLine}
+    ${char.nationality ? `<div style="font-size:0.68rem;color:#555;margin-bottom:10px;letter-spacing:1px">${esc(char.nationality)}</div>` : ''}
+    ${char.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(char.description)}</div></div>` : ''}
+    ${contactSkills.length ? `
+      <div class="npc-modal-section">
+        <div class="npc-modal-sec-lbl">Contact Services</div>
+        ${contactSkills.map(s => `<div class="npc-skill">&#8250; ${esc(s)}</div>`).join('')}
+      </div>` : ''}
+    ${renderPromoteSection(charId)}
+    <div class="npc-modal-gm">
+      <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
+      ${char.background ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>` : ''}
+      ${attrHtml ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Attributes</div><div class="npc-attr-grid">${attrHtml}</div></div>` : ''}
+      ${skills ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Skills</div>${skills}</div>` : ''}
+      ${augs ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Augmentations</div>${augs}</div>` : ''}
+      ${gear ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Gear</div>${gear}</div>` : ''}
+      ${char.notes ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Notes</div><div class="npc-modal-text" style="color:#666">${esc(char.notes)}</div></div>` : ''}
+    </div>`;
+
+  document.getElementById('npcOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeNpcModal() {
+  document.getElementById('npcOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function npcOverlayClick(e) {
+  if (e.target === document.getElementById('npcOverlay')) closeNpcModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeNpcModal(); closeLTG(); closeEditModal(); } });
+
+// ── Contact Promotion (NPC modal) ─────────────────────────────
+function renderPromoteSection(charId) {
+  const char = charMapStore[charId];
+  const existing = contactStore.filter(c => c.npc_id === charId);
+  const pcs = Object.values(charMapStore).filter(c => c.is_pc && c.is_active);
+  const linkedIds = new Set(existing.map(c => c.owner_id));
+  const available = pcs.filter(p => !linkedIds.has(p.id));
+
+  const rows = existing.map(c => {
+    const owner = charMapStore[c.owner_id];
+    const ownerActive = owner?.is_active !== false;
+    return `<div class="promote-row${ownerActive ? '' : ' promote-row-inactive'}">
+      <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}${ownerActive ? '' : ' <span style="color:#555;font-size:0.6rem">(inactive)</span>'}</span>
+      <span class="promote-meta">Loyalty ${c.loyalty}</span>
+      <button class="promote-remove" onclick="removeContactLink(${c.id})" title="Remove link">✕</button>
+    </div>`;
+  }).join('');
+
+  const addForm = available.length ? `
+    <div class="promote-add-form" id="promoteAddForm" style="display:none">
+      <select id="promoteOwnerSel" class="promote-select">
+        ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+      </select>
+      <label class="promote-field-lbl">Loyalty
+        <input type="number" id="promoteLoyalty" class="promote-num" min="1" max="6" value="1">
+      </label>
+      <button class="btn btn-green" style="font-size:0.62rem;padding:3px 10px" onclick="addContactLink()">Link</button>
+      <button class="btn" style="font-size:0.62rem;padding:3px 8px;color:var(--text-dim);border-color:#222" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
+    </div>
+    <button class="btn btn-amber" style="font-size:0.62rem;padding:3px 10px;margin-top:6px" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
+  ` : (existing.length ? '<div class="promote-all-linked">All active runners already linked.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
+
+  return `<div class="npc-modal-section" id="promoteSectionWrap">
+    <div class="npc-modal-sec-lbl">Contact Relationships</div>
+    ${rows}
+    ${addForm}
+  </div>`;
+}
+
+async function addContactLink() {
+  const char = charMapStore[npcModalCharId];
+  if (!char) return;
+  const ownerId = parseInt(document.getElementById('promoteOwnerSel').value);
+  const loyalty = Math.min(6, Math.max(1, parseInt(document.getElementById('promoteLoyalty').value) || 1));
+  const conn    = char.connection ?? 1;
+  const res = await fetch(`${API}/contacts/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      name: char.name,
+      profession: char.archetype || null,
+      race: char.race || null,
+      owner_id: ownerId,
+      npc_id: npcModalCharId,
+      loyalty,
+      connection: conn,
+      organization_id: char.organization_id || null,
+    })
+  });
+  if (!res.ok) { alert('Failed to create contact link.'); return; }
+  const contactsRes = await fetch(`${API}/contacts/`);
+  contactStore = await contactsRes.json();
+  document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
+  loadAll();
+}
+
+async function removeContactLink(contactId) {
+  if (!confirm('Remove this contact link?')) return;
+  await fetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+  const contactsRes = await fetch(`${API}/contacts/`);
+  contactStore = await contactsRes.json();
+  document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
+  loadAll();
+}
+
+// ── Non-NPC Contact Modal (contacts without a character record) ──
+let nonNpcModalId = null;
+
+function openNonNpcContactModal(contactId) {
+  const merged = nonNpcContactStore[contactId];
+  if (!merged) return;
+  nonNpcModalId = contactId;
+  const org = merged.organization_id ? orgStore[merged.organization_id] : null;
+  const race = merged.race || null;
+  const prof = merged.profession || null;
+  const raceProf = [race, prof].filter(Boolean).join(' | ');
+  const connVal = merged.connection ?? 1;
+
+  document.getElementById('npcModalName').textContent = merged.name;
+  document.getElementById('npcModalBadge').innerHTML =
+    raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
+
+  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+
+  const ownerRows = (merged.owners || []).map(o => {
+    const ownerChar = charMapStore[o.owner_id];
+    const name = ownerChar ? esc(ownerChar.name) : `#${o.owner_id}`;
+    return `<div class="promote-row">
+      <span class="promote-runner">${name}</span>
+      <span class="promote-meta">Loyalty ${o.loyalty || 0}</span>
+      <button class="promote-remove" onclick="removeNonNpcLink(${o.contact_id})" title="Remove link">✕</button>
+    </div>`;
+  }).join('');
+
+  const connDisplay = `
+    <div class="cc-connection-gm" style="margin-bottom:12px" title="${CONNECTION_TIPS[connVal] || ''}">
+      <span class="cc-conn-lbl">Connection</span>
+      <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
+      <span class="cc-via-num">${connVal}</span>
+    </div>`;
+
+  document.getElementById('npcModalBody').innerHTML = `
+    ${orgLine}
+    ${merged.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(merged.description)}</div></div>` : ''}
+    ${connDisplay}
+    <div class="npc-modal-section">
+      <div class="npc-modal-sec-lbl">Contact Relationships</div>
+      ${ownerRows || '<div class="promote-all-linked">No runners linked.</div>'}
+    </div>`;
+
+  document.getElementById('npcOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+async function removeNonNpcLink(contactId) {
+  if (!confirm('Remove this contact link?')) return;
+  await fetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+  const contactsRes = await fetch(`${API}/contacts/`);
+  contactStore = await contactsRes.json();
+  closeNpcModal();
+  loadAll();
+}
+
+async function toggleCharActive(charId, isActive) {
+  await fetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({is_active: !isActive})
+  });
+  loadAll();
+}
+
+async function patchNpcConnection(charId, currentVal) {
+  const raw = prompt(`Connection rating (1–6):`, currentVal);
+  if (raw === null) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1 || n > 6) { alert('Rating must be between 1 and 6'); return; }
+  await fetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({connection: n})
+  });
+  loadAll();
+}
+
+async function patchConnection(cardKey, currentVal, contactIds) {
+  const raw = prompt(`Connection rating (1–6):`, currentVal);
+  if (raw === null) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1 || n > 6) { alert('Rating must be between 1 and 6'); return; }
+  await Promise.all(contactIds.map(cid =>
+    fetch(`${API}/contacts/${cid}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({connection: n})
+    })
+  ));
+  loadAll();
+}
+
+function buildContactCard(merged, charMap, orgMap) {
+  const org    = merged.organization_id ? orgMap[merged.organization_id] : null;
+  const npc    = merged.npc_id ? charMap[merged.npc_id] : null;
+  const skills = npc?.contact_skills || [];
+  const race   = merged.race || npc?.metatype || npc?.race || null;
+  const prof   = merged.profession || npc?.archetype || null;
+  // Connection: from NPC character record if linked, else from contact record
+  const connVal = npc ? (npc.connection ?? 1) : (merged.connection ?? 1);
+  const contactIds = JSON.stringify((merged.owners || []).map(o => o.contact_id).filter(Boolean));
+  const cardKey = `cc-${merged.npc_id || merged.name.replace(/\W+/g, '-')}`;
+
+  const raceProf = [race, prof].filter(Boolean).join(' | ');
+  const orgDisplay = org ? esc(org.name) : '[Unknown]';
+
+  // Activity state comes from the linked NPC character (if any)
+  const isActive = npc ? (npc.is_active !== false) : true;
+
+  // Clickable only when NPC is active
+  const clickHandler = isActive
+    ? (merged.npc_id
+        ? `onclick="openNpcModal(${merged.npc_id})" title="View dossier"`
+        : `onclick="openNonNpcContactModal(${merged.id})" title="View contact"`)
+    : '';
+
+  // Active toggle — only shown for NPC-linked contacts (toggle acts on the NPC character)
+  const contactToggleBtn = npc
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${npc.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`
+    : '';
+  const contactOverlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
+
+  const ownerRows = (merged.owners || []).map(o => {
+    const ownerChar = charMap[o.owner_id];
+    const name = ownerChar ? esc(ownerChar.name) : `#${o.owner_id}`;
+    return `
+      <div class="cc-via-row">
+        <span class="cc-via-name">${name}</span>
+        <div class="cc-via-ratings">
+          <span class="cc-via-lbl">Loyalty</span>
+          <span class="cc-via-dots">${loyaltyDots(o.loyalty||0,6)}</span>
+          <span class="cc-via-num">${o.loyalty||0}</span>
+        </div>
+      </div>`;
+  });
+
+  // Connection edit: NPC-linked patches the character; non-NPC patches the contact record
+  const connEditBtn = npc
+    ? `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchNpcConnection(${npc.id},${connVal})">✎</button>`
+    : `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchConnection('${cardKey}',${connVal},${contactIds})">✎</button>`;
+
+  return `
+    <div class="contact-card cc-clickable" ${clickHandler}>
+      ${contactToggleBtn}
+      ${contactOverlay}
+      <div class="cc-head">
+        <div class="cc-name">${esc(merged.name)}</div>
+      </div>
+      ${raceProf ? `<div style="margin-bottom:6px"><span class="cc-race-prof">${esc(raceProf)}</span></div>` : ''}
+      <div class="cc-org"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${orgDisplay}</div>
+      <div class="cc-connection-gm" title="${CONNECTION_TIPS[connVal] || ''}">
+        <span class="cc-conn-lbl">Connection</span>
+        <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
+        <span class="cc-via-num">${connVal}</span>
+        ${connEditBtn}
+      </div>
+      <div class="cc-known-via-lbl">Known via</div>
+      ${ownerRows.join('')}
+      ${merged.description ? `<div class="cc-desc">${esc(merged.description)}</div>` : ''}
+      ${skills.length ? `
+        <div class="cc-skills">
+          <div class="cc-skills-lbl">Services</div>
+          ${skills.map(s => `<div class="cc-skill">&#8250; ${esc(s)}</div>`).join('')}
+        </div>` : ''}
     </div>`;
 }
 
@@ -191,34 +732,68 @@ function buildLocCard(loc, orgMap) {
     </div>`;
 }
 
-function buildCharCard(char) {
-  const meta = [char.metatype || char.race, char.archetype, char.nationality].filter(Boolean);
-  const nuyenStr = char.nuyen != null ? fmtNuyen(char.nuyen) : null;
-  const karmaStr = char.karma_current != null ? `${char.karma_current} karma` : null;
+let charRepStore = {};  // char_id -> {net_rep, net_rep_tier, pa, pa_tier}
+const expandedNpcs = {};
+function toggleNpcDesc(id) {
+  expandedNpcs[id] = !expandedNpcs[id];
+  const el  = document.getElementById(`npc-desc-${id}`);
+  const btn = document.getElementById(`npc-xbtn-${id}`);
+  if (el)  el.classList.toggle('npc-desc-expanded', expandedNpcs[id]);
+  if (btn) btn.textContent = expandedNpcs[id] ? '[ collapse ]' : '[ expand ]';
+}
+
+function buildCharCard(char, orgMap = {}) {
+  const metatype  = char.metatype || char.race || null;
+  const archetype = char.archetype || null;
+  const raceProf  = [metatype, archetype].filter(Boolean).join(' | ');
+  const rep = char.is_pc ? charRepStore[char.id] : null;
+  const repStr = rep
+    ? `<span style="${repColorStyle(rep.net_rep)}">${rep.net_rep_tier}</span>`
+    : null;
+  const paStr = rep ? rep.pa_tier : null;
+  const longDesc = !char.is_pc && char.description && char.description.length > 120;
+  const isActive = char.is_active !== false;
+
+  const toggleBtn = `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`;
+  const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
+
+  const cardClass = `char-card ${char.is_pc ? 'is-pc' : (isActive ? 'npc-clickable' : '')}`;
+  const clickAttr = !char.is_pc && isActive ? `onclick="openNpcModal(${char.id})" title="View dossier"` : '';
+
   return `
-    <div class="char-card ${char.is_pc ? 'is-pc' : ''}">
+    <div class="${cardClass}" ${clickAttr}>
+      ${toggleBtn}
+      ${overlay}
       <div class="ch-name">${esc(char.name)}</div>
-      <span class="ch-badge ${char.is_pc ? 'badge-pc' : 'badge-npc'}">${char.is_pc ? 'PC // Runner' : 'NPC'}</span>
+      ${char.is_pc
+        ? `<span class="badge-archetype ${archetypeClass(archetype)}" onclick="editCharArchetype(${char.id})" title="Click to edit">${esc(raceProf || 'Unknown // Unknown')}</span>`
+        : (raceProf ? `<div><span class="badge-race-prof">${esc(raceProf)}</span></div>` : '')}
+      ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
       <div class="ch-meta">
-        ${meta.length ? `<div>${meta.map(esc).join(' / ')}</div>` : ''}
+        ${char.nationality ? `<div style="color:#555;font-size:0.68rem">${esc(char.nationality)}</div>` : ''}
         ${char.description
-          ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
+          ? char.is_pc
+            ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
+            : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
+               ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
-        ${(nuyenStr || karmaStr) ? `<div class="ch-finance">${[nuyenStr, karmaStr].filter(Boolean).join(' &nbsp;|&nbsp; ')}</div>` : ''}
+        ${repStr ? `<div class="ch-finance" style="margin-top:4px;font-size:.68rem"><span style="color:var(--text-dim)">REP: </span>${repStr}</div>` : ''}
+        ${paStr  ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem;color:var(--text-dim)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
       </div>
     </div>`;
 }
 
-function section(key, title, html, manageUrl) {
+function section(key, title, html, manageUrl, startCollapsed) {
   const manageLink = manageUrl ? `<a href="${manageUrl}" class="sec-manage-link">Manage</a>` : '';
+  if (startCollapsed) collapsed[key] = true;
   return `
-    <div class="section-head">
+    <div class="section-head" id="sec-head-${key}">
       <span>${esc(title)}</span>
       <span style="flex:1"></span>
       ${manageLink}
-      <button id="sec-btn-${key}" class="sec-toggle" onclick="toggleSection('${key}')">[–]</button>
+      <button id="sec-btn-${key}" class="sec-toggle" onclick="toggleSection('${key}')">${startCollapsed ? '[+]' : '[–]'}</button>
     </div>
-    <div id="sec-body-${key}">
+    <div id="sec-body-${key}" style="${startCollapsed ? 'display:none' : ''}">
       ${html}
     </div>
     <hr class="rule">`;
@@ -254,60 +829,106 @@ const ORG_LABELS = {
 // ── Main data load ────────────────────────────────────────────
 async function loadAll() {
   try {
-    const [orgsRes, locsRes, charsRes, contactsRes] = await Promise.all([
+    const [orgsRes, locsRes, charsRes, contactsRes, statsRes] = await Promise.all([
       fetch(`${API}/organizations/`),
       fetch(`${API}/locations/`),
       fetch(`${API}/characters/`),
       fetch(`${API}/contacts/`),
+      fetch(`${API}/runs/party-stats`),
     ]);
-    const [orgs, locs, chars, contacts] = await Promise.all([
+    const [orgs, locs, chars, contacts, stats] = await Promise.all([
       orgsRes.json(), locsRes.json(), charsRes.json(), contactsRes.json(),
+      statsRes.ok ? statsRes.json() : Promise.resolve(null),
     ]);
 
-    const pcs = chars.filter(c => c.is_pc);
-    const partyNuyen = pcs.reduce((sum, c) => sum + (c.nuyen || 0), 0);
+    // ── Wire party stats ──────────────────────────────────────
+    if (stats) {
+      charRepStore = stats.char_rep || {};
+      const heatEl = document.getElementById('sb-heat');
+      const repEl  = document.getElementById('sb-rep');
+      if (heatEl) {
+        heatEl.textContent = stats.heat_label || 'Neutral';
+        heatEl.style.cssText = heatColorStyle(stats.heat || 0);
+      }
+      if (repEl) {
+        repEl.textContent = stats.team_rep_tier || 'Unknown';
+        repEl.style.cssText = repColorStyle(stats.team_rep_score != null ? stats.team_rep_score : 20);
+      }
+    }
+
+    const pcs        = chars.filter(c => c.is_pc);
+    const activePcs  = pcs.filter(c => c.is_active !== false);
+    const inactivePcs = pcs.filter(c => c.is_active === false);
+    const partyNuyen = activePcs.reduce((sum, c) => sum + (c.nuyen || 0), 0);
+
+    // Merge duplicate contact records (same npc_id) into single cards
+    contactStore = contacts;
+    // Only count contacts linked to ACTIVE PCs for categorization (inactive PCs hidden, data preserved)
+    const activePcIds = new Set(pcs.filter(c => c.is_active).map(c => c.id));
+    const activeContacts = contacts.filter(c => activePcIds.has(c.owner_id));
+    const mergedContacts = mergeContacts(activeContacts);
+    // Build lookup for non-NPC contacts (contacts without a character record)
+    nonNpcContactStore = {};
+    mergedContacts.forEach(m => { if (!m.npc_id) nonNpcContactStore[m.id] = m; });
+    // NPCs who are NOT listed as an active contact's npc_id go in the Known Persons roster
+    const contactNpcIds = new Set(activeContacts.map(c => c.npc_id).filter(Boolean));
+    const npcs         = chars.filter(c => !c.is_pc && !contactNpcIds.has(c.id));
 
     document.getElementById('sc-orgs').textContent     = orgs.length;
     document.getElementById('sc-locs').textContent     = locs.length;
-    document.getElementById('sc-chars').textContent    = chars.length;
-    document.getElementById('sc-contacts').textContent = contacts.length;
+    document.getElementById('sc-chars').textContent          = activePcs.length;
+    document.getElementById('sc-chars-inactive').textContent = inactivePcs.length;
+    document.getElementById('sc-contacts').textContent = mergedContacts.length;
     document.getElementById('sc-nuyen').textContent    = '¥' + partyNuyen.toLocaleString();
     document.getElementById('lastRefresh').textContent =
       'LAST REFRESH: ' + new Date().toLocaleTimeString();
 
-    const orgMap = Object.fromEntries(orgs.map(o => [o.id, o]));
-    orgStore = orgMap;
+    const orgMap  = Object.fromEntries(orgs.map(o => [o.id, o]));
+    const charMap = Object.fromEntries(chars.map(c => [c.id, c]));
+    orgStore     = orgMap;
+    charMapStore = charMap;
 
     let html = '';
 
+    // ── 1. Team (expanded) ────────────────────────────────────
+    if (pcs.length)
+      html += section('pcs', 'Team',
+        `<div class="char-grid">${pcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`,
+        'manage-characters.html');
+
+    // ── 2. Contacts (expanded) ────────────────────────────────
+    if (mergedContacts.length)
+      html += section('contacts', 'Contacts',
+        `<div class="contact-grid">${mergedContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
+        'manage-characters.html');
+
+    // ── 3. Persons of Interest (expanded) ─────────────────────
+    if (npcs.length)
+      html += section('npcs', 'Persons of Interest',
+        `<div class="char-grid">${npcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`,
+        'manage-characters.html');
+
+    // ── 4. Organizations (collapsed) ─────────────────────────
     const activeOrgs = orgs.filter(o => o.is_active);
     const byGroup = {};
     activeOrgs.forEach(o => {
       const g = TYPE_GROUP[o.org_type] || 'other';
       (byGroup[g] = byGroup[g] || []).push(o);
     });
-
     ORG_ORDER.forEach(group => {
       const orgsInGroup = byGroup[group];
       if (!orgsInGroup?.length) return;
       orgsInGroup.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
       html += section(`org-${group}`, ORG_LABELS[group] || group,
         `<div class="org-grid">${orgsInGroup.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
-        'create-org.html');
+        'create-org.html', true);
     });
 
+    // ── 5. Locations (collapsed) ──────────────────────────────
     if (locs.length)
       html += section('locs', 'Known Locations',
         `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
-        'manage-locations.html');
-
-    const npcs = chars.filter(c => !c.is_pc);
-    if (pcs.length)  html += section('pcs', 'Runner Team',
-      `<div class="char-grid">${pcs.map(buildCharCard).join('')}</div>`,
-      'manage-characters.html');
-    if (npcs.length) html += section('npcs', 'Known Persons — NPC Roster',
-      `<div class="char-grid">${npcs.map(buildCharCard).join('')}</div>`,
-      'manage-characters.html');
+        'manage-locations.html', true);
 
     document.getElementById('worldContent').innerHTML =
       html || '<div class="loading">No world data found — run the seed script.</div>';
@@ -322,12 +943,19 @@ loadAll();
 
 (function() {
   function pad(n) { return String(n).padStart(2, '0'); }
+  let lastDateStr = new Date().toDateString();
   function tick() {
     const t = new Date();
     const srYear = t.getFullYear() + 24;
     const month  = t.toLocaleString('en-US', { month: 'long' }).toUpperCase();
     document.getElementById('srDate').textContent    = `${month} ${t.getDate()} ${srYear}`;
     document.getElementById('liveClock').textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+    // Refresh world data at midnight so heat decay is recalculated
+    const newDateStr = t.toDateString();
+    if (newDateStr !== lastDateStr) {
+      lastDateStr = newDateStr;
+      loadAll();
+    }
   }
   tick();
   setInterval(tick, 1000);

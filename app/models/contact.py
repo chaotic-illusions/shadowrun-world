@@ -9,6 +9,7 @@ class Contact(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False, index=True)
     profession = Column(String(100))
+    race = Column(String(50))
     loyalty = Column(Integer, default=1)      # 1–6 per SR2 rules
     connection = Column(Integer, default=1)   # 1–6 per SR2 rules
     description = Column(Text)

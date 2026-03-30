@@ -21,10 +21,12 @@ class CharacterBase(BaseModel):
     nuyen: int = 0
     is_active: bool = True
     notes: Optional[str] = None
+    contact_skills: list[str] = []
+    connection: int = 1
+    organization_id: Optional[int] = None
 
 
-class CharacterCreate(CharacterBase):
-    pass
+CharacterCreate = CharacterBase
 
 
 class CharacterUpdate(BaseModel):
@@ -45,6 +47,9 @@ class CharacterUpdate(BaseModel):
     nuyen: Optional[int] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+    contact_skills: Optional[list[str]] = None
+    connection: Optional[int] = None
+    organization_id: Optional[int] = None
 
 
 class CharacterRead(CharacterBase):

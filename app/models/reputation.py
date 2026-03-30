@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -13,6 +13,7 @@ class Reputation(Base):
     street_cred = Column(Integer, default=0)       # Positive rep in the shadows
     notoriety = Column(Integer, default=0)         # Negative rep / infamy
     public_awareness = Column(Integer, default=0)  # How well-known to the public
+    pa_updated_at = Column(Date, nullable=True)    # When PA was last changed (for decay)
 
     notes = Column(Text)
 

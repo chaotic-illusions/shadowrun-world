@@ -13,8 +13,7 @@ class HouseRuleBase(BaseModel):
     is_active: bool = True
 
 
-class HouseRuleCreate(HouseRuleBase):
-    pass
+HouseRuleCreate = HouseRuleBase
 
 
 class HouseRuleUpdate(BaseModel):

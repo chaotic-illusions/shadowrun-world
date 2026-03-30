@@ -13,8 +13,7 @@ class LocationBase(BaseModel):
     controlling_org_id: Optional[int] = None
 
 
-class LocationCreate(LocationBase):
-    pass
+LocationCreate = LocationBase
 
 
 class LocationUpdate(BaseModel):

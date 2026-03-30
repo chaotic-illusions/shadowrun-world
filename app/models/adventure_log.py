@@ -30,6 +30,15 @@ class AdventureLog(Base):
     # GM-selected consequences being actively tracked going forward
     consequences_active = Column(JSON, default=list)
 
+    # Party-level run heat (0-10); computed by heat_calculator on log creation
+    heat = Column(Integer, default=0)
+    # Name of the hiring party / employer as described in the narrative
+    employer = Column(String(200))
+
+    # World-state changes accepted/rejected at log creation time
+    changes_applied  = Column(JSON, default=list)
+    changes_excluded = Column(JSON, default=list)
+
     gm_notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
