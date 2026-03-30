@@ -696,7 +696,8 @@ function openNpcModal(charId) {
   npcModalCharId = charId;
   const metatype  = char.metatype || char.race || null;
   const archetype = char.archetype || null;
-  const raceProf  = [metatype, archetype].filter(Boolean).join(' | ');
+  const display   = char.title || archetype || null;
+  const raceProf  = [metatype, display].filter(Boolean).join(' | ');
   const org = char.organization_id ? orgStore[char.organization_id] : null;
 
   document.getElementById('npcModalName').textContent = char.name;
@@ -1031,7 +1032,8 @@ function toggleNpcDesc(id) {
 function buildCharCard(char, orgMap = {}) {
   const metatype  = char.metatype || char.race || null;
   const archetype = char.archetype || null;
-  const raceProf  = [metatype, archetype].filter(Boolean).join(' | ');
+  const display   = char.title || archetype || null;
+  const raceProf  = [metatype, display].filter(Boolean).join(' | ');
   const rep = char.is_pc ? charRepStore[char.id] : null;
   const repStr = rep
     ? `<span style="${repColorStyle(rep.net_rep)}">${rep.net_rep_tier}</span>`
