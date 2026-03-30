@@ -7,6 +7,7 @@ class CharacterBase(BaseModel):
     name: str
     is_pc: bool = True
     archetype: Optional[str] = None
+    title: Optional[str] = None
     race: str = "Human"
     gender: Optional[str] = None
     age: Optional[int] = None
@@ -33,6 +34,7 @@ class CharacterUpdate(BaseModel):
     name: Optional[str] = None
     is_pc: Optional[bool] = None
     archetype: Optional[str] = None
+    title: Optional[str] = None
     race: Optional[str] = None
     gender: Optional[str] = None
     age: Optional[int] = None

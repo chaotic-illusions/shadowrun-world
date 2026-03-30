@@ -12,6 +12,7 @@ class Character(Base):
     name = Column(String(200), nullable=False, index=True)
     is_pc = Column(Boolean, nullable=False, default=True)
     archetype = Column(String(100))   # Street Samurai, Decker, Mage, Shaman, Rigger, Face, etc.
+    title = Column(String(200))       # Specific role/title, e.g. "Yakuza Underboss", "Deniable Ops Handler"
     race = Column(String(50), default="Human")  # Human, Elf, Dwarf, Ork, Troll
     gender = Column(String(50))
     age = Column(Integer)
