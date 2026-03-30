@@ -30,7 +30,7 @@
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:center">
-      <input type="text" id="filterInput" placeholder="Filter by name or archetype..." style="width:260px" oninput="applyFilter()">
+      <input type="text" id="filterInput" placeholder="Filter by name, archetype, or organization..." style="width:370px" oninput="applyFilter()">
       <select id="filterType" onchange="applyFilter()" style="width:130px">
         <option value="">All</option>
         <option value="pc">PCs Only</option>
@@ -307,7 +307,7 @@ function applyFilter() {
   const q = document.getElementById('filterInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
   const filtered = allChars.filter(c =>
-    (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q)) &&
+    (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q) || (c.organization_name||'').toLowerCase().includes(q)) &&
     (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc))
   );
   renderTable(filtered);

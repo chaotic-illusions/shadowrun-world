@@ -2393,51 +2393,142 @@
       ]
     },
     {
-      "name": "Captain Tezca",
+      "name": "Marisol",
       "is_pc": false,
       "organization_name": "Aztechnology",
-      "archetype": "Jaguar Guard Commander",
+      "archetype": "Corporate Informant",
       "race": "Human",
-      "gender": "Male",
-      "age": 38,
-      "description": "Compact, scarred, always calm. Wears the obsidian-black armor of the Jaguar Guard with no insignia visible. Eyes glow faintly — dual-natured.",
-      "background": "Aztlaner born, Awakened as a physical adept at age 12. Trained in Tenochtitlan and assigned to Seattle after distinguished service during the Aztlan border conflicts. Loyal to Aztechnology above all else — including Aztlan.",
+      "gender": "Female",
+      "age": 29,
+      "description": "Unremarkable — deliberately so. Mid-level office attire, no corp logos, nothing that stands out. Nervous hands. Always picks a seat facing the exit.",
+      "background": "Works in Aztechnology Seattle's logistics division — senior enough to handle sealed shipping manifests, internal transfer schedules, and facility maintenance rosters. Not loyal enough to stay quiet when the nuyen is right. Has no idea what's in the crates she processes paperwork for, and has learned not to wonder.",
       "attributes": {
-        "body": 6,
-        "agility": 7,
-        "reaction": 6,
-        "strength": 5,
-        "charisma": 3,
-        "intuition": 6,
-        "logic": 3,
-        "willpower": 6,
-        "essence": 6.0,
-        "magic": 6
+        "body": 2,
+        "agility": 3,
+        "reaction": 3,
+        "strength": 2,
+        "charisma": 4,
+        "intuition": 4,
+        "logic": 5,
+        "willpower": 3,
+        "essence": 6.0
       },
       "skills": [
-        { "name": "Unarmed Combat", "rating": 7 },
-        { "name": "Blades", "rating": 6 },
-        { "name": "Astral Combat", "rating": 6 },
-        { "name": "Perception", "rating": 6 },
-        { "name": "Stealth", "rating": 5 },
-        { "name": "Firearms", "rating": 4 }
+        { "name": "Con", "rating": 4 },
+        { "name": "Stealth", "rating": 3 },
+        { "name": "Computer", "rating": 5 },
+        { "name": "Perception", "rating": 4 }
       ],
       "augmentations": [],
       "gear": [
-        { "name": "Jaguar Guard Armor (custom)", "qty": 1 },
-        { "name": "Monofilament Whip", "qty": 1 },
-        { "name": "Ares Predator IV", "qty": 1 }
+        { "name": "Commlink (clean)", "qty": 1 },
+        { "name": "Lined Coat", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 3,
+      "contact_skills": [
+        "Aztechnology Internal Logistics Intel",
+        "Shipping & Transfer Schedules",
+        "Corporate Employee Directory Access",
+        "Facility Maintenance & Access Window Info"
+      ],
+      "notes": "Paranoid about being caught. Always meets off-campus, never at the same place twice. Payment in untraceable credsticks only. Useful for runners planning operations against Aztechnology sites who need timing or access intel without going in blind."
+    },
+    {
+      "name": "Santos",
+      "is_pc": false,
+      "organization_name": "Aztechnology",
+      "archetype": "Deniable Ops Handler",
+      "race": "Human",
+      "gender": "Male",
+      "age": 38,
+      "description": "Compact, well-dressed without being flashy. Always meets in public — cafes, markets, transit hubs. Speaks in careful misdirection that still communicates exactly what he means.",
+      "background": "Aztechnology's street-facing operator for deniable work in Seattle. Routes shadow contracts to runner teams without leaving corporate fingerprints. Knows just enough about the corp's darker programs to be useful — and careful. Has survived four handlers above him being quietly retired.",
+      "attributes": {
+        "body": 3,
+        "agility": 3,
+        "reaction": 4,
+        "strength": 2,
+        "charisma": 6,
+        "intuition": 6,
+        "logic": 4,
+        "willpower": 5,
+        "essence": 5.5
+      },
+      "skills": [
+        { "name": "Negotiation", "rating": 6 },
+        { "name": "Con", "rating": 6 },
+        { "name": "Etiquette", "rating": 5 },
+        { "name": "Perception", "rating": 6 },
+        { "name": "Pistols", "rating": 3 }
+      ],
+      "augmentations": [
+        { "name": "Mnemonic Enhancer", "rating": 1, "grade": "alphaware" },
+        { "name": "Micro-Transceiver Implant", "rating": 1, "grade": "alphaware" }
+      ],
+      "gear": [
+        { "name": "Ares Predator IV", "qty": 1 },
+        { "name": "Lined Coat", "qty": 1 }
       ],
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
       "connection": 4,
       "contact_skills": [
-        "Aztechnology Facility Access",
-        "Security Patrol Intel",
-        "Aztlan Military Channels"
+        "Aztechnology Contract Work",
+        "Corporate Safe Houses",
+        "Evidence Disposal",
+        "Aztechnology Facility Blind-Eye Access"
       ],
-      "notes": "Physical adept powers include Killing Hands, Improved Reflexes 2, Astral Perception, and Freefall. Dual-natured — perceives astral and physical simultaneously at all times. If the runners hit any Aztechnology facility in Seattle, Tezca will eventually be assigned to find them personally. He does not fail."
+      "notes": "Pay is reliable and never late. Jobs escalate in sensitivity over time — runners who prove themselves get more complicated work. He doesn't ask questions and expects the same courtesy. If you burn him once, you won't get a second meeting."
+    },
+    {
+      "name": "Sister Ixtli",
+      "is_pc": false,
+      "organization_name": "Aztechnology",
+      "archetype": "Ritual Site Warden",
+      "race": "Human",
+      "gender": "Female",
+      "age": 41,
+      "description": "Unhurried and deliberate. Wears a corp badge tucked under a hand-woven rebozo in Aztlan colors. Eyes that track things that aren't there — because for her, they are.",
+      "background": "Manages the spiritual security of Aztechnology's Seattle campus: wards, anchored spirits, astral perimeter maintenance. Not a researcher — she's the person who ensures nothing enters or exits astrally without clearance. Deeply spiritual, a true believer in Aztlan's magical tradition. Will deal with Awakened runners who demonstrate genuine respect for the tradition, provided they don't ask her to work against the corp.",
+      "attributes": {
+        "body": 2,
+        "agility": 3,
+        "reaction": 3,
+        "strength": 2,
+        "charisma": 5,
+        "intuition": 6,
+        "logic": 5,
+        "willpower": 7,
+        "essence": 6.0,
+        "magic": 6
+      },
+      "skills": [
+        { "name": "Sorcery", "rating": 6 },
+        { "name": "Conjuring", "rating": 5 },
+        { "name": "Astral Combat", "rating": 5 },
+        { "name": "Ritual Spellcasting", "rating": 7 },
+        { "name": "Magical Theory", "rating": 6 }
+      ],
+      "augmentations": [],
+      "gear": [
+        { "name": "Sustaining Focus — Manipulation (Rating 3)", "qty": 1 },
+        { "name": "Ward Anchoring Kit", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 3,
+      "contact_skills": [
+        "Astral Threat Assessment",
+        "Magical Countermeasures Consultation",
+        "Talismonger Network (Aztlan-sourced)",
+        "Spirit Identification & Banishment Advice"
+      ],
+      "notes": "Will not assist in anything that directly targets Aztechnology. Awakened runners who approach with respect for Aztlan tradition will find her more forthcoming than expected. Particularly useful for runners navigating magically-secured sites — she knows what wards and spirits are deployed in Seattle and can advise without revealing corp-proprietary specifics."
     },
     {
       "name": "J0k3r",
@@ -2490,81 +2581,136 @@
       "notes": "Useful for runners operating in Redmond who need local street knowledge, untraceable incendiary materials, or a distraction that involves something burning. Unreliable under pressure — loyalty is to the gang and to chaos, in that order. Do not invite him to meetings in buildings you like."
     },
     {
-      "name": "Dr. Esteban Quijada",
+      "name": "Victor Graves",
       "is_pc": false,
-      "organization_name": "Aztechnology",
-      "archetype": "Corporate Mage",
+      "organization_name": "Ares Macrotechnology",
+      "archetype": "Corporate Mr. Johnson",
       "race": "Human",
       "gender": "Male",
-      "age": 52,
-      "description": "Slight, grey-templed, wire-rimmed glasses. Speaks precisely and never raises his voice. Wears a corporate suit with subtle Aztec motif cufflinks.",
-      "background": "Born in Veracruz, PhD in thaumaturgical biochemistry from Universidad de Aztlan. Recruited by Aztechnology R&D division at 28. Has spent 24 years on the Seattle magical research program. He knows what happens in the sub-basements. He approves.",
+      "age": 42,
+      "description": "Broad-shouldered, expensive suit, handshake like a vice. Smiles easily. The smile never fully reaches his eyes.",
+      "background": "Runs deniable operations out of the Ares Seattle tower. Routes shadow contracts through cutouts so clean they're almost art. Razor owes him a favor from a black op gone sideways — Graves pulled strings to make the incident disappear. He hasn't called it in yet.",
       "attributes": {
-        "body": 2,
-        "agility": 2,
+        "body": 3,
+        "agility": 3,
         "reaction": 3,
         "strength": 2,
-        "charisma": 4,
+        "charisma": 6,
         "intuition": 5,
-        "logic": 6,
-        "willpower": 6,
-        "essence": 6.0,
-        "magic": 7
+        "logic": 5,
+        "willpower": 4,
+        "essence": 5.8
       },
       "skills": [
-        { "name": "Sorcery", "rating": 7 },
-        { "name": "Conjuring", "rating": 6 },
-        { "name": "Magical Theory", "rating": 7 },
-        { "name": "Negotiation", "rating": 4 },
-        { "name": "Etiquette (Corporate)", "rating": 5 }
+        { "name": "Negotiation", "rating": 6 },
+        { "name": "Etiquette", "rating": 6 },
+        { "name": "Con", "rating": 5 },
+        { "name": "Leadership", "rating": 5 },
+        { "name": "Small Unit Tactics", "rating": 4 }
       ],
-      "augmentations": [],
+      "augmentations": [
+        { "name": "Mnemonic Enhancer", "rating": 2, "grade": "alphaware" },
+        { "name": "Sleep Regulator", "rating": 1, "grade": "alphaware" }
+      ],
       "gear": [
-        { "name": "Power Focus (Rating 4)", "qty": 1 },
-        { "name": "Sustaining Focus - Manipulation (Rating 3)", "qty": 1 }
+        { "name": "Secure Long Coat", "qty": 1 },
+        { "name": "Micro-Transceiver", "qty": 1 },
+        { "name": "Ares Predator IV", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 5,
+      "contact_skills": [
+        "Ares Deniable Operations",
+        "Military Hardware Sourcing",
+        "Corporate Legal Resources",
+        "Weapons & Security R&D Intel"
+      ],
+      "notes": "Razor owes him a favor. He hasn't called it in yet. When he does, it won't be optional. Pay is excellent; job parameters are flexible; expectations are absolute. Runners who deliver cleanly get repeat business. Those who talk don't."
+    },
+    {
+      "name": "Hana Mori",
+      "is_pc": false,
+      "organization_name": "Renraku Computer Systems",
+      "archetype": "Corporate Decker",
+      "race": "Human",
+      "gender": "Female",
+      "age": 31,
+      "description": "Sharp, quiet, always slightly distracted — like part of her attention is somewhere else entirely. Usually is. Wears a datajack she doesn't hide.",
+      "background": "Assigned to SCIRE Arcology network infrastructure. Senior enough to know the architecture of the lower system levels. Stopped asking questions about what runs there two years ago. The questions stopped on their own after that.",
+      "attributes": {
+        "body": 2,
+        "agility": 3,
+        "reaction": 4,
+        "strength": 2,
+        "charisma": 3,
+        "intuition": 5,
+        "logic": 7,
+        "willpower": 4,
+        "essence": 5.0
+      },
+      "skills": [
+        { "name": "Hacking", "rating": 7 },
+        { "name": "Computer", "rating": 7 },
+        { "name": "Electronic Warfare", "rating": 5 },
+        { "name": "Cybercombat", "rating": 5 },
+        { "name": "Firearms", "rating": 2 }
+      ],
+      "augmentations": [
+        { "name": "Datajack", "rating": 1, "grade": "alphaware" },
+        { "name": "Cerebral Booster", "rating": 2, "grade": "alphaware" },
+        { "name": "Reaction Enhancers", "rating": 1, "grade": "standard" }
+      ],
+      "gear": [
+        { "name": "Renraku Kraftwerk Deck", "qty": 1 },
+        { "name": "Ares Predator IV", "qty": 1 },
+        { "name": "Stealth Tags", "qty": 5 }
       ],
       "karma_total": 0,
       "karma_current": 0,
       "is_active": true,
       "connection": 4,
       "contact_skills": [
-        "Magical Artifact Identification",
-        "Toxin & Bioagent Analysis",
-        "Ritual Magic Consultation"
+        "Renraku Host Architecture Intel",
+        "IC & Countermeasures Identification",
+        "Matrix Infrastructure Access",
+        "Corporate System Vulnerabilities"
       ],
-      "notes": "Hermetic mage, Aztechnology tradition. Has knowledge of blood magic theory that he will deny under any circumstance. If the runners ever get close to the sub-basement research, he becomes a direct antagonist. He is extremely dangerous in astral space and will call Jaguar Guards immediately if threatened physically."
+      "notes": "Will cooperate if approached carefully with evidence she's not being monitored. Afraid of the lower Arcology levels — will not discuss them directly, but has been known to leave files in accessible locations. The things she knows about the SCIRE's subsystems are not things she chose to learn."
     },
     {
-      "name": "Claudia Hernandez",
+      "name": "Ernst Kessler",
       "is_pc": false,
-      "organization_name": "Aztechnology",
-      "archetype": "Corporate Executive",
+      "organization_name": "Saeder-Krupp Heavy Industries",
+      "archetype": "Corporate Representative",
       "race": "Human",
-      "gender": "Female",
-      "age": 44,
-      "description": "Tall, sharply dressed, always composed. Speaks four languages. Presence commands any room she enters.",
-      "background": "Rose through Aztechnology's consumer goods division before lateral transfer into regional operations. Not Awakened, but politically untouchable. Understands the corp's darker operations and has chosen to look away in exchange for advancement.",
+      "gender": "Male",
+      "age": 51,
+      "description": "Formal to the point of rigidity. Impeccable suit, perfect posture, records every meeting. Has been in Seattle for twelve years and shows no sign of leaving.",
+      "background": "Lofwyr's eyes and voice in Seattle. Conveys decisions rather than making them — a distinction he maintains with great precision. There is a standing rumor that he is under Lofwyr's direct personal surveillance at all times. He neither confirms nor denies it.",
       "attributes": {
         "body": 3,
         "agility": 3,
-        "reaction": 3,
+        "reaction": 4,
         "strength": 2,
-        "charisma": 7,
+        "charisma": 6,
         "intuition": 6,
-        "logic": 5,
+        "logic": 6,
         "willpower": 5,
-        "essence": 5.2
+        "essence": 5.0
       },
       "skills": [
         { "name": "Negotiation", "rating": 7 },
         { "name": "Etiquette", "rating": 7 },
-        { "name": "Leadership", "rating": 6 },
+        { "name": "Corporate Law", "rating": 6 },
+        { "name": "Perception", "rating": 6 },
         { "name": "Con", "rating": 5 },
-        { "name": "Corporate Law", "rating": 5 }
+        { "name": "Firearms", "rating": 3 }
       ],
       "augmentations": [
-        { "name": "Sleep Regulator", "rating": 1, "grade": "alphaware" },
-        { "name": "Mnemonic Enhancer", "rating": 2, "grade": "alphaware" }
+        { "name": "Mnemonic Enhancer", "rating": 2, "grade": "alphaware" },
+        { "name": "Commlink Implant", "rating": 1, "grade": "alphaware" }
       ],
       "gear": [
         { "name": "Secure Long Coat", "qty": 1 },
@@ -2575,12 +2721,449 @@
       "is_active": true,
       "connection": 5,
       "contact_skills": [
-        "Corporate Mr. Johnson",
-        "Seattle Political Intel",
-        "Media Suppression",
-        "Corporate Legal Cover"
+        "Saeder-Krupp Contract Work",
+        "European Corp Intelligence",
+        "Heavy Industrial Procurement",
+        "Dragon-Adjacent Political Leverage"
       ],
-      "notes": "Hernandez is the public face of Aztechnology in Seattle. She gives press statements, handles city council relationships, and chairs the Seattle extraterritoriality board. Runners who need a Mr. Johnson with corporate backing may encounter her. She pays well and never gives real names. If crossed, she has Tezca's direct comm code."
+      "notes": "Pay for SK contract work is exceptional and always accurate. Each engagement's demands increase incrementally. Whether this is standard SK practice or something more deliberate is unclear. Runners who work for him twice tend to work for him a third time."
+    },
+    {
+      "name": "Lt. Sonya Vasquez",
+      "is_pc": false,
+      "organization_name": "Knight Errant Security Services",
+      "archetype": "Field Commander",
+      "race": "Human",
+      "gender": "Female",
+      "age": 34,
+      "description": "Compact, alert, tactical armor always within reach. Commands without raising her voice. Holds genuine contempt for Lone Star's institutional corruption — doesn't hide it.",
+      "background": "Commands Knight Errant's Bellevue corporate sector rapid response unit. Has passed documented misconduct intel on Lone Star to Ares oversight — twice. Loathes Hargrove specifically. Will cooperate with runners when it serves KE or Ares interests, provided they stay out of her jurisdiction.",
+      "attributes": {
+        "body": 4,
+        "agility": 5,
+        "reaction": 5,
+        "strength": 3,
+        "charisma": 4,
+        "intuition": 5,
+        "logic": 4,
+        "willpower": 4,
+        "essence": 4.5
+      },
+      "skills": [
+        { "name": "Firearms", "rating": 5 },
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Tactics", "rating": 5 },
+        { "name": "Perception", "rating": 5 },
+        { "name": "Intimidation", "rating": 4 },
+        { "name": "Unarmed Combat", "rating": 4 }
+      ],
+      "augmentations": [
+        { "name": "Wired Reflexes", "rating": 1, "grade": "alphaware" },
+        { "name": "Smartlink", "rating": 1, "grade": "alphaware" },
+        { "name": "Bone Lacing – Aluminum", "rating": 1, "grade": "standard" }
+      ],
+      "gear": [
+        { "name": "Ares Predator IV", "qty": 1 },
+        { "name": "Knight Errant Tactical Armor", "qty": 1 },
+        { "name": "Micro-Transceiver", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Knight Errant Patrol Schedules",
+        "Corporate Sector Access",
+        "Threat Assessment",
+        "Arrest Record Intel"
+      ],
+      "notes": "A useful ally when runner goals align with KE or Ares interests. Despises Hargrove personally — mentioning him tends to open doors. Do not operate in Bellevue's corporate sector without her knowledge; she will find out and she will remember."
+    },
+    {
+      "name": "Tanaka Kenji",
+      "is_pc": false,
+      "organization_name": "Yakuza (Watada-rengo)",
+      "archetype": "Yakuza Underboss",
+      "race": "Human",
+      "gender": "Male",
+      "age": 44,
+      "description": "Unhurried and precise. Missing the tip of his left pinky — the cut was his own choice, years ago. Speaks quietly. Everyone in the room listens.",
+      "background": "Effectively runs the Watada-rengo's day-to-day Seattle operations. The arrangement with Hargrove goes through his desk. Has survived three oyabun transitions by being the man no one could afford to replace.",
+      "attributes": {
+        "body": 3,
+        "agility": 4,
+        "reaction": 4,
+        "strength": 3,
+        "charisma": 6,
+        "intuition": 6,
+        "logic": 4,
+        "willpower": 5,
+        "essence": 5.5
+      },
+      "skills": [
+        { "name": "Negotiation", "rating": 7 },
+        { "name": "Intimidation", "rating": 6 },
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Etiquette", "rating": 5 },
+        { "name": "Blades", "rating": 4 },
+        { "name": "Firearms", "rating": 3 }
+      ],
+      "augmentations": [
+        { "name": "Reaction Enhancers", "rating": 1, "grade": "alphaware" }
+      ],
+      "gear": [
+        { "name": "Lined Coat", "qty": 1 },
+        { "name": "Tanto (monofilament)", "qty": 1 },
+        { "name": "Ares Predator IV", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 5,
+      "contact_skills": [
+        "Organized Crime Intel",
+        "Fencing (High-Value Goods)",
+        "Loan & Debt Collection Contacts",
+        "Police Arrangement Access"
+      ],
+      "notes": "Runners who deliver cleanly will be received professionally and paid accurately. Those who fail, talk, or embarrass the organization will not be received again — in any sense of the word. The Hargrove arrangement is not something he discusses."
+    },
+    {
+      "name": "Tommy \"Two-Shoes\" Marconi",
+      "is_pc": false,
+      "organization_name": "Seattle Mafia",
+      "archetype": "Mafia Capo",
+      "race": "Human",
+      "gender": "Male",
+      "age": 52,
+      "description": "Big, loud, third-generation Seattle Italian. Runs his operation out of a waterfront restaurant he legitimately owns. The food is excellent. The back room is not a restaurant.",
+      "background": "Controls the Tacoma docks operation — cargo movement, union intimidation, loan-sharking across the south end. Not subtle about any of it. Maintains an uneasy territorial truce with the Yakuza that holds as long as no one tests it.",
+      "attributes": {
+        "body": 5,
+        "agility": 3,
+        "reaction": 3,
+        "strength": 4,
+        "charisma": 6,
+        "intuition": 5,
+        "logic": 4,
+        "willpower": 5,
+        "essence": 6.0
+      },
+      "skills": [
+        { "name": "Negotiation", "rating": 6 },
+        { "name": "Intimidation", "rating": 7 },
+        { "name": "Leadership", "rating": 5 },
+        { "name": "Con", "rating": 4 },
+        { "name": "Firearms", "rating": 4 },
+        { "name": "Etiquette (Criminal)", "rating": 5 }
+      ],
+      "augmentations": [],
+      "gear": [
+        { "name": "Lined Coat", "qty": 1 },
+        { "name": "Browning Max-Power", "qty": 1 },
+        { "name": "Commlink", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Tacoma Docks Access",
+        "Cargo Manifest Manipulation",
+        "Muscle for Hire",
+        "Criminal Record Suppression (Local)"
+      ],
+      "notes": "Useful for moving freight through the port without inspection. Do not simultaneously work for him and the Yakuza — word gets around and he takes it personally. Not subtle; not patient; entirely reliable as long as you treat him with appropriate respect."
+    },
+    {
+      "name": "Red Phoenix",
+      "is_pc": false,
+      "organization_name": "Red Dragon Association",
+      "archetype": "Triad Enforcer",
+      "race": "Human",
+      "gender": "Female",
+      "age": 29,
+      "description": "Hong Kong-born, moves like she's always half a second ahead of the room. Red Dragon tattoo on her right forearm — visible, not hidden. Manages the Association's Chinatown and Downtown gambling interests.",
+      "background": "Handles both enforcement and negotiation for the Red Dragon Association's Seattle operations. The combination is deliberate — she closes deals or she closes people, depending on what the situation requires. Maintains strict professional standards and expects them in return.",
+      "attributes": {
+        "body": 4,
+        "agility": 6,
+        "reaction": 5,
+        "strength": 3,
+        "charisma": 5,
+        "intuition": 5,
+        "logic": 4,
+        "willpower": 4,
+        "essence": 5.5
+      },
+      "skills": [
+        { "name": "Unarmed Combat", "rating": 6 },
+        { "name": "Blades", "rating": 5 },
+        { "name": "Firearms", "rating": 4 },
+        { "name": "Negotiation", "rating": 5 },
+        { "name": "Etiquette", "rating": 4 },
+        { "name": "Stealth", "rating": 4 }
+      ],
+      "augmentations": [
+        { "name": "Reaction Enhancers", "rating": 1, "grade": "alphaware" },
+        { "name": "Muscle Toner", "rating": 2, "grade": "alphaware" }
+      ],
+      "gear": [
+        { "name": "Ares Predator IV", "qty": 1 },
+        { "name": "Monofilament Sword", "qty": 1 },
+        { "name": "Lined Coat", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Chinatown Operations Intel",
+        "Gambling & Vice Network",
+        "Smuggling Routes (Pacific Rim)",
+        "Triad Mediation Access"
+      ],
+      "notes": "Meet the Association's professional standards or don't contact her. Will not deal with anyone associated with the Seoulpa Rings — treat this as a hard constraint, not a preference. Pacific Rim smuggling routes she controls are not available through any other Seattle contact."
+    },
+    {
+      "name": "Ghost",
+      "is_pc": false,
+      "organization_name": "Seoulpa Rings",
+      "archetype": "Smuggler",
+      "race": "Human",
+      "gender": "Female",
+      "age": 33,
+      "description": "Doesn't use her real name professionally — Park Ji-Young is for paperwork she makes herself. Operates out of the International District. Always knows two exits.",
+      "background": "Specializes in moving people and goods without documentation. Survives by maintaining careful neutrality in the ongoing Yakuza/Triad territorial conflict — she works around it, not inside it. Has kept the same comm code for six years, which is a long time in her line of work.",
+      "attributes": {
+        "body": 2,
+        "agility": 4,
+        "reaction": 4,
+        "strength": 2,
+        "charisma": 5,
+        "intuition": 6,
+        "logic": 5,
+        "willpower": 4,
+        "essence": 5.8
+      },
+      "skills": [
+        { "name": "Con", "rating": 6 },
+        { "name": "Negotiation", "rating": 5 },
+        { "name": "Forgery", "rating": 5 },
+        { "name": "Stealth", "rating": 5 },
+        { "name": "Firearms", "rating": 3 },
+        { "name": "Etiquette (Criminal)", "rating": 5 }
+      ],
+      "augmentations": [
+        { "name": "Datajack", "rating": 1, "grade": "standard" }
+      ],
+      "gear": [
+        { "name": "Ares Predator IV", "qty": 1 },
+        { "name": "Forger's Kit", "qty": 1 },
+        { "name": "Lined Coat", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "False Identity Documents",
+        "Border & Extraction Routes",
+        "People Smuggling Network",
+        "Off-Grid Safe Houses"
+      ],
+      "notes": "Highly reliable as long as you don't ask about her other clients. Charges a premium for urgency. Has no interest in the Yakuza/Triad war and will drop any client who tries to pull her into it."
+    },
+    {
+      "name": "\"Blade\" Kowalski",
+      "is_pc": false,
+      "organization_name": "The Cutters",
+      "archetype": "Gang Lieutenant",
+      "race": "Human",
+      "gender": "Male",
+      "age": 31,
+      "description": "Scarred, wiry, always has a blade within reach and usually two he hasn't mentioned. Grew up three blocks from Razor. Treats that history as currency.",
+      "background": "Works the Puyallup/Barrens border for the Cutters. Razor's standing contact within the gang — they came up in the same neighborhood, which counts for something in both directions. Has held the lieutenant position for four years by being the one who shows up when things go wrong.",
+      "attributes": {
+        "body": 4,
+        "agility": 5,
+        "reaction": 4,
+        "strength": 4,
+        "charisma": 4,
+        "intuition": 5,
+        "logic": 3,
+        "willpower": 4,
+        "essence": 5.2
+      },
+      "skills": [
+        { "name": "Blades", "rating": 6 },
+        { "name": "Firearms", "rating": 5 },
+        { "name": "Intimidation", "rating": 5 },
+        { "name": "Stealth", "rating": 4 },
+        { "name": "Streetwise", "rating": 5 }
+      ],
+      "augmentations": [
+        { "name": "Wired Reflexes", "rating": 1, "grade": "used" },
+        { "name": "Smartlink", "rating": 1, "grade": "used" }
+      ],
+      "gear": [
+        { "name": "Ingram Smartgun X", "qty": 1 },
+        { "name": "Monofilament Sword", "qty": 1 },
+        { "name": "Armor Jacket", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 3,
+      "contact_skills": [
+        "Puyallup & Barrens Street Intel",
+        "Gang Territory Access",
+        "Stolen Goods (Mid-Range)",
+        "Muscle on Short Notice"
+      ],
+      "notes": "Razor's in with the Cutters runs through Kowalski. Transactional but reliable — he delivers what he promises and expects the same. Can arrange short-notice safe houses south of the Barrens. Don't bring him into anything that crosses the Cutters' interests."
+    },
+    {
+      "name": "Boss Crushbone",
+      "is_pc": false,
+      "organization_name": "Crimson Crush",
+      "archetype": "Gang Leader",
+      "race": "Ork",
+      "gender": "Male",
+      "age": 38,
+      "description": "Built like a structural wall, moves like he knows it. Born in the Ork Underground. Speaks slowly and carefully — learned early that orks who talk fast get ignored.",
+      "background": "Leads the Crimson Crush with deep roots in both Redmond and the Underground community. Deeply loyal to the ork community across surface and underground — ork solidarity is not rhetoric to him. Has kept the Crush viable through two turf wars by knowing when to fight and when to wait.",
+      "attributes": {
+        "body": 8,
+        "agility": 4,
+        "reaction": 4,
+        "strength": 7,
+        "charisma": 5,
+        "intuition": 4,
+        "logic": 3,
+        "willpower": 5,
+        "essence": 5.6
+      },
+      "skills": [
+        { "name": "Unarmed Combat", "rating": 6 },
+        { "name": "Intimidation", "rating": 6 },
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Firearms", "rating": 4 },
+        { "name": "Streetwise", "rating": 6 }
+      ],
+      "augmentations": [
+        { "name": "Bone Lacing – Titanium", "rating": 1, "grade": "standard" }
+      ],
+      "gear": [
+        { "name": "Armor Jacket", "qty": 1 },
+        { "name": "Browning Max-Power", "qty": 1 },
+        { "name": "Combat Axe", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Redmond Street Intel",
+        "Ork Underground Access",
+        "Gang Territory Safe Passage",
+        "Community Resources (Medical & Shelter)"
+      ],
+      "notes": "Will not deal with runners who treat orks as tools or beneath consideration. Those who show genuine respect will find him reliable for street intel and no-questions-asked safe harbor. Hostile relationship with J0k3r and the Halloweeners — the Crush and Halloweeners are territorial enemies in Redmond. Can provide introductions to Underground leadership for runners who earn it."
+    },
+    {
+      "name": "Silverstring",
+      "is_pc": false,
+      "organization_name": "Ancients",
+      "archetype": "Gang Captain",
+      "race": "Elf",
+      "gender": "Female",
+      "age": 126,
+      "description": "Appears mid-twenties. Has looked that way for a century. Silver hair worn loose, eyes that have seen more Seattle than the city's current buildings. Monofilament sword carried like it belongs there.",
+      "background": "One of the Seattle chapter's founding members. Survived four gang wars. Practices a self-taught shamanic tradition she rarely discusses. Maintains the Ancients' elves-only membership rule without apology or explanation. Deals with non-elf runners only when she judges it genuinely necessary, on terms she sets.",
+      "attributes": {
+        "body": 3,
+        "agility": 5,
+        "reaction": 5,
+        "strength": 3,
+        "charisma": 6,
+        "intuition": 6,
+        "logic": 4,
+        "willpower": 5,
+        "essence": 6.0,
+        "magic": 5
+      },
+      "skills": [
+        { "name": "Blades", "rating": 5 },
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Sorcery", "rating": 4 },
+        { "name": "Stealth", "rating": 5 },
+        { "name": "Negotiation", "rating": 5 },
+        { "name": "Streetwise", "rating": 6 }
+      ],
+      "augmentations": [],
+      "gear": [
+        { "name": "Monofilament Sword", "qty": 1 },
+        { "name": "Armor Jacket (gang colors)", "qty": 1 },
+        { "name": "Sustaining Focus (Rating 2)", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Ancients Territory Safe Passage",
+        "Elvish Community Network",
+        "Smuggling (Tir Tairngire Goods)",
+        "Street-Level Magical Consultation"
+      ],
+      "notes": "Elvish PCs receive considerably warmer treatment. The Ancients' Tir Tairngire trade routes are not available through any other Seattle contact. Non-elf runners who approach without proper introduction should expect to be turned away the first time."
+    },
+    {
+      "name": "Councilman Derek Walsh",
+      "is_pc": false,
+      "organization_name": "Humanis Policlub",
+      "archetype": "Political Operative",
+      "race": "Human",
+      "gender": "Male",
+      "age": 54,
+      "description": "Well-dressed, silver-tongued, always on message. Bellevue city council member. Humanis's most visible elected face in Seattle. Believes his own rhetoric — which makes him considerably more dangerous than the cynical operatives around him.",
+      "background": "Publicly advocates metahuman accountability legislation. Privately funds street-level intimidation campaigns and provides Humanis with political cover. Has survived two corruption investigations through community support and careful paperwork.",
+      "attributes": {
+        "body": 2,
+        "agility": 2,
+        "reaction": 3,
+        "strength": 2,
+        "charisma": 7,
+        "intuition": 5,
+        "logic": 5,
+        "willpower": 6,
+        "essence": 6.0
+      },
+      "skills": [
+        { "name": "Con", "rating": 7 },
+        { "name": "Etiquette", "rating": 7 },
+        { "name": "Leadership", "rating": 6 },
+        { "name": "Negotiation", "rating": 6 },
+        { "name": "Intimidation (Psychological)", "rating": 5 }
+      ],
+      "augmentations": [],
+      "gear": [
+        { "name": "Secure Long Coat", "qty": 1 },
+        { "name": "Micro-Transceiver", "qty": 1 },
+        { "name": "Commlink", "qty": 1 }
+      ],
+      "karma_total": 0,
+      "karma_current": 0,
+      "is_active": true,
+      "connection": 4,
+      "contact_skills": [
+        "Seattle Political Leverage",
+        "Media Narrative Manipulation",
+        "Anti-Metahuman Org Networks",
+        "City Council Procedural Access"
+      ],
+      "notes": "Useful only for runners willing to work alongside a genuine ideologue, or for those running operations against Humanis. Metahuman runners who meet with him should assume the meeting will be reported to Humanis street operators if anything goes wrong. He is not performing — he means it."
     },
     {
       "name": "Chief Hargrove",

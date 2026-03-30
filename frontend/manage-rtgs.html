@@ -28,7 +28,7 @@
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div style="display:flex;gap:10px;align-items:center">
-      <input type="text" id="filterInput" placeholder="Filter by code or region..." style="width:280px" oninput="applyFilter()">
+      <input type="text" id="filterInput" placeholder="Filter by code, region, or political entity..." style="width:360px" oninput="applyFilter()">
       <select id="filterContinent" onchange="applyFilter()" style="width:160px">
         <option value="">All Continents</option>
       </select>
@@ -177,7 +177,7 @@ function applyFilter() {
   const q    = document.getElementById('filterInput').value.toLowerCase();
   const cont = document.getElementById('filterContinent').value;
   const filtered = allRTGs.filter(r =>
-    (!q    || r.code.toLowerCase().includes(q) || (r.region||'').toLowerCase().includes(q)) &&
+    (!q    || r.code.toLowerCase().includes(q) || (r.region||'').toLowerCase().includes(q) || (r.political_entity||'').toLowerCase().includes(q)) &&
     (!cont || r.continent === cont)
   );
   renderTable(filtered);
