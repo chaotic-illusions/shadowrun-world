@@ -1,5 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
+@font-face {
+  font-family: 'Shadowrun';
+  src: url('fonts/SHAD__.TTF') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Shadowrun';
+  src: url('fonts/SHADB___.TTF') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Shadowrun';
+  src: url('fonts/SHADI___.TTF') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Shadowrun';
+  src: url('fonts/SHADBI__.TTF') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+}
+
 :root {
   --bg:           #080808;
   --bg-card:      #0e0e0e;
@@ -20,6 +45,7 @@
   --glow-red:     0 0 8px #ff3333, 0 0 20px #ff333333;
   --glow-cyan:    0 0 8px #00ccff, 0 0 20px #00ccff33;
   --font:         'Share Tech Mono', 'Courier New', monospace;
+  --font-display: 'Shadowrun', 'Share Tech Mono', monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,8 +76,9 @@ header {
 }
 
 .logo {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: var(--green);
+  font-family: var(--font-display);
   text-shadow: var(--glow-green);
   letter-spacing: 4px;
   text-transform: uppercase;
@@ -62,7 +89,8 @@ nav { display: flex; gap: 4px; }
 nav a {
   color: var(--text-dim);
   text-decoration: none;
-  font-size: 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
   letter-spacing: 2px;
   padding: 6px 14px;
   border: 1px solid transparent;
@@ -80,7 +108,8 @@ nav a:hover, nav a.active {
 main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 
 .page-title {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
+  font-family: var(--font-display);
   color: var(--green);
   text-shadow: var(--glow-green);
   letter-spacing: 4px;
@@ -88,8 +117,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
   margin-bottom: 4px;
 }
 .page-sub {
+  font-family: var(--font-display);
   color: var(--text-dim);
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   letter-spacing: 3px;
   margin-bottom: 28px;
 }
@@ -101,7 +131,8 @@ hr.rule {
 }
 
 .section-head {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
+  font-family: var(--font-display);
   letter-spacing: 3px;
   color: var(--amber);
   text-transform: uppercase;
@@ -277,8 +308,8 @@ select option { background: #090909; }
   padding: 18px 14px;
   text-align: center;
 }
-.stat-num { font-size: 2.2rem; color: var(--green); text-shadow: var(--glow-green); display: block; line-height: 1; }
-.stat-lbl { font-size: 0.65rem; letter-spacing: 3px; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; }
+.stat-num { font-family: var(--font-display); font-size: 2.4rem; color: var(--green); text-shadow: var(--glow-green); display: block; line-height: 1; }
+.stat-lbl { font-family: var(--font-display); font-size: 0.75rem; letter-spacing: 3px; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; }
 .stat-card-nav { cursor: pointer; transition: border-color .15s, background .15s; }
 .stat-card-nav:hover { border-color: #1a3a1a; background: rgba(0,255,65,.04); }
 
@@ -317,7 +348,7 @@ select option { background: #090909; }
 .oc-other       { border-left-color: var(--text-dim) !important; }
 
 .oc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
-.oc-name { font-size: 0.92rem; color: var(--text-bright); letter-spacing: 1px; }
+.oc-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); letter-spacing: 1px; }
 .oc-tier {
   font-size: 0.65rem; letter-spacing: 1px;
   padding: 2px 7px;
@@ -376,7 +407,7 @@ select option { background: #090909; }
   border-left: 3px solid var(--cyan);
   padding: 13px 15px;
 }
-.lc-name { font-size: 0.88rem; color: var(--cyan); text-shadow: var(--glow-cyan); margin-bottom: 3px; }
+.lc-name { font-family: var(--font-display); font-size: 1rem; color: var(--cyan); text-shadow: var(--glow-cyan); margin-bottom: 3px; }
 .lc-type { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
 .lc-ctrl { font-size: 0.72rem; color: #555; }
 .lc-ctrl::before { content: 'CTRL ▸ '; }
@@ -393,7 +424,7 @@ select option { background: #090909; }
   position: relative;
 }
 .cc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; gap: 8px; }
-.cc-name { font-size: 0.88rem; color: var(--text-bright); }
+.cc-name { font-family: var(--font-display); font-size: 1rem; color: var(--text-bright); }
 .cc-race-prof {
   display: inline-block; font-size: 0.56rem; letter-spacing: 2px; padding: 2px 7px;
   text-transform: uppercase; white-space: nowrap;
@@ -431,7 +462,7 @@ select option { background: #090909; }
   position: relative;
 }
 .char-card.is-pc { border-color: #1a3a1a; }
-.ch-name { font-size: 0.92rem; color: var(--text-bright); margin-bottom: 5px; }
+.ch-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); margin-bottom: 5px; }
 .ch-badge {
   display: inline-block; font-size: 0.58rem; letter-spacing: 2px;
   padding: 2px 7px; text-transform: uppercase; margin-bottom: 8px;
@@ -578,7 +609,8 @@ select option { background: #090909; }
   flex-shrink: 0;
 }
 .ltg-modal-title {
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
   color: var(--green);
   text-shadow: var(--glow-green);
   letter-spacing: 3px;
@@ -586,7 +618,8 @@ select option { background: #090909; }
   margin-bottom: 3px;
 }
 .ltg-modal-sub {
-  font-size: 0.62rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
   letter-spacing: 3px;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -602,7 +635,8 @@ select option { background: #090909; }
 .ltg-modal-body::-webkit-scrollbar-thumb { background: var(--green-dark); }
 
 .ltg-sec {
-  font-size: 0.68rem;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
   letter-spacing: 3px;
   color: var(--amber);
   text-transform: uppercase;
@@ -629,7 +663,8 @@ select option { background: #090909; }
 .ltg-entry:hover { border-color: #1a2a1a; }
 
 .ltg-number {
-  font-size: 0.9rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
   color: var(--cyan);
   text-shadow: var(--glow-cyan);
   letter-spacing: 1px;
@@ -840,7 +875,8 @@ select option { background: #090909; }
   flex-shrink: 0;
 }
 .edit-modal-title {
-  font-size: 0.88rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
   color: var(--amber);
   letter-spacing: 3px;
   text-transform: uppercase;
