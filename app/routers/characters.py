@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session, selectinload
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.character import Character
@@ -6,6 +6,8 @@ from app.models.reputation import Reputation
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary
 from app.schemas.contact import ContactRead
 from app.schemas.reputation import ReputationRead
+from app.auth.core import verify_user_token, verify_admin_token
+from app.auth.dependencies import get_admin_token
 
 router = APIRouter()
 
@@ -64,3 +66,44 @@ def get_character_contacts(character_id: int, db: Session = Depends(get_db)):
 def get_character_reputation(character_id: int, db: Session = Depends(get_db)):
     get_or_404(db, Character, character_id)
     return db.query(Reputation).filter(Reputation.character_id == character_id).first()
+
+
+# ── Claim / unclaim ───────────────────────────────────────────────────────────
+
+@router.post("/{character_id}/claim", response_model=CharacterRead)
+def claim_character(
+    character_id: int,
+    db: Session = Depends(get_db),
+    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+):
+    """Player claims a PC by writing their user token onto it."""
+    if not x_user_token or not verify_user_token(db, x_user_token):
+        raise HTTPException(status_code=403, detail="Valid user token required to claim a character")
+    char = get_or_404(db, Character, character_id)
+    if not char.is_pc:
+        raise HTTPException(status_code=400, detail="Only PC characters can be claimed")
+    if char.owner_token and char.owner_token != x_user_token:
+        raise HTTPException(status_code=409, detail="Character is already claimed by another player")
+    char.owner_token = x_user_token
+    db.commit()
+    db.refresh(char)
+    return char
+
+
+@router.post("/{character_id}/unclaim", response_model=CharacterRead)
+def unclaim_character(
+    character_id: int,
+    db: Session = Depends(get_db),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+):
+    """Admin or the owning player can unclaim a character."""
+    char = get_or_404(db, Character, character_id)
+    is_admin = bool(x_admin_token and verify_admin_token(db, x_admin_token))
+    is_owner = bool(x_user_token and char.owner_token == x_user_token)
+    if not is_admin and not is_owner:
+        raise HTTPException(status_code=403, detail="Only the owning player or an admin can unclaim")
+    char.owner_token = None
+    db.commit()
+    db.refresh(char)
+    return char

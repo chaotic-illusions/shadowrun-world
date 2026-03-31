@@ -67,7 +67,7 @@
         <div id="npcModalBadge" style="margin-top:4px"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-amber" onclick="openCharEditModal(npcModalCharId);closeNpcModal()" style="align-self:center">✎ Edit</button>
+        <button class="btn btn-amber gm-only" onclick="openCharEditModal(npcModalCharId);closeNpcModal()" style="align-self:center">✎ Edit</button>
         <button class="btn btn-red" onclick="closeNpcModal()" style="align-self:center">✕ Close</button>
       </div>
     </div>
@@ -394,6 +394,15 @@
 
 <script>
 const API = '';
+
+// Wrap fetch to always include auth headers
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  delete opts.headers['Content-Type']; // let authHeaders() set it, re-add only when needed
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
+}
+
 let orgStore     = {};
 let charMapStore = {};
 let contactStore = [];   // raw contacts array, refreshed on loadAll
@@ -475,7 +484,7 @@ async function saveEditModal() {
     ? document.getElementById('archCustomInput').value.trim()
     : selectedArch;
   if (archModalCharId && val !== (charMapStore[archModalCharId]?.archetype || '')) {
-    await fetch(`${API}/characters/${archModalCharId}`, {
+    await apiFetch(`${API}/characters/${archModalCharId}`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({archetype: val || null})
@@ -811,7 +820,7 @@ async function addContactLink() {
   const ownerId = parseInt(document.getElementById('promoteOwnerSel').value);
   const loyalty = Math.min(6, Math.max(1, parseInt(document.getElementById('promoteLoyalty').value) || 1));
   const conn    = char.connection ?? 1;
-  const res = await fetch(`${API}/contacts/`, {
+  const res = await apiFetch(`${API}/contacts/`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
@@ -826,7 +835,7 @@ async function addContactLink() {
     })
   });
   if (!res.ok) { alert('Failed to create contact link.'); return; }
-  const contactsRes = await fetch(`${API}/contacts/`);
+  const contactsRes = await apiFetch(`${API}/contacts/`);
   contactStore = await contactsRes.json();
   document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
   loadAll();
@@ -834,8 +843,8 @@ async function addContactLink() {
 
 async function removeContactLink(contactId) {
   if (!confirm('Remove this contact link?')) return;
-  await fetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
-  const contactsRes = await fetch(`${API}/contacts/`);
+  await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+  const contactsRes = await apiFetch(`${API}/contacts/`);
   contactStore = await contactsRes.json();
   document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
   loadAll();
@@ -892,15 +901,15 @@ function openNonNpcContactModal(contactId) {
 
 async function removeNonNpcLink(contactId) {
   if (!confirm('Remove this contact link?')) return;
-  await fetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
-  const contactsRes = await fetch(`${API}/contacts/`);
+  await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+  const contactsRes = await apiFetch(`${API}/contacts/`);
   contactStore = await contactsRes.json();
   closeNpcModal();
   loadAll();
 }
 
 async function toggleCharActive(charId, isActive) {
-  await fetch(`${API}/characters/${charId}`, {
+  await apiFetch(`${API}/characters/${charId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({is_active: !isActive})
@@ -913,7 +922,7 @@ async function patchNpcConnection(charId, currentVal) {
   if (raw === null) return;
   const n = parseInt(raw, 10);
   if (isNaN(n) || n < 1 || n > 6) { alert('Rating must be between 1 and 6'); return; }
-  await fetch(`${API}/characters/${charId}`, {
+  await apiFetch(`${API}/characters/${charId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({connection: n})
@@ -1045,13 +1054,26 @@ function buildCharCard(char, orgMap = {}) {
   const longDesc = !char.is_pc && char.description && char.description.length > 120;
   const isActive = char.is_active !== false;
 
-  const toggleBtn = `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`;
+  const toggleBtn = `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'} gm-only" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`;
   const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
 
+  // Claim button: shown on PC cards for players who don't yet own this char
+  const ut = userToken();
+  const isMine = char.is_pc && ut && char.owner_token === ut;
+  const isUnclaimed = char.is_pc && !char.owner_token;
+  const claimBtn = char.is_pc && !isAdmin() && isUnclaimed
+    ? `<button class="btn btn-green" style="position:absolute;bottom:8px;right:8px;padding:3px 10px;font-size:.6rem;letter-spacing:1px" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
+    : '';
+  const ownerBadge = char.is_pc && isMine
+    ? `<div style="position:absolute;bottom:8px;right:8px;font-size:.55rem;letter-spacing:1px;color:var(--green-dim)">✔ CLAIMED</div>`
+    : '';
+
   const cardClass = `char-card ${char.is_pc ? 'is-pc' : (isActive ? 'npc-clickable' : '')}`;
-  const clickAttr = char.is_pc
-    ? `onclick="openCharEditModal(${char.id})" title="Edit character" style="cursor:pointer"`
-    : (isActive ? `onclick="openNpcModal(${char.id})" title="View dossier"` : '');
+  const clickAttr = char.is_pc && isAdmin()
+    ? `onclick="openCharEditModal(${char.id})" title="Edit character" style="cursor:pointer;position:relative"`
+    : char.is_pc
+      ? `style="cursor:default;position:relative"`
+      : (isActive ? `onclick="openNpcModal(${char.id})" title="View dossier"` : '');
 
   return `
     <div class="${cardClass}" ${clickAttr}>
@@ -1073,6 +1095,7 @@ function buildCharCard(char, orgMap = {}) {
         ${repStr ? `<div class="ch-finance" style="margin-top:4px;font-size:.68rem"><span style="color:var(--text-dim)">REP: </span>${repStr}</div>` : ''}
         ${paStr  ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem;color:var(--text-dim)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
       </div>
+      ${claimBtn}${ownerBadge}
     </div>`;
 }
 
@@ -1145,7 +1168,7 @@ let oeHostCount = 0;
 // Load RTGs once at startup (they rarely change)
 (async function() {
   try {
-    const r = await fetch(`${API}/rtgs/`);
+    const r = await apiFetch(`${API}/rtgs/`);
     oeRTGs = r.ok ? (await r.json()).sort((a, b) => a.code.localeCompare(b.code)) : [];
   } catch(e) { console.warn('RTG load failed', e.message); }
 })();
@@ -1394,7 +1417,7 @@ async function saveOrgEdit() {
     ltgs:         oeGetLTGs(),
   };
   try {
-    const res = await fetch(`${API}/organizations/${oeEditingId}`, {
+    const res = await apiFetch(`${API}/organizations/${oeEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
@@ -1456,7 +1479,7 @@ async function saveLocEdit() {
     notes:              document.getElementById('le-notes').value.trim() || null,
   };
   try {
-    const res = await fetch(`${API}/locations/${leEditingId}`, {
+    const res = await apiFetch(`${API}/locations/${leEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
@@ -1577,7 +1600,7 @@ async function saveCharEdit() {
     payload.contact_skills = document.getElementById('ce-contact_skills').value.split('\n').map(s => s.trim()).filter(Boolean);
   }
   try {
-    const res = await fetch(`${API}/characters/${ceEditingId}`, {
+    const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
@@ -1594,11 +1617,11 @@ async function saveCharEdit() {
 async function loadAll() {
   try {
     const [orgsRes, locsRes, charsRes, contactsRes, statsRes] = await Promise.all([
-      fetch(`${API}/organizations/`),
-      fetch(`${API}/locations/`),
-      fetch(`${API}/characters/`),
-      fetch(`${API}/contacts/`),
-      fetch(`${API}/runs/party-stats`),
+      apiFetch(`${API}/organizations/`),
+      apiFetch(`${API}/locations/`),
+      apiFetch(`${API}/characters/`),
+      apiFetch(`${API}/contacts/`),
+      apiFetch(`${API}/runs/party-stats`),
     ]);
     const [orgs, locs, chars, contacts, stats] = await Promise.all([
       orgsRes.json(), locsRes.json(), charsRes.json(), contactsRes.json(),
@@ -1704,7 +1727,23 @@ async function loadAll() {
   }
 }
 
-loadAll();
+async function claimChar(charId) {
+  try {
+    const res = await fetch(`${API}/characters/${charId}/claim`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail);
+    }
+    await loadAll();
+  } catch(e) {
+    alert(`Claim failed: ${e.message}`);
+  }
+}
+
+bootstrapAuth().then(u => { if (u) loadAll(); });
 
 (function() {
   function pad(n) { return String(n).padStart(2, '0'); }

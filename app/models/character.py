@@ -46,6 +46,7 @@ class Character(Base):
 
     is_active = Column(Boolean, default=True)
     notes = Column(Text)
+    owner_token = Column(String(64), nullable=True, index=True)  # set when a player claims this PC
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
