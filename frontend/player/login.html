@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Access | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .login-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .login-box {
+      background: var(--bg-card);
+      border: 1px solid #1a3a1a;
+      border-top: 2px solid var(--green-dim);
+      padding: 40px 44px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .login-title {
+      font-size: 1rem;
+      color: var(--green);
+      letter-spacing: 3px;
+      margin-bottom: 6px;
+    }
+    .login-sub {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      margin-bottom: 28px;
+    }
+    .login-box label {
+      display: block;
+      font-size: 0.65rem;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .login-box input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1px solid #222;
+      color: var(--text-bright);
+      font-family: var(--font);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .15s;
+      margin-bottom: 20px;
+    }
+    .login-box input:focus { border-color: var(--green-dim); }
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s;
+    }
+    .login-btn:hover {
+      background: rgba(0,204,51,.08);
+      box-shadow: var(--glow-green);
+    }
+    .login-hint {
+      margin-top: 18px;
+      font-size: 0.6rem;
+      letter-spacing: 1px;
+      color: #333;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-title">Shadowrun <em>//</em> World Engine</div>
+    <div class="login-sub">MATRIX ACCESS — ENTER ACCESS TOKEN</div>
+
+    <div id="alert" class="alert"></div>
+
+    <form onsubmit="doLogin(event)">
+      <label>Access Token</label>
+      <input type="text" id="token" autocomplete="off" autofocus spellcheck="false">
+      <button type="submit" class="login-btn">&gt;&gt; JACK IN</button>
+    </form>
+
+    <div class="login-hint">Token will be saved in this browser. You won't need to enter it again.</div>
+  </div>
+</div>
+
+<script>
+const LS_ADMIN = 'sr_admin_token';
+const LS_USER  = 'sr_user_token';
+
+function showAlert(msg, isErr) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const token = document.getElementById('token').value.trim();
+  if (!token) { showAlert('Access token required.', true); return; }
+
+  try {
+    const res = await fetch('/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_token: token, user_token: token }),
+    });
+
+    if (res.status === 401) { showAlert('>> ACCESS DENIED // Invalid token.', true); return; }
+    if (!res.ok) throw new Error(res.statusText);
+
+    const ctx = await res.json();
+
+    // Save whichever role(s) matched
+    if (ctx.is_admin) localStorage.setItem(LS_ADMIN, token);
+    if (ctx.is_user)  localStorage.setItem(LS_USER, token);
+
+    window.location.href = '/ui/world-state.html';
+  } catch(e) {
+    showAlert(`>> ERROR // ${e.message}`, true);
+  }
+}
+
+// Auto-redirect if already authenticated
+(async function() {
+  const at = localStorage.getItem(LS_ADMIN);
+  const ut = localStorage.getItem(LS_USER);
+  if (!at && !ut) return;
+  try {
+    const res = await fetch('/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_token: at, user_token: ut }),
+    });
+    if (res.ok) window.location.href = '/ui/world-state.html';
+    else { localStorage.removeItem(LS_ADMIN); localStorage.removeItem(LS_USER); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>
