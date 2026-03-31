@@ -12,7 +12,7 @@ class RTG(Base):
     political_entity = Column(String(200))
     continent = Column(String(100))
     # e.g. "Green-4", "Orange-5" — target number / successes to manipulate the node
-    host_rating = Column(String(20))
+    rtg_security_rating = Column(String(20))
     # True = from SR source material; False = campaign-created
     canonical = Column(Boolean, default=True)
     notes = Column(Text)

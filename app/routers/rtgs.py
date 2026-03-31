@@ -10,15 +10,15 @@ router = APIRouter()
 @router.get("/", response_model=list[RTGRead])
 def list_rtgs(
     continent: str | None = Query(None),
-    host_rating: str | None = Query(None),
+    rtg_security_rating: str | None = Query(None),
     canonical: bool | None = Query(None),
     db: Session = Depends(get_db),
 ):
     q = db.query(RTG)
     if continent:
         q = q.filter(RTG.continent == continent)
-    if host_rating:
-        q = q.filter(RTG.host_rating == host_rating)
+    if rtg_security_rating:
+        q = q.filter(RTG.rtg_security_rating == rtg_security_rating)
     if canonical is not None:
         q = q.filter(RTG.canonical == canonical)
     return q.order_by(RTG.code).all()

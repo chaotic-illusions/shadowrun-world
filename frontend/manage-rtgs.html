@@ -56,8 +56,8 @@
           <input type="text" id="f-code" placeholder="NA/UCAS-SEA">
         </div>
         <div class="field">
-          <label>Host Rating</label>
-          <select id="f-host_rating">
+          <label>Security Rating</label>
+          <select id="f-rtg_security_rating">
             <option value="">— Unrated —</option>
             <option value="Green-3">Green-3</option>
             <option value="Green-4">Green-4</option>
@@ -153,7 +153,7 @@ function renderTable(data) {
           <th>Region</th>
           <th>Political Entity</th>
           <th>Continent</th>
-          <th>Host Rating</th>
+          <th>Security Rating</th>
           <th>Type</th>
           <th class="td-act"></th>
         </tr>
@@ -165,7 +165,7 @@ function renderTable(data) {
             <td>${esc(r.region)}</td>
             <td style="color:var(--text-dim)">${esc(r.political_entity||'—')}</td>
             <td style="color:var(--text-dim)">${esc(r.continent||'—')}</td>
-            <td>${r.host_rating ? `<span class="ltg-rating ${ratingClass(r.host_rating)}">${esc(r.host_rating)}</span>` : '<span style="color:#333">—</span>'}</td>
+            <td>${r.rtg_security_rating ? `<span class="ltg-rating ${ratingClass(r.rtg_security_rating)}">${esc(r.rtg_security_rating)}</span>` : '<span style="color:#333">—</span>'}</td>
             <td style="color:var(--text-dim);font-size:.65rem;letter-spacing:1px">${r.canonical ? 'CANONICAL' : 'CAMPAIGN'}</td>
             <td class="td-act"><button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${r.id})">Edit</button></td>
           </tr>`).join('')}
@@ -195,7 +195,7 @@ function openModal(id) {
   document.getElementById('f-region').value          = rtg?.region || '';
   document.getElementById('f-political_entity').value= rtg?.political_entity || '';
   document.getElementById('f-continent').value       = rtg?.continent || '';
-  document.getElementById('f-host_rating').value     = rtg?.host_rating || '';
+  document.getElementById('f-rtg_security_rating').value     = rtg?.rtg_security_rating || '';
   document.getElementById('f-canonical').checked     = rtg?.canonical !== false;
   document.getElementById('f-notes').value           = rtg?.notes || '';
 
@@ -223,7 +223,7 @@ async function saveRTG() {
     region:           document.getElementById('f-region').value.trim() || null,
     political_entity: document.getElementById('f-political_entity').value.trim() || null,
     continent:        document.getElementById('f-continent').value.trim() || null,
-    host_rating:      document.getElementById('f-host_rating').value || null,
+    rtg_security_rating:      document.getElementById('f-rtg_security_rating').value || null,
     canonical:        document.getElementById('f-canonical').checked,
     notes:            document.getElementById('f-notes').value.trim() || null,
   };
