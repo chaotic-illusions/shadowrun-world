@@ -1,5 +1,5 @@
 {
-  "_comment": "Shadowrun World Seed Data. Use names as references \u00e2\u20ac\u201d the seed script resolves them to IDs automatically.",
+  "_comment": "Shadowrun World Seed Data. Use names as references â€” the seed script resolves them to IDs automatically.",
   "_todo": "TODO: #3 Basic authentication for user access.  Players should be able to create accounts, view their own character sheets and run history, and track their reputation with various factions. They should also be able to see a party overview, showing data known the whole group, but not edit it.  GMs should have additional permissions to manage world data.",
   "rtgs": [
     {
@@ -8,7 +8,7 @@
       "political_entity": "UCAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/UCAS-NC",
@@ -16,7 +16,7 @@
       "political_entity": "UCAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/UCAS-SO",
@@ -24,7 +24,7 @@
       "political_entity": "UCAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/UCAS-MW",
@@ -32,7 +32,7 @@
       "political_entity": "UCAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/UCAS-WE",
@@ -40,7 +40,7 @@
       "political_entity": "UCAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/UCAS-SEA",
@@ -49,7 +49,7 @@
       "continent": "North America",
       "canonical": true,
       "notes": "Primary RTG for the Seattle metroplex campaign setting.",
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/QU",
@@ -57,7 +57,7 @@
       "political_entity": "Quebec",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     },
     {
       "code": "NA/CAS-SB",
@@ -65,7 +65,7 @@
       "political_entity": "CAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/CAS-GU",
@@ -73,7 +73,7 @@
       "political_entity": "CAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/CAS-CE",
@@ -81,7 +81,7 @@
       "political_entity": "CAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/CAS-TX",
@@ -89,7 +89,7 @@
       "political_entity": "CAS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/SIO",
@@ -97,7 +97,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/ALM",
@@ -105,7 +105,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/ATH",
@@ -113,7 +113,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/UTE",
@@ -121,7 +121,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/PUE",
@@ -129,7 +129,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-4"
+      "rtg_security_rating": "Orange-4"
     },
     {
       "code": "NA/SLS",
@@ -137,7 +137,7 @@
       "political_entity": "NAN",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/NOCAL",
@@ -145,7 +145,7 @@
       "political_entity": "CFS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/SOCAL",
@@ -153,7 +153,7 @@
       "political_entity": "CFS",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "NA/TT",
@@ -161,7 +161,7 @@
       "political_entity": "Tir Tairngire",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-5"
+      "rtg_security_rating": "Orange-5"
     },
     {
       "code": "NA/TPA",
@@ -169,7 +169,7 @@
       "political_entity": "TPA",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     },
     {
       "code": "NA/TS",
@@ -177,7 +177,7 @@
       "political_entity": "Tsimshian",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-5"
+      "rtg_security_rating": "Orange-5"
     },
     {
       "code": "NA/AZ-NO",
@@ -185,7 +185,7 @@
       "political_entity": "Aztlan",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/AZ-CE",
@@ -193,7 +193,7 @@
       "political_entity": "Aztlan",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/AZ-SU",
@@ -201,7 +201,7 @@
       "political_entity": "Aztlan",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/AZ-BA",
@@ -209,7 +209,7 @@
       "political_entity": "Aztlan",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/YU",
@@ -217,7 +217,7 @@
       "political_entity": "Aztlan",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/CL-FLA",
@@ -225,7 +225,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     },
     {
       "code": "NA/CL-CU",
@@ -233,7 +233,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-3"
+      "rtg_security_rating": "Orange-3"
     },
     {
       "code": "NA/CL-JA",
@@ -241,7 +241,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "NA/CL-GR",
@@ -249,7 +249,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Orange-4"
+      "rtg_security_rating": "Orange-4"
     },
     {
       "code": "NA/CL-BER",
@@ -257,7 +257,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     },
     {
       "code": "NA/CL-VI",
@@ -265,7 +265,7 @@
       "political_entity": "Caribbean League",
       "continent": "North America",
       "canonical": true,
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     },
     {
       "code": "AS/JPN-KAN",
@@ -274,7 +274,7 @@
       "continent": "Asia",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Orange-4"
+      "rtg_security_rating": "Orange-4"
     },
     {
       "code": "AS/JPN-KNS",
@@ -283,7 +283,7 @@
       "continent": "Asia",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Orange-4"
+      "rtg_security_rating": "Orange-4"
     },
     {
       "code": "AS/JPN-KYU",
@@ -292,7 +292,7 @@
       "continent": "Asia",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "AS/JPN-HOK",
@@ -301,7 +301,7 @@
       "continent": "Asia",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "EU/AGS-NW",
@@ -310,7 +310,7 @@
       "continent": "Europe",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "EU/AGS-NE",
@@ -319,7 +319,7 @@
       "continent": "Europe",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-4"
+      "rtg_security_rating": "Green-4"
     },
     {
       "code": "EU/AGS-SW",
@@ -328,7 +328,7 @@
       "continent": "Europe",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "EU/AGS-SE",
@@ -337,7 +337,7 @@
       "continent": "Europe",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "AS/RUS-FE",
@@ -346,7 +346,7 @@
       "continent": "Asia",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-3"
+      "rtg_security_rating": "Green-3"
     },
     {
       "code": "EU/RUS-WE",
@@ -355,7 +355,7 @@
       "continent": "Europe",
       "canonical": false,
       "notes": "Campaign-created. Not in SR2/3 source material.",
-      "host_rating": "Green-2"
+      "rtg_security_rating": "Green-2"
     }
   ],
   "organizations": [
@@ -368,7 +368,7 @@
       "leadership": [
         {
           "title": "CEO / Great Dragon Proxy",
-          "name": "Unknown \u00e2\u20ac\u201d believed to be a powerful blood mage"
+          "name": "Unknown â€” believed to be a powerful blood mage"
         },
         {
           "title": "Seattle Division Director",
@@ -390,7 +390,7 @@
         "Lone Star Security",
         "Ares Macrotechnology"
       ],
-      "notes": "Jaguar Guards are their elite magical security \u00e2\u20ac\u201d typically shamans or physical adepts, always Awakened. Standard security carries assault rifles and wears military-grade armor.\n\nBlood magic connection: credible shadowrunner intel suggests Aztechnology runs ritual sacrifice operations under the guise of magical R&D. Unconfirmed but a major long-term plot hook.\n\nStuffer Shack convenience stores are an Aztechnology front \u00e2\u20ac\u201d useful for surveillance and BTL distribution. They are everywhere in Seattle.\n\nThe Aztechnology pyramid in downtown Seattle is a major landmark and extremely hard target. Matrix intrusion into their host has never succeeded by known runners.\n\nAztlan treaty with UCAS limits their military presence in Seattle, but extraterritoriality means their facilities are sovereign soil. HTR from the pyramid responds to all Aztechnology facilities citywide.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Jaguar Guards are their elite magical security â€” typically shamans or physical adepts, always Awakened. Standard security carries assault rifles and wears military-grade armor.\n\nBlood magic connection: credible shadowrunner intel suggests Aztechnology runs ritual sacrifice operations under the guise of magical R&D. Unconfirmed but a major long-term plot hook.\n\nStuffer Shack convenience stores are an Aztechnology front â€” useful for surveillance and BTL distribution. They are everywhere in Seattle.\n\nThe Aztechnology pyramid in downtown Seattle is a major landmark and extremely hard target. Matrix intrusion into their host has never succeeded by known runners.\n\nAztlan treaty with UCAS limits their military presence in Seattle, but extraterritoriality means their facilities are sovereign soil. HTR from the pyramid responds to all Aztechnology facilities citywide.",
       "ltgs": [
         {
           "type": "telecom",
@@ -417,7 +417,7 @@
           "id_code": null,
           "description": "Corporate info & PR host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -426,7 +426,7 @@
           "id_code": null,
           "description": "Stuffer Shack retail/franchise host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -435,7 +435,7 @@
           "id_code": "AZT-EXEC",
           "description": "Seattle executive operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Red-6"
         },
         {
           "type": "matrix_host",
@@ -444,7 +444,7 @@
           "id_code": "AZT-RES1",
           "description": "Bellevue R&D campus host",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -453,7 +453,7 @@
           "id_code": "AZTCORP7",
           "description": "Tenochtitlan corp backbone, Seattle mirror",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -462,7 +462,7 @@
           "id_code": "QP7NX38M",
           "description": "Sub-basement research node, Bellevue campus",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-12"
         }
       ]
     },
@@ -470,12 +470,12 @@
       "name": "Aztlan",
       "org_type": "nation-state",
       "tier": 5,
-      "description": "The Aztlaner nation-state formed from most of Mexico and parts of Central America after the Awakening. Effectively a corporate state run by Aztechnology. Has a standing military \u00e2\u20ac\u201d the Aztlaner Army \u00e2\u20ac\u201d and significant magical resources tied to Aztechnology's research programs.",
+      "description": "The Aztlaner nation-state formed from most of Mexico and parts of Central America after the Awakening. Effectively a corporate state run by Aztechnology. Has a standing military â€” the Aztlaner Army â€” and significant magical resources tied to Aztechnology's research programs.",
       "headquarters": "Tenochtitlan",
       "leadership": [
         {
           "title": "President",
-          "name": "Unknown \u00e2\u20ac\u201d considered a figurehead"
+          "name": "Unknown â€” considered a figurehead"
         },
         {
           "title": "Military Commander",
@@ -486,7 +486,7 @@
         "Aztechnology"
       ],
       "enemy_names": [],
-      "notes": "Aztlan and Aztechnology are inseparable. The nation provides political cover and military force; the corp provides funding and direction. Treat them as two arms of the same entity. Aztlaner nationals in Seattle are often Aztechnology assets.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Aztlan and Aztechnology are inseparable. The nation provides political cover and military force; the corp provides funding and direction. Treat them as two arms of the same entity. Aztlaner nationals in Seattle are often Aztechnology assets.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -507,7 +507,7 @@
           "id_code": null,
           "description": "Consulate public information host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -516,7 +516,7 @@
           "id_code": "AZTGOV1",
           "description": "Aztlan government ops, Seattle liaison",
           "visibility": "unlisted",
-          "host_rating": "Orange-8"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -525,7 +525,7 @@
           "id_code": "AZTMIL2",
           "description": "Military attache communications",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -534,7 +534,7 @@
           "id_code": "8ZKNVX1Q",
           "description": "Intelligence operations node",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-10"
         }
       ]
     },
@@ -542,7 +542,7 @@
       "name": "Ares Macrotechnology",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp based in Detroit. The premier weapons manufacturer and military hardware supplier in the UCAS. Operates across aerospace, firearms, military vehicles, cybernetics, and law enforcement via its Knight Errant Security Services subsidiary. Known for the Ares Predator line of heavy pistols \u00e2\u20ac\u201d nearly ubiquitous among shadowrunners.",
+      "description": "AAA megacorp based in Detroit. The premier weapons manufacturer and military hardware supplier in the UCAS. Operates across aerospace, firearms, military vehicles, cybernetics, and law enforcement via its Knight Errant Security Services subsidiary. Known for the Ares Predator line of heavy pistols â€” nearly ubiquitous among shadowrunners.",
       "headquarters": "Detroit, UCAS",
       "leadership": [
         {
@@ -565,7 +565,7 @@
         "Aztechnology",
         "Saeder-Krupp Heavy Industries"
       ],
-      "notes": "Ares and Aztechnology compete heavily in military hardware and security contracts across the UCAS. Their rivalry is active and occasionally violent at the shadow level \u00e2\u20ac\u201d both corps run deniable ops against the other's supply chains and R&D programs.\n\nKnight Errant Security Services is Ares's law enforcement arm and a wholly owned subsidiary. A Knight Errant win on the Seattle city contract is a direct revenue and influence win for Ares corporate. Aurelius is personally invested in the outcome.\n\nAres vs. Saeder-Krupp is a slower, colder rivalry in aerospace and heavy defense contracts. Lofwyr plays it patiently; Aurelius plays it aggressively. This occasionally creates runner work on both sides.\n\nRazor's Mr. Johnson contact at Ares is a potential recurring employer. Ares gear is ubiquitous, easy to source, and easy to fence \u00e2\u20ac\u201d the Predator IV, Alpha, and Light Fire lines are standard issue across the shadows.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Ares and Aztechnology compete heavily in military hardware and security contracts across the UCAS. Their rivalry is active and occasionally violent at the shadow level â€” both corps run deniable ops against the other's supply chains and R&D programs.\n\nKnight Errant Security Services is Ares's law enforcement arm and a wholly owned subsidiary. A Knight Errant win on the Seattle city contract is a direct revenue and influence win for Ares corporate. Aurelius is personally invested in the outcome.\n\nAres vs. Saeder-Krupp is a slower, colder rivalry in aerospace and heavy defense contracts. Lofwyr plays it patiently; Aurelius plays it aggressively. This occasionally creates runner work on both sides.\n\nRazor's Mr. Johnson contact at Ares is a potential recurring employer. Ares gear is ubiquitous, easy to source, and easy to fence â€” the Predator IV, Alpha, and Light Fire lines are standard issue across the shadows.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -592,7 +592,7 @@
           "id_code": null,
           "description": "Corporate information & products host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -601,7 +601,7 @@
           "id_code": null,
           "description": "Ares Arms public catalog host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -610,7 +610,7 @@
           "id_code": "ARES-NW",
           "description": "Pacific Northwest division operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -619,7 +619,7 @@
           "id_code": "ARES-DEF",
           "description": "Defense contracts & R&D Seattle mirror",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -628,7 +628,7 @@
           "id_code": "ARES-DET",
           "description": "Detroit HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -637,7 +637,7 @@
           "id_code": "3FNKP7QM",
           "description": "Black ops division liaison node",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-9"
         }
       ]
     },
@@ -645,7 +645,7 @@
       "name": "Fuchi Industrial Electronics",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp and the dominant force in Matrix hardware and cyberdecks worldwide. Fuchi manufactures the most widely used corporate and consumer cyberdecks, as well as telecommunications infrastructure, electronics, and computing systems. The corp is quietly fracturing \u00e2\u20ac\u201d a power struggle between the founding Villiers (American) and Shigeda/Nakamura (Japanese) factions is intensifying and will eventually tear the corp apart.",
+      "description": "AAA megacorp and the dominant force in Matrix hardware and cyberdecks worldwide. Fuchi manufactures the most widely used corporate and consumer cyberdecks, as well as telecommunications infrastructure, electronics, and computing systems. The corp is quietly fracturing â€” a power struggle between the founding Villiers (American) and Shigeda/Nakamura (Japanese) factions is intensifying and will eventually tear the corp apart.",
       "headquarters": "Tokyo, Japan",
       "leadership": [
         {
@@ -666,7 +666,7 @@
         "Renraku Computer Systems",
         "Mitsuhama Computer Technologies"
       ],
-      "notes": "Fuchi's internal civil war is the worst-kept secret in corporate shadowrunning. Villiers controls significant North American assets; the Japanese board controls overseas manufacturing. Runners may find themselves hired by one faction to undermine the other \u00e2\u20ac\u201d sometimes without knowing it.\n\nFuchi cyberdecks (the Cyber-5, Cyber-6, and Angst lines) are the standard for mid-tier deckers. Static's Novatech Navigator is a competitor. Fuchi hosts in Seattle are well-defended but fragmented \u00e2\u20ac\u201d different divisions maintain different nodes with inconsistent security.\n\nFuchi has no significant military security force of its own. They contract private security and rely on political leverage.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Fuchi's internal civil war is the worst-kept secret in corporate shadowrunning. Villiers controls significant North American assets; the Japanese board controls overseas manufacturing. Runners may find themselves hired by one faction to undermine the other â€” sometimes without knowing it.\n\nFuchi cyberdecks (the Cyber-5, Cyber-6, and Angst lines) are the standard for mid-tier deckers. Static's Novatech Navigator is a competitor. Fuchi hosts in Seattle are well-defended but fragmented â€” different divisions maintain different nodes with inconsistent security.\n\nFuchi has no significant military security force of its own. They contract private security and rely on political leverage.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -693,7 +693,7 @@
           "id_code": null,
           "description": "Corporate information & product support host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -702,7 +702,7 @@
           "id_code": null,
           "description": "Fuchi retail & consumer support host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -711,7 +711,7 @@
           "id_code": "FUCHI-NA",
           "description": "Villiers faction North America operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -720,7 +720,7 @@
           "id_code": "FUCHI-JP",
           "description": "Japanese board Seattle mirror node",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -729,7 +729,7 @@
           "id_code": "FUCHI-TK",
           "description": "Tokyo HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -738,8 +738,8 @@
           "id_code": "MV73XKPQ",
           "description": "Internal faction conflict documents",
           "visibility": "black",
-          "host_rating": "Black-7",
-          "notes": "Whoever controls this node controls the narrative of the Villiers/board split."
+          "notes": "Whoever controls this node controls the narrative of the Villiers/board split.",
+          "san_access_rating": "Black-10"
         }
       ]
     },
@@ -747,7 +747,7 @@
       "name": "Renraku Computer Systems",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp based in Chiba, Japan. Dominant in Matrix architecture, computers, robotics, and consumer electronics. Renraku designed and maintains large portions of the global Matrix backbone, giving them surveillance reach that most corps can only envy. In Seattle, their defining presence is the SCIRE \u00e2\u20ac\u201d the Renraku Arcology, a massive self-contained city-within-a-city in downtown Seattle.",
+      "description": "AAA megacorp based in Chiba, Japan. Dominant in Matrix architecture, computers, robotics, and consumer electronics. Renraku designed and maintains large portions of the global Matrix backbone, giving them surveillance reach that most corps can only envy. In Seattle, their defining presence is the SCIRE â€” the Renraku Arcology, a massive self-contained city-within-a-city in downtown Seattle.",
       "headquarters": "Chiba, Japan",
       "leadership": [
         {
@@ -768,7 +768,7 @@
         "Fuchi Industrial Electronics",
         "Mitsuhama Computer Technologies"
       ],
-      "notes": "The Renraku Arcology (SCIRE) in downtown Seattle is one of the largest structures on the West Coast \u00e2\u20ac\u201d a 100-story self-contained complex housing 90,000+ residents, corporate offices, factories, schools, and hospitals. It is essentially a sovereign city block. Extremely hard target.\n\nRed Samurai are Renraku's elite security force \u00e2\u20ac\u201d among the most feared corporate soldiers in the world. Full body armor, milspec weapons, rigger-controlled drone support, and absolute loyalty. They do not take prisoners on extraterritorial soil.\n\nRenraku's Matrix architecture division means they have back-channel access to infrastructure that other corps don't. A decker who crosses Renraku may find their SIN flagged across multiple unrelated hosts.\n\nKnight Errant relationship: Renraku uses Knight Errant for perimeter security around non-Arcology Seattle facilities \u00e2\u20ac\u201d a pragmatic arrangement given Ares's military hardware supply relationship with Renraku. This creates an awkward dynamic: KE officers patrol the outside of Renraku buildings while Red Samurai control everything inside the threshold. Jurisdictional disputes are common and occasionally violent.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "The Renraku Arcology (SCIRE) in downtown Seattle is one of the largest structures on the West Coast â€” a 100-story self-contained complex housing 90,000+ residents, corporate offices, factories, schools, and hospitals. It is essentially a sovereign city block. Extremely hard target.\n\nRed Samurai are Renraku's elite security force â€” among the most feared corporate soldiers in the world. Full body armor, milspec weapons, rigger-controlled drone support, and absolute loyalty. They do not take prisoners on extraterritorial soil.\n\nRenraku's Matrix architecture division means they have back-channel access to infrastructure that other corps don't. A decker who crosses Renraku may find their SIN flagged across multiple unrelated hosts.\n\nKnight Errant relationship: Renraku uses Knight Errant for perimeter security around non-Arcology Seattle facilities â€” a pragmatic arrangement given Ares's military hardware supply relationship with Renraku. This creates an awkward dynamic: KE officers patrol the outside of Renraku buildings while Red Samurai control everything inside the threshold. Jurisdictional disputes are common and occasionally violent.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -795,7 +795,7 @@
           "id_code": null,
           "description": "SCIRE public information host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -804,7 +804,7 @@
           "id_code": null,
           "description": "Corporate products & services host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -813,7 +813,7 @@
           "id_code": "RNR-SCIR",
           "description": "SCIRE internal operations host",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -822,7 +822,7 @@
           "id_code": "RNR-EXEC",
           "description": "Corporate executive host, Seattle",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -831,7 +831,7 @@
           "id_code": "RNR-SAMS",
           "description": "Red Samurai tactical operations host",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -840,7 +840,7 @@
           "id_code": "RNR-CHIB",
           "description": "Chiba HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -849,8 +849,8 @@
           "id_code": "QKX39NZM",
           "description": "SCIRE sub-level research node",
           "visibility": "black",
-          "host_rating": "Black-10",
-          "notes": "Rumored to contain data from pre-lockdown SCIRE experiments. The rating is not inflated."
+          "notes": "Rumored to contain data from pre-lockdown SCIRE experiments. The rating is not inflated.",
+          "san_access_rating": "Black-12"
         }
       ]
     },
@@ -858,7 +858,7 @@
       "name": "Shiawase Corporation",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp and the oldest of the Big Eight. Shiawase holds the distinction of winning the first corporate extraterritoriality case in 2001, legally establishing that megacorps are sovereign entities \u00e2\u20ac\u201d a ruling that reshaped the entire world. Dominant in nuclear power generation, biotechnology, environmental systems, and munitions. Operates with a deeply traditional Japanese corporate culture (kaisha) emphasizing family and loyalty.",
+      "description": "AAA megacorp and the oldest of the Big Eight. Shiawase holds the distinction of winning the first corporate extraterritoriality case in 2001, legally establishing that megacorps are sovereign entities â€” a ruling that reshaped the entire world. Dominant in nuclear power generation, biotechnology, environmental systems, and munitions. Operates with a deeply traditional Japanese corporate culture (kaisha) emphasizing family and loyalty.",
       "headquarters": "Osaka, Japan",
       "leadership": [
         {
@@ -876,7 +876,7 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "Shiawase is the most internally stable of the Big Eight \u00e2\u20ac\u201d the Shiawase family retains genuine control, unlike corps fractured by shareholder politics. This makes them harder to manipulate through internal division.\n\nTheir biotech and environmental divisions are active in Seattle \u00e2\u20ac\u201d wastewater reclamation, toxic site remediation (often in the Barrens), and pharmaceutical research. This gives them legitimate reasons to operate in otherwise low-visibility areas.\n\nShiawase security (Shiawase Envirotech Security) is professional, quiet, and effective. They rarely appear in shadowrunner stories because they rarely create incidents \u00e2\u20ac\u201d they handle problems internally before they escalate.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Shiawase is the most internally stable of the Big Eight â€” the Shiawase family retains genuine control, unlike corps fractured by shareholder politics. This makes them harder to manipulate through internal division.\n\nTheir biotech and environmental divisions are active in Seattle â€” wastewater reclamation, toxic site remediation (often in the Barrens), and pharmaceutical research. This gives them legitimate reasons to operate in otherwise low-visibility areas.\n\nShiawase security (Shiawase Envirotech Security) is professional, quiet, and effective. They rarely appear in shadowrunner stories because they rarely create incidents â€” they handle problems internally before they escalate.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -903,7 +903,7 @@
           "id_code": null,
           "description": "Corporate information host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -912,7 +912,7 @@
           "id_code": null,
           "description": "Environmental services public host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -921,7 +921,7 @@
           "id_code": "SHAW-OPS",
           "description": "Seattle division operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -930,7 +930,7 @@
           "id_code": "SHAW-BIO",
           "description": "Biotech research host, Seattle",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -939,7 +939,7 @@
           "id_code": "SHAW-OSK",
           "description": "Osaka HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -948,7 +948,7 @@
           "id_code": "PX4NRMW9",
           "description": "Pharmaceutical black R&D node",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-9"
         }
       ]
     },
@@ -956,7 +956,7 @@
       "name": "Saeder-Krupp Heavy Industries",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp based in Essen, Germany. The most financially powerful corporation in the world by most measures. Dominant in heavy industry, aerospace, banking, chemicals, and metallurgy. Controlled by the Great Dragon Lofwyr, who holds a majority stake and serves as CEO \u00e2\u20ac\u201d making Saeder-Krupp the only AAA corp openly and directly run by a Great Dragon.",
+      "description": "AAA megacorp based in Essen, Germany. The most financially powerful corporation in the world by most measures. Dominant in heavy industry, aerospace, banking, chemicals, and metallurgy. Controlled by the Great Dragon Lofwyr, who holds a majority stake and serves as CEO â€” making Saeder-Krupp the only AAA corp openly and directly run by a Great Dragon.",
       "headquarters": "Essen, Allied German States",
       "leadership": [
         {
@@ -976,7 +976,7 @@
       "enemy_names": [
         "Ares Macrotechnology"
       ],
-      "notes": "Lofwyr is the single most dangerous entity the runners are ever likely to have as an enemy \u00e2\u20ac\u201d or employer. He plans on timescales of decades and has intelligence assets woven through every major institution on the continent. He does not make mistakes. If Lofwyr takes an interest in the runners, something very large is in motion.\n\nSaeder-Krupp competes with Ares in aerospace and heavy military contracts. Their rivalry is cold, expensive, and fought primarily through proxies.\n\nSaeder-Krupp's Seattle presence is primarily financial and industrial \u00e2\u20ac\u201d they hold significant stakes in Pacific Rim shipping infrastructure, port operations, and a metals processing facility in the industrial district. Low profile, but the money flows through everything.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Lofwyr is the single most dangerous entity the runners are ever likely to have as an enemy â€” or employer. He plans on timescales of decades and has intelligence assets woven through every major institution on the continent. He does not make mistakes. If Lofwyr takes an interest in the runners, something very large is in motion.\n\nSaeder-Krupp competes with Ares in aerospace and heavy military contracts. Their rivalry is cold, expensive, and fought primarily through proxies.\n\nSaeder-Krupp's Seattle presence is primarily financial and industrial â€” they hold significant stakes in Pacific Rim shipping infrastructure, port operations, and a metals processing facility in the industrial district. Low profile, but the money flows through everything.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -997,7 +997,7 @@
           "id_code": null,
           "description": "Corporate information host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1006,7 +1006,7 @@
           "id_code": "SK-PACNW",
           "description": "Pacific Northwest operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Red-6"
         },
         {
           "type": "matrix_host",
@@ -1015,7 +1015,7 @@
           "id_code": "SK-FIN1",
           "description": "Financial operations, Seattle mirror",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -1024,7 +1024,7 @@
           "id_code": "SKHQ-ESN",
           "description": "Essen HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -1033,8 +1033,8 @@
           "id_code": "KWNPZ73M",
           "description": "Lofwyr's Seattle intelligence node",
           "visibility": "black",
-          "host_rating": "Black-10",
-          "notes": "If this node is ever accessed, assume Lofwyr knows within minutes. The rating is not a typo."
+          "notes": "If this node is ever accessed, assume Lofwyr knows within minutes. The rating is not a typo.",
+          "san_access_rating": "Black-11"
         }
       ]
     },
@@ -1042,7 +1042,7 @@
       "name": "Mitsuhama Computer Technologies",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp based in Kyoto, Japan. Dominant in robotics, computers, heavy machinery, and magical research. MCT has the most aggressive anti-shadowrunner policy of any megacorp \u00e2\u20ac\u201d their facilities operate under a standing shoot-on-sight order for unauthorized personnel, earning the designation 'zero zone' in runner slang. Rumored to have been founded with Yakuza capital, a connection both parties deny.",
+      "description": "AAA megacorp based in Kyoto, Japan. Dominant in robotics, computers, heavy machinery, and magical research. MCT has the most aggressive anti-shadowrunner policy of any megacorp â€” their facilities operate under a standing shoot-on-sight order for unauthorized personnel, earning the designation 'zero zone' in runner slang. Rumored to have been founded with Yakuza capital, a connection both parties deny.",
       "headquarters": "Kyoto, Japan",
       "leadership": [
         {
@@ -1063,7 +1063,7 @@
         "Renraku Computer Systems",
         "Fuchi Industrial Electronics"
       ],
-      "notes": "Zero zone policy: MCT security has standing authorization to use lethal force against any unauthorized personnel. There is no warning shot. Runners who take MCT jobs need to understand that getting caught is death, and extraction ops against MCT facilities carry a premium for exactly this reason.\n\nMCT's Yakuza connection is an open secret. The Watada-rengo (Seattle Yakuza) have historically given MCT favorable treatment in exchange for financial arrangements that predate the corp's AAA status. This relationship is exploitable as a plot hook.\n\nMCT's magical research division is second only to Aztechnology in scope. They focus on paracritter study, magical industrial applications, and drone-spirit hybrid research that puts them ahead of most competitors in the emerging field of magical automation.\n\nKnight Errant relationship: MCT explicitly refuses Knight Errant contracts for any of their Seattle facilities, citing concerns about Ares corporate espionage risk (and because KE's transparency standards are incompatible with zero-zone operations). MCT runs entirely proprietary security. This has created friction as KE wins more Seattle territory \u00e2\u20ac\u201d MCT facilities become islands of non-KE jurisdiction that are occasionally used as a point of contention in the city contract debate.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Zero zone policy: MCT security has standing authorization to use lethal force against any unauthorized personnel. There is no warning shot. Runners who take MCT jobs need to understand that getting caught is death, and extraction ops against MCT facilities carry a premium for exactly this reason.\n\nMCT's Yakuza connection is an open secret. The Watada-rengo (Seattle Yakuza) have historically given MCT favorable treatment in exchange for financial arrangements that predate the corp's AAA status. This relationship is exploitable as a plot hook.\n\nMCT's magical research division is second only to Aztechnology in scope. They focus on paracritter study, magical industrial applications, and drone-spirit hybrid research that puts them ahead of most competitors in the emerging field of magical automation.\n\nKnight Errant relationship: MCT explicitly refuses Knight Errant contracts for any of their Seattle facilities, citing concerns about Ares corporate espionage risk (and because KE's transparency standards are incompatible with zero-zone operations). MCT runs entirely proprietary security. This has created friction as KE wins more Seattle territory â€” MCT facilities become islands of non-KE jurisdiction that are occasionally used as a point of contention in the city contract debate.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -1084,8 +1084,8 @@
           "id_code": null,
           "description": "Corporate information host",
           "visibility": "listed",
-          "host_rating": "Blue-3",
-          "notes": "Connecting logs your access node. MCT cross-references all visitors against known runner SINs."
+          "notes": "Connecting logs your access node. MCT cross-references all visitors against known runner SINs.",
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1094,7 +1094,7 @@
           "id_code": "MCT-OPS1",
           "description": "Seattle division operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-8"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -1103,7 +1103,7 @@
           "id_code": "MCT-PAR2",
           "description": "Paranormal research data host",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -1112,7 +1112,7 @@
           "id_code": "MCT-SEC3",
           "description": "Zero-zone security coordination host",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-9"
         },
         {
           "type": "matrix_host",
@@ -1121,7 +1121,7 @@
           "id_code": "MCTHQ-KY",
           "description": "Kyoto HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-9"
+          "san_access_rating": "Red-10"
         },
         {
           "type": "matrix_host",
@@ -1130,8 +1130,8 @@
           "id_code": "NX8Q7VKZ",
           "description": "Yakuza financial liaison node",
           "visibility": "black",
-          "host_rating": "Black-7",
-          "notes": "Known only to senior Watada-rengo and MCT board level. Most sensitive data in MCT's Seattle operation."
+          "notes": "Known only to senior Watada-rengo and MCT board level. Most sensitive data in MCT's Seattle operation.",
+          "san_access_rating": "Black-9"
         }
       ]
     },
@@ -1139,7 +1139,7 @@
       "name": "Yamatetsu Corporation",
       "org_type": "megacorp",
       "tier": 6,
-      "description": "AAA megacorp, the youngest and most progressive of the Big Eight. Dominant in biotech, cyberware, aquacultural technology, and Pacific Rim shipping and logistics. Notable for having the highest proportion of metahuman employees and executives of any AAA corp \u00e2\u20ac\u201d a deliberate policy that has earned both loyalty from metahuman communities and resentment from more traditional Japanese corps.",
+      "description": "AAA megacorp, the youngest and most progressive of the Big Eight. Dominant in biotech, cyberware, aquacultural technology, and Pacific Rim shipping and logistics. Notable for having the highest proportion of metahuman employees and executives of any AAA corp â€” a deliberate policy that has earned both loyalty from metahuman communities and resentment from more traditional Japanese corps.",
       "headquarters": "Vladivostok, Russia",
       "leadership": [
         {
@@ -1157,7 +1157,7 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "Yamatetsu controls significant portions of Seattle's port and Pacific shipping infrastructure \u00e2\u20ac\u201d nearly a third of container traffic through the Port of Seattle runs on Yamatetsu logistics contracts. This gives them enormous economic leverage and a reason to care deeply about stability in the Barrens (where much of their warehouse workforce lives).\n\nTheir metahuman-friendly reputation means Yamatetsu occasionally employs shadowrunners openly as 'security consultants' \u00e2\u20ac\u201d they're less concerned with corporate optics than their competitors. Metahuman runners may find Yamatetsu a more accessible employer.\n\nYamatetsu cyberware (particularly their biocompatible 'deltaware-adjacent' lines) is cutting-edge but expensive. Dr. Anand's Seattle lab is rumored to be testing next-generation cultured bioware that has attracted corporate espionage interest from Aztechnology and MCT.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Yamatetsu controls significant portions of Seattle's port and Pacific shipping infrastructure â€” nearly a third of container traffic through the Port of Seattle runs on Yamatetsu logistics contracts. This gives them enormous economic leverage and a reason to care deeply about stability in the Barrens (where much of their warehouse workforce lives).\n\nTheir metahuman-friendly reputation means Yamatetsu occasionally employs shadowrunners openly as 'security consultants' â€” they're less concerned with corporate optics than their competitors. Metahuman runners may find Yamatetsu a more accessible employer.\n\nYamatetsu cyberware (particularly their biocompatible 'deltaware-adjacent' lines) is cutting-edge but expensive. Dr. Anand's Seattle lab is rumored to be testing next-generation cultured bioware that has attracted corporate espionage interest from Aztechnology and MCT.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -1184,7 +1184,7 @@
           "id_code": null,
           "description": "Corporate information host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1193,7 +1193,7 @@
           "id_code": null,
           "description": "Port logistics & shipping coordination host",
           "visibility": "listed",
-          "host_rating": "Green-3"
+          "san_access_rating": "Green-4"
         },
         {
           "type": "matrix_host",
@@ -1202,7 +1202,7 @@
           "id_code": "YAMA-OPS",
           "description": "Seattle division operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
@@ -1211,7 +1211,7 @@
           "id_code": "YAMA-BIO",
           "description": "Biotech research host, Seattle",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Orange-9"
         },
         {
           "type": "matrix_host",
@@ -1220,7 +1220,7 @@
           "id_code": "YAMAHQ-VL",
           "description": "Vladivostok HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -1229,7 +1229,7 @@
           "id_code": "R4MXWPK9",
           "description": "Next-generation bioware research node",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-9"
         }
       ]
     },
@@ -1237,7 +1237,7 @@
       "name": "Knight Errant Security Services",
       "org_type": "security contractor",
       "tier": 5,
-      "description": "Wholly owned subsidiary of Ares Macrotechnology and the most serious challenger to Lone Star's dominance in UCAS law enforcement contracting. Knight Errant presents a cleaner, more professional, and explicitly military face compared to Lone Star \u00e2\u20ac\u201d better equipped, better trained, and aggressively expanding. They hold corporate security contracts with several Seattle megacorp facilities and are in active pursuit of the Seattle city law enforcement contract, which Lone Star currently holds.",
+      "description": "Wholly owned subsidiary of Ares Macrotechnology and the most serious challenger to Lone Star's dominance in UCAS law enforcement contracting. Knight Errant presents a cleaner, more professional, and explicitly military face compared to Lone Star â€” better equipped, better trained, and aggressively expanding. They hold corporate security contracts with several Seattle megacorp facilities and are in active pursuit of the Seattle city law enforcement contract, which Lone Star currently holds.",
       "headquarters": "Chicago, UCAS",
       "leadership": [
         {
@@ -1263,7 +1263,7 @@
       "enemy_names": [
         "Lone Star Security"
       ],
-      "notes": "Knight Errant vs. Lone Star is the defining law enforcement rivalry in Seattle right now. The city contract is up for renewal and the vote is politically contested \u00e2\u20ac\u201d Lone Star has entrenched relationships with city council and UCAS government but Knight Errant has money, equipment, and a corruption-free image on their side.\n\nFor runners, Knight Errant is more dangerous than Lone Star in direct confrontation \u00e2\u20ac\u201d better gear, better training, military doctrine, and no culture of looking the other way for the right bribe. However, they are also less omnipresent. They currently patrol corporate districts where they hold contracts (Bellevue, Downtown corporate blocks, Ares-adjacent facilities) and have minimal presence in the Barrens.\n\nKnight Errant officers are equipped with Ares milspec: Ares Alpha assault rifles, Ares Predator sidearms, full-body corporate armor, and rigger-supported drone overwatch on high-value patrol routes. HTR teams deploy in armed APCs.\n\nKnight Errant has a strict use-of-force doctrine \u00e2\u20ac\u201d everything is documented, body cameras are standard, and excessive force is prosecuted internally. This makes them harder to bribe and harder to provoke into an incident that embarrasses them. They fight clean and they fight to win.\n\nIf Knight Errant wins the city contract, Lone Star loses nearly all legal authority in Seattle. The transition period would be chaotic \u00e2\u20ac\u201d a window of opportunity or danger for runners depending on how they play it.\n\nKnight Errant actively recruits ex-military and ex-Ares security. Several of their Seattle officers have combat zone deployments. Do not mistake them for beat cops.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Knight Errant vs. Lone Star is the defining law enforcement rivalry in Seattle right now. The city contract is up for renewal and the vote is politically contested â€” Lone Star has entrenched relationships with city council and UCAS government but Knight Errant has money, equipment, and a corruption-free image on their side.\n\nFor runners, Knight Errant is more dangerous than Lone Star in direct confrontation â€” better gear, better training, military doctrine, and no culture of looking the other way for the right bribe. However, they are also less omnipresent. They currently patrol corporate districts where they hold contracts (Bellevue, Downtown corporate blocks, Ares-adjacent facilities) and have minimal presence in the Barrens.\n\nKnight Errant officers are equipped with Ares milspec: Ares Alpha assault rifles, Ares Predator sidearms, full-body corporate armor, and rigger-supported drone overwatch on high-value patrol routes. HTR teams deploy in armed APCs.\n\nKnight Errant has a strict use-of-force doctrine â€” everything is documented, body cameras are standard, and excessive force is prosecuted internally. This makes them harder to bribe and harder to provoke into an incident that embarrasses them. They fight clean and they fight to win.\n\nIf Knight Errant wins the city contract, Lone Star loses nearly all legal authority in Seattle. The transition period would be chaotic â€” a window of opportunity or danger for runners depending on how they play it.\n\nKnight Errant actively recruits ex-military and ex-Ares security. Several of their Seattle officers have combat zone deployments. Do not mistake them for beat cops.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -1290,7 +1290,7 @@
           "id_code": null,
           "description": "Public information & incident reporting host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1299,7 +1299,7 @@
           "id_code": "KE-OPS1",
           "description": "Seattle patrol operations host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -1308,7 +1308,7 @@
           "id_code": "KE-TAC2",
           "description": "Tactical response coordination host",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Orange-8"
         },
         {
           "type": "matrix_host",
@@ -1317,7 +1317,7 @@
           "id_code": "KE-INTL",
           "description": "Internal affairs & incident review host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -1326,7 +1326,7 @@
           "id_code": "KE-CHI1",
           "description": "Chicago HQ backbone, Seattle access node",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Red-8"
         },
         {
           "type": "matrix_host",
@@ -1335,8 +1335,8 @@
           "id_code": "ZN8XQKVM",
           "description": "Contract acquisition intelligence node",
           "visibility": "black",
-          "host_rating": "Black-7",
-          "notes": "Contains KE's compiled Lone Star corruption dossier for the city contract bid. Valuable to both sides."
+          "notes": "Contains KE's compiled Lone Star corruption dossier for the city contract bid. Valuable to both sides.",
+          "san_access_rating": "Black-8"
         }
       ]
     },
@@ -1366,7 +1366,7 @@
         "Ares Macrotechnology",
         "Knight Errant Security Services"
       ],
-      "notes": "Heat level rises when runners draw too much attention downtown. Lone Star response times vary wildly by district \u00e2\u20ac\u201d fast in Downtown and Bellevue, slow in the Sprawl, nonexistent in the deepest Barrens.\n\nCorruption is systemic at the command level. Chief Hargrove has relationships with at least two organized crime groups and takes a cut of vice enforcement revenue. Mid-level officers know not to ask questions. Beat cops in the Barrens are either idealists or they've stopped caring.\n\nThe contract renewal vote is in 6 months. Hargrove is in full political survival mode \u00e2\u20ac\u201d he is calling in every favor, leaking damaging information about Knight Errant whenever possible, and has quietly authorized some very dirty operations to make the city look like it needs Lone Star's institutional knowledge rather than KE's military polish.\n\nRunners who know about Hargrove's corruption have leverage. Runners who make that leverage visible will find Lone Star becomes very interested in them very quickly.\n\nLone Star Special Investigations (Captain Ferris) is the one division that is genuinely effective and not obviously dirty. They handle corporate crime and organized crime cases and are not in Hargrove's pocket \u00e2\u20ac\u201d yet.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Heat level rises when runners draw too much attention downtown. Lone Star response times vary wildly by district â€” fast in Downtown and Bellevue, slow in the Sprawl, nonexistent in the deepest Barrens.\n\nCorruption is systemic at the command level. Chief Hargrove has relationships with at least two organized crime groups and takes a cut of vice enforcement revenue. Mid-level officers know not to ask questions. Beat cops in the Barrens are either idealists or they've stopped caring.\n\nThe contract renewal vote is in 6 months. Hargrove is in full political survival mode â€” he is calling in every favor, leaking damaging information about Knight Errant whenever possible, and has quietly authorized some very dirty operations to make the city look like it needs Lone Star's institutional knowledge rather than KE's military polish.\n\nRunners who know about Hargrove's corruption have leverage. Runners who make that leverage visible will find Lone Star becomes very interested in them very quickly.\n\nLone Star Special Investigations (Captain Ferris) is the one division that is genuinely effective and not obviously dirty. They handle corporate crime and organized crime cases and are not in Hargrove's pocket â€” yet.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -1393,7 +1393,7 @@
           "id_code": null,
           "description": "Public host, warrant lookups & civilian reports",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1402,8 +1402,8 @@
           "id_code": "LST-DISP",
           "description": "Internal dispatch & patrol coordination host",
           "visibility": "unlisted",
-          "host_rating": "Orange-5",
-          "notes": "Static's backdoor enters here. She has read access to patrol assignments and BOLO alerts."
+          "notes": "Static's backdoor enters here. She has read access to patrol assignments and BOLO alerts.",
+          "san_access_rating": "Green-6"
         },
         {
           "type": "matrix_host",
@@ -1412,7 +1412,7 @@
           "id_code": "LST-SINT",
           "description": "Special Investigations division host",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
@@ -1421,7 +1421,7 @@
           "id_code": "LST-DIR1",
           "description": "Director Hargrove's private node",
           "visibility": "unlisted",
-          "host_rating": "Orange-5"
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
@@ -1430,7 +1430,7 @@
           "id_code": "LST-REC1",
           "description": "Personnel & internal records host",
           "visibility": "unlisted",
-          "host_rating": "Orange-5"
+          "san_access_rating": "Green-5"
         },
         {
           "type": "matrix_host",
@@ -1439,8 +1439,8 @@
           "id_code": "4KZW91VN",
           "description": "Internal affairs & corruption tracking node",
           "visibility": "black",
-          "host_rating": "Black-7",
-          "notes": "Contains documentation of Hargrove's organized crime relationships. Most dangerous data in Lone Star's possession."
+          "notes": "Contains documentation of Hargrove's organized crime relationships. Most dangerous data in Lone Star's possession.",
+          "san_access_rating": "Red-6"
         }
       ]
     },
@@ -1448,7 +1448,7 @@
       "name": "Yakuza (Watada-rengo)",
       "org_type": "crime syndicate",
       "tier": 5,
-      "description": "The dominant organized crime organization in Seattle, and one of the most powerful Yakuza families in North America. The Watada-rengo controls the majority of Seattle's vice economy \u00e2\u20ac\u201d gambling, BTL distribution, prostitution, loan sharking, and protection \u00e2\u20ac\u201d primarily in Japanese and metahuman communities. Operates with a strict code of honor (ninkyo) that distinguishes it from western crime organizations and makes it both more predictable and more dangerous.",
+      "description": "The dominant organized crime organization in Seattle, and one of the most powerful Yakuza families in North America. The Watada-rengo controls the majority of Seattle's vice economy â€” gambling, BTL distribution, prostitution, loan sharking, and protection â€” primarily in Japanese and metahuman communities. Operates with a strict code of honor (ninkyo) that distinguishes it from western crime organizations and makes it both more predictable and more dangerous.",
       "headquarters": "Seattle, UCAS (Little Tokyo / Downtown)",
       "leadership": [
         {
@@ -1465,7 +1465,7 @@
         },
         {
           "title": "Saiko-komon (Senior Advisor)",
-          "name": "Yamada Kenji \u00e2\u20ac\u201d rumored to be the true power behind Shotozumi"
+          "name": "Yamada Kenji â€” rumored to be the true power behind Shotozumi"
         }
       ],
       "ally_names": [
@@ -1475,24 +1475,24 @@
         "Seoulpa Rings",
         "Seattle Mafia"
       ],
-      "notes": "The Yakuza-MCT financial relationship predates MCT's AAA status. The Watada-rengo provided seed capital during MCT's early expansion in exchange for favorable distribution deals and a permanent cut of Seattle operations. Both parties deny this publicly and violently.\n\nYakuza territory in Seattle is well-defined and enforced. Crossing into their vice operations without permission or a cut is how runners end up in Puget Sound. However, the Watada-rengo occasionally contracts shadowrunners for deniable work \u00e2\u20ac\u201d particularly against Seoulpa Ring operations and corporate espionage targets.\n\nThe code of ninkyo means the Yakuza honor their contracts \u00e2\u20ac\u201d if they hire you, you get paid. If you steal from them or burn them, the response is methodical and permanent. They do not get emotional; they get even, on their own timeline.\n\nSeoulpa Ring encroachment is the Watada-rengo's primary strategic problem right now. Shotozumi is deploying significant resources to contain it, which means the organization is stretched and may be vulnerable to outside pressure in ways it normally would not be.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "The Yakuza-MCT financial relationship predates MCT's AAA status. The Watada-rengo provided seed capital during MCT's early expansion in exchange for favorable distribution deals and a permanent cut of Seattle operations. Both parties deny this publicly and violently.\n\nYakuza territory in Seattle is well-defined and enforced. Crossing into their vice operations without permission or a cut is how runners end up in Puget Sound. However, the Watada-rengo occasionally contracts shadowrunners for deniable work â€” particularly against Seoulpa Ring operations and corporate espionage targets.\n\nThe code of ninkyo means the Yakuza honor their contracts â€” if they hire you, you get paid. If you steal from them or burn them, the response is methodical and permanent. They do not get emotional; they get even, on their own timeline.\n\nSeoulpa Ring encroachment is the Watada-rengo's primary strategic problem right now. Shotozumi is deploying significant resources to contain it, which means the organization is stretched and may be vulnerable to outside pressure in ways it normally would not be.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
           "number": "(206) 324-7711",
-          "description": "Shotozumi Ramen, Little Tokyo \u00e2\u20ac\u201d known front",
+          "description": "Shotozumi Ramen, Little Tokyo â€” known front",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 324-7750",
-          "description": "Pacific Rim Import/Export LLC \u00e2\u20ac\u201d known front",
+          "description": "Pacific Rim Import/Export LLC â€” known front",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 324-7788",
-          "description": "Watada Investments Group \u00e2\u20ac\u201d shadow community knows this one",
+          "description": "Watada Investments Group â€” shadow community knows this one",
           "visibility": "listed"
         },
         {
@@ -1502,7 +1502,7 @@
           "id_code": "WTD-FIN1",
           "description": "Financial operations & money laundering coordination",
           "visibility": "unlisted",
-          "host_rating": "Red-6"
+          "san_access_rating": "Orange-9"
         },
         {
           "type": "matrix_host",
@@ -1511,7 +1511,7 @@
           "id_code": "WTD-OPS2",
           "description": "Seattle operations & territory coordination",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Orange-8"
         },
         {
           "type": "matrix_host",
@@ -1520,7 +1520,7 @@
           "id_code": "WTD-MCT3",
           "description": "MCT financial liaison node",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Orange-9"
         },
         {
           "type": "matrix_host",
@@ -1529,7 +1529,7 @@
           "id_code": "WTD-INT4",
           "description": "Intelligence & opposition tracking host",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Red-6"
         },
         {
           "type": "matrix_host",
@@ -1538,7 +1538,7 @@
           "id_code": "8XKZPMQ4",
           "description": "Oyabun Shotozumi's private communications node",
           "visibility": "black",
-          "host_rating": "Black-8"
+          "san_access_rating": "Black-9"
         }
       ]
     },
@@ -1546,7 +1546,7 @@
       "name": "Seattle Mafia",
       "org_type": "crime syndicate",
       "tier": 4,
-      "description": "The Seattle family of the Italian-American Mafia, a member of the national Commissione. Once dominant in Seattle organized crime, the Mafia has been in slow decline for decades \u00e2\u20ac\u201d squeezed by the Yakuza's expansion, the rise of the Seoulpa Rings, and internal leadership instability. They remain a significant force in traditional vice markets and hold deep political connections accumulated over generations, but they are no longer the apex predator they once were.",
+      "description": "The Seattle family of the Italian-American Mafia, a member of the national Commissione. Once dominant in Seattle organized crime, the Mafia has been in slow decline for decades â€” squeezed by the Yakuza's expansion, the rise of the Seoulpa Rings, and internal leadership instability. They remain a significant force in traditional vice markets and hold deep political connections accumulated over generations, but they are no longer the apex predator they once were.",
       "headquarters": "Seattle, UCAS (Tacoma / South Seattle)",
       "leadership": [
         {
@@ -1555,7 +1555,7 @@
         },
         {
           "title": "Consigliere",
-          "name": "Father Vincent Argento \u00e2\u20ac\u201d a Catholic priest who has served three dons"
+          "name": "Father Vincent Argento â€” a Catholic priest who has served three dons"
         },
         {
           "title": "Capo, Dockworkers Operations",
@@ -1571,24 +1571,24 @@
         "Yakuza (Watada-rengo)",
         "Seoulpa Rings"
       ],
-      "notes": "The Mafia's greatest remaining asset is their political depth \u00e2\u20ac\u201d decades of favors, blackmail material, and relationships with judges, city council members, and UCAS federal officials. Even in decline, crossing the Seattle family means potentially waking up to find your SIN flagged, your landlord evicted you, and your banking account frozen.\n\nThey control significant Tacoma port operations and have deep roots in the longshoreman and dock worker unions. Any cargo running through Tacoma that isn't Yakuza or corp-controlled likely has Mafia involvement.\n\nBigio is pragmatic and tired. He's been fighting the Yakuza for 20 years and knows the Mafia is losing. He's quietly exploring whether there's a sustainable arrangement to be made \u00e2\u20ac\u201d which his younger capos view as weakness and the Yakuza view as an opportunity to finish the job.\n\nThe Mafia will hire shadowrunners, but they pay less than the Yakuza and are more likely to use runners as a throwaway asset when things go wrong.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "The Mafia's greatest remaining asset is their political depth â€” decades of favors, blackmail material, and relationships with judges, city council members, and UCAS federal officials. Even in decline, crossing the Seattle family means potentially waking up to find your SIN flagged, your landlord evicted you, and your banking account frozen.\n\nThey control significant Tacoma port operations and have deep roots in the longshoreman and dock worker unions. Any cargo running through Tacoma that isn't Yakuza or corp-controlled likely has Mafia involvement.\n\nBigio is pragmatic and tired. He's been fighting the Yakuza for 20 years and knows the Mafia is losing. He's quietly exploring whether there's a sustainable arrangement to be made â€” which his younger capos view as weakness and the Yakuza view as an opportunity to finish the job.\n\nThe Mafia will hire shadowrunners, but they pay less than the Yakuza and are more likely to use runners as a throwaway asset when things go wrong.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
           "number": "(206) 621-8840",
-          "description": "Bigio Family Imports LLC \u00e2\u20ac\u201d known front",
+          "description": "Bigio Family Imports LLC â€” known front",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 621-8870",
-          "description": "Ruggerio Dockside Services \u00e2\u20ac\u201d known front",
+          "description": "Ruggerio Dockside Services â€” known front",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 621-8900",
-          "description": "Argento Legal Group \u00e2\u20ac\u201d money laundering vehicle",
+          "description": "Argento Legal Group â€” money laundering vehicle",
           "visibility": "listed"
         },
         {
@@ -1598,7 +1598,7 @@
           "id_code": "MAFIA-F1",
           "description": "Financial operations & union accounts",
           "visibility": "unlisted",
-          "host_rating": "Red-6"
+          "san_access_rating": "Green-6"
         },
         {
           "type": "matrix_host",
@@ -1607,7 +1607,7 @@
           "id_code": "MAFIA-O2",
           "description": "Seattle family operations coordination",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Green-5"
         },
         {
           "type": "matrix_host",
@@ -1616,7 +1616,7 @@
           "id_code": "MAFIA-P3",
           "description": "Political leverage & blackmail archive",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -1625,8 +1625,8 @@
           "id_code": "NQ7ZMKXP",
           "description": "Don Bigio's private archive",
           "visibility": "black",
-          "host_rating": "Black-8",
-          "notes": "Contains decades of compromising material on city officials. Father Argento is the only other party with access."
+          "notes": "Contains decades of compromising material on city officials. Father Argento is the only other party with access.",
+          "san_access_rating": "Red-6"
         }
       ]
     },
@@ -1634,12 +1634,12 @@
       "name": "Red Dragon Association",
       "org_type": "crime syndicate",
       "tier": 3,
-      "description": "The dominant Triad organization operating in Seattle, with roots in Hong Kong and the Canton region. The Red Dragon Association controls criminal operations in the Chinatown district and significant portions of the International District, specializing in smuggling, counterfeiting, BTL production, and Matrix-based financial crime. More pragmatic and commercially minded than the Yakuza \u00e2\u20ac\u201d the Red Dragon makes deals with anyone who can pay.",
+      "description": "The dominant Triad organization operating in Seattle, with roots in Hong Kong and the Canton region. The Red Dragon Association controls criminal operations in the Chinatown district and significant portions of the International District, specializing in smuggling, counterfeiting, BTL production, and Matrix-based financial crime. More pragmatic and commercially minded than the Yakuza â€” the Red Dragon makes deals with anyone who can pay.",
       "headquarters": "Seattle, UCAS (Chinatown / International District)",
       "leadership": [
         {
           "title": "Dragon Head (Shan Chu)",
-          "name": "Henry Tsang \u00e2\u20ac\u201d publicly a legitimate import/export businessman"
+          "name": "Henry Tsang â€” publicly a legitimate import/export businessman"
         },
         {
           "title": "Vanguard (Hsien Feng)",
@@ -1647,7 +1647,7 @@
         },
         {
           "title": "Incense Master (Heung Chu)",
-          "name": "Lin Bao \u00e2\u20ac\u201d oversees ritual initiations and internal discipline"
+          "name": "Lin Bao â€” oversees ritual initiations and internal discipline"
         },
         {
           "title": "Seattle BTL Production Head",
@@ -1656,12 +1656,12 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "The Red Dragon Association is the most willing of the major syndicates to work with outside parties, including shadowrunners and even other criminal groups on a transactional basis. This makes them accessible but also means their loyalty is entirely financial \u00e2\u20ac\u201d they will not take personal risks for a business relationship.\n\nTheir BTL production operation is sophisticated and largely isolated from street-level distribution, which they subcontract through gangs like the Cutters. The Engineer's lab location is one of the most sought-after pieces of intelligence in the Seattle shadow community.\n\nThe Triads and Yakuza maintain a cautious non-aggression arrangement in Seattle \u00e2\u20ac\u201d they don't compete directly in most markets and carve up territory pragmatically. This arrangement is under periodic strain and has broken down violently twice in the last decade.\n\nRed Dragon smuggling connections make them the go-to contact for obtaining restricted goods \u00e2\u20ac\u201d cyberware, weapons, forbidden tech \u00e2\u20ac\u201d without corp or Lone Star involvement. Runners with Triad connections can access a supply chain that circumvents most normal acquisition channels.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "The Red Dragon Association is the most willing of the major syndicates to work with outside parties, including shadowrunners and even other criminal groups on a transactional basis. This makes them accessible but also means their loyalty is entirely financial â€” they will not take personal risks for a business relationship.\n\nTheir BTL production operation is sophisticated and largely isolated from street-level distribution, which they subcontract through gangs like the Cutters. The Engineer's lab location is one of the most sought-after pieces of intelligence in the Seattle shadow community.\n\nThe Triads and Yakuza maintain a cautious non-aggression arrangement in Seattle â€” they don't compete directly in most markets and carve up territory pragmatically. This arrangement is under periodic strain and has broken down violently twice in the last decade.\n\nRed Dragon smuggling connections make them the go-to contact for obtaining restricted goods â€” cyberware, weapons, forbidden tech â€” without corp or Lone Star involvement. Runners with Triad connections can access a supply chain that circumvents most normal acquisition channels.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
           "number": "(206) 382-6600",
-          "description": "Hong Kong Trading Company \u00e2\u20ac\u201d known front",
+          "description": "Hong Kong Trading Company â€” known front",
           "visibility": "listed"
         },
         {
@@ -1673,7 +1673,7 @@
         {
           "type": "telecom",
           "number": "(206) 382-6680",
-          "description": "Pacific Rim Shipping & Freight \u00e2\u20ac\u201d smuggling front",
+          "description": "Pacific Rim Shipping & Freight â€” smuggling front",
           "visibility": "listed"
         },
         {
@@ -1683,7 +1683,7 @@
           "id_code": "RDA-FIN1",
           "description": "Financial operations & smuggling accounts",
           "visibility": "unlisted",
-          "host_rating": "Red-6"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -1692,7 +1692,7 @@
           "id_code": "RDA-OPS2",
           "description": "Seattle operations coordination host",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
@@ -1701,7 +1701,7 @@
           "id_code": "RDA-BTL3",
           "description": "BTL production & distribution coordination",
           "visibility": "unlisted",
-          "host_rating": "Red-7"
+          "san_access_rating": "Orange-6"
         },
         {
           "type": "matrix_host",
@@ -1710,7 +1710,7 @@
           "id_code": "RDA-INT4",
           "description": "Intelligence & inter-syndicate relations",
           "visibility": "unlisted",
-          "host_rating": "Red-8"
+          "san_access_rating": "Orange-8"
         },
         {
           "type": "matrix_host",
@@ -1719,8 +1719,8 @@
           "id_code": "WX4K9NZP",
           "description": "The Engineer's production node",
           "visibility": "black",
-          "host_rating": "Black-9",
-          "notes": "BTL lab location is derivable from this node. Most sought-after paydata in Seattle shadow community."
+          "notes": "BTL lab location is derivable from this node. Most sought-after paydata in Seattle shadow community.",
+          "san_access_rating": "Black-8"
         }
       ]
     },
@@ -1741,7 +1741,7 @@
         },
         {
           "title": "Liaison Between Rings",
-          "name": "Known as 'the Bridge' \u00e2\u20ac\u201d identity unknown"
+          "name": "Known as 'the Bridge' â€” identity unknown"
         }
       ],
       "ally_names": [],
@@ -1749,24 +1749,24 @@
         "Yakuza (Watada-rengo)",
         "Seattle Mafia"
       ],
-      "notes": "The Seoulpa Rings do not have a unified command \u00e2\u20ac\u201d each ring operates independently, with cooperation arranged through intermediaries. This is their greatest strength: there is no single Seoulpa boss to kill, bribe, or flip. Taking down one ring barely slows the others.\n\nThey are expanding into Yakuza territory deliberately and systematically, using cheaper BTL prices and more flexible arrangements to pull street-level distributors away from Yakuza control. The Watada-rengo is responding with violence; the Seoulpa Rings are responding with more violence and faster recruitment.\n\nSeoulpa Rings hire shadowrunners frequently and pay competitively. They're particularly interested in deniable ops against Yakuza infrastructure \u00e2\u20ac\u201d warehouse raids, data theft, personnel extraction (or elimination). They do not always tell runners who the target actually belongs to.\n\nThe Rings have notable strength in tech crime \u00e2\u20ac\u201d matrix fraud, SIN forgery, credstick manipulation. Several ring leaders have former corporate IT backgrounds, which gives them capabilities most street gangs lack.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "The Seoulpa Rings do not have a unified command â€” each ring operates independently, with cooperation arranged through intermediaries. This is their greatest strength: there is no single Seoulpa boss to kill, bribe, or flip. Taking down one ring barely slows the others.\n\nThey are expanding into Yakuza territory deliberately and systematically, using cheaper BTL prices and more flexible arrangements to pull street-level distributors away from Yakuza control. The Watada-rengo is responding with violence; the Seoulpa Rings are responding with more violence and faster recruitment.\n\nSeoulpa Rings hire shadowrunners frequently and pay competitively. They're particularly interested in deniable ops against Yakuza infrastructure â€” warehouse raids, data theft, personnel extraction (or elimination). They do not always tell runners who the target actually belongs to.\n\nThe Rings have notable strength in tech crime â€” matrix fraud, SIN forgery, credstick manipulation. Several ring leaders have former corporate IT backgrounds, which gives them capabilities most street gangs lack.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
           "number": "(206) 493-5500",
-          "description": "Seoul House Restaurant \u00e2\u20ac\u201d Park Jin-ho ring front",
+          "description": "Seoul House Restaurant â€” Park Jin-ho ring front",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 493-5540",
-          "description": "Korean-American Business Association \u00e2\u20ac\u201d political cover",
+          "description": "Korean-American Business Association â€” political cover",
           "visibility": "listed"
         },
         {
           "type": "telecom",
           "number": "(206) 493-5580",
-          "description": "Hangang Electronics LLC \u00e2\u20ac\u201d tech crime front, Kim Soo-yeon ring",
+          "description": "Hangang Electronics LLC â€” tech crime front, Kim Soo-yeon ring",
           "visibility": "listed"
         },
         {
@@ -1776,35 +1776,35 @@
           "id_code": "SPR-RNG1",
           "description": "Park Jin-ho ring operations node",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Green-5"
         },
         {
           "type": "matrix_host",
           "rtg": "NA/UCAS-SEA",
           "ltg": "B3F71",
           "id_code": "SPR-RNG2",
-          "description": "Kim Soo-yeon ring \u00e2\u20ac\u201d tech crime & SIN forgery",
+          "description": "Kim Soo-yeon ring â€” tech crime & SIN forgery",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Green-6"
         },
         {
           "type": "matrix_host",
           "rtg": "NA/UCAS-SEA",
           "ltg": "9A2C5",
           "id_code": "SPR-RNG3",
-          "description": "Third ring \u00e2\u20ac\u201d BTL distribution & territory",
+          "description": "Third ring â€” BTL distribution & territory",
           "visibility": "unlisted",
-          "host_rating": "Orange-6"
+          "san_access_rating": "Green-4"
         },
         {
           "type": "matrix_host",
           "rtg": "NA/UCAS-SEA",
           "ltg": "4E8D0",
           "id_code": "SPR-BRG4",
-          "description": "The Bridge \u00e2\u20ac\u201d inter-ring coordination node",
+          "description": "The Bridge â€” inter-ring coordination node",
           "visibility": "unlisted",
-          "host_rating": "Red-7",
-          "notes": "Compromising this node identifies the Bridge. Yakuza has been trying to locate it for two years."
+          "notes": "Compromising this node identifies the Bridge. Yakuza has been trying to locate it for two years.",
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
@@ -1813,7 +1813,7 @@
           "id_code": "7FZNQXKM",
           "description": "Anti-Yakuza intelligence archive",
           "visibility": "black",
-          "host_rating": "Black-7"
+          "san_access_rating": "Red-6"
         }
       ]
     },
@@ -1830,16 +1830,16 @@
         },
         {
           "title": "Seattle Chapter President",
-          "name": "Councilman Arthur Vogel \u00e2\u20ac\u201d publicly moderate, privately funds the enforcement arm"
+          "name": "Councilman Arthur Vogel â€” publicly moderate, privately funds the enforcement arm"
         },
         {
           "title": "Seattle Enforcement Arm Leader",
-          "name": "Known as 'the Deacon' \u00e2\u20ac\u201d identity protected"
+          "name": "Known as 'the Deacon' â€” identity protected"
         }
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "Humanis is not a conventional criminal organization and should not be treated as one. They have lawyers, political connections, media spokespeople, and plausible deniability for every act of violence they sponsor. Runners who take anti-Humanis jobs need to expect that the target will have legal resources and political protection, not just muscle.\n\nIn Seattle, Humanis has growing influence in Bellevue and some Downtown corporate circles. Their narrative \u00e2\u20ac\u201d that metahumans represent unfair competition for human jobs and resources \u00e2\u20ac\u201d resonates with economically anxious communities. Do not underestimate their political reach.\n\nThe enforcement arm (the 'Policlub Rangers' in internal documents, never publicly) carries out beatings, arson, and killings against metahumans and their advocates. They are careful, use deniable assets, and have never been successfully prosecuted because Councilman Vogel sits on the public safety committee that oversees Lone Star.\n\nMetahuman runner characters may find Humanis a deeply personal antagonist. Human runner characters may be approached for work by Humanis-adjacent Mr. Johnsons \u00e2\u20ac\u201d the work will seem neutral until it isn't.\n\n\u00e2\u201d\u20ac\u00e2\u201d\u20ac",
+      "notes": "Humanis is not a conventional criminal organization and should not be treated as one. They have lawyers, political connections, media spokespeople, and plausible deniability for every act of violence they sponsor. Runners who take anti-Humanis jobs need to expect that the target will have legal resources and political protection, not just muscle.\n\nIn Seattle, Humanis has growing influence in Bellevue and some Downtown corporate circles. Their narrative â€” that metahumans represent unfair competition for human jobs and resources â€” resonates with economically anxious communities. Do not underestimate their political reach.\n\nThe enforcement arm (the 'Policlub Rangers' in internal documents, never publicly) carries out beatings, arson, and killings against metahumans and their advocates. They are careful, use deniable assets, and have never been successfully prosecuted because Councilman Vogel sits on the public safety committee that oversees Lone Star.\n\nMetahuman runner characters may find Humanis a deeply personal antagonist. Human runner characters may be approached for work by Humanis-adjacent Mr. Johnsons â€” the work will seem neutral until it isn't.\n\nâ”€â”€",
       "ltgs": [
         {
           "type": "telecom",
@@ -1856,7 +1856,7 @@
         {
           "type": "telecom",
           "number": "(206) 547-2860",
-          "description": "Councilman Vogel's constituent office \u00e2\u20ac\u201d officially separate from Humanis",
+          "description": "Councilman Vogel's constituent office â€” officially separate from Humanis",
           "visibility": "listed"
         },
         {
@@ -1866,7 +1866,7 @@
           "id_code": null,
           "description": "Political information & membership host",
           "visibility": "listed",
-          "host_rating": "Blue-3"
+          "san_access_rating": "Blue-3"
         },
         {
           "type": "matrix_host",
@@ -1875,7 +1875,7 @@
           "id_code": "HUM-POL1",
           "description": "Internal political coordination & donor records",
           "visibility": "unlisted",
-          "host_rating": "Orange-5"
+          "san_access_rating": "Green-6"
         },
         {
           "type": "matrix_host",
@@ -1884,17 +1884,17 @@
           "id_code": "HUM-OPS2",
           "description": "Enforcement arm operational coordination",
           "visibility": "unlisted",
-          "host_rating": "Orange-7"
+          "san_access_rating": "Orange-5"
         },
         {
           "type": "matrix_host",
           "rtg": "NA/UCAS-SEA",
           "ltg": "E71C4",
           "id_code": "KP9NZMQX",
-          "description": "Deacon's command node \u00e2\u20ac\u201d enforcement orders & target lists",
+          "description": "Deacon's command node â€” enforcement orders & target lists",
           "visibility": "black",
-          "host_rating": "Black-7",
-          "notes": "Contains authorization chains linking Vogel directly to enforcement violence. Career-ending paydata."
+          "notes": "Contains authorization chains linking Vogel directly to enforcement violence. Career-ending paydata.",
+          "san_access_rating": "Red-8"
         }
       ]
     },
@@ -1902,7 +1902,7 @@
       "name": "Halloweeners",
       "org_type": "gang",
       "tier": 2,
-      "description": "One of the most notorious and feared gangs in the Seattle Barrens \u00e2\u20ac\u201d not for their organization or numbers, but for their absolute unpredictability and love of fire. The Halloweeners wear orange and black, favor grotesque Halloween masks and face paint, and treat arson as both a tactical tool and a form of entertainment. Active primarily in the Redmond Barrens and Puyallup district.",
+      "description": "One of the most notorious and feared gangs in the Seattle Barrens â€” not for their organization or numbers, but for their absolute unpredictability and love of fire. The Halloweeners wear orange and black, favor grotesque Halloween masks and face paint, and treat arson as both a tactical tool and a form of entertainment. Active primarily in the Redmond Barrens and Puyallup district.",
       "headquarters": "Redmond Barrens, Seattle",
       "leadership": [
         {
@@ -1922,13 +1922,13 @@
       "enemy_names": [
         "Crimson Crush"
       ],
-      "notes": "The Halloweeners do not negotiate. They do not take protection money and leave you alone. If they decide your block is interesting, they will burn it and move on. This makes them useless as an employer and dangerous as an obstacle.\n\nTheir territory overlaps with the Crimson Crush in Redmond, which generates constant low-level warfare. The Halloweeners use fire as their primary tactical advantage \u00e2\u20ac\u201d the Crush has numbers and organization but cannot always respond fast enough to an arson attack in a densely packed Barrens neighborhood.\n\nRunners who need a distraction can sometimes point the Halloweeners at a target by leaving the right provocation \u00e2\u20ac\u201d graffiti tags, a visible enemy presence, anything that draws their attention. This is not controllable and will cause collateral damage.\n\nSome Halloweeners are genuinely pyrokinetically Awakened, which makes them extremely dangerous. Unconfirmed but consistent enough in runner reports to take seriously."
+      "notes": "The Halloweeners do not negotiate. They do not take protection money and leave you alone. If they decide your block is interesting, they will burn it and move on. This makes them useless as an employer and dangerous as an obstacle.\n\nTheir territory overlaps with the Crimson Crush in Redmond, which generates constant low-level warfare. The Halloweeners use fire as their primary tactical advantage â€” the Crush has numbers and organization but cannot always respond fast enough to an arson attack in a densely packed Barrens neighborhood.\n\nRunners who need a distraction can sometimes point the Halloweeners at a target by leaving the right provocation â€” graffiti tags, a visible enemy presence, anything that draws their attention. This is not controllable and will cause collateral damage.\n\nSome Halloweeners are genuinely pyrokinetically Awakened, which makes them extremely dangerous. Unconfirmed but consistent enough in runner reports to take seriously."
     },
     {
       "name": "Crimson Crush",
       "org_type": "gang",
       "tier": 3,
-      "description": "The largest predominantly-ork gang in the Redmond Barrens and one of the most organized street gangs in Seattle. The Crimson Crush controls significant territory in Redmond through a combination of size, discipline, and genuine community investment \u00e2\u20ac\u201d they provide protection to ork and troll families in their territory in a way that Lone Star never has. More structured than most gangs, with defined ranks and a functioning internal economy.",
+      "description": "The largest predominantly-ork gang in the Redmond Barrens and one of the most organized street gangs in Seattle. The Crimson Crush controls significant territory in Redmond through a combination of size, discipline, and genuine community investment â€” they provide protection to ork and troll families in their territory in a way that Lone Star never has. More structured than most gangs, with defined ranks and a functioning internal economy.",
       "headquarters": "Redmond Barrens, Seattle",
       "leadership": [
         {
@@ -1941,7 +1941,7 @@
         },
         {
           "title": "Logistics",
-          "name": "Mama Crushka \u00e2\u20ac\u201d runs the community support network that keeps civilian loyalty"
+          "name": "Mama Crushka â€” runs the community support network that keeps civilian loyalty"
         }
       ],
       "ally_names": [],
@@ -1949,7 +1949,7 @@
         "Halloweeners",
         "Spikes"
       ],
-      "notes": "The Crimson Crush occupies an unusual position in the Barrens \u00e2\u20ac\u201d they are simultaneously a predatory criminal organization and a genuine community institution. In their core territory, they fund food distribution, protect metahuman families from Humanis violence, and provide employment. This community support makes them nearly impossible to displace through conventional law enforcement pressure.\n\nThey will hire shadowrunners, particularly for operations that require skills their membership doesn't have (decking, magic, vehicle work). They pay fairly by Barrens standards and honor their arrangements.\n\nRed Sonja's leadership is contested internally \u00e2\u20ac\u201d several ork lieutenants believe the boss should be ork. She has survived two assassination attempts in the last year and responds to challenges with public violence. The internal tension is exploitable.\n\nConflict with the Halloweeners is ongoing and low-level. Conflict with the Spikes flares periodically over borderland territory."
+      "notes": "The Crimson Crush occupies an unusual position in the Barrens â€” they are simultaneously a predatory criminal organization and a genuine community institution. In their core territory, they fund food distribution, protect metahuman families from Humanis violence, and provide employment. This community support makes them nearly impossible to displace through conventional law enforcement pressure.\n\nThey will hire shadowrunners, particularly for operations that require skills their membership doesn't have (decking, magic, vehicle work). They pay fairly by Barrens standards and honor their arrangements.\n\nRed Sonja's leadership is contested internally â€” several ork lieutenants believe the boss should be ork. She has survived two assassination attempts in the last year and responds to challenges with public violence. The internal tension is exploitable.\n\nConflict with the Halloweeners is ongoing and low-level. Conflict with the Spikes flares periodically over borderland territory."
     },
     {
       "name": "Ancients",
@@ -1964,7 +1964,7 @@
         },
         {
           "title": "National Gang Leader",
-          "name": "Green Lucifer \u00e2\u20ac\u201d based in Chicago, sets overall policy"
+          "name": "Green Lucifer â€” based in Chicago, sets overall policy"
         },
         {
           "title": "Logistics / Smuggling",
@@ -1973,13 +1973,13 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "The Ancients are unique among Seattle gangs in that they actively cultivate relationships with criminal organizations and corporations for contract work. They function partly as a gang and partly as a mercenary courier and muscle service. Their elf-only membership gives them a cultural cohesion most gangs lack \u00e2\u20ac\u201d and an insularity that makes them hard to infiltrate.\n\nThey control significant smuggling routes along the Puyallup/Auburn corridor and have connections into Salish-Shidhe territory for cross-border work. A runner who needs to move something quietly across the Salish border should know the Ancients.\n\nThe Ancients have an unspoken arrangement with the Yakuza for courier work \u00e2\u20ac\u201d not an alliance, but a recurring business relationship. They are careful not to become dependent on any one organization.\n\nNon-elf runners will never be formally welcomed by the Ancients, but they can do business. Elf runners may be actively recruited."
+      "notes": "The Ancients are unique among Seattle gangs in that they actively cultivate relationships with criminal organizations and corporations for contract work. They function partly as a gang and partly as a mercenary courier and muscle service. Their elf-only membership gives them a cultural cohesion most gangs lack â€” and an insularity that makes them hard to infiltrate.\n\nThey control significant smuggling routes along the Puyallup/Auburn corridor and have connections into Salish-Shidhe territory for cross-border work. A runner who needs to move something quietly across the Salish border should know the Ancients.\n\nThe Ancients have an unspoken arrangement with the Yakuza for courier work â€” not an alliance, but a recurring business relationship. They are careful not to become dependent on any one organization.\n\nNon-elf runners will never be formally welcomed by the Ancients, but they can do business. Elf runners may be actively recruited."
     },
     {
       "name": "Spikes",
       "org_type": "gang",
       "tier": 2,
-      "description": "A predominantly-troll gang operating in the Redmond Barrens and adjacent areas. The Spikes are smaller than the Crimson Crush but individually more physically dangerous \u00e2\u20ac\u201d a troll gang in a straight fight is a different problem than most gangs. They are brutal, territorial, and not particularly organized beyond a core leadership. They control several blocks in northern Redmond through pure physical intimidation.",
+      "description": "A predominantly-troll gang operating in the Redmond Barrens and adjacent areas. The Spikes are smaller than the Crimson Crush but individually more physically dangerous â€” a troll gang in a straight fight is a different problem than most gangs. They are brutal, territorial, and not particularly organized beyond a core leadership. They control several blocks in northern Redmond through pure physical intimidation.",
       "headquarters": "Northern Redmond Barrens, Seattle",
       "leadership": [
         {
@@ -1995,13 +1995,13 @@
       "enemy_names": [
         "Crimson Crush"
       ],
-      "notes": "The Spikes are not subtle and not strategic. They hold territory because challenging trolls in their home turf is a proposition most gangs choose to avoid. They are useful as a blunt instrument \u00e2\u20ac\u201d if you need something wrecked or someone intimidated, they are available for credsticks or BTL.\n\nThey are not reliable for anything requiring planning, discretion, or follow-through. Do not hire them for jobs that require all three of a plan, secrecy, and a specific outcome.\n\nConflict with the Crimson Crush is ongoing and territorial. The Crush has numbers; the Spikes have trolls. Neither side has been able to decisively end the other."
+      "notes": "The Spikes are not subtle and not strategic. They hold territory because challenging trolls in their home turf is a proposition most gangs choose to avoid. They are useful as a blunt instrument â€” if you need something wrecked or someone intimidated, they are available for credsticks or BTL.\n\nThey are not reliable for anything requiring planning, discretion, or follow-through. Do not hire them for jobs that require all three of a plan, secrecy, and a specific outcome.\n\nConflict with the Crimson Crush is ongoing and territorial. The Crush has numbers; the Spikes have trolls. Neither side has been able to decisively end the other."
     },
     {
       "name": "405 Hellhounds",
       "org_type": "gang",
       "tier": 2,
-      "description": "A vehicle and go-gang controlling sections of the Interstate 405 corridor south of Seattle and into the Renton sprawl. The Hellhounds make their money through highway robbery, cargo theft from commercial vehicles, and extortion of businesses that rely on I-405 traffic. They are fast, mobile, and operate in mixed terrain \u00e2\u20ac\u201d equally comfortable on the highway and in the urban fringe.",
+      "description": "A vehicle and go-gang controlling sections of the Interstate 405 corridor south of Seattle and into the Renton sprawl. The Hellhounds make their money through highway robbery, cargo theft from commercial vehicles, and extortion of businesses that rely on I-405 traffic. They are fast, mobile, and operate in mixed terrain â€” equally comfortable on the highway and in the urban fringe.",
       "headquarters": "Renton / I-405 corridor, Seattle",
       "leadership": [
         {
@@ -2014,12 +2014,12 @@
         },
         {
           "title": "Mechanic / Tech",
-          "name": "Wrench \u00e2\u20ac\u201d keeps the fleet running, occasional drone operator"
+          "name": "Wrench â€” keeps the fleet running, occasional drone operator"
         }
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "The Hellhounds are primarily useful to runners as either an obstacle (for cargo jobs using I-405) or as hired mobility \u00e2\u20ac\u201d they know the roads, have vehicles, and can move people or goods across the corridor quickly.\n\nThey have a loose arrangement with the Ancients on non-overlapping smuggling routes and occasionally do subcontracted courier work when the Ancients are overbooked.\n\nLone Star has a standing task force targeting Hellhound highway operations but makes little progress \u00e2\u20ac\u201d the gang disperses fast and the I-405 corridor spans multiple jurisdictions. Knight Errant has not yet established presence along the corridor."
+      "notes": "The Hellhounds are primarily useful to runners as either an obstacle (for cargo jobs using I-405) or as hired mobility â€” they know the roads, have vehicles, and can move people or goods across the corridor quickly.\n\nThey have a loose arrangement with the Ancients on non-overlapping smuggling routes and occasionally do subcontracted courier work when the Ancients are overbooked.\n\nLone Star has a standing task force targeting Hellhound highway operations but makes little progress â€” the gang disperses fast and the I-405 corridor spans multiple jurisdictions. Knight Errant has not yet established presence along the corridor."
     },
     {
       "name": "First Nation",
@@ -2034,7 +2034,7 @@
         },
         {
           "title": "Spiritual Advisor",
-          "name": "Elder Mary Whitehorse \u00e2\u20ac\u201d a genuine shaman whose involvement legitimizes the movement to the broader Native community"
+          "name": "Elder Mary Whitehorse â€” a genuine shaman whose involvement legitimizes the movement to the broader Native community"
         },
         {
           "title": "Operations",
@@ -2043,27 +2043,27 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "First Nation is complicated. Some members are genuine political activists with real grievances; others are opportunistic criminals using the movement as cover. Strongbow holds both factions together through force of personality and a genuine political vision that, whether you agree with it or not, is coherent and consistent.\n\nThey have quiet connections to the Salish-Shidhe Council government \u00e2\u20ac\u201d not formal recognition, but intelligence-sharing and occasional material support. First Nation operatives can cross the Salish border more easily than most runners.\n\nRunners hired by First Nation often discover the job has more political meaning than the briefing suggested. They are not dishonest employers, but they have an agenda that extends beyond any single job.\n\nThey are explicitly hostile to Aztechnology, MCT, and any corp actively pursuing development in traditionally Native territories near Seattle. They have carried out multiple sabotage operations against corporate survey and construction teams."
+      "notes": "First Nation is complicated. Some members are genuine political activists with real grievances; others are opportunistic criminals using the movement as cover. Strongbow holds both factions together through force of personality and a genuine political vision that, whether you agree with it or not, is coherent and consistent.\n\nThey have quiet connections to the Salish-Shidhe Council government â€” not formal recognition, but intelligence-sharing and occasional material support. First Nation operatives can cross the Salish border more easily than most runners.\n\nRunners hired by First Nation often discover the job has more political meaning than the briefing suggested. They are not dishonest employers, but they have an agenda that extends beyond any single job.\n\nThey are explicitly hostile to Aztechnology, MCT, and any corp actively pursuing development in traditionally Native territories near Seattle. They have carried out multiple sabotage operations against corporate survey and construction teams."
     },
     {
       "name": "Rusted Stilettos",
       "org_type": "gang",
       "tier": 2,
-      "description": "A mixed-metahuman gang operating in the Redmond Barrens, notable for their use of discarded and jury-rigged cyberware \u00e2\u20ac\u201d limbs, eyes, and reflex boosters stripped from corpsec casualties, medical waste, and shadowrunner gear fenced into the Barrens. The Stilettos are not large, but individual members punch significantly above their tier due to their patchwork augmentations.",
+      "description": "A mixed-metahuman gang operating in the Redmond Barrens, notable for their use of discarded and jury-rigged cyberware â€” limbs, eyes, and reflex boosters stripped from corpsec casualties, medical waste, and shadowrunner gear fenced into the Barrens. The Stilettos are not large, but individual members punch significantly above their tier due to their patchwork augmentations.",
       "headquarters": "Central Redmond Barrens, Seattle",
       "leadership": [
         {
           "title": "Boss",
-          "name": "Razormouth \u00e2\u20ac\u201d has a jaw full of implanted blades of unclear origin"
+          "name": "Razormouth â€” has a jaw full of implanted blades of unclear origin"
         },
         {
           "title": "Tech / Ripperdoc",
-          "name": "Patches \u00e2\u20ac\u201d installs the gang's cyberware, sometimes without anesthesia, sometimes without full functionality"
+          "name": "Patches â€” installs the gang's cyberware, sometimes without anesthesia, sometimes without full functionality"
         }
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "The Stilettos are buyers of black-market and stolen cyberware \u00e2\u20ac\u201d if a runner needs to fence augmentation-related gear quickly and quietly in the Barrens, the Stilettos will pay cash with no questions about provenance.\n\nPatches operates a back-alley ripperdoc clinic that is simultaneously the gang's greatest asset and liability. The clinic attracts desperate people from across the Barrens \u00e2\u20ac\u201d customers who have nowhere else to go for cybernetic maintenance or emergency surgery. This gives the Stilettos unusual community intelligence.\n\nThe gang's reliance on degraded, mismatched cyberware means essence costs among leadership are extreme. Several senior members are approaching burnout, which is creating succession anxiety and short-term thinking at the top."
+      "notes": "The Stilettos are buyers of black-market and stolen cyberware â€” if a runner needs to fence augmentation-related gear quickly and quietly in the Barrens, the Stilettos will pay cash with no questions about provenance.\n\nPatches operates a back-alley ripperdoc clinic that is simultaneously the gang's greatest asset and liability. The clinic attracts desperate people from across the Barrens â€” customers who have nowhere else to go for cybernetic maintenance or emergency surgery. This gives the Stilettos unusual community intelligence.\n\nThe gang's reliance on degraded, mismatched cyberware means essence costs among leadership are extreme. Several senior members are approaching burnout, which is creating succession anxiety and short-term thinking at the top."
     },
     {
       "name": "The Cutters",
@@ -2079,7 +2079,7 @@
       ],
       "ally_names": [],
       "enemy_names": [],
-      "notes": "Useful muscle for hire if standing is high enough. Unknowingly tied into Aztechnology's BTL distribution network via Stuffer Shack \u00e2\u20ac\u201d they think they're independent. They are not."
+      "notes": "Useful muscle for hire if standing is high enough. Unknowingly tied into Aztechnology's BTL distribution network via Stuffer Shack â€” they think they're independent. They are not."
     }
   ],
   "locations": [
@@ -2091,7 +2091,7 @@
       "description": "Multi-level nightclub with a hell theme. Popular with shadowrunners and corporate suits alike.",
       "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
-      "notes": "Good place to meet fixers. Avoid the upper floors \u00e2\u20ac\u201d Yakuza territory."
+      "notes": "Good place to meet fixers. Avoid the upper floors â€” Yakuza territory."
     },
     {
       "name": "The Rusty Nail",
@@ -2111,7 +2111,7 @@
       "description": "High-security R&D campus. Magical wards, HTR teams, dual-natured guards. Primary site for magical research in the Pacific Northwest division.",
       "security_level": "Corporate High Security",
       "controlling_org_name": "Aztechnology",
-      "notes": "HTR response time ~4 minutes. Mana barriers on all labs. Dr. Quijada's primary workspace. Sub-basement levels are rumored to house blood magic ritual spaces \u00e2\u20ac\u201d unconfirmed."
+      "notes": "HTR response time ~4 minutes. Mana barriers on all labs. Dr. Quijada's primary workspace. Sub-basement levels are rumored to house blood magic ritual spaces â€” unconfirmed."
     },
     {
       "name": "Aztechnology Pyramid",
@@ -2121,7 +2121,7 @@
       "description": "Aztechnology's Seattle regional headquarters. A stepped pyramid tower that dominates the downtown skyline. Houses executive offices, a host node rated among the most secure in the city, Jaguar Guard barracks, and a public-facing corporate gallery and Soykaf cafe on the ground floor.",
       "security_level": "Corporate Extraterritorial",
       "controlling_org_name": "Aztechnology",
-      "notes": "Extraterritorial \u00e2\u20ac\u201d Aztlan sovereign soil. Jaguar Guards patrol all floors. The public ground floor is safe; anything above level 3 requires corporate ID. The host is considered a black IC deathtrap by every decker who's discussed it. HTR launches from here for all Seattle Aztechnology sites."
+      "notes": "Extraterritorial â€” Aztlan sovereign soil. Jaguar Guards patrol all floors. The public ground floor is safe; anything above level 3 requires corporate ID. The host is considered a black IC deathtrap by every decker who's discussed it. HTR launches from here for all Seattle Aztechnology sites."
     },
     {
       "name": "Stuffer Shack - Redmond Barrens",
@@ -2148,50 +2148,50 @@
       "location_type": "nightclub",
       "city": "Seattle",
       "district": "Downtown / Waterfront",
-      "description": "One of the most famous shadowrunner-friendly establishments in Seattle. Club Penumbra occupies a converted waterfront warehouse and runs three floors of live music, dancing, and private booths with Matrix terminals. It operates as genuine neutral ground \u00e2\u20ac\u201d corp suits, runners, gangers, fixers, and syndicate representatives all drink here, and the management enforces the peace with professional security that has no loyalties to any faction.",
+      "description": "One of the most famous shadowrunner-friendly establishments in Seattle. Club Penumbra occupies a converted waterfront warehouse and runs three floors of live music, dancing, and private booths with Matrix terminals. It operates as genuine neutral ground â€” corp suits, runners, gangers, fixers, and syndicate representatives all drink here, and the management enforces the peace with professional security that has no loyalties to any faction.",
       "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
-      "notes": "Penumbra's neutrality is its product. The owner, a human woman known only as Doris, has maintained independence from every faction that has tried to claim the club through a combination of leverage, paid-for protection, and a security team that is unusually well-equipped for a nightclub.\n\nThe Matrix terminals in the private booths are hardened against passive surveillance and are the de facto standard meeting infrastructure for runners who need a secure channel in meat space. Do not assume they are completely clean \u00e2\u20ac\u201d they are safer than most alternatives, not safe.\n\nFixers use the booths for introductions. Mr. Johnsons use them for initial contact. Syndicate intermediaries use them for cross-faction negotiation. If something shadow-related is happening in Seattle, someone in this building probably knows about it.\n\nThe live music is legitimately good. The cover is 20 nuyen and the synthahol is overpriced. Both are worth it."
+      "notes": "Penumbra's neutrality is its product. The owner, a human woman known only as Doris, has maintained independence from every faction that has tried to claim the club through a combination of leverage, paid-for protection, and a security team that is unusually well-equipped for a nightclub.\n\nThe Matrix terminals in the private booths are hardened against passive surveillance and are the de facto standard meeting infrastructure for runners who need a secure channel in meat space. Do not assume they are completely clean â€” they are safer than most alternatives, not safe.\n\nFixers use the booths for introductions. Mr. Johnsons use them for initial contact. Syndicate intermediaries use them for cross-faction negotiation. If something shadow-related is happening in Seattle, someone in this building probably knows about it.\n\nThe live music is legitimately good. The cover is 20 nuyen and the synthahol is overpriced. Both are worth it."
     },
     {
       "name": "Underworld 93",
       "location_type": "nightclub",
       "city": "Seattle",
       "district": "Downtown",
-      "description": "An underground club in the literal sense \u00e2\u20ac\u201d built into a network of converted utility tunnels and maintenance spaces beneath Downtown Seattle. Underworld 93 is darker, louder, and less curated than Club Penumbra. The clientele skews toward the harder end of the shadow community: gangers, smugglers, BTL dealers, and runners who prefer their meeting spots to not have security cameras.",
+      "description": "An underground club in the literal sense â€” built into a network of converted utility tunnels and maintenance spaces beneath Downtown Seattle. Underworld 93 is darker, louder, and less curated than Club Penumbra. The clientele skews toward the harder end of the shadow community: gangers, smugglers, BTL dealers, and runners who prefer their meeting spots to not have security cameras.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "Underworld 93 has no visible ownership. The staff rotate constantly and none of them will give you a name. There are four known entrances, two of which are through adjacent buildings whose owners claim ignorance. Lone Star has raided the club three times; each time it was empty an hour before they arrived.\n\nBTL chips are openly traded in the back corridors. Stolen cyberware, weapons, and forged SINs can be sourced here with minimal effort. If you need something quickly and don't want to explain yourself to a fixer, Underworld 93 is the market.\n\nThere are persistent rumors of a fifth sub-level that doesn't appear on any building schematic, used for high-value exchanges that require even less visibility than the main club. No runner interviewed has claimed to have personally accessed it \u00e2\u20ac\u201d only heard about it from someone who knew someone."
+      "notes": "Underworld 93 has no visible ownership. The staff rotate constantly and none of them will give you a name. There are four known entrances, two of which are through adjacent buildings whose owners claim ignorance. Lone Star has raided the club three times; each time it was empty an hour before they arrived.\n\nBTL chips are openly traded in the back corridors. Stolen cyberware, weapons, and forged SINs can be sourced here with minimal effort. If you need something quickly and don't want to explain yourself to a fixer, Underworld 93 is the market.\n\nThere are persistent rumors of a fifth sub-level that doesn't appear on any building schematic, used for high-value exchanges that require even less visibility than the main club. No runner interviewed has claimed to have personally accessed it â€” only heard about it from someone who knew someone."
     },
     {
       "name": "The Jackal's Lantern",
       "location_type": "bar",
       "city": "Seattle",
       "district": "Puyallup Barrens",
-      "description": "A runner and low-life bar in the volcanic Puyallup district, built into the reinforced lower level of a building that has survived three nearby lava flow events through sheer construction stubbornness. The Jackal's Lantern is the primary runner watering hole for the southern Barrens \u00e2\u20ac\u201d rougher than Club Penumbra, cheaper than Dante's, and completely disinterested in your business unless your business is causing problems.",
+      "description": "A runner and low-life bar in the volcanic Puyallup district, built into the reinforced lower level of a building that has survived three nearby lava flow events through sheer construction stubbornness. The Jackal's Lantern is the primary runner watering hole for the southern Barrens â€” rougher than Club Penumbra, cheaper than Dante's, and completely disinterested in your business unless your business is causing problems.",
       "security_level": "No Security / Barrens",
       "controlling_org_name": null,
-      "notes": "The bar is run by a dwarf named Cutter MacAllister who has tended bar here for fifteen years and will continue to do so until either the volcano or someone's bullet ends the arrangement. He hears everything, repeats nothing without payment, and pours generous measures.\n\nPuyallup's volcanic activity means ash falls are common and the air outside carries particulate. The Lantern's filtered interior is one reason people stay longer than they planned. The bar stocks respirators behind the counter for customers who arrive underprepared.\n\nHelloweener territory begins three blocks east. MacAllister has a long-standing informal arrangement with the gang \u00e2\u20ac\u201d they don't come inside, and he doesn't ask where the credsticks his regulars spend came from. It is an arrangement that has held for seven years and will eventually not hold."
+      "notes": "The bar is run by a dwarf named Cutter MacAllister who has tended bar here for fifteen years and will continue to do so until either the volcano or someone's bullet ends the arrangement. He hears everything, repeats nothing without payment, and pours generous measures.\n\nPuyallup's volcanic activity means ash falls are common and the air outside carries particulate. The Lantern's filtered interior is one reason people stay longer than they planned. The bar stocks respirators behind the counter for customers who arrive underprepared.\n\nHelloweener territory begins three blocks east. MacAllister has a long-standing informal arrangement with the gang â€” they don't come inside, and he doesn't ask where the credsticks his regulars spend came from. It is an arrangement that has held for seven years and will eventually not hold."
     },
     {
       "name": "Renraku Arcology (SCIRE)",
       "location_type": "corporate megastructure",
       "city": "Seattle",
       "district": "Downtown",
-      "description": "The largest single structure in the Pacific Northwest \u00e2\u20ac\u201d a 100-story stepped arcology tower housing approximately 90,000 residents, Renraku's Seattle corporate headquarters, manufacturing floors, schools, hospitals, shopping centers, a full agricultural level, and its own power generation. The SCIRE is functionally a self-contained city inside Seattle's city limits. It is extraterritorial Renraku sovereign space from the parking structure to the roof.",
+      "description": "The largest single structure in the Pacific Northwest â€” a 100-story stepped arcology tower housing approximately 90,000 residents, Renraku's Seattle corporate headquarters, manufacturing floors, schools, hospitals, shopping centers, a full agricultural level, and its own power generation. The SCIRE is functionally a self-contained city inside Seattle's city limits. It is extraterritorial Renraku sovereign space from the parking structure to the roof.",
       "security_level": "Corporate Extraterritorial",
       "controlling_org_name": "Renraku Computer Systems",
-      "notes": "Entry to the public-accessible lower levels (floors 1-3) requires a valid SIN scan and biometric registration. Everything above floor 3 requires Renraku corporate credentials. The residential levels are accessible only to registered residents and their logged guests. The upper corporate floors are Red Samurai territory.\n\nThe SCIRE has its own Matrix host architecture \u00e2\u20ac\u201d a fully internal grid that is hardened against external intrusion and maintained separately from the public Seattle grid. Static's assessment: the host is extremely dangerous and she will not jack into it without significant preparation and a very good reason.\n\nFor scale: the SCIRE's internal population is larger than many UCAS cities. It has its own transit system, internal law enforcement (Renraku Security, separate from Red Samurai), and a judicial system. A person could theoretically never leave and have every material need met.\n\nRunner operations targeting the SCIRE require treating it as a full infiltration of a sovereign corporate state, not a building. Floor plans above level 10 are not available on any public or shadow market source at any confirmed price."
+      "notes": "Entry to the public-accessible lower levels (floors 1-3) requires a valid SIN scan and biometric registration. Everything above floor 3 requires Renraku corporate credentials. The residential levels are accessible only to registered residents and their logged guests. The upper corporate floors are Red Samurai territory.\n\nThe SCIRE has its own Matrix host architecture â€” a fully internal grid that is hardened against external intrusion and maintained separately from the public Seattle grid. Static's assessment: the host is extremely dangerous and she will not jack into it without significant preparation and a very good reason.\n\nFor scale: the SCIRE's internal population is larger than many UCAS cities. It has its own transit system, internal law enforcement (Renraku Security, separate from Red Samurai), and a judicial system. A person could theoretically never leave and have every material need met.\n\nRunner operations targeting the SCIRE require treating it as a full infiltration of a sovereign corporate state, not a building. Floor plans above level 10 are not available on any public or shadow market source at any confirmed price."
     },
     {
       "name": "Touristville",
       "location_type": "commercial district",
       "city": "Seattle",
       "district": "Redmond Barrens",
-      "description": "The commercial strip on the outer edge of the Redmond Barrens \u00e2\u20ac\u201d close enough to the sprawl to feel dangerous, far enough from the deep Barrens to be survivable for outsiders. Touristville exists to sell the Barrens experience to people who don't actually live there: cheap bars, black market stalls, shadow services brokers, and enough controlled grit to satisfy the curiosity of corporate wage slaves who want a story to tell on Monday. Locals regard it with a mixture of economic dependence and contempt.",
+      "description": "The commercial strip on the outer edge of the Redmond Barrens â€” close enough to the sprawl to feel dangerous, far enough from the deep Barrens to be survivable for outsiders. Touristville exists to sell the Barrens experience to people who don't actually live there: cheap bars, black market stalls, shadow services brokers, and enough controlled grit to satisfy the curiosity of corporate wage slaves who want a story to tell on Monday. Locals regard it with a mixture of economic dependence and contempt.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "Despite the name, Touristville has genuine utility for runners. It is the most accessible point to acquire Barrens-sourced goods and services without going deep into gang territory. Fences, forgers, low-end ripperdocs, and information brokers all maintain presences here.\n\nLone Star does patrol Touristville \u00e2\u20ac\u201d more than they patrol the actual Barrens \u00e2\u20ac\u201d because the tourists represent a complaint demographic that has political pull. This makes it safer than most of Redmond but means the patrols are a factor to account for.\n\nThe Avalon is the most notable bar in Touristville \u00e2\u20ac\u201d a British-themed establishment with pretensions to class that is undercut by its location and clientele. It serves as a middle-ground meeting spot for runners who find Club Penumbra too expensive and the Rusty Nail too deep in gang territory."
+      "notes": "Despite the name, Touristville has genuine utility for runners. It is the most accessible point to acquire Barrens-sourced goods and services without going deep into gang territory. Fences, forgers, low-end ripperdocs, and information brokers all maintain presences here.\n\nLone Star does patrol Touristville â€” more than they patrol the actual Barrens â€” because the tourists represent a complaint demographic that has political pull. This makes it safer than most of Redmond but means the patrols are a factor to account for.\n\nThe Avalon is the most notable bar in Touristville â€” a British-themed establishment with pretensions to class that is undercut by its location and clientele. It serves as a middle-ground meeting spot for runners who find Club Penumbra too expensive and the Rusty Nail too deep in gang territory."
     },
     {
       "name": "The Avalon",
@@ -2201,17 +2201,17 @@
       "description": "A British Isles-themed bar occupying a converted two-story building in Touristville. Dark wood paneling, Union Jack memorabilia, and a bartender who insists on being called 'the Publican' despite being a third-generation Seattle native. The Avalon positions itself as a cut above the surrounding Touristville establishments, which is a low bar it meets adequately.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "The Avalon functions as a middle-ground meeting spot \u00e2\u20ac\u201d accessible from both the corporate side and the deep Barrens, neutral enough that most factions leave it alone, and cheap enough that runners without a current income can still afford a booth.\n\nThe Publican (real name: Gerald) knows everyone in Touristville and has strong opinions about all of them. He does not sell information directly but will steer people toward the right introductions if the tip is appropriate.\n\nThe upstairs function room can be rented by the hour for private meetings. It is not swept for surveillance devices. Assume it is monitored."
+      "notes": "The Avalon functions as a middle-ground meeting spot â€” accessible from both the corporate side and the deep Barrens, neutral enough that most factions leave it alone, and cheap enough that runners without a current income can still afford a booth.\n\nThe Publican (real name: Gerald) knows everyone in Touristville and has strong opinions about all of them. He does not sell information directly but will steer people toward the right introductions if the tip is appropriate.\n\nThe upstairs function room can be rented by the hour for private meetings. It is not swept for surveillance devices. Assume it is monitored."
     },
     {
       "name": "Tarislar",
       "location_type": "residential community",
       "city": "Seattle",
       "district": "Puyallup Barrens",
-      "description": "A predominantly elven community in the Puyallup district, established by elven refugees and economic migrants who were unwelcome in both the UCAS mainstream and the Tir Tairngire nation. Tarislar is politically active, culturally distinct, and deeply suspicious of outsiders \u00e2\u20ac\u201d particularly humans, corps, and anyone associated with either Tir Tairngire's government or UCAS law enforcement. Despite its Barrens location, Tarislar maintains internal organization and community cohesion that most Barrens settlements lack entirely.",
+      "description": "A predominantly elven community in the Puyallup district, established by elven refugees and economic migrants who were unwelcome in both the UCAS mainstream and the Tir Tairngire nation. Tarislar is politically active, culturally distinct, and deeply suspicious of outsiders â€” particularly humans, corps, and anyone associated with either Tir Tairngire's government or UCAS law enforcement. Despite its Barrens location, Tarislar maintains internal organization and community cohesion that most Barrens settlements lack entirely.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "Tarislar's community security is informal but effective \u00e2\u20ac\u201d elven residents watch the neighborhood and respond to threats collectively. Outsiders who enter respectfully and have legitimate business are tolerated; outsiders who enter with aggression or corp affiliations will find the neighborhood extremely difficult to navigate and exit.\n\nThe community has complicated, contested feelings about Tir Tairngire. Some residents fled the Tir's rigid social hierarchy (the Danaan social rating system) and want nothing to do with the elven nation. Others maintain contact with Tir intelligence services or political factions. Runners who need a connection into Tir Tairngire shadow networks should start here \u00e2\u20ac\u201d carefully.\n\nHumanis Policlub has targeted Tarislar twice with arson and violence. Both times, Humanis operatives did not leave the neighborhood. This is not discussed openly.\n\nThe Ancients maintain a respectful distance from Tarislar \u00e2\u20ac\u201d they recruit from the community but do not claim it as territory."
+      "notes": "Tarislar's community security is informal but effective â€” elven residents watch the neighborhood and respond to threats collectively. Outsiders who enter respectfully and have legitimate business are tolerated; outsiders who enter with aggression or corp affiliations will find the neighborhood extremely difficult to navigate and exit.\n\nThe community has complicated, contested feelings about Tir Tairngire. Some residents fled the Tir's rigid social hierarchy (the Danaan social rating system) and want nothing to do with the elven nation. Others maintain contact with Tir intelligence services or political factions. Runners who need a connection into Tir Tairngire shadow networks should start here â€” carefully.\n\nHumanis Policlub has targeted Tarislar twice with arson and violence. Both times, Humanis operatives did not leave the neighborhood. This is not discussed openly.\n\nThe Ancients maintain a respectful distance from Tarislar â€” they recruit from the community but do not claim it as territory."
     },
     {
       "name": "Fort Lewis",
@@ -2219,39 +2219,39 @@
       "city": "Seattle",
       "district": "South Seattle / Tacoma border",
       "description": "The primary UCAS Army installation in the Pacific Northwest, located south of the Seattle metroplex near the Tacoma border. Fort Lewis houses a full combined-arms brigade, aviation assets, military intelligence operations, and several restricted research programs. It is the largest concentration of conventional military force within several hundred kilometers of Seattle.",
-      "security_level": "Zero Zone \u00e2\u20ac\u201d Lethal Response",
+      "security_level": "Zero Zone â€” Lethal Response",
       "controlling_org_name": null,
-      "notes": "Fort Lewis is not a runner target \u00e2\u20ac\u201d it is the definition of a hard site. Physical security includes lethal perimeter defense, standing armed patrols, air assets, and a response force that can be combat-ready in under four minutes. Matrix security is maintained by dedicated military IC that operates under different rules than corporate hosts.\n\nHowever, Fort Lewis is a source of military-grade equipment on the black market. Supply chain corruption exists at the NCO level \u00e2\u20ac\u201d stolen milspec weapons, armor, and occasionally vehicles circulate through Seattle's shadow market with Fort Lewis provenance. The Mafia controls most of the established theft pipeline.\n\nThe installation houses a UCAS military intelligence detachment (designation classified) that occasionally runs deniable operations in Seattle using civilian assets. Runners who are hired for jobs that seem unusually well-resourced and vague about who the client is should consider whether the UCAS military is the actual employer.\n\nFort Lewis and Knight Errant have a formal mutual aid agreement for metropolitan defense scenarios. This means a major incident in Seattle could bring military assets into the city faster than most people expect."
+      "notes": "Fort Lewis is not a runner target â€” it is the definition of a hard site. Physical security includes lethal perimeter defense, standing armed patrols, air assets, and a response force that can be combat-ready in under four minutes. Matrix security is maintained by dedicated military IC that operates under different rules than corporate hosts.\n\nHowever, Fort Lewis is a source of military-grade equipment on the black market. Supply chain corruption exists at the NCO level â€” stolen milspec weapons, armor, and occasionally vehicles circulate through Seattle's shadow market with Fort Lewis provenance. The Mafia controls most of the established theft pipeline.\n\nThe installation houses a UCAS military intelligence detachment (designation classified) that occasionally runs deniable operations in Seattle using civilian assets. Runners who are hired for jobs that seem unusually well-resourced and vague about who the client is should consider whether the UCAS military is the actual employer.\n\nFort Lewis and Knight Errant have a formal mutual aid agreement for metropolitan defense scenarios. This means a major incident in Seattle could bring military assets into the city faster than most people expect."
     },
     {
       "name": "The Space Needle",
       "location_type": "landmark / restaurant",
       "city": "Seattle",
       "district": "Seattle Center",
-      "description": "The pre-Awakening landmark that somehow survived Seattle's transformation into a sprawl. The Space Needle still stands at Seattle Center, now housing a high-end rotating restaurant at the observation level and a corporate event venue on the floors below. The view from the top \u00e2\u20ac\u201d corporate towers, Renraku Arcology, the distant Barrens fires, and on clear days the volcanic plume from Puyallup \u00e2\u20ac\u201d is the most complete single visual summary of what Seattle has become.",
+      "description": "The pre-Awakening landmark that somehow survived Seattle's transformation into a sprawl. The Space Needle still stands at Seattle Center, now housing a high-end rotating restaurant at the observation level and a corporate event venue on the floors below. The view from the top â€” corporate towers, Renraku Arcology, the distant Barrens fires, and on clear days the volcanic plume from Puyallup â€” is the most complete single visual summary of what Seattle has become.",
       "security_level": "Patrolled / Commercial",
       "controlling_org_name": null,
-      "notes": "The Space Needle restaurant is a legitimate high-end establishment. Dinner reservations run 200-400 nuyen per person and require a valid SIN. Corporate executives use it for client entertainment. The occasional Mr. Johnson meeting happens here precisely because it is so visible \u00e2\u20ac\u201d nobody assumes the contact is shadow business when the setting is this conspicuous.\n\nThe observation deck is open to the public at 50 nuyen admission with SIN scan. It is a genuinely useful overwatch position for anyone planning operations in the Seattle Center area or mapping sightlines into the Downtown corporate district.\n\nThe building's age means its structural systems are pre-Matrix era \u00e2\u20ac\u201d the security host is a bolted-on afterthought with limited integration. A decker looking to access the camera system will find it easier than most Downtown targets."
+      "notes": "The Space Needle restaurant is a legitimate high-end establishment. Dinner reservations run 200-400 nuyen per person and require a valid SIN. Corporate executives use it for client entertainment. The occasional Mr. Johnson meeting happens here precisely because it is so visible â€” nobody assumes the contact is shadow business when the setting is this conspicuous.\n\nThe observation deck is open to the public at 50 nuyen admission with SIN scan. It is a genuinely useful overwatch position for anyone planning operations in the Seattle Center area or mapping sightlines into the Downtown corporate district.\n\nThe building's age means its structural systems are pre-Matrix era â€” the security host is a bolted-on afterthought with limited integration. A decker looking to access the camera system will find it easier than most Downtown targets."
     },
     {
       "name": "Harborview Medical Center",
       "location_type": "hospital",
       "city": "Seattle",
       "district": "First Hill",
-      "description": "The largest public hospital in the Seattle metroplex and one of the few medical facilities that will treat patients regardless of SIN status \u00e2\u20ac\u201d at a price. Harborview handles trauma, surgery, and emergency care for the portion of Seattle's population that cannot afford DocWagon contracts or corporate medical plans. The facility is perpetually understaffed and overextended, operating on public funding that has been cut four times in the last decade.",
+      "description": "The largest public hospital in the Seattle metroplex and one of the few medical facilities that will treat patients regardless of SIN status â€” at a price. Harborview handles trauma, surgery, and emergency care for the portion of Seattle's population that cannot afford DocWagon contracts or corporate medical plans. The facility is perpetually understaffed and overextended, operating on public funding that has been cut four times in the last decade.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "SINless patients are accepted but the pricing structure is punishing. A SIN-verified patient pays standard rates (already high by Barrens standards). A SINless patient pays a 'risk surcharge' that typically runs 3-5x the base rate, justified by the hospital administration as covering the legal liability of treating an unregistered individual. In practice, runners who need legitimate trauma care without DocWagon involvement should budget 5,000-15,000 nuyen for anything serious, payable in certified credstick on admission.\n\nHarborview's ER staff are experienced with gunshot wounds, blade trauma, and cyberware-related complications and ask far fewer questions than their corporate equivalents. Two of the attending trauma surgeons moonlight as informal ripperdocs for the shadow community and can be reached through Fingers.\n\nThe hospital maintains a Lone Star liaison office on the second floor. Officers respond to criminal incidents in the facility, which creates complications for runners seeking treatment after a high-profile job. The liaison office is understaffed and the officer on overnight shift is known to accept nuyen to delay filing incident reports.\n\nDocWagon has a standing contract dispute with Harborview over patient acquisition \u00e2\u20ac\u201d DocWagon claims the hospital is poaching their contract clients during emergencies. The dispute is ongoing and creates occasional friction between DocWagon HTR teams and Harborview admission staff."
+      "notes": "SINless patients are accepted but the pricing structure is punishing. A SIN-verified patient pays standard rates (already high by Barrens standards). A SINless patient pays a 'risk surcharge' that typically runs 3-5x the base rate, justified by the hospital administration as covering the legal liability of treating an unregistered individual. In practice, runners who need legitimate trauma care without DocWagon involvement should budget 5,000-15,000 nuyen for anything serious, payable in certified credstick on admission.\n\nHarborview's ER staff are experienced with gunshot wounds, blade trauma, and cyberware-related complications and ask far fewer questions than their corporate equivalents. Two of the attending trauma surgeons moonlight as informal ripperdocs for the shadow community and can be reached through Fingers.\n\nThe hospital maintains a Lone Star liaison office on the second floor. Officers respond to criminal incidents in the facility, which creates complications for runners seeking treatment after a high-profile job. The liaison office is understaffed and the officer on overnight shift is known to accept nuyen to delay filing incident reports.\n\nDocWagon has a standing contract dispute with Harborview over patient acquisition â€” DocWagon claims the hospital is poaching their contract clients during emergencies. The dispute is ongoing and creates occasional friction between DocWagon HTR teams and Harborview admission staff."
     },
     {
       "name": "The Ork Underground",
       "location_type": "subterranean community",
       "city": "Seattle",
       "district": "Beneath Downtown / Pioneer Square",
-      "description": "A sprawling network of tunnels, converted utility spaces, and repurposed underground infrastructure beneath Downtown Seattle and the Pioneer Square district, inhabited primarily by orks and trolls who were pushed out of surface Seattle by economics, discrimination, and Humanis violence. The Ork Underground is not a single location but an entire subterranean community \u00e2\u20ac\u201d with permanent residences, markets, workshops, and its own social hierarchy \u00e2\u20ac\u201d that exists entirely below the surface city.",
+      "description": "A sprawling network of tunnels, converted utility spaces, and repurposed underground infrastructure beneath Downtown Seattle and the Pioneer Square district, inhabited primarily by orks and trolls who were pushed out of surface Seattle by economics, discrimination, and Humanis violence. The Ork Underground is not a single location but an entire subterranean community â€” with permanent residences, markets, workshops, and its own social hierarchy â€” that exists entirely below the surface city.",
       "security_level": "Low Security",
       "controlling_org_name": null,
-      "notes": "The Underground is most prominently an SR3-era development, but its roots as an ork refuge are present in earlier Seattle lore. Use accordingly.\n\nLone Star has no jurisdiction underground \u00e2\u20ac\u201d their charter covers the surface metroplex, and they have no formal enforcement presence in the tunnels. This makes the Underground a useful refuge for runners who need to disappear quickly after a Downtown operation.\n\nNavigation without a guide is genuinely dangerous \u00e2\u20ac\u201d the tunnel network is unmapped, partially flooded in sections, and patrolled by Underground security that does not extend courtesy to outsiders. A contact within the Underground community is necessary for safe transit.\n\nThe Crimson Crush has surface-level connections with Underground leadership \u00e2\u20ac\u201d ork solidarity extends across the surface/underground divide \u00e2\u20ac\u201d and can provide introductions for runners with appropriate standing."
+      "notes": "The Underground is most prominently an SR3-era development, but its roots as an ork refuge are present in earlier Seattle lore. Use accordingly.\n\nLone Star has no jurisdiction underground â€” their charter covers the surface metroplex, and they have no formal enforcement presence in the tunnels. This makes the Underground a useful refuge for runners who need to disappear quickly after a Downtown operation.\n\nNavigation without a guide is genuinely dangerous â€” the tunnel network is unmapped, partially flooded in sections, and patrolled by Underground security that does not extend courtesy to outsiders. A contact within the Underground community is necessary for safe transit.\n\nThe Crimson Crush has surface-level connections with Underground leadership â€” ork solidarity extends across the surface/underground divide â€” and can provide introductions for runners with appropriate standing."
     }
   ],
   "characters": [
@@ -2468,7 +2468,7 @@
         "Equipment Acquisition",
         "Evaluate Value of Hi-Tech Items",
         "Job Referrals",
-        "Fence \u00e2\u20ac\u201d Stolen Goods"
+        "Fence â€” Stolen Goods"
       ],
       "title": "Fixer"
     },
@@ -2480,8 +2480,8 @@
       "race": "Human",
       "gender": "Female",
       "age": 29,
-      "description": "Unremarkable \u00e2\u20ac\u201d deliberately so. Mid-level office attire, no corp logos, nothing that stands out. Nervous hands. Always picks a seat facing the exit.",
-      "background": "Works in Aztechnology Seattle's logistics division \u00e2\u20ac\u201d senior enough to handle sealed shipping manifests, internal transfer schedules, and facility maintenance rosters. Not loyal enough to stay quiet when the nuyen is right. Has no idea what's in the crates she processes paperwork for, and has learned not to wonder.",
+      "description": "Unremarkable â€” deliberately so. Mid-level office attire, no corp logos, nothing that stands out. Nervous hands. Always picks a seat facing the exit.",
+      "background": "Works in Aztechnology Seattle's logistics division â€” senior enough to handle sealed shipping manifests, internal transfer schedules, and facility maintenance rosters. Not loyal enough to stay quiet when the nuyen is right. Has no idea what's in the crates she processes paperwork for, and has learned not to wonder.",
       "attributes": {
         "body": 2,
         "agility": 3,
@@ -2543,8 +2543,8 @@
       "race": "Human",
       "gender": "Male",
       "age": 38,
-      "description": "Compact, well-dressed without being flashy. Always meets in public \u00e2\u20ac\u201d cafes, markets, transit hubs. Speaks in careful misdirection that still communicates exactly what he means.",
-      "background": "Aztechnology's street-facing operator for deniable work in Seattle. Routes shadow contracts to runner teams without leaving corporate fingerprints. Knows just enough about the corp's darker programs to be useful \u00e2\u20ac\u201d and careful. Has survived four handlers above him being quietly retired.",
+      "description": "Compact, well-dressed without being flashy. Always meets in public â€” cafes, markets, transit hubs. Speaks in careful misdirection that still communicates exactly what he means.",
+      "background": "Aztechnology's street-facing operator for deniable work in Seattle. Routes shadow contracts to runner teams without leaving corporate fingerprints. Knows just enough about the corp's darker programs to be useful â€” and careful. Has survived four handlers above him being quietly retired.",
       "attributes": {
         "body": 3,
         "agility": 3,
@@ -2610,7 +2610,7 @@
         "Evidence Disposal",
         "Aztechnology Facility Blind-Eye Access"
       ],
-      "notes": "Pay is reliable and never late. Jobs escalate in sensitivity over time \u00e2\u20ac\u201d runners who prove themselves get more complicated work. He doesn't ask questions and expects the same courtesy. If you burn him once, you won't get a second meeting.",
+      "notes": "Pay is reliable and never late. Jobs escalate in sensitivity over time â€” runners who prove themselves get more complicated work. He doesn't ask questions and expects the same courtesy. If you burn him once, you won't get a second meeting.",
       "title": "Deniable Ops Handler"
     },
     {
@@ -2621,8 +2621,8 @@
       "race": "Human",
       "gender": "Female",
       "age": 41,
-      "description": "Unhurried and deliberate. Wears a corp badge tucked under a hand-woven rebozo in Aztlan colors. Eyes that track things that aren't there \u00e2\u20ac\u201d because for her, they are.",
-      "background": "Manages the spiritual security of Aztechnology's Seattle campus: wards, anchored spirits, astral perimeter maintenance. Not a researcher \u00e2\u20ac\u201d she's the person who ensures nothing enters or exits astrally without clearance. Deeply spiritual, a true believer in Aztlan's magical tradition. Will deal with Awakened runners who demonstrate genuine respect for the tradition, provided they don't ask her to work against the corp.",
+      "description": "Unhurried and deliberate. Wears a corp badge tucked under a hand-woven rebozo in Aztlan colors. Eyes that track things that aren't there â€” because for her, they are.",
+      "background": "Manages the spiritual security of Aztechnology's Seattle campus: wards, anchored spirits, astral perimeter maintenance. Not a researcher â€” she's the person who ensures nothing enters or exits astrally without clearance. Deeply spiritual, a true believer in Aztlan's magical tradition. Will deal with Awakened runners who demonstrate genuine respect for the tradition, provided they don't ask her to work against the corp.",
       "attributes": {
         "body": 2,
         "agility": 3,
@@ -2660,7 +2660,7 @@
       "augmentations": [],
       "gear": [
         {
-          "name": "Sustaining Focus \u00e2\u20ac\u201d Manipulation (Rating 3)",
+          "name": "Sustaining Focus â€” Manipulation (Rating 3)",
           "qty": 1
         },
         {
@@ -2678,7 +2678,7 @@
         "Talismonger Network (Aztlan-sourced)",
         "Spirit Identification & Banishment Advice"
       ],
-      "notes": "Will not assist in anything that directly targets Aztechnology. Awakened runners who approach with respect for Aztlan tradition will find her more forthcoming than expected. Particularly useful for runners navigating magically-secured sites \u00e2\u20ac\u201d she knows what wards and spirits are deployed in Seattle and can advise without revealing corp-proprietary specifics.",
+      "notes": "Will not assist in anything that directly targets Aztechnology. Awakened runners who approach with respect for Aztlan tradition will find her more forthcoming than expected. Particularly useful for runners navigating magically-secured sites â€” she knows what wards and spirits are deployed in Seattle and can advise without revealing corp-proprietary specifics.",
       "title": "Ritual Site Warden"
     },
     {
@@ -2690,7 +2690,7 @@
       "gender": "Male",
       "age": 23,
       "description": "Wiry and manic, face painted in a permanent clown smile with burn scars underneath that tell a different story. Wears a patchwork Halloween costume jacket over ballistic mesh. Always smells faintly of accelerant.",
-      "background": "Grew up in the Redmond Barrens and found the Halloweeners at fifteen \u00e2\u20ac\u201d not for protection, but because he liked fire. Made himself indispensable as the gang's go-to for anything that needs to burn. The handle comes from a datajack tattoo behind his ear and a habit of texting targets a burning clown emoji before a job. Connected enough to know who's selling what in Redmond; paranoid enough to still be alive.",
+      "background": "Grew up in the Redmond Barrens and found the Halloweeners at fifteen â€” not for protection, but because he liked fire. Made himself indispensable as the gang's go-to for anything that needs to burn. The handle comes from a datajack tattoo behind his ear and a habit of texting targets a burning clown emoji before a job. Connected enough to know who's selling what in Redmond; paranoid enough to still be alive.",
       "attributes": {
         "body": 3,
         "agility": 4,
@@ -2763,7 +2763,7 @@
         "Halloweener Gang Access",
         "Arson for Hire"
       ],
-      "notes": "Useful for runners operating in Redmond who need local street knowledge, untraceable incendiary materials, or a distraction that involves something burning. Unreliable under pressure \u00e2\u20ac\u201d loyalty is to the gang and to chaos, in that order. Do not invite him to meetings in buildings you like.",
+      "notes": "Useful for runners operating in Redmond who need local street knowledge, untraceable incendiary materials, or a distraction that involves something burning. Unreliable under pressure â€” loyalty is to the gang and to chaos, in that order. Do not invite him to meetings in buildings you like.",
       "title": "Halloweener Enforcer"
     },
     {
@@ -2775,7 +2775,7 @@
       "gender": "Male",
       "age": 42,
       "description": "Broad-shouldered, expensive suit, handshake like a vice. Smiles easily. The smile never fully reaches his eyes.",
-      "background": "Runs deniable operations out of the Ares Seattle tower. Routes shadow contracts through cutouts so clean they're almost art. Razor owes him a favor from a black op gone sideways \u00e2\u20ac\u201d Graves pulled strings to make the incident disappear. He hasn't called it in yet.",
+      "background": "Runs deniable operations out of the Ares Seattle tower. Routes shadow contracts through cutouts so clean they're almost art. Razor owes him a favor from a black op gone sideways â€” Graves pulled strings to make the incident disappear. He hasn't called it in yet.",
       "attributes": {
         "body": 3,
         "agility": 3,
@@ -2856,7 +2856,7 @@
       "race": "Human",
       "gender": "Female",
       "age": 31,
-      "description": "Sharp, quiet, always slightly distracted \u00e2\u20ac\u201d like part of her attention is somewhere else entirely. Usually is. Wears a datajack she doesn't hide.",
+      "description": "Sharp, quiet, always slightly distracted â€” like part of her attention is somewhere else entirely. Usually is. Wears a datajack she doesn't hide.",
       "background": "Assigned to SCIRE Arcology network infrastructure. Senior enough to know the architecture of the lower system levels. Stopped asking questions about what runs there two years ago. The questions stopped on their own after that.",
       "attributes": {
         "body": 2,
@@ -2932,7 +2932,7 @@
         "Matrix Infrastructure Access",
         "Corporate System Vulnerabilities"
       ],
-      "notes": "Will cooperate if approached carefully with evidence she's not being monitored. Afraid of the lower Arcology levels \u00e2\u20ac\u201d will not discuss them directly, but has been known to leave files in accessible locations. The things she knows about the SCIRE's subsystems are not things she chose to learn.",
+      "notes": "Will cooperate if approached carefully with evidence she's not being monitored. Afraid of the lower Arcology levels â€” will not discuss them directly, but has been known to leave files in accessible locations. The things she knows about the SCIRE's subsystems are not things she chose to learn.",
       "title": "Corporate Decker"
     },
     {
@@ -2944,7 +2944,7 @@
       "gender": "Male",
       "age": 51,
       "description": "Formal to the point of rigidity. Impeccable suit, perfect posture, records every meeting. Has been in Seattle for twelve years and shows no sign of leaving.",
-      "background": "Lofwyr's eyes and voice in Seattle. Conveys decisions rather than making them \u00e2\u20ac\u201d a distinction he maintains with great precision. There is a standing rumor that he is under Lofwyr's direct personal surveillance at all times. He neither confirms nor denies it.",
+      "background": "Lofwyr's eyes and voice in Seattle. Conveys decisions rather than making them â€” a distinction he maintains with great precision. There is a standing rumor that he is under Lofwyr's direct personal surveillance at all times. He neither confirms nor denies it.",
       "attributes": {
         "body": 3,
         "agility": 3,
@@ -3025,8 +3025,8 @@
       "race": "Human",
       "gender": "Female",
       "age": 34,
-      "description": "Compact, alert, tactical armor always within reach. Commands without raising her voice. Holds genuine contempt for Lone Star's institutional corruption \u00e2\u20ac\u201d doesn't hide it.",
-      "background": "Commands Knight Errant's Bellevue corporate sector rapid response unit. Has passed documented misconduct intel on Lone Star to Ares oversight \u00e2\u20ac\u201d twice. Loathes Hargrove specifically. Will cooperate with runners when it serves KE or Ares interests, provided they stay out of her jurisdiction.",
+      "description": "Compact, alert, tactical armor always within reach. Commands without raising her voice. Holds genuine contempt for Lone Star's institutional corruption â€” doesn't hide it.",
+      "background": "Commands Knight Errant's Bellevue corporate sector rapid response unit. Has passed documented misconduct intel on Lone Star to Ares oversight â€” twice. Loathes Hargrove specifically. Will cooperate with runners when it serves KE or Ares interests, provided they stay out of her jurisdiction.",
       "attributes": {
         "body": 4,
         "agility": 5,
@@ -3076,7 +3076,7 @@
           "grade": "alphaware"
         },
         {
-          "name": "Bone Lacing \u00e2\u20ac\u201c Aluminum",
+          "name": "Bone Lacing â€“ Aluminum",
           "rating": 1,
           "grade": "standard"
         }
@@ -3105,7 +3105,7 @@
         "Threat Assessment",
         "Arrest Record Intel"
       ],
-      "notes": "A useful ally when runner goals align with KE or Ares interests. Despises Hargrove personally \u00e2\u20ac\u201d mentioning him tends to open doors. Do not operate in Bellevue's corporate sector without her knowledge; she will find out and she will remember.",
+      "notes": "A useful ally when runner goals align with KE or Ares interests. Despises Hargrove personally â€” mentioning him tends to open doors. Do not operate in Bellevue's corporate sector without her knowledge; she will find out and she will remember.",
       "title": "Field Commander"
     },
     {
@@ -3116,7 +3116,7 @@
       "race": "Human",
       "gender": "Male",
       "age": 44,
-      "description": "Unhurried and precise. Missing the tip of his left pinky \u00e2\u20ac\u201d the cut was his own choice, years ago. Speaks quietly. Everyone in the room listens.",
+      "description": "Unhurried and precise. Missing the tip of his left pinky â€” the cut was his own choice, years ago. Speaks quietly. Everyone in the room listens.",
       "background": "Effectively runs the Watada-rengo's day-to-day Seattle operations. The arrangement with Hargrove goes through his desk. Has survived three oyabun transitions by being the man no one could afford to replace.",
       "attributes": {
         "body": 3,
@@ -3186,7 +3186,7 @@
         "Loan & Debt Collection Contacts",
         "Police Arrangement Access"
       ],
-      "notes": "Runners who deliver cleanly will be received professionally and paid accurately. Those who fail, talk, or embarrass the organization will not be received again \u00e2\u20ac\u201d in any sense of the word. The Hargrove arrangement is not something he discusses.",
+      "notes": "Runners who deliver cleanly will be received professionally and paid accurately. Those who fail, talk, or embarrass the organization will not be received again â€” in any sense of the word. The Hargrove arrangement is not something he discusses.",
       "title": "Yakuza Underboss"
     },
     {
@@ -3198,7 +3198,7 @@
       "gender": "Male",
       "age": 52,
       "description": "Big, loud, third-generation Seattle Italian. Runs his operation out of a waterfront restaurant he legitimately owns. The food is excellent. The back room is not a restaurant.",
-      "background": "Controls the Tacoma docks operation \u00e2\u20ac\u201d cargo movement, union intimidation, loan-sharking across the south end. Not subtle about any of it. Maintains an uneasy territorial truce with the Yakuza that holds as long as no one tests it.",
+      "background": "Controls the Tacoma docks operation â€” cargo movement, union intimidation, loan-sharking across the south end. Not subtle about any of it. Maintains an uneasy territorial truce with the Yakuza that holds as long as no one tests it.",
       "attributes": {
         "body": 5,
         "agility": 3,
@@ -3261,7 +3261,7 @@
         "Muscle for Hire",
         "Criminal Record Suppression (Local)"
       ],
-      "notes": "Useful for moving freight through the port without inspection. Do not simultaneously work for him and the Yakuza \u00e2\u20ac\u201d word gets around and he takes it personally. Not subtle; not patient; entirely reliable as long as you treat him with appropriate respect.",
+      "notes": "Useful for moving freight through the port without inspection. Do not simultaneously work for him and the Yakuza â€” word gets around and he takes it personally. Not subtle; not patient; entirely reliable as long as you treat him with appropriate respect.",
       "title": "Mafia Capo"
     },
     {
@@ -3272,8 +3272,8 @@
       "race": "Human",
       "gender": "Female",
       "age": 29,
-      "description": "Hong Kong-born, moves like she's always half a second ahead of the room. Red Dragon tattoo on her right forearm \u00e2\u20ac\u201d visible, not hidden. Manages the Association's Chinatown and Downtown gambling interests.",
-      "background": "Handles both enforcement and negotiation for the Red Dragon Association's Seattle operations. The combination is deliberate \u00e2\u20ac\u201d she closes deals or she closes people, depending on what the situation requires. Maintains strict professional standards and expects them in return.",
+      "description": "Hong Kong-born, moves like she's always half a second ahead of the room. Red Dragon tattoo on her right forearm â€” visible, not hidden. Manages the Association's Chinatown and Downtown gambling interests.",
+      "background": "Handles both enforcement and negotiation for the Red Dragon Association's Seattle operations. The combination is deliberate â€” she closes deals or she closes people, depending on what the situation requires. Maintains strict professional standards and expects them in return.",
       "attributes": {
         "body": 4,
         "agility": 6,
@@ -3347,7 +3347,7 @@
         "Smuggling Routes (Pacific Rim)",
         "Triad Mediation Access"
       ],
-      "notes": "Meet the Association's professional standards or don't contact her. Will not deal with anyone associated with the Seoulpa Rings \u00e2\u20ac\u201d treat this as a hard constraint, not a preference. Pacific Rim smuggling routes she controls are not available through any other Seattle contact.",
+      "notes": "Meet the Association's professional standards or don't contact her. Will not deal with anyone associated with the Seoulpa Rings â€” treat this as a hard constraint, not a preference. Pacific Rim smuggling routes she controls are not available through any other Seattle contact.",
       "title": "Triad Enforcer"
     },
     {
@@ -3358,8 +3358,8 @@
       "race": "Human",
       "gender": "Female",
       "age": 33,
-      "description": "Doesn't use her real name professionally \u00e2\u20ac\u201d Park Ji-Young is for paperwork she makes herself. Operates out of the International District. Always knows two exits.",
-      "background": "Specializes in moving people and goods without documentation. Survives by maintaining careful neutrality in the ongoing Yakuza/Triad territorial conflict \u00e2\u20ac\u201d she works around it, not inside it. Has kept the same comm code for six years, which is a long time in her line of work.",
+      "description": "Doesn't use her real name professionally â€” Park Ji-Young is for paperwork she makes herself. Operates out of the International District. Always knows two exits.",
+      "background": "Specializes in moving people and goods without documentation. Survives by maintaining careful neutrality in the ongoing Yakuza/Triad territorial conflict â€” she works around it, not inside it. Has kept the same comm code for six years, which is a long time in her line of work.",
       "attributes": {
         "body": 2,
         "agility": 4,
@@ -3440,7 +3440,7 @@
       "gender": "Male",
       "age": 31,
       "description": "Scarred, wiry, always has a blade within reach and usually two he hasn't mentioned. Grew up three blocks from Razor. Treats that history as currency.",
-      "background": "Works the Puyallup/Barrens border for the Cutters. Razor's standing contact within the gang \u00e2\u20ac\u201d they came up in the same neighborhood, which counts for something in both directions. Has held the lieutenant position for four years by being the one who shows up when things go wrong.",
+      "background": "Works the Puyallup/Barrens border for the Cutters. Razor's standing contact within the gang â€” they came up in the same neighborhood, which counts for something in both directions. Has held the lieutenant position for four years by being the one who shows up when things go wrong.",
       "attributes": {
         "body": 4,
         "agility": 5,
@@ -3510,7 +3510,7 @@
         "Stolen Goods (Mid-Range)",
         "Muscle on Short Notice"
       ],
-      "notes": "Razor's in with the Cutters runs through Kowalski. Transactional but reliable \u00e2\u20ac\u201d he delivers what he promises and expects the same. Can arrange short-notice safe houses south of the Barrens. Don't bring him into anything that crosses the Cutters' interests.",
+      "notes": "Razor's in with the Cutters runs through Kowalski. Transactional but reliable â€” he delivers what he promises and expects the same. Can arrange short-notice safe houses south of the Barrens. Don't bring him into anything that crosses the Cutters' interests.",
       "title": "Gang Lieutenant"
     },
     {
@@ -3521,8 +3521,8 @@
       "race": "Ork",
       "gender": "Male",
       "age": 38,
-      "description": "Built like a structural wall, moves like he knows it. Born in the Ork Underground. Speaks slowly and carefully \u00e2\u20ac\u201d learned early that orks who talk fast get ignored.",
-      "background": "Leads the Crimson Crush with deep roots in both Redmond and the Underground community. Deeply loyal to the ork community across surface and underground \u00e2\u20ac\u201d ork solidarity is not rhetoric to him. Has kept the Crush viable through two turf wars by knowing when to fight and when to wait.",
+      "description": "Built like a structural wall, moves like he knows it. Born in the Ork Underground. Speaks slowly and carefully â€” learned early that orks who talk fast get ignored.",
+      "background": "Leads the Crimson Crush with deep roots in both Redmond and the Underground community. Deeply loyal to the ork community across surface and underground â€” ork solidarity is not rhetoric to him. Has kept the Crush viable through two turf wars by knowing when to fight and when to wait.",
       "attributes": {
         "body": 8,
         "agility": 4,
@@ -3558,7 +3558,7 @@
       ],
       "augmentations": [
         {
-          "name": "Bone Lacing \u00e2\u20ac\u201c Titanium",
+          "name": "Bone Lacing â€“ Titanium",
           "rating": 1,
           "grade": "standard"
         }
@@ -3587,7 +3587,7 @@
         "Gang Territory Safe Passage",
         "Community Resources (Medical & Shelter)"
       ],
-      "notes": "Will not deal with runners who treat orks as tools or beneath consideration. Those who show genuine respect will find him reliable for street intel and no-questions-asked safe harbor. Hostile relationship with J0k3r and the Halloweeners \u00e2\u20ac\u201d the Crush and Halloweeners are territorial enemies in Redmond. Can provide introductions to Underground leadership for runners who earn it.",
+      "notes": "Will not deal with runners who treat orks as tools or beneath consideration. Those who show genuine respect will find him reliable for street intel and no-questions-asked safe harbor. Hostile relationship with J0k3r and the Halloweeners â€” the Crush and Halloweeners are territorial enemies in Redmond. Can provide introductions to Underground leadership for runners who earn it.",
       "title": "Gang Leader"
     },
     {
@@ -3674,7 +3674,7 @@
       "race": "Human",
       "gender": "Male",
       "age": 54,
-      "description": "Well-dressed, silver-tongued, always on message. Bellevue city council member. Humanis's most visible elected face in Seattle. Believes his own rhetoric \u00e2\u20ac\u201d which makes him considerably more dangerous than the cynical operatives around him.",
+      "description": "Well-dressed, silver-tongued, always on message. Bellevue city council member. Humanis's most visible elected face in Seattle. Believes his own rhetoric â€” which makes him considerably more dangerous than the cynical operatives around him.",
       "background": "Publicly advocates metahuman accountability legislation. Privately funds street-level intimidation campaigns and provides Humanis with political cover. Has survived two corruption investigations through community support and careful paperwork.",
       "attributes": {
         "body": 2,
@@ -3734,7 +3734,7 @@
         "Anti-Metahuman Org Networks",
         "City Council Procedural Access"
       ],
-      "notes": "Useful only for runners willing to work alongside a genuine ideologue, or for those running operations against Humanis. Metahuman runners who meet with him should assume the meeting will be reported to Humanis street operators if anything goes wrong. He is not performing \u00e2\u20ac\u201d he means it.",
+      "notes": "Useful only for runners willing to work alongside a genuine ideologue, or for those running operations against Humanis. Metahuman runners who meet with him should assume the meeting will be reported to Humanis street operators if anything goes wrong. He is not performing â€” he means it.",
       "title": "Political Operative"
     },
     {
@@ -3745,7 +3745,7 @@
       "race": "Dwarf",
       "gender": "Male",
       "age": 58,
-      "description": "Stocky, silver-haired, perpetually scowling. Twenty years in Lone Star. Knows where every body is buried \u00e2\u20ac\u201d including several, literally.",
+      "description": "Stocky, silver-haired, perpetually scowling. Twenty years in Lone Star. Knows where every body is buried â€” including several, literally.",
       "background": "Rose through Lone Star's ranks during the corp's prime. Now managing decline while keeping his own hands clean enough. Maintains quiet relationships with organized crime that have long since compromised his integrity. Razor knows enough to be a problem. He tips Razor off occasionally in exchange for silence, but the arrangement is entirely transactional.",
       "attributes": {
         "body": 5,
@@ -3788,7 +3788,7 @@
         "Warrant Delays",
         "Crime Scene Access"
       ],
-      "notes": "Has standing arrangements with the Yakuza's Watada-rengo. His private node (LST-DIR1) contains enough to end careers \u00e2\u20ac\u201d including his own. Razor worked under him briefly and knows too much for Hargrove's comfort.",
+      "notes": "Has standing arrangements with the Yakuza's Watada-rengo. His private node (LST-DIR1) contains enough to end careers â€” including his own. Razor worked under him briefly and knows too much for Hargrove's comfort.",
       "title": "Lone Star Director"
     }
   ],

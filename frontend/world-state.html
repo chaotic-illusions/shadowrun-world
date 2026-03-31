@@ -595,7 +595,7 @@ function buildLTGContent(org) {
             ${h.id_code ? `<span class="p-sep"> [</span><span class="p-idcode">${esc(h.id_code)}</span><span class="p-sep">]</span>` : ''}
           </div>
           <div class="ltg-desc">${esc(h.description || '')}</div>
-          <div class="ltg-rating ${ratingClass(h.host_rating)}">${esc(h.host_rating || 'UNRATED')}</div>
+          <div class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating || 'UNRATED')}</div>
           ${h.notes ? `<div class="ltg-host-notes">${esc(h.notes)}</div>` : ''}
         </div>
         <div class="ltg-vis v-${h.visibility || 'listed'}">${h.visibility || 'listed'}</div>
@@ -1203,13 +1203,13 @@ function oeAddHost(data) {
   const ltgCode    = data?.ltg || oeGenerateLTG();
   const defaultRTG = data?.rtg ?? OE_DEFAULT_RTG;
   const selVis    = OE_VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
-  const selRating = OE_RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
+  const selRating = OE_RATING_OPTS.replace(`value="${data?.san_access_rating||''}"`, `value="${data?.san_access_rating||''}" selected`);
   tr.innerHTML = `
     <td><select data-field="rtg" style="min-width:160px">${oeBuildRTGOptions(defaultRTG)}</select></td>
     <td><input type="text" data-field="ltg" value="${esc(ltgCode)}" style="width:70px;color:var(--text-dim)" readonly title="Auto-generated LTG code"></td>
     <td><input type="text" placeholder="ID001" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:105px"></td>
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
-    <td><select data-field="host_rating" style="width:110px">${selRating}</select></td>
+    <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
     <td><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',7)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
@@ -1240,11 +1240,11 @@ function oeGetLTGs() {
   const telecoms = oeGetTableData('oeTelecomBody', 'oeEmptyTelecom', ['number','description','visibility'])
     .map(t => ({ type:'telecom', ...t }))
     .sort((a,b) => (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9));
-  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','host_rating','visibility'])
+  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility'])
     .map(h => ({ type:'matrix_host', ...h }))
     .sort((a,b) => {
       const vd = (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9);
-      return vd !== 0 ? vd : oeRatingSort(a.host_rating) - oeRatingSort(b.host_rating);
+      return vd !== 0 ? vd : oeRatingSort(a.san_access_rating) - oeRatingSort(b.san_access_rating);
     });
   return [...telecoms, ...hosts];
 }
