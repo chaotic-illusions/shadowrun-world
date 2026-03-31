@@ -1,6 +1,6 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,6 +12,8 @@ from app.routers import (
     characters, contacts, locations, organizations,
     reputation, adventure_logs, house_rules, consequences, rtgs,
 )
+from app.routers import auth as auth_router
+from app.auth.dependencies import get_any_token
 
 
 @asynccontextmanager
@@ -36,18 +38,23 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Admin-Token", "X-User-Token"],
 )
 
-app.include_router(characters.router,     prefix="/characters",   tags=["Characters"])
-app.include_router(contacts.router,       prefix="/contacts",     tags=["Contacts"])
-app.include_router(locations.router,      prefix="/locations",    tags=["Locations"])
-app.include_router(organizations.router,  prefix="/organizations",tags=["Organizations"])
-app.include_router(reputation.router,     prefix="/reputation",   tags=["Reputation"])
-app.include_router(adventure_logs.router, prefix="/runs",         tags=["Adventure Logs"])
-app.include_router(house_rules.router,    prefix="/house-rules",  tags=["House Rules"])
-app.include_router(consequences.router,   prefix="/consequences", tags=["Consequence Engine"])
-app.include_router(rtgs.router,           prefix="/rtgs",         tags=["RTGs"])
+# Auth routes are unprotected (verify, set-password handle their own validation)
+app.include_router(auth_router.router, prefix="/auth", tags=["Auth"])
+
+# All world-data routes require a valid token (admin or user)
+_auth = [Depends(get_any_token)]
+app.include_router(characters.router,     prefix="/characters",    tags=["Characters"],        dependencies=_auth)
+app.include_router(contacts.router,       prefix="/contacts",      tags=["Contacts"],           dependencies=_auth)
+app.include_router(locations.router,      prefix="/locations",     tags=["Locations"],          dependencies=_auth)
+app.include_router(organizations.router,  prefix="/organizations", tags=["Organizations"],      dependencies=_auth)
+app.include_router(reputation.router,     prefix="/reputation",    tags=["Reputation"],         dependencies=_auth)
+app.include_router(adventure_logs.router, prefix="/runs",          tags=["Adventure Logs"],     dependencies=_auth)
+app.include_router(house_rules.router,    prefix="/house-rules",   tags=["House Rules"],        dependencies=_auth)
+app.include_router(consequences.router,   prefix="/consequences",  tags=["Consequence Engine"], dependencies=_auth)
+app.include_router(rtgs.router,           prefix="/rtgs",          tags=["RTGs"],               dependencies=_auth)
 
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 

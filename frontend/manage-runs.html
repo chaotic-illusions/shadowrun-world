@@ -222,6 +222,11 @@
 
 <script>
 const API = '';
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
+}
 let parsedData = null;
 let allChars = [], allLocs = [], allOrgs = [];
 
@@ -265,7 +270,7 @@ async function parseNarrative() {
   document.getElementById('parseResults').style.display = 'none';
 
   try {
-    const res = await fetch(`${API}/runs/parse-narrative`, {
+    const res = await apiFetch(`${API}/runs/parse-narrative`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ narrative }),
@@ -347,7 +352,7 @@ async function applyAndLog() {
   // Apply world changes
   if (changesApplied.length) {
     try {
-      const res = await fetch(`${API}/runs/apply-changes`, {
+      const res = await apiFetch(`${API}/runs/apply-changes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ changes: changesApplied }),
@@ -387,7 +392,7 @@ async function applyAndLog() {
   };
 
   try {
-    const res = await fetch(`${API}/runs/`, {
+    const res = await apiFetch(`${API}/runs/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -435,7 +440,7 @@ async function submitManual() {
     org_ids:         getChecked('m-orgs'),
   };
   try {
-    const r = await fetch(`${API}/runs/`, {
+    const r = await apiFetch(`${API}/runs/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -523,7 +528,7 @@ async function toggleRunDetail(id) {
   }
   detail.innerHTML = '<div style="color:var(--text-dim);font-size:.75rem;letter-spacing:1px">Loading...</div>';
   try {
-    const res = await fetch(`${API}/runs/${id}`);
+    const res = await apiFetch(`${API}/runs/${id}`);
     if (!res.ok) throw new Error(res.statusText);
     const run = await res.json();
     _detailCache[id] = buildRunDetail(run);
@@ -561,7 +566,7 @@ function renderRuns(runs) {
 
 async function loadRuns() {
   try {
-    const res = await fetch(`${API}/runs/`);
+    const res = await apiFetch(`${API}/runs/`);
     renderRuns(await res.json());
   } catch(e) {
     document.getElementById('runsList').innerHTML =
@@ -573,7 +578,7 @@ async function loadRuns() {
 async function loadWorldData() {
   try {
     const [cr, lr, or_] = await Promise.all([
-      fetch(`${API}/characters/`), fetch(`${API}/locations/`), fetch(`${API}/organizations/`),
+      apiFetch(`${API}/characters/`), apiFetch(`${API}/locations/`), apiFetch(`${API}/organizations/`),
     ]);
     allChars = await cr.json();
     allLocs  = await lr.json();
@@ -592,8 +597,7 @@ async function loadWorldData() {
 document.getElementById('ai-date').value  = today();
 document.getElementById('m-date').value   = today();
 setMode('ai');
-loadRuns();
-loadWorldData();
+bootstrapAuth().then(u => { if (u) { loadRuns(); loadWorldData(); } });
 </script>
 </body>
 </html>
