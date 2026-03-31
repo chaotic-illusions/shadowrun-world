@@ -7,7 +7,7 @@ class RTGBase(BaseModel):
     region: str
     political_entity: Optional[str] = None
     continent: Optional[str] = None
-    host_rating: Optional[str] = None
+    rtg_security_rating: Optional[str] = None
     canonical: bool = True
     notes: Optional[str] = None
 
@@ -20,7 +20,7 @@ class RTGUpdate(BaseModel):
     region: Optional[str] = None
     political_entity: Optional[str] = None
     continent: Optional[str] = None
-    host_rating: Optional[str] = None
+    rtg_security_rating: Optional[str] = None
     canonical: Optional[bool] = None
     notes: Optional[str] = None
 

@@ -186,7 +186,7 @@
         <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table" id="hostTable">
-            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>Rating</th><th>Visibility</th><th></th></tr></thead>
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th></th></tr></thead>
             <tbody id="hostBody">
               <tr id="emptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr>
             </tbody>
@@ -231,12 +231,11 @@ const VIS_OPTS = `
   <option value="black">Black</option>`;
 
 const RATING_OPTS = `
-  <option value="">— Unrated —</option>
   <option value="Blue-3">Blue-3</option>
-  <option value="Green-3">Green-3</option><option value="Green-4">Green-4</option><option value="Green-5">Green-5</option>
-  <option value="Orange-4">Orange-4</option><option value="Orange-5">Orange-5</option><option value="Orange-6">Orange-6</option><option value="Orange-8">Orange-8</option>
-  <option value="Red-5">Red-5</option><option value="Red-6">Red-6</option><option value="Red-8">Red-8</option><option value="Red-9">Red-9</option>
-  <option value="Black-6">Black-6</option><option value="Black-8">Black-8</option><option value="Black-9">Black-9</option><option value="Black-10">Black-10</option>`;
+  <option value="Green-4">Green-4</option><option value="Green-5">Green-5</option><option value="Green-6">Green-6</option><option value="Green-8">Green-8</option>
+  <option value="Orange-5">Orange-5</option><option value="Orange-6">Orange-6</option><option value="Orange-8">Orange-8</option><option value="Orange-9">Orange-9</option>
+  <option value="Red-6">Red-6</option><option value="Red-8">Red-8</option><option value="Red-9">Red-9</option><option value="Red-10">Red-10</option>
+  <option value="Black-8">Black-8</option><option value="Black-9">Black-9</option><option value="Black-10">Black-10</option><option value="Black-11">Black-11</option><option value="Black-12">Black-12</option>`;
 
 function fmtType(s) {
   return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
