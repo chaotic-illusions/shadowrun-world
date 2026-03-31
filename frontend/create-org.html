@@ -351,13 +351,13 @@ function addHost(data) {
   const ltgCode    = data?.ltg || generateLTG();
   const defaultRTG = data?.rtg ?? DEFAULT_RTG;
   const selVis    = VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
-  const selRating = RATING_OPTS.replace(`value="${data?.host_rating||''}"`, `value="${data?.host_rating||''}" selected`);
+  const selRating = RATING_OPTS.replace(`value="${data?.san_access_rating||''}"`, `value="${data?.san_access_rating||''}" selected`);
   tr.innerHTML = `
     <td><select data-field="rtg" style="min-width:160px">${buildRTGOptions(defaultRTG)}</select></td>
     <td><input type="text" data-field="ltg" value="${esc(ltgCode)}" style="width:70px;color:var(--text-dim)" readonly title="Auto-generated unique LTG code"></td>
     <td><input type="text" placeholder="ID001" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:105px"></td>
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
-    <td><select data-field="host_rating" style="width:110px">${selRating}</select></td>
+    <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
     <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
@@ -395,11 +395,11 @@ function getLTGs() {
   const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility'])
     .map(t => ({ type: 'telecom', ...t }))
     .sort((a, b) => (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9));
-  const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','host_rating','visibility'])
+  const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility'])
     .map(h => ({ type: 'matrix_host', ...h }))
     .sort((a, b) => {
       const vd = (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9);
-      return vd !== 0 ? vd : ratingSort(a.host_rating) - ratingSort(b.host_rating);
+      return vd !== 0 ? vd : ratingSort(a.san_access_rating) - ratingSort(b.san_access_rating);
     });
   return [...telecoms, ...hosts];
 }

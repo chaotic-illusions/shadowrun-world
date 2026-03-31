@@ -11,7 +11,7 @@ class OrganizationBase(BaseModel):
     leadership: list[dict[str, Any]] = []
     # Each entry is one of:
     #   telecom:     {type, number, description, visibility}
-    #   matrix_host: {type, rtg, ltg, id_code, description, visibility, host_rating, notes?}
+    #   matrix_host: {type, rtg, ltg, id_code, description, visibility, san_access_rating, notes?}
     ltgs: list[dict[str, Any]] = []
     ally_ids: list[int] = []
     enemy_ids: list[int] = []
