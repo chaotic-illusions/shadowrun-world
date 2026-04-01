@@ -62,13 +62,14 @@
           <label>Name *</label>
           <input type="text" id="f-name" placeholder="Razor, Static...">
         </div>
-        <div class="field">
+        <div class="field" id="f-title-wrap">
           <label>Title *</label>
           <input type="text" id="f-title" placeholder="Yakuza Underboss, Corporate Decker..." required>
         </div>
         <div class="field">
-          <label>Archetype</label>
+          <label>Archetype *</label>
           <select id="f-archetype" onchange="onArchetypeChange()">
+            <option value="">— Select Archetype —</option>
             <optgroup label="── Runners ──">
               <option value="Street Samurai">Street Samurai</option>
               <option value="Decker">Decker</option>
@@ -81,7 +82,7 @@
               <option value="Infiltrator">Infiltrator</option>
               <option value="Combat Mage">Combat Mage</option>
             </optgroup>
-            <optgroup label="── Street / Underworld ──">
+            <optgroup label="── Street / Underworld ──" class="npc-only">
               <option value="Fixer">Fixer</option>
               <option value="Ganger">Ganger</option>
               <option value="Gang Boss">Gang Boss</option>
@@ -93,7 +94,7 @@
               <option value="Street Doc">Street Doc</option>
               <option value="Tribesman">Tribesman</option>
             </optgroup>
-            <optgroup label="── Corporate / Authority ──">
+            <optgroup label="── Corporate / Authority ──" class="npc-only">
               <option value="Corporate Security">Corporate Security</option>
               <option value="Corporate Executive">Corporate Executive</option>
               <option value="Company Man">Company Man</option>
@@ -162,6 +163,17 @@
         <select id="f-organization_id">
           <option value="">— Independent / Unknown —</option>
         </select>
+      </div>
+
+      <!-- PC Reputation -->
+      <div id="pcRepSection" style="display:none">
+        <hr class="rule" style="margin:14px 0">
+        <div class="section-head" style="margin-bottom:12px">Reputation <span style="font-size:0.6rem;color:var(--text-dim);letter-spacing:1px">// PC ONLY</span></div>
+        <div class="grid3" style="margin-bottom:14px">
+          <div class="field"><label>Street Cred</label><input type="number" id="f-street_cred" min="0" placeholder="0"></div>
+          <div class="field"><label>Notoriety</label><input type="number" id="f-notoriety" min="0" placeholder="0"></div>
+          <div class="field"><label>Public Awareness</label><input type="number" id="f-public_awareness" min="0" placeholder="0"></div>
+        </div>
       </div>
 
       <!-- NPC Contact Profile -->
@@ -256,6 +268,10 @@ const PREDEFINED_ARCHETYPES = [
 function onArchetypeChange() {
   const val = document.getElementById('f-archetype').value;
   document.getElementById('f-archetype-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+  // For PCs, auto-copy archetype to the hidden title field
+  if (document.getElementById('f-is_pc').checked && val && val !== 'Custom') {
+    document.getElementById('f-title').value = val;
+  }
 }
 
 function updateConnDesc() {
@@ -272,10 +288,32 @@ function showAlert(el, msg, isErr) {
   el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
 }
 
+const RUNNER_ARCHETYPES = new Set([
+  'Street Samurai','Decker','Mage','Shaman','Rigger','Face','Adept',
+  'Weapons Specialist','Infiltrator','Combat Mage','Custom',
+]);
+
 function updatePCLabel() {
   const isPC = document.getElementById('f-is_pc').checked;
   document.getElementById('pcLabel').textContent = isPC ? 'PC // Runner' : 'NPC';
-  document.getElementById('npcSection').style.display = isPC ? 'none' : '';
+  document.getElementById('npcSection').style.display   = isPC ? 'none' : '';
+  document.getElementById('f-title-wrap').style.display = isPC ? 'none' : '';
+  document.getElementById('pcRepSection').style.display = isPC ? '' : 'none';
+
+  // Show/hide NPC-only archetype groups
+  document.querySelectorAll('#f-archetype .npc-only').forEach(g => {
+    g.style.display = isPC ? 'none' : '';
+  });
+
+  // If switching to PC and a non-runner archetype is selected, reset to first runner
+  if (isPC) {
+    const archSel = document.getElementById('f-archetype');
+    if (!RUNNER_ARCHETYPES.has(archSel.value)) {
+      archSel.value = 'Street Samurai';
+      document.getElementById('f-title').value = 'Street Samurai';
+      document.getElementById('f-archetype-custom-wrap').style.display = 'none';
+    }
+  }
 }
 
 // ── Render table ──────────────────────────────────────────────
@@ -325,7 +363,7 @@ function applyFilter() {
 }
 
 // ── Modal ─────────────────────────────────────────────────────
-function openModal(id) {
+async function openModal(id) {
   editingId = id || null;
   const ch = id ? allChars.find(c => c.id === id) : null;
   document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Character';
@@ -358,6 +396,19 @@ function openModal(id) {
   document.getElementById('f-connection').value = ch?.connection ?? 1;
   updateConnDesc();
   document.getElementById('addLinkForm').style.display = 'none';
+
+  // Load reputation for existing PCs
+  let repRecord = null;
+  if (editingId && ch?.is_pc !== false) {
+    try {
+      const repRes = await apiFetch(`${API}/reputation/?character_id=${editingId}`);
+      if (repRes.ok) { const reps = await repRes.json(); repRecord = reps[0] || null; }
+    } catch(e) {}
+  }
+  document.getElementById('f-street_cred').value      = repRecord?.street_cred      ?? 0;
+  document.getElementById('f-notoriety').value         = repRecord?.notoriety         ?? 0;
+  document.getElementById('f-public_awareness').value  = repRecord?.public_awareness  ?? 0;
+
   updatePCLabel();
   renderContactLinks();
 
@@ -378,22 +429,26 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 async function saveChar() {
   const name  = document.getElementById('f-name').value.trim();
-  const title = document.getElementById('f-title').value.trim();
-  if (!name)  { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
-  if (!title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
+  const isPC  = document.getElementById('f-is_pc').checked;
+  if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
 
-  const isPC = document.getElementById('f-is_pc').checked;
-  const orgVal = document.getElementById('f-organization_id').value;
-  const skillsRaw = document.getElementById('f-contact_skills').value;
   let archetypeVal = document.getElementById('f-archetype').value;
   if (archetypeVal === 'Custom') {
     archetypeVal = document.getElementById('f-archetype-custom').value.trim() || null;
-  } else {
-    archetypeVal = archetypeVal || null;
+  } else if (archetypeVal === '') {
+    archetypeVal = null;
   }
+  if (!archetypeVal) { showAlert(document.getElementById('modalAlert'), 'Archetype is required.', true); return; }
+
+  // For PCs, title mirrors the archetype; for NPCs it's a freeform field
+  const title = isPC ? archetypeVal : document.getElementById('f-title').value.trim();
+  if (!isPC && !title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
+
+  const orgVal    = document.getElementById('f-organization_id').value;
+  const skillsRaw = document.getElementById('f-contact_skills').value;
   const payload = {
     name,
-    title:           document.getElementById('f-title').value.trim() || null,
+    title:           title || null,
     archetype:       archetypeVal,
     race:            document.getElementById('f-race').value || 'Human',
     gender:          document.getElementById('f-gender').value.trim() || null,
@@ -416,6 +471,25 @@ async function saveChar() {
       const err = await res.json().catch(() => ({detail: res.statusText}));
       throw new Error(err.detail || JSON.stringify(err));
     }
+    const savedChar = await res.json();
+    const savedId   = savedChar.id;
+
+    // Save reputation for PCs
+    if (isPC) {
+      const repData = {
+        street_cred:       parseInt(document.getElementById('f-street_cred').value)      || 0,
+        notoriety:         parseInt(document.getElementById('f-notoriety').value)         || 0,
+        public_awareness:  parseInt(document.getElementById('f-public_awareness').value)  || 0,
+      };
+      const repRes = await apiFetch(`${API}/reputation/?character_id=${savedId}`);
+      const reps   = repRes.ok ? await repRes.json() : [];
+      if (reps[0]) {
+        await apiFetch(`${API}/reputation/${reps[0].id}`, { method: 'PATCH', body: JSON.stringify(repData) });
+      } else {
+        await apiFetch(`${API}/reputation/`, { method: 'POST', body: JSON.stringify({ character_id: savedId, ...repData }) });
+      }
+    }
+
     closeModal();
     showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // "${name}" saved.`, false);
     await loadChars();
@@ -473,7 +547,7 @@ function renderContactLinks() {
         const owner = allChars.find(ch => ch.id === c.owner_id);
         return `<div class="promote-row">
           <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}</span>
-          <span class="promote-meta">Loyalty ${c.loyalty} &nbsp;|&nbsp; Connection ${c.connection}</span>
+          <span class="promote-meta">Loyalty <input type="number" min="1" max="6" value="${c.loyalty}" style="width:34px;display:inline-block;padding:0 2px;height:18px;font-size:0.7rem" onchange="patchContactLoyalty(${c.id},this.value)"> &nbsp;|&nbsp; Connection ${c.connection}</span>
           <button class="promote-remove" onclick="removeContactLinkFromForm(${c.id})" title="Remove">✕</button>
         </div>`;
       }).join('')
@@ -516,6 +590,13 @@ async function addContactLinkFromForm() {
   allContacts = await r.json();
   document.getElementById('addLinkForm').style.display = 'none';
   renderContactLinks();
+}
+
+async function patchContactLoyalty(contactId, rawVal) {
+  const n = Math.min(6, Math.max(1, parseInt(rawVal) || 1));
+  await apiFetch(`${API}/contacts/${contactId}`, { method: 'PATCH', body: JSON.stringify({loyalty: n}) });
+  const r = await apiFetch(`${API}/contacts/`);
+  allContacts = await r.json();
 }
 
 async function removeContactLinkFromForm(contactId) {
