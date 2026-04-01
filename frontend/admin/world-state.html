@@ -35,7 +35,7 @@
   </div>
 
   <div class="stat-bar" id="statBar">
-    <div class="stat-card stat-card-nav" onclick="toggleSection('pcs')" title="Toggle Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div class="stat-card stat-card-nav" onclick="expandAndScroll('pcs')" title="Jump to Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
       <div style="display:flex;gap:16px;align-items:center;justify-content:center">
         <div style="text-align:center">
           <div class="stat-num" id="sc-chars" style="font-size:1.8rem">—</div>
@@ -49,9 +49,9 @@
       </div>
       <div class="stat-lbl">Shadowrunners</div>
     </div>
-    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Toggle Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
-    <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Toggle Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
-    <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Toggle Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
+    <div class="stat-card stat-card-nav" onclick="expandContactsAndScroll()" title="Jump to Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="expandOrgsAndScroll()" title="Jump to Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
+    <div class="stat-card stat-card-nav" onclick="expandAndScroll('locs')" title="Jump to Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
   </div>
 
@@ -288,11 +288,12 @@
       <div id="ceAlert" class="alert"></div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
-        <div class="field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
+        <div class="field" id="ce-title-wrap"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
-        <div class="field"><label>Archetype</label>
+        <div class="field"><label>Archetype *</label>
           <select id="ce-archetype" onchange="onCeArchChange()">
+            <option value="">— Select Archetype —</option>
             <optgroup label="── Runners ──">
               <option value="Street Samurai">Street Samurai</option>
               <option value="Decker">Decker</option>
@@ -305,7 +306,7 @@
               <option value="Infiltrator">Infiltrator</option>
               <option value="Combat Mage">Combat Mage</option>
             </optgroup>
-            <optgroup label="── Street / Underworld ──">
+            <optgroup label="── Street / Underworld ──" class="npc-only">
               <option value="Fixer">Fixer</option>
               <option value="Ganger">Ganger</option>
               <option value="Gang Boss">Gang Boss</option>
@@ -316,7 +317,7 @@
               <option value="Bounty Hunter">Bounty Hunter</option>
               <option value="Street Doc">Street Doc</option>
             </optgroup>
-            <optgroup label="── Corporate / Authority ──">
+            <optgroup label="── Corporate / Authority ──" class="npc-only">
               <option value="Corporate Security">Corporate Security</option>
               <option value="Corporate Executive">Corporate Executive</option>
               <option value="Mr. Johnson">Mr. Johnson</option>
@@ -369,6 +370,15 @@
           <div class="field"><label>Current Karma</label><input type="number" id="ce-karma_current" min="0" placeholder="0"></div>
         </div>
       </div>
+      <div id="ceRepSection" style="display:none">
+        <hr class="rule" style="margin:14px 0">
+        <div class="section-head" style="margin-bottom:12px">Reputation <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
+        <div class="grid3" style="margin-bottom:14px">
+          <div class="field"><label>Street Cred</label><input type="number" id="ce-street_cred" min="0" placeholder="0"></div>
+          <div class="field"><label>Notoriety</label><input type="number" id="ce-notoriety" min="0" placeholder="0"></div>
+          <div class="field"><label>Public Awareness</label><input type="number" id="ce-public_awareness" min="0" placeholder="0"></div>
+        </div>
+      </div>
       <div id="ceNpcSection">
         <hr class="rule" style="margin:14px 0">
         <div class="section-head" style="margin-bottom:12px">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
@@ -378,6 +388,9 @@
           <textarea id="ce-contact_skills" rows="3" placeholder="One service per line"></textarea>
           <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line.</div>
         </div>
+        <hr class="rule" style="margin:14px 0">
+        <div class="section-head" style="margin-bottom:10px">Runner Contacts <span style="font-size:0.6rem;color:var(--text-dim)">// LINK TO PCs</span></div>
+        <div id="ceContactLinksWrap" style="margin-bottom:10px"></div>
       </div>
       <hr class="rule" style="margin:14px 0">
       <div class="section-head" style="margin-bottom:12px">Profile</div>
@@ -533,6 +546,27 @@ function toggleSection(key) {
   const btn  = document.getElementById(`sec-btn-${key}`);
   if (body) body.style.display = collapsed[key] ? 'none' : '';
   if (btn)  btn.textContent    = collapsed[key] ? '[+]' : '[–]';
+}
+
+// Nav card: always expand the target section(s) and scroll to it
+function expandAndScroll(key) {
+  if (collapsed[key]) toggleSection(key);
+  document.getElementById(`sec-head-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function expandContactsAndScroll() {
+  ['contacts', 'npcs'].forEach(key => {
+    if (document.getElementById(`sec-body-${key}`) && collapsed[key]) toggleSection(key);
+  });
+  const first = ['contacts', 'npcs'].find(k => document.getElementById(`sec-head-${k}`));
+  if (first) document.getElementById(`sec-head-${first}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function expandOrgsAndScroll() {
+  const orgKeys = ORG_ORDER.map(g => `org-${g}`).filter(k => document.getElementById(`sec-body-${k}`));
+  orgKeys.forEach(key => { if (collapsed[key]) toggleSection(key); });
+  const firstKey = orgKeys.find(k => document.getElementById(`sec-head-${k}`));
+  if (firstKey) document.getElementById(`sec-head-${firstKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleContactSections() {
@@ -1495,19 +1529,45 @@ async function saveLocEdit() {
 // ── Character Edit Modal ──────────────────────────────────────
 let ceEditingId = null;
 
+const CE_RUNNER_ARCHETYPES = new Set([
+  'Street Samurai','Decker','Mage','Shaman','Rigger','Face','Adept',
+  'Weapons Specialist','Infiltrator','Combat Mage','Custom',
+]);
+
 function onCeArchChange() {
   const sel = document.getElementById('ce-archetype');
   document.getElementById('ce-arch-custom-wrap').style.display = sel.value === 'Custom' ? '' : 'none';
+  // For PCs, auto-copy archetype to the hidden title field
+  if (document.getElementById('ce-is_pc').checked && sel.value && sel.value !== 'Custom') {
+    document.getElementById('ce-title').value = sel.value;
+  }
 }
 
 function cePcToggle() {
   const isPC = document.getElementById('ce-is_pc').checked;
   document.getElementById('cePcLbl').textContent = isPC ? 'PC // Runner' : 'NPC';
-  document.getElementById('cePcSection').style.display  = isPC ? '' : 'none';
-  document.getElementById('ceNpcSection').style.display = isPC ? 'none' : '';
+  document.getElementById('cePcSection').style.display   = isPC ? '' : 'none';
+  document.getElementById('ceRepSection').style.display  = isPC ? '' : 'none';
+  document.getElementById('ceNpcSection').style.display  = isPC ? 'none' : '';
+  document.getElementById('ce-title-wrap').style.display = isPC ? 'none' : '';
+
+  // Show/hide NPC-only archetype groups
+  document.querySelectorAll('#ce-archetype .npc-only').forEach(g => {
+    g.style.display = isPC ? 'none' : '';
+  });
+
+  // If switching to PC with a non-runner archetype selected, reset to first runner
+  if (isPC) {
+    const archSel = document.getElementById('ce-archetype');
+    if (!CE_RUNNER_ARCHETYPES.has(archSel.value)) {
+      archSel.value = 'Street Samurai';
+      document.getElementById('ce-title').value = 'Street Samurai';
+      document.getElementById('ce-arch-custom-wrap').style.display = 'none';
+    }
+  }
 }
 
-function openCharEditModal(charId) {
+async function openCharEditModal(charId) {
   const char = charMapStore[charId];
   if (!char) return;
   ceEditingId = charId;
@@ -1547,7 +1607,23 @@ function openCharEditModal(charId) {
   document.getElementById('ce-connection').value    = char.connection    ?? 1;
   document.getElementById('ce-contact_skills').value = (char.contact_skills || []).join('\n');
 
+  // Load reputation for PCs
+  let repRecord = null;
+  if (char.is_pc) {
+    try {
+      const repRes = await apiFetch(`${API}/reputation/?character_id=${charId}`);
+      if (repRes.ok) { const reps = await repRes.json(); repRecord = reps[0] || null; }
+    } catch(e) {}
+  }
+  document.getElementById('ce-street_cred').value     = repRecord?.street_cred     ?? 0;
+  document.getElementById('ce-notoriety').value        = repRecord?.notoriety        ?? 0;
+  document.getElementById('ce-public_awareness').value = repRecord?.public_awareness ?? 0;
+
   cePcToggle();
+
+  // Populate runner links for NPCs
+  if (!char.is_pc) renderCeContactLinks(charId);
+
   document.getElementById('ceAlert').className = 'alert';
   document.getElementById('charEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -1560,21 +1636,37 @@ function closeCharEditModal() {
 }
 
 async function saveCharEdit() {
-  const name  = document.getElementById('ce-name').value.trim();
-  const title = document.getElementById('ce-title').value.trim();
-  if (!name || !title) {
+  const name = document.getElementById('ce-name').value.trim();
+  const isPC = document.getElementById('ce-is_pc').checked;
+  if (!name) {
     const a = document.getElementById('ceAlert');
-    a.textContent = `ERROR // ${!name ? 'Name' : 'Title'} is required.`;
+    a.textContent = 'ERROR // Name is required.';
     a.className = 'alert show alert-err';
     return;
   }
+
   const archSel = document.getElementById('ce-archetype');
-  const arch = archSel.value === 'Custom'
+  let arch = archSel.value === 'Custom'
     ? document.getElementById('ce-arch-custom').value.trim()
     : archSel.value;
-  const isPC = document.getElementById('ce-is_pc').checked;
+  if (!arch) {
+    const a = document.getElementById('ceAlert');
+    a.textContent = 'ERROR // Archetype is required.';
+    a.className = 'alert show alert-err';
+    return;
+  }
+
+  // For PCs, title mirrors the archetype; for NPCs it's a freeform field
+  const title = isPC ? arch : document.getElementById('ce-title').value.trim();
+  if (!isPC && !title) {
+    const a = document.getElementById('ceAlert');
+    a.textContent = 'ERROR // Title is required.';
+    a.className = 'alert show alert-err';
+    return;
+  }
+
   const orgVal = document.getElementById('ce-org_id').value;
-  const race = document.getElementById('ce-race').value;
+  const race   = document.getElementById('ce-race').value;
   const payload = {
     name,
     title:           title || null,
@@ -1604,6 +1696,23 @@ async function saveCharEdit() {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+
+    // Save reputation for PCs
+    if (isPC) {
+      const repData = {
+        street_cred:      parseInt(document.getElementById('ce-street_cred').value)     || 0,
+        notoriety:        parseInt(document.getElementById('ce-notoriety').value)        || 0,
+        public_awareness: parseInt(document.getElementById('ce-public_awareness').value) || 0,
+      };
+      const repRes = await apiFetch(`${API}/reputation/?character_id=${ceEditingId}`);
+      const reps   = repRes.ok ? await repRes.json() : [];
+      if (reps[0]) {
+        await apiFetch(`${API}/reputation/${reps[0].id}`, { method: 'PATCH', body: JSON.stringify(repData) });
+      } else {
+        await apiFetch(`${API}/reputation/`, { method: 'POST', body: JSON.stringify({ character_id: ceEditingId, ...repData }) });
+      }
+    }
+
     closeCharEditModal();
     loadAll();
   } catch(e) {
@@ -1611,6 +1720,30 @@ async function saveCharEdit() {
     a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
     a.className = 'alert show alert-err';
   }
+}
+
+// ── NPC runner link loyalty (charEdit modal) ──────────────────
+function renderCeContactLinks(charId) {
+  const wrap = document.getElementById('ceContactLinksWrap');
+  const links = contactStore.filter(c => c.npc_id === charId);
+  if (!links.length) {
+    wrap.innerHTML = '<div style="font-size:0.68rem;color:#444;letter-spacing:1px">No runner links.</div>';
+    return;
+  }
+  wrap.innerHTML = links.map(c => {
+    const owner = charMapStore[c.owner_id];
+    return `<div class="promote-row">
+      <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}</span>
+      <span class="promote-meta">Loyalty <input type="number" min="1" max="6" value="${c.loyalty}" style="width:34px;display:inline-block;padding:0 2px;height:18px;font-size:0.7rem" onchange="patchCeLoyalty(${c.id},this.value)"> &nbsp;|&nbsp; Connection ${c.connection}</span>
+    </div>`;
+  }).join('');
+}
+
+async function patchCeLoyalty(contactId, rawVal) {
+  const n = Math.min(6, Math.max(1, parseInt(rawVal) || 1));
+  await apiFetch(`${API}/contacts/${contactId}`, { method: 'PATCH', body: JSON.stringify({loyalty: n}) });
+  const r = await apiFetch(`${API}/contacts/`);
+  contactStore = await r.json();
 }
 
 // ── Main data load ────────────────────────────────────────────
@@ -1709,14 +1842,14 @@ async function loadAll() {
       orgsInGroup.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
       html += section(`org-${group}`, ORG_LABELS[group] || group,
         `<div class="org-grid">${orgsInGroup.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
-        'create-org.html', true);
+        'create-org.html');
     });
 
-    // ── 5. Locations (collapsed) ──────────────────────────────
+    // ── 5. Locations (expanded) ───────────────────────────────
     if (locs.length)
       html += section('locs', 'Known Locations',
         `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
-        'manage-locations.html', true);
+        'manage-locations.html');
 
     document.getElementById('worldContent').innerHTML =
       html || '<div class="loading">No world data found — run the seed script.</div>';
