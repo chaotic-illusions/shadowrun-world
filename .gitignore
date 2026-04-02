@@ -26,3 +26,6 @@ data/*.db-shm
 
 # Docker
 *.override.yml
+
+#AI
+.claude

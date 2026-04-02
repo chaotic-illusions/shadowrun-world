@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manage Tokens | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    .token-table { width:100%; border-collapse:collapse; }
+    .token-table th {
+      font-size:.6rem; letter-spacing:2px; color:var(--text-dim);
+      border-bottom:1px solid #1a2a1a; padding:6px 8px; text-align:left;
+    }
+    .token-table td { padding:7px 8px; border-bottom:1px solid #111; vertical-align:middle; }
+    .token-table col.col-token { width:44%; }
+    .token-table col.col-label { width:28%; }
+    .token-table col.col-date  { width:14%; }
+    .token-table col.col-act   { width:14%; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="create-org.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-tokens.html" class="active">Tokens</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Access Control <em style="font-style:normal;color:var(--text-dim)">//</em> Tokens</div>
+  <div class="page-sub">GENERATE — RENAME — REVOKE</div>
+
+  <div id="alert" class="alert"></div>
+
+  <!-- ── Admin Tokens ──────────────────────────────────────────────────────── -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:28px">
+    <div style="font-size:.7rem;letter-spacing:2px;color:var(--amber)">ADMIN ACCESS TOKENS</div>
+    <button class="btn btn-amber" onclick="openNewTokenModal(true)">+ New Admin Token</button>
+  </div>
+  <div id="adminTokenWrap"><div class="loading">Loading tokens</div></div>
+
+  <!-- ── Player Tokens ─────────────────────────────────────────────────────── -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:32px">
+    <div style="font-size:.7rem;letter-spacing:2px;color:var(--green)">PLAYER ACCESS TOKENS</div>
+    <button class="btn btn-green" onclick="openNewTokenModal(false)">+ New Player Token</button>
+  </div>
+  <div id="playerTokenWrap"><div class="loading">Loading tokens</div></div>
+
+  <!-- ── New token modal ───────────────────────────────────────────────────── -->
+  <div id="tokenModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:center;justify-content:center">
+    <div style="background:var(--bg-card);border:1px solid #1a3a1a;padding:28px 32px;width:100%;max-width:420px" id="tokenModalBox">
+      <div style="font-size:.85rem;letter-spacing:2px;margin-bottom:16px" id="tokenModalTitle">&gt;&gt; CREATE TOKEN</div>
+      <div class="field" style="margin-bottom:16px">
+        <label>Label (optional)</label>
+        <input type="text" id="tokenLabel" placeholder="e.g. Sam's token" style="width:100%">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="flex:1" id="tokenModalSubmitBtn" onclick="submitNewToken()">&gt;&gt; Generate</button>
+        <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeTokenModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Result modal ──────────────────────────────────────────────────────── -->
+  <div id="resultModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:center;justify-content:center">
+    <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:28px 32px;width:100%;max-width:480px">
+      <div style="font-size:.85rem;letter-spacing:2px;color:var(--amber);margin-bottom:6px">&gt;&gt; TOKEN GENERATED</div>
+      <div style="font-size:.6rem;letter-spacing:1px;color:var(--text-dim);margin-bottom:16px">SHARE THIS — IT WILL NOT BE SHOWN AGAIN</div>
+      <div id="generatedToken"
+        style="font-size:.85rem;letter-spacing:2px;color:var(--text-bright);background:var(--bg-input);
+               border:1px solid #333;padding:12px 14px;word-break:break-all;margin-bottom:16px;cursor:pointer"
+        onclick="copyToken()" title="Click to copy"></div>
+      <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:16px">Click the token to copy it to clipboard.</div>
+      <button class="btn btn-green" style="width:100%" onclick="closeResultModal()">&gt;&gt; Done</button>
+    </div>
+  </div>
+
+  <!-- ── Rename modal ──────────────────────────────────────────────────────── -->
+  <div id="renameModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:center;justify-content:center">
+    <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--green-dim);padding:28px 32px;width:100%;max-width:420px">
+      <div style="font-size:.85rem;letter-spacing:2px;color:var(--green);margin-bottom:16px">&gt;&gt; RENAME TOKEN</div>
+      <div class="field" style="margin-bottom:16px">
+        <label>New Label</label>
+        <input type="text" id="renameInput" placeholder="e.g. Sam's token" style="width:100%"
+          onkeydown="if(event.key==='Enter') submitRename()">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-green" style="flex:1" onclick="submitRename()">&gt;&gt; Save</button>
+        <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeRenameModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+let _creatingAdmin = false;
+let _renameId = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showAlert(msg, isErr) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+
+// ── Render tokens ─────────────────────────────────────────────────────────────
+
+function renderTokenTable(tokens, containerId, accentColor) {
+  const wrap = document.getElementById(containerId);
+  if (!tokens.length) {
+    wrap.innerHTML = '<div class="loading" style="margin-bottom:8px">None</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="token-table">
+      <colgroup>
+        <col class="col-token"><col class="col-label">
+        <col class="col-date"><col class="col-act">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Token</th><th>Label</th><th>Created</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tokens.map(t => {
+          const actions = `
+            <button class="btn" style="padding:4px 8px;font-size:.6rem;color:var(--text-dim);border-color:#333;margin-right:4px"
+              onclick="openRenameModal(${t.id}, '${esc(t.label || '')}')">Rename</button>
+            <button class="btn btn-red" style="padding:4px 8px;font-size:.6rem"
+              onclick="deleteToken(${t.id})">Delete</button>`;
+          return `
+            <tr>
+              <td style="color:${accentColor};letter-spacing:1px;font-size:.7rem;font-family:var(--font);word-break:break-all">${esc(t.token)}</td>
+              <td style="color:var(--text-dim);font-size:.75rem">${esc(t.label || '—')}</td>
+              <td style="color:var(--text-dim);font-size:.65rem">${new Date(t.created_at).toLocaleDateString()}</td>
+              <td style="white-space:nowrap">${actions}</td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function loadTokens() {
+  try {
+    const res = await fetch('/auth/tokens', { headers: authHeaders() });
+    if (!res.ok) throw new Error(res.statusText);
+    const all = await res.json();
+    renderTokenTable(all.filter(t => t.is_admin),  'adminTokenWrap',  'var(--amber)');
+    renderTokenTable(all.filter(t => !t.is_admin), 'playerTokenWrap', 'var(--green)');
+  } catch(e) {
+    const msg = `<div class="alert alert-err show">>> FAILED // ${e.message}</div>`;
+    document.getElementById('adminTokenWrap').innerHTML  = msg;
+    document.getElementById('playerTokenWrap').innerHTML = msg;
+  }
+}
+
+// ── New token modal ───────────────────────────────────────────────────────────
+
+function openNewTokenModal(isAdmin) {
+  _creatingAdmin = isAdmin;
+  document.getElementById('tokenLabel').value = '';
+  const box   = document.getElementById('tokenModalBox');
+  const title = document.getElementById('tokenModalTitle');
+  const btn   = document.getElementById('tokenModalSubmitBtn');
+  if (isAdmin) {
+    box.style.borderTop   = '2px solid var(--amber)';
+    title.style.color     = 'var(--amber)';
+    title.textContent     = '>> CREATE ADMIN TOKEN';
+    btn.style.borderColor = 'var(--amber)';
+    btn.style.color       = 'var(--amber)';
+  } else {
+    box.style.borderTop   = '2px solid var(--green-dim)';
+    title.style.color     = 'var(--green)';
+    title.textContent     = '>> CREATE PLAYER TOKEN';
+    btn.style.borderColor = 'var(--green-dim)';
+    btn.style.color       = 'var(--green)';
+  }
+  document.getElementById('tokenModal').style.display = 'flex';
+}
+
+function closeTokenModal() { document.getElementById('tokenModal').style.display = 'none'; }
+
+async function submitNewToken() {
+  const label = document.getElementById('tokenLabel').value.trim() || null;
+  try {
+    const res = await fetch('/auth/tokens', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, is_admin: _creatingAdmin }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const tok = await res.json();
+    closeTokenModal();
+    document.getElementById('generatedToken').textContent = tok.token;
+    document.getElementById('resultModal').style.display = 'flex';
+    await loadTokens();
+  } catch(e) {
+    showAlert(`>> FAILED // ${e.message}`, true);
+  }
+}
+
+function closeResultModal() { document.getElementById('resultModal').style.display = 'none'; }
+
+async function copyToken() {
+  const text = document.getElementById('generatedToken').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    document.getElementById('generatedToken').style.color = 'var(--green)';
+    setTimeout(() => { document.getElementById('generatedToken').style.color = 'var(--text-bright)'; }, 1000);
+  } catch(_) {}
+}
+
+// ── Rename modal ──────────────────────────────────────────────────────────────
+
+function openRenameModal(id, currentLabel) {
+  _renameId = id;
+  document.getElementById('renameInput').value = currentLabel;
+  document.getElementById('renameModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('renameInput').select(), 50);
+}
+
+function closeRenameModal() {
+  document.getElementById('renameModal').style.display = 'none';
+  _renameId = null;
+}
+
+async function submitRename() {
+  const label = document.getElementById('renameInput').value.trim() || null;
+  try {
+    const res = await fetch(`/auth/tokens/${_renameId}`, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    closeRenameModal();
+    await loadTokens();
+  } catch(e) {
+    showAlert(`>> FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+
+async function deleteToken(id) {
+  if (!confirm('Delete this token? The player will lose access and their characters will be unclaimed.')) return;
+  try {
+    const res = await fetch(`/auth/tokens/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    showAlert('>> DELETED // Token removed and characters unclaimed.', false);
+    await loadTokens();
+  } catch(e) {
+    showAlert(`>> FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Player view ───────────────────────────────────────────────────────────────
+
+function renderPlayerView(ctx) {
+  const main = document.querySelector('main');
+  main.innerHTML = `
+    <div class="page-title">&gt;&gt; Access Control <em style="font-style:normal;color:var(--text-dim)">//</em> My Token</div>
+    <div class="page-sub">RENAME YOUR ACCESS TOKEN</div>
+    <div id="alert" class="alert"></div>
+    <div style="margin-top:28px;background:var(--bg-card);border:1px solid #1a3a1a;padding:20px 24px;max-width:640px">
+      <div style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">YOUR TOKEN</div>
+      <div style="font-family:var(--font);font-size:.8rem;letter-spacing:1px;color:var(--green);word-break:break-all;margin-bottom:16px">${_escHtml(ctx.user_token)}</div>
+      <div style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">LABEL</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="playerRenameInput" value="${_escHtml(ctx.token_label || '')}"
+          placeholder="e.g. Sam's token" style="flex:1"
+          onkeydown="if(event.key==='Enter') submitPlayerRename()">
+        <button class="btn btn-green" onclick="submitPlayerRename()">&gt;&gt; Save</button>
+      </div>
+    </div>`;
+}
+
+async function submitPlayerRename() {
+  const label = document.getElementById('playerRenameInput').value.trim() || null;
+  try {
+    const res = await fetch('/auth/tokens/me', {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const alertEl = document.getElementById('alert');
+    alertEl.textContent = '>> SAVED // Label updated.';
+    alertEl.className = 'alert show alert-ok';
+    // Refresh the footer label without a full reload
+    _authCtx.token_label = label;
+    const footerEl = document.getElementById('auth-label');
+    if (footerEl) {
+      const role = isAdmin() ? 'ADMIN' : 'PLAYER';
+      const lbl = label ? ` // ${label}` : '';
+      footerEl.textContent = `[${lbl}${role}]`;
+    }
+  } catch(e) {
+    const alertEl = document.getElementById('alert');
+    alertEl.textContent = `>> FAILED // ${e.message}`;
+    alertEl.className = 'alert show alert-err';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  const ctx = await bootstrapAuth();
+  if (!ctx) return;
+  if (!isAdmin()) {
+    renderPlayerView(ctx);
+    return;
+  }
+  await loadTokens();
+}
+
+init();
+</script>
+</body>
+</html>

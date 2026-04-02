@@ -9,10 +9,12 @@ class CharacterBase(BaseModel):
     archetype: Optional[str] = None
     title: Optional[str] = None
     race: str = "Human"
+    nationality: Optional[str] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     description: Optional[str] = None
     background: Optional[str] = None
+    show_background: bool = False
     attributes: dict[str, Any] = {}
     skills: list[dict[str, Any]] = []
     augmentations: list[dict[str, Any]] = []
@@ -22,6 +24,7 @@ class CharacterBase(BaseModel):
     nuyen: int = 0
     is_active: bool = True
     notes: Optional[str] = None
+    owner_token: Optional[str] = None
     contact_skills: list[str] = []
     connection: int = 1
     organization_id: Optional[int] = None
@@ -36,10 +39,12 @@ class CharacterUpdate(BaseModel):
     archetype: Optional[str] = None
     title: Optional[str] = None
     race: Optional[str] = None
+    nationality: Optional[str] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     description: Optional[str] = None
     background: Optional[str] = None
+    show_background: Optional[bool] = None
     attributes: Optional[dict[str, Any]] = None
     skills: Optional[list[dict[str, Any]]] = None
     augmentations: Optional[list[dict[str, Any]]] = None
@@ -49,6 +54,7 @@ class CharacterUpdate(BaseModel):
     nuyen: Optional[int] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+    owner_token: Optional[str] = None
     contact_skills: Optional[list[str]] = None
     connection: Optional[int] = None
     organization_id: Optional[int] = None

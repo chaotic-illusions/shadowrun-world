@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -21,6 +21,7 @@ class Contact(Base):
     npc_id = Column(Integer, ForeignKey("characters.id"), nullable=True)
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
 
     __table_args__ = (
         CheckConstraint("loyalty >= 1 AND loyalty <= 6", name="ck_contact_loyalty"),
