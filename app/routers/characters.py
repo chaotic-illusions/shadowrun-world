@@ -75,16 +75,22 @@ def claim_character(
     character_id: int,
     db: Session = Depends(get_db),
     x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
 ):
-    """Player claims a PC by writing their user token onto it."""
-    if not x_user_token or not verify_user_token(db, x_user_token):
+    """Player or admin (in runner mode) claims a PC by writing their token onto it."""
+    # Resolve whichever valid token was provided — user token takes priority
+    if x_user_token and verify_user_token(db, x_user_token):
+        claim_token = x_user_token
+    elif x_admin_token and verify_admin_token(db, x_admin_token):
+        claim_token = x_admin_token
+    else:
         raise HTTPException(status_code=403, detail="Valid user token required to claim a character")
     char = get_or_404(db, Character, character_id)
     if not char.is_pc:
         raise HTTPException(status_code=400, detail="Only PC characters can be claimed")
-    if char.owner_token and char.owner_token != x_user_token:
+    if char.owner_token and char.owner_token != claim_token:
         raise HTTPException(status_code=409, detail="Character is already claimed by another player")
-    char.owner_token = x_user_token
+    char.owner_token = claim_token
     db.commit()
     db.refresh(char)
     return char

@@ -130,6 +130,10 @@
           <label>Age</label>
           <input type="number" id="f-age" placeholder="28" min="1" max="200">
         </div>
+        <div class="field">
+          <label>Nationality</label>
+          <input type="text" id="f-nationality" placeholder="UCAS, Aztlan, CAS...">
+        </div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field">
@@ -348,6 +352,7 @@ function openModal(id) {
   document.getElementById('f-race').value          = ch?.race || 'Human';
   document.getElementById('f-gender').value        = ch?.gender || '';
   document.getElementById('f-age').value           = ch?.age ?? '';
+  document.getElementById('f-nationality').value   = ch?.nationality || '';
   document.getElementById('f-is_pc').checked       = ch?.is_pc !== false;
   document.getElementById('f-is_active').checked   = ch?.is_active !== false;
   document.getElementById('f-organization_id').value = ch?.organization_id ?? '';
@@ -398,6 +403,7 @@ async function saveChar() {
     race:            document.getElementById('f-race').value || 'Human',
     gender:          document.getElementById('f-gender').value.trim() || null,
     age:             parseInt(document.getElementById('f-age').value) || null,
+    nationality:     document.getElementById('f-nationality').value.trim() || null,
     is_pc:           isPC,
     is_active:       document.getElementById('f-is_active').checked,
     organization_id: orgVal ? parseInt(orgVal) : null,

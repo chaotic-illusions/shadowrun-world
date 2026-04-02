@@ -306,7 +306,7 @@ async function submitPlayerRename() {
     if (footerEl) {
       const role = isAdmin() ? 'ADMIN' : 'PLAYER';
       const lbl = label ? ` // ${label}` : '';
-      footerEl.textContent = `[${role}${lbl}]`;
+      footerEl.textContent = `[${lbl}${role}]`;
     }
   } catch(e) {
     const alertEl = document.getElementById('alert');

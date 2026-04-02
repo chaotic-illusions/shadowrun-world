@@ -9,10 +9,12 @@ class CharacterBase(BaseModel):
     archetype: Optional[str] = None
     title: Optional[str] = None
     race: str = "Human"
+    nationality: Optional[str] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     description: Optional[str] = None
     background: Optional[str] = None
+    show_background: bool = False
     attributes: dict[str, Any] = {}
     skills: list[dict[str, Any]] = []
     augmentations: list[dict[str, Any]] = []
@@ -37,10 +39,12 @@ class CharacterUpdate(BaseModel):
     archetype: Optional[str] = None
     title: Optional[str] = None
     race: Optional[str] = None
+    nationality: Optional[str] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     description: Optional[str] = None
     background: Optional[str] = None
+    show_background: Optional[bool] = None
     attributes: Optional[dict[str, Any]] = None
     skills: Optional[list[dict[str, Any]]] = None
     augmentations: Optional[list[dict[str, Any]]] = None
