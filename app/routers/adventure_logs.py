@@ -16,7 +16,7 @@ from app.schemas.adventure_log import (
 from app.services.consequence_engine import suggest
 from app.services.heat_calculator import (
     compute_heat, compute_ripple, heat_label,
-    decay_heat, decay_pa, pc_rep_label, team_rep_label, pa_label,
+    decay_pa, pc_rep_label, team_rep_label, pa_label,
 )
 
 
@@ -71,19 +71,7 @@ def party_stats(db: Session = Depends(get_db)):
     """
     today = date.today()
 
-    # ── Heat: max decayed heat across all logs ────────────────────────────
-    logs = db.query(AdventureLog).all()
-    max_heat_raw = 0.0
-    for log in logs:
-        if not log.heat or log.heat <= 0:
-            continue
-        days_ago = (today - log.session_date).days if log.session_date else 0
-        dh = decay_heat(log.heat, days_ago)
-        if dh > max_heat_raw:
-            max_heat_raw = dh
-    party_heat = max(0, min(10, round(max_heat_raw)))
-
-    # ── Reputation: active PCs only ───────────────────────────────────────
+    # ── Reputation & Heat: active PCs only ───────────────────────────────
     active_pcs = db.query(Character).filter(
         Character.is_pc == True, Character.is_active == True
     ).all()
@@ -91,6 +79,7 @@ def party_stats(db: Session = Depends(get_db)):
 
     rep_scores = []
     pa_scores  = []
+    heat_values = []
     char_rep_map = {}   # char_id -> {net_rep, net_rep_tier, pa, pa_tier}
     if pc_ids:
         reps = db.query(Reputation).filter(Reputation.character_id.in_(pc_ids)).all()
@@ -109,12 +98,16 @@ def party_stats(db: Session = Depends(get_db)):
             net_rep = max(0, min(40, 20 + sc - not_))
             rep_scores.append(net_rep)
             pa_scores.append(pa_eff)
+            heat_values.append((r.heat or 0) if r else 0)
             char_rep_map[pc.id] = {
                 "net_rep":      net_rep,
                 "net_rep_tier": pc_rep_label(net_rep),
                 "pa":           pa_eff,
                 "pa_tier":      pa_label(pa_eff),
             }
+
+    # Party heat = highest individual heat among active runners
+    party_heat = max(heat_values) if heat_values else 0
 
     team_score = round(sum(rep_scores) / len(rep_scores)) if rep_scores else 20
     avg_pa     = round(sum(pa_scores)  / len(pa_scores))  if pa_scores  else 0

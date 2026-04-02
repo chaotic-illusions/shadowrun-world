@@ -7,6 +7,7 @@ class ReputationBase(BaseModel):
     street_cred: int = 0
     notoriety: int = 0
     public_awareness: int = 0
+    heat: int = 0
     pa_updated_at: Optional[date] = None
     notes: Optional[str] = None
 
@@ -19,6 +20,7 @@ class ReputationUpdate(BaseModel):
     street_cred: Optional[int] = None
     notoriety: Optional[int] = None
     public_awareness: Optional[int] = None
+    heat: Optional[int] = None
     pa_updated_at: Optional[date] = None
     notes: Optional[str] = None
 
