@@ -9,6 +9,8 @@ let _authCtx = null;
 
 function isAdmin() { return _authCtx?.is_admin === true; }
 function isUser()  { return _authCtx?.is_user === true; }
+// True only when the admin is actively in admin view (not switched to runner view)
+function isAdminMode() { return isAdmin() && (sessionStorage.getItem('sr_view') || 'admin') === 'admin'; }
 function userToken()  { return localStorage.getItem(LS_USER)  || null; }
 function adminToken() { return localStorage.getItem(LS_ADMIN) || null; }
 
@@ -173,6 +175,7 @@ async function _showAutoGenerateOverlay() {
 
 function _confirmNewToken(token) {
   localStorage.setItem(LS_ADMIN, token);
+  localStorage.setItem(LS_USER, token);
   document.getElementById('gen-token-overlay')?.remove();
   window.location.reload();
 }

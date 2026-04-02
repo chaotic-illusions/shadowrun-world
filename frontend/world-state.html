@@ -49,7 +49,7 @@
       </div>
       <div class="stat-lbl">Shadowrunners</div>
     </div>
-    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Toggle Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Known Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Toggle Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Active Contacts</div></div>
     <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Toggle Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
     <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Toggle Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
     <div class="stat-card"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
@@ -66,12 +66,13 @@
         <div class="ltg-modal-title" id="npcModalName"></div>
         <div id="npcModalBadge" style="margin-top:4px"></div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-amber gm-only" onclick="openCharEditModal(npcModalCharId);closeNpcModal()" style="align-self:center">✎ Edit</button>
-        <button class="btn btn-red" onclick="closeNpcModal()" style="align-self:center">✕ Close</button>
-      </div>
+      <button class="btn btn-red" onclick="closeNpcModal()" style="align-self:center">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="npcModalBody"></div>
+    <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none">
+      <button class="btn btn-green" id="npcNotesSaveBtn" style="flex:1;justify-content:center">>> Save Notes</button>
+      <button class="btn" onclick="closeNpcModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -281,14 +282,17 @@
 <div id="charEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeCharEditModal()">
   <div class="edit-modal" style="max-width:720px">
     <div class="edit-modal-head">
-      <div class="edit-modal-title" id="ceTitle">Edit Character</div>
+      <div>
+        <div class="edit-modal-title" id="ceTitle">Edit Character</div>
+        <div id="ceBadge" style="margin-top:4px"></div>
+      </div>
       <button class="btn btn-red" onclick="closeCharEditModal()">✕</button>
     </div>
-    <div class="edit-modal-body">
+    <div class="edit-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
-        <div class="field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
+        <div class="field" id="ce-title-field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Archetype</label>
@@ -328,6 +332,7 @@
           <div id="ce-arch-custom-wrap" style="display:none;margin-top:6px">
             <input type="text" id="ce-arch-custom" placeholder="Enter archetype..." style="width:100%">
           </div>
+          <span class="ce-sel-val" id="ce-archetype-val"></span>
         </div>
       </div>
       <div class="grid3" style="margin-bottom:14px">
@@ -336,17 +341,19 @@
             <option value="Human">Human</option><option value="Elf">Elf</option>
             <option value="Dwarf">Dwarf</option><option value="Ork">Ork</option><option value="Troll">Troll</option>
           </select>
+          <span class="ce-sel-val" id="ce-race-val"></span>
         </div>
         <div class="field"><label>Gender</label><input type="text" id="ce-gender" placeholder="Male, Female..."></div>
         <div class="field"><label>Age</label><input type="number" id="ce-age" placeholder="28" min="1" max="200"></div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
-        <div class="field"><label>Organization</label>
+        <div class="field"><label>Affiliation</label>
           <select id="ce-org_id"><option value="">— Independent / Unknown —</option></select>
+          <span class="ce-sel-val" id="ce-org_id-val"></span>
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2" id="ceTypeActiveRow" style="margin-bottom:14px">
         <div class="field"><label>Type</label>
           <div class="toggle-wrap" style="padding-top:6px">
             <label class="toggle"><input type="checkbox" id="ce-is_pc" onchange="cePcToggle()"><span class="tog-sl"></span></label>
@@ -360,7 +367,8 @@
           </div>
         </div>
       </div>
-      <div id="cePcSection">
+      <!-- FINANCES SECTION — hidden; not currently in use. Remove display:none to re-enable. -->
+      <div id="cePcSection" style="display:none">
         <hr class="rule" style="margin:14px 0">
         <div class="section-head" style="margin-bottom:12px">Finances <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
         <div class="grid3" style="margin-bottom:14px">
@@ -382,12 +390,12 @@
       <hr class="rule" style="margin:14px 0">
       <div class="section-head" style="margin-bottom:12px">Profile</div>
       <div class="field" style="margin-bottom:14px"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
-      <div class="field" style="margin-bottom:14px"><label>Background (GM Only)</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
-      <div class="field"><label>Notes (GM Only)</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
+      <div class="field" style="margin-bottom:14px"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
+      <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" onclick="saveCharEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
-      <button class="btn" onclick="closeCharEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green gm-only" id="ceSaveBtn" onclick="saveCharEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
+      <button class="btn gm-only" onclick="closeCharEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
     </div>
   </div>
 </div>
@@ -688,7 +696,7 @@ function mergeContacts(contacts) {
   const byNpc  = {};  // npc_id (int) -> merged
   const byName = {};  // name (lowercase) -> merged
   contacts.forEach(c => {
-    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection };
+    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection, is_active: c.is_active !== false };
     if (c.npc_id) {
       if (!byNpc[c.npc_id]) byNpc[c.npc_id] = { ...c, owners: [] };
       byNpc[c.npc_id].owners.push(ownerEntry);
@@ -712,11 +720,14 @@ function openNpcModal(charId) {
   const raceProf  = [metatype, display].filter(Boolean).join(' | ');
   const org = char.organization_id ? orgStore[char.organization_id] : null;
 
-  document.getElementById('npcModalName').textContent = char.name;
+  document.getElementById('npcModalName').textContent = `Dossier // ${char.name}`;
   document.getElementById('npcModalBadge').innerHTML =
     raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
 
-  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const orgLine = `<div class="cc-org" style="margin-bottom:${char.nationality ? '4px' : '12px'}"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const nationalityLine = char.nationality
+    ? `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Nationality</span><span class="cc-org-sep"> // </span><span style="color:var(--text)">${esc(char.nationality)}</span></div>`
+    : '';
 
   const attrMap = char.attributes || {};
   const attrOrder = ['body','quickness','strength','charisma','intelligence','willpower','essence','magic','reaction'];
@@ -740,25 +751,51 @@ function openNpcModal(charId) {
 
   const contactSkills = (char.contact_skills || []);
 
+  // Background: shown in player-visible section when show_background=true; GM section otherwise
+  const bgSection = char.background
+    ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>`
+    : '';
+  const playerBg = char.show_background ? bgSection : '';
+  const gmBg     = char.show_background ? '' : bgSection; // in GM section only when hidden from players
+
+  const bgToggle = char.background
+    ? `<button class="npc-reveal-btn" onclick="toggleDataReveal(${charId},'show_background',${!!char.show_background})">${char.show_background ? '\u2299 Hide from Players' : '\u25cc Reveal to Players'}</button>`
+    : '';
+
   document.getElementById('npcModalBody').innerHTML = `
     ${orgLine}
-    ${char.nationality ? `<div style="font-size:0.68rem;color:#555;margin-bottom:10px;letter-spacing:1px">${esc(char.nationality)}</div>` : ''}
+    ${nationalityLine}
     ${char.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(char.description)}</div></div>` : ''}
+    ${playerBg}
     ${contactSkills.length ? `
       <div class="npc-modal-section">
         <div class="npc-modal-sec-lbl">Contact Services</div>
         ${contactSkills.map(s => `<div class="npc-skill">&#8250; ${esc(s)}</div>`).join('')}
       </div>` : ''}
     ${renderPromoteSection(charId)}
-    <div class="npc-modal-gm">
+    <div class="npc-modal-gm gm-only">
       <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
-      ${char.background ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>` : ''}
+      ${bgToggle}
+      ${gmBg}
       ${attrHtml ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Attributes</div><div class="npc-attr-grid">${attrHtml}</div></div>` : ''}
       ${skills ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Skills</div>${skills}</div>` : ''}
       ${augs ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Augmentations</div>${augs}</div>` : ''}
       ${gear ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Gear</div>${gear}</div>` : ''}
-      ${char.notes ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Notes</div><div class="npc-modal-text" style="color:#666">${esc(char.notes)}</div></div>` : ''}
+      <div id="npcNotesAlert" class="alert" style="margin-bottom:4px"></div>
+      <div class="npc-modal-section">
+        <div class="npc-modal-sec-lbl">GM Notes</div>
+        <textarea id="npcNotesInput" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text);font-family:var(--font);font-size:0.72rem;padding:6px 8px;resize:vertical">${esc(char.notes || '')}</textarea>
+      </div>
     </div>`;
+
+  // Show footer (Save Notes / Cancel) for GMs only
+  const foot = document.getElementById('npcModalFoot');
+  if (isAdmin()) {
+    foot.style.display = '';
+    document.getElementById('npcNotesSaveBtn').onclick = () => saveNpcNotes(charId);
+  } else {
+    foot.style.display = 'none';
+  }
 
   document.getElementById('npcOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -767,6 +804,34 @@ function openNpcModal(charId) {
 function closeNpcModal() {
   document.getElementById('npcOverlay').classList.remove('open');
   document.body.style.overflow = '';
+}
+
+async function saveNpcNotes(charId) {
+  const note = document.getElementById('npcNotesInput')?.value.trim() || null;
+  const res = await apiFetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ notes: note })
+  });
+  if (res.ok) {
+    if (charMapStore[charId]) charMapStore[charId].notes = note;
+    const a = document.getElementById('npcNotesAlert');
+    if (a) { a.textContent = '// notes saved'; a.className = 'alert show'; setTimeout(() => a.className = 'alert', 2000); }
+  }
+}
+
+// Generic boolean field reveal toggle — pass any PATCH-able boolean field name.
+// Usage: toggleDataReveal(charId, 'show_background', currentBoolValue)
+async function toggleDataReveal(charId, field, currentState) {
+  const res = await apiFetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ [field]: !currentState })
+  });
+  if (res.ok) {
+    if (charMapStore[charId]) charMapStore[charId][field] = !currentState;
+    openNpcModal(charId);
+  }
 }
 
 function npcOverlayClick(e) {
@@ -834,7 +899,7 @@ async function addContactLink() {
       organization_id: char.organization_id || null,
     })
   });
-  if (!res.ok) { alert('Failed to create contact link.'); return; }
+  if (!res.ok) { showAlert('Failed to create contact link.'); return; }
   const contactsRes = await apiFetch(`${API}/contacts/`);
   contactStore = await contactsRes.json();
   document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
@@ -842,12 +907,13 @@ async function addContactLink() {
 }
 
 async function removeContactLink(contactId) {
-  if (!confirm('Remove this contact link?')) return;
-  await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
-  const contactsRes = await apiFetch(`${API}/contacts/`);
-  contactStore = await contactsRes.json();
-  document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
-  loadAll();
+  showConfirm('Remove this contact link?', async () => {
+    await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+    const contactsRes = await apiFetch(`${API}/contacts/`);
+    contactStore = await contactsRes.json();
+    document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
+    loadAll();
+  });
 }
 
 // ── Non-NPC Contact Modal (contacts without a character record) ──
@@ -863,11 +929,11 @@ function openNonNpcContactModal(contactId) {
   const raceProf = [race, prof].filter(Boolean).join(' | ');
   const connVal = merged.connection ?? 1;
 
-  document.getElementById('npcModalName').textContent = merged.name;
+  document.getElementById('npcModalName').textContent = `Dossier // ${merged.name}`;
   document.getElementById('npcModalBadge').innerHTML =
     raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
 
-  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
 
   const ownerRows = (merged.owners || []).map(o => {
     const ownerChar = charMapStore[o.owner_id];
@@ -875,7 +941,7 @@ function openNonNpcContactModal(contactId) {
     return `<div class="promote-row">
       <span class="promote-runner">${name}</span>
       <span class="promote-meta">Loyalty ${o.loyalty || 0}</span>
-      <button class="promote-remove" onclick="removeNonNpcLink(${o.contact_id})" title="Remove link">✕</button>
+      <button class="promote-remove gm-only" onclick="removeNonNpcLink(${o.contact_id})" title="Remove link">✕</button>
     </div>`;
   }).join('');
 
@@ -895,17 +961,19 @@ function openNonNpcContactModal(contactId) {
       ${ownerRows || '<div class="promote-all-linked">No runners linked.</div>'}
     </div>`;
 
+  document.getElementById('npcModalFoot').style.display = 'none';
   document.getElementById('npcOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 async function removeNonNpcLink(contactId) {
-  if (!confirm('Remove this contact link?')) return;
-  await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
-  const contactsRes = await apiFetch(`${API}/contacts/`);
-  contactStore = await contactsRes.json();
-  closeNpcModal();
-  loadAll();
+  showConfirm('Remove this contact link?', async () => {
+    await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
+    const contactsRes = await apiFetch(`${API}/contacts/`);
+    contactStore = await contactsRes.json();
+    closeNpcModal();
+    loadAll();
+  });
 }
 
 async function toggleCharActive(charId, isActive) {
@@ -917,32 +985,48 @@ async function toggleCharActive(charId, isActive) {
   loadAll();
 }
 
-async function patchNpcConnection(charId, currentVal) {
-  const raw = prompt(`Connection rating (1–6):`, currentVal);
-  if (raw === null) return;
-  const n = parseInt(raw, 10);
-  if (isNaN(n) || n < 1 || n > 6) { alert('Rating must be between 1 and 6'); return; }
-  await apiFetch(`${API}/characters/${charId}`, {
+function getMyCharIds() {
+  if (isAdminMode()) return new Set();
+  const ut = userToken() || adminToken();
+  if (!ut) return new Set();
+  return new Set(Object.values(charMapStore).filter(c => c.is_pc && c.owner_token === ut).map(c => c.id));
+}
+
+async function toggleContactActive(contactId, currentlyActive) {
+  await apiFetch(`${API}/contacts/${contactId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({connection: n})
+    body: JSON.stringify({ is_active: !currentlyActive })
   });
   loadAll();
 }
 
-async function patchConnection(cardKey, currentVal, contactIds) {
-  const raw = prompt(`Connection rating (1–6):`, currentVal);
-  if (raw === null) return;
-  const n = parseInt(raw, 10);
-  if (isNaN(n) || n < 1 || n > 6) { alert('Rating must be between 1 and 6'); return; }
-  await Promise.all(contactIds.map(cid =>
-    fetch(`${API}/contacts/${cid}`, {
+async function patchNpcConnection(charId, currentVal) {
+  showPrompt('Connection rating (1–6):', currentVal, async (raw) => {
+    const n = parseInt(raw, 10);
+    if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
+    await apiFetch(`${API}/characters/${charId}`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({connection: n})
-    })
-  ));
-  loadAll();
+    });
+    loadAll();
+  });
+}
+
+async function patchConnection(cardKey, currentVal, contactIds) {
+  showPrompt('Connection rating (1–6):', currentVal, async (raw) => {
+    const n = parseInt(raw, 10);
+    if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
+    await Promise.all(contactIds.map(cid =>
+      fetch(`${API}/contacts/${cid}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({connection: n})
+      })
+    ));
+    loadAll();
+  });
 }
 
 function buildContactCard(merged, charMap, orgMap) {
@@ -950,7 +1034,7 @@ function buildContactCard(merged, charMap, orgMap) {
   const npc    = merged.npc_id ? charMap[merged.npc_id] : null;
   const skills = npc?.contact_skills || [];
   const race   = merged.race || npc?.metatype || npc?.race || null;
-  const prof   = merged.profession || npc?.archetype || null;
+  const prof   = merged.profession || npc?.title || npc?.archetype || null;
   // Connection: from NPC character record if linked, else from contact record
   const connVal = npc ? (npc.connection ?? 1) : (merged.connection ?? 1);
   const contactIds = JSON.stringify((merged.owners || []).map(o => o.contact_id).filter(Boolean));
@@ -959,8 +1043,10 @@ function buildContactCard(merged, charMap, orgMap) {
   const raceProf = [race, prof].filter(Boolean).join(' | ');
   const orgDisplay = org ? esc(org.name) : '[Unknown]';
 
-  // Activity state comes from the linked NPC character (if any)
-  const isActive = npc ? (npc.is_active !== false) : true;
+  // Activity state: NPC must be active AND at least one owner row must be active
+  const npcIsActive    = npc ? (npc.is_active !== false) : true;
+  const hasActiveOwner = !merged.owners || merged.owners.length === 0 || merged.owners.some(o => o.is_active !== false);
+  const isActive       = npcIsActive && hasActiveOwner;
 
   // Clickable only when NPC is active
   const clickHandler = isActive
@@ -969,15 +1055,27 @@ function buildContactCard(merged, charMap, orgMap) {
         : `onclick="openNonNpcContactModal(${merged.id})" title="View contact"`)
     : '';
 
-  // Active toggle — only shown for NPC-linked contacts (toggle acts on the NPC character)
+  // Active toggle (card-level) — admin only, acts on the NPC character record
   const contactToggleBtn = npc
-    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${npc.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`
+    ? `<button class="card-active-btn gm-only ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${npc.id},${npcIsActive})" title="${npcIsActive ? 'Mark inactive' : 'Mark active'}">${npcIsActive ? '● active' : '○ activate'}</button>`
     : '';
   const contactOverlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
 
+  const myCharIds = getMyCharIds();
   const ownerRows = (merged.owners || []).map(o => {
     const ownerChar = charMap[o.owner_id];
     const name = ownerChar ? esc(ownerChar.name) : `#${o.owner_id}`;
+    const rowActive = o.is_active !== false;
+    const canToggleRow = isAdminMode() || myCharIds.has(o.owner_id);
+    if (!rowActive) {
+      return `
+        <div class="cc-via-row cc-via-row-inactive">
+          <span class="cc-via-name" style="color:var(--red)">${name} <span style="font-size:0.65rem;letter-spacing:1px">(INACTIVE)</span></span>
+          ${canToggleRow
+            ? `<button class="cc-via-toggle-btn" onclick="event.stopPropagation();toggleContactActive(${o.contact_id},false)" title="Reactivate">○ reactivate</button>`
+            : `<button class="cc-via-toggle-btn cc-via-toggle-other" disabled title="Managed by another runner">○ inactive</button>`}
+        </div>`;
+    }
     return `
       <div class="cc-via-row">
         <span class="cc-via-name">${name}</span>
@@ -986,6 +1084,9 @@ function buildContactCard(merged, charMap, orgMap) {
           <span class="cc-via-dots">${loyaltyDots(o.loyalty||0,6)}</span>
           <span class="cc-via-num">${o.loyalty||0}</span>
         </div>
+        ${canToggleRow
+          ? `<button class="cc-via-toggle-btn cc-via-toggle-active" onclick="event.stopPropagation();toggleContactActive(${o.contact_id},true)" title="Mark inactive">● active</button>`
+          : `<button class="cc-via-toggle-btn cc-via-toggle-other" disabled title="Managed by another runner">● active</button>`}
       </div>`;
   });
 
@@ -1002,12 +1103,11 @@ function buildContactCard(merged, charMap, orgMap) {
         <div class="cc-name">${esc(merged.name)}</div>
       </div>
       ${raceProf ? `<div style="margin-bottom:6px"><span class="cc-race-prof">${esc(raceProf)}</span></div>` : ''}
-      <div class="cc-org"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${orgDisplay}</div>
+      <div class="cc-org"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${orgDisplay}</div>
       <div class="cc-connection-gm" title="${CONNECTION_TIPS[connVal] || ''}">
         <span class="cc-conn-lbl">Connection</span>
         <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
         <span class="cc-via-num">${connVal}</span>
-        ${connEditBtn}
       </div>
       <div class="cc-known-via-lbl">Known via</div>
       ${ownerRows.join('')}
@@ -1044,7 +1144,9 @@ function toggleNpcDesc(id) {
 function buildCharCard(char, orgMap = {}) {
   const metatype  = char.metatype || char.race || null;
   const archetype = char.archetype || null;
-  const display   = char.title || archetype || null;
+  // PCs: archetype is displayed directly (picker saves archetype, not title)
+  // NPCs: title takes precedence (e.g. "Yakuza Underboss"), falling back to archetype
+  const display   = char.is_pc ? (archetype || char.title || null) : (char.title || archetype || null);
   const raceProf  = [metatype, display].filter(Boolean).join(' | ');
   const rep = char.is_pc ? charRepStore[char.id] : null;
   const repStr = rep
@@ -1054,22 +1156,24 @@ function buildCharCard(char, orgMap = {}) {
   const longDesc = !char.is_pc && char.description && char.description.length > 120;
   const isActive = char.is_active !== false;
 
-  const toggleBtn = `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'} gm-only" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`;
-  const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
-
-  // Claim button: shown on PC cards for players who don't yet own this char
-  const ut = userToken();
-  const isMine = char.is_pc && ut && char.owner_token === ut;
+  const ut = userToken() || adminToken();
+  const isMine = char.is_pc && !!char.owner_token && !!ut && char.owner_token === ut;
   const isUnclaimed = char.is_pc && !char.owner_token;
-  const claimBtn = char.is_pc && !isAdmin() && isUnclaimed
+
+  const canToggle = isAdminMode() || (char.is_pc && isMine);
+  const toggleBtn = canToggle
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}${!char.is_pc ? ' gm-only' : ''}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`
+    : '';
+  const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
+  const claimBtn = char.is_pc && !isAdminMode() && isUnclaimed
     ? `<button class="btn btn-green" style="position:absolute;bottom:8px;right:8px;padding:3px 10px;font-size:.6rem;letter-spacing:1px" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
     : '';
   const ownerBadge = char.is_pc && isMine
-    ? `<div style="position:absolute;bottom:8px;right:8px;font-size:.55rem;letter-spacing:1px;color:var(--green-dim)">✔ CLAIMED</div>`
+    ? `<button class="btn" style="position:absolute;bottom:8px;right:8px;padding:3px 10px;font-size:.6rem;letter-spacing:1px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
     : '';
 
   const cardClass = `char-card ${char.is_pc ? 'is-pc' : (isActive ? 'npc-clickable' : '')}`;
-  const clickAttr = char.is_pc && isAdmin()
+  const clickAttr = char.is_pc && isAdminMode()
     ? `onclick="openCharEditModal(${char.id})" title="Edit character" style="cursor:pointer;position:relative"`
     : char.is_pc
       ? `style="cursor:default;position:relative"`
@@ -1081,9 +1185,9 @@ function buildCharCard(char, orgMap = {}) {
       ${overlay}
       <div class="ch-name">${esc(char.name)}</div>
       ${char.is_pc
-        ? `<span class="badge-archetype ${archetypeClass(archetype)}" onclick="event.stopPropagation();editCharArchetype(${char.id})" title="Click to edit archetype">${esc(raceProf || 'Unknown // Unknown')}</span>`
-        : (raceProf ? `<div><span class="badge-race-prof">${esc(raceProf)}</span></div>` : '')}
-      ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Org</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
+        ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" title="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}</span></div>`
+        : (raceProf ? `<div><span class="cc-race-prof">${esc(raceProf)}</span></div>` : '')}
+      ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
       <div class="ch-meta">
         ${char.nationality ? `<div style="color:#555;font-size:0.68rem">${esc(char.nationality)}</div>` : ''}
         ${char.description
@@ -1493,7 +1597,43 @@ async function saveLocEdit() {
 }
 
 // ── Character Edit Modal ──────────────────────────────────────
-let ceEditingId = null;
+let ceEditingId  = null;
+let ceFullArchHtml = null; // cached full archetype dropdown HTML, set on first openCharEditModal call
+
+// Toggle read-only state on all dossier fields (except GM Notes, which is always editable)
+function setCeDossierMode(readOnly) {
+  const body = document.getElementById('charEditBody');
+  if (readOnly) {
+    body.classList.add('ce-view-mode');
+    // Replace select fields with static text spans
+    const archSel = document.getElementById('ce-archetype');
+    const archVal = archSel.value === 'Custom'
+      ? document.getElementById('ce-arch-custom').value
+      : archSel.value;
+    document.getElementById('ce-archetype-val').textContent = archVal || '—';
+    document.getElementById('ce-archetype-val').style.display = 'block';
+    archSel.style.display = 'none';
+    document.getElementById('ce-arch-custom-wrap').style.display = 'none';
+    const raceSel = document.getElementById('ce-race');
+    document.getElementById('ce-race-val').textContent = raceSel.options[raceSel.selectedIndex]?.text || '—';
+    document.getElementById('ce-race-val').style.display = 'block';
+    raceSel.style.display = 'none';
+    const orgSel = document.getElementById('ce-org_id');
+    document.getElementById('ce-org_id-val').textContent = orgSel.options[orgSel.selectedIndex]?.text || '—';
+    document.getElementById('ce-org_id-val').style.display = 'block';
+    orgSel.style.display = 'none';
+    // Hide type/active toggles (edit-only concept)
+    document.getElementById('ceTypeActiveRow').style.display = 'none';
+  } else {
+    body.classList.remove('ce-view-mode');
+    // Restore selects, hide static spans
+    ['ce-archetype','ce-race','ce-org_id'].forEach(id => {
+      document.getElementById(id).style.display = '';
+      document.getElementById(id + '-val').style.display = 'none';
+    });
+    document.getElementById('ceTypeActiveRow').style.display = '';
+  }
+}
 
 function onCeArchChange() {
   const sel = document.getElementById('ce-archetype');
@@ -1510,44 +1650,93 @@ function cePcToggle() {
 function openCharEditModal(charId) {
   const char = charMapStore[charId];
   if (!char) return;
-  ceEditingId = charId;
-  document.getElementById('ceTitle').textContent = `Edit // ${char.name}`;
-  document.getElementById('ce-name').value  = char.name  || '';
-  document.getElementById('ce-title').value = char.title || '';
-
   const archSel = document.getElementById('ce-archetype');
-  const arch = char.archetype || '';
-  const known = Array.from(archSel.options).map(o => o.value);
-  if (known.includes(arch)) {
-    archSel.value = arch;
-    document.getElementById('ce-arch-custom-wrap').style.display = 'none';
-  } else {
-    archSel.value = 'Custom';
-    document.getElementById('ce-arch-custom-wrap').style.display = '';
-    document.getElementById('ce-arch-custom').value = arch;
-  }
 
-  document.getElementById('ce-race').value = char.metatype || char.race || 'Human';
-  document.getElementById('ce-gender').value = char.gender || '';
-  document.getElementById('ce-age').value = char.age || '';
-  document.getElementById('ce-nationality').value = char.nationality || '';
-  document.getElementById('ce-is_pc').checked = char.is_pc || false;
-  document.getElementById('ce-is_active').checked = char.is_active !== false;
+  // Cache the full archetype dropdown HTML the first time so we can restore it for NPC edit mode
+  if (!ceFullArchHtml) ceFullArchHtml = archSel.innerHTML;
+
+  ceEditingId = charId;
+
+  // Populate common fields
+  document.getElementById('ce-name').value             = char.name             || '';
+  document.getElementById('ce-race').value             = char.metatype || char.race || 'Human';
+  document.getElementById('ce-gender').value           = char.gender            || '';
+  document.getElementById('ce-age').value              = char.age               || '';
+  document.getElementById('ce-nationality').value      = char.nationality        || '';
+  document.getElementById('ce-is_pc').checked          = char.is_pc             || false;
+  document.getElementById('ce-is_active').checked      = char.is_active         !== false;
+  document.getElementById('ce-description').value      = char.description        || '';
+  document.getElementById('ce-background').value       = char.background         || '';
+  document.getElementById('ce-notes').value            = char.notes              || '';
+  document.getElementById('ce-nuyen').value            = char.nuyen              ?? 0;
+  document.getElementById('ce-karma_total').value      = char.karma_total        ?? 0;
+  document.getElementById('ce-karma_current').value    = char.karma_current      ?? 0;
+  document.getElementById('ce-connection').value       = char.connection         ?? 1;
+  document.getElementById('ce-contact_skills').value   = (char.contact_skills || []).join('\n');
 
   const orgSel = document.getElementById('ce-org_id');
   orgSel.innerHTML = '<option value="">— Independent / Unknown —</option>' +
-    Object.values(orgStore).map(o => `<option value="${o.id}"${o.id===char.organization_id?' selected':''}>${esc(o.name)}</option>`).join('');
+    Object.values(orgStore).map(o =>
+      `<option value="${o.id}"${o.id === char.organization_id ? ' selected' : ''}>${esc(o.name)}</option>`
+    ).join('');
 
-  document.getElementById('ce-description').value = char.description || '';
-  document.getElementById('ce-background').value  = char.background  || '';
-  document.getElementById('ce-notes').value       = char.notes       || '';
-  document.getElementById('ce-nuyen').value       = char.nuyen        ?? 0;
-  document.getElementById('ce-karma_total').value   = char.karma_total   ?? 0;
-  document.getElementById('ce-karma_current').value = char.karma_current ?? 0;
-  document.getElementById('ce-connection').value    = char.connection    ?? 1;
-  document.getElementById('ce-contact_skills').value = (char.contact_skills || []).join('\n');
+  if (char.is_pc) {
+    // ── DOSSIER MODE (PC) ─────────────────────────────────────
+    document.getElementById('ceTitle').textContent = `Dossier // ${char.name}`;
+    const ceRaceProf = [char.metatype || char.race, char.title || char.archetype].filter(Boolean).join(' | ');
+    document.getElementById('ceBadge').innerHTML = ceRaceProf ? `<span class="cc-race-prof">${esc(ceRaceProf)}</span>` : '';
+    document.getElementById('ce-title-field').style.display = 'none';
 
-  cePcToggle();
+    // Reduce archetype dropdown to PC options only
+    const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept'];
+    archSel.innerHTML = PC_ARCHETYPES.map(a => `<option value="${a}">${a}</option>`).join('') +
+      '<option value="Custom">Custom\u2026</option>';
+
+    const arch = char.archetype || '';
+    if (PC_ARCHETYPES.includes(arch)) {
+      archSel.value = arch;
+      document.getElementById('ce-arch-custom-wrap').style.display = 'none';
+    } else {
+      archSel.value = 'Custom';
+      document.getElementById('ce-arch-custom-wrap').style.display = arch ? '' : 'none';
+      document.getElementById('ce-arch-custom').value = arch;
+    }
+    // Copy archetype into hidden title field so existing display logic continues to work
+    document.getElementById('ce-title').value = arch;
+
+    // Finances hidden (not in use); NPC contact section irrelevant for PCs
+    document.getElementById('cePcSection').style.display  = 'none';
+    document.getElementById('ceNpcSection').style.display = 'none';
+    document.getElementById('cePcLbl').textContent = 'PC // Runner';
+
+    setCeDossierMode(true);
+    document.getElementById('ceSaveBtn').textContent = '>> Save Notes';
+
+  } else {
+    // ── EDIT MODE (NPC) ───────────────────────────────────────
+    document.getElementById('ceTitle').textContent = `Edit // ${char.name}`;
+    document.getElementById('ceBadge').innerHTML = '';
+    document.getElementById('ce-title-field').style.display = '';
+    document.getElementById('ce-title').value = char.title || '';
+
+    // Restore full archetype dropdown
+    archSel.innerHTML = ceFullArchHtml;
+    const arch = char.archetype || '';
+    const known = Array.from(archSel.options).map(o => o.value);
+    if (known.includes(arch)) {
+      archSel.value = arch;
+      document.getElementById('ce-arch-custom-wrap').style.display = 'none';
+    } else {
+      archSel.value = 'Custom';
+      document.getElementById('ce-arch-custom-wrap').style.display = '';
+      document.getElementById('ce-arch-custom').value = arch;
+    }
+
+    setCeDossierMode(false);
+    document.getElementById('ceSaveBtn').textContent = '>> Save Changes';
+    cePcToggle();
+  }
+
   document.getElementById('ceAlert').className = 'alert';
   document.getElementById('charEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -1560,6 +1749,27 @@ function closeCharEditModal() {
 }
 
 async function saveCharEdit() {
+  const char = charMapStore[ceEditingId];
+
+  // ── PC DOSSIER MODE: only save GM Notes ──────────────────────
+  if (char?.is_pc) {
+    try {
+      const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ notes: document.getElementById('ce-notes').value.trim() || null }),
+      });
+      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+      closeCharEditModal();
+      loadAll();
+    } catch(e) {
+      const a = document.getElementById('ceAlert');
+      a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
+      a.className = 'alert show alert-err';
+    }
+    return;
+  }
+
+  // ── NPC EDIT MODE: full save ──────────────────────────────────
   const name  = document.getElementById('ce-name').value.trim();
   const title = document.getElementById('ce-title').value.trim();
   if (!name || !title) {
@@ -1665,7 +1875,6 @@ async function loadAll() {
     document.getElementById('sc-locs').textContent     = locs.length;
     document.getElementById('sc-chars').textContent          = activePcs.length;
     document.getElementById('sc-chars-inactive').textContent = inactivePcs.length;
-    document.getElementById('sc-contacts').textContent = mergedContacts.length;
     document.getElementById('sc-nuyen').textContent    = '¥' + partyNuyen.toLocaleString();
     document.getElementById('lastRefresh').textContent =
       'LAST REFRESH: ' + new Date().toLocaleTimeString();
@@ -1675,6 +1884,14 @@ async function loadAll() {
     orgStore     = orgMap;
     charMapStore = charMap;
     locStore     = Object.fromEntries(locs.map(l => [l.id, l]));
+
+    // Active contact count: only merged contacts where NPC is active AND at least one owner row is active
+    const activeContactCount = mergedContacts.filter(m => {
+      const npc = m.npc_id ? charMap[m.npc_id] : null;
+      return (npc ? npc.is_active !== false : true) &&
+             (!m.owners || m.owners.length === 0 || m.owners.some(o => o.is_active !== false));
+    }).length;
+    document.getElementById('sc-contacts').textContent = activeContactCount;
 
     let html = '';
 
@@ -1739,8 +1956,70 @@ async function claimChar(charId) {
     }
     await loadAll();
   } catch(e) {
-    alert(`Claim failed: ${e.message}`);
+    showAlert(`Claim failed: ${e.message}`);
   }
+}
+
+async function releaseChar(charId) {
+  showConfirm('Release this character? You will lose ownership but all data is preserved.', async () => {
+    try {
+      const res = await fetch(`${API}/characters/${charId}/unclaim`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail);
+      }
+      await loadAll();
+    } catch(e) {
+      showAlert(`Release failed: ${e.message}`);
+    }
+  }, 'Release');
+}
+
+// ── Styled dialog utilities (replace native confirm/alert/prompt) ────────
+function showConfirm(message, onOk, confirmLabel = 'Confirm') {
+  document.getElementById('srConfirmMsg').textContent = message;
+  document.getElementById('srConfirmOkBtn').textContent = '>> ' + confirmLabel;
+  document.getElementById('srConfirmOverlay').classList.add('open');
+  document.getElementById('srConfirmOkBtn').onclick = () => {
+    document.getElementById('srConfirmOverlay').classList.remove('open');
+    if (onOk) onOk();
+  };
+  document.getElementById('srConfirmCancelBtn').onclick = () => {
+    document.getElementById('srConfirmOverlay').classList.remove('open');
+  };
+}
+
+function closeAlert() {
+  document.getElementById('srAlertOverlay').classList.remove('open');
+}
+
+function showAlert(message) {
+  document.getElementById('srAlertMsg').textContent = message;
+  document.getElementById('srAlertOverlay').classList.add('open');
+}
+
+function showPrompt(message, defaultVal, onOk) {
+  const overlay = document.getElementById('srPromptOverlay');
+  // Use classList.add/remove('open') — ltg-overlay CSS controls visibility via opacity/pointer-events
+  const input   = document.getElementById('srPromptInput');
+  document.getElementById('srPromptMsg').textContent = message;
+  input.value = defaultVal ?? '';
+  overlay.classList.add('open');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  document.getElementById('srPromptOkBtn').onclick = () => {
+    overlay.classList.remove('open');
+    if (onOk) onOk(input.value);
+  };
+  document.getElementById('srPromptCancelBtn').onclick = () => {
+    overlay.classList.remove('open');
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter')  document.getElementById('srPromptOkBtn').click();
+    if (e.key === 'Escape') document.getElementById('srPromptCancelBtn').click();
+  };
 }
 
 bootstrapAuth().then(u => { if (u) loadAll(); });
@@ -1765,5 +2044,43 @@ bootstrapAuth().then(u => { if (u) loadAll(); });
   setInterval(tick, 1000);
 })();
 </script>
+<!-- ── CONFIRM DIALOG ──────────────────────────────────── -->
+<div id="srConfirmOverlay" class="ltg-overlay" style="z-index:3000">
+  <div class="ltg-modal" style="max-width:420px">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srConfirmMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-red" id="srConfirmOkBtn" style="min-width:110px">>> Confirm</button>
+        <button class="btn" id="srConfirmCancelBtn" style="min-width:90px;color:var(--text-dim);border-color:#333">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ALERT DIALOG ────────────────────────────────────── -->
+<div id="srAlertOverlay" class="ltg-overlay" style="z-index:3000" onclick="if(event.target===this)closeAlert()">
+  <div class="ltg-modal" style="max-width:380px">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srAlertMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
+      <button class="btn btn-green" onclick="closeAlert()" style="min-width:90px">>> OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROMPT DIALOG ────────────────────────────────────── -->
+<div id="srPromptOverlay" class="ltg-overlay" style="z-index:3000">
+  <div class="ltg-modal" style="max-width:380px">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srPromptMsg" style="color:var(--text-bright);margin-bottom:14px;font-size:0.88rem;letter-spacing:0.5px"></div>
+      <input type="number" id="srPromptInput" min="1" max="6"
+        style="width:100%;margin-bottom:18px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);padding:7px 12px;font-family:inherit;font-size:0.9rem;text-align:center;outline:none">
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-green" id="srPromptOkBtn" style="min-width:90px">>> OK</button>
+        <button class="btn" id="srPromptCancelBtn" style="min-width:90px;color:var(--text-dim);border-color:#333">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

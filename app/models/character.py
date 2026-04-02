@@ -14,10 +14,12 @@ class Character(Base):
     archetype = Column(String(100))   # Street Samurai, Decker, Mage, Shaman, Rigger, Face, etc.
     title = Column(String(200))       # Specific role/title, e.g. "Yakuza Underboss", "Deniable Ops Handler"
     race = Column(String(50), default="Human")  # Human, Elf, Dwarf, Ork, Troll
+    nationality = Column(String(100))
     gender = Column(String(50))
     age = Column(Integer)
     description = Column(Text)
     background = Column(Text)
+    show_background = Column(Boolean, default=False)  # toggle: reveal background to players
 
     # SR2 core attributes stored as dict: body, quickness, strength, charisma, intelligence,
     # willpower, essence, magic (if awakened), reaction (derived), initiative_dice
