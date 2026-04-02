@@ -91,7 +91,8 @@ function _injectAuthLabel() {
   // Bottom-right fixed label
   const label = document.createElement('div');
   label.id = 'auth-label';
-  const role = isAdmin() ? 'ADMIN' : 'RUNNER';
+  const viewMode0 = sessionStorage.getItem('sr_view') || 'admin';
+  const role = isAdmin() ? (viewMode0 === 'admin' ? 'ADMIN' : 'RUNNER') : 'RUNNER';
   const tokenLabel = _authCtx.token_label ? `${_authCtx.token_label} // ` : '';
   label.style.cssText =
     'position:fixed;bottom:10px;right:14px;z-index:500;font-family:var(--font);' +

@@ -152,6 +152,7 @@ hr.rule {
   display: flex;
   align-items: center;
   gap: 8px;
+  scroll-margin-top: 60px;
 }
 .section-head::before { content: '//'; color: var(--text-dim); }
 
@@ -279,6 +280,8 @@ select option { background: #090909; }
 }
 .chk-item:hover { background: rgba(0,255,65,.06); }
 .chk-item input[type=checkbox] { width: auto; accent-color: var(--green); cursor: pointer; }
+.chk-item input.rev-chk { accent-color: var(--amber); }
+.rev-lbl { font-size: 0.55rem; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
 
 /* Buttons */
 .btn {
@@ -348,7 +351,6 @@ select option { background: #090909; }
   transition: border-color .2s;
   position: relative;
 }
-.org-card:hover { border-color: #2a3a2a; border-left-color: inherit; }
 .oc-megacorp    { border-left-color: var(--amber) !important; }
 .oc-government  { border-left-color: #5566aa !important; }
 .oc-syndicate   { border-left-color: #8855cc !important; }
@@ -356,6 +358,14 @@ select option { background: #090909; }
 .oc-cult        { border-left-color: #66aa44 !important; }
 .oc-fixer_network { border-left-color: var(--green) !important; }
 .oc-other       { border-left-color: var(--text-dim) !important; }
+.org-card:hover           { border-color: #1f1f1f; border-left-color: inherit; }
+.oc-megacorp:hover        { border-color: var(--amber); }
+.oc-government:hover      { border-color: #5566aa; }
+.oc-syndicate:hover       { border-color: #8855cc; }
+.oc-gang:hover            { border-color: #ff4444; }
+.oc-cult:hover            { border-color: #66aa44; }
+.oc-fixer_network:hover   { border-color: var(--green); }
+.oc-other:hover           { border-color: var(--text-dim); }
 
 .oc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
 .oc-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); letter-spacing: 1px; }
@@ -416,7 +426,9 @@ select option { background: #090909; }
   border: 1px solid #111;
   border-left: 3px solid var(--cyan);
   padding: 13px 15px;
+  transition: border-color .2s;
 }
+.loc-card:hover { border-color: var(--cyan); }
 .lc-name { font-family: var(--font-display); font-size: 1rem; color: var(--cyan); text-shadow: var(--glow-cyan); margin-bottom: 3px; }
 .lc-type { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 6px; }
 .lc-ctrl { font-size: 0.72rem; color: #555; }
@@ -432,7 +444,9 @@ select option { background: #090909; }
   border-left: 3px solid #2a2a4a;
   padding: 12px 14px;
   position: relative;
+  transition: border-color .2s;
 }
+.contact-card:hover { border-color: #2a2a4a; }
 .cc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; gap: 8px; }
 .cc-name { font-family: var(--font-display); font-size: 1rem; color: var(--text-bright); }
 .cc-race-prof {
@@ -477,8 +491,11 @@ select option { background: #090909; }
   border: 1px solid #111;
   padding: 14px;
   position: relative;
+  transition: border-color .2s;
 }
 .char-card.is-pc { border-color: #1a3a1a; }
+.char-card:not(.is-pc) { border-left: 3px solid #2a2a4a; }
+.char-card:not(.is-pc):hover { border-color: #2a2a4a; }
 .ch-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); margin-bottom: 5px; }
 .ch-badge {
   display: inline-block; font-size: 0.58rem; letter-spacing: 2px;
@@ -505,6 +522,13 @@ select option { background: #090909; }
 .loading { text-align: center; color: var(--text-dim); font-size: 0.8rem; letter-spacing: 3px; padding: 40px; }
 .loading::after { content: '...'; animation: dots 1.5s infinite; }
 @keyframes dots { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+/* ── DOSSIER FIELD ROWS ─────────────────────────────── */
+.dossier-field { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #181818; margin-bottom: 6px; }
+.df-label { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; min-width: 110px; flex-shrink: 0; }
+.df-val   { color: var(--text-bright); font-size: 0.82rem; }
+.df-input { background: transparent; border: none; color: var(--text-bright); font-family: var(--font); font-size: 0.82rem; flex: 1; outline: none; padding: 2px 4px; }
+.df-input:focus { color: var(--green); }
 
 /* ── NPC DOSSIER MODAL ───────────────────────────────── */
 .npc-clickable { cursor: pointer; }
@@ -545,8 +569,8 @@ select option { background: #090909; }
 .promote-num { width: 44px; font-family: var(--font); background: #0a0a0a; border: 1px solid #2a2a2a; color: var(--text-bright); font-size: 0.78rem; padding: 3px 5px; text-align: center; }
 .npc-clickable:hover { border-color: #2a3a2a; }
 .npc-modal-section { margin-bottom: 14px; }
-.npc-modal-sec-lbl { font-size: 0.58rem; letter-spacing: 2px; color: #444; text-transform: uppercase; margin-bottom: 5px; }
-.npc-modal-text { font-size: 0.76rem; color: var(--text-dim); line-height: 1.5; }
+.npc-modal-sec-lbl { font-size: 0.68rem; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; margin-bottom: 5px; }
+.npc-modal-text { font-size: 0.88rem; color: var(--text); line-height: 1.5; }
 .npc-modal-gm { margin-top: 18px; border-top: 1px solid #1a1a1a; padding-top: 14px; }
 .npc-modal-gm-banner { font-size: 0.58rem; letter-spacing: 3px; color: #aa2a2a; text-align: center; margin-bottom: 14px; }
 .npc-attr-grid { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -554,8 +578,19 @@ select option { background: #090909; }
 .npc-attr-lbl { font-size: 0.52rem; letter-spacing: 2px; color: #444; text-transform: uppercase; }
 .npc-attr-val { font-size: 0.88rem; color: var(--text-bright); }
 .npc-skill, .npc-aug, .npc-gear { font-size: 0.72rem; color: var(--text-dim); padding: 2px 0; line-height: 1.6; }
-.npc-reveal-btn { background: none; border: 1px solid #222; color: #555; cursor: pointer; font-size: 0.58rem; letter-spacing: 1px; padding: 2px 10px; margin-bottom: 12px; font-family: var(--font); text-transform: uppercase; }
+.npc-reveal-btn { background: none; border: 1px solid #886600; color: #cc8800; cursor: pointer; font-size: 0.58rem; letter-spacing: 1px; padding: 2px 10px; font-family: var(--font); text-transform: uppercase; white-space: nowrap; }
 .npc-reveal-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+/* Dossier report — command structure grid */
+.dossier-cmd-grid { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; padding: 2px 0; }
+.dossier-cmd-title { color: var(--text-dim); font-size: .7rem; align-self: center; }
+
+/* Dossier report — network directory grid */
+.dossier-net-grid { display: grid; grid-template-columns: max-content 1fr auto auto; gap: 4px 14px; align-items: center; font-size: .72rem; }
+.dossier-net-disp { display: flex; justify-content: flex-end; white-space: nowrap; }
+.disp-listed   { color: var(--green-dim); font-size: .64rem; letter-spacing: .06em; }
+.disp-unlisted { color: var(--amber);     font-size: .64rem; letter-spacing: .06em; }
+.disp-black    { color: var(--red);       font-size: .64rem; letter-spacing: .06em; }
 .badge-archetype-clickable { cursor: pointer; }
 .badge-archetype-clickable:hover { opacity: 0.8; }
 
@@ -655,6 +690,21 @@ select option { background: #090909; }
 .ltg-modal-body::-webkit-scrollbar-track { background: #040404; }
 .ltg-modal-body::-webkit-scrollbar-thumb { background: var(--green-dark); }
 
+/* PC character modal — scoped label color */
+#charEditBody label { color: var(--cyan); }
+
+/* ── LOCATION MODAL (cyan theme) ──────────────────────────── */
+.loc-overlay .ltg-modal-head     { border-bottom-color: #001a22; }
+.loc-overlay .ltg-modal-title    { color: var(--cyan); text-shadow: var(--glow-cyan); }
+.loc-overlay .ltg-modal          { border-color: var(--cyan); box-shadow: 0 0 60px rgba(0,204,255,.12), 0 0 120px rgba(0,0,0,.9); }
+.loc-overlay .ltg-modal-body::-webkit-scrollbar-thumb { background: #001a22; }
+
+.loc-dossier-field { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #0a1a20; margin-bottom: 2px; }
+.loc-dossier-lbl   { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; min-width: 130px; flex-shrink: 0; }
+.loc-dossier-val   { color: var(--text-bright); font-size: 0.88rem; }
+.loc-section       { margin-bottom: 14px; }
+.loc-org-line      { font-size: 0.68rem; margin-bottom: 14px; }
+
 .ltg-sec {
   font-family: var(--font-display);
   font-size: 0.88rem;
@@ -746,30 +796,6 @@ select option { background: #090909; }
   font-size: 0.8rem;
   letter-spacing: 3px;
   padding: 40px 0;
-}
-
-/* Network link on org card */
-.oc-network-link {
-  display: inline-block;
-  margin-top: 10px;
-  font-size: 0.65rem;
-  letter-spacing: 2px;
-  color: var(--green-dim);
-  text-transform: uppercase;
-  cursor: pointer;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--green-dark);
-  transition: color .15s, border-color .15s, text-shadow .15s;
-  background: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-  font-family: var(--font);
-}
-.oc-network-link:hover {
-  color: var(--green);
-  border-color: var(--green-dim);
-  text-shadow: var(--glow-green);
 }
 
 /* ── SECTION TOGGLES & MANAGE LINKS ────────────────── */
@@ -949,7 +975,7 @@ select option { background: #090909; }
   resize: none;
   cursor: default;
   padding-left: 0;
-  color: var(--cyan); /* data color — swap to var(--amber) for more cyberpunk flair */
+  color: var(--text-bright); /* data values — labels are var(--cyan) via #charEditBody label */
   opacity: 1;
 }
 /* Hide number input spinner in view mode */
@@ -975,6 +1001,6 @@ select option { background: #090909; }
 .ce-sel-val {
   display: none; /* shown via JS — setCeDossierMode sets display:'block' */
   font-size: 0.78rem;
-  color: var(--cyan); /* data color — swap to var(--amber) for more cyberpunk flair */
+  color: var(--text-bright); /* data values — labels are var(--cyan) via #charEditBody label */
   padding: 5px 0;
 }

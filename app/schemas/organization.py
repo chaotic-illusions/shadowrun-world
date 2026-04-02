@@ -15,6 +15,8 @@ class OrganizationBase(BaseModel):
     ltgs: list[dict[str, Any]] = []
     ally_ids: list[int] = []
     enemy_ids: list[int] = []
+    revealed_ally_ids: list[int] = []
+    revealed_enemy_ids: list[int] = []
     is_active: bool = True
     notes: Optional[str] = None
 
@@ -32,6 +34,8 @@ class OrganizationUpdate(BaseModel):
     ltgs: Optional[list[dict[str, Any]]] = None
     ally_ids: Optional[list[int]] = None
     enemy_ids: Optional[list[int]] = None
+    revealed_ally_ids: Optional[list[int]] = None
+    revealed_enemy_ids: Optional[list[int]] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 

@@ -10,11 +10,11 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html" class="active">World State</a>
-    <a href="create-org.html">Organizations</a>
     <a href="manage-characters.html">Characters</a>
+    <a href="create-org.html">Organizations</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -22,20 +22,18 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; World State <em style="font-style:normal;color:var(--text-dim)">//</em> Seattle Metroplex <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="srDate"></span> <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="liveClock"></span></div>
+  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em style="font-style:normal;color:var(--text-dim)">//</em> Seattle Metroplex <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="srDate"></span> <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="liveClock"></span></div>
   <div style="font-family:var(--font);font-size:0.78rem;letter-spacing:2px;color:#aa2a2a;margin-bottom:20px;text-align:right">... do you know where your meat-body is?</div>
-  <div class="page-sub" style="margin-top:-14px">INTEL BRIEF — NEW TEAM ARRIVAL — DAY 1 — NO PRIOR HEAT</div>
+  <div class="page-sub" style="margin-top:-14px">INTELLIGENCE DATASTORE // PROCESSING... // READY</div>
 
   <div class="status-bar">
-    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>GREEN</span></div>
+    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>ACTIVE</span></div>
     <div class="status-item">TEAM HEAT: <span id="sb-heat">—</span></div>
-    <div class="status-item">REPUTATION: <span id="sb-rep">—</span></div>
-    <div class="status-item">ACTIVE CONTRACTS: <span>NONE</span></div>
-    <div class="status-item" id="lastRefresh" style="margin-left:auto">LAST REFRESH: —</div>
+    <div class="status-item">TEAM REPUTATION: <span id="sb-rep">—</span></div>
   </div>
 
   <div class="stat-bar" id="statBar">
-    <div class="stat-card stat-card-nav" onclick="toggleSection('pcs')" title="Toggle Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div class="stat-card stat-card-nav" onclick="toggleSection('pcs')" title="Jump to Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
       <div style="display:flex;gap:16px;align-items:center;justify-content:center">
         <div style="text-align:center">
           <div class="stat-num" id="sc-chars" style="font-size:1.8rem">—</div>
@@ -49,10 +47,11 @@
       </div>
       <div class="stat-lbl">Shadowrunners</div>
     </div>
-    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Toggle Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Active Contacts</div></div>
-    <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Toggle Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
-    <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Toggle Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
-    <div class="stat-card"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Jump to Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Active Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Jump to Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Jump to Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
+    <!-- HIDDEN: Party Nuyen card — nuyen not tracked yet; re-enable by removing style and uncommenting sc-nuyen update in loadAll() -->
+    <div class="stat-card" style="display:none"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
   </div>
 
   <div id="worldContent"><div class="loading">Loading world data</div></div>
@@ -92,32 +91,29 @@
   </div>
 </div>
 
-<div id="ltgOverlay" class="ltg-overlay" onclick="overlayClick(event)">
-  <div class="ltg-modal" id="ltgModal">
-    <div class="ltg-modal-head">
-      <div>
-        <div class="ltg-modal-title" id="ltgOrgName"></div>
-        <div class="ltg-modal-sub">Matrix &amp; Telecom Directory</div>
-      </div>
-      <button class="btn btn-red" onclick="closeLTG()" style="align-self:center">✕ Close</button>
-    </div>
-    <div class="ltg-modal-body" id="ltgBody"></div>
-  </div>
-</div>
-
 <!-- ── ORG EDIT MODAL ─────────────────────────────────────── -->
 <div id="orgEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeOrgEditModal()">
-  <div class="edit-modal" style="max-width:800px">
+  <div class="edit-modal" style="max-width:960px">
     <div class="edit-modal-head">
-      <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
+      <div>
+        <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
+        <div id="oeDossierBadge" style="margin-top:4px"></div>
+      </div>
       <button class="btn btn-red" onclick="closeOrgEditModal()">✕</button>
     </div>
-    <div class="edit-modal-body">
+    <div class="edit-modal-body" id="orgEditBody">
       <div id="oeAlert" class="alert"></div>
+      <div id="orgDossierView" style="display:none"></div>
+      <div id="orgFormContent">
+      <!-- ── CORE IDENTITY ── -->
       <div class="section-head" style="margin-bottom:12px">Core Identity</div>
       <div class="grid2" style="margin-bottom:14px">
-        <div class="field"><label>Designation</label><input type="text" id="oe-name" placeholder="Organization name..."></div>
-        <div class="field"><label>Classification</label>
+        <div class="field">
+          <label>Designation *</label>
+          <input type="text" id="oe-name" placeholder="Organization name...">
+        </div>
+        <div class="field">
+          <label>Classification</label>
           <select id="oe-org_type" onchange="onOeOrgTypeChange()">
             <optgroup label="── Corporate ──">
               <option value="megacorp">Megacorp</option>
@@ -159,58 +155,66 @@
             <span class="tier-name" id="oeTierName"></span>
           </div>
         </div>
-        <div class="field"><label>Headquarters</label><input type="text" id="oe-headquarters" placeholder="City, Region..."></div>
+        <div class="field">
+          <label>Headquarters</label>
+          <input type="text" id="oe-headquarters" placeholder="City, Region...">
+        </div>
         <div class="field">
           <label>Operational Status</label>
           <div class="toggle-wrap">
-            <label class="toggle"><input type="checkbox" id="oe-is_active" checked onchange="document.getElementById('oeStatusLbl').textContent=this.checked?'ACTIVE':'INACTIVE';document.getElementById('oeStatusLbl').style.color=this.checked?'var(--green)':'var(--text-dim)'"><span class="tog-sl"></span></label>
+            <label class="toggle gm-only">
+              <input type="checkbox" id="oe-is_active" checked onchange="document.getElementById('oeStatusLbl').textContent=this.checked?'ACTIVE':'INACTIVE';document.getElementById('oeStatusLbl').style.color=this.checked?'var(--green)':'var(--text-dim)'">
+              <span class="tog-sl"></span>
+            </label>
             <span class="tog-label" id="oeStatusLbl" style="color:var(--green)">ACTIVE</span>
           </div>
         </div>
       </div>
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Intel Profile</div>
+      <!-- // PROFILE -->
+      <div class="section-head" style="margin-bottom:10px">Profile</div>
       <div class="field" style="margin-bottom:14px"><label>Description / Known Intel</label><textarea id="oe-description" rows="4" placeholder="Public face, known operations..."></textarea></div>
-      <div class="field" style="margin-bottom:14px"><label>Field Notes (GM Only)</label><textarea id="oe-notes" rows="3" placeholder="Hidden agendas, plot hooks..."></textarea></div>
+      <div class="field gm-only" style="margin-bottom:14px"><label>Field Notes (GM Only)</label><textarea id="oe-notes" rows="3" placeholder="Hidden agendas, plot hooks..."></textarea></div>
       <hr class="rule" style="margin:14px 0">
       <div class="section-head" style="margin-bottom:12px">Command Structure</div>
-      <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddLeader()">+ Add Executive</button></div>
+      <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddLeader()">+ Add Executive</button></div>
       <div class="lead-wrap">
         <table class="lead-table">
-          <thead><tr><th>Name</th><th>Title / Role</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Title / Role</th><th>Notes</th><th class="gm-only"></th></tr></thead>
           <tbody id="oeLeadBody"><tr id="oeEmptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr></tbody>
         </table>
       </div>
       <hr class="rule" style="margin:14px 0">
       <div class="section-head" style="margin-bottom:12px">Political Relationships</div>
       <div class="grid2" style="margin-bottom:14px">
-        <div class="field"><label>Allied Organizations</label><div class="chk-list" id="oeAllyList"></div></div>
-        <div class="field"><label>Hostile Organizations</label><div class="chk-list" id="oeEnemyList"></div></div>
+        <div class="field"><label style="display:flex;justify-content:space-between"><span>Allied Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label><div class="chk-list" id="oeAllyList"></div></div>
+        <div class="field"><label style="display:flex;justify-content:space-between"><span>Hostile Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label><div class="chk-list" id="oeEnemyList"></div></div>
       </div>
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">LTG Network Directory</div>
+      <div class="section-head" style="margin-bottom:12px">RTG/LTG Network Directory</div>
       <div style="margin-bottom:18px">
         <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
-        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
+        <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
-            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th></th></tr></thead>
-            <tbody id="oeTelecomBody"><tr id="oeEmptyTelecom"><td colspan="4" class="empty-lead">No telecom numbers</td></tr></tbody>
+            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th class="gm-only" style="text-align:center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <tbody id="oeTelecomBody"><tr id="oeEmptyTelecom"><td colspan="5" class="empty-lead">No telecom numbers</td></tr></tbody>
           </table>
         </div>
       </div>
       <div>
         <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
-        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
+        <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
-            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th></th></tr></thead>
-            <tbody id="oeHostBody"><tr id="oeEmptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr></tbody>
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th class="gm-only" style="text-align:center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <tbody id="oeHostBody"><tr id="oeEmptyHost"><td colspan="8" class="empty-lead">No matrix hosts</td></tr></tbody>
           </table>
         </div>
       </div>
+      </div><!-- /orgFormContent -->
     </div>
-    <div class="edit-modal-foot">
+    <div class="edit-modal-foot" id="orgEditFoot">
       <button class="btn btn-green" onclick="saveOrgEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
       <button class="btn" onclick="closeOrgEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
     </div>
@@ -218,33 +222,89 @@
 </div>
 
 <!-- ── LOCATION EDIT MODAL ────────────────────────────────── -->
-<div id="locEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeLocEditModal()">
-  <div class="edit-modal" style="max-width:640px">
-    <div class="edit-modal-head">
-      <div class="edit-modal-title" id="leTitle">Edit Location</div>
-      <button class="btn btn-red" onclick="closeLocEditModal()">✕</button>
+<div id="locEditOverlay" class="ltg-overlay loc-overlay" onclick="if(event.target===this)closeLocEditModal()">
+  <div class="ltg-modal loc-modal" style="max-width:640px">
+    <div class="ltg-modal-head loc-modal-head">
+      <div>
+        <div class="ltg-modal-title loc-modal-title" id="leTitle">Site Report // Location</div>
+        <div id="leBadge" style="margin-top:4px"></div>
+      </div>
+      <button class="btn btn-red" onclick="closeLocEditModal()" style="align-self:center">✕ Close</button>
     </div>
-    <div class="edit-modal-body">
+    <!-- Runner dossier view -->
+    <div id="locDossierView" class="ltg-modal-body" style="display:none"></div>
+    <!-- Admin edit form -->
+    <div id="locFormContent">
+    <div class="ltg-modal-body">
       <div id="leAlert" class="alert"></div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Name *</label><input type="text" id="le-name" placeholder="Location name..."></div>
         <div class="field"><label>Type</label>
-          <select id="le-location_type">
+          <select id="le-location_type" onchange="onLeLocTypeChange()">
             <option value="">— Unknown —</option>
-            <option value="nightclub">Nightclub</option>
-            <option value="bar">Bar</option>
-            <option value="safehouse">Safehouse</option>
-            <option value="corporate facility">Corporate Facility</option>
-            <option value="government facility">Government Facility</option>
-            <option value="hospital">Hospital</option>
-            <option value="warehouse">Warehouse</option>
-            <option value="black market">Black Market</option>
-            <option value="residential">Residential</option>
-            <option value="industrial">Industrial</option>
-            <option value="matrix node">Matrix Node</option>
-            <option value="landmark">Landmark</option>
-            <option value="other">Other</option>
+            <optgroup label="── Entertainment ──">
+              <option value="nightclub">Nightclub</option>
+              <option value="bar">Bar / Tavern</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="casino">Casino</option>
+              <option value="btl den">BTL Den</option>
+              <option value="brothel">Brothel</option>
+            </optgroup>
+            <optgroup label="── Corporate ──">
+              <option value="corporate facility">Corporate Facility</option>
+              <option value="corporate headquarters">Corporate Headquarters</option>
+              <option value="corporate megastructure">Corporate Megastructure</option>
+              <option value="research lab">Research Lab</option>
+              <option value="data center">Data Center</option>
+              <option value="corporate arcology">Corporate Arcology</option>
+            </optgroup>
+            <optgroup label="── Retail &amp; Commercial ──">
+              <option value="commercial district">Commercial District</option>
+              <option value="convenience store">Convenience Store</option>
+              <option value="mall">Mall</option>
+              <option value="street market">Street Market</option>
+              <option value="pawn shop">Pawn Shop / Fence</option>
+              <option value="black market">Black Market</option>
+            </optgroup>
+            <optgroup label="── Residential ──">
+              <option value="residential community">Residential Community</option>
+              <option value="apartment complex">Apartment Complex</option>
+              <option value="squatter camp">Squatter Camp</option>
+              <option value="subterranean community">Subterranean Community</option>
+              <option value="penthouse">Penthouse / High-Rise</option>
+            </optgroup>
+            <optgroup label="── Government &amp; Infrastructure ──">
+              <option value="government building">Government Building</option>
+              <option value="military installation">Military Installation</option>
+              <option value="police station">Police Station</option>
+              <option value="hospital">Hospital / Clinic</option>
+              <option value="transportation hub">Transportation Hub</option>
+              <option value="power plant">Power Plant / Utility</option>
+            </optgroup>
+            <optgroup label="── Underground &amp; Criminal ──">
+              <option value="gang territory">Gang Territory</option>
+              <option value="safehouse">Safehouse</option>
+              <option value="smugglers den">Smuggler's Den</option>
+              <option value="underground bunker">Underground Bunker</option>
+              <option value="chop shop">Chop Shop</option>
+            </optgroup>
+            <optgroup label="── Matrix ──">
+              <option value="matrix host">Matrix Host / Node</option>
+              <option value="virtual space">Virtual Space</option>
+              <option value="pirate node">Pirate Node</option>
+            </optgroup>
+            <optgroup label="── Landmark ──">
+              <option value="landmark / restaurant">Landmark / Restaurant</option>
+              <option value="landmark / monument">Landmark / Monument</option>
+              <option value="ruins">Ruins</option>
+            </optgroup>
+            <optgroup label="── Other ──">
+              <option value="Custom">Custom…</option>
+            </optgroup>
           </select>
+          <div id="le-location_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="le-location_type-custom" placeholder="Enter location type..." style="width:100%">
+          </div>
         </div>
       </div>
       <div class="grid2" style="margin-bottom:14px">
@@ -271,7 +331,8 @@
       <div class="field" style="margin-bottom:14px"><label>Description</label><textarea id="le-description" rows="4" placeholder="What do the runners know about this place?"></textarea></div>
       <div class="field"><label>Notes (GM Only)</label><textarea id="le-notes" rows="3" placeholder="Secret details, plot hooks..."></textarea></div>
     </div>
-    <div class="edit-modal-foot">
+    </div><!-- /locFormContent -->
+    <div class="edit-modal-foot" id="locEditFoot">
       <button class="btn btn-green" onclick="saveLocEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
       <button class="btn" onclick="closeLocEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
     </div>
@@ -279,16 +340,16 @@
 </div>
 
 <!-- ── CHARACTER EDIT MODAL ───────────────────────────────── -->
-<div id="charEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeCharEditModal()">
-  <div class="edit-modal" style="max-width:720px">
-    <div class="edit-modal-head">
+<div id="charEditOverlay" class="ltg-overlay" onclick="if(event.target===this)closeCharEditModal()">
+  <div class="ltg-modal" style="max-width:720px">
+    <div class="ltg-modal-head">
       <div>
-        <div class="edit-modal-title" id="ceTitle">Edit Character</div>
+        <div class="ltg-modal-title" id="ceTitle">Edit Character</div>
         <div id="ceBadge" style="margin-top:4px"></div>
       </div>
-      <button class="btn btn-red" onclick="closeCharEditModal()">✕</button>
+      <button class="btn btn-red" onclick="closeCharEditModal()" style="align-self:center">✕ Close</button>
     </div>
-    <div class="edit-modal-body" id="charEditBody">
+    <div class="ltg-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
@@ -536,32 +597,34 @@ function fmtNuyen(n) { return '¥' + Number(n || 0).toLocaleString(); }
 // ── Section collapse state ────────────────────────────────────
 const collapsed = {};
 function toggleSection(key) {
-  collapsed[key] = !collapsed[key];
+  // Ensure section is expanded and scroll to it
   const body = document.getElementById(`sec-body-${key}`);
-  const btn  = document.getElementById(`sec-btn-${key}`);
-  if (body) body.style.display = collapsed[key] ? 'none' : '';
-  if (btn)  btn.textContent    = collapsed[key] ? '[+]' : '[–]';
+  const head = document.getElementById(`sec-head-${key}`);
+  if (body) body.style.display = '';
+  collapsed[key] = false;
+  if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleContactSections() {
-  // Expand both if either is collapsed; collapse both if both are expanded
-  const anyCollapsed = collapsed['contacts'] || collapsed['npcs'];
   ['contacts', 'npcs'].forEach(key => {
-    if (document.getElementById(`sec-body-${key}`)) {
-      if (anyCollapsed && collapsed[key]) toggleSection(key);
-      if (!anyCollapsed && !collapsed[key]) toggleSection(key);
-    }
+    const body = document.getElementById(`sec-body-${key}`);
+    if (body) body.style.display = '';
+    collapsed[key] = false;
   });
+  const head = document.getElementById('sec-head-contacts');
+  if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleAllOrgs() {
   const orgKeys = ORG_ORDER.map(g => `org-${g}`)
     .filter(k => document.getElementById(`sec-body-${k}`));
-  const anyExpanded = orgKeys.some(k => !collapsed[k]);
   orgKeys.forEach(key => {
-    if (anyExpanded && !collapsed[key]) toggleSection(key);
-    if (!anyExpanded && collapsed[key]) toggleSection(key);
+    const body = document.getElementById(`sec-body-${key}`);
+    if (body) body.style.display = '';
+    collapsed[key] = false;
   });
+  const head = document.getElementById(`sec-head-org-${ORG_ORDER[0]}`);
+  if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Org description expand ────────────────────────────────────
@@ -580,73 +643,12 @@ function ratingClass(r) {
   return { blue:'r-blue', green:'r-green', orange:'r-orange', red:'r-red', black:'r-black' }[color] || 'r-green';
 }
 
-function buildLTGContent(org) {
-  const ltgs = org.ltgs || [];
-  if (!ltgs.length) return '<div class="ltg-empty">NO NETWORK DATA ON FILE</div>';
-
-  const telecoms = ltgs.filter(e => e.type === 'telecom');
-  const hosts    = ltgs.filter(e => e.type === 'matrix_host');
-  let html = '';
-
-  if (telecoms.length) {
-    html += '<div class="ltg-sec">Telecom Numbers</div>';
-    html += telecoms.map(t => `
-      <div class="ltg-entry">
-        <div>
-          <div class="ltg-number">${esc(t.number)}</div>
-          <div class="ltg-desc">${esc(t.description || '')}</div>
-        </div>
-        <div class="ltg-vis v-${t.visibility || 'listed'}">${t.visibility || 'listed'}</div>
-      </div>`).join('');
-  }
-
-  if (hosts.length) {
-    html += '<div class="ltg-sec">Matrix Hosts</div>';
-    html += hosts.map(h => `
-      <div class="ltg-entry">
-        <div>
-          <div class="ltg-addr">
-            <span class="p-rtg">${esc(h.rtg)}</span>
-            <span class="p-sep"> // </span>
-            <span class="p-ltg">${esc(h.ltg)}</span>
-            ${h.id_code ? `<span class="p-sep"> [</span><span class="p-idcode">${esc(h.id_code)}</span><span class="p-sep">]</span>` : ''}
-          </div>
-          <div class="ltg-desc">${esc(h.description || '')}</div>
-          <div class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating || 'UNRATED')}</div>
-          ${h.notes ? `<div class="ltg-host-notes">${esc(h.notes)}</div>` : ''}
-        </div>
-        <div class="ltg-vis v-${h.visibility || 'listed'}">${h.visibility || 'listed'}</div>
-      </div>`).join('');
-  }
-
-  return html;
-}
-
-function openLTG(orgId) {
-  const org = orgStore[orgId];
-  if (!org) return;
-  document.getElementById('ltgOrgName').textContent = org.name;
-  document.getElementById('ltgBody').innerHTML = buildLTGContent(org);
-  document.getElementById('ltgOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeLTG() {
-  document.getElementById('ltgOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function overlayClick(e) {
-  if (e.target === document.getElementById('ltgOverlay')) closeLTG();
-}
-
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLTG(); });
-
 // ── Card Builders ─────────────────────────────────────────────
 function buildOrgCard(org, orgMap) {
-  const allies  = (org.ally_ids  || []).map(id => orgMap[id]?.name).filter(Boolean);
-  const enemies = (org.enemy_ids || []).map(id => orgMap[id]?.name).filter(Boolean);
-  const hasNet  = (org.ltgs || []).length > 0;
+  const allyIds  = isAdminMode() ? (org.ally_ids  || []) : (org.revealed_ally_ids  || []);
+  const enemyIds = isAdminMode() ? (org.enemy_ids || []) : (org.revealed_enemy_ids || []);
+  const allies  = allyIds.map(id => orgMap[id]?.name).filter(Boolean);
+  const enemies = enemyIds.map(id => orgMap[id]?.name).filter(Boolean);
   const longDesc = org.description && org.description.length > 160;
   return `
     <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" style="cursor:pointer" title="Click to edit">
@@ -665,7 +667,6 @@ function buildOrgCard(org, orgMap) {
           ${allies.length  ? `<span class="rel-ally">▲ ALLIES: ${allies.map(esc).join(', ')}</span>` : ''}
           ${enemies.length ? `<span class="rel-enemy">▼ HOSTILE: ${enemies.map(esc).join(', ')}</span>` : ''}
         </div>` : ''}
-      ${hasNet ? `<div><button class="oc-network-link" onclick="event.stopPropagation();openLTG(${org.id})">&gt; View Network Directory</button></div>` : ''}
     </div>`;
 }
 
@@ -752,15 +753,17 @@ function openNpcModal(charId) {
   const contactSkills = (char.contact_skills || []);
 
   // Background: shown in player-visible section when show_background=true; GM section otherwise
+  const revealBtn = char.background
+    ? `<button class="npc-reveal-btn gm-only" onclick="toggleDataReveal(${charId},'show_background',${!!char.show_background})">${char.show_background ? '\u2299 Hide from Players' : '\u25cc Reveal to Players'}</button>`
+    : '';
   const bgSection = char.background
-    ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>`
+    ? `<div class="npc-modal-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div class="npc-modal-sec-lbl" style="margin-bottom:0">Background</div>${revealBtn}</div>
+        <div class="npc-modal-text">${esc(char.background)}</div>
+      </div>`
     : '';
   const playerBg = char.show_background ? bgSection : '';
   const gmBg     = char.show_background ? '' : bgSection; // in GM section only when hidden from players
-
-  const bgToggle = char.background
-    ? `<button class="npc-reveal-btn" onclick="toggleDataReveal(${charId},'show_background',${!!char.show_background})">${char.show_background ? '\u2299 Hide from Players' : '\u25cc Reveal to Players'}</button>`
-    : '';
 
   document.getElementById('npcModalBody').innerHTML = `
     ${orgLine}
@@ -775,7 +778,6 @@ function openNpcModal(charId) {
     ${renderPromoteSection(charId)}
     <div class="npc-modal-gm gm-only">
       <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
-      ${bgToggle}
       ${gmBg}
       ${attrHtml ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Attributes</div><div class="npc-attr-grid">${attrHtml}</div></div>` : ''}
       ${skills ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Skills</div>${skills}</div>` : ''}
@@ -838,7 +840,7 @@ function npcOverlayClick(e) {
   if (e.target === document.getElementById('npcOverlay')) closeNpcModal();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeNpcModal(); closeLTG(); closeEditModal(); closeOrgEditModal(); closeLocEditModal(); closeCharEditModal(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeNpcModal(); closeEditModal(); closeOrgEditModal(); closeLocEditModal(); closeCharEditModal(); } });
 
 // ── Contact Promotion (NPC modal) ─────────────────────────────
 function renderPromoteSection(charId) {
@@ -854,12 +856,12 @@ function renderPromoteSection(charId) {
     return `<div class="promote-row${ownerActive ? '' : ' promote-row-inactive'}">
       <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}${ownerActive ? '' : ' <span style="color:#555;font-size:0.6rem">(inactive)</span>'}</span>
       <span class="promote-meta">Loyalty ${c.loyalty}</span>
-      <button class="promote-remove" onclick="removeContactLink(${c.id})" title="Remove link">✕</button>
+      <button class="promote-remove gm-only" onclick="removeContactLink(${c.id})" title="Remove link">✕</button>
     </div>`;
   }).join('');
 
   const addForm = available.length ? `
-    <div class="promote-add-form" id="promoteAddForm" style="display:none">
+    <div class="promote-add-form gm-only" id="promoteAddForm" style="display:none">
       <select id="promoteOwnerSel" class="promote-select">
         ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
       </select>
@@ -869,11 +871,12 @@ function renderPromoteSection(charId) {
       <button class="btn btn-green" style="font-size:0.62rem;padding:3px 10px" onclick="addContactLink()">Link</button>
       <button class="btn" style="font-size:0.62rem;padding:3px 8px;color:var(--text-dim);border-color:#222" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
     </div>
-    <button class="btn btn-amber" style="font-size:0.62rem;padding:3px 10px;margin-top:6px" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
+    <button class="btn btn-amber gm-only" style="font-size:0.62rem;padding:3px 10px;margin-top:6px" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
   ` : (existing.length ? '<div class="promote-all-linked">All active runners already linked.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
 
+  const hasContent = existing.length > 0 || isAdminMode();
   return `<div class="npc-modal-section" id="promoteSectionWrap">
-    <div class="npc-modal-sec-lbl">Contact Relationships</div>
+    ${hasContent ? '<div class="npc-modal-sec-lbl">Contact Relationships</div>' : ''}
     ${rows}
     ${addForm}
   </div>`;
@@ -956,10 +959,7 @@ function openNonNpcContactModal(contactId) {
     ${orgLine}
     ${merged.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(merged.description)}</div></div>` : ''}
     ${connDisplay}
-    <div class="npc-modal-section">
-      <div class="npc-modal-sec-lbl">Contact Relationships</div>
-      ${ownerRows || '<div class="promote-all-linked">No runners linked.</div>'}
-    </div>`;
+    ${ownerRows ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Contact Relationships</div>${ownerRows}</div>` : ''}`;
 
   document.getElementById('npcModalFoot').style.display = 'none';
   document.getElementById('npcOverlay').classList.add('open');
@@ -1123,7 +1123,7 @@ function buildContactCard(merged, charMap, orgMap) {
 function buildLocCard(loc, orgMap) {
   const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
   return `
-    <div class="loc-card" onclick="openLocEditModal(${loc.id})" style="cursor:pointer" title="Click to edit">
+    <div class="loc-card" onclick="openLocEditModal(${loc.id})" style="cursor:pointer" title="View location">
       <div class="lc-name">${esc(loc.name)}</div>
       <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
       ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
@@ -1203,17 +1203,15 @@ function buildCharCard(char, orgMap = {}) {
     </div>`;
 }
 
-function section(key, title, html, manageUrl, startCollapsed) {
+function section(key, title, html, manageUrl) {
   const manageLink = manageUrl ? `<a href="${manageUrl}" class="sec-manage-link">Manage</a>` : '';
-  if (startCollapsed) collapsed[key] = true;
   return `
     <div class="section-head" id="sec-head-${key}">
       <span>${esc(title)}</span>
       <span style="flex:1"></span>
       ${manageLink}
-      <button id="sec-btn-${key}" class="sec-toggle" onclick="toggleSection('${key}')">${startCollapsed ? '[+]' : '[–]'}</button>
     </div>
-    <div id="sec-body-${key}" style="${startCollapsed ? 'display:none' : ''}">
+    <div id="sec-body-${key}">
       ${html}
     </div>
     <hr class="rule">`;
@@ -1316,7 +1314,8 @@ function oeAddTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeTelecomBody','oeEmptyTelecom',4)">✕</button></td>`;
+    <td class="gm-only" style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeTelecomBody','oeEmptyTelecom',5)">✕</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => oeFormatTelecom(numInput));
   tbody.appendChild(tr);
@@ -1340,7 +1339,8 @@ function oeAddHost(data) {
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',7)">✕</button></td>`;
+    <td class="gm-only" style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',8)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => oeEnforceIdCode(idInput));
   tbody.appendChild(tr);
@@ -1360,16 +1360,16 @@ function oeRemoveRow(id, tbodyId, emptyId, cols) {
 function oeGetTableData(tbodyId, emptyId, fields) {
   return Array.from(document.querySelectorAll(`#${tbodyId} tr:not(#${emptyId})`)).map(row => {
     const obj = {};
-    fields.forEach(f => { const el = row.querySelector(`[data-field="${f}"]`); obj[f] = el?.value?.trim() || null; });
+    fields.forEach(f => { const el = row.querySelector(`[data-field="${f}"]`); obj[f] = el ? (el.type === 'checkbox' ? el.checked : (el.value?.trim() || null)) : null; });
     return obj;
-  }).filter(obj => Object.values(obj).some(v => v));
+  }).filter(obj => Object.values(obj).some(v => v !== null && v !== false && v !== ''));
 }
 
 function oeGetLTGs() {
-  const telecoms = oeGetTableData('oeTelecomBody', 'oeEmptyTelecom', ['number','description','visibility'])
+  const telecoms = oeGetTableData('oeTelecomBody', 'oeEmptyTelecom', ['number','description','visibility','revealed'])
     .map(t => ({ type:'telecom', ...t }))
     .sort((a,b) => (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9));
-  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility'])
+  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility','revealed'])
     .map(h => ({ type:'matrix_host', ...h }))
     .sort((a,b) => {
       const vd = (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9);
@@ -1413,7 +1413,7 @@ function oeAddLeader(data) {
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun..." data-field="title" value="${esc(data?.title||'')}"></td>
     <td><input type="text" placeholder="Notes..." data-field="notes" value="${esc(data?.notes||'')}"></td>
-    <td><button type="button" class="btn btn-red" onclick="oeRemoveLeader('${id}')">✕</button></td>`;
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveLeader('${id}')">✕</button></td>`;
   tbody.appendChild(tr);
 }
 
@@ -1437,26 +1437,191 @@ function oeGetLeadership() {
 }
 
 function oeGetChecked(listId) {
-  return Array.from(document.querySelectorAll(`#${listId} input[type=checkbox]:checked`)).map(cb => parseInt(cb.value));
+  return Array.from(document.querySelectorAll(`#${listId} input.rel-chk:checked`)).map(cb => parseInt(cb.value));
+}
+
+function oeGetRevealed(listId) {
+  return Array.from(document.querySelectorAll(`#${listId} input.rev-chk:checked`)).map(cb => parseInt(cb.value));
 }
 
 function oeRenderRelations(currentOrgId) {
   const orgs = Object.values(orgStore).filter(o => o.id !== currentOrgId);
   const org = orgStore[currentOrgId];
-  const allySet  = new Set(org?.ally_ids  || []);
-  const enemySet = new Set(org?.enemy_ids || []);
-  [['oeAllyList', allySet], ['oeEnemyList', enemySet]].forEach(([lid, set]) => {
+  const allySet     = new Set(org?.ally_ids          || []);
+  const enemySet    = new Set(org?.enemy_ids         || []);
+  const revAllySet  = new Set(org?.revealed_ally_ids  || []);
+  const revEnemySet = new Set(org?.revealed_enemy_ids || []);
+
+  if (!isAdminMode()) {
+    // Runner view: show only revealed relationships as read-only text
+    [['oeAllyList', allySet, revAllySet], ['oeEnemyList', enemySet, revEnemySet]].forEach(([lid, set, revSet]) => {
+      const visible = orgs.filter(o => set.has(o.id) && revSet.has(o.id));
+      document.getElementById(lid).innerHTML = visible.length
+        ? visible.map(o => `<div class="npc-skill">&#8250; ${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></div>`).join('')
+        : '<div style="padding:4px;color:var(--text-dim);font-size:.75rem">None on record</div>';
+    });
+    return;
+  }
+
+  // Admin view: checkbox + reveal toggle per org
+  [['oeAllyList', allySet, revAllySet], ['oeEnemyList', enemySet, revEnemySet]].forEach(([lid, set, revSet]) => {
     document.getElementById(lid).innerHTML = orgs.length
-      ? orgs.map(o => `<label class="chk-item"><input type="checkbox" value="${o.id}"${set.has(o.id)?' checked':''}><span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span></label>`).join('')
+      ? orgs.map(o => `
+        <label class="chk-item">
+          <input type="checkbox" value="${o.id}" class="rel-chk" ${set.has(o.id) ? 'checked' : ''}>
+          <span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
+          <span style="margin-left:auto">
+            <input type="checkbox" value="${o.id}" class="rev-chk" ${revSet.has(o.id) ? 'checked' : ''} title="Reveal to players">
+          </span>
+        </label>`).join('')
       : '<div style="padding:8px;color:var(--text-dim);font-size:.75rem">No other organizations</div>';
   });
+}
+
+function renderOrgDossierView(org) {
+  const allyIds  = (org.revealed_ally_ids  || []);
+  const enemyIds = (org.revealed_enemy_ids || []);
+  const allies   = allyIds.map(id => orgStore[id]).filter(Boolean);
+  const enemies  = enemyIds.map(id => orgStore[id]).filter(Boolean);
+
+  const typeLabel = (org.org_type || 'UNKNOWN').toUpperCase();
+  const tier      = org.tier || 1;
+  const isActive  = org.is_active !== false;
+  const statusDot = isActive
+    ? `<span style="color:var(--green)">&#9679; ACTIVE</span>`
+    : `<span style="color:var(--text-dim)">&#9675; INACTIVE</span>`;
+
+  // Leadership — two-column grid: name | title (aligned, close together)
+  const leads = (org.leadership || []);
+  const leadHtml = leads.length
+    ? `<div class="dossier-cmd-grid">${leads.map(l =>
+        `<span style="color:var(--text-bright);font-size:.75rem">&#8250; ${esc(l.name)}</span><span class="dossier-cmd-title">${esc(l.title||'')}</span>`
+      ).join('')}</div>`
+    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">None on record</div>`;
+
+  // Relationships
+  const makeRelList = orgs => orgs.length
+    ? orgs.map(o => `<div class="npc-skill">&#8250; <span style="color:var(--text-bright)">${esc(o.name)}</span> <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></div>`).join('')
+    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">None on record</div>`;
+
+  // LTG/Network
+  const visLtgs = (org.ltgs || []).filter(e => e.visibility === 'listed' || e.revealed);
+  const telecoms = visLtgs.filter(e => e.type === 'telecom');
+  const hosts    = visLtgs.filter(e => e.type === 'matrix_host');
+
+  const disposBadge = v => {
+    if (v === 'listed')   return `<span class="disp-listed">LISTED</span>`;
+    if (v === 'unlisted') return `<span class="disp-unlisted">UNLISTED</span>`;
+    if (v === 'black')    return `<span class="disp-black">BLACK</span>`;
+    return `<span style="color:var(--text-dim);font-size:.65rem">${esc(v||'')}</span>`;
+  };
+
+  const telecomGridHeader = `
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">IDENTIFIER</span>
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">DESCRIPTION</span>
+    <span></span>
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em;text-align:right">DISPOSITION</span>`;
+
+  const hostGridHeader = `
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">IDENTIFIER</span>
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">DESCRIPTION</span>
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">RATING</span>
+    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em;text-align:right">DISPOSITION</span>`;
+
+  const telecomHtml = telecoms.length
+    ? `<div class="dossier-net-grid">${telecomGridHeader}${telecoms.map(t =>
+        `<span style="color:var(--cyan)">&#8250; ${esc(t.number)}</span>
+         <span style="color:var(--text-dim)">${esc(t.description||'')}</span>
+         <span></span>
+         <span class="dossier-net-disp">${disposBadge(t.visibility)}</span>`
+      ).join('')}</div>`
+    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">No public telecom listings</div>`;
+
+  const hostHtml = hosts.length
+    ? `<div class="dossier-net-grid">${hostGridHeader}${hosts.map(h =>
+        `<span><span style="color:var(--amber)">&#8250; ${esc(h.rtg)}</span><span style="color:var(--text-dim)"> // </span><span style="color:var(--green-dim)">${esc(h.ltg)}</span>${h.id_code?`<span style="color:var(--purple);font-size:.65rem"> [${esc(h.id_code)}]</span>`:''}</span>
+         <span style="color:var(--text-dim)">${esc(h.description||'')}</span>
+         <span>${h.san_access_rating ? `<span class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating)}</span>` : ''}</span>
+         <span class="dossier-net-disp">${disposBadge(h.visibility)}</span>`
+      ).join('')}</div>`
+    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">No public matrix listings</div>`;
+
+  return `
+    <div style="padding:4px 0 12px">
+      <div class="section-head" style="margin-bottom:8px">// Profile</div>
+      ${org.headquarters ? `<div class="dossier-field"><span class="df-label">Headquarters</span><span class="df-val">${esc(org.headquarters)}</span></div>` : ''}
+      ${org.description  ? `<div style="color:var(--text);font-size:.82rem;line-height:1.55;margin:8px 0 14px">${esc(org.description)}</div>` : ''}
+
+      <hr class="rule" style="margin:12px 0">
+      <div class="section-head" style="margin-bottom:8px">// Command Structure</div>
+      <div style="margin-bottom:14px">${leadHtml}</div>
+
+      <hr class="rule" style="margin:12px 0">
+      <div class="section-head" style="margin-bottom:8px">// Political Relationships</div>
+      <div class="grid2" style="margin-bottom:14px">
+        <div>
+          <div style="color:var(--green-dim);font-size:.68rem;letter-spacing:.08em;margin-bottom:6px">ALLIED</div>
+          ${makeRelList(allies)}
+        </div>
+        <div>
+          <div style="color:var(--red);font-size:.68rem;letter-spacing:.08em;opacity:.7;margin-bottom:6px">HOSTILE</div>
+          ${makeRelList(enemies)}
+        </div>
+      </div>
+
+      <hr class="rule" style="margin:12px 0">
+      <div class="section-head" style="margin-bottom:8px">// RTG/LTG Network Directory</div>
+      <div style="margin-bottom:14px">
+        <div style="color:var(--cyan);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; TELECOM</div>
+        <hr class="rule" style="margin:4px 0 8px">
+        ${telecomHtml}
+      </div>
+      <div>
+        <div style="color:var(--amber);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; MATRIX HOSTS</div>
+        <hr class="rule" style="margin:4px 0 8px">
+        ${hostHtml}
+      </div>
+    </div>`;
 }
 
 function openOrgEditModal(orgId) {
   const org = orgStore[orgId];
   if (!org) return;
   oeEditingId = orgId;
-  document.getElementById('oeTitle').textContent = `Edit // ${org.name}`;
+
+  const adminMode = isAdminMode();
+  document.getElementById('oeTitle').textContent = `Intelligence Report // ${org.name}`;
+
+  // Populate header badge: classification · tier · status
+  const typeLabel = (org.org_type || 'UNKNOWN').toUpperCase();
+  const tier = org.tier || 1;
+  const isActive = org.is_active !== false;
+  const statusDot = isActive
+    ? `<span style="color:var(--green)">&#9679; ACTIVE</span>`
+    : `<span style="color:var(--text-dim)">&#9675; INACTIVE</span>`;
+  const badge = document.getElementById('oeDossierBadge');
+  if (badge) badge.innerHTML = `
+    <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+      <span class="cc-race-prof" style="color:var(--amber)">${typeLabel}</span>
+      <span style="color:var(--text-dim);font-size:.75rem">&#183;</span>
+      <span style="color:#6699cc;font-size:0.65rem;letter-spacing:1px;padding:2px 7px;border:1px solid #1a2a44">TIER ${tier} // ${tierLabel(tier).toUpperCase()}</span>
+    </span>`;
+
+  if (!adminMode) {
+    // Runner view: show dossier, hide the edit form
+    document.getElementById('orgDossierView').innerHTML = renderOrgDossierView(org);
+    document.getElementById('orgDossierView').style.display = '';
+    document.getElementById('orgFormContent').style.display = 'none';
+    document.getElementById('orgEditFoot').style.display = 'none';
+    document.getElementById('orgEditOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    return;
+  }
+
+  // Admin view: hide dossier, show form
+  document.getElementById('orgDossierView').style.display = 'none';
+  document.getElementById('orgFormContent').style.display = '';
+
   document.getElementById('oe-name').value = org.name || '';
   const oeOrgType = org.org_type || '';
   if (!oeOrgType || PREDEFINED_ORG_TYPES.includes(oeOrgType)) {
@@ -1481,14 +1646,15 @@ function openOrgEditModal(orgId) {
   oeLeaderCount = 0;
   (org.leadership || []).forEach(l => oeAddLeader(l));
   oeRenderRelations(orgId);
-  document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
-  document.getElementById('oeHostBody').innerHTML    = '<tr id="oeEmptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="5" class="empty-lead">No telecom numbers</td></tr>';
+  document.getElementById('oeHostBody').innerHTML    = '<tr id="oeEmptyHost"><td colspan="8" class="empty-lead">No matrix hosts</td></tr>';
   oeTelecomCount = 0; oeHostCount = 0;
   (org.ltgs || []).forEach(e => {
-    if (e.type === 'telecom')      oeAddTelecom(e);
+    if (e.type === 'telecom')          oeAddTelecom(e);
     else if (e.type === 'matrix_host') oeAddHost(e);
   });
   document.getElementById('oeAlert').className = 'alert';
+  document.getElementById('orgEditFoot').style.display = '';
   document.getElementById('orgEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1497,6 +1663,13 @@ function closeOrgEditModal() {
   document.getElementById('orgEditOverlay').classList.remove('open');
   document.body.style.overflow = '';
   oeEditingId = null;
+}
+
+function setOeReadOnly(isReadOnly) {
+  const body = document.getElementById('orgEditBody');
+  body.querySelectorAll('input:not([type=checkbox]), textarea').forEach(el => { el.readOnly = isReadOnly; });
+  body.querySelectorAll('select').forEach(el => { el.disabled = isReadOnly; });
+  document.getElementById('orgEditFoot').style.display = isReadOnly ? 'none' : '';
 }
 
 async function saveOrgEdit() {
@@ -1516,8 +1689,10 @@ async function saveOrgEdit() {
     notes:        document.getElementById('oe-notes').value.trim() || null,
     is_active:    document.getElementById('oe-is_active').checked,
     leadership:   oeGetLeadership(),
-    ally_ids:     oeGetChecked('oeAllyList'),
-    enemy_ids:    oeGetChecked('oeEnemyList'),
+    ally_ids:            oeGetChecked('oeAllyList'),
+    enemy_ids:           oeGetChecked('oeEnemyList'),
+    revealed_ally_ids:   oeGetRevealed('oeAllyList'),
+    revealed_enemy_ids:  oeGetRevealed('oeEnemyList'),
     ltgs:         oeGetLTGs(),
   };
   try {
@@ -1537,30 +1712,115 @@ async function saveOrgEdit() {
 // ── Location Edit Modal ───────────────────────────────────────
 let leEditingId = null;
 
+function renderLocDossier(loc) {
+  const orgName = loc.controlling_org_id ? (orgStore[loc.controlling_org_id]?.name || '') : '';
+  const typeBadge = loc.location_type
+    ? `<span class="cc-race-prof" style="color:var(--cyan);background:rgba(0,204,255,.07);border-color:#004455">${esc(loc.location_type.toUpperCase())}</span>` : '';
+  const orgLine = orgName
+    ? `<div class="loc-org-line"><span class="cc-org-lbl">Controlling Organization ▸</span>&nbsp;<span style="color:var(--amber)">${esc(orgName)}</span></div>` : '';
+  const fields = [
+    ['City',           loc.city],
+    ['District',       loc.district],
+    ['Security Level', loc.security_level],
+  ].filter(([,v]) => v).map(([lbl, val]) =>
+    `<div class="loc-dossier-field"><span class="loc-dossier-lbl">${lbl}</span><span class="loc-dossier-val">${esc(val)}</span></div>`
+  ).join('');
+  const gmSection = isAdminMode() ? `
+    <div class="npc-modal-gm">
+      <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
+      <div class="npc-modal-section">
+        <div class="npc-modal-sec-lbl">Notes</div>
+        <textarea id="le-dossier-notes" rows="4" style="width:100%;box-sizing:border-box" placeholder="GM notes...">${esc(loc.notes || '')}</textarea>
+        <div id="leNotesFlash" style="font-size:0.62rem;letter-spacing:1px;margin-top:4px"></div>
+      </div>
+    </div>` : '';
+  return `
+    ${orgLine ? `<div style="margin-bottom:12px">${orgLine}</div>` : ''}
+    ${fields ? `<div class="loc-section">${fields}</div>` : ''}
+    ${loc.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Intel</div><div class="npc-modal-text">${esc(loc.description)}</div></div>` : ''}
+    ${gmSection}`;
+}
+
+function onLeLocTypeChange() {
+  const val = document.getElementById('le-location_type').value;
+  document.getElementById('le-location_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+}
+
 function openLocEditModal(locId) {
   const loc = locStore[locId];
   if (!loc) return;
   leEditingId = locId;
-  document.getElementById('leTitle').textContent = `Edit // ${loc.name}`;
-  document.getElementById('le-name').value = loc.name || '';
-  document.getElementById('le-location_type').value = loc.location_type || '';
-  document.getElementById('le-city').value = loc.city || '';
-  document.getElementById('le-district').value = loc.district || '';
-  document.getElementById('le-security_level').value = loc.security_level || '';
-  document.getElementById('le-description').value = loc.description || '';
-  document.getElementById('le-notes').value = loc.notes || '';
-  const sel = document.getElementById('le-controlling_org_id');
-  sel.innerHTML = '<option value="">— Independent / Unknown —</option>' +
-    Object.values(orgStore).map(o => `<option value="${o.id}"${o.id===loc.controlling_org_id?' selected':''}>${esc(o.name)}</option>`).join('');
-  document.getElementById('leAlert').className = 'alert';
+  document.getElementById('leTitle').textContent =
+    isAdminMode() ? `Edit // ${loc.name}` : `Site Report // ${loc.name}`;
+  // set type badge in header
+  const badge = document.getElementById('leBadge');
+  if (badge) badge.innerHTML = loc.location_type
+    ? `<span class="cc-race-prof" style="color:var(--cyan);background:rgba(0,204,255,.07);border-color:#004455">${esc(loc.location_type.toUpperCase())}</span>` : '';
+  if (isAdminMode()) {
+    document.getElementById('locDossierView').style.display = 'none';
+    document.getElementById('locFormContent').style.display = '';
+    document.getElementById('locEditFoot').style.display = '';
+    document.getElementById('le-name').value = loc.name || '';
+  // Populate type dropdown — handle Custom values
+  const leLocTypeVal = loc.location_type || '';
+  const leLocTypeSel = document.getElementById('le-location_type');
+  const leLocTypeOpts = Array.from(leLocTypeSel.options).map(o => o.value);
+  if (!leLocTypeVal || leLocTypeOpts.includes(leLocTypeVal)) {
+    leLocTypeSel.value = leLocTypeVal;
+    document.getElementById('le-location_type-custom').value = '';
+    document.getElementById('le-location_type-custom-wrap').style.display = 'none';
+  } else {
+    leLocTypeSel.value = 'Custom';
+    document.getElementById('le-location_type-custom').value = leLocTypeVal;
+    document.getElementById('le-location_type-custom-wrap').style.display = '';
+  }
+    document.getElementById('le-city').value = loc.city || '';
+    document.getElementById('le-district').value = loc.district || '';
+    document.getElementById('le-security_level').value = loc.security_level || '';
+    document.getElementById('le-description').value = loc.description || '';
+    document.getElementById('le-notes').value = loc.notes || '';
+    const sel = document.getElementById('le-controlling_org_id');
+    sel.innerHTML = '<option value="">— Independent / Unknown —</option>' +
+      Object.values(orgStore).map(o => `<option value="${o.id}"${o.id===loc.controlling_org_id?' selected':''}>${esc(o.name)}</option>`).join('');
+    document.getElementById('leAlert').className = 'alert';
+  } else {
+    document.getElementById('locFormContent').style.display = 'none';
+    document.getElementById('locEditFoot').style.display = 'none';
+    const dv = document.getElementById('locDossierView');
+    dv.innerHTML = renderLocDossier(loc);
+    dv.style.display = '';
+    if (isAdminMode()) {
+      document.getElementById('locEditFoot').innerHTML =
+        `<button class="btn btn-green" onclick="saveLocNotes()" style="flex:1;justify-content:center">>> Save Notes</button>
+         <button class="btn" onclick="closeLocEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>`;
+      document.getElementById('locEditFoot').style.display = '';
+    }
+  }
   document.getElementById('locEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeLocEditModal() {
   document.getElementById('locEditOverlay').classList.remove('open');
+  document.getElementById('locDossierView').style.display = 'none';
+  document.getElementById('locFormContent').style.display = '';
   document.body.style.overflow = '';
   leEditingId = null;
+}
+
+async function saveLocNotes() {
+  const notes = document.getElementById('le-dossier-notes')?.value.trim() || '';
+  const flash = document.getElementById('leNotesFlash');
+  try {
+    const res = await apiFetch(`${API}/locations/${leEditingId}`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ notes }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || res.statusText);
+    if (locStore[leEditingId]) locStore[leEditingId].notes = notes;
+    if (flash) { flash.style.color = 'var(--green)'; flash.textContent = '// notes saved'; setTimeout(()=>flash.textContent='', 2500); }
+  } catch(e) {
+    if (flash) { flash.style.color = 'var(--red)'; flash.textContent = `>> ERROR // ${e.message}`; }
+  }
 }
 
 async function saveLocEdit() {
@@ -1572,9 +1832,11 @@ async function saveLocEdit() {
     return;
   }
   const ctrlVal = document.getElementById('le-controlling_org_id').value;
+  let leLocType = document.getElementById('le-location_type').value;
+  if (leLocType === 'Custom') leLocType = document.getElementById('le-location_type-custom').value.trim() || null;
   const payload = {
     name,
-    location_type:      document.getElementById('le-location_type').value || null,
+    location_type:      leLocType,
     city:               document.getElementById('le-city').value.trim() || null,
     district:           document.getElementById('le-district').value.trim() || null,
     security_level:     document.getElementById('le-security_level').value || null,
@@ -1875,9 +2137,7 @@ async function loadAll() {
     document.getElementById('sc-locs').textContent     = locs.length;
     document.getElementById('sc-chars').textContent          = activePcs.length;
     document.getElementById('sc-chars-inactive').textContent = inactivePcs.length;
-    document.getElementById('sc-nuyen').textContent    = '¥' + partyNuyen.toLocaleString();
-    document.getElementById('lastRefresh').textContent =
-      'LAST REFRESH: ' + new Date().toLocaleTimeString();
+    // document.getElementById('sc-nuyen').textContent = '¥' + partyNuyen.toLocaleString(); // HIDDEN: nuyen not tracked yet
 
     const orgMap  = Object.fromEntries(orgs.map(o => [o.id, o]));
     const charMap = Object.fromEntries(chars.map(c => [c.id, c]));
