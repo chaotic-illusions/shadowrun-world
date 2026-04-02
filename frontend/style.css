@@ -240,6 +240,9 @@ select option { background: #090909; }
 }
 .toggle input:checked + .tog-sl { background: rgba(0,255,65,.1); border-color: var(--green-dim); }
 .toggle input:checked + .tog-sl::after { left: 25px; background: var(--green); box-shadow: var(--glow-green); }
+.toggle input:disabled + .tog-sl { cursor: default; opacity: 0.45; }
+.toggle input:disabled:checked + .tog-sl { background: rgba(0,255,65,.04); border-color: #1a3a1a; }
+.toggle input:disabled:checked + .tog-sl::after { background: #2a5a2a; box-shadow: none; }
 .tog-label { font-size: 0.78rem; color: var(--text-dim); }
 #activeStatus { transition: color .2s; }
 
