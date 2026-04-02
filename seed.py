@@ -14,10 +14,17 @@ import urllib.request
 import urllib.error
 
 
+ADMIN_PASSWORD = "shadowrunner"
+
+
 def post(base_url, path, payload):
     url = f"{base_url}{path}"
     data = json.dumps(payload).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    req = urllib.request.Request(
+        url, data=data,
+        headers={"Content-Type": "application/json", "X-Admin-Token": ADMIN_PASSWORD},
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read())
@@ -57,7 +64,7 @@ def seed(base_url, seed_file):
         if ally_ids or enemy_ids:
             url = f"{base_url}/organizations/{org_ids[org['name']]}"
             payload = json.dumps({"ally_ids": ally_ids, "enemy_ids": enemy_ids}).encode()
-            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="PATCH")
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "X-Admin-Token": ADMIN_PASSWORD}, method="PATCH")
             with urllib.request.urlopen(req):
                 pass
 

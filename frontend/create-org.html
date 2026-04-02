@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Organizations | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
 </head>
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
-    <a href="create-org.html" class="active">Organizations</a>
     <a href="manage-characters.html">Characters</a>
+    <a href="create-org.html" class="active">Organizations</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -38,7 +39,7 @@
         <option value="inactive">Inactive</option>
       </select>
     </div>
-    <button class="btn btn-green" onclick="openModal()">+ New Organization</button>
+    <button class="btn btn-green gm-only" onclick="openModal()">+ New Organization</button>
   </div>
 
   <div id="tableWrap"><div class="loading">Loading organizations</div></div>
@@ -204,6 +205,11 @@
 
 <script>
 const API = '';
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
+}
 let tierVal = 1;
 let leaderCount = 0;
 let telecomCount = 0;
@@ -458,7 +464,7 @@ function resetForm() {
 
 async function loadOrgForEdit(id) {
   try {
-    const res = await fetch(`${API}/organizations/${id}`);
+    const res = await apiFetch(`${API}/organizations/${id}`);
     if (!res.ok) throw new Error('Not found');
     populateForm(await res.json());
   } catch(e) {
@@ -551,7 +557,7 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '—')}</td>
             <td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>
             <td class="td-act">
-              <button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>
+              ${isAdmin() ? `<button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>` : ''}
             </td>
           </tr>`).join('')}
       </tbody>
@@ -575,7 +581,7 @@ function renderOrgChecks(orgs) {
 // ── RTG list ──────────────────────────────────────────────────
 async function loadRTGs() {
   try {
-    const res = await fetch(`${API}/rtgs/`);
+    const res = await apiFetch(`${API}/rtgs/`);
     allRTGs = (await res.json()).sort((a, b) => a.code.localeCompare(b.code));
   } catch(e) { console.warn('Could not load RTGs:', e.message); }
 }
@@ -583,7 +589,7 @@ async function loadRTGs() {
 // ── Org list ──────────────────────────────────────────────────
 async function loadOrgs() {
   try {
-    const res = await fetch(`${API}/organizations/`);
+    const res = await apiFetch(`${API}/organizations/`);
     allOrgs = await res.json();
     allOrgsForTable = allOrgs;
     renderOrgChecks(allOrgs);
@@ -609,7 +615,7 @@ async function deleteOrg() {
   const name = document.getElementById('name').value || 'this organization';
   if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
   try {
-    const res = await fetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
+    const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);
     closeModal();
     await loadOrgs();
@@ -653,7 +659,7 @@ async function submitForm() {
   try {
     const url    = editingId ? `${API}/organizations/${editingId}` : `${API}/organizations/`;
     const method = editingId ? 'PATCH' : 'POST';
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -674,14 +680,15 @@ async function submitForm() {
 }
 
 // ── Init ──────────────────────────────────────────────────────
-(async function init() {
+bootstrapAuth().then(async u => {
+  if (!u) return;
   await Promise.all([loadOrgs(), loadRTGs()]);
 
   // Support legacy ?id= deep links
   const params  = new URLSearchParams(window.location.search);
   const idParam = parseInt(params.get('id'));
   if (idParam) openModal(idParam);
-})();
+});
 </script>
 </body>
 </html>

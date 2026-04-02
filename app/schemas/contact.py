@@ -14,6 +14,7 @@ class ContactBase(BaseModel):
     npc_id: Optional[int] = None
     location_id: Optional[int] = None
     organization_id: Optional[int] = None
+    is_active: bool = True
 
     @field_validator("loyalty", "connection")
     @classmethod
@@ -37,6 +38,7 @@ class ContactUpdate(BaseModel):
     npc_id: Optional[int] = None
     location_id: Optional[int] = None
     organization_id: Optional[int] = None
+    is_active: Optional[bool] = None
 
     @field_validator("loyalty", "connection", mode="before")
     @classmethod

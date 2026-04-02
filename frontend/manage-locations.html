@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Locations | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
 </head>
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> World Engine</div>
+  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
-    <a href="create-org.html">Organizations</a>
     <a href="manage-characters.html">Characters</a>
+    <a href="create-org.html">Organizations</a>
     <a href="manage-locations.html" class="active">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -33,7 +34,7 @@
         <option value="">All Types</option>
       </select>
     </div>
-    <button class="btn btn-green" onclick="openModal()">+ New Location</button>
+    <button class="btn btn-green gm-only" onclick="openModal()">+ New Location</button>
   </div>
 
   <div id="tableWrap">
@@ -174,6 +175,11 @@
 
 <script>
 const API = '';
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
+}
 let allLocs = [];
 let allOrgs = [];
 let editingId = null;
@@ -235,7 +241,7 @@ function renderTable(data) {
             <td style="color:var(--text-dim)">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
             <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'—')}</td>
             <td style="color:var(--text-dim);font-size:.75rem">${esc(orgMap[l.controlling_org_id]||'—')}</td>
-            <td class="td-act"><button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button></td>
+            <td class="td-act">${isAdmin() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -318,7 +324,7 @@ async function saveLoc() {
   try {
     const url    = editingId ? `${API}/locations/${editingId}` : `${API}/locations/`;
     const method = editingId ? 'PATCH' : 'POST';
-    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const res = await apiFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     if (!res.ok) {
       const err = await res.json().catch(() => ({detail: res.statusText}));
       throw new Error(err.detail || JSON.stringify(err));
@@ -336,7 +342,7 @@ async function deleteLoc() {
   const name = document.getElementById('f-name').value;
   if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
   try {
-    const res = await fetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
+    const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
@@ -350,8 +356,8 @@ async function deleteLoc() {
 async function loadAll() {
   try {
     const [locRes, orgRes] = await Promise.all([
-      fetch(`${API}/locations/`),
-      fetch(`${API}/organizations/`),
+      apiFetch(`${API}/locations/`),
+      apiFetch(`${API}/organizations/`),
     ]);
     allLocs = await locRes.json();
     allOrgs = await orgRes.json();
@@ -376,7 +382,7 @@ async function loadAll() {
   }
 }
 
-loadAll();
+bootstrapAuth().then(u => { if (u) loadAll(); });
 </script>
 </body>
 </html>

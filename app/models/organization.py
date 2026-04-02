@@ -25,6 +25,9 @@ class Organization(Base):
     # Lists of organization IDs (int); no FK constraint for flexibility
     ally_ids = Column(JSON, default=list)
     enemy_ids = Column(JSON, default=list)
+    # Subsets of ally_ids/enemy_ids that the GM has revealed to players
+    revealed_ally_ids = Column(JSON, default=list)
+    revealed_enemy_ids = Column(JSON, default=list)
 
     is_active = Column(Boolean, default=True)
     notes = Column(Text)
