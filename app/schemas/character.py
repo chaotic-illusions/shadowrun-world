@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CharacterBase(BaseModel):
@@ -56,7 +56,9 @@ class CharacterRead(CharacterBase):
     updated_at: datetime
     organization_name: Optional[str] = None
     is_claimed: bool = False
-    model_config = ConfigDict(from_attributes=True, fields={"owner_token": {"exclude": True}})
+    # Pydantic V2: Field(exclude=True) prevents owner_token from appearing in API responses
+    owner_token: Optional[str] = Field(default=None, exclude=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CharacterSummary(BaseModel):

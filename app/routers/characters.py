@@ -65,8 +65,9 @@ async def create_character(
     ctx: dict = Depends(get_any_token),
 ):
     data = body.model_dump()
-    # Store the caller's token hash as owner if creating a PC
-    if data.get("is_pc", True):
+    # Store the caller's token hash as owner only when a non-admin player creates a PC.
+    # Admin-created PCs (including all seeded data) remain unclaimed so players can claim them.
+    if data.get("is_pc", True) and not ctx["is_admin"]:
         data["owner_token"] = hash_token(ctx["user_token"])
     else:
         data.pop("owner_token", None)
