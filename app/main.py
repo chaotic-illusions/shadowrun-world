@@ -14,6 +14,7 @@ import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 from app.routers import (
     characters, contacts, locations, organizations,
     reputation, adventure_logs, house_rules, consequences, rtgs,
+    matrix_hosts,
 )
 from app.routers import auth as auth_router
 from app.auth.dependencies import get_any_token
@@ -91,6 +92,7 @@ app.include_router(adventure_logs.router, prefix="/runs",          tags=["Advent
 app.include_router(house_rules.router,    prefix="/house-rules",   tags=["House Rules"],        dependencies=_auth)
 app.include_router(consequences.router,   prefix="/consequences",  tags=["Consequence Engine"], dependencies=_auth)
 app.include_router(rtgs.router,           prefix="/rtgs",          tags=["RTGs"],               dependencies=_auth)
+app.include_router(matrix_hosts.router,   prefix="/matrix-hosts",  tags=["Matrix Hosts"],       dependencies=_auth)
 
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 

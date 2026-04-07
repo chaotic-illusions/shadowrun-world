@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matrix Hosts | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Layout ─────────────────────────────────────── */
+    .mx-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .mx-layout { grid-template-columns: 1fr; } }
+
+    /* ── Left panel: generator form + host list ─────── */
+    .mx-panel { background: var(--bg-card); border: 1px solid #111; padding: 16px; }
+    .mx-panel-title { font-size: 0.68rem; letter-spacing: 3px; color: var(--cyan); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid #1a2a1a; padding-bottom: 8px; }
+
+    .field label { font-size: 0.65rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 4px; }
+    .field { margin-bottom: 12px; }
+    .field input, .field select, .field textarea {
+      width: 100%; background: var(--bg-input, #0a0a0a); border: 1px solid var(--green-dark);
+      color: var(--text-bright); padding: 6px 10px; font-family: var(--font); font-size: 0.82rem;
+      box-sizing: border-box; outline: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--green-dim); }
+
+    .host-item {
+      padding: 10px 12px; border: 1px solid #111; border-left: 3px solid var(--text-dim);
+      margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
+    }
+    .host-item:hover, .host-item.active { border-left-color: var(--cyan); background: #0a0f0a; }
+    .host-name { font-size: 0.85rem; color: var(--text-bright); letter-spacing: 1px; }
+    .host-meta { font-size: 0.62rem; color: var(--text-dim); letter-spacing: 1px; margin-top: 3px; }
+
+    /* ── Right panel: SVG canvas ───────────────────── */
+    .mx-canvas-wrap {
+      background: #050505; border: 1px solid #111; position: relative;
+      overflow: hidden; height: 640px;
+    }
+    #matrixSvg { width: 100%; height: 100%; display: block; cursor: grab; }
+    #matrixSvg.dragging { cursor: grabbing; }
+
+    /* ── Canvas toolbar ─────────────────────────────── */
+    .mx-toolbar {
+      display: flex; gap: 8px; align-items: center;
+      padding: 8px 12px; background: #0a0a0a; border-bottom: 1px solid #111;
+    }
+    .mx-toolbar .btn { padding: 4px 12px; font-size: 0.65rem; letter-spacing: 1px; }
+    .mx-mode-badge {
+      font-size: 0.6rem; letter-spacing: 2px; padding: 3px 10px;
+      border: 1px solid; text-transform: uppercase;
+    }
+    .mx-mode-view  { color: var(--text-dim); border-color: #333; }
+    .mx-mode-edit  { color: var(--amber);    border-color: #442200; }
+
+    /* ── IC Tooltip ─────────────────────────────────── */
+    #icTooltip {
+      position: fixed; z-index: 1000; background: #0d0d0d; border: 1px solid #1a2a1a;
+      padding: 10px 14px; max-width: 280px; pointer-events: none; display: none;
+    }
+    .ic-tt-type     { font-size: 0.7rem; letter-spacing: 2px; color: var(--text-bright); margin-bottom: 4px; }
+    .ic-tt-cat      { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+    .ic-tt-cat-white { color: #cccccc; }
+    .ic-tt-cat-gray  { color: var(--text-dim); }
+    .ic-tt-cat-black { color: var(--red); }
+    .ic-tt-rating   { font-size: 0.62rem; color: var(--cyan); margin-bottom: 6px; }
+    .ic-tt-summary  { font-size: 0.72rem; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
+    .ic-tt-flavor   { font-size: 0.68rem; color: var(--text-dim); font-style: italic; line-height: 1.4; }
+
+    /* ── Node legend ────────────────────────────────── */
+    .mx-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; background: #080808; border-top: 1px solid #111; }
+    .mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); }
+    .mx-leg-swatch { width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
+
+    /* ── Empty / loading states ─────────────────────── */
+    .mx-empty { display: flex; align-items: center; justify-content: center; height: 100%;
+      font-size: 0.72rem; letter-spacing: 2px; color: var(--text-dim); }
+
+    /* ── complexity slider label ────────────────────── */
+    .complexity-row { display: flex; justify-content: space-between; font-size: 0.62rem; color: var(--text-dim); margin-top: 3px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html" class="active">Matrix</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em style="font-style:normal;color:var(--text-dim)">//</em> Topology Generator</div>
+  <div class="page-sub" style="margin-top:-14px">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
+
+  <div id="mxAlert" class="alert" style="margin-bottom:12px"></div>
+
+  <div class="mx-layout">
+
+    <!-- ── LEFT: form + host list ──────────────────── -->
+    <div>
+      <!-- Generator Form -->
+      <div class="mx-panel" style="margin-bottom:16px">
+        <div class="mx-panel-title">&gt;&gt; Generate New Host</div>
+
+        <div class="field">
+          <label>Host Name *</label>
+          <input type="text" id="gen-name" placeholder="Aztechnology Seattle Payroll...">
+        </div>
+
+        <div class="field">
+          <label>Complexity <span id="complexityLabel" style="color:var(--amber)">Standard</span></label>
+          <input type="range" id="gen-complexity" min="1" max="5" value="2"
+            oninput="updateComplexityLabel(this.value)" style="width:100%;accent-color:var(--green)">
+          <div class="complexity-row">
+            <span>Simple</span><span>Standard</span><span>Complex</span><span>Major Corp</span><span>Black Site</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Base Security Rating</label>
+          <select id="gen-base_rating">
+            <option value="Green-4">Green-4 (Low)</option>
+            <option value="Blue-5">Blue-5 (Fringe)</option>
+            <option value="Orange-6" selected>Orange-6 (Standard)</option>
+            <option value="Orange-8">Orange-8 (Corporate)</option>
+            <option value="Red-10">Red-10 (High Security)</option>
+            <option value="Red-12">Red-12 (Military)</option>
+            <option value="Black-14">Black-14 (Black Site)</option>
+            <option value="Black-18">Black-18 (Triple-A Megacorp)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>IC Lethality</label>
+          <select id="gen-ic_lethality">
+            <option value="white">White Only (non-lethal)</option>
+            <option value="gray" selected>Gray (conditionally lethal)</option>
+            <option value="black">Black IC permitted</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Owner Profile</label>
+          <select id="gen-owner_hint">
+            <option value="corp" selected>Corporate</option>
+            <option value="government">Government / Authority</option>
+            <option value="criminal">Criminal Organisation</option>
+            <option value="military">Military</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="field" style="margin-bottom:0">
+            <label>Private Subnet</label>
+            <div class="toggle-wrap" style="padding-top:6px">
+              <label class="toggle"><input type="checkbox" id="gen-private"><span class="tog-sl"></span></label>
+              <span class="tog-label" id="genPrivateLbl">No</span>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Seed (optional)</label>
+            <input type="number" id="gen-seed" placeholder="Random" style="padding:4px 8px">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Owner Organization</label>
+          <select id="gen-owner_org_id"><option value="">— None —</option></select>
+        </div>
+        <div class="field">
+          <label>Associated Location</label>
+          <select id="gen-location_id"><option value="">— None —</option></select>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="gen-notes" rows="2" placeholder="GM notes..."></textarea>
+        </div>
+
+        <button class="btn btn-green" style="width:100%;justify-content:center" onclick="generateHost()">&gt;&gt; Generate Topology</button>
+      </div>
+
+      <!-- Host List -->
+      <div class="mx-panel">
+        <div class="mx-panel-title" style="display:flex;justify-content:space-between">
+          <span>&gt;&gt; Saved Hosts</span>
+          <span id="hostCount" style="color:var(--text-dim)">—</span>
+        </div>
+        <div id="hostList"><div class="mx-empty" style="height:60px">No hosts saved</div></div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: SVG canvas ────────────────────────── -->
+    <div>
+      <div id="canvasHostTitle" style="font-size:0.78rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;display:none">
+        <span id="canvasTitle"></span>
+        <span id="canvasRating" style="margin-left:12px"></span>
+      </div>
+
+      <div class="mx-toolbar gm-only">
+        <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem">Edit Layout</button>
+        <button class="btn btn-amber" id="btnAddEdge" onclick="startAddEdge()" style="font-size:0.65rem;display:none">+ Add Edge</button>
+        <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()"> Delete Host</button>
+        <div style="flex:1"></div>
+        <div class="mx-mode-badge mx-mode-view" id="modeBadge">VIEW</div>
+        <button class="btn" onclick="resetZoom()" style="font-size:0.62rem;color:var(--text-dim)">Reset Zoom</button>
+      </div>
+
+      <div class="mx-canvas-wrap">
+        <svg id="matrixSvg" xmlns="http://www.w3.org/2000/svg">
+          <defs id="svgDefs"></defs>
+          <g id="svgRoot">
+            <g id="subnetLayer"></g>
+            <g id="edgeLayer"></g>
+            <g id="nodeLayer"></g>
+          </g>
+          <text id="svgEmpty" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
+            font-family="'Share Tech Mono',monospace" font-size="13" letter-spacing="2"
+            fill="#333">SELECT A HOST OR GENERATE ONE TO RENDER TOPOLOGY</text>
+        </svg>
+      </div>
+
+      <div class="mx-legend">
+        <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-right:4px">NODES:</span>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ff41"></div>CPU</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ccff"></div>SPU</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#4488ff"></div>SAN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff9900"></div>SN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#bb44ff"></div>I/OP</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#888"></div>DS</div>
+        <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-left:12px;margin-right:4px">IC:</span>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#e8e8e8"></div>White</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#888"></div>Gray</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff3333"></div>Black</div>
+      </div>
+    </div>
+
+  </div><!-- /mx-layout -->
+</main>
+
+<!-- ── IC Tooltip ──────────────────────────────────── -->
+<div id="icTooltip">
+  <div class="ic-tt-type" id="icTtType"></div>
+  <div class="ic-tt-cat"  id="icTtCat"></div>
+  <div class="ic-tt-rating" id="icTtRating"></div>
+  <div class="ic-tt-summary" id="icTtSummary"></div>
+  <div class="ic-tt-flavor"  id="icTtFlavor"></div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+'use strict';
+
+const API = window.API_BASE || '';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let _hosts      = [];
+let _icInfo     = {};
+let _connMatrix = {};
+let _currentHost = null;
+let _topology    = null;   // { nodes, edges, subnets }
+
+// SVG viewport pan/zoom
+let _vp = { tx: 0, ty: 0, scale: 1 };
+let _panStart = null;
+
+// Drag state (node dragging)
+let _nodeDrag = null;   // { nodeId, startX, startY, origX, origY }
+
+// Edit mode
+let _editMode = false;
+
+// Edge interaction
+let _edgeSel   = null;  // selected edge { from, to, el }
+let _edgeDrag  = null;  // { whichEnd: 'from'|'to', handleEl, ghostEl }
+let _addingEdge = false;
+let _addEdgeFrom = null;
+
+// ── Color & shape config ───────────────────────────────────────────────────
+const NODE_COLOR = {
+  CPU: '#00ff41', SPU: '#00ccff', SAN: '#4488ff',
+  SN:  '#ff9900', IOP: '#bb44ff', DS:  '#888888',
+};
+const IC_COLOR = { white: '#e0e0e0', gray: '#aaaaaa', black: '#ff3333' };
+
+// Isometric offset constants (30° projection)
+const ISO_DX = 12;  // horizontal face depth
+const ISO_DY = 7;   // vertical face depth
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  bootstrapAuth();
+  await Promise.all([loadMeta(), loadOrgLocOptions(), loadHosts()]);
+  document.getElementById('gen-private').addEventListener('change', function() {
+    document.getElementById('genPrivateLbl').textContent = this.checked ? 'Yes' : 'No';
+  });
+  initSvgEvents();
+});
+
+async function loadMeta() {
+  try {
+    const [icRes, cmRes] = await Promise.all([
+      apiFetch(`${API}/matrix-hosts/ic-info`),
+      apiFetch(`${API}/matrix-hosts/connection-matrix`),
+    ]);
+    if (icRes.ok) _icInfo = await icRes.json();
+    if (cmRes.ok) _connMatrix = await cmRes.json();
+  } catch(_e) {}
+}
+
+async function loadOrgLocOptions() {
+  try {
+    const [orgs, locs] = await Promise.all([
+      apiFetch(`${API}/organizations/`).then(r => r.ok ? r.json() : []),
+      apiFetch(`${API}/locations/`).then(r => r.ok ? r.json() : []),
+    ]);
+    const orgSel = document.getElementById('gen-owner_org_id');
+    orgs.filter(o => o.is_active).forEach(o => {
+      orgSel.insertAdjacentHTML('beforeend', `<option value="${o.id}">${o.name}</option>`);
+    });
+    const locSel = document.getElementById('gen-location_id');
+    locs.forEach(l => {
+      locSel.insertAdjacentHTML('beforeend', `<option value="${l.id}">${l.name}</option>`);
+    });
+  } catch(_e) {}
+}
+
+async function loadHosts() {
+  try {
+    const res = await apiFetch(`${API}/matrix-hosts/`);
+    if (!res.ok) return;
+    _hosts = await res.json();
+    renderHostList();
+  } catch(_e) {}
+}
+
+function renderHostList() {
+  const el = document.getElementById('hostList');
+  document.getElementById('hostCount').textContent = _hosts.length;
+  if (!_hosts.length) {
+    el.innerHTML = '<div class="mx-empty" style="height:60px">No hosts saved</div>';
+    return;
+  }
+  el.innerHTML = _hosts.map(h => `
+    <div class="host-item${_currentHost && _currentHost.id === h.id ? ' active' : ''}"
+         onclick="selectHost(${h.id})">
+      <div class="host-name">${esc(h.name)}</div>
+      <div class="host-meta">#${h.id} // ${new Date(h.created_at).toLocaleDateString()}</div>
+    </div>
+  `).join('');
+}
+
+async function selectHost(id) {
+  try {
+    const res = await apiFetch(`${API}/matrix-hosts/${id}`);
+    if (!res.ok) return;
+    _currentHost = await res.json();
+    _topology = _currentHost.topology_json || null;
+    renderHostList();
+    renderCanvas();
+    document.getElementById('canvasHostTitle').style.display = 'block';
+    document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
+    const cfg = _currentHost.config_json || {};
+    document.getElementById('canvasRating').textContent =
+      cfg.base_rating ? `[${cfg.base_rating}]` : '';
+  } catch(_e) {}
+}
+
+// ── Generator ──────────────────────────────────────────────────────────────
+function updateComplexityLabel(v) {
+  const labels = {1:'Simple', 2:'Standard', 3:'Complex', 4:'Major Corp', 5:'Black Site'};
+  document.getElementById('complexityLabel').textContent = labels[v] || '';
+}
+
+async function generateHost() {
+  const name = document.getElementById('gen-name').value.trim();
+  if (!name) { showAlert(document.getElementById('mxAlert'), 'Host name is required.', true); return; }
+  const seed = parseInt(document.getElementById('gen-seed').value) || null;
+  const payload = {
+    name,
+    complexity:          parseInt(document.getElementById('gen-complexity').value),
+    base_rating:         document.getElementById('gen-base_rating').value,
+    ic_lethality:        document.getElementById('gen-ic_lethality').value,
+    owner_hint:          document.getElementById('gen-owner_hint').value,
+    has_private_subnet:  document.getElementById('gen-private').checked,
+    seed,
+    owner_org_id:  parseInt(document.getElementById('gen-owner_org_id').value) || null,
+    location_id:   parseInt(document.getElementById('gen-location_id').value) || null,
+    notes:         document.getElementById('gen-notes').value.trim() || null,
+  };
+  try {
+    const res = await apiFetch(`${API}/matrix-hosts/generate`, {
+      method: 'POST', body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    _currentHost = await res.json();
+    _topology = _currentHost.topology_json;
+    await loadHosts();
+    renderCanvas();
+    document.getElementById('canvasHostTitle').style.display = 'block';
+    document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
+    document.getElementById('canvasRating').textContent = `[${payload.base_rating}]`;
+    showAlert(document.getElementById('mxAlert'), `>> TOPOLOGY GENERATED // "${name}" saved.`, false);
+  } catch(e) {
+    showAlert(document.getElementById('mxAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
+async function deleteCurrentHost() {
+  if (!_currentHost) return;
+  if (!confirm(`DELETE "${_currentHost.name}"? This cannot be undone.`)) return;
+  try {
+    await apiFetch(`${API}/matrix-hosts/${_currentHost.id}`, { method: 'DELETE' });
+    _currentHost = null;
+    _topology = null;
+    clearCanvas();
+    await loadHosts();
+  } catch(e) {
+    showAlert(document.getElementById('mxAlert'), `>> DELETE FAILED // ${e.message}`, true);
+  }
+}
+
+// ── Edit mode ──────────────────────────────────────────────────────────────
+function toggleEditMode() {
+  _editMode = !_editMode;
+  clearEdgeSelection();
+  _addingEdge = false;
+  _addEdgeFrom = null;
+  document.getElementById('modeBadge').textContent = _editMode ? 'EDIT' : 'VIEW';
+  document.getElementById('modeBadge').className = 'mx-mode-badge ' + (_editMode ? 'mx-mode-edit' : 'mx-mode-view');
+  document.getElementById('btnEditMode').textContent = _editMode ? 'Done Editing' : 'Edit Layout';
+  document.getElementById('btnAddEdge').style.display = _editMode ? '' : 'none';
+  const svg = document.getElementById('matrixSvg');
+  svg.setAttribute('data-edit', _editMode ? '1' : '');
+}
+
+function startAddEdge() {
+  _addingEdge = true;
+  _addEdgeFrom = null;
+  document.getElementById('matrixSvg').style.cursor = 'crosshair';
+}
+
+// ── Canvas render ──────────────────────────────────────────────────────────
+function clearCanvas() {
+  document.getElementById('subnetLayer').innerHTML = '';
+  document.getElementById('edgeLayer').innerHTML = '';
+  document.getElementById('nodeLayer').innerHTML = '';
+  document.getElementById('svgEmpty').style.display = '';
+  document.getElementById('canvasHostTitle').style.display = 'none';
+}
+
+function renderCanvas() {
+  if (!_topology) { clearCanvas(); return; }
+  document.getElementById('svgEmpty').style.display = 'none';
+
+  const { nodes, edges, subnets } = _topology;
+  buildDefs();
+  renderSubnets(nodes, subnets);
+  renderEdges(edges);
+  renderNodes(nodes);
+}
+
+function buildDefs() {
+  const defs = document.getElementById('svgDefs');
+  defs.innerHTML = `
+    <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-sel" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="sphere-sn" cx="35%" cy="30%" r="60%">
+      <stop offset="0%"   stop-color="#ffcc66"/>
+      <stop offset="100%" stop-color="#332200"/>
+    </radialGradient>
+  `;
+}
+
+// ── Subnet bounding boxes ──────────────────────────────────────────────────
+function renderSubnets(nodes, subnets) {
+  const layer = document.getElementById('subnetLayer');
+  layer.innerHTML = '';
+  for (const subnet of subnets) {
+    const snNodes = nodes.filter(n => n.subnet === subnet.id);
+    if (snNodes.length === 0) continue;
+    const pad = 70;
+    const xs = snNodes.map(n => n.x);
+    const ys = snNodes.map(n => n.y);
+    const x1 = Math.min(...xs) - pad, y1 = Math.min(...ys) - pad;
+    const x2 = Math.max(...xs) + pad, y2 = Math.max(...ys) + pad;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x1); rect.setAttribute('y', y1);
+    rect.setAttribute('width', x2 - x1); rect.setAttribute('height', y2 - y1);
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', subnet.color);
+    rect.setAttribute('stroke-width', '1');
+    rect.setAttribute('stroke-dasharray', '6 4');
+    rect.setAttribute('opacity', '0.35');
+    layer.appendChild(rect);
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', x1 + 8); lbl.setAttribute('y', y1 + 16);
+    lbl.setAttribute('fill', subnet.color); lbl.setAttribute('opacity', '0.6');
+    lbl.setAttribute('font-size', '10'); lbl.setAttribute('letter-spacing', '2');
+    lbl.setAttribute('font-family', "'Share Tech Mono',monospace");
+    lbl.textContent = subnet.label.toUpperCase();
+    layer.appendChild(lbl);
+  }
+}
+
+// ── Edges ──────────────────────────────────────────────────────────────────
+function renderEdges(edges) {
+  const layer = document.getElementById('edgeLayer');
+  layer.innerHTML = '';
+  const nodeMap = buildNodeMap();
+  for (const edge of edges) {
+    const a = nodeMap[edge.from], b = nodeMap[edge.to];
+    if (!a || !b) continue;
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.dataset.from = edge.from;
+    g.dataset.to   = edge.to;
+
+    // Visible line
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', edge.bridge ? '#bb44ff' : '#1a3a1a');
+    line.setAttribute('stroke-width', edge.bridge ? '1.5' : '1.2');
+    if (edge.bridge) line.setAttribute('stroke-dasharray', '5 3');
+    line.setAttribute('opacity', '0.8');
+
+    // Wide invisible hit target
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    hit.setAttribute('x1', a.x); hit.setAttribute('y1', a.y);
+    hit.setAttribute('x2', b.x); hit.setAttribute('y2', b.y);
+    hit.setAttribute('stroke', 'transparent');
+    hit.setAttribute('stroke-width', '12');
+    hit.style.cursor = 'pointer';
+    hit.addEventListener('click', (e) => { if (_editMode) { e.stopPropagation(); selectEdge(edge, g); } });
+
+    g.appendChild(line);
+    g.appendChild(hit);
+    layer.appendChild(g);
+  }
+}
+
+function selectEdge(edge, g) {
+  clearEdgeSelection();
+  _edgeSel = { from: edge.from, to: edge.to, el: g };
+  const line = g.querySelector('line');
+  line.setAttribute('stroke', '#ff8800');
+  line.setAttribute('stroke-width', '2');
+  renderEdgeHandles(edge, g);
+}
+
+function clearEdgeSelection() {
+  if (!_edgeSel) return;
+  const line = _edgeSel.el.querySelector('line');
+  const edge = _topology.edges.find(e => e.from === _edgeSel.from && e.to === _edgeSel.to);
+  if (edge) {
+    line.setAttribute('stroke', edge.bridge ? '#bb44ff' : '#1a3a1a');
+    line.setAttribute('stroke-width', edge.bridge ? '1.5' : '1.2');
+  }
+  document.getElementById('edgeLayer').querySelectorAll('.edge-handle,.edge-del-btn').forEach(el => el.remove());
+  _edgeSel = null;
+}
+
+function renderEdgeHandles(edge, g) {
+  const layer = document.getElementById('edgeLayer');
+  const nodeMap = buildNodeMap();
+  const a = nodeMap[edge.from], b = nodeMap[edge.to];
+  if (!a || !b) return;
+
+  // Delete button at midpoint
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const delBtn = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  delBtn.setAttribute('class', 'edge-del-btn');
+  delBtn.style.cursor = 'pointer';
+  const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  delBg.setAttribute('cx', mx); delBg.setAttribute('cy', my);
+  delBg.setAttribute('r', '10'); delBg.setAttribute('fill', '#220000');
+  delBg.setAttribute('stroke', '#ff3333'); delBg.setAttribute('stroke-width', '1');
+  const delTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  delTxt.setAttribute('x', mx); delTxt.setAttribute('y', my + 4);
+  delTxt.setAttribute('text-anchor', 'middle'); delTxt.setAttribute('fill', '#ff3333');
+  delTxt.setAttribute('font-size', '11'); delTxt.setAttribute('font-family', 'monospace');
+  delTxt.textContent = '✕';
+  delBtn.appendChild(delBg); delBtn.appendChild(delTxt);
+  delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSelectedEdge(); });
+  layer.appendChild(delBtn);
+
+  // Drag handles on each endpoint
+  [{ node: a, end: 'from' }, { node: b, end: 'to' }].forEach(({ node, end }) => {
+    const h = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    h.setAttribute('class', 'edge-handle');
+    h.setAttribute('cx', node.x); h.setAttribute('cy', node.y);
+    h.setAttribute('r', '7'); h.setAttribute('fill', '#ff8800');
+    h.setAttribute('stroke', '#fff'); h.setAttribute('stroke-width', '1.5');
+    h.style.cursor = 'grab';
+    h.addEventListener('mousedown', (e) => { e.stopPropagation(); startEdgeDrag(edge, end, h, e); });
+    layer.appendChild(h);
+  });
+}
+
+function deleteSelectedEdge() {
+  if (!_edgeSel || !_topology) return;
+  if (!confirm('Delete this connection?')) return;
+  _topology.edges = _topology.edges.filter(
+    e => !(e.from === _edgeSel.from && e.to === _edgeSel.to)
+  );
+  clearEdgeSelection();
+  renderEdges(_topology.edges);
+  saveTopology();
+}
+
+// Edge drag rewire
+function startEdgeDrag(edge, whichEnd, handleEl, e) {
+  _edgeDrag = { edge, whichEnd, handleEl };
+  const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  const nodeMap = buildNodeMap();
+  const fixed = whichEnd === 'from' ? nodeMap[edge.to] : nodeMap[edge.from];
+  ghost.setAttribute('x1', fixed.x); ghost.setAttribute('y1', fixed.y);
+  ghost.setAttribute('x2', fixed.x); ghost.setAttribute('y2', fixed.y);
+  ghost.setAttribute('stroke', '#ff8800'); ghost.setAttribute('stroke-width', '1.5');
+  ghost.setAttribute('stroke-dasharray', '5 3'); ghost.setAttribute('id', 'ghostEdge');
+  document.getElementById('edgeLayer').appendChild(ghost);
+  _edgeDrag.ghost = ghost;
+  _edgeDrag.fixed = fixed;
+}
+
+function updateEdgeDrag(svgX, svgY) {
+  if (!_edgeDrag) return;
+  const g = _edgeDrag.ghost;
+  g.setAttribute('x2', svgX); g.setAttribute('y2', svgY);
+}
+
+function finishEdgeDrag(targetNodeId) {
+  if (!_edgeDrag) return;
+  document.getElementById('ghostEdge')?.remove();
+  if (targetNodeId) {
+    const edge = _edgeDrag.edge;
+    const oldEnd = _edgeDrag.whichEnd === 'from' ? edge.from : edge.to;
+    const kept   = _edgeDrag.whichEnd === 'from' ? edge.to : edge.from;
+    const newFrom = _edgeDrag.whichEnd === 'from' ? targetNodeId : edge.from;
+    const newTo   = _edgeDrag.whichEnd === 'to'   ? targetNodeId : edge.to;
+
+    if (oldEnd !== targetNodeId && canConnect(newFrom, newTo)) {
+      // Remove old, add new
+      _topology.edges = _topology.edges.filter(
+        e => !(e.from === edge.from && e.to === edge.to)
+      );
+      _topology.edges.push({ from: newFrom, to: newTo });
+      clearEdgeSelection();
+      renderEdges(_topology.edges);
+      renderNodes(_topology.nodes); // refresh drop highlight
+      saveTopology();
+    }
+  }
+  clearHighlightNodes();
+  _edgeDrag = null;
+}
+
+function canConnect(fromId, toId) {
+  const nodeMap = buildNodeMap();
+  const a = nodeMap[fromId], b = nodeMap[toId];
+  if (!a || !b || fromId === toId) return false;
+  const allowed = _connMatrix[a.type] || [];
+  return allowed.includes(b.type);
+}
+
+function highlightDropTargets(movingNodeId, movingType) {
+  document.getElementById('nodeLayer').querySelectorAll('g[data-nodeid]').forEach(g => {
+    const nid = g.dataset.nodeid;
+    if (nid === movingNodeId) return;
+    const nodeMap = buildNodeMap();
+    const target = nodeMap[nid];
+    if (!target) return;
+    const valid = (_connMatrix[movingType] || []).includes(target.type);
+    g.querySelector('.node-body')?.setAttribute('opacity', valid ? '1' : '0.3');
+    if (valid) g.querySelector('.node-body')?.setAttribute('filter', 'url(#glow-sel)');
+  });
+}
+
+function clearHighlightNodes() {
+  document.getElementById('nodeLayer').querySelectorAll('g[data-nodeid]').forEach(g => {
+    g.querySelector('.node-body')?.removeAttribute('filter');
+    g.querySelector('.node-body')?.setAttribute('opacity', '1');
+  });
+}
+
+// ── Nodes ──────────────────────────────────────────────────────────────────
+function renderNodes(nodes) {
+  const layer = document.getElementById('nodeLayer');
+  layer.innerHTML = '';
+  for (const node of nodes) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'mx-node');
+    g.dataset.nodeid = node.id;
+    g.setAttribute('transform', `translate(${node.x},${node.y})`);
+
+    // Shape group
+    const shapeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    shapeG.setAttribute('class', 'node-body');
+    drawNodeShape(shapeG, node);
+    g.appendChild(shapeG);
+
+    // Label
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.setAttribute('y', '36');
+    lbl.setAttribute('fill', '#aaaaaa');
+    lbl.setAttribute('font-size', '8');
+    lbl.setAttribute('letter-spacing', '1');
+    lbl.setAttribute('font-family', "'Share Tech Mono',monospace");
+    lbl.textContent = node.label;
+    g.appendChild(lbl);
+
+    // IC badges
+    if (node.ic && node.ic.length) {
+      node.ic.forEach((ic, i) => {
+        const angle = (Math.PI * 0.6) + i * 0.5;
+        const bx = Math.cos(angle) * 20;
+        const by = Math.sin(angle) * 20;
+        const badge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        badge.setAttribute('cx', bx); badge.setAttribute('cy', by);
+        badge.setAttribute('r', '5');
+        badge.setAttribute('fill', IC_COLOR[ic.category] || '#aaa');
+        badge.setAttribute('stroke', '#050505'); badge.setAttribute('stroke-width', '1');
+        badge.style.cursor = 'pointer';
+        badge.addEventListener('mouseenter', (e) => showIcTooltip(e, ic));
+        badge.addEventListener('mousemove',  (e) => moveIcTooltip(e));
+        badge.addEventListener('mouseleave', hideIcTooltip);
+        g.appendChild(badge);
+      });
+    }
+
+    // Drag events (edit mode only)
+    g.style.cursor = 'default';
+    g.addEventListener('mousedown', (e) => {
+      if (!_editMode) return;
+      if (_addingEdge) return;
+      e.stopPropagation();
+      const svgPt = svgPoint(e);
+      _nodeDrag = { nodeId: node.id, origX: node.x, origY: node.y,
+                    startX: svgPt.x, startY: svgPt.y };
+      g.style.cursor = 'grabbing';
+    });
+
+    // Add-edge click
+    g.addEventListener('click', (e) => {
+      if (!_editMode) return;
+      if (_edgeDrag) return;
+      if (_addingEdge) {
+        e.stopPropagation();
+        if (!_addEdgeFrom) {
+          _addEdgeFrom = node.id;
+          g.querySelector('.node-body').setAttribute('filter', 'url(#glow-sel)');
+        } else if (_addEdgeFrom !== node.id) {
+          if (canConnect(_addEdgeFrom, node.id)) {
+            const already = _topology.edges.find(
+              ed => (ed.from === _addEdgeFrom && ed.to === node.id) ||
+                    (ed.from === node.id && ed.to === _addEdgeFrom)
+            );
+            if (!already) {
+              _topology.edges.push({ from: _addEdgeFrom, to: node.id });
+              renderEdges(_topology.edges);
+              saveTopology();
+            }
+          }
+          clearHighlightNodes();
+          _addingEdge = false;
+          _addEdgeFrom = null;
+          document.getElementById('matrixSvg').style.cursor = '';
+        }
+      }
+    });
+
+    layer.appendChild(g);
+  }
+}
+
+// ── Isometric shape drawing ────────────────────────────────────────────────
+function drawNodeShape(g, node) {
+  const c = NODE_COLOR[node.type] || '#888';
+  const dark  = shadeColor(c, -55);
+  const light = shadeColor(c, -25);
+  const mid   = shadeColor(c, -40);
+
+  switch (node.type) {
+    case 'CPU':  drawCpu(g, c, dark, light, mid);   break;
+    case 'SPU':  drawHexPrism(g, c, dark, light, 18); break;
+    case 'SN':   drawSphere(g, c, 'sphere-sn', 16);  break;
+    case 'SAN':  drawCuboid(g, c, dark, light);      break;
+    case 'IOP':  drawPyramid(g, c, dark, light);     break;
+    case 'DS':   drawCube(g, c, dark, light);        break;
+    default:     drawCube(g, c, dark, light);
+  }
+}
+
+// Flat-top hexagon points helper
+function hexPoints(cx, cy, r, offsetY = 0) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 180 * (60 * i - 30);
+    pts.push(`${cx + r * Math.cos(a)},${cy + offsetY + r * Math.sin(a)}`);
+  }
+  return pts.join(' ');
+}
+
+function poly(pts, fill, stroke = '#050505', sw = 1) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  el.setAttribute('points', pts);
+  el.setAttribute('fill', fill);
+  el.setAttribute('stroke', stroke);
+  el.setAttribute('stroke-width', sw);
+  return el;
+}
+
+function shadeColor(hex, pct) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, Math.min(255, r + pct)); g = Math.max(0, Math.min(255, g + pct)); b = Math.max(0, Math.min(255, b + pct));
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
+
+// CPU: double-wall hexagon prism (outer ring + inner hex, both 3D)
+function drawCpu(g, c, dark, light, mid) {
+  const outerR = 22, innerR = 13, depth = ISO_DY;
+  // Outer top hex
+  g.appendChild(poly(hexPoints(0, -depth, outerR), mid));
+  // Outer side faces (left + right parallelograms)
+  const oTop = hexPts(0, -depth, outerR);
+  const oBot = hexPts(0, 0, outerR);
+  // Left side (vertices 3-5 top + bottom)
+  g.appendChild(poly(`${oTop[3]} ${oTop[4]} ${oBot[4]} ${oBot[3]}`, dark));
+  g.appendChild(poly(`${oTop[4]} ${oTop[5]} ${oBot[5]} ${oBot[4]}`, dark));
+  // Right side
+  g.appendChild(poly(`${oTop[0]} ${oTop[1]} ${oBot[1]} ${oBot[0]}`, light));
+  g.appendChild(poly(`${oTop[1]} ${oTop[2]} ${oBot[2]} ${oBot[1]}`, light));
+  // Inner top hex
+  g.appendChild(poly(hexPoints(0, -depth - 4, innerR), c));
+  // Inner side faces
+  const iTop = hexPts(0, -depth - 4, innerR);
+  const iBot = hexPts(0, 0, innerR);
+  g.appendChild(poly(`${iTop[3]} ${iTop[4]} ${iBot[4]} ${iBot[3]}`, shadeColor(dark, -10)));
+  g.appendChild(poly(`${iTop[0]} ${iTop[1]} ${iBot[1]} ${iBot[0]}`, shadeColor(light, -10)));
+  // Glow ring on outer top
+  const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  glow.setAttribute('cx', '0'); glow.setAttribute('cy', -depth - 2);
+  glow.setAttribute('r', outerR); glow.setAttribute('fill', 'none');
+  glow.setAttribute('stroke', c); glow.setAttribute('stroke-width', '1');
+  glow.setAttribute('opacity', '0.5'); glow.setAttribute('filter', 'url(#glow-green)');
+  g.appendChild(glow);
+}
+
+// Returns array of coordinate strings for hex vertices
+function hexPts(cx, cy, r) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 180 * (60 * i - 30);
+    pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+  }
+  return pts;
+}
+
+// SPU: single hexagonal prism
+function drawHexPrism(g, c, dark, light, r) {
+  const depth = ISO_DY;
+  const top = hexPts(0, -depth, r);
+  const bot = hexPts(0, 0, r);
+  g.appendChild(poly(top.join(' '), c));
+  g.appendChild(poly(`${top[3]} ${top[4]} ${bot[4]} ${bot[3]}`, dark));
+  g.appendChild(poly(`${top[4]} ${top[5]} ${bot[5]} ${bot[4]}`, dark));
+  g.appendChild(poly(`${top[0]} ${top[1]} ${bot[1]} ${bot[0]}`, light));
+  g.appendChild(poly(`${top[1]} ${top[2]} ${bot[2]} ${bot[1]}`, shadeColor(light, 10)));
+}
+
+// SN: sphere
+function drawSphere(g, c, gradId, r) {
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '0'); circle.setAttribute('cy', '0');
+  circle.setAttribute('r', r);
+  circle.setAttribute('fill', `url(#${gradId})`);
+  circle.setAttribute('stroke', shadeColor(c, -40)); circle.setAttribute('stroke-width', '1');
+  g.appendChild(circle);
+  // Highlight
+  const hi = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+  hi.setAttribute('cx', -r*0.25); hi.setAttribute('cy', -r*0.3);
+  hi.setAttribute('rx', r*0.3); hi.setAttribute('ry', r*0.2);
+  hi.setAttribute('fill', 'rgba(255,255,255,0.25)');
+  g.appendChild(hi);
+}
+
+// SAN: cuboid (box)
+function drawCuboid(g, c, dark, light) {
+  const w = 22, h = 14, d = ISO_DY + 2;
+  // Top face
+  g.appendChild(poly(`${-w/2},${-h/2-d} ${w/2},${-h/2-d} ${w/2},${h/2-d} ${-w/2},${h/2-d}`, c));
+  // Left face
+  g.appendChild(poly(`${-w/2},${-h/2-d} ${-w/2},${h/2-d} ${-w/2},${h/2} ${-w/2},${-h/2}`, dark));
+  // Right face
+  g.appendChild(poly(`${w/2},${-h/2-d} ${w/2},${h/2-d} ${w/2},${h/2} ${w/2},${-h/2}`, light));
+  // Front face
+  g.appendChild(poly(`${-w/2},${h/2-d} ${w/2},${h/2-d} ${w/2},${h/2} ${-w/2},${h/2}`, shadeColor(light,-20)));
+}
+
+// I/OP: pyramid
+function drawPyramid(g, c, dark, light) {
+  const base = 20, h = 22, d = ISO_DY;
+  const apex = `0,${-h}`;
+  const bl = `${-base},${d}`;
+  const br = `${base},${d}`;
+  const bm = `0,${d + base * 0.4}`;
+  g.appendChild(poly(`${apex} ${bl} ${bm}`, dark));
+  g.appendChild(poly(`${apex} ${br} ${bm}`, light));
+  g.appendChild(poly(`${apex} ${bl} ${br}`, c));
+}
+
+// DS: cube (isometric)
+function drawCube(g, c, dark, light) {
+  const s = 15, d = ISO_DY + 2;
+  // Top
+  g.appendChild(poly(`${-s},${-d} 0,${-d-s*0.6} ${s},${-d} 0,${-d+s*0.6}`, c));
+  // Left
+  g.appendChild(poly(`${-s},${-d} 0,${-d+s*0.6} 0,${s*0.6} ${-s},0`, dark));
+  // Right
+  g.appendChild(poly(`0,${-d+s*0.6} ${s},${-d} ${s},0 0,${s*0.6}`, light));
+}
+
+// ── SVG events (pan/zoom + drag) ───────────────────────────────────────────
+function initSvgEvents() {
+  const svg = document.getElementById('matrixSvg');
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.91;
+    const pt = svgPoint(e);
+    _vp.tx = pt.x - factor * (pt.x - _vp.tx);
+    _vp.ty = pt.y - factor * (pt.y - _vp.ty);
+    _vp.scale *= factor;
+    applyViewport();
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', (e) => {
+    if (e.target === svg || e.target.id === 'svgRoot' || e.target.id === 'subnetLayer') {
+      clearEdgeSelection();
+      if (!_addingEdge) {
+        svg.classList.add('dragging');
+        _panStart = { x: e.clientX - _vp.tx, y: e.clientY - _vp.ty };
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (_panStart) {
+      _vp.tx = e.clientX - _panStart.x;
+      _vp.ty = e.clientY - _panStart.y;
+      applyViewport();
+    }
+    if (_nodeDrag && _editMode) {
+      const pt = svgPoint(e);
+      const dx = pt.x - _nodeDrag.startX;
+      const dy = pt.y - _nodeDrag.startY;
+      const node = _topology.nodes.find(n => n.id === _nodeDrag.nodeId);
+      if (node) {
+        node.x = _nodeDrag.origX + dx;
+        node.y = _nodeDrag.origY + dy;
+        // Move node group
+        const g = document.querySelector(`g[data-nodeid="${node.id}"]`);
+        if (g) g.setAttribute('transform', `translate(${node.x},${node.y})`);
+        // Redraw edges
+        renderEdges(_topology.edges);
+        renderSubnets(_topology.nodes, _topology.subnets);
+      }
+    }
+    if (_edgeDrag) {
+      const pt = svgInversePoint(e);
+      updateEdgeDrag(pt.x, pt.y);
+    }
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (_panStart) { _panStart = null; document.getElementById('matrixSvg').classList.remove('dragging'); }
+    if (_nodeDrag) {
+      document.querySelector(`g[data-nodeid="${_nodeDrag.nodeId}"]`).style.cursor = '';
+      _nodeDrag = null;
+      saveTopology();
+    }
+    if (_edgeDrag) {
+      const pt = svgInversePoint(e);
+      const targetNode = findNodeAt(pt.x, pt.y, 24);
+      finishEdgeDrag(targetNode ? targetNode.id : null);
+    }
+  });
+}
+
+function applyViewport() {
+  document.getElementById('svgRoot').setAttribute(
+    'transform', `translate(${_vp.tx},${_vp.ty}) scale(${_vp.scale})`
+  );
+}
+
+function resetZoom() {
+  _vp = { tx: 0, ty: 0, scale: 1 };
+  applyViewport();
+}
+
+function svgPoint(e) {
+  const svg = document.getElementById('matrixSvg');
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left - _vp.tx) / _vp.scale,
+    y: (e.clientY - rect.top  - _vp.ty) / _vp.scale,
+  };
+}
+
+function svgInversePoint(e) { return svgPoint(e); }
+
+function buildNodeMap() {
+  if (!_topology) return {};
+  return Object.fromEntries(_topology.nodes.map(n => [n.id, n]));
+}
+
+function findNodeAt(x, y, radius) {
+  if (!_topology) return null;
+  for (const n of _topology.nodes) {
+    if (Math.hypot(n.x - x, n.y - y) <= radius) return n;
+  }
+  return null;
+}
+
+// ── Persist topology changes ───────────────────────────────────────────────
+let _saveTimer = null;
+function saveTopology() {
+  if (!_currentHost) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      await apiFetch(`${API}/matrix-hosts/${_currentHost.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ topology_json: _topology }),
+      });
+    } catch(_e) {}
+  }, 800);
+}
+
+// ── IC tooltip ─────────────────────────────────────────────────────────────
+function showIcTooltip(e, ic) {
+  const tt = document.getElementById('icTooltip');
+  const info = _icInfo[ic.type] || {};
+  document.getElementById('icTtType').textContent    = ic.type;
+  document.getElementById('icTtCat').textContent     = ic.category.toUpperCase() + ' IC';
+  document.getElementById('icTtCat').className       = `ic-tt-cat ic-tt-cat-${ic.category}`;
+  document.getElementById('icTtRating').textContent  = `Rating ${ic.rating}`;
+  document.getElementById('icTtSummary').textContent = info.summary || '';
+  document.getElementById('icTtFlavor').textContent  = info.flavor  || '';
+  tt.style.display = 'block';
+  moveIcTooltip(e);
+}
+
+function moveIcTooltip(e) {
+  const tt = document.getElementById('icTooltip');
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top  = (e.clientY - 10) + 'px';
+}
+
+function hideIcTooltip() {
+  document.getElementById('icTooltip').style.display = 'none';
+}
+
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
