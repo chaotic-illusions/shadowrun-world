@@ -18,6 +18,7 @@ class AdventureLogBase(BaseModel):
     outcome_tags: list[str] = []
     consequences_active: list[str] = []
     heat: int = 0
+    tick_count: int = 1
     employer: Optional[str] = None
     gm_notes: Optional[str] = None
     changes_applied: list[dict[str, Any]] = []
@@ -42,6 +43,7 @@ class AdventureLogUpdate(BaseModel):
     outcome_tags: Optional[list[str]] = None
     consequences_active: Optional[list[str]] = None
     heat: Optional[int] = None
+    tick_count: Optional[int] = None
     employer: Optional[str] = None
     gm_notes: Optional[str] = None
     changes_applied: Optional[list[dict[str, Any]]] = None

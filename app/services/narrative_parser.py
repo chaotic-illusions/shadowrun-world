@@ -4,7 +4,16 @@ Returns structured run data and proposed world-state changes.
 """
 import os
 import json
+import pathlib
 import anthropic
+
+# Load the AI parser reference doc at import time so edits to the file
+# take effect without restarting the server (the module reloads on change).
+_REF_PATH = pathlib.Path(__file__).parent.parent.parent / "docs" / "ai_parser_reference.md"
+try:
+    _REFERENCE = _REF_PATH.read_text(encoding="utf-8")
+except FileNotFoundError:
+    _REFERENCE = ""
 
 _SYSTEM = """You are a Shadowrun 2nd Edition GM assistant.
 Given a free-form narrative about a shadowrun, extract structured information
@@ -56,6 +65,9 @@ Rules for proposed_changes:
 - Do not invent organizations or characters not present in the world context.
 """
 
+# Append the reference doc (tag and mechanic details) if available
+_FULL_SYSTEM = _SYSTEM + ("\n\n---\n\n" + _REFERENCE if _REFERENCE else "")
+
 
 def parse_narrative(narrative: str, world_context: dict) -> dict:
     """
@@ -83,7 +95,7 @@ def parse_narrative(narrative: str, world_context: dict) -> dict:
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        system=_SYSTEM,
+        system=_FULL_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],
     )
 

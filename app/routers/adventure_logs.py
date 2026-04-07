@@ -16,7 +16,7 @@ from app.schemas.adventure_log import (
 )
 from app.services.consequence_engine import suggest
 from app.services.heat_calculator import (
-    compute_heat, compute_ripple, heat_label, standing_label,
+    compute_ripple, heat_label, standing_label,
     decay_pa, decay_standing, decay_heat, pc_rep_label, team_rep_label, pa_label,
     LYING_LOW_DECAY_ACCEL,
 )
@@ -41,6 +41,11 @@ class ApplyChangesRequest(BaseModel):
     changes: list[ChangeItem]
 
 router = APIRouter()
+
+
+def _current_tick(db: Session) -> int:
+    """Return the global campaign tick total (sum of all log tick_counts)."""
+    return db.query(func.sum(AdventureLog.tick_count)).scalar() or 0
 
 _LOAD_OPTS = [
     selectinload(AdventureLog.participants),
@@ -71,11 +76,10 @@ def party_stats(db: Session = Depends(get_db)):
     Return party-wide heat (decayed, across all PCs) and team reputation
     (average of active PCs only).
     """
-    today = date.today()
+    current_tick = _current_tick(db)
 
     # ── All PCs: active ones for party stats, inactive for lying-low decay ──
     all_pcs = db.query(Character).filter(Character.is_pc == True).all()
-    active_pcs = [c for c in all_pcs if c.is_active]
     pc_ids = [c.id for c in all_pcs]
 
     rep_scores = []
@@ -90,20 +94,13 @@ def party_stats(db: Session = Depends(get_db)):
             r = rep_by_char.get(pc.id)
             sc   = (r.street_cred       if r else 0) or 0
             not_ = (r.notoriety         if r else 0) or 0
-            pa_raw = (r.public_awareness if r else 0) or 0
+            pa_raw   = (r.public_awareness if r else 0) or 0
             heat_raw = (r.heat or 0) if r else 0
-            # Decay PA if we have a timestamp for when it was last set
-            if r and r.pa_updated_at:
-                days_since = (today - r.pa_updated_at).days
-                pa_eff = max(0, round(decay_pa(pa_raw, days_since, accel)))
-            else:
-                pa_eff = pa_raw  # no timestamp → no decay
-            # Decay heat — use pa_updated_at as proxy (both updated together)
-            if r and r.pa_updated_at:
-                days_since = (today - r.pa_updated_at).days
-                heat_eff = max(0, round(decay_heat(heat_raw, days_since, accel)))
-            else:
-                heat_eff = heat_raw
+            # Tick-based decay
+            pa_elapsed   = current_tick - ((r.pa_stamped_tick   or 0) if r else 0)
+            heat_elapsed = current_tick - ((r.heat_stamped_tick or 0) if r else 0)
+            pa_eff   = max(0, round(decay_pa(pa_raw,   pa_elapsed,   accel)))
+            heat_eff = max(0, round(decay_heat(heat_raw, heat_elapsed, accel)))
             net_rep = max(0, min(40, 20 + sc - not_))
             # Only active PCs count toward party aggregates
             if pc.is_active:
@@ -133,11 +130,8 @@ def party_stats(db: Session = Depends(get_db)):
     for s in all_standings:
         raw = s.standing or 0
         s_accel = 1.0 if pc_active_map.get(s.character_id, True) else LYING_LOW_DECAY_ACCEL
-        if s.standings_updated_at:
-            days_since = (today - s.standings_updated_at).days
-            eff = round(decay_standing(raw, days_since, s_accel))
-        else:
-            eff = raw  # no timestamp → no decay
+        s_elapsed = current_tick - (s.standings_stamped_tick or 0)
+        eff = round(decay_standing(raw, s_elapsed, s_accel))
         standings_by_char.setdefault(s.character_id, []).append({
             "id":       s.id,
             "org_id":   s.organization_id,
@@ -191,12 +185,14 @@ def create_log(body: AdventureLogCreate, db: Session = Depends(get_db)):
     if data.get("outcome_tags"):
         data["consequences_suggested"] = suggest(data["outcome_tags"])
 
-    # Heat = average of PC heat changes applied on this run (falls back to 0)
+    # Run heat = sum of all PC heat deltas / number of participants
+    # This gives an average exposure per runner, 0 if the run was clean.
+    participant_count = len(body.participant_ids)
     heat_deltas = [
         ch["delta"] for ch in (data.get("changes_applied") or [])
         if ch.get("type") == "heat" and isinstance(ch.get("delta"), (int, float))
     ]
-    data["heat"] = round(sum(heat_deltas) / len(heat_deltas)) if heat_deltas else 0
+    data["heat"] = round(sum(heat_deltas) / participant_count) if participant_count and heat_deltas else 0
 
     log = AdventureLog(**data)
     db.add(log)
@@ -237,19 +233,6 @@ def parse_run_narrative(body: NarrativeParseRequest, db: Session = Depends(get_d
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Narrative parsing failed: {e}")
 
-    # ── Heat calculation ──────────────────────────────────────────
-    # Look up employer org by name (case-insensitive) to get tier/type
-    employer_name = (result.get("employer") or "").strip().lower()
-    employer_org  = next((o for o in orgs if o.name.lower() == employer_name), None)
-    heat = compute_heat(
-        outcome          = result.get("outcome"),
-        outcome_tags     = result.get("outcome_tags"),
-        employer_tier    = employer_org.tier    if employer_org else None,
-        employer_org_type= employer_org.org_type if employer_org else None,
-    )
-    result["heat"]       = heat
-    result["heat_label"] = heat_label(heat)
-
     # ── Faction ripple ────────────────────────────────────────────
     # Build a lightweight org map for ripple lookups
     org_map = {
@@ -273,9 +256,10 @@ def parse_run_narrative(body: NarrativeParseRequest, db: Session = Depends(get_d
 
 @router.post("/apply-changes")
 def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)):
-    """Apply a reviewed set of world-state changes (nuyen, reputation, org standings)."""
+    """Apply a reviewed set of world-state changes (reputation, org standings)."""
     applied = []
     errors  = []
+    tick = _current_tick(db)  # capture once; doesn't change within this call
 
     for ch in body.changes:
         try:
@@ -287,6 +271,7 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                 setattr(rep, ch.type, max(0, old + ch.delta))
                 if ch.type == "public_awareness":
                     rep.pa_updated_at = date.today()
+                    rep.pa_stamped_tick = tick
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
 
             elif ch.type == "heat":
@@ -294,6 +279,8 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                 if not rep:
                     errors.append(f"No reputation record for character {ch.character_id}"); continue
                 rep.heat = min(10, max(0, (rep.heat or 0) + ch.delta))
+                rep.heat_updated_at = date.today()
+                rep.heat_stamped_tick = tick
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: heat {ch.delta:+} → {rep.heat}", "reason": ch.reason})
 
             elif ch.type == "org_standing":
@@ -314,6 +301,7 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                     )
                     db.add(standing)
                 standing.standings_updated_at = date.today()
+                standing.standings_stamped_tick = tick
                 applied.append({"desc": f"{ch.character_name or ch.character_id} ↔ {ch.org_name or ch.org_id}: standing {ch.delta:+}", "reason": ch.reason})
 
             else:

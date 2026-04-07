@@ -200,19 +200,18 @@ def _pa_half_life(pa: int) -> float:
     return 30.0
 
 
-def decay_pa(pa: int, days_ago: int, accel: float = 1.0) -> float:
+def decay_pa(pa: int, elapsed: int, accel: float = 1.0) -> float:
     """
-    Return the decayed public awareness value (float) given the stored PA and
-    days elapsed since it was last updated.  Only applies when pa_updated_at
-    is known; if days_ago <= 0, the raw value is returned unchanged.
+    Return the decayed public awareness value (float).
+    elapsed  : ticks since PA was last changed (use current_tick - pa_stamped_tick).
     accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
     """
-    if pa <= 0 or days_ago <= 0:
+    if pa <= 0 or elapsed <= 0:
         return max(0.0, float(pa))
     hl = _pa_half_life(pa) / max(accel, 1.0)
     if math.isinf(hl):
         return float(pa)
-    return pa * math.exp(-math.log(2) * days_ago / hl)
+    return pa * math.exp(-math.log(2) * elapsed / hl)
 
 
 def _half_life(heat: int) -> float:
@@ -225,8 +224,8 @@ def _half_life(heat: int) -> float:
 
 def decay_heat(heat: int, days_ago: int, accel: float = 1.0) -> float:
     """
-    Return the decayed heat value (float) given the original heat and days elapsed.
-    Uses exponential decay: heat * exp(-ln(2) * days / half_life)
+    Return the decayed heat value (float).
+    elapsed  : ticks since heat was last changed (use current_tick - heat_stamped_tick).
     accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
     """
     if heat <= 0 or days_ago <= 0:
@@ -266,21 +265,20 @@ def _standing_half_life(standing: int) -> float:
     return 14.0
 
 
-def decay_standing(standing: int, days_ago: int, accel: float = 1.0) -> float:
+def decay_standing(standing: int, elapsed: int, accel: float = 1.0) -> float:
     """
     Return the effective standing (float) after exponential decay toward 0.
-
+    elapsed  : ticks since standing was last changed.
     Positive standings decay toward 0 from above; negative from below.
-    Neutral (0) is never modified.  If no timestamp is available pass
-    days_ago=0 to skip decay.
+    Neutral (0) is never modified.  Pass elapsed=0 to skip decay.
     accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
     """
-    if standing == 0 or days_ago <= 0:
+    if standing == 0 or elapsed <= 0:
         return float(standing)
     hl = _standing_half_life(standing) / max(accel, 1.0)
     if math.isinf(hl):
         return float(standing)
-    decayed = standing * math.exp(-math.log(2) * days_ago / hl)
+    decayed = standing * math.exp(-math.log(2) * elapsed / hl)
     # preserve sign; clamp so magnitude never exceeds original
     if standing > 0:
         return max(0.0, decayed)
