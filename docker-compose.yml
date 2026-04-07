@@ -9,4 +9,6 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./data/shadowrun.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - BOOTSTRAP_ADMIN_KEY=${BOOTSTRAP_ADMIN_KEY:-shadowrunner}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
     restart: unless-stopped

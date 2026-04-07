@@ -26,8 +26,11 @@ docker compose -f "%PROJECT_DIR%docker-compose.yml" up --build -d
 if errorlevel 1 ( echo ERROR: docker compose up failed & pause & exit /b 1 )
 
 echo Waiting for server to be ready...
+set RETRIES=0
 :WAIT_RESTART
 timeout /t 2 /nobreak >nul
+set /a RETRIES+=1
+if %RETRIES% geq 30 ( echo ERROR: Server did not become ready after 60 seconds & pause & exit /b 1 )
 curl -s -o nul -w "%%{http_code}" http://localhost:8000/docs | findstr "200" >nul
 if errorlevel 1 goto WAIT_RESTART
 
@@ -59,16 +62,26 @@ docker compose -f "%PROJECT_DIR%docker-compose.yml" up --build -d
 if errorlevel 1 ( echo ERROR: docker compose up failed & pause & exit /b 1 )
 
 echo Waiting for server to be ready...
+set RETRIES=0
 :WAIT_RESEED
 timeout /t 2 /nobreak >nul
+set /a RETRIES+=1
+if %RETRIES% geq 30 ( echo ERROR: Server did not become ready after 60 seconds & pause & exit /b 1 )
 curl -s -o nul -w "%%{http_code}" http://localhost:8000/docs | findstr "200" >nul
 if errorlevel 1 goto WAIT_RESEED
 
 echo.
-echo [4/4] Reseeding database...
+echo [4/5] Reseeding database...
 cd /d "%PROJECT_DIR%"
 python seed.py
 if errorlevel 1 ( echo ERROR: seed.py failed & pause & exit /b 1 )
+
+echo.
+echo [5/5] Cleaning up __pycache__...
+for /d /r "%PROJECT_DIR%" %%d in (__pycache__) do (
+    if exist "%%d" ( rd /s /q "%%d" )
+)
+echo Cleaned.
 
 echo.
 echo Done. Server is running at http://localhost:8000

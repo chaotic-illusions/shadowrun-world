@@ -55,7 +55,8 @@ class CharacterRead(CharacterBase):
     created_at: datetime
     updated_at: datetime
     organization_name: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+    is_claimed: bool = False
+    model_config = ConfigDict(from_attributes=True, fields={"owner_token": {"exclude": True}})
 
 
 class CharacterSummary(BaseModel):

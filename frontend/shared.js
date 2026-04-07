@@ -107,9 +107,14 @@ function _injectAuthLabel() {
       'font-size:.7rem;letter-spacing:1px;';
     const viewMode = sessionStorage.getItem('sr_view') || 'admin';
     const nextMode = viewMode === 'admin' ? 'player' : 'admin';
-    toggleWrap.innerHTML =
-      `<span style="color:#90d5ff;opacity:0.85;cursor:pointer" onclick="sessionStorage.setItem('sr_view','${nextMode}');location.reload()">` +
-      `[ ${viewMode === 'admin' ? 'SWITCH TO RUNNER VIEW' : 'SWITCH TO ADMIN VIEW'} ]</span>`;
+    const toggleBtn = document.createElement('span');
+    toggleBtn.style.cssText = 'color:#90d5ff;opacity:0.85;cursor:pointer';
+    toggleBtn.textContent = `[ ${viewMode === 'admin' ? 'SWITCH TO RUNNER VIEW' : 'SWITCH TO ADMIN VIEW'} ]`;
+    toggleBtn.addEventListener('click', () => {
+      sessionStorage.setItem('sr_view', nextMode);
+      location.reload();
+    });
+    toggleWrap.appendChild(toggleBtn);
     document.body.appendChild(toggleWrap);
 
     // Apply player-view gm-only hiding
@@ -155,22 +160,39 @@ async function _showAutoGenerateOverlay() {
     return;
   }
 
-  overlay.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:36px 40px;max-width:500px;width:100%">
-      <div style="color:var(--amber);font-size:.9rem;letter-spacing:3px;margin-bottom:6px">&gt;&gt; NEW ADMIN TOKEN GENERATED</div>
-      <div style="color:var(--text-dim);font-size:.65rem;letter-spacing:2px;margin-bottom:20px">SAVE THIS TOKEN — YOU WILL NEED IT TO LOG IN</div>
-      <div id="gen-token-display"
-        onclick="navigator.clipboard.writeText('${generatedToken}').then(()=>{this.style.color='var(--green)';setTimeout(()=>this.style.color='var(--amber)',1000)})"
-        style="font-family:var(--font);font-size:.8rem;letter-spacing:2px;color:var(--amber);
-               background:var(--bg-input);border:1px solid #333;padding:14px 16px;
-               word-break:break-all;cursor:pointer;margin-bottom:8px">${generatedToken}</div>
-      <div style="color:#444;font-size:.6rem;margin-bottom:24px">Click the token to copy it to clipboard.</div>
-      <button onclick="_confirmNewToken('${generatedToken}')"
-        style="width:100%;padding:11px;background:transparent;border:1px solid var(--green-dim);
-               color:var(--green);font-family:var(--font);font-size:.8rem;letter-spacing:2px;cursor:pointer">
-        &gt;&gt; I'VE SAVED IT — CONTINUE
-      </button>
-    </div>`;
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:36px 40px;max-width:500px;width:100%';
+
+  const heading = document.createElement('div');
+  heading.style.cssText = 'color:var(--amber);font-size:.9rem;letter-spacing:3px;margin-bottom:6px';
+  heading.textContent = '>> NEW ADMIN TOKEN GENERATED';
+
+  const subheading = document.createElement('div');
+  subheading.style.cssText = 'color:var(--text-dim);font-size:.65rem;letter-spacing:2px;margin-bottom:20px';
+  subheading.textContent = 'SAVE THIS TOKEN — YOU WILL NEED IT TO LOG IN';
+
+  const tokenDisplay = document.createElement('div');
+  tokenDisplay.id = 'gen-token-display';
+  tokenDisplay.style.cssText = 'font-family:var(--font);font-size:.8rem;letter-spacing:2px;color:var(--amber);background:var(--bg-input);border:1px solid #333;padding:14px 16px;word-break:break-all;cursor:pointer;margin-bottom:8px';
+  tokenDisplay.textContent = generatedToken;
+  tokenDisplay.addEventListener('click', () => {
+    navigator.clipboard.writeText(generatedToken).then(() => {
+      tokenDisplay.style.color = 'var(--green)';
+      setTimeout(() => tokenDisplay.style.color = 'var(--amber)', 1000);
+    });
+  });
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:#444;font-size:.6rem;margin-bottom:24px';
+  hint.textContent = 'Click the token to copy it to clipboard.';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.style.cssText = 'width:100%;padding:11px;background:transparent;border:1px solid var(--green-dim);color:var(--green);font-family:var(--font);font-size:.8rem;letter-spacing:2px;cursor:pointer';
+  confirmBtn.textContent = ">> I'VE SAVED IT — CONTINUE";
+  confirmBtn.addEventListener('click', () => _confirmNewToken(generatedToken));
+
+  card.append(heading, subheading, tokenDisplay, hint, confirmBtn);
+  overlay.appendChild(card);
   document.body.appendChild(overlay);
 }
 
@@ -179,6 +201,15 @@ function _confirmNewToken(token) {
   localStorage.setItem(LS_USER, token);
   document.getElementById('gen-token-overlay')?.remove();
   window.location.reload();
+}
+
+
+// ── API fetch wrapper ────────────────────────────────────────────────────────
+
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
 }
 
 

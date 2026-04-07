@@ -263,11 +263,6 @@
 <script>
 const API = '';
 const YEAR_OFFSET = 24;  // years between real date and in-world date
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let parsedData = null;
 let allChars = [], allLocs = [], allOrgs = [];
 

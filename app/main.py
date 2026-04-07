@@ -4,8 +4,11 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import select, func
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine, async_session
+from app.auth.core import hash_token
+from app.models.character import Character
 import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 
 from app.routers import (
@@ -16,10 +19,34 @@ from app.routers import auth as auth_router
 from app.auth.dependencies import get_any_token
 
 
+async def _migrate_plaintext_owner_tokens():
+    """One-time migration: hash any pre-existing plaintext owner_token values.
+
+    SHA-256 hex digests are exactly 64 chars. Anything shorter is plaintext
+    left over from before the token-hashing change and needs to be hashed.
+    """
+    async with async_session() as db:
+        result = await db.execute(
+            select(Character).where(
+                Character.owner_token.isnot(None),
+                func.length(Character.owner_token) != 64,
+            )
+        )
+        rows = result.scalars().all()
+        if not rows:
+            return
+        for char in rows:
+            char.owner_token = hash_token(char.owner_token)
+        await db.commit()
+        print(f"[startup] Hashed {len(rows)} plaintext owner_token(s)")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await _migrate_plaintext_owner_tokens()
     yield
 
 
@@ -34,11 +61,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS — configurable via CORS_ORIGINS env var (comma-separated), defaults to * for local dev
+_cors_raw = os.environ.get("CORS_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
-    allow_headers=["*", "X-Admin-Token", "X-User-Token"],
+    allow_headers=["*"],
 )
 
 # Auth routes are unprotected (verify, set-password handle their own validation)
@@ -60,7 +91,7 @@ app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
 @app.get("/", tags=["Info"])
-def root():
+async def root():
     return {
         "name": "Shadowrun World Engine",
         "edition": "2nd Edition",

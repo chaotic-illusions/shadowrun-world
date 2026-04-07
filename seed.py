@@ -8,13 +8,14 @@ Usage:
 """
 
 import json
+import os
 import sys
 import argparse
 import urllib.request
 import urllib.error
 
 
-ADMIN_PASSWORD = "shadowrunner"
+ADMIN_PASSWORD = os.environ.get("BOOTSTRAP_ADMIN_KEY", "shadowrunner")
 
 
 def post(base_url, path, payload):
