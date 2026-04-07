@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
@@ -15,13 +15,8 @@ class CharacterBase(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: bool = False
-    attributes: dict[str, Any] = {}
-    skills: list[dict[str, Any]] = []
-    augmentations: list[dict[str, Any]] = []
-    gear: list[dict[str, Any]] = []
     karma_total: int = 0
     karma_current: int = 0
-    nuyen: int = 0
     is_active: bool = True
     notes: Optional[str] = None
     owner_token: Optional[str] = None
@@ -45,13 +40,8 @@ class CharacterUpdate(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: Optional[bool] = None
-    attributes: Optional[dict[str, Any]] = None
-    skills: Optional[list[dict[str, Any]]] = None
-    augmentations: Optional[list[dict[str, Any]]] = None
-    gear: Optional[list[dict[str, Any]]] = None
     karma_total: Optional[int] = None
     karma_current: Optional[int] = None
-    nuyen: Optional[int] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     owner_token: Optional[str] = None

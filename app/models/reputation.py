@@ -31,6 +31,7 @@ class OrgStanding(Base):
 
     # -10 (openly hunted) to +10 (trusted ally)
     standing = Column(Integer, default=0)
+    standings_updated_at = Column(Date, nullable=True)  # last manual/automatic change (for decay)
     notes = Column(Text)
 
     __table_args__ = (

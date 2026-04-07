@@ -1,6 +1,8 @@
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_or_404, apply_update
+from app.models.character import Character
 from app.models.reputation import Reputation, OrgStanding
 from app.schemas.reputation import (
     ReputationCreate, ReputationUpdate, ReputationRead,
@@ -84,6 +86,10 @@ def create_org_standing(body: OrgStandingCreate, db: Session = Depends(get_db)):
 def update_org_standing(standing_id: int, body: OrgStandingUpdate, db: Session = Depends(get_db)):
     standing = get_or_404(db, OrgStanding, standing_id)
     apply_update(db, standing, body)
+    if body.standing is not None:
+        standing.standings_updated_at = date.today()
+        db.commit()
+        db.refresh(standing)
     return standing
 
 
@@ -92,3 +98,23 @@ def delete_org_standing(standing_id: int, db: Session = Depends(get_db)):
     standing = get_or_404(db, OrgStanding, standing_id)
     db.delete(standing)
     db.commit()
+
+
+# --- Admin Utilities ---
+
+@router.post("/reset-pc-data", status_code=200)
+def reset_all_pc_data(db: Session = Depends(get_db)):
+    """Reset all PC heat, reputation, and org standings to baseline (for testing)."""
+    pc_ids = [c.id for c in db.query(Character).filter(Character.is_pc == True).all()]
+    if pc_ids:
+        for rep in db.query(Reputation).filter(Reputation.character_id.in_(pc_ids)).all():
+            rep.street_cred = 0
+            rep.notoriety = 0
+            rep.public_awareness = 0
+            rep.pa_updated_at = None
+            rep.heat = 0
+        db.query(OrgStanding).filter(OrgStanding.character_id.in_(pc_ids)).delete(
+            synchronize_session="fetch"
+        )
+    db.commit()
+    return {"reset": len(pc_ids), "message": f"Reset reputation data for {len(pc_ids)} PCs"}
