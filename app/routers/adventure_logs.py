@@ -236,11 +236,13 @@ async def create_log(
     data["heat"] = round(sum(heat_deltas) / participant_count) if participant_count and heat_deltas else 0
 
     log = AdventureLog(**data)
-    db.add(log)
-    await db.flush()
 
+    # Resolve M2M relations on the transient object BEFORE db.add().
+    # Setting relationship attributes on a post-flush persistent object triggers
+    # a sync lazy load, which is illegal in async SQLAlchemy (MissingGreenlet).
     await _resolve_relations(db, log, body.participant_ids, body.location_ids, body.org_ids)
 
+    db.add(log)
     await db.commit()
     return await _get_or_404(db, log.id)
 
