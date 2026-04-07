@@ -8,7 +8,7 @@ from app.schemas.matrix_host import (
     MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostSummary,
     MatrixHostConfig,
 )
-from app.auth.dependencies import get_admin_token
+from app.auth.dependencies import get_admin_token, get_any_token
 from app.services.matrix_generator import generate, IC_INFO, VALID_CONNECTIONS
 
 router = APIRouter()
@@ -23,8 +23,14 @@ async def _get_or_404(db: AsyncSession, host_id: int) -> MatrixHost:
 
 
 @router.get("/", response_model=list[MatrixHostSummary])
-async def list_hosts(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(MatrixHost).order_by(MatrixHost.name))
+async def list_hosts(
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(MatrixHost).order_by(MatrixHost.name)
+    if not auth.get("is_admin"):
+        q = q.where(MatrixHost.is_visible_to_players == True)  # noqa: E712
+    result = await db.execute(q)
     return result.scalars().all()
 
 
@@ -71,8 +77,15 @@ async def connection_matrix():
 
 
 @router.get("/{host_id}", response_model=MatrixHostRead)
-async def get_host(host_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_or_404(db, host_id)
+async def get_host(
+    host_id: int,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    host = await _get_or_404(db, host_id)
+    if not auth.get("is_admin") and not host.is_visible_to_players:
+        raise HTTPException(status_code=404, detail="Matrix host not found")
+    return host
 
 
 @router.patch("/{host_id}", response_model=MatrixHostRead,

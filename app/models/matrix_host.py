@@ -1,5 +1,5 @@
 from datetime import datetime, UTC
-from sqlalchemy import String, Text, Integer, JSON, ForeignKey
+from sqlalchemy import Boolean, String, Text, Integer, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -25,6 +25,7 @@ class MatrixHost(Base):
     topology_json: Mapped[dict | None] = mapped_column(JSON, default=None)
 
     notes: Mapped[str | None] = mapped_column(Text, default=None)
+    is_visible_to_players: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(

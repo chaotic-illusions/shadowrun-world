@@ -52,6 +52,27 @@
     .mx-mode-view  { color: var(--text-dim); border-color: #333; }
     .mx-mode-edit  { color: var(--amber);    border-color: #442200; }
 
+    /* ── Visibility badge ───────────────────────────── */
+    .vis-badge {
+      display: inline-block; font-size: 0.57rem; letter-spacing: 1.5px;
+      padding: 2px 7px; border: 1px solid; cursor: pointer;
+      text-transform: uppercase; float: right; margin-top: 2px;
+    }
+    .vis-revealed { color: var(--green-dim); border-color: #004400; }
+    .vis-hidden   { color: var(--text-dim);  border-color: #222; }
+    .vis-revealed:hover { border-color: var(--green); color: var(--green); }
+    .vis-hidden:hover   { border-color: var(--amber); color: var(--amber); }
+
+    /* ── Player discovered panel ────────────────────── */
+    #playerInfoPanel {
+      background: #080e08; border: 1px solid #0e2a0e; border-left: 3px solid var(--cyan);
+      padding: 12px 14px; margin-bottom: 8px; font-size: 0.7rem;
+    }
+    .pi-header { font-size: 0.6rem; letter-spacing: 3px; color: var(--cyan); margin-bottom: 10px; }
+    .pi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pi-stat label { display: block; font-size: 0.58rem; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 2px; }
+    .pi-notes { margin-top: 10px; color: var(--text-dim); font-size: 0.68rem; line-height: 1.5; border-top: 1px solid #1a2a1a; padding-top: 8px; }
+
     /* ── IC Tooltip ─────────────────────────────────── */
     #icTooltip {
       position: fixed; z-index: 1000; background: #0d0d0d; border: 1px solid #1a2a1a;
@@ -96,7 +117,7 @@
 
 <main>
   <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em style="font-style:normal;color:var(--text-dim)">//</em> Topology Generator</div>
-  <div class="page-sub" style="margin-top:-14px">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
+  <div class="page-sub">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
 
   <div id="mxAlert" class="alert" style="margin-bottom:12px"></div>
 
@@ -104,8 +125,8 @@
 
     <!-- ── LEFT: form + host list ──────────────────── -->
     <div>
-      <!-- Generator Form -->
-      <div class="mx-panel" style="margin-bottom:16px">
+      <!-- Generator Form (GM only) -->
+      <div class="mx-panel gm-only" style="margin-bottom:16px">
         <div class="mx-panel-title">&gt;&gt; Generate New Host</div>
 
         <div class="field">
@@ -201,6 +222,15 @@
       <div id="canvasHostTitle" style="font-size:0.78rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;display:none">
         <span id="canvasTitle"></span>
         <span id="canvasRating" style="margin-left:12px"></span>
+        <button id="btnReveal" class="btn gm-only" onclick="toggleCurrentHostVisibility()"
+          style="font-size:0.6rem;padding:2px 10px;float:right;display:none"></button>
+      </div>
+
+      <!-- Player info panel (shown only for players when a host is selected) -->
+      <div id="playerInfoPanel" style="display:none">
+        <div class="pi-header">&gt;&gt; DISCOVERED ARCHITECTURE</div>
+        <div class="pi-grid" id="piStats"></div>
+        <div class="pi-notes" id="piNotes" style="display:none"></div>
       </div>
 
       <div class="mx-toolbar gm-only">
@@ -257,7 +287,7 @@
 <script>
 'use strict';
 
-const API = window.API_BASE || '';
+const API = '';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let _hosts      = [];
@@ -294,10 +324,16 @@ const ISO_DX = 12;  // horizontal face depth
 const ISO_DY = 7;   // vertical face depth
 
 // ── Boot ───────────────────────────────────────────────────────────────────
+const _emptyGm   = 'SELECT A HOST OR GENERATE ONE TO RENDER TOPOLOGY';
+const _emptyUser = 'SELECT A REVEALED HOST TO VIEW TOPOLOGY';
 document.addEventListener('DOMContentLoaded', async () => {
-  bootstrapAuth();
+  const _authUser = await bootstrapAuth();
+  if (!_authUser) return;
   await Promise.all([loadMeta(), loadOrgLocOptions(), loadHosts()]);
-  document.getElementById('gen-private').addEventListener('change', function() {
+  if (!isAdmin()) {
+    document.getElementById('svgEmpty').textContent = _emptyUser;
+  }
+  document.getElementById('gen-private')?.addEventListener('change', function() {
     document.getElementById('genPrivateLbl').textContent = this.checked ? 'Yes' : 'No';
   });
   initSvgEvents();
@@ -315,6 +351,7 @@ async function loadMeta() {
 }
 
 async function loadOrgLocOptions() {
+  if (!isAdmin()) return;
   try {
     const [orgs, locs] = await Promise.all([
       apiFetch(`${API}/organizations/`).then(r => r.ok ? r.json() : []),
@@ -347,13 +384,19 @@ function renderHostList() {
     el.innerHTML = '<div class="mx-empty" style="height:60px">No hosts saved</div>';
     return;
   }
-  el.innerHTML = _hosts.map(h => `
+  el.innerHTML = _hosts.map(h => {
+    const visBadge = isAdmin()
+      ? `<span class="vis-badge ${h.is_visible_to_players ? 'vis-revealed' : 'vis-hidden'}"
+              onclick="event.stopPropagation();toggleVisibility(${h.id},${h.is_visible_to_players})">
+           ${h.is_visible_to_players ? '\u25c9 REVEALED' : '\u25cb HIDDEN'}</span>`
+      : '';
+    return `
     <div class="host-item${_currentHost && _currentHost.id === h.id ? ' active' : ''}"
          onclick="selectHost(${h.id})">
-      <div class="host-name">${esc(h.name)}</div>
+      <div class="host-name">${esc(h.name)}${visBadge}</div>
       <div class="host-meta">#${h.id} // ${new Date(h.created_at).toLocaleDateString()}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function selectHost(id) {
@@ -369,7 +412,62 @@ async function selectHost(id) {
     const cfg = _currentHost.config_json || {};
     document.getElementById('canvasRating').textContent =
       cfg.base_rating ? `[${cfg.base_rating}]` : '';
+    updateVisibilityIndicator();
+    populatePlayerPanel();
   } catch(_e) {}
+}
+
+function updateVisibilityIndicator() {
+  if (!_currentHost) return;
+  const btn = document.getElementById('btnReveal');
+  if (!btn) return;
+  btn.style.display = isAdmin() ? '' : 'none';
+  btn.textContent = _currentHost.is_visible_to_players ? 'CONCEAL' : 'REVEAL TO PLAYERS';
+  btn.style.color = _currentHost.is_visible_to_players ? 'var(--amber)' : 'var(--text-dim)';
+  btn.style.borderColor = _currentHost.is_visible_to_players ? '#442200' : '#222';
+}
+
+async function toggleVisibility(hostId, current) {
+  try {
+    const res = await apiFetch(`${API}/matrix-hosts/${hostId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_visible_to_players: !current }),
+    });
+    if (!res.ok) return;
+    if (_currentHost && _currentHost.id === hostId) {
+      _currentHost.is_visible_to_players = !current;
+      updateVisibilityIndicator();
+    }
+    await loadHosts();
+  } catch(_e) {}
+}
+
+async function toggleCurrentHostVisibility() {
+  if (!_currentHost) return;
+  await toggleVisibility(_currentHost.id, _currentHost.is_visible_to_players);
+}
+
+function populatePlayerPanel() {
+  const panel = document.getElementById('playerInfoPanel');
+  if (isAdmin() || !_currentHost) { panel.style.display = 'none'; return; }
+  const cfg  = _currentHost.config_json  || {};
+  const topo = _currentHost.topology_json || { nodes: [], edges: [] };
+  const icCount = (topo.nodes || []).reduce((s, n) => s + (n.ic?.length || 0), 0);
+  const edgeCount = (topo.edges || []).length;
+  document.getElementById('piStats').innerHTML = `
+    <div class="pi-stat"><label>SECURITY RATING</label><span style="color:var(--amber)">${esc(cfg.base_rating || 'Unknown')}</span></div>
+    <div class="pi-stat"><label>NODES MAPPED</label><span>${topo.nodes?.length || 0}</span></div>
+    <div class="pi-stat"><label>CONNECTIONS</label><span>${edgeCount}</span></div>
+    <div class="pi-stat"><label>IC ACTIVE</label><span style="color:${icCount > 0 ? 'var(--red)' : 'var(--text-dim)'}">${icCount}</span></div>
+  `;
+  const notesEl = document.getElementById('piNotes');
+  if (_currentHost.notes) {
+    notesEl.textContent = _currentHost.notes;
+    notesEl.style.display = '';
+  } else {
+    notesEl.style.display = 'none';
+  }
+  panel.style.display = '';
 }
 
 // ── Generator ──────────────────────────────────────────────────────────────
@@ -409,6 +507,7 @@ async function generateHost() {
     document.getElementById('canvasHostTitle').style.display = 'block';
     document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
     document.getElementById('canvasRating').textContent = `[${payload.base_rating}]`;
+    updateVisibilityIndicator();
     showAlert(document.getElementById('mxAlert'), `>> TOPOLOGY GENERATED // "${name}" saved.`, false);
   } catch(e) {
     showAlert(document.getElementById('mxAlert'), `>> FAILED // ${e.message}`, true);

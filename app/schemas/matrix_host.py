@@ -33,6 +33,7 @@ class MatrixHostUpdate(BaseModel):
     config_json: Optional[dict[str, Any]] = None
     topology_json: Optional[dict[str, Any]] = None
     notes: Optional[str] = None
+    is_visible_to_players: Optional[bool] = None
 
 
 class MatrixHostRead(BaseModel):
@@ -43,6 +44,7 @@ class MatrixHostRead(BaseModel):
     config_json: Optional[dict[str, Any]] = None
     topology_json: Optional[dict[str, Any]] = None
     notes: Optional[str] = None
+    is_visible_to_players: bool = False
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -53,5 +55,6 @@ class MatrixHostSummary(BaseModel):
     name: str
     owner_org_id: Optional[int] = None
     location_id: Optional[int] = None
+    is_visible_to_players: bool = False
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
