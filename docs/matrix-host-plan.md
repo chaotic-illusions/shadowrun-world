@@ -2,7 +2,7 @@
 
 Branch: `matrix-host`  
 Edition: Shadowrun 2nd (geometric nodes, target numbers, Green/Blue/Orange/Red/Black security ratings)  
-Status: **Planning — not yet implemented**
+Status: **Spec locked — ready to implement**
 
 ---
 
@@ -10,25 +10,104 @@ Status: **Planning — not yet implemented**
 
 | Decision | Choice |
 |---|---|
-| Architecture | Option A: Backend generator service + frontend SVG renderer |
+| Architecture | Backend generator service + frontend SVG renderer |
 | Generation logic | Python service (`app/services/matrix_generator.py`) |
 | Storage | New `MatrixHost` DB table, two JSON blobs per record |
-| Visual output | Pure SVG, rendered in-browser, no external libraries |
-| Node repositioning | Native SVG mouse events (see section below) |
+| Visual output | Pure SVG, isometric 3D shapes, no external libraries |
+| Node repositioning | Native SVG mouse events (drag nodes + drag-to-rewire edges) |
 | Navigation | New page `frontend/manage-matrix.html` in existing nav |
+| IC badges | Colored badge per IC on node; hover tooltip with mechanics + flavor |
+| Edge rewiring | Click edge → drag endpoint handle → drop on valid node |
 
 ---
 
-## Pending Input From User (Required Before Coding)
+## Node Types — Confirmed SR2 Canonical
 
-1. **Node type definitions** — geometric shape descriptions and valid connections to/from each type (user to provide)
-2. **IC type list** — IC names, subtypes, and abilities relevant to the campaign (user to provide)
+| Code | Full Name | SR2 Flat Shape | 3D SVG Representation | Color Token |
+|---|---|---|---|---|
+| CPU | Central Processing Unit | Double-wall hexagon (hex inside hex) | Walled hex prism (outer hex ring + inner raised hex) | `--green` |
+| SPU | Sub-Processing Unit | Hexagon | Hexagonal prism (flat-top hex with isometric depth) | `--cyan` |
+| SN | Slave Node | Circle | Sphere (radial gradient + highlight) | `--amber` |
+| SAN | System Access Node | Rectangle | Cuboid / box (isometric 3-face rect) | `--blue` |
+| I/OP | Input/Output Port | Triangle | Pyramid (isometric 3-face triangle) | `--purple` |
+| DS | Datastore | Square | Cube (isometric 3-face square) | `--text-dim` tinted |
 
-Until these are provided, the generator will use SR2-canonical defaults (see "Node Types — SR2 Defaults" below as a starting point to confirm or correct).
+### Valid Connection Matrix
+
+Rows = source node type. Columns = allowed target types.
+
+| From \ To | CPU | DS | I/OP | SN | SPU | SAN |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **CPU** | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **DS** | ✓ | ✓ | — | — | ✓ | — |
+| **I/OP** | ✓ | — | — | — | ✓ | — |
+| **SN** | ✓ | — | — | — | ✓ | — |
+| **SPU** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **SAN** | ✓ | ✓ | — | — | ✓ | — |
+
+**Key structural rules:**
+- **SPU is the universal hub** — connects to all types including other SPUs
+- **SAN is the only valid entry point** — I/OP and SN cannot connect to SAN; all external access must route through a SAN
+- **DS can chain** — DS→DS is legal (tiered storage)
+- **I/OP and SN are dead-ends** — only route outward to CPU or SPU
+- The generator enforces this matrix for both generation and drag-to-rewire validation
 
 ---
 
-## Data Model
+## IC Types — Confirmed
+
+All IC entries stored as: `{ "type": "Killer", "category": "gray", "rating": 6, "active": true }`
+
+### White IC (non-lethal)
+| Type | Mechanic summary |
+|---|---|
+| Access | Probes the decker's access code; kicked by failed probe |
+| Barrier | Raises the host's security rating against the decker for the remainder of the run |
+| Scramble | Disconnects the decker from the host immediately on trigger |
+
+### Gray IC (conditionally lethal — can deal damage)
+| Type | Mechanic summary |
+|---|---|
+| Blaster | Deals Stun damage to decker's biofeedback; can KO |
+| Killer | Deals Physical damage directly to decker; lethal if unaddressed |
+| Tar Baby | Freezes decker in place (cannot jack out or move); must be crashed to escape |
+| Tar Pit | Slows all decker actions (initiative penalty) while active |
+| Trace & Report | Traces decker's physical location; reports address to system operator |
+| Trace & Dump | Traces decker; forcibly disconnects (dumps) them from the host |
+| Trace & Burn | Traces decker; destroys their cyberdeck's MPCP on successful trace |
+
+**Note:** "Trace" is the parent program type. All Trace IC must carry a triggered action (Report, Dump, or Burn) — bare "Trace" IC does not exist as a standalone type.
+
+### Black IC (lethal)
+No sub-type. Deals Physical damage (occasionally Stun at GM discretion). Typically the most aggressive and damaging IC in the host. Stored as: `{ "type": "Black", "category": "black", "rating": 8, "active": true }`
+
+### IC Badge Visual Scheme
+| Category | Badge color | Ring glow |
+|---|---|---|
+| White | `#e8e8e8` | None |
+| Gray | `#aaaaaa` / charcoal | Faint amber |
+| Black | `#ff2222` | Red pulse |
+
+Each node shows stacked IC badges (small colored dots/rings near the node edge). Hovering an IC badge opens a tooltip showing: type name, category, rating, mechanic summary, and a one-line flavor description.
+
+---
+
+## Node Shape SVG Implementation
+
+All shapes rendered at a nominal 44px bounding box, isometric projection (approx 30° angle).
+
+| Type | SVG Approach |
+|---|---|
+| **CPU** | Outer hex ring (`<polygon>`) + inner offset hex (`<polygon>`) — both using isometric hex prism lines for the 3D top/sides; outer ring gets a darker fill to show the "wall" |
+| **SPU** | Single hexagonal prism — top face `<polygon>` + two parallelogram side faces |
+| **SN** | Sphere — `<circle>` with radial gradient (highlight at top-left, dark at bottom-right) |
+| **SAN** | Cuboid — three `<polygon>` faces (top, left side, right side) with distinct lightness |
+| **I/OP** | Pyramid — triangular top `<polygon>` + two trapezoidal side faces |
+| **DS** | Cube — three `<polygon>` faces (top, left, right) equal-sized, isometric orientation |
+
+All shapes use a `<defs>` gradient per color token. Selected nodes get a bright outer glow ring. IC badges are `<circle r="5">` elements positioned around the node perimeter, color-coded by lethality.
+
+---
 
 ```python
 # app/models/matrix_host.py
@@ -111,56 +190,7 @@ class MatrixHost(Base):
 
 ---
 
-## Node Types — SR2 Defaults
-
-*To be confirmed/corrected/expanded by user before implementation.*
-
-| Node Type | SR2 Shape | Color Token | Notes |
-|---|---|---|---|
-| CPU | Sphere | `--green` | One per system; heart of the host |
-| SPU (Sub-Processing Unit) | Cube | `--red` | One or more; controls subsystems |
-| Storage Pool | Cylinder | `--cyan` | Data files live here |
-| Access Node | Inverted triangle / pyramid | `--amber` | Entry points; public-facing |
-| I/O Port | Flat disc / torus | `--blue` | Physical-world interfaces |
-| Slave Controller | Hexagon | `--purple` | Controls slave devices (cameras, doors, etc.) |
-| Datastore | Rectangle | `--text-dim` | Active data; different from passive Storage Pool |
-| Security Node | Octahedron / star | `--red` variant | Houses IC directly |
-
-### Valid Connection Rules (SR2 defaults — confirm with user)
-- Access Node → CPU, SPU
-- CPU → SPU, Storage Pool, I/O Port, Slave Controller, Datastore
-- SPU → Storage Pool, Slave Controller, I/O Port
-- Storage Pool → CPU (read only)
-- Private subnet connects to public only via one dedicated Access Node
-
----
-
-## IC Types — SR2 Defaults
-
-*To be confirmed/corrected/expanded by user before implementation.*
-
-**White IC** (non-lethal)
-- Probe — detects intruders
-- Trace — locates decker
-- Scramble — disconnects decker
-- Tar Baby — halts/slows intrusion
-
-**Gray IC** (conditionally lethal)
-- Sparky — deals Stun damage
-- Blaster — deals Physical damage
-- Marker — marks/traces permanently
-
-**Black IC** (lethal)
-- Killer — deals Physical damage, can kill
-- Blackout — crashes and destroys
-- Hellhound — pursuit IC, follows decker
-- Lethal Tar Baby — holds and escalates damage
-
-Each IC entry in a node stores: `{ "type": "Killer", "rating": 6, "active": true }`
-
----
-
-## Generation Algorithm (Backend Service)
+## Open Questions / Future Ideas
 
 ```
 matrix_generator.generate(config) → topology_json
@@ -201,53 +231,46 @@ No external libraries. Pure SVG + vanilla JS.
 - Print: `@media print` CSS hides controls, forces white-on-black or fitting
 
 ### Node Shape Rendering
-Each type is drawn with SVG primitives (all sizes relative to a 40px radius):
 
-| Type | SVG Element |
-|---|---|
-| CPU | `<circle>` with glow filter |
-| SPU | `<rect>` (square, rotated 45° = diamond) |
-| Storage Pool | `<rect>` tall-narrow (cylinder approximation) |
-| Access Node | `<polygon points>` triangle |
-| I/O Port | `<ellipse>` (disc) |
-| Slave Controller | `<polygon points>` hexagon |
-| Security Node | `<polygon points>` 8-point star |
+Each type is drawn with SVG primitives (isometric 3D, 44px bounding box). See "Node Shape SVG Implementation" above for full detail.
 
-IC badges: small colored rings `<circle stroke-only>` stacked around the node edge, one per IC entry, color-coded by lethality tier.
+IC badges: small colored `<circle>` elements stacked around the node edge, one per IC entry, color-coded by lethality (white/gray/black). Hover tooltip shows mechanics + flavor.
 
 ---
 
-## Node Drag-and-Drop (SVG Mouse Events)
+## Node Drag / Edge Rewire (SVG Mouse Events)
 
-No libraries needed. Implementation pattern:
+No libraries needed. Two interaction modes, toggled by an "Edit Layout" button.
 
+### Node Dragging
 ```js
 let _drag = null; // { nodeId, offsetX, offsetY }
 
-// On each node <g>:
 node.addEventListener('mousedown', e => {
   e.stopPropagation();
   const pos = svgPoint(e);
   _drag = { nodeId: id, offsetX: pos.x - node.cx, offsetY: pos.y - node.cy };
 });
-
-// On SVG canvas:
 svg.addEventListener('mousemove', e => {
   if (!_drag) return;
   const pos = svgPoint(e);
   moveNode(_drag.nodeId, pos.x - _drag.offsetX, pos.y - _drag.offsetY);
-  redrawEdges(); // update all line endpoints
+  redrawEdges();
 });
-
-svg.addEventListener('mouseup', () => {
-  if (_drag) { savePositions(); _drag = null; }
-});
+svg.addEventListener('mouseup', () => { if (_drag) { savePositions(); _drag = null; } });
 ```
 
-`savePositions()` PATCHes `/matrix-hosts/{id}` with updated `topology_json` (only x/y changed).  
-`svgPoint(e)` converts MouseEvent coords to SVG coordinate space (handles zoom/pan).
+### Edge Rewiring
+Each edge `<path>` has an invisible 12px-wide hit area. Clicking an edge:
+1. Selects it — shows a drag handle circle at each endpoint
+2. User drags either handle; valid drop targets highlight green, invalid targets red
+3. Validation runs against the connection matrix (same table used by generator)
+4. Drop on valid node → rewires edge; drop on invalid target or empty space → snaps back
 
-Estimated implementation: ~100 lines of JS within the page.
+Right-click context menu on nodes: **Add connection** (draw mode to second node) and **Delete connection** (on edge right-click, with confirm).
+
+`savePositions()` / `saveEdges()` PATCH `/matrix-hosts/{id}` with updated `topology_json`.  
+`svgPoint(e)` converts MouseEvent to SVG coordinate space (handles zoom/pan transform).
 
 ---
 
@@ -315,16 +338,16 @@ conn.execute("""
 
 ## Implementation Order
 
-1. [ ] Receive node type definitions from user — update "Node Types" section above
-2. [ ] Receive IC type list from user — update "IC Types" section above
-3. [ ] Run migration (`add_matrix_hosts.py`)
+1. [x] Node types, shapes, connection matrix confirmed by user
+2. [x] IC types and categories confirmed by user
+3. [ ] Alembic migration for `matrix_hosts` table
 4. [ ] `app/models/matrix_host.py`
 5. [ ] `app/schemas/matrix_host.py`
 6. [ ] `app/services/matrix_generator.py` — generation algorithm
 7. [ ] `app/routers/matrix_hosts.py` — CRUD + `/generate`
 8. [ ] Register router in `app/main.py`
-9. [ ] `frontend/manage-matrix.html` — form, SVG canvas, host list, drag-and-drop
-10. [ ] `frontend/style.css` — matrix node/subnet styles, print media query
+9. [ ] `frontend/manage-matrix.html` — form, SVG canvas, host list, drag/rewire
+10. [ ] `frontend/style.css` — isometric node styles, subnet box, IC badge colors, print media query
 11. [ ] Add "Matrix" nav link to all existing HTML pages
 12. [ ] Error check all modified Python files
 13. [ ] Commit and push to `matrix-host` branch
