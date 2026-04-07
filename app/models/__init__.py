@@ -9,3 +9,4 @@ from app.models.adventure_log import AdventureLog  # noqa: F401
 from app.models.house_rule import HouseRule  # noqa: F401
 from app.models.rtg import RTG  # noqa: F401
 from app.models.auth import UserToken  # noqa: F401
+from app.models.matrix_host import MatrixHost  # noqa: F401
