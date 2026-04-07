@@ -212,11 +212,6 @@
 
 <script>
 const API = '';
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let tierVal = 1;
 let leaderCount = 0;
 let telecomCount = 0;

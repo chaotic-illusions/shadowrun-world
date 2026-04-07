@@ -279,11 +279,6 @@
 
 <script>
 const API = '';
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let allChars    = [];
 let allOrgs     = [];
 let allContacts = [];
@@ -392,10 +387,10 @@ function updateRepPreview() {
 }
 
 // ── Render table ──────────────────────────────────────────────
+let _myCharIds = new Set();
+
 function getMyCharIds() {
-  const tok = userToken() || adminToken();
-  if (!tok) return new Set();
-  return new Set(allChars.filter(c => c.owner_token === tok).map(c => c.id));
+  return _myCharIds;
 }
 
 function renderTable(data) {
@@ -466,7 +461,7 @@ function openModal(id) {
   const isPC = ch?.is_pc !== false;
   document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Dossier';
   document.getElementById('deleteBtn').style.display = (ch && isAdminMode()) ? '' : 'none';
-  document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.owner_token && isAdminMode()) ? '' : 'none';
+  document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.is_claimed && isAdminMode()) ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
 
   document.getElementById('f-name').value          = ch?.name || '';
@@ -731,15 +726,18 @@ async function removeContactLinkFromForm(contactId) {
 // ── Load data ─────────────────────────────────────────────────
 async function loadChars() {
   try {
-    const [charsRes, orgsRes, contactsRes] = await Promise.all([
+    const [charsRes, orgsRes, contactsRes, mineRes] = await Promise.all([
       apiFetch(`${API}/characters/`),
       apiFetch(`${API}/organizations/`),
       apiFetch(`${API}/contacts/`),
+      apiFetch(`${API}/characters/mine`),
     ]);
     if (!charsRes.ok) throw new Error(charsRes.statusText);
     allChars    = await charsRes.json();
     allOrgs     = orgsRes.ok ? await orgsRes.json() : [];
     allContacts = contactsRes.ok ? await contactsRes.json() : [];
+    const mineData = mineRes.ok ? await mineRes.json() : {ids: []};
+    _myCharIds = new Set(mineData.ids || []);
 
     const sel = document.getElementById('f-organization_id');
     sel.innerHTML = '<option value="">— Independent / Unknown —</option>' +

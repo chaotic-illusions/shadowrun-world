@@ -1,18 +1,19 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from datetime import datetime, UTC
+from sqlalchemy import String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
 class UserToken(Base):
     """
     Tokens distributed to players (is_admin=False) or used as admin credentials (is_admin=True).
-    Admin tokens are generated once and stored here as plaintext hex — no bcrypt needed.
-    Bootstrap: if no active admin token exists in this table, 'shadowrunner' is accepted.
+    Tokens are stored as SHA-256 hashes — the plaintext is shown only at creation time.
+    Bootstrap: if no active admin token exists in this table, the BOOTSTRAP_ADMIN_KEY env var is accepted.
     """
     __tablename__ = "auth_user_tokens"
 
-    id = Column(Integer, primary_key=True, index=True)
-    token = Column(String(64), unique=True, nullable=False, index=True)
-    label = Column(String(200), nullable=True)
-    is_admin = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(String(200), default=None)
+    is_admin: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))

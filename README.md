@@ -98,8 +98,9 @@ heat = outcome_base + sum(tag_bonuses) + employer_tier_bonus + employer_type_bon
 **Outcome base:**
 | Outcome | Base heat |
 |---|---|
-| success / partial_success | 2 |
-| failure | 1 |
+| success | 0 |
+| partial_success | 1 |
+| failure | 2 |
 | critical_failure | 3 |
 | abandoned | 1 |
 

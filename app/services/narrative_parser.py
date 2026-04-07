@@ -2,10 +2,13 @@
 Parses a GM's free-form run narrative using Claude.
 Returns structured run data and proposed world-state changes.
 """
-import os
 import json
 import pathlib
+import re
+
 import anthropic
+
+from app.services.secrets import get_api_key
 
 # Load the AI parser reference doc at import time so edits to the file
 # take effect without restarting the server (the module reloads on change).
@@ -68,22 +71,51 @@ Rules for proposed_changes:
 # Append the reference doc (tag and mechanic details) if available
 _FULL_SYSTEM = _SYSTEM + ("\n\n---\n\n" + _REFERENCE if _REFERENCE else "")
 
+# Regex to find the first JSON object in a response (handles markdown fences, preamble, etc.)
+_JSON_RE = re.compile(r"\{[\s\S]*\}")
 
-def parse_narrative(narrative: str, world_context: dict) -> dict:
+
+def _extract_json(raw: str) -> dict:
+    """Extract and parse the first JSON object from Claude's response text."""
+    # Strip markdown code fences
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned.rsplit("```", 1)[0].strip()
+
+    # Try direct parse first (cleanest path)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Regex fallback: find the first { ... } block
+    match = _JSON_RE.search(raw)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Could not extract valid JSON from model response:\n{raw[:500]}")
+
+
+async def parse_narrative(narrative: str, world_context: dict) -> dict:
     """
     Call Claude to parse a GM narrative into structured run data + proposed changes.
 
     world_context keys:
-      characters  – list of {id, name, is_pc, nuyen}
+      characters  – list of {id, name, is_pc}
       organizations – list of {id, name, org_type}
       reputation  – list of {character_id, street_cred, notoriety, public_awareness}
       standings   – list of {character_id, org_id, standing}
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    api_key = get_api_key()
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+        raise RuntimeError("Anthropic API key is not configured")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key)
 
     user_msg = (
         "WORLD CONTEXT:\n"
@@ -92,7 +124,7 @@ def parse_narrative(narrative: str, world_context: dict) -> dict:
         + narrative.strip()
     )
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
         system=_FULL_SYSTEM,
@@ -100,10 +132,4 @@ def parse_narrative(narrative: str, world_context: dict) -> dict:
     )
 
     raw = message.content[0].text.strip()
-    # Strip markdown code fences if the model wrapped the JSON
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1]
-    if raw.endswith("```"):
-        raw = raw.rsplit("```", 1)[0].strip()
-
-    return json.loads(raw)
+    return _extract_json(raw)

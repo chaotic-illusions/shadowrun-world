@@ -155,7 +155,7 @@ function renderTokenTable(tokens, containerId, accentColor) {
 
 async function loadTokens() {
   try {
-    const res = await fetch('/auth/tokens', { headers: authHeaders() });
+    const res = await apiFetch('/auth/tokens');
     if (!res.ok) throw new Error(res.statusText);
     const all = await res.json();
     renderTokenTable(all.filter(t => t.is_admin),  'adminTokenWrap',  'var(--amber)');
@@ -196,9 +196,8 @@ function closeTokenModal() { document.getElementById('tokenModal').style.display
 async function submitNewToken() {
   const label = document.getElementById('tokenLabel').value.trim() || null;
   try {
-    const res = await fetch('/auth/tokens', {
+    const res = await apiFetch('/auth/tokens', {
       method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ label, is_admin: _creatingAdmin }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -240,9 +239,8 @@ function closeRenameModal() {
 async function submitRename() {
   const label = document.getElementById('renameInput').value.trim() || null;
   try {
-    const res = await fetch(`/auth/tokens/${_renameId}`, {
+    const res = await apiFetch(`/auth/tokens/${_renameId}`, {
       method: 'PATCH',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -258,7 +256,7 @@ async function submitRename() {
 async function deleteToken(id) {
   if (!confirm('Delete this token? The player will lose access and their characters will be unclaimed.')) return;
   try {
-    const res = await fetch(`/auth/tokens/${id}`, { method: 'DELETE', headers: authHeaders() });
+    const res = await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);
     showAlert('>> DELETED // Token removed and characters unclaimed.', false);
     await loadTokens();
@@ -291,9 +289,8 @@ function renderPlayerView(ctx) {
 async function submitPlayerRename() {
   const label = document.getElementById('playerRenameInput').value.trim() || null;
   try {
-    const res = await fetch('/auth/tokens/me', {
+    const res = await apiFetch('/auth/tokens/me', {
       method: 'PATCH',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
     });
     if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
