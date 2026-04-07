@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="style.css">
   <style>
     /* ── Layout ─────────────────────────────────────── */
-    .mx-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+    .mx-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
     @media (max-width: 900px) { .mx-layout { grid-template-columns: 1fr; } }
 
-    /* ── Left panel: generator form + host list ─────── */
+    /* ── Left panel ─────────────────────────────────── */
     .mx-panel { background: var(--bg-card); border: 1px solid #111; padding: 16px; }
     .mx-panel-title { font-size: 0.68rem; letter-spacing: 3px; color: var(--cyan); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid #1a2a1a; padding-bottom: 8px; }
 
@@ -31,10 +31,21 @@
     .host-name { font-size: 0.85rem; color: var(--text-bright); letter-spacing: 1px; }
     .host-meta { font-size: 0.62rem; color: var(--text-dim); letter-spacing: 1px; margin-top: 3px; }
 
+    /* ── Node palette ───────────────────────────────── */
+    .palette-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .palette-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 8px 4px; border: 1px solid #1a2a1a; background: #080808;
+      cursor: grab; user-select: none; font-size: 0.6rem; letter-spacing: 1px;
+      color: var(--text-dim); transition: border-color .15s;
+    }
+    .palette-item:hover { border-color: var(--cyan); color: var(--text-bright); }
+    .palette-item:active { cursor: grabbing; }
+
     /* ── Right panel: SVG canvas ───────────────────── */
     .mx-canvas-wrap {
       background: #050505; border: 1px solid #111; position: relative;
-      overflow: hidden; height: 640px;
+      overflow: hidden; height: 600px;
     }
     #matrixSvg { width: 100%; height: 100%; display: block; cursor: grab; }
     #matrixSvg.dragging { cursor: grabbing; }
@@ -92,12 +103,48 @@
     .mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); }
     .mx-leg-swatch { width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
 
+    /* ── Connection matrix legend ───────────────────── */
+    .conn-legend { background: #080808; border: 1px solid #111; border-top: none; padding: 12px; overflow-x: auto; }
+    .conn-legend-title { font-size: 0.6rem; letter-spacing: 3px; color: var(--text-dim); margin-bottom: 8px; }
+    .conn-table { border-collapse: collapse; font-size: 0.6rem; font-family: var(--font); letter-spacing: 1px; }
+    .conn-table th, .conn-table td { padding: 4px 8px; border: 1px solid #1a2a1a; text-align: center; }
+    .conn-table th { color: var(--text-dim); background: #0a0a0a; }
+    .conn-table td.conn-yes { color: var(--green); }
+    .conn-table td.conn-no  { color: #222; }
+    .conn-table td.conn-hdr { color: var(--cyan); background: #0a0a0a; text-align: left; padding-left: 10px; }
+
+    /* ── Node edit modal ────────────────────────────── */
+    #nodeModal {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
+    }
+    #nodeModal.open { display: flex; }
+    .modal-box {
+      background: #0e0e0e; border: 1px solid #1a2a1a; padding: 20px 24px;
+      width: 420px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 0.7rem; letter-spacing: 3px; color: var(--cyan); margin-bottom: 16px; }
+    .modal-field { margin-bottom: 12px; }
+    .modal-field label { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 4px; }
+    .modal-field input, .modal-field select {
+      width: 100%; background: var(--bg-input, #0a0a0a); border: 1px solid #1a2a1a;
+      color: var(--text-bright); padding: 6px 10px; font-family: var(--font); font-size: 0.8rem;
+      box-sizing: border-box; outline: none;
+    }
+    .ic-row { display: grid; grid-template-columns: 1fr 80px 32px; gap: 6px; margin-bottom: 6px; align-items: center; }
+    .ic-row select, .ic-row input { padding: 5px 8px; font-size: 0.78rem; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .modal-actions .btn { flex: 1; justify-content: center; font-size: 0.65rem; }
+
+    /* ── Ghost drag node ────────────────────────────── */
+    #paletteDragGhost {
+      position: fixed; pointer-events: none; z-index: 999;
+      display: none; transform: translate(-50%,-50%);
+    }
+
     /* ── Empty / loading states ─────────────────────── */
     .mx-empty { display: flex; align-items: center; justify-content: center; height: 100%;
       font-size: 0.72rem; letter-spacing: 2px; color: var(--text-dim); }
-
-    /* ── complexity slider label ────────────────────── */
-    .complexity-row { display: flex; justify-content: space-between; font-size: 0.62rem; color: var(--text-dim); margin-top: 3px; letter-spacing: 1px; }
   </style>
 </head>
 <body>
@@ -116,95 +163,74 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em style="font-style:normal;color:var(--text-dim)">//</em> Topology Generator</div>
+  <div id="pageTitle" class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em style="font-style:normal;color:var(--text-dim)">//</em> Topology Editor</div>
   <div class="page-sub">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
 
   <div id="mxAlert" class="alert" style="margin-bottom:12px"></div>
 
   <div class="mx-layout">
 
-    <!-- ── LEFT: form + host list ──────────────────── -->
+    <!-- ── LEFT: new host form + palette + host list ── -->
     <div>
-      <!-- Generator Form (GM only) -->
+      <!-- New Host Form (GM only) -->
       <div class="mx-panel gm-only" style="margin-bottom:16px">
-        <div class="mx-panel-title">&gt;&gt; Generate New Host</div>
+        <div class="mx-panel-title">&gt;&gt; New Matrix Host</div>
+
+        <div class="field">
+          <label>LTG Source (from Organization)</label>
+          <select id="new-ltg-source" onchange="onLtgSourceChange()">
+            <option value="">— One-off system (no org) —</option>
+          </select>
+        </div>
 
         <div class="field">
           <label>Host Name *</label>
-          <input type="text" id="gen-name" placeholder="Aztechnology Seattle Payroll...">
+          <input type="text" id="new-name" placeholder="Aztechnology Seattle Payroll...">
         </div>
 
         <div class="field">
-          <label>Complexity <span id="complexityLabel" style="color:var(--amber)">Standard</span></label>
-          <input type="range" id="gen-complexity" min="1" max="5" value="2"
-            oninput="updateComplexityLabel(this.value)" style="width:100%;accent-color:var(--green)">
-          <div class="complexity-row">
-            <span>Simple</span><span>Standard</span><span>Complex</span><span>Major Corp</span><span>Black Site</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Base Security Rating</label>
-          <select id="gen-base_rating">
-            <option value="Green-4">Green-4 (Low)</option>
-            <option value="Blue-5">Blue-5 (Fringe)</option>
-            <option value="Orange-6" selected>Orange-6 (Standard)</option>
-            <option value="Orange-8">Orange-8 (Corporate)</option>
-            <option value="Red-10">Red-10 (High Security)</option>
-            <option value="Red-12">Red-12 (Military)</option>
-            <option value="Black-14">Black-14 (Black Site)</option>
-            <option value="Black-18">Black-18 (Triple-A Megacorp)</option>
+          <label>SAN Rating</label>
+          <select id="new-san-rating">
+            <option value="">— Unknown —</option>
+            <option value="Blue-3">Blue-3</option>
+            <option value="Green-4">Green-4</option>
+            <option value="Green-5">Green-5</option>
+            <option value="Green-6">Green-6</option>
+            <option value="Green-8">Green-8</option>
+            <option value="Orange-5">Orange-5</option>
+            <option value="Orange-6">Orange-6</option>
+            <option value="Orange-8">Orange-8</option>
+            <option value="Orange-9">Orange-9</option>
+            <option value="Red-6">Red-6</option>
+            <option value="Red-8">Red-8</option>
+            <option value="Red-9">Red-9</option>
+            <option value="Red-10">Red-10</option>
+            <option value="Red-12">Red-12</option>
+            <option value="Black-8">Black-8</option>
+            <option value="Black-10">Black-10</option>
+            <option value="Black-12">Black-12</option>
+            <option value="Black-14">Black-14</option>
           </select>
         </div>
 
-        <div class="field">
-          <label>IC Lethality</label>
-          <select id="gen-ic_lethality">
-            <option value="white">White Only (non-lethal)</option>
-            <option value="gray" selected>Gray (conditionally lethal)</option>
-            <option value="black">Black IC permitted</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Owner Profile</label>
-          <select id="gen-owner_hint">
-            <option value="corp" selected>Corporate</option>
-            <option value="government">Government / Authority</option>
-            <option value="criminal">Criminal Organisation</option>
-            <option value="military">Military</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-          <div class="field" style="margin-bottom:0">
-            <label>Private Subnet</label>
-            <div class="toggle-wrap" style="padding-top:6px">
-              <label class="toggle"><input type="checkbox" id="gen-private"><span class="tog-sl"></span></label>
-              <span class="tog-label" id="genPrivateLbl">No</span>
-            </div>
-          </div>
-          <div class="field" style="margin-bottom:0">
-            <label>Seed (optional)</label>
-            <input type="number" id="gen-seed" placeholder="Random" style="padding:4px 8px">
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Owner Organization</label>
-          <select id="gen-owner_org_id"><option value="">— None —</option></select>
-        </div>
-        <div class="field">
-          <label>Associated Location</label>
-          <select id="gen-location_id"><option value="">— None —</option></select>
-        </div>
         <div class="field">
           <label>Notes</label>
-          <textarea id="gen-notes" rows="2" placeholder="GM notes..."></textarea>
+          <textarea id="new-notes" rows="2" placeholder="GM notes..."></textarea>
         </div>
 
-        <button class="btn btn-green" style="width:100%;justify-content:center" onclick="generateHost()">&gt;&gt; Generate Topology</button>
+        <input type="hidden" id="new-owner-org-id">
+
+        <button class="btn btn-green" style="width:100%;justify-content:center" onclick="createHost()">&gt;&gt; Create Canvas</button>
+      </div>
+
+      <!-- Node palette (GM only, shown when a canvas is active) -->
+      <div class="mx-panel gm-only" id="palettePanel" style="margin-bottom:16px;display:none">
+        <div class="mx-panel-title">&gt;&gt; Node Palette</div>
+        <div class="palette-grid" id="paletteGrid"></div>
+        <div style="margin-top:10px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
+          Drag a node type onto the canvas to place it.<br>
+          Drop near an existing compatible node to auto-connect.
+        </div>
       </div>
 
       <!-- Host List -->
@@ -221,7 +247,7 @@
     <div>
       <div id="canvasHostTitle" style="font-size:0.78rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;display:none">
         <span id="canvasTitle"></span>
-        <span id="canvasRating" style="margin-left:12px"></span>
+        <span id="canvasRating" style="margin-left:12px;color:var(--amber)"></span>
         <button id="btnReveal" class="btn gm-only" onclick="toggleCurrentHostVisibility()"
           style="font-size:0.6rem;padding:2px 10px;float:right;display:none"></button>
       </div>
@@ -235,14 +261,14 @@
 
       <div class="mx-toolbar gm-only">
         <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem">Edit Layout</button>
-        <button class="btn btn-amber" id="btnAddEdge" onclick="startAddEdge()" style="font-size:0.65rem;display:none">+ Add Edge</button>
-        <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()"> Delete Host</button>
+        <button class="btn btn-red" id="btnDeleteNode" style="font-size:0.65rem;display:none" onclick="deleteSelectedNode()">Delete Node</button>
+        <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()">Delete Host</button>
         <div style="flex:1"></div>
         <div class="mx-mode-badge mx-mode-view" id="modeBadge">VIEW</div>
         <button class="btn" onclick="resetZoom()" style="font-size:0.62rem;color:var(--text-dim)">Reset Zoom</button>
       </div>
 
-      <div class="mx-canvas-wrap">
+      <div class="mx-canvas-wrap" id="canvasWrap">
         <svg id="matrixSvg" xmlns="http://www.w3.org/2000/svg">
           <defs id="svgDefs"></defs>
           <g id="svgRoot">
@@ -252,7 +278,7 @@
           </g>
           <text id="svgEmpty" x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
             font-family="'Share Tech Mono',monospace" font-size="13" letter-spacing="2"
-            fill="#333">SELECT A HOST OR GENERATE ONE TO RENDER TOPOLOGY</text>
+            fill="#333">SELECT A HOST OR CREATE ONE TO BEGIN</text>
         </svg>
       </div>
 
@@ -269,6 +295,12 @@
         <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#888"></div>Gray</div>
         <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff3333"></div>Black</div>
       </div>
+
+      <!-- Connection matrix legend -->
+      <div class="conn-legend">
+        <div class="conn-legend-title">&gt;&gt; CONNECTION MATRIX</div>
+        <table class="conn-table" id="connLegendTable"></table>
+      </div>
     </div>
 
   </div><!-- /mx-layout -->
@@ -283,6 +315,58 @@
   <div class="ic-tt-flavor"  id="icTtFlavor"></div>
 </div>
 
+<!-- ── Node edit modal ─────────────────────────────── -->
+<div id="nodeModal">
+  <div class="modal-box">
+    <div class="modal-title">&gt;&gt; EDIT NODE</div>
+    <div class="modal-field">
+      <label>Node Type</label>
+      <input type="text" id="modal-type" readonly style="color:var(--cyan)">
+    </div>
+    <div class="modal-field">
+      <label>Label</label>
+      <input type="text" id="modal-label" placeholder="Node label...">
+    </div>
+    <div class="modal-field">
+      <label>Node Rating</label>
+      <select id="modal-rating">
+        <option value="">— None —</option>
+        <option value="Blue-3">Blue-3</option>
+        <option value="Green-4">Green-4</option>
+        <option value="Green-5">Green-5</option>
+        <option value="Green-6">Green-6</option>
+        <option value="Green-8">Green-8</option>
+        <option value="Orange-5">Orange-5</option>
+        <option value="Orange-6">Orange-6</option>
+        <option value="Orange-8">Orange-8</option>
+        <option value="Orange-9">Orange-9</option>
+        <option value="Red-6">Red-6</option>
+        <option value="Red-8">Red-8</option>
+        <option value="Red-9">Red-9</option>
+        <option value="Red-10">Red-10</option>
+        <option value="Red-12">Red-12</option>
+        <option value="Black-8">Black-8</option>
+        <option value="Black-10">Black-10</option>
+        <option value="Black-12">Black-12</option>
+        <option value="Black-14">Black-14</option>
+      </select>
+    </div>
+    <div style="font-size:0.62rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">IC PROGRAMS</div>
+    <div id="icList"></div>
+    <button class="btn" style="font-size:0.62rem;margin-bottom:12px" onclick="addIcRow()">+ Add IC</button>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="saveNodeModal()">Save</button>
+      <button class="btn btn-red" onclick="deleteModalNode()">Delete Node</button>
+      <button class="btn" onclick="closeNodeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Palette drag ghost ──────────────────────────── -->
+<svg id="paletteDragGhost" width="60" height="60" xmlns="http://www.w3.org/2000/svg">
+  <g id="ghostNodeGroup" transform="translate(30,30)"></g>
+</svg>
+
 <script src="shared.js"></script>
 <script>
 'use strict';
@@ -291,6 +375,7 @@ const API = '';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let _hosts      = [];
+let _orgs       = [];       // all orgs (for LTG dropdown)
 let _icInfo     = {};
 let _connMatrix = {};
 let _currentHost = null;
@@ -300,43 +385,51 @@ let _topology    = null;   // { nodes, edges, subnets }
 let _vp = { tx: 0, ty: 0, scale: 1 };
 let _panStart = null;
 
-// Drag state (node dragging)
+// Drag state (canvas node dragging)
 let _nodeDrag = null;   // { nodeId, startX, startY, origX, origY }
+
+// Palette drag state
+let _paletteDrag = null;  // { nodeType }
+let _selectedNodeId = null;
 
 // Edit mode
 let _editMode = false;
 
-// Edge interaction
-let _edgeSel   = null;  // selected edge { from, to, el }
-let _edgeDrag  = null;  // { whichEnd: 'from'|'to', handleEl, ghostEl }
-let _addingEdge = false;
-let _addEdgeFrom = null;
+// Modal state
+let _modalNodeId = null;
 
 // ── Color & shape config ───────────────────────────────────────────────────
 const NODE_COLOR = {
   CPU: '#00ff41', SPU: '#00ccff', SAN: '#4488ff',
   SN:  '#ff9900', IOP: '#bb44ff', DS:  '#888888',
 };
+const NODE_TYPES = ['CPU', 'SPU', 'SAN', 'SN', 'IOP', 'DS'];
 const IC_COLOR = { white: '#e0e0e0', gray: '#aaaaaa', black: '#ff3333' };
+const IC_TYPES = {
+  white: ['Access', 'Barrier', 'Scramble'],
+  gray:  ['Blaster', 'Killer', 'Tar Baby', 'Tar Pit', 'Trace & Report', 'Trace & Dump', 'Trace & Burn'],
+  black: ['Black IC'],
+};
 
 // Isometric offset constants (30° projection)
-const ISO_DX = 12;  // horizontal face depth
-const ISO_DY = 7;   // vertical face depth
+const ISO_DX = 12;
+const ISO_DY = 7;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
-const _emptyGm   = 'SELECT A HOST OR GENERATE ONE TO RENDER TOPOLOGY';
-const _emptyUser = 'SELECT A REVEALED HOST TO VIEW TOPOLOGY';
 document.addEventListener('DOMContentLoaded', async () => {
   const _authUser = await bootstrapAuth();
   if (!_authUser) return;
-  await Promise.all([loadMeta(), loadOrgLocOptions(), loadHosts()]);
+  await Promise.all([loadMeta(), loadHosts()]);
   if (!isAdmin()) {
-    document.getElementById('svgEmpty').textContent = _emptyUser;
+    document.getElementById('pageTitle').textContent = '>> MATRIX INTELLIGENCE FILE // TOPOLOGY VIEWER';
+    document.getElementById('svgEmpty').textContent = 'SELECT A REVEALED HOST TO VIEW TOPOLOGY';
+  } else {
+    await loadOrgsForDropdown();
+    buildPalette();
+    buildConnLegend();
   }
-  document.getElementById('gen-private')?.addEventListener('change', function() {
-    document.getElementById('genPrivateLbl').textContent = this.checked ? 'Yes' : 'No';
-  });
   initSvgEvents();
+  initPaletteDrag();
 });
 
 async function loadMeta() {
@@ -350,21 +443,35 @@ async function loadMeta() {
   } catch(_e) {}
 }
 
-async function loadOrgLocOptions() {
-  if (!isAdmin()) return;
+async function loadOrgsForDropdown() {
   try {
-    const [orgs, locs] = await Promise.all([
-      apiFetch(`${API}/organizations/`).then(r => r.ok ? r.json() : []),
-      apiFetch(`${API}/locations/`).then(r => r.ok ? r.json() : []),
-    ]);
-    const orgSel = document.getElementById('gen-owner_org_id');
-    orgs.filter(o => o.is_active).forEach(o => {
-      orgSel.insertAdjacentHTML('beforeend', `<option value="${o.id}">${o.name}</option>`);
+    const res = await apiFetch(`${API}/organizations/`);
+    if (!res.ok) return;
+    _orgs = (await res.json()).filter(o => o.is_active);
+    const sel = document.getElementById('new-ltg-source');
+    _orgs.forEach(org => {
+      const hosts = (org.ltgs || []).filter(l => l.type === 'matrix_host' && l.san_access_rating);
+      hosts.forEach(ltg => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify({ orgId: org.id, ltg });
+        opt.textContent = `${org.name} // ${ltg.ltg || ltg.id_code || '?'} [${ltg.san_access_rating}]`;
+        sel.appendChild(opt);
+      });
     });
-    const locSel = document.getElementById('gen-location_id');
-    locs.forEach(l => {
-      locSel.insertAdjacentHTML('beforeend', `<option value="${l.id}">${l.name}</option>`);
-    });
+  } catch(_e) {}
+}
+
+function onLtgSourceChange() {
+  const val = document.getElementById('new-ltg-source').value;
+  if (!val) {
+    document.getElementById('new-owner-org-id').value = '';
+    return;
+  }
+  try {
+    const { orgId, ltg } = JSON.parse(val);
+    document.getElementById('new-name').value        = ltg.description || '';
+    document.getElementById('new-san-rating').value  = ltg.san_access_rating || '';
+    document.getElementById('new-owner-org-id').value = orgId;
   } catch(_e) {}
 }
 
@@ -385,6 +492,8 @@ function renderHostList() {
     return;
   }
   el.innerHTML = _hosts.map(h => {
+    const cfg = h.config_json || {};
+    const san = cfg.san_rating || '';
     const visBadge = isAdmin()
       ? `<span class="vis-badge ${h.is_visible_to_players ? 'vis-revealed' : 'vis-hidden'}"
               onclick="event.stopPropagation();toggleVisibility(${h.id},${h.is_visible_to_players})">
@@ -394,7 +503,7 @@ function renderHostList() {
     <div class="host-item${_currentHost && _currentHost.id === h.id ? ' active' : ''}"
          onclick="selectHost(${h.id})">
       <div class="host-name">${esc(h.name)}${visBadge}</div>
-      <div class="host-meta">#${h.id} // ${new Date(h.created_at).toLocaleDateString()}</div>
+      <div class="host-meta">#${h.id}${san ? ' // ' + esc(san) : ''} // ${new Date(h.created_at).toLocaleDateString()}</div>
     </div>`;
   }).join('');
 }
@@ -404,16 +513,19 @@ async function selectHost(id) {
     const res = await apiFetch(`${API}/matrix-hosts/${id}`);
     if (!res.ok) return;
     _currentHost = await res.json();
-    _topology = _currentHost.topology_json || null;
+    _topology = _currentHost.topology_json || { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: '#1a3a1a' }] };
+    _selectedNodeId = null;
     renderHostList();
     renderCanvas();
     document.getElementById('canvasHostTitle').style.display = 'block';
     document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
     const cfg = _currentHost.config_json || {};
-    document.getElementById('canvasRating').textContent =
-      cfg.base_rating ? `[${cfg.base_rating}]` : '';
+    document.getElementById('canvasRating').textContent = cfg.san_rating ? `[${cfg.san_rating}]` : '';
     updateVisibilityIndicator();
     populatePlayerPanel();
+    if (isAdmin()) {
+      document.getElementById('palettePanel').style.display = '';
+    }
   } catch(_e) {}
 }
 
@@ -455,7 +567,7 @@ function populatePlayerPanel() {
   const icCount = (topo.nodes || []).reduce((s, n) => s + (n.ic?.length || 0), 0);
   const edgeCount = (topo.edges || []).length;
   document.getElementById('piStats').innerHTML = `
-    <div class="pi-stat"><label>SECURITY RATING</label><span style="color:var(--amber)">${esc(cfg.base_rating || 'Unknown')}</span></div>
+    <div class="pi-stat"><label>SAN RATING</label><span style="color:var(--amber)">${esc(cfg.san_rating || 'Unknown')}</span></div>
     <div class="pi-stat"><label>NODES MAPPED</label><span>${topo.nodes?.length || 0}</span></div>
     <div class="pi-stat"><label>CONNECTIONS</label><span>${edgeCount}</span></div>
     <div class="pi-stat"><label>IC ACTIVE</label><span style="color:${icCount > 0 ? 'var(--red)' : 'var(--text-dim)'}">${icCount}</span></div>
@@ -470,48 +582,58 @@ function populatePlayerPanel() {
   panel.style.display = '';
 }
 
-// ── Generator ──────────────────────────────────────────────────────────────
-function updateComplexityLabel(v) {
-  const labels = {1:'Simple', 2:'Standard', 3:'Complex', 4:'Major Corp', 5:'Black Site'};
-  document.getElementById('complexityLabel').textContent = labels[v] || '';
-}
-
-async function generateHost() {
-  const name = document.getElementById('gen-name').value.trim();
+// ── Create new host ────────────────────────────────────────────────────────
+async function createHost() {
+  const name = document.getElementById('new-name').value.trim();
   if (!name) { showAlert(document.getElementById('mxAlert'), 'Host name is required.', true); return; }
-  const seed = parseInt(document.getElementById('gen-seed').value) || null;
+  const sanRating  = document.getElementById('new-san-rating').value || null;
+  const ownerOrgId = parseInt(document.getElementById('new-owner-org-id').value) || null;
+  const notes      = document.getElementById('new-notes').value.trim() || null;
+  const ratingColor = sanRating ? _ratingColor(sanRating) : '#1a3a1a';
   const payload = {
     name,
-    complexity:          parseInt(document.getElementById('gen-complexity').value),
-    base_rating:         document.getElementById('gen-base_rating').value,
-    ic_lethality:        document.getElementById('gen-ic_lethality').value,
-    owner_hint:          document.getElementById('gen-owner_hint').value,
-    has_private_subnet:  document.getElementById('gen-private').checked,
-    seed,
-    owner_org_id:  parseInt(document.getElementById('gen-owner_org_id').value) || null,
-    location_id:   parseInt(document.getElementById('gen-location_id').value) || null,
-    notes:         document.getElementById('gen-notes').value.trim() || null,
+    owner_org_id:  ownerOrgId,
+    notes,
+    config_json:   { san_rating: sanRating },
+    topology_json: { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: ratingColor }] },
   };
   try {
-    const res = await apiFetch(`${API}/matrix-hosts/generate`, {
-      method: 'POST', body: JSON.stringify(payload),
-    });
+    const res = await apiFetch(`${API}/matrix-hosts/`, { method: 'POST', body: JSON.stringify(payload) });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || res.statusText);
     }
     _currentHost = await res.json();
     _topology = _currentHost.topology_json;
+    _selectedNodeId = null;
     await loadHosts();
     renderCanvas();
     document.getElementById('canvasHostTitle').style.display = 'block';
     document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
-    document.getElementById('canvasRating').textContent = `[${payload.base_rating}]`;
+    document.getElementById('canvasRating').textContent = sanRating ? `[${sanRating}]` : '';
+    document.getElementById('palettePanel').style.display = '';
     updateVisibilityIndicator();
-    showAlert(document.getElementById('mxAlert'), `>> TOPOLOGY GENERATED // "${name}" saved.`, false);
+    showAlert(document.getElementById('mxAlert'), `>> CANVAS CREATED // "${name}" ready.`, false);
+    // Reset form
+    document.getElementById('new-ltg-source').value = '';
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-san-rating').value = '';
+    document.getElementById('new-notes').value = '';
+    document.getElementById('new-owner-org-id').value = '';
   } catch(e) {
     showAlert(document.getElementById('mxAlert'), `>> FAILED // ${e.message}`, true);
   }
+}
+
+function _ratingColor(rating) {
+  if (!rating) return '#1a3a1a';
+  const r = rating.toLowerCase();
+  if (r.startsWith('blue'))   return '#0a1a3a';
+  if (r.startsWith('green'))  return '#0a2a0a';
+  if (r.startsWith('orange')) return '#2a1a00';
+  if (r.startsWith('red'))    return '#2a0a0a';
+  if (r.startsWith('black'))  return '#1a001a';
+  return '#1a2a1a';
 }
 
 async function deleteCurrentHost() {
@@ -521,7 +643,9 @@ async function deleteCurrentHost() {
     await apiFetch(`${API}/matrix-hosts/${_currentHost.id}`, { method: 'DELETE' });
     _currentHost = null;
     _topology = null;
+    _selectedNodeId = null;
     clearCanvas();
+    document.getElementById('palettePanel').style.display = 'none';
     await loadHosts();
   } catch(e) {
     showAlert(document.getElementById('mxAlert'), `>> DELETE FAILED // ${e.message}`, true);
@@ -532,20 +656,15 @@ async function deleteCurrentHost() {
 function toggleEditMode() {
   _editMode = !_editMode;
   clearEdgeSelection();
-  _addingEdge = false;
-  _addEdgeFrom = null;
+  _selectedNodeId = null;
+  document.getElementById('btnDeleteNode').style.display = 'none';
   document.getElementById('modeBadge').textContent = _editMode ? 'EDIT' : 'VIEW';
   document.getElementById('modeBadge').className = 'mx-mode-badge ' + (_editMode ? 'mx-mode-edit' : 'mx-mode-view');
   document.getElementById('btnEditMode').textContent = _editMode ? 'Done Editing' : 'Edit Layout';
-  document.getElementById('btnAddEdge').style.display = _editMode ? '' : 'none';
   const svg = document.getElementById('matrixSvg');
   svg.setAttribute('data-edit', _editMode ? '1' : '');
-}
-
-function startAddEdge() {
-  _addingEdge = true;
-  _addEdgeFrom = null;
-  document.getElementById('matrixSvg').style.cursor = 'crosshair';
+  // Rebuild nodes to refresh cursor behaviour
+  if (_topology) renderNodes(_topology.nodes);
 }
 
 // ── Canvas render ──────────────────────────────────────────────────────────
@@ -629,22 +748,19 @@ function renderEdges(edges) {
     g.dataset.from = edge.from;
     g.dataset.to   = edge.to;
 
-    // Visible line
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
     line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-    line.setAttribute('stroke', edge.bridge ? '#bb44ff' : '#1a3a1a');
-    line.setAttribute('stroke-width', edge.bridge ? '1.5' : '1.2');
-    if (edge.bridge) line.setAttribute('stroke-dasharray', '5 3');
+    line.setAttribute('stroke', '#1a3a1a');
+    line.setAttribute('stroke-width', '1.2');
     line.setAttribute('opacity', '0.8');
 
-    // Wide invisible hit target
     const hit = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     hit.setAttribute('x1', a.x); hit.setAttribute('y1', a.y);
     hit.setAttribute('x2', b.x); hit.setAttribute('y2', b.y);
     hit.setAttribute('stroke', 'transparent');
     hit.setAttribute('stroke-width', '12');
-    hit.style.cursor = 'pointer';
+    hit.style.cursor = _editMode ? 'pointer' : 'default';
     hit.addEventListener('click', (e) => { if (_editMode) { e.stopPropagation(); selectEdge(edge, g); } });
 
     g.appendChild(line);
@@ -653,34 +769,20 @@ function renderEdges(edges) {
   }
 }
 
+// Track selected edge for deletion
+let _edgeSel = null;
+
 function selectEdge(edge, g) {
   clearEdgeSelection();
   _edgeSel = { from: edge.from, to: edge.to, el: g };
   const line = g.querySelector('line');
   line.setAttribute('stroke', '#ff8800');
   line.setAttribute('stroke-width', '2');
-  renderEdgeHandles(edge, g);
-}
-
-function clearEdgeSelection() {
-  if (!_edgeSel) return;
-  const line = _edgeSel.el.querySelector('line');
-  const edge = _topology.edges.find(e => e.from === _edgeSel.from && e.to === _edgeSel.to);
-  if (edge) {
-    line.setAttribute('stroke', edge.bridge ? '#bb44ff' : '#1a3a1a');
-    line.setAttribute('stroke-width', edge.bridge ? '1.5' : '1.2');
-  }
-  document.getElementById('edgeLayer').querySelectorAll('.edge-handle,.edge-del-btn').forEach(el => el.remove());
-  _edgeSel = null;
-}
-
-function renderEdgeHandles(edge, g) {
-  const layer = document.getElementById('edgeLayer');
+  // Show delete midpoint button
   const nodeMap = buildNodeMap();
   const a = nodeMap[edge.from], b = nodeMap[edge.to];
   if (!a || !b) return;
-
-  // Delete button at midpoint
+  const layer = document.getElementById('edgeLayer');
   const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
   const delBtn = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   delBtn.setAttribute('class', 'edge-del-btn');
@@ -697,18 +799,14 @@ function renderEdgeHandles(edge, g) {
   delBtn.appendChild(delBg); delBtn.appendChild(delTxt);
   delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSelectedEdge(); });
   layer.appendChild(delBtn);
+}
 
-  // Drag handles on each endpoint
-  [{ node: a, end: 'from' }, { node: b, end: 'to' }].forEach(({ node, end }) => {
-    const h = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    h.setAttribute('class', 'edge-handle');
-    h.setAttribute('cx', node.x); h.setAttribute('cy', node.y);
-    h.setAttribute('r', '7'); h.setAttribute('fill', '#ff8800');
-    h.setAttribute('stroke', '#fff'); h.setAttribute('stroke-width', '1.5');
-    h.style.cursor = 'grab';
-    h.addEventListener('mousedown', (e) => { e.stopPropagation(); startEdgeDrag(edge, end, h, e); });
-    layer.appendChild(h);
-  });
+function clearEdgeSelection() {
+  if (!_edgeSel) return;
+  const line = _edgeSel.el.querySelector('line');
+  if (line) { line.setAttribute('stroke', '#1a3a1a'); line.setAttribute('stroke-width', '1.2'); }
+  document.getElementById('edgeLayer').querySelectorAll('.edge-del-btn').forEach(el => el.remove());
+  _edgeSel = null;
 }
 
 function deleteSelectedEdge() {
@@ -722,53 +820,6 @@ function deleteSelectedEdge() {
   saveTopology();
 }
 
-// Edge drag rewire
-function startEdgeDrag(edge, whichEnd, handleEl, e) {
-  _edgeDrag = { edge, whichEnd, handleEl };
-  const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  const nodeMap = buildNodeMap();
-  const fixed = whichEnd === 'from' ? nodeMap[edge.to] : nodeMap[edge.from];
-  ghost.setAttribute('x1', fixed.x); ghost.setAttribute('y1', fixed.y);
-  ghost.setAttribute('x2', fixed.x); ghost.setAttribute('y2', fixed.y);
-  ghost.setAttribute('stroke', '#ff8800'); ghost.setAttribute('stroke-width', '1.5');
-  ghost.setAttribute('stroke-dasharray', '5 3'); ghost.setAttribute('id', 'ghostEdge');
-  document.getElementById('edgeLayer').appendChild(ghost);
-  _edgeDrag.ghost = ghost;
-  _edgeDrag.fixed = fixed;
-}
-
-function updateEdgeDrag(svgX, svgY) {
-  if (!_edgeDrag) return;
-  const g = _edgeDrag.ghost;
-  g.setAttribute('x2', svgX); g.setAttribute('y2', svgY);
-}
-
-function finishEdgeDrag(targetNodeId) {
-  if (!_edgeDrag) return;
-  document.getElementById('ghostEdge')?.remove();
-  if (targetNodeId) {
-    const edge = _edgeDrag.edge;
-    const oldEnd = _edgeDrag.whichEnd === 'from' ? edge.from : edge.to;
-    const kept   = _edgeDrag.whichEnd === 'from' ? edge.to : edge.from;
-    const newFrom = _edgeDrag.whichEnd === 'from' ? targetNodeId : edge.from;
-    const newTo   = _edgeDrag.whichEnd === 'to'   ? targetNodeId : edge.to;
-
-    if (oldEnd !== targetNodeId && canConnect(newFrom, newTo)) {
-      // Remove old, add new
-      _topology.edges = _topology.edges.filter(
-        e => !(e.from === edge.from && e.to === edge.to)
-      );
-      _topology.edges.push({ from: newFrom, to: newTo });
-      clearEdgeSelection();
-      renderEdges(_topology.edges);
-      renderNodes(_topology.nodes); // refresh drop highlight
-      saveTopology();
-    }
-  }
-  clearHighlightNodes();
-  _edgeDrag = null;
-}
-
 function canConnect(fromId, toId) {
   const nodeMap = buildNodeMap();
   const a = nodeMap[fromId], b = nodeMap[toId];
@@ -777,12 +828,10 @@ function canConnect(fromId, toId) {
   return allowed.includes(b.type);
 }
 
-function highlightDropTargets(movingNodeId, movingType) {
+function highlightCompatibleNodes(movingType) {
   document.getElementById('nodeLayer').querySelectorAll('g[data-nodeid]').forEach(g => {
-    const nid = g.dataset.nodeid;
-    if (nid === movingNodeId) return;
     const nodeMap = buildNodeMap();
-    const target = nodeMap[nid];
+    const target = nodeMap[g.dataset.nodeid];
     if (!target) return;
     const valid = (_connMatrix[movingType] || []).includes(target.type);
     g.querySelector('.node-body')?.setAttribute('opacity', valid ? '1' : '0.3');
@@ -806,30 +855,43 @@ function renderNodes(nodes) {
     g.setAttribute('class', 'mx-node');
     g.dataset.nodeid = node.id;
     g.setAttribute('transform', `translate(${node.x},${node.y})`);
+    const isSelected = node.id === _selectedNodeId;
 
-    // Shape group
     const shapeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     shapeG.setAttribute('class', 'node-body');
+    if (isSelected) shapeG.setAttribute('filter', 'url(#glow-sel)');
     drawNodeShape(shapeG, node);
     g.appendChild(shapeG);
 
-    // Label
     const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     lbl.setAttribute('text-anchor', 'middle');
-    lbl.setAttribute('y', '36');
+    lbl.setAttribute('y', '38');
     lbl.setAttribute('fill', '#aaaaaa');
     lbl.setAttribute('font-size', '8');
     lbl.setAttribute('letter-spacing', '1');
     lbl.setAttribute('font-family', "'Share Tech Mono',monospace");
-    lbl.textContent = node.label;
+    lbl.textContent = node.label || node.type;
     g.appendChild(lbl);
+
+    // Rating label if set
+    if (node.rating) {
+      const rl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      rl.setAttribute('text-anchor', 'middle');
+      rl.setAttribute('y', '47');
+      rl.setAttribute('fill', '#555');
+      rl.setAttribute('font-size', '7');
+      rl.setAttribute('letter-spacing', '0');
+      rl.setAttribute('font-family', "'Share Tech Mono',monospace");
+      rl.textContent = node.rating;
+      g.appendChild(rl);
+    }
 
     // IC badges
     if (node.ic && node.ic.length) {
       node.ic.forEach((ic, i) => {
         const angle = (Math.PI * 0.6) + i * 0.5;
-        const bx = Math.cos(angle) * 20;
-        const by = Math.sin(angle) * 20;
+        const bx = Math.cos(angle) * 22;
+        const by = Math.sin(angle) * 22;
         const badge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         badge.setAttribute('cx', bx); badge.setAttribute('cy', by);
         badge.setAttribute('r', '5');
@@ -843,11 +905,10 @@ function renderNodes(nodes) {
       });
     }
 
-    // Drag events (edit mode only)
-    g.style.cursor = 'default';
+    // Interaction
+    g.style.cursor = _editMode ? 'grab' : 'pointer';
     g.addEventListener('mousedown', (e) => {
       if (!_editMode) return;
-      if (_addingEdge) return;
       e.stopPropagation();
       const svgPt = svgPoint(e);
       _nodeDrag = { nodeId: node.id, origX: node.x, origY: node.y,
@@ -855,37 +916,38 @@ function renderNodes(nodes) {
       g.style.cursor = 'grabbing';
     });
 
-    // Add-edge click
     g.addEventListener('click', (e) => {
-      if (!_editMode) return;
-      if (_edgeDrag) return;
-      if (_addingEdge) {
+      if (_nodeDrag) return; // was a drag, not a click
+      if (isAdmin() && _editMode) {
         e.stopPropagation();
-        if (!_addEdgeFrom) {
-          _addEdgeFrom = node.id;
-          g.querySelector('.node-body').setAttribute('filter', 'url(#glow-sel)');
-        } else if (_addEdgeFrom !== node.id) {
-          if (canConnect(_addEdgeFrom, node.id)) {
-            const already = _topology.edges.find(
-              ed => (ed.from === _addEdgeFrom && ed.to === node.id) ||
-                    (ed.from === node.id && ed.to === _addEdgeFrom)
-            );
-            if (!already) {
-              _topology.edges.push({ from: _addEdgeFrom, to: node.id });
-              renderEdges(_topology.edges);
-              saveTopology();
-            }
-          }
-          clearHighlightNodes();
-          _addingEdge = false;
-          _addEdgeFrom = null;
-          document.getElementById('matrixSvg').style.cursor = '';
-        }
+        selectCanvasNode(node.id);
+      } else if (isAdmin()) {
+        e.stopPropagation();
+        openNodeModal(node.id);
       }
     });
 
     layer.appendChild(g);
   }
+}
+
+function selectCanvasNode(nodeId) {
+  _selectedNodeId = (_selectedNodeId === nodeId) ? null : nodeId;
+  document.getElementById('btnDeleteNode').style.display = _selectedNodeId ? '' : 'none';
+  renderNodes(_topology.nodes);
+}
+
+function deleteSelectedNode() {
+  if (!_selectedNodeId || !_topology) return;
+  const node = _topology.nodes.find(n => n.id === _selectedNodeId);
+  if (!node) return;
+  if (!confirm(`Delete node "${node.label || node.type}"?`)) return;
+  _topology.nodes = _topology.nodes.filter(n => n.id !== _selectedNodeId);
+  _topology.edges = _topology.edges.filter(e => e.from !== _selectedNodeId && e.to !== _selectedNodeId);
+  _selectedNodeId = null;
+  document.getElementById('btnDeleteNode').style.display = 'none';
+  renderCanvas();
+  saveTopology();
 }
 
 // ── Isometric shape drawing ────────────────────────────────────────────────
@@ -1052,10 +1114,8 @@ function initSvgEvents() {
   svg.addEventListener('mousedown', (e) => {
     if (e.target === svg || e.target.id === 'svgRoot' || e.target.id === 'subnetLayer') {
       clearEdgeSelection();
-      if (!_addingEdge) {
-        svg.classList.add('dragging');
-        _panStart = { x: e.clientX - _vp.tx, y: e.clientY - _vp.ty };
-      }
+      svg.classList.add('dragging');
+      _panStart = { x: e.clientX - _vp.tx, y: e.clientY - _vp.ty };
     }
   });
 
@@ -1076,29 +1136,173 @@ function initSvgEvents() {
         // Move node group
         const g = document.querySelector(`g[data-nodeid="${node.id}"]`);
         if (g) g.setAttribute('transform', `translate(${node.x},${node.y})`);
-        // Redraw edges
         renderEdges(_topology.edges);
         renderSubnets(_topology.nodes, _topology.subnets);
       }
-    }
-    if (_edgeDrag) {
-      const pt = svgInversePoint(e);
-      updateEdgeDrag(pt.x, pt.y);
     }
   });
 
   window.addEventListener('mouseup', (e) => {
     if (_panStart) { _panStart = null; document.getElementById('matrixSvg').classList.remove('dragging'); }
     if (_nodeDrag) {
-      document.querySelector(`g[data-nodeid="${_nodeDrag.nodeId}"]`).style.cursor = '';
+      const gEl = document.querySelector(`g[data-nodeid="${_nodeDrag.nodeId}"]`);
+      if (gEl) gEl.style.cursor = 'grab';
       _nodeDrag = null;
       saveTopology();
     }
-    if (_edgeDrag) {
-      const pt = svgInversePoint(e);
-      const targetNode = findNodeAt(pt.x, pt.y, 24);
-      finishEdgeDrag(targetNode ? targetNode.id : null);
+  });
+}
+
+// ── Palette drag-to-canvas ─────────────────────────────────────────────────
+function buildPalette() {
+  const grid = document.getElementById('paletteGrid');
+  NODE_TYPES.forEach(type => {
+    const item = document.createElement('div');
+    item.className = 'palette-item';
+    item.dataset.nodetype = type;
+
+    // Mini SVG preview
+    const previewSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    previewSvg.setAttribute('width', '40'); previewSvg.setAttribute('height', '40');
+    previewSvg.setAttribute('viewBox', '-20 -20 40 40');
+    // Build defs for gradient
+    const miniDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    miniDefs.innerHTML = `<radialGradient id="mini-sphere-sn" cx="35%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ffcc66"/><stop offset="100%" stop-color="#332200"/>
+    </radialGradient>
+    <filter id="mini-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+    previewSvg.appendChild(miniDefs);
+    const miniG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    miniG.setAttribute('transform', 'scale(0.7)');
+    const c = NODE_COLOR[type] || '#888';
+    const dark = shadeColor(c, -55), light = shadeColor(c, -25), mid = shadeColor(c, -40);
+    switch (type) {
+      case 'CPU': drawCpu(miniG, c, dark, light, mid); break;
+      case 'SPU': drawHexPrism(miniG, c, dark, light, 18); break;
+      case 'SN':  drawSphere(miniG, c, 'mini-sphere-sn', 16); break;
+      case 'SAN': drawCuboid(miniG, c, dark, light); break;
+      case 'IOP': drawPyramid(miniG, c, dark, light); break;
+      case 'DS':  drawCube(miniG, c, dark, light); break;
     }
+    previewSvg.appendChild(miniG);
+    item.appendChild(previewSvg);
+
+    const lbl = document.createElement('span');
+    lbl.textContent = type;
+    item.appendChild(lbl);
+
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startPaletteDrag(type, e);
+    });
+
+    grid.appendChild(item);
+  });
+}
+
+function startPaletteDrag(nodeType, e) {
+  if (!_currentHost) return;
+  _paletteDrag = { nodeType };
+  const ghost = document.getElementById('paletteDragGhost');
+  const ghostG = document.getElementById('ghostNodeGroup');
+  ghostG.innerHTML = '';
+
+  // Build defs inside ghost SVG
+  let ghostDefs = ghost.querySelector('defs');
+  if (!ghostDefs) {
+    ghostDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    ghost.insertBefore(ghostDefs, ghost.firstChild);
+  }
+  ghostDefs.innerHTML = `
+    <filter id="ghost-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="ghost-sphere-sn" cx="35%" cy="30%" r="60%">
+      <stop offset="0%" stop-color="#ffcc66"/><stop offset="100%" stop-color="#332200"/>
+    </radialGradient>`;
+  const c = NODE_COLOR[nodeType] || '#888';
+  const dark = shadeColor(c, -55), light = shadeColor(c, -25), mid = shadeColor(c, -40);
+  switch (nodeType) {
+    case 'CPU': drawCpu(ghostG, c, dark, light, mid); break;
+    case 'SPU': drawHexPrism(ghostG, c, dark, light, 18); break;
+    case 'SN':  drawSphere(ghostG, c, 'ghost-sphere-sn', 16); break;
+    case 'SAN': drawCuboid(ghostG, c, dark, light); break;
+    case 'IOP': drawPyramid(ghostG, c, dark, light); break;
+    case 'DS':  drawCube(ghostG, c, dark, light); break;
+  }
+  ghostG.setAttribute('opacity', '0.8');
+  ghost.style.display = 'block';
+  ghost.style.left = e.clientX + 'px';
+  ghost.style.top  = e.clientY + 'px';
+
+  highlightCompatibleNodes(nodeType);
+}
+
+function initPaletteDrag() {
+  window.addEventListener('mousemove', (e) => {
+    if (!_paletteDrag) return;
+    const ghost = document.getElementById('paletteDragGhost');
+    ghost.style.left = e.clientX + 'px';
+    ghost.style.top  = e.clientY + 'px';
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (!_paletteDrag) return;
+    const nodeType = _paletteDrag.nodeType;
+    _paletteDrag = null;
+    document.getElementById('paletteDragGhost').style.display = 'none';
+    clearHighlightNodes();
+
+    if (!_currentHost || !_topology) return;
+    // Check if cursor is over the SVG canvas
+    const wrap = document.getElementById('canvasWrap');
+    const rect = wrap.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top  || e.clientY > rect.bottom) return;
+
+    // Convert to SVG coords
+    const svgX = (e.clientX - rect.left - _vp.tx) / _vp.scale;
+    const svgY = (e.clientY - rect.top  - _vp.ty) / _vp.scale;
+
+    // Place node
+    const id = `n${Date.now()}`;
+    const typeCount = _topology.nodes.filter(n => n.type === nodeType).length + 1;
+    const newNode = {
+      id,
+      type:   nodeType,
+      label:  `${nodeType}-${typeCount}`,
+      x:      svgX,
+      y:      svgY,
+      subnet: 'public',
+      ic:     [],
+      rating: null,
+    };
+    _topology.nodes.push(newNode);
+
+    // Auto-connect to nearest compatible node within 120px
+    let closestDist = 120, closestId = null;
+    for (const existing of _topology.nodes) {
+      if (existing.id === id) continue;
+      const compatible = (_connMatrix[nodeType] || []).includes(existing.type);
+      if (!compatible) continue;
+      const already = _topology.edges.find(
+        ed => (ed.from === id && ed.to === existing.id) ||
+              (ed.from === existing.id && ed.to === id)
+      );
+      if (already) continue;
+      const dist = Math.hypot(existing.x - svgX, existing.y - svgY);
+      if (dist < closestDist) { closestDist = dist; closestId = existing.id; }
+    }
+    if (closestId) {
+      _topology.edges.push({ from: id, to: closestId });
+    }
+
+    renderCanvas();
+    saveTopology();
   });
 }
 
@@ -1121,8 +1325,6 @@ function svgPoint(e) {
     y: (e.clientY - rect.top  - _vp.ty) / _vp.scale,
   };
 }
-
-function svgInversePoint(e) { return svgPoint(e); }
 
 function buildNodeMap() {
   if (!_topology) return {};
@@ -1150,6 +1352,112 @@ function saveTopology() {
       });
     } catch(_e) {}
   }, 800);
+}
+
+// ── Node edit modal ────────────────────────────────────────────────────────
+function openNodeModal(nodeId) {
+  const node = (_topology?.nodes || []).find(n => n.id === nodeId);
+  if (!node) return;
+  _modalNodeId = nodeId;
+  document.getElementById('modal-type').value   = node.type;
+  document.getElementById('modal-label').value  = node.label || node.type;
+  document.getElementById('modal-rating').value = node.rating || '';
+  // Build IC list
+  const icList = document.getElementById('icList');
+  icList.innerHTML = '';
+  (node.ic || []).forEach(ic => addIcRow(ic));
+  document.getElementById('nodeModal').classList.add('open');
+}
+
+function closeNodeModal() {
+  document.getElementById('nodeModal').classList.remove('open');
+  _modalNodeId = null;
+}
+
+function addIcRow(ic) {
+  const list = document.getElementById('icList');
+  const row = document.createElement('div');
+  row.className = 'ic-row';
+
+  const catSel = document.createElement('select');
+  let opts = '';
+  for (const [cat, types] of Object.entries(IC_TYPES)) {
+    opts += `<optgroup label="${cat.toUpperCase()}">`;
+    types.forEach(t => { opts += `<option value="${cat}|${t}"${ic && ic.type === t ? ' selected' : ''}>${t}</option>`; });
+    opts += '</optgroup>';
+  }
+  catSel.innerHTML = opts;
+  if (ic) catSel.value = `${ic.category}|${ic.type}`;
+
+  const ratingIn = document.createElement('input');
+  ratingIn.type  = 'number'; ratingIn.min = '1'; ratingIn.max = '20';
+  ratingIn.placeholder = 'Rtg';
+  ratingIn.value = ic?.rating || '';
+
+  const del = document.createElement('button');
+  del.className = 'btn btn-red';
+  del.style.cssText = 'padding:4px 8px;font-size:0.65rem;min-width:0';
+  del.textContent = '✕';
+  del.type = 'button';
+  del.onclick = () => row.remove();
+
+  row.appendChild(catSel);
+  row.appendChild(ratingIn);
+  row.appendChild(del);
+  list.appendChild(row);
+}
+
+function saveNodeModal() {
+  if (!_modalNodeId || !_topology) return;
+  const node = _topology.nodes.find(n => n.id === _modalNodeId);
+  if (!node) return;
+  node.label  = document.getElementById('modal-label').value.trim() || node.type;
+  node.rating = document.getElementById('modal-rating').value || null;
+  // Read IC rows
+  const rows = document.getElementById('icList').querySelectorAll('.ic-row');
+  node.ic = Array.from(rows).map(row => {
+    const catType = row.querySelector('select')?.value || '';
+    const [category, type] = catType.split('|');
+    const rating = parseInt(row.querySelector('input[type=number]')?.value) || 1;
+    return { category, type, rating };
+  }).filter(ic => ic.type);
+  closeNodeModal();
+  renderCanvas();
+  saveTopology();
+}
+
+function deleteModalNode() {
+  if (!_modalNodeId || !_topology) return;
+  const node = _topology.nodes.find(n => n.id === _modalNodeId);
+  if (!node) return;
+  if (!confirm(`Delete node "${node.label || node.type}"?`)) return;
+  _topology.nodes = _topology.nodes.filter(n => n.id !== _modalNodeId);
+  _topology.edges = _topology.edges.filter(e => e.from !== _modalNodeId && e.to !== _modalNodeId);
+  closeNodeModal();
+  renderCanvas();
+  saveTopology();
+}
+
+// ── Connection legend ──────────────────────────────────────────────────────
+function buildConnLegend() {
+  const tbl = document.getElementById('connLegendTable');
+  if (!tbl) return;
+  const types = NODE_TYPES;
+  // Header row
+  let html = '<thead><tr><th></th>';
+  types.forEach(t => { html += `<th style="color:${NODE_COLOR[t]}">${t}</th>`; });
+  html += '</tr></thead><tbody>';
+  types.forEach(from => {
+    html += `<tr><td class="conn-hdr" style="border-left:2px solid ${NODE_COLOR[from]}">${from}</td>`;
+    types.forEach(to => {
+      // Connection is valid if the connection matrix says so
+      const valid = (_connMatrix[from] || []).includes(to) ? '✓' : '';
+      html += `<td class="${valid ? 'conn-yes' : 'conn-no'}">${valid}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
 }
 
 // ── IC tooltip ─────────────────────────────────────────────────────────────
