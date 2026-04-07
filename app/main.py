@@ -61,15 +61,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — configurable via CORS_ORIGINS env var (comma-separated), defaults to * for local dev
+# CORS — configurable via CORS_ORIGINS env var (comma-separated).
+# Local dev default: * (open). Production: set to your server's URL, e.g.
+#   CORS_ORIGINS=https://yourserver.example.com
+# Since the frontend is served from the same FastAPI origin, CORS mainly
+# protects against cross-site requests from other domains.
 _cors_raw = os.environ.get("CORS_ORIGINS", "*")
 _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-User-Token"],
 )
 
 # Auth routes are unprotected (verify, set-password handle their own validation)
