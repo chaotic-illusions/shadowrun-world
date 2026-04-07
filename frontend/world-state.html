@@ -14,7 +14,7 @@
   <nav>
     <a href="world-state.html" class="active">World State</a>
     <a href="manage-characters.html">Characters</a>
-    <a href="create-org.html">Organizations</a>
+    <a href="manage-organizations.html">Organizations</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -50,10 +50,11 @@
     <div class="stat-card stat-card-nav" onclick="toggleContactSections()" title="Jump to Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">—</span><div class="stat-lbl">Active Contacts</div></div>
     <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" title="Jump to Organizations"><span class="stat-num" id="sc-orgs">—</span><div class="stat-lbl">Organizations</div></div>
     <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Jump to Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
-    <!-- HIDDEN: Party Nuyen card — nuyen not tracked yet; re-enable by removing style and uncommenting sc-nuyen update in loadAll() -->
-    <div class="stat-card" style="display:none"><span class="stat-num" id="sc-nuyen">—</span><div class="stat-lbl">Party ¥ Nuyen</div></div>
   </div>
 
+  <div class="gm-only" style="text-align:right;margin-bottom:12px">
+    <button class="btn btn-red" style="font-size:0.65rem;padding:4px 14px;letter-spacing:1px" onclick="resetPcData()">&gt;&gt; RESET ALL PC DATA</button>
+  </div>
   <div id="worldContent"><div class="loading">Loading world data</div></div>
 </main>
 
@@ -428,12 +429,10 @@
           </div>
         </div>
       </div>
-      <!-- FINANCES SECTION — hidden; not currently in use. Remove display:none to re-enable. -->
       <div id="cePcSection" style="display:none">
         <hr class="rule" style="margin:14px 0">
-        <div class="section-head" style="margin-bottom:12px">Finances <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
-        <div class="grid3" style="margin-bottom:14px">
-          <div class="field"><label>Nuyen (¥)</label><input type="number" id="ce-nuyen" min="0" placeholder="0"></div>
+        <div class="section-head" style="margin-bottom:12px">Karma <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
+        <div class="grid2" style="margin-bottom:14px">
           <div class="field"><label>Total Karma</label><input type="number" id="ce-karma_total" min="0" placeholder="0"></div>
           <div class="field"><label>Current Karma</label><input type="number" id="ce-karma_current" min="0" placeholder="0"></div>
         </div>
@@ -463,6 +462,7 @@
 
 <script>
 const API = '';
+const YEAR_OFFSET = 24;  // years between real date and in-world date
 
 // Wrap fetch to always include auth headers
 function apiFetch(url, opts = {}) {
@@ -592,7 +592,6 @@ function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
 function orgClass(t) { return `oc-${TYPE_GROUP[t] || 'other'}`; }
-function fmtNuyen(n) { return '¥' + Number(n || 0).toLocaleString(); }
 
 // ── Section collapse state ────────────────────────────────────
 const collapsed = {};
@@ -730,27 +729,8 @@ function openNpcModal(charId) {
     ? `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Nationality</span><span class="cc-org-sep"> // </span><span style="color:var(--text)">${esc(char.nationality)}</span></div>`
     : '';
 
-  const attrMap = char.attributes || {};
-  const attrOrder = ['body','quickness','strength','charisma','intelligence','willpower','essence','magic','reaction'];
-  const attrLabels = {body:'BOD',quickness:'QUI',strength:'STR',charisma:'CHA',intelligence:'INT',willpower:'WIL',essence:'ESS',magic:'MAG',reaction:'REA'};
-  const attrHtml = attrOrder.filter(k => attrMap[k] != null).map(k =>
-    `<div class="npc-attr"><span class="npc-attr-lbl">${attrLabels[k]}</span><span class="npc-attr-val">${attrMap[k]}</span></div>`
-  ).join('');
-
-  const skills = (char.skills || []).map(s => {
-    const spec = s.specialization ? ` (${esc(s.specialization)})` : '';
-    return `<div class="npc-skill">&#8250; ${esc(s.name)} ${s.rating ?? ''}${spec}</div>`;
-  }).join('');
-
-  const augs = (char.augmentations || []).map(a =>
-    `<div class="npc-aug">&#8250; ${esc(a.name)}${a.rating ? ` [${a.rating}]` : ''}${a.notes ? ` — <span style="color:#555">${esc(a.notes)}</span>` : ''}</div>`
-  ).join('');
-
-  const gear = (char.gear || []).map(g =>
-    `<div class="npc-gear">&#8250; ${esc(g.name)}${g.qty && g.qty > 1 ? ` ×${g.qty}` : ''}</div>`
-  ).join('');
-
   const contactSkills = (char.contact_skills || []);
+  const isContact = contactStore.some(c => c.npc_id === charId);
 
   // Background: shown in player-visible section when show_background=true; GM section otherwise
   const revealBtn = char.background
@@ -770,7 +750,7 @@ function openNpcModal(charId) {
     ${nationalityLine}
     ${char.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(char.description)}</div></div>` : ''}
     ${playerBg}
-    ${contactSkills.length ? `
+    ${contactSkills.length && (isContact || isAdminMode()) ? `
       <div class="npc-modal-section">
         <div class="npc-modal-sec-lbl">Contact Services</div>
         ${contactSkills.map(s => `<div class="npc-skill">&#8250; ${esc(s)}</div>`).join('')}
@@ -779,10 +759,6 @@ function openNpcModal(charId) {
     <div class="npc-modal-gm gm-only">
       <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
       ${gmBg}
-      ${attrHtml ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Attributes</div><div class="npc-attr-grid">${attrHtml}</div></div>` : ''}
-      ${skills ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Skills</div>${skills}</div>` : ''}
-      ${augs ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Augmentations</div>${augs}</div>` : ''}
-      ${gear ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Gear</div>${gear}</div>` : ''}
       <div id="npcNotesAlert" class="alert" style="margin-bottom:4px"></div>
       <div class="npc-modal-section">
         <div class="npc-modal-sec-lbl">GM Notes</div>
@@ -1153,6 +1129,10 @@ function buildCharCard(char, orgMap = {}) {
     ? `<span style="${repColorStyle(rep.net_rep)}">${rep.net_rep_tier}</span>`
     : null;
   const paStr = rep ? rep.pa_tier : null;
+  const heatVal = rep ? (rep.heat || 0) : 0;
+  const heatStr = rep
+    ? `<span class="${heatClass(heatVal)}" style="font-size:.6rem;letter-spacing:1px;border:1px solid;padding:1px 6px">${rep.heat_label || heatLabelStr(heatVal)}</span>`
+    : null;
   const longDesc = !char.is_pc && char.description && char.description.length > 120;
   const isActive = char.is_active !== false;
 
@@ -1196,8 +1176,13 @@ function buildCharCard(char, orgMap = {}) {
             : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
-        ${repStr ? `<div class="ch-finance" style="margin-top:4px;font-size:.68rem"><span style="color:var(--text-dim)">REP: </span>${repStr}</div>` : ''}
+        ${repStr ? `<div class="ch-finance" style="margin-top:4px;font-size:.68rem"><span style="color:var(--text-dim)">STREET REP: </span>${repStr}</div>` : ''}
         ${paStr  ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem;color:var(--text-dim)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
+        ${heatStr && isAdminMode()
+          ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem"><span style="color:var(--text-dim)">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
+          : heatStr && isMine
+          ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem"><span style="color:var(--text-dim)">HEAT: </span>${heatStr}</div>`
+          : ''}
       </div>
       ${claimBtn}${ownerBadge}
     </div>`;
@@ -1215,6 +1200,211 @@ function section(key, title, html, manageUrl) {
       ${html}
     </div>
     <hr class="rule">`;
+}
+
+// ── Faction Reputation ────────────────────────────────────────
+const _standingsStore = {};  // charId -> standings array; populated in buildFactionRepSection
+const STANDING_TIERS = [
+  [-10, -7, 'hostile'],
+  [ -6, -3, 'unfriendly'],
+  [ -2,  2, 'neutral'],
+  [  3,  6, 'friendly'],
+  [  7, 10, 'allied'],
+];
+function standingLabel(val) {
+  val = Math.max(-10, Math.min(10, val || 0));
+  for (const [lo, hi, label] of STANDING_TIERS) {
+    if (val >= lo && val <= hi) return label;
+  }
+  return 'neutral';
+}
+function standingClass(label) {
+  const map = { hostile: 'std-hostile', unfriendly: 'std-unfriendly', neutral: 'std-neutral', friendly: 'std-friendly', allied: 'std-allied' };
+  return map[label] || 'std-neutral';
+}
+
+function buildFactionRepSection(activePcs, repStore, myCharIds) {
+  const admin = isAdminMode();
+  const cards = [];
+
+  for (const pc of activePcs) {
+    const repData   = repStore[pc.id] || {};
+    const standings = repData.standings || [];
+
+    if (admin) {
+      // Admin: all PCs, all non-zero standings, with +/- controls + edit button
+      const nonZero = standings.filter(s => s.standing !== 0);
+      _standingsStore[pc.id] = standings;  // store for editor lookup
+      const rows = nonZero.map(s => `
+        <div class="faction-row">
+          <span class="faction-org" title="${esc(s.org_name)}">${esc(s.org_name)}</span>
+          <span class="${standingClass(s.label)}">${esc(s.label)}</span>
+          <span class="faction-val">(${s.standing > 0 ? '+' : ''}${s.standing})</span>
+        </div>`).join('');
+      cards.push(`
+        <div class="faction-pc-card">
+          <div class="faction-pc-name" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${esc(pc.name)}</span>
+            <button class="btn" style="font-size:.58rem;padding:2px 8px;letter-spacing:1px;color:var(--cyan);border-color:#0a2a3a"
+              onclick="openStandingEditor(${pc.id})">Edit</button>
+          </div>
+          ${nonZero.length
+            ? rows
+            : '<div style="color:var(--text-dim);font-size:0.62rem;letter-spacing:1px">No recorded standings</div>'}
+        </div>`);
+    } else {
+      // Runner: only my PCs, only explicitly non-neutral standings
+      if (!myCharIds.has(pc.id)) continue;
+      const notable = standings.filter(s => Math.abs(s.standing) > 2);
+      if (!notable.length) continue;
+      const rows = notable.map(s => `
+        <div class="faction-row">
+          <span class="faction-org" title="${esc(s.org_name)}">${esc(s.org_name)}</span>
+          <span class="${standingClass(s.label)}">${esc(s.label)}</span>
+        </div>`).join('');
+      cards.push(`
+        <div class="faction-pc-card">
+          <div class="faction-pc-name">${esc(pc.name)}</div>
+          ${rows}
+        </div>`);
+    }
+  }
+
+  if (!cards.length) {
+    return admin
+      ? '<div class="empty-lead" style="margin:10px 0">No faction standings on record for any active PC.</div>'
+      : '<div class="empty-lead" style="margin:10px 0">No notable faction ties on record for your runners.</div>';
+  }
+  return `<div class="faction-grid">${cards.join('')}</div>`;
+}
+
+// ── Standing Editor ─────────────────────────────────────────
+let _seCharId   = null;
+let _seCharName = null;
+let _seOrgData  = [];   // [{org_id, org_name, standing_id, standing}]
+
+function openStandingEditor(charId) {
+  const pc = charMapStore[charId];
+  const charName = pc ? pc.name : `Character #${charId}`;
+  const standings = _standingsStore[charId] || [];
+  _seCharId   = charId;
+  _seCharName = charName;
+  // Merge existing standings with all active orgs
+  const standingByOrg = {};
+  for (const s of standings) standingByOrg[s.org_id] = s;
+  _seOrgData = Object.values(orgStore)
+    .filter(o => o.is_active)
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .map(o => ({
+      org_id:     o.id,
+      org_name:   o.name,
+      standing_id: standingByOrg[o.id]?.id ?? null,
+      standing:   standingByOrg[o.id]?.standing ?? 0,
+    }));
+  document.getElementById('seTitle').textContent = `Faction Standings // ${charName}`;
+  document.getElementById('sePcBadge').innerHTML = '';
+  renderStandingEditor();
+  document.getElementById('standingEditorOverlay').classList.add('open');
+}
+
+function renderStandingEditor() {
+  const rows = _seOrgData.map((o, i) => {
+    const val = o.standing;
+    const cls = standingClass(standingLabel(val));
+    return `
+      <div class="faction-row" style="padding:5px 0;border-bottom:1px solid #111">
+        <span class="faction-org" style="flex:2" title="${esc(o.org_name)}">${esc(o.org_name)}</span>
+        <input type="number" class="se-val" data-idx="${i}"
+          value="${val}" min="-10" max="10"
+          style="width:58px;background:var(--bg-input);border:1px solid #2a2a2a;color:var(--text-bright);padding:3px 6px;font-family:inherit;font-size:.78rem;text-align:center"
+          oninput="seUpdateLabel(this,${i})">
+        <span class="se-label ${cls}" id="se-lbl-${i}" style="width:80px;text-align:right;font-size:.64rem;letter-spacing:1px">${standingLabel(val)}</span>
+      </div>`;
+  }).join('');
+  document.getElementById('seBody').innerHTML = rows ||
+    '<div style="color:var(--text-dim);padding:16px">No active organizations found.</div>';
+}
+
+function seUpdateLabel(input, idx) {
+  const val = Math.max(-10, Math.min(10, parseInt(input.value) || 0));
+  input.value = val;
+  _seOrgData[idx].standing = val;
+  const lbl = document.getElementById(`se-lbl-${idx}`);
+  if (lbl) {
+    const l = standingLabel(val);
+    lbl.textContent = l;
+    lbl.className = `se-label ${standingClass(l)}`;
+  }
+}
+
+function closeStandingEditor() {
+  document.getElementById('standingEditorOverlay').classList.remove('open');
+}
+
+async function saveStandingEditor() {
+  // Only send rows that differ from 0 or have an existing standing_id
+  const changes = _seOrgData.filter(o => o.standing !== 0 || o.standing_id !== null);
+  let errors = 0;
+  for (const o of changes) {
+    try {
+      if (o.standing_id !== null) {
+        // Update existing
+        const r = await fetch(`${API}/reputation/standings/${o.standing_id}`, {
+          method: 'PATCH',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ standing: o.standing }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        // Delete if zeroed out
+        if (o.standing === 0) {
+          await fetch(`${API}/reputation/standings/${o.standing_id}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+          });
+        }
+      } else if (o.standing !== 0) {
+        // Create new
+        const r = await fetch(`${API}/reputation/standings`, {
+          method: 'POST',
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            character_id:    _seCharId,
+            organization_id: o.org_id,
+            standing:        o.standing,
+          }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+      }
+    } catch(e) {
+      errors++;
+      console.warn(`Standing save failed for ${o.org_name}:`, e);
+    }
+  }
+  await loadAll();
+  closeStandingEditor();
+  if (errors) showAlert(`${errors} standing(s) failed to save — check console.`);
+}
+
+async function resetPcData() {
+  showConfirm(
+    'Reset ALL PC heat, reputation scores, and org standings to baseline? This cannot be undone.',
+    async () => {
+      try {
+        const res = await fetch(`${API}/reputation/reset-pc-data`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail);
+        }
+        await loadAll();
+      } catch(e) {
+        showAlert(`Reset failed: ${e.message}`);
+      }
+    },
+    'Reset All PC Data'
+  );
 }
 
 // ── Org grouping config ───────────────────────────────────────
@@ -1930,7 +2120,6 @@ function openCharEditModal(charId) {
   document.getElementById('ce-description').value      = char.description        || '';
   document.getElementById('ce-background').value       = char.background         || '';
   document.getElementById('ce-notes').value            = char.notes              || '';
-  document.getElementById('ce-nuyen').value            = char.nuyen              ?? 0;
   document.getElementById('ce-karma_total').value      = char.karma_total        ?? 0;
   document.getElementById('ce-karma_current').value    = char.karma_current      ?? 0;
   document.getElementById('ce-connection').value       = char.connection         ?? 1;
@@ -2064,7 +2253,6 @@ async function saveCharEdit() {
     notes:           document.getElementById('ce-notes').value.trim() || null,
   };
   if (isPC) {
-    payload.nuyen         = parseInt(document.getElementById('ce-nuyen').value)         || 0;
     payload.karma_total   = parseInt(document.getElementById('ce-karma_total').value)   || 0;
     payload.karma_current = parseInt(document.getElementById('ce-karma_current').value) || 0;
   } else {
@@ -2106,7 +2294,9 @@ async function loadAll() {
       const heatEl = document.getElementById('sb-heat');
       const repEl  = document.getElementById('sb-rep');
       if (heatEl) {
-        heatEl.textContent = stats.heat_label || 'Neutral';
+        heatEl.textContent = isAdminMode()
+          ? `${stats.heat_label || 'Neutral'} (${stats.heat ?? 0})`
+          : (stats.heat_label || 'Neutral');
         heatEl.style.cssText = heatColorStyle(stats.heat || 0);
       }
       if (repEl) {
@@ -2118,7 +2308,6 @@ async function loadAll() {
     const pcs        = chars.filter(c => c.is_pc);
     const activePcs  = pcs.filter(c => c.is_active !== false);
     const inactivePcs = pcs.filter(c => c.is_active === false);
-    const partyNuyen = activePcs.reduce((sum, c) => sum + (c.nuyen || 0), 0);
 
     // Merge duplicate contact records (same npc_id) into single cards
     contactStore = contacts;
@@ -2137,7 +2326,6 @@ async function loadAll() {
     document.getElementById('sc-locs').textContent     = locs.length;
     document.getElementById('sc-chars').textContent          = activePcs.length;
     document.getElementById('sc-chars-inactive').textContent = inactivePcs.length;
-    // document.getElementById('sc-nuyen').textContent = '¥' + partyNuyen.toLocaleString(); // HIDDEN: nuyen not tracked yet
 
     const orgMap  = Object.fromEntries(orgs.map(o => [o.id, o]));
     const charMap = Object.fromEntries(chars.map(c => [c.id, c]));
@@ -2167,6 +2355,10 @@ async function loadAll() {
         `<div class="contact-grid">${mergedContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
+    // ── 2.5 Faction Reputation ────────────────────────────────
+    html += section('factions', 'Faction Reputation',
+      buildFactionRepSection(activePcs, charRepStore, getMyCharIds()));
+
     // ── 3. Persons of Interest (expanded) ─────────────────────
     if (npcs.length)
       html += section('npcs', 'Persons of Interest',
@@ -2186,7 +2378,7 @@ async function loadAll() {
       orgsInGroup.sort((a,b) => b.tier - a.tier || a.name.localeCompare(b.name));
       html += section(`org-${group}`, ORG_LABELS[group] || group,
         `<div class="org-grid">${orgsInGroup.map(o => buildOrgCard(o, orgMap)).join('')}</div>`,
-        'create-org.html', true);
+        'manage-organizations.html', true);
     });
 
     // ── 5. Locations (collapsed) ──────────────────────────────
@@ -2289,7 +2481,7 @@ bootstrapAuth().then(u => { if (u) loadAll(); });
   let lastDateStr = new Date().toDateString();
   function tick() {
     const t = new Date();
-    const srYear = t.getFullYear() + 24;
+    const srYear = t.getFullYear() + YEAR_OFFSET;
     const month  = t.toLocaleString('en-US', { month: 'long' }).toUpperCase();
     document.getElementById('srDate').textContent    = `${month} ${t.getDate()} ${srYear}`;
     document.getElementById('liveClock').textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
@@ -2328,6 +2520,24 @@ bootstrapAuth().then(u => { if (u) loadAll(); });
 </div>
 
 <!-- ── PROMPT DIALOG ────────────────────────────────────── -->
+<!-- ── STANDING EDITOR MODAL ────────────────────────────────────────── -->
+<div id="standingEditorOverlay" class="ltg-overlay" style="z-index:2500" onclick="if(event.target===this)closeStandingEditor()">
+  <div class="ltg-modal" style="max-width:540px">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="seTitle">Faction Standings</div>
+        <div id="sePcBadge" style="margin-top:4px"></div>
+      </div>
+      <button class="btn btn-red" onclick="closeStandingEditor()" style="align-self:center">✕ Close</button>
+    </div>
+    <div class="ltg-modal-body" id="seBody" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green" onclick="saveStandingEditor()" style="flex:1;justify-content:center">>> Save Changes</button>
+      <button class="btn" onclick="closeStandingEditor()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="srPromptOverlay" class="ltg-overlay" style="z-index:3000">
   <div class="ltg-modal" style="max-width:380px">
     <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">

@@ -14,7 +14,7 @@
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html" class="active">Characters</a>
-    <a href="create-org.html">Organizations</a>
+    <a href="manage-organizations.html">Organizations</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -38,7 +38,7 @@
         <option value="npc">NPCs Only</option>
       </select>
     </div>
-    <button class="btn btn-green gm-only" onclick="openModal()">+ New Character</button>
+    <button class="btn btn-green" onclick="openModal()">+ New Dossier</button>
   </div>
 
   <div id="tableWrap">
@@ -50,7 +50,7 @@
 <div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
   <div class="edit-modal" style="max-width:720px">
     <div class="edit-modal-head">
-      <div class="edit-modal-title" id="modalTitle">New Character</div>
+      <div class="edit-modal-title" id="modalTitle">New Dossier</div>
       <button class="btn btn-red" onclick="closeModal()">✕</button>
     </div>
     <div class="edit-modal-body">
@@ -62,12 +62,27 @@
           <label>Name *</label>
           <input type="text" id="f-name" placeholder="Razor, Static...">
         </div>
-        <div class="field">
+        <!-- Title: shown for NPCs; hidden for PCs (auto-filled from archetype) -->
+        <div class="field" id="f-title-wrap">
           <label>Title *</label>
           <input type="text" id="f-title" placeholder="Yakuza Underboss, Corporate Decker..." required>
         </div>
         <div class="field">
-          <label>Archetype</label>
+          <label id="f-archetype-lbl">Archetype</label>
+          <!-- PC archetype: 7 runner options matching world-state card colors -->
+          <select id="f-archetype-pc" onchange="onPCArchetypeChange()" style="display:none">
+            <option value="Street Samurai">Street Samurai</option>
+            <option value="Decker">Decker</option>
+            <option value="Rigger">Rigger</option>
+            <option value="Mage">Mage</option>
+            <option value="Shaman">Shaman</option>
+            <option value="Adept">Adept</option>
+            <option value="Custom">Custom…</option>
+          </select>
+          <div id="f-archetype-pc-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="f-archetype-pc-custom" placeholder="Enter archetype..." style="width:100%" oninput="onPCArchetypeChange()">
+          </div>
+          <!-- NPC archetype: full list -->
           <select id="f-archetype" onchange="onArchetypeChange()">
             <optgroup label="── Runners ──">
               <option value="Street Samurai">Street Samurai</option>
@@ -138,7 +153,7 @@
       <div class="grid2" style="margin-bottom:14px">
         <div class="field">
           <label>Type</label>
-          <div class="toggle-wrap" style="padding-top:6px">
+          <div class="toggle-wrap" style="padding-top:6px" id="f-type-wrap">
             <label class="toggle">
               <input type="checkbox" id="f-is_pc" checked onchange="updatePCLabel()">
               <span class="tog-sl"></span>
@@ -212,12 +227,45 @@
         <textarea id="f-description" rows="3" placeholder="Physical appearance, manner, street rep..."></textarea>
       </div>
       <div class="field" style="margin-bottom:14px">
-        <label>Background (GM Only)</label>
+        <label>Background (Can be revealed to players)</label>
         <textarea id="f-background" rows="3" placeholder="History, motivations, secrets..."></textarea>
       </div>
       <div class="field">
-        <label>Notes</label>
+        <label>Notes (For GM Use; hidden from players)</label>
         <textarea id="f-notes" rows="2" placeholder="Current situation, loose ends..."></textarea>
+      </div>
+
+      <!-- Reputation — PC only, admin only -->
+      <div id="repSection" style="display:none">
+        <hr class="rule" style="margin:14px 0">
+        <div class="section-head" style="margin-bottom:8px">Reputation <span style="font-size:0.6rem;color:var(--text-dim);letter-spacing:1px">// PC ONLY</span></div>
+        <div id="repPreview" style="font-size:.75rem;color:var(--amber);letter-spacing:1px;margin-bottom:2px"></div>
+        <div style="font-size:.75rem;color:var(--green);margin-bottom:14px;letter-spacing:.5px">Rep = [Street Cred − Notoriety]</div>
+        <div class="grid3" style="margin-bottom:14px">
+          <div class="field">
+            <label><span style="color:var(--arch-custom);font-size:.65rem">Street Cred (0–20)</span></label>
+            <input type="number" id="f-street_cred" min="0" max="20" value="0" oninput="updateRepPreview()">
+            <div style="font-size:.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:.5px">Positive shadow rep</div>
+          </div>
+          <div class="field">
+            <label><span style="color:var(--arch-custom);font-size:.65rem">Notoriety (0–20)</span></label>
+            <input type="number" id="f-notoriety" min="0" max="20" value="0" oninput="updateRepPreview()">
+            <div style="font-size:.75rem;color:var(--text-dim);margin-top:3px;letter-spacing:.5px">Negative infamy</div>
+          </div>
+          <div class="field">
+            <label><span style="color:var(--arch-custom);font-size:.65rem">Public Awareness (0–13)</span></label>
+            <input type="number" id="f-public_awareness" min="0" max="13" value="0" oninput="updateRepPreview()">
+            <div style="font-size:.75rem;color:var(--text-dim);margin-top:3px;letter-spacing:.5px">0–3 hidden, 4–7 known, 8+ exposed</div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label><span style="color:var(--arch-custom);font-size:.65rem">Heat (0–10)</span></label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <input type="number" id="f-heat" min="0" max="10" value="0" style="width:80px" oninput="updateRepPreview()">
+            <span id="f-heat-label" style="font-size:.65rem;color:var(--amber);letter-spacing:1px"></span>
+          </div>
+          <div style="font-size:.75rem;color:var(--text-dim);margin-top:3px;letter-spacing:.5px">0 Neutral · 1–2 Noticed · 3–4 Flagged · 5–6 Wanted · 7–8 Hot · 9–10 Nova Hot</div>
+        </div>
       </div>
     </div>
     <div class="edit-modal-foot">
@@ -257,9 +305,33 @@ const PREDEFINED_ARCHETYPES = [
   'Corporate Security','Corporate Executive','Company Man','Wage Slave','Mr. Johnson','Detective','Beat Cop',
 ];
 
+const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
+
+// Build "Title, OrgName" cell; falls back to "Independent" for no/unknown org
+function titleOrgCell(c) {
+  const title = (c.title || '').trim();
+  const orgName = allOrgs.find(o => o.id === c.organization_id)?.name || '';
+  const isUnknown = !orgName || /unknown|independent/i.test(orgName);
+  const org = isUnknown ? 'Independent' : orgName;
+  if (!title && !org) return '—';
+  if (!title) return org;
+  return `${title}, ${org}`;
+}
+
 function onArchetypeChange() {
   const val = document.getElementById('f-archetype').value;
   document.getElementById('f-archetype-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+}
+
+// PC archetype picker: copies selection into the hidden title field
+function onPCArchetypeChange() {
+  const sel = document.getElementById('f-archetype-pc');
+  const isCustom = sel.value === 'Custom';
+  const customWrap = document.getElementById('f-archetype-pc-custom-wrap');
+  const customInput = document.getElementById('f-archetype-pc-custom');
+  customWrap.style.display = isCustom ? '' : 'none';
+  const titleVal = isCustom ? customInput.value.trim() : sel.value;
+  document.getElementById('f-title').value = titleVal;
 }
 
 function updateConnDesc() {
@@ -280,9 +352,52 @@ function updatePCLabel() {
   const isPC = document.getElementById('f-is_pc').checked;
   document.getElementById('pcLabel').textContent = isPC ? 'PC // Runner' : 'NPC';
   document.getElementById('npcSection').style.display = isPC ? 'none' : '';
+  // Switch archetype picker and title visibility
+  document.getElementById('f-archetype-pc').style.display   = isPC ? '' : 'none';
+  document.getElementById('f-archetype').style.display       = isPC ? 'none' : '';
+  document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
+  document.getElementById('f-title-wrap').style.display     = isPC ? 'none' : '';
+  // Clear title when switching to NPC so the placeholder shows
+  if (!isPC) document.getElementById('f-title').value = '';
+  // Reputation section: admin-only, PC-only; visible for new PCs too
+  document.getElementById('repSection').style.display = (isPC && isAdminMode()) ? '' : 'none';
+}
+
+const PC_REP_TIERS = [
+  [0,0,'Infamous'],[1,1,'Pariah'],[2,4,'Feared'],[5,7,'Dangerous'],[8,11,'Dirty'],
+  [12,15,'Shady'],[16,19,'Questionable'],[20,20,'Nobody'],[21,23,'Tested'],[24,26,'Proven'],
+  [27,30,'Seasoned'],[31,33,'Dependable'],[34,36,'Professional'],[37,39,'Trusted'],[40,40,'Legend'],
+];
+const PA_LABELS = [[0,0,'Shadow'],[1,3,'Seen'],[4,7,'Recognized'],[8,12,'In the Spotlight'],[13,99,'Burned']];
+
+function _tierLabel(val, tiers) {
+  for (const [lo, hi, lbl] of tiers) if (val >= lo && val <= hi) return lbl;
+  return '';
+}
+
+function updateRepPreview() {
+  const sc   = Math.min(20, Math.max(0, parseInt(document.getElementById('f-street_cred').value) || 0));
+  const not  = Math.min(20, Math.max(0, parseInt(document.getElementById('f-notoriety').value)  || 0));
+  const pa   = Math.min(13, Math.max(0, parseInt(document.getElementById('f-public_awareness').value) || 0));
+  const heat = Math.min(10, Math.max(0, parseInt(document.getElementById('f-heat').value) || 0));
+  const net  = Math.min(40, Math.max(0, 20 + sc - not));         // 0–40 for tier lookup
+  const displayRep = sc - not;                                    // −20 to +20 for display
+  const repTier  = _tierLabel(net, PC_REP_TIERS);
+  const paTier   = _tierLabel(pa, PA_LABELS);
+  const heatTier = heatLabelStr(heat);
+  const sign = displayRep >= 0 ? '+' : '';
+  document.getElementById('f-heat-label').textContent = heatTier;
+  document.getElementById('repPreview').textContent =
+    `Rep: ${sign}${displayRep}/+20 — ${repTier}  ·  PA: ${paTier}  ·  Heat: ${heatTier}`;
 }
 
 // ── Render table ──────────────────────────────────────────────
+function getMyCharIds() {
+  const tok = userToken() || adminToken();
+  if (!tok) return new Set();
+  return new Set(allChars.filter(c => c.owner_token === tok).map(c => c.id));
+}
+
 function renderTable(data) {
   const wrap = document.getElementById('tableWrap');
 
@@ -290,6 +405,7 @@ function renderTable(data) {
     wrap.innerHTML = '<div class="loading">No characters found</div>';
     return;
   }
+  const myIds = typeof getMyCharIds === 'function' ? getMyCharIds() : new Set();
   wrap.innerHTML = `
     <table class="manage-table">
       <thead>
@@ -298,22 +414,32 @@ function renderTable(data) {
           <th>Type</th>
           <th>Archetype</th>
           <th>Race</th>
-          <th>Organization</th>
+          <th>Title &amp; Organization</th>
           <th>Status</th>
           <th class="td-act"></th>
         </tr>
       </thead>
       <tbody>
-        ${data.map(c => `
+        ${data.map(c => {
+          let editBtn = '';
+          if (isAdminMode()) {
+            editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
+          } else if (c.is_pc && myIds.has(c.id)) {
+            editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
+          } else if (c.is_pc) {
+            editBtn = `<button class="btn" style="padding:4px 10px;font-size:.65rem;color:#333;border-color:#222;cursor:default" disabled title="Not your character">Edit</button>`;
+          }
+          return `
           <tr>
             <td style="color:var(--text-bright)">${esc(c.name)}</td>
             <td><span class="ch-badge ${c.is_pc ? 'badge-pc' : 'badge-npc'}" style="display:inline-block">${c.is_pc ? 'PC' : 'NPC'}</span></td>
             <td style="color:var(--text-dim)">${esc(c.archetype||'—')}</td>
             <td style="color:var(--text-dim);font-size:.75rem">${esc(c.race||'—')}</td>
-            <td style="color:var(--text-dim);font-size:.75rem">${esc(allOrgs.find(o => o.id === c.organization_id)?.name || '—')}</td>
+            <td style="color:var(--text-dim);font-size:.75rem">${esc(titleOrgCell(c))}</td>
             <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
-            <td class="td-act">${isAdmin() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>` : ''}</td>
-          </tr>`).join('')}
+            <td class="td-act">${editBtn}</td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>`;
 }
@@ -321,10 +447,15 @@ function renderTable(data) {
 function applyFilter() {
   const q = document.getElementById('filterInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
-  const filtered = allChars.filter(c =>
+  let filtered = allChars.filter(c =>
     (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q) || (c.organization_name||'').toLowerCase().includes(q)) &&
     (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc))
   );
+  // Sort: PCs first, then NPCs; alphabetical within each group
+  filtered.sort((a, b) => {
+    if (a.is_pc !== b.is_pc) return a.is_pc ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
   renderTable(filtered);
 }
 
@@ -332,28 +463,45 @@ function applyFilter() {
 function openModal(id) {
   editingId = id || null;
   const ch = id ? allChars.find(c => c.id === id) : null;
-  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Character';
-  document.getElementById('deleteBtn').style.display = ch ? '' : 'none';
-  document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.owner_token) ? '' : 'none';
+  const isPC = ch?.is_pc !== false;
+  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Dossier';
+  document.getElementById('deleteBtn').style.display = (ch && isAdminMode()) ? '' : 'none';
+  document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.owner_token && isAdminMode()) ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
 
   document.getElementById('f-name').value          = ch?.name || '';
   document.getElementById('f-title').value         = ch?.title || '';
   const archVal = ch?.archetype || '';
-  if (!archVal || PREDEFINED_ARCHETYPES.includes(archVal)) {
-    document.getElementById('f-archetype').value = archVal;
-    document.getElementById('f-archetype-custom').value = '';
-    document.getElementById('f-archetype-custom-wrap').style.display = 'none';
+  if (isPC) {
+    const pcSel = document.getElementById('f-archetype-pc');
+    if (PC_ARCHETYPES.includes(archVal) && archVal !== 'Custom') {
+      pcSel.value = archVal;
+      document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
+    } else if (archVal) {
+      pcSel.value = 'Custom';
+      document.getElementById('f-archetype-pc-custom').value = archVal;
+      document.getElementById('f-archetype-pc-custom-wrap').style.display = '';
+    } else {
+      pcSel.value = PC_ARCHETYPES[0];
+      document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
+      document.getElementById('f-title').value = PC_ARCHETYPES[0];
+    }
   } else {
-    document.getElementById('f-archetype').value = 'Custom';
-    document.getElementById('f-archetype-custom').value = archVal;
-    document.getElementById('f-archetype-custom-wrap').style.display = '';
+    if (!archVal || PREDEFINED_ARCHETYPES.includes(archVal)) {
+      document.getElementById('f-archetype').value = archVal;
+      document.getElementById('f-archetype-custom').value = '';
+      document.getElementById('f-archetype-custom-wrap').style.display = 'none';
+    } else {
+      document.getElementById('f-archetype').value = 'Custom';
+      document.getElementById('f-archetype-custom').value = archVal;
+      document.getElementById('f-archetype-custom-wrap').style.display = '';
+    }
   }
   document.getElementById('f-race').value          = ch?.race || 'Human';
   document.getElementById('f-gender').value        = ch?.gender || '';
   document.getElementById('f-age').value           = ch?.age ?? '';
   document.getElementById('f-nationality').value   = ch?.nationality || '';
-  document.getElementById('f-is_pc').checked       = ch?.is_pc !== false;
+  document.getElementById('f-is_pc').checked       = isPC;
   document.getElementById('f-is_active').checked   = ch?.is_active !== false;
   document.getElementById('f-organization_id').value = ch?.organization_id ?? '';
   document.getElementById('f-description').value   = ch?.description || '';
@@ -364,7 +512,28 @@ function openModal(id) {
   updateConnDesc();
   document.getElementById('addLinkForm').style.display = 'none';
   updatePCLabel();
+  document.getElementById('f-type-wrap').style.display = '';
+  document.getElementById('f-is_pc').disabled = !isAdminMode();
   renderContactLinks();
+
+  // Load reputation for existing PCs (admin mode only)
+  if (ch && isPC && isAdminMode()) {
+    document.getElementById('f-street_cred').value = 0;
+    document.getElementById('f-notoriety').value = 0;
+    document.getElementById('f-public_awareness').value = 0;
+    document.getElementById('f-heat').value = 0;
+    updateRepPreview();
+    apiFetch(`${API}/reputation/?character_id=${ch.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(reps => {
+        const rep = reps[0] || {};
+        document.getElementById('f-street_cred').value = rep.street_cred ?? 0;
+        document.getElementById('f-notoriety').value = rep.notoriety ?? 0;
+        document.getElementById('f-public_awareness').value = rep.public_awareness ?? 0;
+        document.getElementById('f-heat').value = rep.heat ?? 0;
+        updateRepPreview();
+      });
+  }
 
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -390,11 +559,17 @@ async function saveChar() {
   const isPC = document.getElementById('f-is_pc').checked;
   const orgVal = document.getElementById('f-organization_id').value;
   const skillsRaw = document.getElementById('f-contact_skills').value;
-  let archetypeVal = document.getElementById('f-archetype').value;
-  if (archetypeVal === 'Custom') {
-    archetypeVal = document.getElementById('f-archetype-custom').value.trim() || null;
+  let archetypeVal;
+  if (isPC) {
+    const pcSel = document.getElementById('f-archetype-pc').value;
+    archetypeVal = pcSel === 'Custom'
+      ? (document.getElementById('f-archetype-pc-custom').value.trim() || null)
+      : (pcSel || null);
   } else {
-    archetypeVal = archetypeVal || null;
+    const npcSel = document.getElementById('f-archetype').value;
+    archetypeVal = npcSel === 'Custom'
+      ? (document.getElementById('f-archetype-custom').value.trim() || null)
+      : (npcSel || null);
   }
   const payload = {
     name,
@@ -422,6 +597,27 @@ async function saveChar() {
       const err = await res.json().catch(() => ({detail: res.statusText}));
       throw new Error(err.detail || JSON.stringify(err));
     }
+    const saved = await res.json().catch(() => ({}));
+    const savedId = editingId || saved?.id;
+
+    // Save reputation for PCs (admin mode only)
+    if (isPC && isAdminMode() && savedId) {
+      const repPayload = {
+        street_cred:      Math.min(20, Math.max(0, parseInt(document.getElementById('f-street_cred').value) || 0)),
+        notoriety:        Math.min(20, Math.max(0, parseInt(document.getElementById('f-notoriety').value) || 0)),
+        public_awareness: Math.min(13, Math.max(0, parseInt(document.getElementById('f-public_awareness').value) || 0)),
+        heat:             Math.min(10, Math.max(0, parseInt(document.getElementById('f-heat').value) || 0)),
+      };
+      try {
+        const existing = await apiFetch(`${API}/reputation/?character_id=${savedId}`).then(r => r.ok ? r.json() : []);
+        if (existing.length) {
+          await apiFetch(`${API}/reputation/${existing[0].id}`, { method: 'PATCH', body: JSON.stringify(repPayload) });
+        } else {
+          await apiFetch(`${API}/reputation/`, { method: 'POST', body: JSON.stringify({ ...repPayload, character_id: savedId }) });
+        }
+      } catch(_e) { /* rep save errors are non-fatal */ }
+    }
+
     closeModal();
     showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // "${name}" saved.`, false);
     await loadChars();
@@ -556,7 +752,17 @@ async function loadChars() {
   }
 }
 
-bootstrapAuth().then(u => { if (u) loadChars(); });
+bootstrapAuth().then(u => {
+  if (u) {
+    if (!isAdminMode()) {
+      document.getElementById('filterType').value = 'pc';
+      document.getElementById('filterType').disabled = true;
+    } else {
+      document.getElementById('filterType').value = '';
+    }
+    loadChars();
+  }
+});
 </script>
 </body>
 </html>

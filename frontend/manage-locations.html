@@ -14,7 +14,7 @@
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
-    <a href="create-org.html">Organizations</a>
+    <a href="manage-organizations.html">Organizations</a>
     <a href="manage-locations.html" class="active">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -241,7 +241,7 @@ function renderTable(data) {
             <td style="color:var(--text-dim)">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
             <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'—')}</td>
             <td style="color:var(--text-dim);font-size:.75rem">${esc(orgMap[l.controlling_org_id]||'—')}</td>
-            <td class="td-act">${isAdmin() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
+            <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
