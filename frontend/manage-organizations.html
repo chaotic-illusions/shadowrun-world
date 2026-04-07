@@ -14,7 +14,7 @@
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
-    <a href="create-org.html" class="active">Organizations</a>
+    <a href="manage-organizations.html" class="active">Organizations</a>
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
@@ -33,13 +33,15 @@
       <select id="filterType" onchange="applyFilter()" style="width:180px">
         <option value="">All Types</option>
       </select>
-      <select id="filterStatus" onchange="applyFilter()" style="width:120px">
-        <option value="">All Status</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
+      <span id="filterStatusWrap">
+        <select id="filterStatus" onchange="applyFilter()" style="width:120px">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </span>
     </div>
-    <button class="btn btn-green gm-only" onclick="openModal()">+ New Organization</button>
+    <button class="btn btn-green" id="btnNewOrg" onclick="openModal()">+ New Organization</button>
   </div>
 
   <div id="tableWrap"><div class="loading">Loading organizations</div></div>
@@ -49,14 +51,17 @@
 <div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
   <div class="edit-modal" style="max-width:860px">
     <div class="edit-modal-head">
-      <div class="edit-modal-title" id="modalTitle">New Organization</div>
+      <div>
+        <div class="edit-modal-title" id="modalTitle">New Organization</div>
+        <div id="modalBadge" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px"></div>
+      </div>
       <button class="btn btn-red" onclick="closeModal()">✕</button>
     </div>
     <div class="edit-modal-body">
       <div id="alert" class="alert"></div>
 
       <!-- ── CORE IDENTITY ── -->
-      <div class="section-head" style="margin-bottom:12px">Core Identity</div>
+      <div class="section-head" style="margin-bottom:12px">// Core Identity</div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field">
           <label>Designation *</label>
@@ -124,7 +129,7 @@
 
       <!-- ── PROFILE ── -->
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Intel Profile</div>
+      <div class="section-head" style="margin-bottom:12px">// Intel Profile</div>
       <div class="field" style="margin-bottom:14px">
         <label>Description / Known Intel</label>
         <textarea id="description" rows="5" placeholder="What do the runners know about this org?"></textarea>
@@ -136,7 +141,7 @@
 
       <!-- ── COMMAND STRUCTURE ── -->
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Command Structure</div>
+      <div class="section-head" style="margin-bottom:12px">// Command Structure</div>
       <div style="margin-bottom:8px">
         <button type="button" class="btn btn-amber" onclick="addLeader()">+ Add Executive</button>
       </div>
@@ -153,43 +158,45 @@
 
       <!-- ── POLITICAL RELATIONSHIPS ── -->
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Political Relationships</div>
+      <div class="section-head" style="margin-bottom:12px">// Political Relationships</div>
       <div class="grid2" style="margin-bottom:14px">
         <div class="field">
-          <label>Allied Organizations</label>
+          <label style="display:flex;justify-content:space-between"><span>Allied Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label>
           <div class="chk-list" id="allyList"><div class="loading" style="padding:16px">Loading</div></div>
         </div>
         <div class="field">
-          <label>Hostile Organizations</label>
+          <label style="display:flex;justify-content:space-between"><span>Hostile Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label>
           <div class="chk-list" id="enemyList"><div class="loading" style="padding:16px">Loading</div></div>
         </div>
       </div>
 
       <!-- ── LTG NETWORK ── -->
       <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">LTG Network Directory</div>
+      <div class="section-head" style="margin-bottom:12px">// RTG/LTG Network Directory</div>
 
       <div style="margin-bottom:18px">
-        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
+        <div style="color:var(--cyan);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; TELECOM</div>
+        <hr class="rule" style="margin:4px 0 10px">
         <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button></div>
         <div class="lead-wrap">
           <table class="lead-table" id="telecomTable">
-            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th></th></tr></thead>
+            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th style="text-align:center;font-size:.6rem">Reveal</th><th></th></tr></thead>
             <tbody id="telecomBody">
-              <tr id="emptyTelecom"><td colspan="4" class="empty-lead">No telecom numbers</td></tr>
+              <tr id="emptyTelecom"><td colspan="5" class="empty-lead">No telecom numbers</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
       <div>
-        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
+        <div style="color:var(--amber);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; MATRIX HOSTS</div>
+        <hr class="rule" style="margin:4px 0 10px">
         <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table" id="hostTable">
-            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th></th></tr></thead>
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th style="text-align:center;font-size:.6rem">Reveal</th><th></th></tr></thead>
             <tbody id="hostBody">
-              <tr id="emptyHost"><td colspan="7" class="empty-lead">No matrix hosts</td></tr>
+              <tr id="emptyHost"><td colspan="8" class="empty-lead">No matrix hosts</td></tr>
             </tbody>
           </table>
         </div>
@@ -258,9 +265,26 @@ const PREDEFINED_ORG_TYPES = [
   'fixer_network','political organization','cult',
 ];
 
+function updateModalBadge(orgType, tier) {
+  const badge = document.getElementById('modalBadge');
+  if (!badge) return;
+  if (!orgType && !tier) { badge.innerHTML = ''; return; }
+  const typeLabel = (orgType || 'UNKNOWN').toUpperCase();
+  badge.innerHTML = `
+    <span class="cc-race-prof" style="color:var(--amber)">${typeLabel}</span>
+    <span style="color:var(--text-dim);font-size:.75rem">&#183;</span>
+    <span style="color:#6699cc;font-size:0.65rem;letter-spacing:1px;padding:2px 7px;border:1px solid #1a2a44">TIER ${tier} // ${(TIER_NAMES[tier]||'').toUpperCase()}</span>
+    `;
+}
+
 function onOrgTypeChange() {
   const val = document.getElementById('org_type').value;
   document.getElementById('org_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+  updateModalBadge(
+    val === 'Custom' ? document.getElementById('org_type-custom').value : val,
+    tierVal,
+    document.getElementById('is_active').checked
+  );
 }
 
 function setTier(n) {
@@ -268,6 +292,11 @@ function setTier(n) {
   document.getElementById('tier').value = n;
   document.getElementById('tierName').textContent = TIER_NAMES[n];
   document.querySelectorAll('.t-dot').forEach(d => d.classList.toggle('on', parseInt(d.dataset.v) === n));
+  updateModalBadge(
+    document.getElementById('org_type').value,
+    n,
+    document.getElementById('is_active').checked
+  );
 }
 setTier(1);
 
@@ -276,6 +305,11 @@ function updateStatus() {
   const lbl = document.getElementById('activeStatus');
   lbl.textContent = cb.checked ? 'ACTIVE' : 'INACTIVE';
   lbl.style.color = cb.checked ? 'var(--green)' : 'var(--text-dim)';
+  updateModalBadge(
+    document.getElementById('org_type').value,
+    tierVal,
+    cb.checked
+  );
 }
 
 // ── Leadership ────────────────────────────────────────────────
@@ -320,7 +354,8 @@ function addTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',4)">✕</button></td>`;
+    <td style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',5)">✕</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => formatTelecomInput(numInput));
   tbody.appendChild(tr);
@@ -364,7 +399,8 @@ function addHost(data) {
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',7)">✕</button></td>`;
+    <td style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',8)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => enforceIdCode(idInput));
   tbody.appendChild(tr);
@@ -386,10 +422,12 @@ function getTableData(tbodyId, emptyId, fields) {
     const obj = {};
     fields.forEach(f => {
       const el = row.querySelector(`[data-field="${f}"]`);
-      obj[f] = el?.value?.trim() || null;
+      if (!el) { obj[f] = null; return; }
+      if (el.type === 'checkbox') { obj[f] = el.checked; return; }
+      obj[f] = el.value?.trim() || null;
     });
     return obj;
-  }).filter(obj => Object.values(obj).some(v => v));
+  }).filter(obj => Object.values(obj).some(v => v != null && v !== '' && v !== false));
 }
 
 function getLeadership() {
@@ -397,10 +435,10 @@ function getLeadership() {
 }
 
 function getLTGs() {
-  const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility'])
+  const telecoms = getTableData('telecomBody', 'emptyTelecom', ['number','description','visibility','revealed'])
     .map(t => ({ type: 'telecom', ...t }))
     .sort((a, b) => (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9));
-  const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility'])
+  const hosts = getTableData('hostBody', 'emptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility','revealed'])
     .map(h => ({ type: 'matrix_host', ...h }))
     .sort((a, b) => {
       const vd = (VIS_ORDER[a.visibility] ?? 9) - (VIS_ORDER[b.visibility] ?? 9);
@@ -410,7 +448,11 @@ function getLTGs() {
 }
 
 function getChecked(containerId) {
-  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(cb => parseInt(cb.value));
+  return Array.from(document.querySelectorAll(`#${containerId} input.rel-chk:checked`)).map(cb => parseInt(cb.value));
+}
+
+function getRevealed(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} input.rev-chk:checked`)).map(cb => parseInt(cb.value));
 }
 
 // ── Alert ─────────────────────────────────────────────────────
@@ -453,12 +495,13 @@ function resetForm() {
   updateStatus();
   setTier(1);
   document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
-  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
-  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-lead">None defined</td></tr>';
   leaderCount = telecomCount = hostCount = 0;
   document.getElementById('submitBtn').textContent = '>> Submit to Database';
   document.getElementById('deleteBtn').style.display = 'none';
   document.getElementById('alert').className = 'alert';
+  document.getElementById('modalBadge').innerHTML = '';
   renderOrgChecks(allOrgs);
 }
 
@@ -497,23 +540,26 @@ function populateForm(org) {
   leaderCount = 0;
   (org.leadership || []).forEach(l => addLeader(l));
 
-  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="4" class="empty-lead">None defined</td></tr>';
-  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="7" class="empty-lead">None defined</td></tr>';
+  document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-lead">None defined</td></tr>';
+  document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-lead">None defined</td></tr>';
   telecomCount = 0; hostCount = 0;
   (org.ltgs || []).forEach(e => {
     if (e.type === 'telecom') addTelecom(e);
     else if (e.type === 'matrix_host') addHost(e);
   });
 
-  const allySet  = new Set(org.ally_ids  || []);
-  const enemySet = new Set(org.enemy_ids || []);
-  renderOrgChecks(allOrgs);
-  document.querySelectorAll('#allyList  input[type=checkbox]').forEach(cb => { if (allySet.has(parseInt(cb.value)))  cb.checked = true; });
-  document.querySelectorAll('#enemyList input[type=checkbox]').forEach(cb => { if (enemySet.has(parseInt(cb.value))) cb.checked = true; });
+  renderOrgChecks(
+    allOrgs,
+    new Set(org.ally_ids  || []),
+    new Set(org.enemy_ids || []),
+    new Set(org.revealed_ally_ids  || []),
+    new Set(org.revealed_enemy_ids || [])
+  );
 
   document.getElementById('submitBtn').textContent  = '>> Update Database Entry';
   document.getElementById('deleteBtn').style.display = '';
   document.getElementById('alert').className = 'alert';
+  updateModalBadge(org.org_type, org.tier || 1, org.is_active !== false);
 }
 
 // ── Table rendering ───────────────────────────────────────────
@@ -536,6 +582,7 @@ function applyFilter() {
     wrap.innerHTML = '<div class="loading">No organizations match the filter</div>';
     return;
   }
+  const adminMode = isAdminMode();
   wrap.innerHTML = `
     <table class="manage-table">
       <thead>
@@ -544,7 +591,7 @@ function applyFilter() {
           <th>Type</th>
           <th>Tier</th>
           <th>Headquarters</th>
-          <th>Status</th>
+          ${adminMode ? '<th>Status</th>' : ''}
           <th></th>
         </tr>
       </thead>
@@ -555,9 +602,9 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '—')}</td>
             <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span style="color:var(--text-dim)">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '—')}</td>
-            <td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>
+            ${adminMode ? `<td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>` : ''}
             <td class="td-act">
-              ${isAdmin() ? `<button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>` : ''}
+              ${adminMode ? `<button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>` : ''}
             </td>
           </tr>`).join('')}
       </tbody>
@@ -565,15 +612,23 @@ function applyFilter() {
 }
 
 // ── Org checkboxes ────────────────────────────────────────────
-function renderOrgChecks(orgs) {
+function renderOrgChecks(orgs, allySet, enemySet, revAllySet, revEnemySet) {
+  const sets = {
+    allyList:  { rel: allySet  || new Set(), rev: revAllySet  || new Set() },
+    enemyList: { rel: enemySet || new Set(), rev: revEnemySet || new Set() },
+  };
   ['allyList', 'enemyList'].forEach(lid => {
     const el = document.getElementById(lid);
+    const { rel, rev } = sets[lid];
     const filtered = orgs.filter(o => o.id !== editingId);
     if (!filtered.length) { el.innerHTML = '<div style="padding:10px;color:var(--text-dim);font-size:.75rem">No organizations</div>'; return; }
     el.innerHTML = filtered.map(o => `
       <label class="chk-item">
-        <input type="checkbox" value="${o.id}">
+        <input type="checkbox" value="${o.id}" class="rel-chk" ${rel.has(o.id) ? 'checked' : ''}>
         <span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
+        <span style="margin-left:auto">
+          <input type="checkbox" value="${o.id}" class="rev-chk" ${rev.has(o.id) ? 'checked' : ''} title="Reveal to players">
+        </span>
       </label>`).join('');
   });
 }
@@ -647,9 +702,11 @@ async function submitForm() {
     notes:        document.getElementById('notes').value.trim() || null,
     is_active:    document.getElementById('is_active').checked,
     leadership:   getLeadership(),
-    ally_ids:     getChecked('allyList'),
-    enemy_ids:    getChecked('enemyList'),
-    ltgs:         getLTGs(),
+    ally_ids:          getChecked('allyList'),
+    enemy_ids:         getChecked('enemyList'),
+    revealed_ally_ids:  getRevealed('allyList'),
+    revealed_enemy_ids: getRevealed('enemyList'),
+    ltgs:              getLTGs(),
   };
 
   const submitBtn = document.getElementById('submitBtn');
@@ -682,12 +739,17 @@ async function submitForm() {
 // ── Init ──────────────────────────────────────────────────────
 bootstrapAuth().then(async u => {
   if (!u) return;
+  if (!isAdminMode()) {
+    document.getElementById('filterStatus').value = 'active';
+    document.getElementById('filterStatusWrap').style.display = 'none';
+    document.getElementById('btnNewOrg').style.display = 'none';
+  }
   await Promise.all([loadOrgs(), loadRTGs()]);
 
   // Support legacy ?id= deep links
   const params  = new URLSearchParams(window.location.search);
   const idParam = parseInt(params.get('id'));
-  if (idParam) openModal(idParam);
+  if (idParam && isAdminMode()) openModal(idParam);
 });
 </script>
 </body>

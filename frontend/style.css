@@ -171,7 +171,7 @@ label {
   text-transform: uppercase;
 }
 
-input[type=text], input[type=number], textarea, select {
+input[type=text], input[type=number], input[type=date], textarea, select {
   background: var(--bg-input);
   border: 1px solid #1a3a1a;
   color: var(--text-bright);
@@ -182,6 +182,12 @@ input[type=text], input[type=number], textarea, select {
   width: 100%;
   transition: border-color .2s, box-shadow .2s;
 }
+input[type=date]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) hue-rotate(90deg) saturate(4);
+  cursor: pointer;
+  opacity: 0.7;
+}
+input[type=date]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 input:focus, textarea:focus, select:focus {
   border-color: var(--green-dim);
   box-shadow: 0 0 0 1px rgba(0,255,65,.15), inset 0 0 10px rgba(0,255,65,.04);
@@ -240,6 +246,9 @@ select option { background: #090909; }
 }
 .toggle input:checked + .tog-sl { background: rgba(0,255,65,.1); border-color: var(--green-dim); }
 .toggle input:checked + .tog-sl::after { left: 25px; background: var(--green); box-shadow: var(--glow-green); }
+.toggle input:disabled + .tog-sl { cursor: default; opacity: 0.45; }
+.toggle input:disabled:checked + .tog-sl { background: rgba(0,255,65,.04); border-color: #1a3a1a; }
+.toggle input:disabled:checked + .tog-sl::after { background: #2a5a2a; box-shadow: none; }
 .tog-label { font-size: 0.78rem; color: var(--text-dim); }
 #activeStatus { transition: color .2s; }
 
@@ -1004,3 +1013,69 @@ select option { background: #090909; }
   color: var(--text-bright); /* data values — labels are var(--cyan) via #charEditBody label */
   padding: 5px 0;
 }
+
+/* ── Faction Reputation section ──────────────────────────────────────────── */
+.faction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.faction-pc-card {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.faction-pc-name {
+  font-family: var(--font);
+  font-size: 0.68rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.faction-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 0.64rem;
+  letter-spacing: 1px;
+}
+.faction-org {
+  flex: 1;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.faction-val {
+  color: #555;
+  font-size: 0.62rem;
+}
+.faction-adj {
+  display: flex;
+  gap: 2px;
+}
+.faction-adj button {
+  background: #111;
+  border: 1px solid #2a2a2a;
+  color: var(--text-dim);
+  padding: 1px 5px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1.4;
+  border-radius: 2px;
+}
+.faction-adj button:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+/* Standing label colours */
+.std-hostile    { color: var(--red); }
+.std-unfriendly { color: #ff7700; }
+.std-neutral    { color: var(--text-dim); }
+.std-friendly   { color: #88cc66; }
+.std-allied     { color: var(--green); }

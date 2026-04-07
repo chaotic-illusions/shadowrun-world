@@ -7,7 +7,11 @@ class ReputationBase(BaseModel):
     street_cred: int = 0
     notoriety: int = 0
     public_awareness: int = 0
+    heat: int = 0
     pa_updated_at: Optional[date] = None
+    heat_updated_at: Optional[date] = None
+    pa_stamped_tick: int = 0
+    heat_stamped_tick: int = 0
     notes: Optional[str] = None
 
 
@@ -19,7 +23,11 @@ class ReputationUpdate(BaseModel):
     street_cred: Optional[int] = None
     notoriety: Optional[int] = None
     public_awareness: Optional[int] = None
+    heat: Optional[int] = None
     pa_updated_at: Optional[date] = None
+    heat_updated_at: Optional[date] = None
+    pa_stamped_tick: Optional[int] = None
+    heat_stamped_tick: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -33,6 +41,8 @@ class OrgStandingBase(BaseModel):
     character_id: int
     organization_id: int
     standing: int = 0
+    standings_updated_at: Optional[date] = None
+    standings_stamped_tick: int = 0
     notes: Optional[str] = None
 
 
@@ -42,6 +52,8 @@ class OrgStandingCreate(OrgStandingBase):
 
 class OrgStandingUpdate(BaseModel):
     standing: Optional[int] = None
+    standings_updated_at: Optional[date] = None
+    standings_stamped_tick: Optional[int] = None
     notes: Optional[str] = None
 
 

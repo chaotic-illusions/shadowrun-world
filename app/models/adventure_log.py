@@ -30,8 +30,10 @@ class AdventureLog(Base):
     # GM-selected consequences being actively tracked going forward
     consequences_active = Column(JSON, default=list)
 
-    # Party-level run heat (0-10); computed by heat_calculator on log creation
+    # Party-level run heat (0-10): avg heat delta per participant
     heat = Column(Integer, default=0)
+    # Ticks this run advances the campaign clock (1 = normal session, 2-5 = downtime)
+    tick_count = Column(Integer, default=1)
     # Name of the hiring party / employer as described in the narrative
     employer = Column(String(200))
 
