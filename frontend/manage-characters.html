@@ -566,23 +566,39 @@ async function saveChar() {
       ? (document.getElementById('f-archetype-custom').value.trim() || null)
       : (npcSel || null);
   }
-  const payload = {
-    name,
-    title:           document.getElementById('f-title').value.trim() || null,
-    archetype:       archetypeVal,
-    race:            document.getElementById('f-race').value || 'Human',
-    gender:          document.getElementById('f-gender').value.trim() || null,
-    age:             parseInt(document.getElementById('f-age').value) || null,
-    nationality:     document.getElementById('f-nationality').value.trim() || null,
-    is_pc:           isPC,
-    is_active:       document.getElementById('f-is_active').checked,
-    organization_id: orgVal ? parseInt(orgVal) : null,
-    description:     document.getElementById('f-description').value.trim() || null,
-    background:      document.getElementById('f-background').value.trim() || null,
-    notes:           document.getElementById('f-notes').value.trim() || null,
-    contact_skills:  isPC ? [] : skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
-    connection:      isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
-  };
+  const payload = (editingId && !isAdminMode())
+    // Player editing their own PC — only send fields they're allowed to modify
+    ? {
+        name,
+        title:       document.getElementById('f-title').value.trim() || null,
+        archetype:   archetypeVal,
+        race:        document.getElementById('f-race').value || 'Human',
+        gender:      document.getElementById('f-gender').value.trim() || null,
+        age:         parseInt(document.getElementById('f-age').value) || null,
+        nationality: document.getElementById('f-nationality').value.trim() || null,
+        is_active:   document.getElementById('f-is_active').checked,
+        description: document.getElementById('f-description').value.trim() || null,
+        background:  document.getElementById('f-background').value.trim() || null,
+        notes:       document.getElementById('f-notes').value.trim() || null,
+      }
+    // Admin — full payload
+    : {
+        name,
+        title:           document.getElementById('f-title').value.trim() || null,
+        archetype:       archetypeVal,
+        race:            document.getElementById('f-race').value || 'Human',
+        gender:          document.getElementById('f-gender').value.trim() || null,
+        age:             parseInt(document.getElementById('f-age').value) || null,
+        nationality:     document.getElementById('f-nationality').value.trim() || null,
+        is_pc:           isPC,
+        is_active:       document.getElementById('f-is_active').checked,
+        organization_id: orgVal ? parseInt(orgVal) : null,
+        description:     document.getElementById('f-description').value.trim() || null,
+        background:      document.getElementById('f-background').value.trim() || null,
+        notes:           document.getElementById('f-notes').value.trim() || null,
+        contact_skills:  isPC ? [] : skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
+        connection:      isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
+      };
 
   try {
     const url    = editingId ? `${API}/characters/${editingId}` : `${API}/characters/`;
