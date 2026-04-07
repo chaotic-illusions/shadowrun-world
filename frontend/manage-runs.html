@@ -104,6 +104,21 @@
       <button class="btn" id="modeManual" onclick="setMode('manual')" style="border-color:#222;color:var(--text-dim)">Manual Entry</button>
     </div>
 
+    <!-- ── Runner selection (required for both modes) ─────── -->
+    <div style="margin-bottom:16px;padding:12px 14px;border:1px solid #1a2a1a;background:#040a04">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="section-head" style="margin:0;border:none;font-size:.72rem;color:var(--green)">Runners on this Job <span style="color:var(--text-dim)">*</span></div>
+        <span id="participant-warning" style="font-size:.62rem;color:var(--red);letter-spacing:1px;display:none">&triangleright; select at least one runner</span>
+      </div>
+      <div id="run-participants" style="display:flex;flex-wrap:wrap;gap:4px 18px;min-height:22px"></div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid #111;display:flex;align-items:center;gap:10px">
+        <label style="font-size:.62rem;letter-spacing:1px;color:var(--text-dim)">TICK OVERRIDE</label>
+        <input type="number" id="run-tick-count" min="1" max="5" value="1"
+          style="width:52px;padding:2px 6px;font-size:.78rem;background:#0a0a0a;border:1px solid #2a2a2a;color:var(--text)">
+        <span style="font-size:.62rem;color:var(--text-dim)">ticks to advance &nbsp;&nbsp;(1 = normal session &nbsp;·&nbsp; 2–5 = extended downtime)</span>
+      </div>
+    </div>
+
     <!-- ── AI Mode ─────────────────────────────────────────── -->
     <div id="aiMode">
       <div class="field" style="margin-bottom:14px">
@@ -222,11 +237,7 @@
       </div>
 
       <!-- Participants / Locations / Orgs -->
-      <div class="grid3" style="margin-bottom:14px">
-        <div class="field">
-          <label>Participants</label>
-          <div class="chk-list" id="m-participants" style="max-height:120px"></div>
-        </div>
+      <div class="grid2" style="margin-bottom:14px">
         <div class="field">
           <label>Locations</label>
           <div class="chk-list" id="m-locations" style="max-height:120px"></div>
@@ -294,6 +305,18 @@ function setMode(mode) {
   document.getElementById('modeAI').style.color           = mode === 'ai'     ? 'var(--green)' : 'var(--text-dim)';
   document.getElementById('modeManual').style.borderColor = mode === 'manual' ? 'var(--amber)' : '#222';
   document.getElementById('modeManual').style.color       = mode === 'manual' ? 'var(--amber)' : 'var(--text-dim)';
+}
+
+// ── Participant validation ─────────────────────────────────────
+function validateParticipants() {
+  const selected = getChecked('run-participants');
+  const ok = selected.length > 0;
+  document.getElementById('participant-warning').style.display = ok ? 'none' : '';
+  const parseBtn = document.getElementById('parseBtn');
+  if (parseBtn) parseBtn.disabled = !ok;
+  const manualBtn = document.querySelector('#manualMode .btn-submit');
+  if (manualBtn) manualBtn.disabled = !ok;
+  return ok;
 }
 
 // ── AI parse flow ─────────────────────────────────────────────
@@ -372,6 +395,10 @@ function cancelParse() {
 
 async function applyAndLog() {
   if (!parsedData) return;
+  if (!validateParticipants()) {
+    showAlert(document.getElementById('applyAlert'), '>> RUNNERS REQUIRED // Select at least one runner before logging.', true);
+    return;
+  }
 
   // Partition changes into applied vs excluded
   const allChanges = parsedData.proposed_changes || [];
@@ -414,12 +441,12 @@ async function applyAndLog() {
     result:           parsedData.result      || '',
     outcome:          parsedData.outcome     || null,
     employer:         parsedData.employer    || null,
-    heat:             parsedData.heat        || 0,
     outcome_tags:     parsedData.outcome_tags || [],
     gm_notes:         document.getElementById('aiNarrative').value.trim(),
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    participant_ids:  [],
+    tick_count:       Math.min(5, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
+    participant_ids:  getChecked('run-participants'),
     location_ids:     [],
     org_ids:          [],
   };
@@ -676,6 +703,10 @@ async function submitManual() {
     showAlert(document.getElementById('manualAlert'), 'Title, date, objective, and result are required.', true);
     return;
   }
+  if (!validateParticipants()) {
+    showAlert(document.getElementById('manualAlert'), '>> RUNNERS REQUIRED // Select at least one runner.', true);
+    return;
+  }
 
   const { applied: changesApplied, excluded: changesExcluded } = getManualChanges();
 
@@ -703,6 +734,8 @@ async function submitManual() {
 
   const payload = {
     title, session_date: date,
+    objective:        obj,
+    result:           res_,
     outcome:          document.getElementById('m-outcome').value || null,
     employer:         document.getElementById('m-employer').value.trim() || null,
     casualties:       document.getElementById('m-casualties').value.trim() || null,
@@ -710,7 +743,8 @@ async function submitManual() {
     outcome_tags:     outcomeTags,
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    participant_ids:  getChecked('m-participants'),
+    tick_count:       Math.min(5, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
+    participant_ids:  getChecked('run-participants'),
     location_ids:     getChecked('m-locations'),
     org_ids:          getChecked('m-orgs'),
   };
@@ -786,11 +820,40 @@ function buildRunDetail(run) {
       html += `<div style="color:var(--text-dim);font-size:.75rem;margin-top:4px">No world-state changes recorded.</div>`;
     }
     if (run.gm_notes) html += `<div class="run-detail-label">GM Notes</div><div style="color:var(--text-dim);font-size:.75rem;white-space:pre-wrap">${esc(run.gm_notes)}</div>`;
+
+    html += `
+      <div class="run-detail-label" style="margin-top:14px">Tick Override</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="rd-tick-${run.id}" min="1" max="5" value="${run.tick_count ?? 1}"
+          style="width:54px;padding:2px 6px;font-size:.8rem;background:#0a0a0a;border:1px solid #2a2a2a;color:var(--text)">
+        <button onclick="updateRunTick(${run.id})" class="btn"
+          style="font-size:.65rem;padding:2px 8px;border-color:#2a0044;color:var(--purple)">Save</button>
+        <span id="rd-tick-msg-${run.id}" style="font-size:.65rem;color:var(--text-dim)"></span>
+      </div>`;
   }
   return html;
 }
 
 const _detailCache = {};
+
+async function updateRunTick(id) {
+  const inp = document.getElementById(`rd-tick-${id}`);
+  const val = Math.min(5, Math.max(1, parseInt(inp.value) || 1));
+  inp.value = val;
+  try {
+    const res = await apiFetch(`${API}/runs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tick_count: val }),
+    });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).detail) || res.statusText);
+    const msg = document.getElementById(`rd-tick-msg-${id}`);
+    if (msg) { msg.textContent = '✓ saved'; setTimeout(() => { if (msg) msg.textContent = ''; }, 2000); }
+    delete _detailCache[id];  // force re-render next open
+  } catch(e) {
+    const msg = document.getElementById(`rd-tick-msg-${id}`);
+    if (msg) msg.textContent = `Error: ${e.message}`;
+  }
+}
 
 async function toggleRunDetail(id) {
   const detail = document.getElementById(`rd-${id}`);
@@ -862,8 +925,12 @@ async function loadWorldData() {
     allLocs  = await lr.json();
     allOrgs  = await or_.json();
 
-    document.getElementById('m-participants').innerHTML =
-      allChars.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}"><span>${esc(c.name)} <span style="color:var(--text-dim);font-size:.7rem">[${c.is_pc?'PC':'NPC'}]</span></span></label>`).join('');
+    // Shared PC runner section — active PCs only, required for both modes
+    const pcRunners = allChars.filter(c => c.is_pc && c.is_active !== false);
+    document.getElementById('run-participants').innerHTML =
+      pcRunners.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}" onchange="validateParticipants()"><span>${esc(c.name)}</span></label>`).join('');
+    validateParticipants();
+
     document.getElementById('m-locations').innerHTML =
       allLocs.map(l => `<label class="chk-item"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('');
     document.getElementById('m-orgs').innerHTML =

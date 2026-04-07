@@ -1,7 +1,9 @@
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_or_404, apply_update
+from app.models.adventure_log import AdventureLog
 from app.models.character import Character
 from app.models.reputation import Reputation, OrgStanding
 from app.schemas.reputation import (
@@ -10,6 +12,10 @@ from app.schemas.reputation import (
 )
 
 router = APIRouter()
+
+
+def _current_tick(db: Session) -> int:
+    return db.query(func.sum(AdventureLog.tick_count)).scalar() or 0
 
 
 # --- Reputation (Street Cred / Notoriety / Public Awareness) ---
@@ -41,6 +47,15 @@ def create_reputation(body: ReputationCreate, db: Session = Depends(get_db)):
 def update_reputation(rep_id: int, body: ReputationUpdate, db: Session = Depends(get_db)):
     rep = get_or_404(db, Reputation, rep_id)
     apply_update(db, rep, body)
+    # Auto-stamp timestamps + ticks when values change (if caller didn't provide one)
+    if body.public_awareness is not None and body.pa_updated_at is None:
+        rep.pa_updated_at = date.today()
+        rep.pa_stamped_tick = _current_tick(db)
+    if body.heat is not None and body.heat_updated_at is None:
+        rep.heat_updated_at = date.today()
+        rep.heat_stamped_tick = _current_tick(db)
+    db.commit()
+    db.refresh(rep)
     return rep
 
 
@@ -88,6 +103,7 @@ def update_org_standing(standing_id: int, body: OrgStandingUpdate, db: Session =
     apply_update(db, standing, body)
     if body.standing is not None:
         standing.standings_updated_at = date.today()
+        standing.standings_stamped_tick = _current_tick(db)
         db.commit()
         db.refresh(standing)
     return standing
@@ -113,6 +129,7 @@ def reset_all_pc_data(db: Session = Depends(get_db)):
             rep.public_awareness = 0
             rep.pa_updated_at = None
             rep.heat = 0
+            rep.heat_updated_at = None
         db.query(OrgStanding).filter(OrgStanding.character_id.in_(pc_ids)).delete(
             synchronize_session="fetch"
         )

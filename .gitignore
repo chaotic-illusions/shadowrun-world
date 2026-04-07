@@ -15,9 +15,9 @@ env/
 .env
 
 # Database
-data/*.db
-data/*.db-wal
-data/*.db-shm
+*.db
+*.db-wal
+*.db-shm
 
 # IDE
 .vscode/

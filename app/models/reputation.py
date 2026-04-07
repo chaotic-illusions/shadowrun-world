@@ -15,6 +15,9 @@ class Reputation(Base):
     public_awareness = Column(Integer, default=0)  # How well-known to the public
     pa_updated_at = Column(Date, nullable=True)    # When PA was last changed (for decay)
     heat = Column(Integer, default=0)              # Personal heat level (0–10)
+    heat_updated_at = Column(Date, nullable=True)  # When heat was last changed (for decay)
+    heat_stamped_tick = Column(Integer, default=0) # Campaign tick when heat was last changed
+    pa_stamped_tick = Column(Integer, default=0)   # Campaign tick when PA was last changed
 
     notes = Column(Text)
 
@@ -31,7 +34,8 @@ class OrgStanding(Base):
 
     # -10 (openly hunted) to +10 (trusted ally)
     standing = Column(Integer, default=0)
-    standings_updated_at = Column(Date, nullable=True)  # last manual/automatic change (for decay)
+    standings_updated_at = Column(Date, nullable=True)  # last manual/automatic change
+    standings_stamped_tick = Column(Integer, default=0) # Campaign tick when standing last changed
     notes = Column(Text)
 
     __table_args__ = (
