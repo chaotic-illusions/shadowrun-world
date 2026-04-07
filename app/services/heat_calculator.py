@@ -149,6 +149,9 @@ PA_HALF_LIVES: list[tuple[int, int, float]] = [
 RIPPLE_FACTOR = 0.4   # fraction of original delta applied to adjacent orgs
 RIPPLE_CAP    = 2     # maximum ripple magnitude in either direction
 
+# Inactive PCs who are "lying low" decay heat/PA/standings twice as fast.
+LYING_LOW_DECAY_ACCEL = 2.0
+
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -197,15 +200,16 @@ def _pa_half_life(pa: int) -> float:
     return 30.0
 
 
-def decay_pa(pa: int, days_ago: int) -> float:
+def decay_pa(pa: int, days_ago: int, accel: float = 1.0) -> float:
     """
     Return the decayed public awareness value (float) given the stored PA and
     days elapsed since it was last updated.  Only applies when pa_updated_at
     is known; if days_ago <= 0, the raw value is returned unchanged.
+    accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
     """
     if pa <= 0 or days_ago <= 0:
         return max(0.0, float(pa))
-    hl = _pa_half_life(pa)
+    hl = _pa_half_life(pa) / max(accel, 1.0)
     if math.isinf(hl):
         return float(pa)
     return pa * math.exp(-math.log(2) * days_ago / hl)
@@ -219,17 +223,68 @@ def _half_life(heat: int) -> float:
     return 30.0
 
 
-def decay_heat(heat: int, days_ago: int) -> float:
+def decay_heat(heat: int, days_ago: int, accel: float = 1.0) -> float:
     """
     Return the decayed heat value (float) given the original heat and days elapsed.
     Uses exponential decay: heat * exp(-ln(2) * days / half_life)
+    accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
     """
     if heat <= 0 or days_ago <= 0:
         return max(0.0, float(heat))
-    hl = _half_life(heat)
+    hl = _half_life(heat) / max(accel, 1.0)
     if math.isinf(hl):
         return float(heat)
     return heat * math.exp(-math.log(2) * days_ago / hl)
+
+
+# Half-lives in days for org standings decay.
+# Negative standings (hostility) fade faster; positive (loyalty) take 2× longer.
+# Magnitude of standing drives tier — both tables are keyed on abs(standing).
+STANDING_HALF_LIVES_NEG: list[tuple[int, int, float]] = [
+    (0,  0, float('inf')),  # neutral — never decays
+    (1,  3, 3.0),            # unfriendly/friendly low
+    (4,  6, 6.0),            # unfriendly/friendly high
+    (7,  9, 10.0),           # hostile/allied low-mid
+    (10, 10, 14.0),          # hostile/allied max
+]
+STANDING_HALF_LIVES_POS: list[tuple[int, int, float]] = [
+    (0,  0, float('inf')),
+    (1,  3, 6.0),
+    (4,  6, 12.0),
+    (7,  9, 20.0),
+    (10, 10, 28.0),
+]
+
+
+def _standing_half_life(standing: int) -> float:
+    """Return the decay half-life for a standing value (uses abs magnitude)."""
+    mag   = abs(standing)
+    table = STANDING_HALF_LIVES_POS if standing > 0 else STANDING_HALF_LIVES_NEG
+    for lo, hi, hl in table:
+        if lo <= mag <= hi:
+            return hl
+    return 14.0
+
+
+def decay_standing(standing: int, days_ago: int, accel: float = 1.0) -> float:
+    """
+    Return the effective standing (float) after exponential decay toward 0.
+
+    Positive standings decay toward 0 from above; negative from below.
+    Neutral (0) is never modified.  If no timestamp is available pass
+    days_ago=0 to skip decay.
+    accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
+    """
+    if standing == 0 or days_ago <= 0:
+        return float(standing)
+    hl = _standing_half_life(standing) / max(accel, 1.0)
+    if math.isinf(hl):
+        return float(standing)
+    decayed = standing * math.exp(-math.log(2) * days_ago / hl)
+    # preserve sign; clamp so magnitude never exceeds original
+    if standing > 0:
+        return max(0.0, decayed)
+    return min(0.0, decayed)
 
 
 def compute_heat(

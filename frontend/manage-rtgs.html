@@ -173,7 +173,7 @@ function renderTable(data) {
             <td style="color:var(--text-dim)">${esc(r.continent||'—')}</td>
             <td>${r.rtg_security_rating ? `<span class="ltg-rating ${ratingClass(r.rtg_security_rating)}">${esc(r.rtg_security_rating)}</span>` : '<span style="color:#333">—</span>'}</td>
             <td style="color:var(--text-dim);font-size:.65rem;letter-spacing:1px">${r.canonical ? 'CANONICAL' : 'CAMPAIGN'}</td>
-            <td class="td-act">${isAdmin() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${r.id})">Edit</button>` : ''}</td>
+            <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${r.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -185,7 +185,13 @@ function applyFilter() {
   const filtered = allRTGs.filter(r =>
     (!q    || r.code.toLowerCase().includes(q) || (r.region||'').toLowerCase().includes(q) || (r.political_entity||'').toLowerCase().includes(q)) &&
     (!cont || r.continent === cont)
-  );
+  ).sort((a, b) => {
+    const ca = (a.continent||'').localeCompare(b.continent||'');
+    if (ca !== 0) return ca;
+    const pa = (a.political_entity||'').localeCompare(b.political_entity||'');
+    if (pa !== 0) return pa;
+    return (a.region||'').localeCompare(b.region||'');
+  });
   renderTable(filtered);
 }
 

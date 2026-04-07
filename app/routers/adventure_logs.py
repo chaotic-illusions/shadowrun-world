@@ -3,6 +3,7 @@ from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from app.dependencies import get_db
 from app.models.adventure_log import AdventureLog
@@ -15,8 +16,9 @@ from app.schemas.adventure_log import (
 )
 from app.services.consequence_engine import suggest
 from app.services.heat_calculator import (
-    compute_heat, compute_ripple, heat_label,
-    decay_pa, pc_rep_label, team_rep_label, pa_label,
+    compute_heat, compute_ripple, heat_label, standing_label,
+    decay_pa, decay_standing, decay_heat, pc_rep_label, team_rep_label, pa_label,
+    LYING_LOW_DECAY_ACCEL,
 )
 
 
@@ -26,7 +28,7 @@ class NarrativeParseRequest(BaseModel):
 
 
 class ChangeItem(BaseModel):
-    type: str                          # nuyen | street_cred | notoriety | public_awareness | org_standing
+    type: str                          # street_cred | notoriety | public_awareness | heat | org_standing
     character_id: int
     character_name: Optional[str] = None
     delta: int
@@ -71,11 +73,10 @@ def party_stats(db: Session = Depends(get_db)):
     """
     today = date.today()
 
-    # ── Reputation & Heat: active PCs only ───────────────────────────────
-    active_pcs = db.query(Character).filter(
-        Character.is_pc == True, Character.is_active == True
-    ).all()
-    pc_ids = [c.id for c in active_pcs]
+    # ── All PCs: active ones for party stats, inactive for lying-low decay ──
+    all_pcs = db.query(Character).filter(Character.is_pc == True).all()
+    active_pcs = [c for c in all_pcs if c.is_active]
+    pc_ids = [c.id for c in all_pcs]
 
     rep_scores = []
     pa_scores  = []
@@ -84,27 +85,71 @@ def party_stats(db: Session = Depends(get_db)):
     if pc_ids:
         reps = db.query(Reputation).filter(Reputation.character_id.in_(pc_ids)).all()
         rep_by_char = {r.character_id: r for r in reps}
-        for pc in active_pcs:
+        for pc in all_pcs:
+            accel = LYING_LOW_DECAY_ACCEL if not pc.is_active else 1.0
             r = rep_by_char.get(pc.id)
             sc   = (r.street_cred       if r else 0) or 0
             not_ = (r.notoriety         if r else 0) or 0
             pa_raw = (r.public_awareness if r else 0) or 0
+            heat_raw = (r.heat or 0) if r else 0
             # Decay PA if we have a timestamp for when it was last set
             if r and r.pa_updated_at:
                 days_since = (today - r.pa_updated_at).days
-                pa_eff = max(0, round(decay_pa(pa_raw, days_since)))
+                pa_eff = max(0, round(decay_pa(pa_raw, days_since, accel)))
             else:
                 pa_eff = pa_raw  # no timestamp → no decay
+            # Decay heat — use pa_updated_at as proxy (both updated together)
+            if r and r.pa_updated_at:
+                days_since = (today - r.pa_updated_at).days
+                heat_eff = max(0, round(decay_heat(heat_raw, days_since, accel)))
+            else:
+                heat_eff = heat_raw
             net_rep = max(0, min(40, 20 + sc - not_))
-            rep_scores.append(net_rep)
-            pa_scores.append(pa_eff)
-            heat_values.append((r.heat or 0) if r else 0)
+            # Only active PCs count toward party aggregates
+            if pc.is_active:
+                rep_scores.append(net_rep)
+                pa_scores.append(pa_eff)
+                heat_values.append(heat_eff)
             char_rep_map[pc.id] = {
                 "net_rep":      net_rep,
                 "net_rep_tier": pc_rep_label(net_rep),
                 "pa":           pa_eff,
                 "pa_tier":      pa_label(pa_eff),
+                "heat":         heat_eff,
+                "heat_label":   heat_label(heat_eff),
+                "is_active":    pc.is_active,
             }
+
+    # ── Fetch org standings for all PCs (active + inactive) ─────────────────────
+    # Build a quick is_active lookup for per-PC accel
+    pc_active_map = {c.id: c.is_active for c in all_pcs}
+    all_standings = db.query(OrgStanding).filter(OrgStanding.character_id.in_(pc_ids)).all() if pc_ids else []
+    org_ids_needed = {s.organization_id for s in all_standings}
+    org_name_map: dict[int, str] = {}
+    if org_ids_needed:
+        orgs_q = db.query(Organization).filter(Organization.id.in_(org_ids_needed)).all()
+        org_name_map = {o.id: o.name for o in orgs_q}
+    standings_by_char: dict[int, list] = {}
+    for s in all_standings:
+        raw = s.standing or 0
+        s_accel = 1.0 if pc_active_map.get(s.character_id, True) else LYING_LOW_DECAY_ACCEL
+        if s.standings_updated_at:
+            days_since = (today - s.standings_updated_at).days
+            eff = round(decay_standing(raw, days_since, s_accel))
+        else:
+            eff = raw  # no timestamp → no decay
+        standings_by_char.setdefault(s.character_id, []).append({
+            "id":       s.id,
+            "org_id":   s.organization_id,
+            "org_name": org_name_map.get(s.organization_id, f"Org #{s.organization_id}"),
+            "standing": eff,
+            "label":    standing_label(eff),
+        })
+    for pc_id in char_rep_map:
+        char_rep_map[pc_id]["standings"] = sorted(
+            standings_by_char.get(pc_id, []),
+            key=lambda x: x["org_name"].lower(),  # alphabetical — stable order in editor
+        )
 
     # Party heat = highest individual heat among active runners
     party_heat = max(heat_values) if heat_values else 0
@@ -138,23 +183,20 @@ def list_logs(
 def create_log(body: AdventureLogCreate, db: Session = Depends(get_db)):
     data = body.model_dump(exclude={"participant_ids", "location_ids", "org_ids"})
 
+    # Auto-assign run number (max existing + 1)
+    max_run = db.query(func.max(AdventureLog.run_number)).scalar() or 0
+    data["run_number"] = max_run + 1
+
     # Auto-generate consequence suggestions from tags
     if data.get("outcome_tags"):
         data["consequences_suggested"] = suggest(data["outcome_tags"])
 
-    # Compute heat if not already set (e.g. manual entry)
-    if not data.get("heat"):
-        employer_name = (data.get("employer") or "").strip().lower()
-        employer_org  = db.query(Organization).filter(
-            Organization.is_active == True
-        ).all()
-        employer_org  = next((o for o in employer_org if o.name.lower() == employer_name), None)
-        data["heat"] = compute_heat(
-            outcome           = data.get("outcome"),
-            outcome_tags      = data.get("outcome_tags"),
-            employer_tier     = employer_org.tier     if employer_org else None,
-            employer_org_type = employer_org.org_type if employer_org else None,
-        )
+    # Heat = average of PC heat changes applied on this run (falls back to 0)
+    heat_deltas = [
+        ch["delta"] for ch in (data.get("changes_applied") or [])
+        if ch.get("type") == "heat" and isinstance(ch.get("delta"), (int, float))
+    ]
+    data["heat"] = round(sum(heat_deltas) / len(heat_deltas)) if heat_deltas else 0
 
     log = AdventureLog(**data)
     db.add(log)
@@ -180,7 +222,7 @@ def parse_run_narrative(body: NarrativeParseRequest, db: Session = Depends(get_d
     standings = db.query(OrgStanding).all()
 
     world_context = {
-        "characters":    [{"id": c.id, "name": c.name, "is_pc": c.is_pc, "nuyen": c.nuyen or 0} for c in chars],
+        "characters":    [{"id": c.id, "name": c.name, "is_pc": c.is_pc} for c in chars],
         "organizations": [{"id": o.id, "name": o.name, "org_type": o.org_type} for o in orgs],
         "reputation":    [{"character_id": r.character_id, "street_cred": r.street_cred,
                            "notoriety": r.notoriety, "public_awareness": r.public_awareness} for r in reps],
@@ -237,14 +279,7 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
 
     for ch in body.changes:
         try:
-            if ch.type == "nuyen":
-                char = db.query(Character).filter(Character.id == ch.character_id).first()
-                if not char:
-                    errors.append(f"Character {ch.character_id} not found"); continue
-                char.nuyen = max(0, (char.nuyen or 0) + ch.delta)
-                applied.append({"desc": f"{ch.character_name or char.name}: nuyen {ch.delta:+,} → ¥{char.nuyen:,}", "reason": ch.reason})
-
-            elif ch.type in ("street_cred", "notoriety", "public_awareness"):
+            if ch.type in ("street_cred", "notoriety", "public_awareness"):
                 rep = db.query(Reputation).filter(Reputation.character_id == ch.character_id).first()
                 if not rep:
                     errors.append(f"No reputation record for character {ch.character_id}"); continue
@@ -253,6 +288,13 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                 if ch.type == "public_awareness":
                     rep.pa_updated_at = date.today()
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
+
+            elif ch.type == "heat":
+                rep = db.query(Reputation).filter(Reputation.character_id == ch.character_id).first()
+                if not rep:
+                    errors.append(f"No reputation record for character {ch.character_id}"); continue
+                rep.heat = min(10, max(0, (rep.heat or 0) + ch.delta))
+                applied.append({"desc": f"{ch.character_name or ch.character_id}: heat {ch.delta:+} → {rep.heat}", "reason": ch.reason})
 
             elif ch.type == "org_standing":
                 if not ch.org_id:
@@ -271,6 +313,7 @@ def apply_world_changes(body: ApplyChangesRequest, db: Session = Depends(get_db)
                         notes=ch.reason,
                     )
                     db.add(standing)
+                standing.standings_updated_at = date.today()
                 applied.append({"desc": f"{ch.character_name or ch.character_id} ↔ {ch.org_name or ch.org_id}: standing {ch.delta:+}", "reason": ch.reason})
 
             else:

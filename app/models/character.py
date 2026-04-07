@@ -21,19 +21,6 @@ class Character(Base):
     background = Column(Text)
     show_background = Column(Boolean, default=False)  # toggle: reveal background to players
 
-    # SR2 core attributes stored as dict: body, quickness, strength, charisma, intelligence,
-    # willpower, essence, magic (if awakened), reaction (derived), initiative_dice
-    attributes = Column(JSON, default=dict)
-
-    # List of {name, rating, specialization, category} dicts
-    skills = Column(JSON, default=list)
-
-    # List of {name, type, essence_cost, rating, notes} dicts
-    augmentations = Column(JSON, default=list)
-
-    # List of {name, category, rating, quantity, notes} dicts
-    gear = Column(JSON, default=list)
-
     # Services/skills this NPC can provide as a contact (e.g. "Equipment Acquisition")
     contact_skills = Column(JSON, default=list)
 
@@ -44,7 +31,6 @@ class Character(Base):
 
     karma_total = Column(Integer, default=0)
     karma_current = Column(Integer, default=0)
-    nuyen = Column(Integer, default=0)
 
     is_active = Column(Boolean, default=True)
     notes = Column(Text)
