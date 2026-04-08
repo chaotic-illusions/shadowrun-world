@@ -1,30 +1,37 @@
-from collections.abc import Generator
-from typing import Type, TypeVar
+from collections.abc import AsyncGenerator
+from typing import TypeVar
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.session import async_session
 
 ModelT = TypeVar("ModelT")
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session() as session:
+        yield session
 
 
-def get_or_404(db: Session, model: Type[ModelT], obj_id: int) -> ModelT:
-    obj = db.query(model).filter(model.id == obj_id).first()
+async def get_or_404(db: AsyncSession, model: type[ModelT], obj_id: int) -> ModelT:
+    result = await db.execute(select(model).where(model.id == obj_id))
+    obj = result.scalars().first()
     if not obj:
         raise HTTPException(status_code=404, detail=f"{model.__name__} not found")
     return obj
 
 
-def apply_update(db: Session, obj, body, exclude: set | None = None) -> None:
-    """Apply a Pydantic partial-update body to an ORM object, commit, and refresh."""
+async def apply_update(
+    db: AsyncSession, obj, body, exclude: set | None = None, *, commit: bool = True
+) -> None:
+    """Apply a Pydantic partial-update body to an ORM object.
+
+    When commit=False the caller is responsible for committing the session
+    (useful when post-processing is needed before the transaction closes).
+    """
     for field, value in body.model_dump(exclude_unset=True, exclude=exclude or set()).items():
-        setattr(obj, field, value)
-    db.commit()
-    db.refresh(obj)
+        if hasattr(obj, field):
+            setattr(obj, field, value)
+    if commit:
+        await db.commit()
+        await db.refresh(obj)

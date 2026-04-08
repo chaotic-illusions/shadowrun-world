@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -18,17 +18,18 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html" class="active">RTGs</a>
     <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Matrix Topology <em style="font-style:normal;color:var(--text-dim)">//</em> Regional Telecommunications Grids</div>
+  <div class="page-title">&gt;&gt; Matrix Topology <em class="sep">//</em> Regional Telecommunications Grids</div>
   <div class="page-sub">NODE REGISTRY — CANONICAL &amp; CAMPAIGN ENTRIES</div>
 
   <div id="alert" class="alert"></div>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div style="display:flex;gap:10px;align-items:center">
+  <div class="flex-bar mb-16">
+    <div class="flex-row-10">
       <input type="text" id="filterInput" placeholder="Filter by code, region, or political entity..." style="width:360px" oninput="applyFilter()">
       <select id="filterContinent" onchange="applyFilter()" style="width:160px">
         <option value="">All Continents</option>
@@ -51,10 +52,10 @@
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>RTG Code *</label>
-          <input type="text" id="f-code" placeholder="NA/UCAS-SEA">
+          <input type="text" id="f-code" placeholder="NA/UCAS-SEA" maxlength="50">
         </div>
         <div class="field">
           <label>Security Rating</label>
@@ -81,24 +82,24 @@
           </select>
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Region</label>
-          <input type="text" id="f-region" placeholder="UCAS Pacific Northwest">
+          <input type="text" id="f-region" placeholder="UCAS Pacific Northwest" maxlength="200">
         </div>
         <div class="field">
           <label>Political Entity</label>
-          <input type="text" id="f-political_entity" placeholder="UCAS">
+          <input type="text" id="f-political_entity" placeholder="UCAS" maxlength="200">
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Continent</label>
-          <input type="text" id="f-continent" placeholder="North America">
+          <input type="text" id="f-continent" placeholder="North America" maxlength="100">
         </div>
         <div class="field">
           <label>Canonical</label>
-          <div class="toggle-wrap" style="padding-top:6px">
+          <div class="toggle-wrap pt-6">
             <label class="toggle">
               <input type="checkbox" id="f-canonical" checked>
               <span class="tog-sl"></span>
@@ -113,35 +114,21 @@
       </div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" style="flex:1" onclick="saveRTG()">&gt;&gt; Save Entry</button>
+      <button class="btn btn-green flex-1" onclick="saveRTG()">&gt;&gt; Save Entry</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteRTG()">&gt;&gt; Delete</button>
-      <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
 const API = '';
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let allRTGs = [];
 let editingId = null;
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 
 function ratingClass(r) {
   const c = (r||'').split('-')[0].toLowerCase();
   return {blue:'r-blue',green:'r-green',orange:'r-orange',red:'r-red',black:'r-black'}[c] || 'r-green';
-}
-
-function showAlert(el, msg, isErr) {
-  el.textContent = msg;
-  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
 }
 
 // ── Render table ──────────────────────────────────────────────
@@ -169,8 +156,8 @@ function renderTable(data) {
           <tr>
             <td style="color:var(--green-dim);letter-spacing:1px">${esc(r.code)}</td>
             <td>${esc(r.region)}</td>
-            <td style="color:var(--text-dim)">${esc(r.political_entity||'—')}</td>
-            <td style="color:var(--text-dim)">${esc(r.continent||'—')}</td>
+            <td class="text-dim">${esc(r.political_entity||'—')}</td>
+            <td class="text-dim">${esc(r.continent||'—')}</td>
             <td>${r.rtg_security_rating ? `<span class="ltg-rating ${ratingClass(r.rtg_security_rating)}">${esc(r.rtg_security_rating)}</span>` : '<span style="color:#333">—</span>'}</td>
             <td style="color:var(--text-dim);font-size:.65rem;letter-spacing:1px">${r.canonical ? 'CANONICAL' : 'CAMPAIGN'}</td>
             <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${r.id})">Edit</button>` : ''}</td>
@@ -244,10 +231,7 @@ async function saveRTG() {
     const url    = editingId ? `${API}/rtgs/${editingId}` : `${API}/rtgs/`;
     const method = editingId ? 'PATCH' : 'POST';
     const res = await apiFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({detail: res.statusText}));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!res.ok) await apiThrow(res);
     closeModal();
     showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // RTG "${code}" saved.`, false);
     await loadRTGs();
@@ -262,7 +246,7 @@ async function deleteRTG() {
   if (!confirm(`DELETE RTG "${code}"? This cannot be undone.`)) return;
   try {
     const res = await apiFetch(`${API}/rtgs/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    if (!res.ok && res.status !== 204) await apiThrow(res);
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // RTG "${code}" deleted.`, false);
     await loadRTGs();
@@ -275,7 +259,7 @@ async function deleteRTG() {
 async function loadRTGs() {
   try {
     const res = await apiFetch(`${API}/rtgs/`);
-    if (!res.ok) throw new Error(res.statusText);
+    if (!res.ok) await apiThrow(res);
     allRTGs = await res.json();
 
     // Build continent filter options

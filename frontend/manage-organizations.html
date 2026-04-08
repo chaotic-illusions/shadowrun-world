@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -18,17 +18,18 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Organization Registry <em style="font-style:normal;color:var(--text-dim)">//</em> All Known Factions</div>
+  <div class="page-title">&gt;&gt; Organization Registry <em class="sep">//</em> All Known Factions</div>
   <div class="page-sub">CLASSIFICATION: RESTRICTED &nbsp;|&nbsp; MEGACORPS, SYNDICATES, GANGS &amp; MORE</div>
 
   <div id="mainAlert" class="alert"></div>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div style="display:flex;gap:10px;align-items:center">
+  <div class="flex-bar mb-16">
+    <div class="flex-row-10">
       <input type="text" id="filterInput" placeholder="Filter by name or HQ..." style="width:240px" oninput="applyFilter()">
       <select id="filterType" onchange="applyFilter()" style="width:180px">
         <option value="">All Types</option>
@@ -61,11 +62,11 @@
       <div id="alert" class="alert"></div>
 
       <!-- ── CORE IDENTITY ── -->
-      <div class="section-head" style="margin-bottom:12px">// Core Identity</div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="section-head mb-12">// Core Identity</div>
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Designation *</label>
-          <input type="text" id="name" placeholder="Organization name..." required>
+          <input type="text" id="name" placeholder="Organization name..." required maxlength="200">
         </div>
         <div class="field">
           <label>Classification</label>
@@ -93,11 +94,11 @@
             </optgroup>
           </select>
           <div id="org_type-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="org_type-custom" placeholder="Enter classification..." style="width:100%">
+            <input type="text" id="org_type-custom" placeholder="Enter classification..." maxlength="100">
           </div>
         </div>
       </div>
-      <div class="grid3" style="margin-bottom:14px">
+      <div class="grid3 mb-14">
         <div class="field">
           <label>Threat Tier</label>
           <div class="tier-row" id="tierRow">
@@ -113,7 +114,7 @@
         </div>
         <div class="field">
           <label>Headquarters</label>
-          <input type="text" id="headquarters" placeholder="City, Region...">
+          <input type="text" id="headquarters" placeholder="City, Region..." maxlength="200">
         </div>
         <div class="field">
           <label>Operational Status</label>
@@ -122,27 +123,27 @@
               <input type="checkbox" id="is_active" checked onchange="updateStatus()">
               <span class="tog-sl"></span>
             </label>
-            <span class="tog-label" id="activeStatus" style="color:var(--green)">ACTIVE</span>
+            <span class="tog-label" id="activeStatus" class="text-green">ACTIVE</span>
           </div>
         </div>
       </div>
 
       <!-- ── PROFILE ── -->
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">// Intel Profile</div>
-      <div class="field" style="margin-bottom:14px">
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// Intel Profile</div>
+      <div class="field mb-14">
         <label>Description / Known Intel</label>
         <textarea id="description" rows="5" placeholder="What do the runners know about this org?"></textarea>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Field Notes (GM Only)</label>
         <textarea id="notes" rows="3" placeholder="Hidden agendas, secret connections, plot hooks..."></textarea>
       </div>
 
       <!-- ── COMMAND STRUCTURE ── -->
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">// Command Structure</div>
-      <div style="margin-bottom:8px">
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// Command Structure</div>
+      <div class="mb-8">
         <button type="button" class="btn btn-amber" onclick="addLeader()">+ Add Executive</button>
       </div>
       <div class="lead-wrap">
@@ -157,27 +158,27 @@
       </div>
 
       <!-- ── POLITICAL RELATIONSHIPS ── -->
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">// Political Relationships</div>
-      <div class="grid2" style="margin-bottom:14px">
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// Political Relationships</div>
+      <div class="grid2 mb-14">
         <div class="field">
-          <label style="display:flex;justify-content:space-between"><span>Allied Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label>
+          <label class="flex-between"><span>Allied Organizations</span><span class="dim-label-sm">REVEAL</span></label>
           <div class="chk-list" id="allyList"><div class="loading" style="padding:16px">Loading</div></div>
         </div>
         <div class="field">
-          <label style="display:flex;justify-content:space-between"><span>Hostile Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label>
+          <label class="flex-between"><span>Hostile Organizations</span><span class="dim-label-sm">REVEAL</span></label>
           <div class="chk-list" id="enemyList"><div class="loading" style="padding:16px">Loading</div></div>
         </div>
       </div>
 
       <!-- ── LTG NETWORK ── -->
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">// RTG/LTG Network Directory</div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// RTG/LTG Network Directory</div>
 
       <div style="margin-bottom:18px">
         <div style="color:var(--cyan);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; TELECOM</div>
         <hr class="rule" style="margin:4px 0 10px">
-        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button></div>
+        <div class="mb-8"><button type="button" class="btn btn-amber" onclick="addTelecom()">+ Add Telecom</button></div>
         <div class="lead-wrap">
           <table class="lead-table" id="telecomTable">
             <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th style="text-align:center;font-size:.6rem">Reveal</th><th></th></tr></thead>
@@ -191,7 +192,7 @@
       <div>
         <div style="color:var(--amber);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; MATRIX HOSTS</div>
         <hr class="rule" style="margin:4px 0 10px">
-        <div style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button></div>
+        <div class="mb-8"><button type="button" class="btn btn-amber" onclick="addHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table" id="hostTable">
             <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th style="text-align:center;font-size:.6rem">Reveal</th><th></th></tr></thead>
@@ -203,20 +204,15 @@
       </div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" onclick="submitForm()" id="submitBtn" style="flex:1;justify-content:center">&gt;&gt; Submit to Database</button>
+      <button class="btn btn-green" onclick="submitForm()" id="submitBtn" class="flex-1 flex-center">&gt;&gt; Submit to Database</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
-      <button class="btn" onclick="closeModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn" onclick="closeModal()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
 const API = '';
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let tierVal = 1;
 let leaderCount = 0;
 let telecomCount = 0;
@@ -254,10 +250,6 @@ function fmtType(s) {
   return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 const PREDEFINED_ORG_TYPES = [
   'megacorp','corporation','security contractor',
   'government','nation-state',
@@ -271,8 +263,8 @@ function updateModalBadge(orgType, tier) {
   if (!orgType && !tier) { badge.innerHTML = ''; return; }
   const typeLabel = (orgType || 'UNKNOWN').toUpperCase();
   badge.innerHTML = `
-    <span class="cc-race-prof" style="color:var(--amber)">${typeLabel}</span>
-    <span style="color:var(--text-dim);font-size:.75rem">&#183;</span>
+    <span class="cc-race-prof text-amber">${typeLabel}</span>
+    <span class="dim-meta">&#183;</span>
     <span style="color:#6699cc;font-size:0.65rem;letter-spacing:1px;padding:2px 7px;border:1px solid #1a2a44">TIER ${tier} // ${(TIER_NAMES[tier]||'').toUpperCase()}</span>
     `;
 }
@@ -354,7 +346,7 @@ function addTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
     <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','telecomBody','emptyTelecom',5)">✕</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => formatTelecomInput(numInput));
@@ -399,7 +391,7 @@ function addHost(data) {
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
     <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','hostBody','emptyHost',8)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => enforceIdCode(idInput));
@@ -453,13 +445,6 @@ function getChecked(containerId) {
 
 function getRevealed(containerId) {
   return Array.from(document.querySelectorAll(`#${containerId} input.rev-chk:checked`)).map(cb => parseInt(cb.value));
-}
-
-// ── Alert ─────────────────────────────────────────────────────
-function showAlert(el, msg, isError) {
-  el.textContent = msg;
-  el.className = `alert show ${isError ? 'alert-err' : 'alert-ok'}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // ── Modal open/close ──────────────────────────────────────────
@@ -600,7 +585,7 @@ function applyFilter() {
           <tr>
             <td style="color:var(--text-bright)">${esc(o.name)}</td>
             <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '—')}</td>
-            <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span style="color:var(--text-dim)">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
+            <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span class="text-dim">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '—')}</td>
             ${adminMode ? `<td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>` : ''}
             <td class="td-act">
@@ -671,7 +656,7 @@ async function deleteOrg() {
   if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
   try {
     const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    if (!res.ok && res.status !== 204) await apiThrow(res);
     closeModal();
     await loadOrgs();
     showAlert(document.getElementById('mainAlert'), `>> ENTRY PURGED // "${name}" deleted.`, false);
@@ -719,10 +704,7 @@ async function submitForm() {
     const res = await apiFetch(url, {
       method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!res.ok) await apiThrow(res);
     const saved = await res.json();
     const verb = editingId ? 'UPDATED' : 'REGISTERED';
     closeModal();

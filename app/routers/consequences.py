@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.data.consequence_tags import get_all_tags, get_tag_info, SINGLE_TAG_RULES
+from app.data.consequence_tags import get_tag_info, SINGLE_TAG_RULES
 from app.services.consequence_engine import suggest
 
 router = APIRouter()

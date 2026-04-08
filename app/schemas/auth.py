@@ -27,8 +27,15 @@ class UserTokenCreate(BaseModel):
 
 class UserTokenRead(BaseModel):
     id: int
-    token: str
     label: Optional[str] = None
     is_admin: bool
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+class UserTokenCreateResponse(BaseModel):
+    id: int
+    token: str
+    label: Optional[str] = None
+    is_admin: bool
+    created_at: datetime

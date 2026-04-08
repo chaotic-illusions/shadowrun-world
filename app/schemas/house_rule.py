@@ -1,12 +1,12 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HouseRuleBase(BaseModel):
-    title: str
-    category: Optional[str] = None
-    source_reference: Optional[str] = None
+    title: str = Field(max_length=300)
+    category: Optional[str] = Field(default=None, max_length=100)
+    source_reference: Optional[str] = Field(default=None, max_length=200)
     original_rule: Optional[str] = None
     modification: str
     reason: Optional[str] = None
@@ -17,9 +17,9 @@ HouseRuleCreate = HouseRuleBase
 
 
 class HouseRuleUpdate(BaseModel):
-    title: Optional[str] = None
-    category: Optional[str] = None
-    source_reference: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=300)
+    category: Optional[str] = Field(default=None, max_length=100)
+    source_reference: Optional[str] = Field(default=None, max_length=200)
     original_rule: Optional[str] = None
     modification: Optional[str] = None
     reason: Optional[str] = None

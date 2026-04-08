@@ -1,17 +1,17 @@
 from typing import Optional
 from datetime import date
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReputationBase(BaseModel):
-    street_cred: int = 0
-    notoriety: int = 0
-    public_awareness: int = 0
-    heat: int = 0
+    street_cred: int = Field(default=0, ge=0)
+    notoriety: int = Field(default=0, ge=0)
+    public_awareness: int = Field(default=0, ge=0)
+    heat: int = Field(default=0, ge=0, le=10)
     pa_updated_at: Optional[date] = None
     heat_updated_at: Optional[date] = None
-    pa_stamped_tick: int = 0
-    heat_stamped_tick: int = 0
+    pa_stamped_tick: int = Field(default=0, ge=0)
+    heat_stamped_tick: int = Field(default=0, ge=0)
     notes: Optional[str] = None
 
 
@@ -20,14 +20,14 @@ class ReputationCreate(ReputationBase):
 
 
 class ReputationUpdate(BaseModel):
-    street_cred: Optional[int] = None
-    notoriety: Optional[int] = None
-    public_awareness: Optional[int] = None
-    heat: Optional[int] = None
+    street_cred: Optional[int] = Field(default=None, ge=0)
+    notoriety: Optional[int] = Field(default=None, ge=0)
+    public_awareness: Optional[int] = Field(default=None, ge=0)
+    heat: Optional[int] = Field(default=None, ge=0, le=10)
     pa_updated_at: Optional[date] = None
     heat_updated_at: Optional[date] = None
-    pa_stamped_tick: Optional[int] = None
-    heat_stamped_tick: Optional[int] = None
+    pa_stamped_tick: Optional[int] = Field(default=None, ge=0)
+    heat_stamped_tick: Optional[int] = Field(default=None, ge=0)
     notes: Optional[str] = None
 
 

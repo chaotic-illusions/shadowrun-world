@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -18,17 +18,18 @@
     <a href="manage-locations.html" class="active">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Location Registry <em style="font-style:normal;color:var(--text-dim)">//</em> Known Sites &amp; Territories</div>
+  <div class="page-title">&gt;&gt; Location Registry <em class="sep">//</em> Known Sites &amp; Territories</div>
   <div class="page-sub">GEOGRAPHICAL INTEL — SEATTLE METROPLEX &amp; SURROUNDING REGIONS</div>
 
   <div id="alert" class="alert"></div>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div style="display:flex;gap:10px;align-items:center">
+  <div class="flex-bar mb-16">
+    <div class="flex-row-10">
       <input type="text" id="filterInput" placeholder="Filter by name, description, or district..." style="width:340px" oninput="applyFilter()">
       <select id="filterType" onchange="applyFilter()" style="width:160px">
         <option value="">All Types</option>
@@ -52,10 +53,10 @@
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
 
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Name *</label>
-          <input type="text" id="f-name" placeholder="Aztechnology Pyramid...">
+          <input type="text" id="f-name" placeholder="Aztechnology Pyramid..." maxlength="200">
         </div>
         <div class="field">
           <label>Type</label>
@@ -121,21 +122,21 @@
             </optgroup>
           </select>
           <div id="f-location_type-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="f-location_type-custom" placeholder="Enter location type..." style="width:100%">
+            <input type="text" id="f-location_type-custom" placeholder="Enter location type..." maxlength="100">
           </div>
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>City</label>
-          <input type="text" id="f-city" placeholder="Seattle">
+          <input type="text" id="f-city" placeholder="Seattle" maxlength="100">
         </div>
         <div class="field">
           <label>District</label>
-          <input type="text" id="f-district" placeholder="Bellevue, Redmond...">
+          <input type="text" id="f-district" placeholder="Bellevue, Redmond..." maxlength="100">
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Security Level</label>
           <select id="f-security_level">
@@ -156,7 +157,7 @@
           </select>
         </div>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Description / Known Intel</label>
         <textarea id="f-description" rows="4" placeholder="What the runners know..."></textarea>
       </div>
@@ -166,20 +167,15 @@
       </div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" style="flex:1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
+      <button class="btn btn-green flex-1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
-      <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <script>
 const API = '';
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let allLocs = [];
 let allOrgs = [];
 let editingId = null;
@@ -202,15 +198,6 @@ function onLocTypeChange() {
 
 function fmtType(s) {
   return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function showAlert(el, msg, isErr) {
-  el.textContent = msg;
-  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
 }
 
 // ── Render table ──────────────────────────────────────────────
@@ -238,9 +225,9 @@ function renderTable(data) {
           <tr>
             <td style="color:var(--cyan)">${esc(l.name)}</td>
             <td style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;text-transform:uppercase">${esc(l.location_type||'—')}</td>
-            <td style="color:var(--text-dim)">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
+            <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
             <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'—')}</td>
-            <td style="color:var(--text-dim);font-size:.75rem">${esc(orgMap[l.controlling_org_id]||'—')}</td>
+            <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'—')}</td>
             <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
@@ -325,10 +312,7 @@ async function saveLoc() {
     const url    = editingId ? `${API}/locations/${editingId}` : `${API}/locations/`;
     const method = editingId ? 'PATCH' : 'POST';
     const res = await apiFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({detail: res.statusText}));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!res.ok) await apiThrow(res);
     closeModal();
     showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // Location "${name}" saved.`, false);
     await loadAll();
@@ -343,7 +327,7 @@ async function deleteLoc() {
   if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
   try {
     const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
+    if (!res.ok && res.status !== 204) await apiThrow(res);
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
     await loadAll();
