@@ -112,11 +112,6 @@ const CONNECTION_TIPS = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
 function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
@@ -179,7 +174,7 @@ function buildOrgCard(org, orgMap) {
   const enemies = enemyIds.map(id => orgMap[id]?.name).filter(Boolean);
   const longDesc = org.description && org.description.length > 160;
   return `
-    <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" style="cursor:pointer" title="Click to edit">
+    <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" class="clickable" title="Click to edit">
       <div class="oc-head">
         <div class="oc-name">${esc(org.name)}</div>
         <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
@@ -255,7 +250,7 @@ function openNpcModal(charId) {
 
   const orgLine = `<div class="cc-org" style="margin-bottom:${char.nationality ? '4px' : '12px'}"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
   const nationalityLine = char.nationality
-    ? `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Nationality</span><span class="cc-org-sep"> // </span><span style="color:var(--text)">${esc(char.nationality)}</span></div>`
+    ? `<div class="cc-org mb-12"><span class="cc-org-lbl">Nationality</span><span class="cc-org-sep"> // </span><span style="color:var(--text)">${esc(char.nationality)}</span></div>`
     : '';
 
   const contactSkills = (char.contact_skills || []);
@@ -291,7 +286,7 @@ function openNpcModal(charId) {
       <div id="npcNotesAlert" class="alert" style="margin-bottom:4px"></div>
       <div class="npc-modal-section">
         <div class="npc-modal-sec-lbl">GM Notes</div>
-        <textarea id="npcNotesInput" rows="4" style="width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text);font-family:var(--font);font-size:0.72rem;padding:6px 8px;resize:vertical">${esc(char.notes || '')}</textarea>
+        <textarea id="npcNotesInput" rows="4" class="ws-notes-ta">${esc(char.notes || '')}</textarea>
       </div>
     </div>`;
 
@@ -374,7 +369,7 @@ function renderPromoteSection(charId) {
         <input type="number" id="promoteLoyalty" class="promote-num" min="1" max="6" value="1">
       </label>
       <button class="btn btn-green" style="font-size:0.62rem;padding:3px 10px" onclick="addContactLink()">Link</button>
-      <button class="btn" style="font-size:0.62rem;padding:3px 8px;color:var(--text-dim);border-color:#222" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
+      <button class="btn btn-ghost" style="font-size:0.62rem;padding:3px 8px" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
     </div>
     <button class="btn btn-amber gm-only" style="font-size:0.62rem;padding:3px 10px;margin-top:6px" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
   ` : (existing.length ? '<div class="promote-all-linked">All active runners already linked.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
@@ -441,7 +436,7 @@ function openNonNpcContactModal(contactId) {
   document.getElementById('npcModalBadge').innerHTML =
     raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
 
-  const orgLine = `<div class="cc-org" style="margin-bottom:12px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const orgLine = `<div class="cc-org mb-12"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
 
   const ownerRows = (merged.owners || []).map(o => {
     const ownerChar = charMapStore[o.owner_id];
@@ -454,7 +449,7 @@ function openNonNpcContactModal(contactId) {
   }).join('');
 
   const connDisplay = `
-    <div class="cc-connection-gm" style="margin-bottom:12px" title="${CONNECTION_TIPS[connVal] || ''}">
+    <div class="cc-connection-gm mb-12" title="${CONNECTION_TIPS[connVal] || ''}">
       <span class="cc-conn-lbl">Connection</span>
       <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
       <span class="cc-via-num">${connVal}</span>
@@ -627,7 +622,7 @@ function buildContactCard(merged, charMap, orgMap) {
 function buildLocCard(loc, orgMap) {
   const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
   return `
-    <div class="loc-card" onclick="openLocEditModal(${loc.id})" style="cursor:pointer" title="View location">
+    <div class="loc-card" onclick="openLocEditModal(${loc.id})" class="clickable" title="View location">
       <div class="lc-name">${esc(loc.name)}</div>
       <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
       ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
@@ -673,10 +668,10 @@ function buildCharCard(char, orgMap = {}) {
     : '';
   const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
   const claimBtn = char.is_pc && !isAdminMode() && isUnclaimed
-    ? `<button class="btn btn-green" style="position:absolute;bottom:8px;right:8px;padding:3px 10px;font-size:.6rem;letter-spacing:1px" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
+    ? `<button class="btn btn-green ws-card-action" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
     : '';
   const ownerBadge = char.is_pc && isMine
-    ? `<button class="btn" style="position:absolute;bottom:8px;right:8px;padding:3px 10px;font-size:.6rem;letter-spacing:1px;color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
+    ? `<button class="btn ws-card-action" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
     : '';
 
   const cardClass = `char-card ${char.is_pc ? 'is-pc' : (isActive ? 'npc-clickable' : '')}`;
@@ -696,19 +691,19 @@ function buildCharCard(char, orgMap = {}) {
         : (raceProf ? `<div><span class="cc-race-prof">${esc(raceProf)}</span></div>` : '')}
       ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
       <div class="ch-meta">
-        ${char.nationality ? `<div style="color:#555;font-size:0.68rem">${esc(char.nationality)}</div>` : ''}
+        ${char.nationality ? `<div class="ws-nationality">${esc(char.nationality)}</div>` : ''}
         ${char.description
           ? char.is_pc
             ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
             : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
-        ${repStr ? `<div class="ch-finance" style="margin-top:4px;font-size:.68rem"><span style="color:var(--text-dim)">STREET REP: </span>${repStr}</div>` : ''}
-        ${paStr  ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem;color:var(--text-dim)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
+        ${repStr ? `<div class="ch-finance ws-ch-stat" style="margin-top:4px"><span class="text-dim">STREET REP: </span>${repStr}</div>` : ''}
+        ${paStr  ? `<div class="ch-finance ws-ch-stat text-dim" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
         ${heatStr && isAdminMode()
-          ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem"><span style="color:var(--text-dim)">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
+          ? `<div class="ch-finance ws-ch-stat"><span class="text-dim">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
           : heatStr && isMine
-          ? `<div class="ch-finance" style="margin-top:2px;font-size:.68rem"><span style="color:var(--text-dim)">HEAT: </span>${heatStr}</div>`
+          ? `<div class="ch-finance ws-ch-stat"><span class="text-dim">HEAT: </span>${heatStr}</div>`
           : ''}
       </div>
       ${claimBtn}${ownerBadge}
@@ -720,7 +715,7 @@ function section(key, title, html, manageUrl) {
   return `
     <div class="section-head" id="sec-head-${key}">
       <span>${esc(title)}</span>
-      <span style="flex:1"></span>
+      <span class="flex-1"></span>
       ${manageLink}
     </div>
     <div id="sec-body-${key}">
@@ -777,7 +772,7 @@ function buildFactionRepSection(activePcs, repStore, myCharIds) {
           </div>
           ${nonZero.length
             ? rows
-            : '<div style="color:var(--text-dim);font-size:0.62rem;letter-spacing:1px">No recorded standings</div>'}
+            : '<div class="dim-label">No recorded standings</div>'}
         </div>`);
     } else {
       // Runner: only my PCs, only explicitly non-neutral standings
@@ -839,17 +834,16 @@ function renderStandingEditor() {
     const val = o.standing;
     const cls = standingClass(standingLabel(val));
     return `
-      <div class="faction-row" style="padding:5px 0;border-bottom:1px solid #111">
+      <div class="faction-row ws-se-row">
         <span class="faction-org" style="flex:2" title="${esc(o.org_name)}">${esc(o.org_name)}</span>
-        <input type="number" class="se-val" data-idx="${i}"
+        <input type="number" class="se-val ws-se-input" data-idx="${i}"
           value="${val}" min="-10" max="10"
-          style="width:58px;background:var(--bg-input);border:1px solid #2a2a2a;color:var(--text-bright);padding:3px 6px;font-family:inherit;font-size:.78rem;text-align:center"
           oninput="seUpdateLabel(this,${i})">
-        <span class="se-label ${cls}" id="se-lbl-${i}" style="width:80px;text-align:right;font-size:.64rem;letter-spacing:1px">${standingLabel(val)}</span>
+        <span class="se-label ws-se-label ${cls}" id="se-lbl-${i}">${standingLabel(val)}</span>
       </div>`;
   }).join('');
   document.getElementById('seBody').innerHTML = rows ||
-    '<div style="color:var(--text-dim);padding:16px">No active organizations found.</div>';
+    '<div class="ws-empty" style="padding:16px">No active organizations found.</div>';
 }
 
 function seUpdateLabel(input, idx) {
@@ -880,7 +874,7 @@ async function saveStandingEditor() {
           method: 'PATCH',
           body: JSON.stringify({ standing: o.standing }),
         });
-        if (!r.ok) throw new Error(await r.text());
+        if (!r.ok) await apiThrow(r);
         // Delete if zeroed out
         if (o.standing === 0) {
           await apiFetch(`${API}/reputation/standings/${o.standing_id}`, {
@@ -897,7 +891,7 @@ async function saveStandingEditor() {
             standing:        o.standing,
           }),
         });
-        if (!r.ok) throw new Error(await r.text());
+        if (!r.ok) await apiThrow(r);
       }
     } catch(e) {
       errors++;
@@ -917,10 +911,7 @@ async function resetPcData() {
         const res = await apiFetch(`${API}/reputation/reset-pc-data`, {
           method: 'POST',
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: res.statusText }));
-          throw new Error(err.detail);
-        }
+        if (!res.ok) await apiThrow(res);
         await loadAll();
       } catch(e) {
         showAlert(`Reset failed: ${e.message}`);
@@ -1027,7 +1018,7 @@ function oeAddTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td class="gm-only" style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="gm-only text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
     <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeTelecomBody','oeEmptyTelecom',5)">✕</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => oeFormatTelecom(numInput));
@@ -1052,7 +1043,7 @@ function oeAddHost(data) {
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td class="gm-only" style="text-align:center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
+    <td class="gm-only text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
     <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',8)">✕</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => oeEnforceIdCode(idInput));
@@ -1170,8 +1161,8 @@ function oeRenderRelations(currentOrgId) {
     [['oeAllyList', allySet, revAllySet], ['oeEnemyList', enemySet, revEnemySet]].forEach(([lid, set, revSet]) => {
       const visible = orgs.filter(o => set.has(o.id) && revSet.has(o.id));
       document.getElementById(lid).innerHTML = visible.length
-        ? visible.map(o => `<div class="npc-skill">&#8250; ${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></div>`).join('')
-        : '<div style="padding:4px;color:var(--text-dim);font-size:.75rem">None on record</div>';
+        ? visible.map(o => `<div class="npc-skill">&#8250; ${esc(o.name)} <span class="ws-dim-tier">[T${o.tier}]</span></div>`).join('')
+        : '<div class="ws-empty">None on record</div>';
     });
     return;
   }
@@ -1182,12 +1173,12 @@ function oeRenderRelations(currentOrgId) {
       ? orgs.map(o => `
         <label class="chk-item">
           <input type="checkbox" value="${o.id}" class="rel-chk" ${set.has(o.id) ? 'checked' : ''}>
-          <span>${esc(o.name)} <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></span>
+          <span>${esc(o.name)} <span class="ws-dim-tier">[T${o.tier}]</span></span>
           <span style="margin-left:auto">
             <input type="checkbox" value="${o.id}" class="rev-chk" ${revSet.has(o.id) ? 'checked' : ''} title="Reveal to players">
           </span>
         </label>`).join('')
-      : '<div style="padding:8px;color:var(--text-dim);font-size:.75rem">No other organizations</div>';
+      : '<div class="ws-empty" style="padding:8px">No other organizations</div>';
   });
 }
 
@@ -1201,8 +1192,8 @@ function renderOrgDossierView(org) {
   const tier      = org.tier || 1;
   const isActive  = org.is_active !== false;
   const statusDot = isActive
-    ? `<span style="color:var(--green)">&#9679; ACTIVE</span>`
-    : `<span style="color:var(--text-dim)">&#9675; INACTIVE</span>`;
+    ? `<span class="text-green">&#9679; ACTIVE</span>`
+    : `<span class="text-dim">&#9675; INACTIVE</span>`;
 
   // Leadership — two-column grid: name | title (aligned, close together)
   const leads = (org.leadership || []);
@@ -1210,12 +1201,12 @@ function renderOrgDossierView(org) {
     ? `<div class="dossier-cmd-grid">${leads.map(l =>
         `<span style="color:var(--text-bright);font-size:.75rem">&#8250; ${esc(l.name)}</span><span class="dossier-cmd-title">${esc(l.title||'')}</span>`
       ).join('')}</div>`
-    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">None on record</div>`;
+    : `<div class="ws-empty">None on record</div>`;
 
   // Relationships
   const makeRelList = orgs => orgs.length
-    ? orgs.map(o => `<div class="npc-skill">&#8250; <span style="color:var(--text-bright)">${esc(o.name)}</span> <span style="color:var(--text-dim);font-size:.7rem">[T${o.tier}]</span></div>`).join('')
-    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">None on record</div>`;
+    ? orgs.map(o => `<div class="npc-skill">&#8250; <span style="color:var(--text-bright)">${esc(o.name)}</span> <span class="ws-dim-tier">[T${o.tier}]</span></div>`).join('')
+    : `<div class="ws-empty">None on record</div>`;
 
   // LTG/Network
   const visLtgs = (org.ltgs || []).filter(e => e.visibility === 'listed' || e.revealed);
@@ -1230,68 +1221,68 @@ function renderOrgDossierView(org) {
   };
 
   const telecomGridHeader = `
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">IDENTIFIER</span>
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">DESCRIPTION</span>
+    <span class="dim-label">IDENTIFIER</span>
+    <span class="dim-label">DESCRIPTION</span>
     <span></span>
     <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em;text-align:right">DISPOSITION</span>`;
 
   const hostGridHeader = `
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">IDENTIFIER</span>
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">DESCRIPTION</span>
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em">RATING</span>
-    <span style="color:var(--text-dim);font-size:.62rem;letter-spacing:.07em;text-align:right">DISPOSITION</span>`;
+    <span class="dim-label">IDENTIFIER</span>
+    <span class="dim-label">DESCRIPTION</span>
+    <span class="dim-label">RATING</span>
+    <span class="dim-label" style="text-align:right">DISPOSITION</span>`;
 
   const telecomHtml = telecoms.length
     ? `<div class="dossier-net-grid">${telecomGridHeader}${telecoms.map(t =>
         `<span style="color:var(--cyan)">&#8250; ${esc(t.number)}</span>
-         <span style="color:var(--text-dim)">${esc(t.description||'')}</span>
+         <span class="text-dim">${esc(t.description||'')}</span>
          <span></span>
          <span class="dossier-net-disp">${disposBadge(t.visibility)}</span>`
       ).join('')}</div>`
-    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">No public telecom listings</div>`;
+    : `<div class="ws-empty">No public telecom listings</div>`;
 
   const hostHtml = hosts.length
     ? `<div class="dossier-net-grid">${hostGridHeader}${hosts.map(h =>
-        `<span><span style="color:var(--amber)">&#8250; ${esc(h.rtg)}</span><span style="color:var(--text-dim)"> // </span><span style="color:var(--green-dim)">${esc(h.ltg)}</span>${h.id_code?`<span style="color:var(--purple);font-size:.65rem"> [${esc(h.id_code)}]</span>`:''}</span>
-         <span style="color:var(--text-dim)">${esc(h.description||'')}</span>
+        `<span><span class="text-amber">&#8250; ${esc(h.rtg)}</span><span class="text-dim"> // </span><span style="color:var(--green-dim)">${esc(h.ltg)}</span>${h.id_code?`<span style="color:var(--purple);font-size:.65rem"> [${esc(h.id_code)}]</span>`:''}</span>
+         <span class="text-dim">${esc(h.description||'')}</span>
          <span>${h.san_access_rating ? `<span class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating)}</span>` : ''}</span>
          <span class="dossier-net-disp">${disposBadge(h.visibility)}</span>`
       ).join('')}</div>`
-    : `<div style="color:var(--text-dim);font-size:.75rem;padding:4px">No public matrix listings</div>`;
+    : `<div class="ws-empty">No public matrix listings</div>`;
 
   return `
     <div style="padding:4px 0 12px">
-      <div class="section-head" style="margin-bottom:8px">// Profile</div>
+      <div class="section-head mb-8">// Profile</div>
       ${org.headquarters ? `<div class="dossier-field"><span class="df-label">Headquarters</span><span class="df-val">${esc(org.headquarters)}</span></div>` : ''}
-      ${org.description  ? `<div style="color:var(--text);font-size:.82rem;line-height:1.55;margin:8px 0 14px">${esc(org.description)}</div>` : ''}
+      ${org.description  ? `<div class="ws-dossier-desc">${esc(org.description)}</div>` : ''}
 
-      <hr class="rule" style="margin:12px 0">
-      <div class="section-head" style="margin-bottom:8px">// Command Structure</div>
-      <div style="margin-bottom:14px">${leadHtml}</div>
+      <hr class="rule my-12">
+      <div class="section-head mb-8">// Command Structure</div>
+      <div class="mb-14">${leadHtml}</div>
 
-      <hr class="rule" style="margin:12px 0">
-      <div class="section-head" style="margin-bottom:8px">// Political Relationships</div>
-      <div class="grid2" style="margin-bottom:14px">
+      <hr class="rule my-12">
+      <div class="section-head mb-8">// Political Relationships</div>
+      <div class="grid2 mb-14">
         <div>
-          <div style="color:var(--green-dim);font-size:.68rem;letter-spacing:.08em;margin-bottom:6px">ALLIED</div>
+          <div class="ws-allies-hd">ALLIED</div>
           ${makeRelList(allies)}
         </div>
         <div>
-          <div style="color:var(--red);font-size:.68rem;letter-spacing:.08em;opacity:.7;margin-bottom:6px">HOSTILE</div>
+          <div class="ws-enemies-hd">HOSTILE</div>
           ${makeRelList(enemies)}
         </div>
       </div>
 
-      <hr class="rule" style="margin:12px 0">
-      <div class="section-head" style="margin-bottom:8px">// RTG/LTG Network Directory</div>
-      <div style="margin-bottom:14px">
-        <div style="color:var(--cyan);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; TELECOM</div>
-        <hr class="rule" style="margin:4px 0 8px">
+      <hr class="rule my-12">
+      <div class="section-head mb-8">// RTG/LTG Network Directory</div>
+      <div class="mb-14">
+        <div class="ws-sec-hd text-cyan">&gt;&gt; TELECOM</div>
+        <hr class="rule ws-rule-tight">
         ${telecomHtml}
       </div>
       <div>
-        <div style="color:var(--amber);font-size:.76rem;letter-spacing:.1em;margin-bottom:6px;font-weight:600">&gt;&gt; MATRIX HOSTS</div>
-        <hr class="rule" style="margin:4px 0 8px">
+        <div class="ws-sec-hd text-amber">&gt;&gt; MATRIX HOSTS</div>
+        <hr class="rule ws-rule-tight">
         ${hostHtml}
       </div>
     </div>`;
@@ -1310,14 +1301,14 @@ function openOrgEditModal(orgId) {
   const tier = org.tier || 1;
   const isActive = org.is_active !== false;
   const statusDot = isActive
-    ? `<span style="color:var(--green)">&#9679; ACTIVE</span>`
-    : `<span style="color:var(--text-dim)">&#9675; INACTIVE</span>`;
+    ? `<span class="text-green">&#9679; ACTIVE</span>`
+    : `<span class="text-dim">&#9675; INACTIVE</span>`;
   const badge = document.getElementById('oeDossierBadge');
   if (badge) badge.innerHTML = `
-    <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
-      <span class="cc-race-prof" style="color:var(--amber)">${typeLabel}</span>
-      <span style="color:var(--text-dim);font-size:.75rem">&#183;</span>
-      <span style="color:#6699cc;font-size:0.65rem;letter-spacing:1px;padding:2px 7px;border:1px solid #1a2a44">TIER ${tier} // ${tierLabel(tier).toUpperCase()}</span>
+    <span class="ws-tier-row">
+      <span class="cc-race-prof text-amber">${typeLabel}</span>
+      <span class="dim-meta">&#183;</span>
+      <span class="ws-tier-badge">TIER ${tier} // ${tierLabel(tier).toUpperCase()}</span>
     </span>`;
 
   if (!adminMode) {
@@ -1412,7 +1403,7 @@ async function saveOrgEdit() {
     const res = await apiFetch(`${API}/organizations/${oeEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+    if (!res.ok) await apiThrow(res);
     closeOrgEditModal();
     loadAll();
   } catch(e) {
@@ -1428,9 +1419,9 @@ let leEditingId = null;
 function renderLocDossier(loc) {
   const orgName = loc.controlling_org_id ? (orgStore[loc.controlling_org_id]?.name || '') : '';
   const typeBadge = loc.location_type
-    ? `<span class="cc-race-prof" style="color:var(--cyan);background:rgba(0,204,255,.07);border-color:#004455">${esc(loc.location_type.toUpperCase())}</span>` : '';
+    ? `<span class="cc-race-prof ws-loc-type">${esc(loc.location_type.toUpperCase())}</span>` : '';
   const orgLine = orgName
-    ? `<div class="loc-org-line"><span class="cc-org-lbl">Controlling Organization ▸</span>&nbsp;<span style="color:var(--amber)">${esc(orgName)}</span></div>` : '';
+    ? `<div class="loc-org-line"><span class="cc-org-lbl">Controlling Organization ▸</span>&nbsp;<span class="text-amber">${esc(orgName)}</span></div>` : '';
   const fields = [
     ['City',           loc.city],
     ['District',       loc.district],
@@ -1443,12 +1434,12 @@ function renderLocDossier(loc) {
       <div class="npc-modal-gm-banner">// GM EYES ONLY //</div>
       <div class="npc-modal-section">
         <div class="npc-modal-sec-lbl">Notes</div>
-        <textarea id="le-dossier-notes" rows="4" style="width:100%;box-sizing:border-box" placeholder="GM notes...">${esc(loc.notes || '')}</textarea>
-        <div id="leNotesFlash" style="font-size:0.62rem;letter-spacing:1px;margin-top:4px"></div>
+        <textarea id="le-dossier-notes" rows="4" class="ws-notes-ta" placeholder="GM notes...">${esc(loc.notes || '')}</textarea>
+        <div id="leNotesFlash" class="ws-flash"></div>
       </div>
     </div>` : '';
   return `
-    ${orgLine ? `<div style="margin-bottom:12px">${orgLine}</div>` : ''}
+    ${orgLine ? `<div class="mb-12">${orgLine}</div>` : ''}
     ${fields ? `<div class="loc-section">${fields}</div>` : ''}
     ${loc.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Intel</div><div class="npc-modal-text">${esc(loc.description)}</div></div>` : ''}
     ${gmSection}`;
@@ -1468,7 +1459,7 @@ function openLocEditModal(locId) {
   // set type badge in header
   const badge = document.getElementById('leBadge');
   if (badge) badge.innerHTML = loc.location_type
-    ? `<span class="cc-race-prof" style="color:var(--cyan);background:rgba(0,204,255,.07);border-color:#004455">${esc(loc.location_type.toUpperCase())}</span>` : '';
+    ? `<span class="cc-race-prof ws-loc-type">${esc(loc.location_type.toUpperCase())}</span>` : '';
   if (isAdminMode()) {
     document.getElementById('locDossierView').style.display = 'none';
     document.getElementById('locFormContent').style.display = '';
@@ -1528,7 +1519,7 @@ async function saveLocNotes() {
     const res = await apiFetch(`${API}/locations/${leEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ notes }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || res.statusText);
+    if (!res.ok) await apiThrow(res);
     if (locStore[leEditingId]) locStore[leEditingId].notes = notes;
     if (flash) { flash.style.color = 'var(--green)'; flash.textContent = '// notes saved'; setTimeout(()=>flash.textContent='', 2500); }
   } catch(e) {
@@ -1561,7 +1552,7 @@ async function saveLocEdit() {
     const res = await apiFetch(`${API}/locations/${leEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+    if (!res.ok) await apiThrow(res);
     closeLocEditModal();
     loadAll();
   } catch(e) {
@@ -1732,7 +1723,7 @@ async function saveCharEdit() {
         method: 'PATCH', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ notes: document.getElementById('ce-notes').value.trim() || null }),
       });
-      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+      if (!res.ok) await apiThrow(res);
       closeCharEditModal();
       loadAll();
     } catch(e) {
@@ -1785,7 +1776,7 @@ async function saveCharEdit() {
     const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || res.statusText); }
+    if (!res.ok) await apiThrow(res);
     closeCharEditModal();
     loadAll();
   } catch(e) {

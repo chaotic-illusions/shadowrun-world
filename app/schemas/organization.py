@@ -1,13 +1,13 @@
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrganizationBase(BaseModel):
-    name: str
-    org_type: Optional[str] = None
-    tier: int = 1
+    name: str = Field(max_length=200)
+    org_type: Optional[str] = Field(default=None, max_length=100)
+    tier: int = Field(default=1, ge=1, le=6)
     description: Optional[str] = None
-    headquarters: Optional[str] = None
+    headquarters: Optional[str] = Field(default=None, max_length=200)
     leadership: list[dict[str, Any]] = []
     # Each entry is one of:
     #   telecom:     {type, number, description, visibility}
@@ -25,11 +25,11 @@ OrganizationCreate = OrganizationBase
 
 
 class OrganizationUpdate(BaseModel):
-    name: Optional[str] = None
-    org_type: Optional[str] = None
-    tier: Optional[int] = None
+    name: Optional[str] = Field(default=None, max_length=200)
+    org_type: Optional[str] = Field(default=None, max_length=100)
+    tier: Optional[int] = Field(default=None, ge=1, le=6)
     description: Optional[str] = None
-    headquarters: Optional[str] = None
+    headquarters: Optional[str] = Field(default=None, max_length=200)
     leadership: Optional[list[dict[str, Any]]] = None
     ltgs: Optional[list[dict[str, Any]]] = None
     ally_ids: Optional[list[int]] = None

@@ -74,7 +74,7 @@ async function bootstrapAuth() {
 // ── Auth label (bottom-right, no logout) ─────────────────────────────────────
 
 function _escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function _injectAuthLabel() {
@@ -154,7 +154,7 @@ async function _showAutoGenerateOverlay() {
     overlay.innerHTML = `
       <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--red);padding:36px 40px;max-width:500px;width:100%">
         <div style="color:var(--red);font-size:.9rem;letter-spacing:3px;margin-bottom:12px">&gt;&gt; ERROR</div>
-        <div style="color:var(--text-dim);font-size:.75rem">Could not generate admin token. Check server logs.</div>
+        <div class="dim-meta">Could not generate admin token. Check server logs.</div>
       </div>`;
     document.body.appendChild(overlay);
     return;
@@ -204,12 +204,38 @@ function _confirmNewToken(token) {
 }
 
 
+// ── Shared DOM helpers ───────────────────────────────────────────────────────
+
+/** HTML-escape a string for safe insertion via innerHTML / template literals. */
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/** Flash an alert banner inside the given element. */
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+
 // ── API fetch wrapper ────────────────────────────────────────────────────────
 
 function apiFetch(url, opts = {}) {
   opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
   if (opts.body) opts.headers['Content-Type'] = 'application/json';
   return fetch(url, opts);
+}
+
+/** Parse the error body from a failed API response and throw with a user-friendly message. */
+async function apiThrow(res) {
+  let msg = res.statusText || `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (typeof body.detail === 'string') msg = body.detail;
+    else if (Array.isArray(body.detail)) msg = body.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
+  } catch(_) {}
+  throw new Error(msg);
 }
 
 
