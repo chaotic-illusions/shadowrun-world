@@ -74,7 +74,7 @@ async function bootstrapAuth() {
 // ── Auth label (bottom-right, no logout) ─────────────────────────────────────
 
 function _escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function _injectAuthLabel() {
@@ -107,9 +107,14 @@ function _injectAuthLabel() {
       'font-size:.7rem;letter-spacing:1px;';
     const viewMode = sessionStorage.getItem('sr_view') || 'admin';
     const nextMode = viewMode === 'admin' ? 'player' : 'admin';
-    toggleWrap.innerHTML =
-      `<span style="color:#90d5ff;opacity:0.85;cursor:pointer" onclick="sessionStorage.setItem('sr_view','${nextMode}');location.reload()">` +
-      `[ ${viewMode === 'admin' ? 'SWITCH TO RUNNER VIEW' : 'SWITCH TO ADMIN VIEW'} ]</span>`;
+    const toggleBtn = document.createElement('span');
+    toggleBtn.style.cssText = 'color:#90d5ff;opacity:0.85;cursor:pointer';
+    toggleBtn.textContent = `[ ${viewMode === 'admin' ? 'SWITCH TO RUNNER VIEW' : 'SWITCH TO ADMIN VIEW'} ]`;
+    toggleBtn.addEventListener('click', () => {
+      sessionStorage.setItem('sr_view', nextMode);
+      location.reload();
+    });
+    toggleWrap.appendChild(toggleBtn);
     document.body.appendChild(toggleWrap);
 
     // Apply player-view gm-only hiding
@@ -149,28 +154,45 @@ async function _showAutoGenerateOverlay() {
     overlay.innerHTML = `
       <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--red);padding:36px 40px;max-width:500px;width:100%">
         <div style="color:var(--red);font-size:.9rem;letter-spacing:3px;margin-bottom:12px">&gt;&gt; ERROR</div>
-        <div style="color:var(--text-dim);font-size:.75rem">Could not generate admin token. Check server logs.</div>
+        <div class="dim-meta">Could not generate admin token. Check server logs.</div>
       </div>`;
     document.body.appendChild(overlay);
     return;
   }
 
-  overlay.innerHTML = `
-    <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:36px 40px;max-width:500px;width:100%">
-      <div style="color:var(--amber);font-size:.9rem;letter-spacing:3px;margin-bottom:6px">&gt;&gt; NEW ADMIN TOKEN GENERATED</div>
-      <div style="color:var(--text-dim);font-size:.65rem;letter-spacing:2px;margin-bottom:20px">SAVE THIS TOKEN — YOU WILL NEED IT TO LOG IN</div>
-      <div id="gen-token-display"
-        onclick="navigator.clipboard.writeText('${generatedToken}').then(()=>{this.style.color='var(--green)';setTimeout(()=>this.style.color='var(--amber)',1000)})"
-        style="font-family:var(--font);font-size:.8rem;letter-spacing:2px;color:var(--amber);
-               background:var(--bg-input);border:1px solid #333;padding:14px 16px;
-               word-break:break-all;cursor:pointer;margin-bottom:8px">${generatedToken}</div>
-      <div style="color:#444;font-size:.6rem;margin-bottom:24px">Click the token to copy it to clipboard.</div>
-      <button onclick="_confirmNewToken('${generatedToken}')"
-        style="width:100%;padding:11px;background:transparent;border:1px solid var(--green-dim);
-               color:var(--green);font-family:var(--font);font-size:.8rem;letter-spacing:2px;cursor:pointer">
-        &gt;&gt; I'VE SAVED IT — CONTINUE
-      </button>
-    </div>`;
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:36px 40px;max-width:500px;width:100%';
+
+  const heading = document.createElement('div');
+  heading.style.cssText = 'color:var(--amber);font-size:.9rem;letter-spacing:3px;margin-bottom:6px';
+  heading.textContent = '>> NEW ADMIN TOKEN GENERATED';
+
+  const subheading = document.createElement('div');
+  subheading.style.cssText = 'color:var(--text-dim);font-size:.65rem;letter-spacing:2px;margin-bottom:20px';
+  subheading.textContent = 'SAVE THIS TOKEN — YOU WILL NEED IT TO LOG IN';
+
+  const tokenDisplay = document.createElement('div');
+  tokenDisplay.id = 'gen-token-display';
+  tokenDisplay.style.cssText = 'font-family:var(--font);font-size:.8rem;letter-spacing:2px;color:var(--amber);background:var(--bg-input);border:1px solid #333;padding:14px 16px;word-break:break-all;cursor:pointer;margin-bottom:8px';
+  tokenDisplay.textContent = generatedToken;
+  tokenDisplay.addEventListener('click', () => {
+    navigator.clipboard.writeText(generatedToken).then(() => {
+      tokenDisplay.style.color = 'var(--green)';
+      setTimeout(() => tokenDisplay.style.color = 'var(--amber)', 1000);
+    });
+  });
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:#444;font-size:.6rem;margin-bottom:24px';
+  hint.textContent = 'Click the token to copy it to clipboard.';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.style.cssText = 'width:100%;padding:11px;background:transparent;border:1px solid var(--green-dim);color:var(--green);font-family:var(--font);font-size:.8rem;letter-spacing:2px;cursor:pointer';
+  confirmBtn.textContent = ">> I'VE SAVED IT — CONTINUE";
+  confirmBtn.addEventListener('click', () => _confirmNewToken(generatedToken));
+
+  card.append(heading, subheading, tokenDisplay, hint, confirmBtn);
+  overlay.appendChild(card);
   document.body.appendChild(overlay);
 }
 
@@ -179,6 +201,41 @@ function _confirmNewToken(token) {
   localStorage.setItem(LS_USER, token);
   document.getElementById('gen-token-overlay')?.remove();
   window.location.reload();
+}
+
+
+// ── Shared DOM helpers ───────────────────────────────────────────────────────
+
+/** HTML-escape a string for safe insertion via innerHTML / template literals. */
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/** Flash an alert banner inside the given element. */
+function showAlert(el, msg, isErr) {
+  el.textContent = msg;
+  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+
+// ── API fetch wrapper ────────────────────────────────────────────────────────
+
+function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  if (opts.body) opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts);
+}
+
+/** Parse the error body from a failed API response and throw with a user-friendly message. */
+async function apiThrow(res) {
+  let msg = res.statusText || `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (typeof body.detail === 'string') msg = body.detail;
+    else if (Array.isArray(body.detail)) msg = body.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
+  } catch(_) {}
+  throw new Error(msg);
 }
 
 

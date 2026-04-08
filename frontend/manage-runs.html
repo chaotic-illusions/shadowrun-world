@@ -5,76 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Adventure Logs | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    .run-card {
-      background: var(--bg-card);
-      border: 1px solid #111;
-      border-left: 3px solid var(--text-dim);
-      padding: 14px 16px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      transition: border-color .15s;
-    }
-    .run-card:hover { border-color: #2a3a2a; border-left-color: inherit; }
-    .run-card.outcome-success        { border-left-color: var(--green)  !important; }
-    .run-card.outcome-partial_success{ border-left-color: var(--amber)  !important; }
-    .run-card.outcome-failure,
-    .run-card.outcome-critical_failure{ border-left-color: var(--red)   !important; }
-    .run-card.outcome-abandoned      { border-left-color: var(--text-dim)!important; }
-
-    .run-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
-    .run-title { font-size: 0.92rem; color: var(--text-bright); letter-spacing: 1px; }
-    .run-meta  { font-size: 0.65rem; letter-spacing: 1px; color: var(--text-dim); }
-    .run-outcome {
-      font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase;
-      padding: 2px 8px; border: 1px solid;
-    }
-    .out-success         { color: var(--green); border-color: #003300; }
-    .out-partial_success { color: var(--amber); border-color: #331a00; }
-    .out-failure,
-    .out-critical_failure{ color: var(--red);   border-color: #330000; }
-    .out-abandoned       { color: var(--text-dim); border-color: #222; }
-
-    .run-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #1a1a1a; font-size: 0.78rem; line-height: 1.6; }
-    .run-detail.open { display: block; }
-    .run-detail-label { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-top: 10px; margin-bottom: 2px; }
-
-    /* AI parse panel */
-    .parse-panel { background: #0a0a0a; border: 1px solid #1a2a1a; padding: 20px; margin-top: 20px; }
-    .change-item {
-      display: flex; align-items: flex-start; gap: 10px;
-      padding: 8px 10px; border: 1px solid #111; margin-bottom: 6px;
-      background: #0d0d0d;
-    }
-    .change-item label { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; width: 100%; }
-    .change-item input[type=checkbox] { margin-top: 2px; accent-color: var(--green); flex-shrink: 0; }
-    .change-type {
-      font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase;
-      padding: 2px 7px; border: 1px solid; white-space: nowrap; flex-shrink: 0;
-    }
-    .ct-street_cred     { color: var(--cyan);      border-color: #003344; }
-    .ct-notoriety       { color: var(--red);        border-color: #330000; }
-    .ct-public_awareness{ color: var(--amber);      border-color: #331a00; }
-    .ct-org_standing    { color: var(--purple);     border-color: #2a0044; }
-    .ct-heat            { color: #ff7700;           border-color: #442200; }
-    .change-desc { font-size: 0.8rem; color: var(--text); }
-    .change-reason { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
-    .change-delta-pos { color: var(--green-dim); font-weight: bold; }
-    .change-delta-neg { color: var(--red);       font-weight: bold; }
-
-    .extracted-field { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 10px 14px; margin-bottom: 8px; }
-    .extracted-label { font-size: 0.6rem; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
-    .extracted-value { font-size: 0.82rem; color: var(--text-bright); }
-
-    /* Manual change-row inputs override global width:100% */
-    .mcr-input { padding: 4px 8px !important; font-size: .75rem !important; }
-  </style>
   <script src="shared.js"></script>
 </head>
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -82,11 +18,12 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html" class="active">Runs</a>
+    <a href="manage-matrix.html">Matrix</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Adventure Logs <em style="font-style:normal;color:var(--text-dim)">//</em> Run History</div>
+  <div class="page-title">&gt;&gt; Adventure Logs <em class="sep">//</em> Run History</div>
   <div class="page-sub">RESTRICTED OPERATIONAL RECORDS &gt;&gt; MISSION DEBRIEFS</div>
 
   <div id="globalAlert" class="alert"></div>
@@ -107,7 +44,7 @@
     <!-- ── Runner selection (required for both modes) ─────── -->
     <div style="margin-bottom:16px;padding:12px 14px;border:1px solid #1a2a1a;background:#040a04">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="section-head" style="margin:0;border:none;font-size:.72rem;color:var(--green)">Runners on this Job <span style="color:var(--text-dim)">*</span></div>
+        <div class="section-head" style="margin:0;border:none;font-size:.72rem;color:var(--green)">Runners on this Job <span class="text-dim">*</span></div>
         <span id="participant-warning" style="font-size:.62rem;color:var(--red);letter-spacing:1px;display:none">&triangleright; select at least one runner</span>
       </div>
       <div id="run-participants" style="display:flex;flex-wrap:wrap;gap:4px 18px;min-height:22px"></div>
@@ -121,11 +58,11 @@
 
     <!-- ── AI Mode ─────────────────────────────────────────── -->
     <div id="aiMode">
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Mission Date</label>
         <input type="date" id="ai-date" style="max-width:200px;font-size:.7rem">
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>GM Narrative — describe what happened during the run</label>
         <textarea id="aiNarrative" rows="8"
           placeholder="The team accepted a job from Mr. Johnson — a well-dressed corp type — to extract a researcher from Aztechnology's Bellevue campus. The payout was ¥15,000 per runner...&#10;&#10;Describe the run: who hired them, the terms, what the objectives were, what actually happened, notable events, injuries, witnesses, etc."></textarea>
@@ -135,8 +72,8 @@
 
       <!-- Parsed results -->
       <div id="parseResults" style="display:none;margin-top:20px">
-        <div class="section-head" style="margin-bottom:12px">Extracted Run Data</div>
-        <div class="grid2" style="margin-bottom:16px">
+        <div class="section-head mb-12">Extracted Run Data</div>
+        <div class="grid2 mb-16">
           <div class="extracted-field"><div class="extracted-label">Title</div><div class="extracted-value" id="pr-title">—</div></div>
           <div class="extracted-field"><div class="extracted-label">Outcome</div><div class="extracted-value" id="pr-outcome">—</div></div>
           <div class="extracted-field"><div class="extracted-label">Objective</div><div class="extracted-value" id="pr-objective">—</div></div>
@@ -144,14 +81,14 @@
           <div class="extracted-field"><div class="extracted-label">Result</div><div class="extracted-value" id="pr-result">—</div></div>
         </div>
 
-        <div class="section-head" style="margin-bottom:12px">Proposed World Changes
+        <div class="section-head mb-12">Proposed World Changes
           <span style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;font-weight:normal;margin-left:8px">Check the changes you want to apply</span>
         </div>
         <div id="changesList"></div>
 
         <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-          <button class="btn btn-green" onclick="applyAndLog()" style="flex:1">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
-          <button class="btn" style="color:var(--text-dim);border-color:#222" onclick="cancelParse()">Discard</button>
+          <button class="btn btn-green flex-1" onclick="applyAndLog()">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
+          <button class="btn btn-ghost" onclick="cancelParse()">Discard</button>
         </div>
         <div id="applyAlert" class="alert" style="margin-top:10px"></div>
       </div>
@@ -159,17 +96,17 @@
 
     <!-- ── Manual Mode ─────────────────────────────────────── -->
     <div id="manualMode" style="display:none">
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Title *</label>
-          <input type="text" id="m-title" placeholder="The Aztechnology Extraction...">
+          <input type="text" id="m-title" placeholder="The Aztechnology Extraction..." maxlength="300">
         </div>
         <div class="field">
           <label>Mission Date *</label>
           <input type="date" id="m-date">
         </div>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Outcome</label>
         <select id="m-outcome">
           <option value="">— Unknown —</option>
@@ -180,25 +117,25 @@
           <option value="abandoned">Abandoned</option>
         </select>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Objective</label>
         <textarea id="m-objective" rows="2" placeholder="What the team was hired to do..."></textarea>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>Result</label>
         <textarea id="m-result" rows="3" placeholder="What actually happened..."></textarea>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Employer</label>
-          <input type="text" id="m-employer" placeholder="Aztechnology, Mr. Johnson...">
+          <input type="text" id="m-employer" placeholder="Aztechnology, Mr. Johnson..." maxlength="200">
         </div>
         <div class="field">
           <label>Casualties / Injuries</label>
           <input type="text" id="m-casualties" placeholder="Minor wounds, one contact burned...">
         </div>
       </div>
-      <div style="margin-bottom:14px">
+      <div class="mb-14">
         <!-- Run Tags  --> 
         <div class="section-head" style="margin:0 0 8px;border:none;font-size:.72rem">Tags</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
@@ -218,16 +155,16 @@
           <label class="chk-item"><input type="checkbox" name="run-tag" value="stealth"><span>stealth</span></label>
         </div>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field mb-14">
         <label>GM Notes (not visible to players)</label>
         <textarea id="m-gm_notes" rows="3" placeholder="Hidden plot threads, NPC motivations, loose ends..."></textarea>
       </div>
 
       <!-- World-State Changes -->
-      <div style="margin-bottom:14px">
+      <div class="mb-14">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="section-head" style="margin:0;border:none;font-size:.72rem">World-State Changes</div>
-          <div style="display:flex;gap:8px">
+          <div class="flex-row-8">
             <button type="button" class="btn" id="previewRippleBtn" onclick="previewRipple()" style="font-size:.7rem;padding:3px 10px;border-color:#2a0044;color:var(--purple);display:none">⟳ Preview Ripple</button>
             <button type="button" class="btn" onclick="addChangeRow()" style="font-size:.7rem;padding:3px 10px;border-color:#1a2a1a;color:var(--green)">[+] Add Change</button>
           </div>
@@ -237,7 +174,7 @@
       </div>
 
       <!-- Participants / Locations / Orgs -->
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Locations</label>
           <div class="chk-list" id="m-locations" style="max-height:120px"></div>
@@ -256,28 +193,16 @@
   <hr class="rule">
 
   <!-- ── Existing Runs ────────────────────────────────────── -->
-  <div class="section-head" style="margin-bottom:16px">Run History</div>
+  <div class="section-head mb-16">Run History</div>
   <div id="runsList"><div class="loading">Loading run history</div></div>
 </main>
 
 <script>
 const API = '';
 const YEAR_OFFSET = 24;  // years between real date and in-world date
-function apiFetch(url, opts = {}) {
-  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-  if (opts.body) opts.headers['Content-Type'] = 'application/json';
-  return fetch(url, opts);
-}
 let parsedData = null;
 let allChars = [], allLocs = [], allOrgs = [];
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function showAlert(el, msg, isErr) {
-  el.textContent = msg;
-  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
-}
 function today() {
   return new Date().toISOString().split('T')[0];
 }
@@ -334,10 +259,7 @@ async function parseNarrative() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ narrative }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!res.ok) await apiThrow(res);
     parsedData = await res.json();
     renderParsedResults(parsedData);
     document.getElementById('parseResults').style.display = '';
@@ -418,10 +340,7 @@ async function applyAndLog() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ changes: changesApplied }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || JSON.stringify(err));
-      }
+      if (!res.ok) await apiThrow(res);
       const result = await res.json();
       if (result.errors?.length) {
         console.warn('Apply errors:', result.errors);
@@ -457,10 +376,7 @@ async function applyAndLog() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!res.ok) await apiThrow(res);
     showAlert(document.getElementById('globalAlert'), `>> RUN LOGGED // "${payload.title}" — changes applied.`, false);
     cancelParse();
     toggleNewRun();
@@ -718,10 +634,7 @@ async function submitManual() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ changes: changesApplied }),
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({ detail: r.statusText }));
-        throw new Error(err.detail || JSON.stringify(err));
-      }
+      if (!r.ok) await apiThrow(r);
       const result = await r.json();
       if (result.errors?.length) console.warn('Apply errors:', result.errors);
     } catch(e) {
@@ -754,10 +667,7 @@ async function submitManual() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ detail: r.statusText }));
-      throw new Error(err.detail || JSON.stringify(err));
-    }
+    if (!r.ok) await apiThrow(r);
     const msg = changesApplied.length
       ? `>> RUN LOGGED // "${title}" — ${changesApplied.length} change(s) applied.`
       : `>> RUN LOGGED // "${title}" created.`;
@@ -809,7 +719,7 @@ function buildRunDetail(run) {
 
   if (isAdminMode()) {
     if (applied.length) {
-      html += `<div class="run-detail-label" style="color:var(--green)">Applied Changes</div>`;
+      html += `<div class="run-detail-label text-green">Applied Changes</div>`;
       html += applied.map(c => changeRow(c, false)).join('');
     }
     if (excluded.length) {
@@ -845,7 +755,7 @@ async function updateRunTick(id) {
       method: 'PATCH',
       body: JSON.stringify({ tick_count: val }),
     });
-    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).detail) || res.statusText);
+    if (!res.ok) await apiThrow(res);
     const msg = document.getElementById(`rd-tick-msg-${id}`);
     if (msg) { msg.textContent = '✓ saved'; setTimeout(() => { if (msg) msg.textContent = ''; }, 2000); }
     delete _detailCache[id];  // force re-render next open
@@ -870,7 +780,7 @@ async function toggleRunDetail(id) {
   detail.innerHTML = '<div style="color:var(--text-dim);font-size:.75rem;letter-spacing:1px">Loading...</div>';
   try {
     const res = await apiFetch(`${API}/runs/${id}`);
-    if (!res.ok) throw new Error(res.statusText);
+    if (!res.ok) await apiThrow(res);
     const run = await res.json();
     _detailCache[id] = buildRunDetail(run);
     detail.innerHTML = _detailCache[id];

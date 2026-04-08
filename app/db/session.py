@@ -1,20 +1,25 @@
 import os
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/shadowrun.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./data/shadowrun.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
+# If the env var uses the sync driver prefix, swap it for aiosqlite
+if DATABASE_URL.startswith("sqlite:///"):
+    DATABASE_URL = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
+# Use the default connection pool (QueuePool) so connections are reused across
+# requests. NullPool caused server crashes on Windows under concurrent load by
+# opening too many simultaneous SQLite connections.
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
 
 
-@event.listens_for(engine, "connect")
-def set_wal_mode(dbapi_connection, connection_record):
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragmas(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA busy_timeout=5000")  # must be set BEFORE journal_mode
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
 
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

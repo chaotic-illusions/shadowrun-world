@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
-from sqlalchemy.orm import relationship
+from typing import Optional
+from sqlalchemy import String, Text, Integer, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.associations import log_locations
 
@@ -7,19 +8,21 @@ from app.models.associations import log_locations
 class Location(Base):
     __tablename__ = "locations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
     # bar, corp_facility, gang_turf, safehouse, district, government, shop, warehouse, matrix_node, other
-    location_type = Column(String(100))
-    city = Column(String(100))
-    district = Column(String(100))
-    description = Column(Text)
+    location_type: Mapped[str | None] = mapped_column(String(100), default=None)
+    city: Mapped[str | None] = mapped_column(String(100), default=None)
+    district: Mapped[str | None] = mapped_column(String(100), default=None)
+    description: Mapped[str | None] = mapped_column(Text, default=None)
     # open, guarded, secure, ultraviolet
-    security_level = Column(String(50))
-    notes = Column(Text)
+    security_level: Mapped[str | None] = mapped_column(String(50), default=None)
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    controlling_org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    controlling_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
-    controlling_org = relationship("Organization", back_populates="locations")
-    contacts = relationship("Contact", back_populates="location")
-    adventure_logs = relationship("AdventureLog", secondary=log_locations, back_populates="locations_involved")
+    controlling_org: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="locations")
+    contacts: Mapped[list["Contact"]] = relationship("Contact", back_populates="location")
+    adventure_logs: Mapped[list["AdventureLog"]] = relationship(
+        "AdventureLog", secondary=log_locations, back_populates="locations_involved"
+    )

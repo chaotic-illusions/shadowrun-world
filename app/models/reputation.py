@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, Date, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship
+from typing import Optional
+from datetime import date
+from sqlalchemy import String, Text, Integer, Date, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
@@ -7,40 +9,40 @@ class Reputation(Base):
     """SR2 reputation tracks for a player character."""
     __tablename__ = "reputations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    character_id = Column(Integer, ForeignKey("characters.id"), nullable=False, unique=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"), unique=True)
 
-    street_cred = Column(Integer, default=0)       # Positive rep in the shadows
-    notoriety = Column(Integer, default=0)         # Negative rep / infamy
-    public_awareness = Column(Integer, default=0)  # How well-known to the public
-    pa_updated_at = Column(Date, nullable=True)    # When PA was last changed (for decay)
-    heat = Column(Integer, default=0)              # Personal heat level (0–10)
-    heat_updated_at = Column(Date, nullable=True)  # When heat was last changed (for decay)
-    heat_stamped_tick = Column(Integer, default=0) # Campaign tick when heat was last changed
-    pa_stamped_tick = Column(Integer, default=0)   # Campaign tick when PA was last changed
+    street_cred: Mapped[int] = mapped_column(Integer, default=0)
+    notoriety: Mapped[int] = mapped_column(Integer, default=0)
+    public_awareness: Mapped[int] = mapped_column(Integer, default=0)
+    pa_updated_at: Mapped[date | None] = mapped_column(Date, default=None)
+    heat: Mapped[int] = mapped_column(Integer, default=0)
+    heat_updated_at: Mapped[date | None] = mapped_column(Date, default=None)
+    heat_stamped_tick: Mapped[int] = mapped_column(Integer, default=0)
+    pa_stamped_tick: Mapped[int] = mapped_column(Integer, default=0)
 
-    notes = Column(Text)
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    character = relationship("Character", back_populates="reputation")
+    character: Mapped["Character"] = relationship("Character", back_populates="reputation")
 
 
 class OrgStanding(Base):
     """How a specific character stands with a specific organization."""
     __tablename__ = "org_standings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    character_id: Mapped[int] = mapped_column(ForeignKey("characters.id"))
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"))
 
     # -10 (openly hunted) to +10 (trusted ally)
-    standing = Column(Integer, default=0)
-    standings_updated_at = Column(Date, nullable=True)  # last manual/automatic change
-    standings_stamped_tick = Column(Integer, default=0) # Campaign tick when standing last changed
-    notes = Column(Text)
+    standing: Mapped[int] = mapped_column(Integer, default=0)
+    standings_updated_at: Mapped[date | None] = mapped_column(Date, default=None)
+    standings_stamped_tick: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     __table_args__ = (
         UniqueConstraint("character_id", "organization_id", name="uq_org_standing_char_org"),
     )
 
-    character = relationship("Character", back_populates="org_standings")
-    organization = relationship("Organization", back_populates="org_standings")
+    character: Mapped["Character"] = relationship("Character", back_populates="org_standings")
+    organization: Mapped["Organization"] = relationship("Organization", back_populates="org_standings")
