@@ -73,10 +73,6 @@ async function bootstrapAuth() {
 
 // ── Auth label (bottom-right, no logout) ─────────────────────────────────────
 
-function _escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 function _injectAuthLabel() {
   // Add Tokens nav link for all authenticated users
   const nav = document.querySelector('header nav');
@@ -96,7 +92,7 @@ function _injectAuthLabel() {
   const tokenLabel = _authCtx.token_label ? `${_authCtx.token_label} // ` : '';
   label.style.cssText =
     'position:fixed;bottom:10px;right:14px;z-index:500;font-family:var(--font);' +
-    'font-size:.7rem;letter-spacing:1px;color:#c8a84b;pointer-events:none;';
+    'font-size:.7rem;letter-spacing:1px;color:var(--auth-label);pointer-events:none;';
   label.textContent = `[${tokenLabel}${role}]`;
 
   // Admin+user: show view toggle
@@ -108,7 +104,7 @@ function _injectAuthLabel() {
     const viewMode = sessionStorage.getItem('sr_view') || 'admin';
     const nextMode = viewMode === 'admin' ? 'player' : 'admin';
     const toggleBtn = document.createElement('span');
-    toggleBtn.style.cssText = 'color:#90d5ff;opacity:0.85;cursor:pointer';
+    toggleBtn.style.cssText = 'color:var(--auth-toggle);opacity:0.85;cursor:pointer';
     toggleBtn.textContent = `[ ${viewMode === 'admin' ? 'SWITCH TO RUNNER VIEW' : 'SWITCH TO ADMIN VIEW'} ]`;
     toggleBtn.addEventListener('click', () => {
       sessionStorage.setItem('sr_view', nextMode);
@@ -218,6 +214,61 @@ function showAlert(el, msg, isErr) {
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+/**
+ * Show a styled confirmation dialog. Returns a Promise<boolean>.
+ * okLabel  – label for the confirm button (default 'Confirm')
+ * okClass  – CSS class for the confirm button (default 'btn-red')
+ */
+function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
+  return new Promise(resolve => {
+    let overlay = document.getElementById('_sharedConfirmOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = '_sharedConfirmOverlay';
+      overlay.className = 'modal-overlay';
+      overlay.style.zIndex = '700';
+      overlay.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid #1a2a1a;border-top:2px solid var(--red);
+                    padding:28px 32px;width:100%;max-width:400px">
+          <div style="font-size:.75rem;letter-spacing:2px;color:var(--red);margin-bottom:14px">&gt;&gt; CONFIRM ACTION</div>
+          <div id="_sharedConfirmMsg" style="font-size:.8rem;color:var(--text-bright);margin-bottom:22px;line-height:1.6"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="_sharedConfirmOk" class="btn btn-red" style="min-width:90px"></button>
+            <button id="_sharedConfirmCancel" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+
+    const msg    = document.getElementById('_sharedConfirmMsg');
+    const okBtn  = document.getElementById('_sharedConfirmOk');
+    const cancel = document.getElementById('_sharedConfirmCancel');
+
+    msg.textContent    = message;
+    okBtn.textContent  = okLabel;
+    okBtn.className    = `btn ${okClass}`;
+    overlay.style.display = 'flex';
+
+    function cleanup(result) {
+      overlay.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onOk()      { cleanup(true);  }
+    function onCancel()  { cleanup(false); }
+    function onBackdrop(e) { if (e.target === overlay) cleanup(false); }
+    function onKey(e)    { if (e.key === 'Escape') cleanup(false); }
+
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 
 // ── API fetch wrapper ────────────────────────────────────────────────────────
 
@@ -261,11 +312,11 @@ function heatLabelStr(h) {
 
 function heatColorStyle(heat) {
   if (heat <= 0) return '';
-  if (heat <= 2) return 'color:#cccc44;';
-  if (heat <= 4) return 'color:#ffaa22;';
-  if (heat <= 6) return 'color:#ff7700;';
-  if (heat <= 8) return 'color:#ff4422;';
-  return 'color:#ff1111;text-shadow:0 0 8px #ff111188;';
+  if (heat <= 2) return 'color:var(--heat-noticed);';
+  if (heat <= 4) return 'color:var(--heat-flagged);';
+  if (heat <= 6) return 'color:var(--heat-wanted);';
+  if (heat <= 8) return 'color:var(--heat-hot);';
+  return 'color:var(--heat-nova);text-shadow:0 0 8px rgba(255,17,17,0.53);';
 }
 
 

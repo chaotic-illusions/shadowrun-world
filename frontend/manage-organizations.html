@@ -653,7 +653,7 @@ async function loadOrgs() {
 async function deleteOrg() {
   if (!editingId) return;
   const name = document.getElementById('name').value || 'this organization';
-  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
   try {
     const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);

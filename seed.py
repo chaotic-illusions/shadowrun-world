@@ -9,7 +9,6 @@ Usage:
 
 import json
 import os
-import sys
 import argparse
 import urllib.request
 import urllib.error
@@ -31,8 +30,9 @@ def post(base_url, path, payload):
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
-        print(f"  ERROR {e.code} on POST {path}: {body}")
-        sys.exit(1)
+        raise RuntimeError(f"ERROR {e.code} on POST {path}: {body}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Connection failed for POST {path}: {e.reason}") from e
 
 
 def seed(base_url, seed_file):
@@ -157,4 +157,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print(f"Seeding {args.file} -> {args.url}")
-    seed(args.url, args.file)
+    try:
+        seed(args.url, args.file)
+    except RuntimeError as e:
+        print(f"  {e}")
+        raise SystemExit(1) from e

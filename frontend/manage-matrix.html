@@ -139,9 +139,9 @@
       </div>
 
       <div class="mx-toolbar gm-only">
-        <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem;color:#c87533;border-color:#5a3010">Edit Layout</button>
+        <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem;color:var(--node-iop);border-color:#5a3010">Edit Layout</button>
         <button class="btn btn-red" id="btnDeleteNode" style="font-size:0.65rem;display:none" onclick="deleteSelectedNode()">Delete Selected</button>
-        <button class="btn" id="btnConnect" style="font-size:0.65rem;color:#bb44ff;border-color:#551177;display:none" onclick="toggleConnectMode()">Draw Link</button>
+        <button class="btn" id="btnConnect" style="font-size:0.65rem;color:var(--purple);border-color:#551177;display:none" onclick="toggleConnectMode()">Draw Link</button>
         <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()">Delete System Map</button>
         <div class="flex-1"></div>
         <div class="mx-mode-badge mx-mode-view" id="modeBadge">VIEWING</div>
@@ -164,16 +164,16 @@
 
       <div class="mx-legend">
         <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-right:4px">NODES:</span>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ff41"></div>CPU</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ccff"></div>SPU</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#6688ff"></div>SAN</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff5500"></div>SN</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#c87533"></div>I/OP</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#cc9900"></div>DS</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-cpu)"></div>CPU</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-spu)"></div>SPU</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-san)"></div>SAN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-sn)"></div>SN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-iop)"></div>I/OP</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--node-ds)"></div>DS</div>
         <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-left:12px;margin-right:4px">IC:</span>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#f5f5f5"></div>White</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#606060"></div>Gray</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff3333"></div>Black</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--ic-white)"></div>White</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--ic-gray)"></div>Gray</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:var(--ic-black)"></div>Black</div>
       </div>
 
       <!-- Connection matrix legend -->
@@ -304,21 +304,25 @@ let _connectFrom = null;
 let _modalNodeId = null;
 
 // ── Color & shape config ───────────────────────────────────────────────────
+// Read CSS custom properties so colors are defined in one place (style.css :root)
+const _cs = getComputedStyle(document.documentElement);
+const _cv = (v) => _cs.getPropertyValue(v).trim();
+
 const NODE_COLOR = {
-  CPU: '#00ff41', SPU: '#00ccff', SAN: '#6688ff',
-  SN:  '#ff5500', IOP: '#c87533', DS:  '#cc9900',
+  CPU: _cv('--node-cpu'), SPU: _cv('--node-spu'), SAN: _cv('--node-san'),
+  SN:  _cv('--node-sn'),  IOP: _cv('--node-iop'), DS:  _cv('--node-ds'),
 };
 const NODE_TYPES = ['CPU', 'SPU', 'SAN', 'SN', 'IOP', 'DS'];
-const IC_COLOR = { white: '#f5f5f5', gray: '#606060', black: '#ff3333' };
+const IC_COLOR = { white: _cv('--ic-white'), gray: _cv('--ic-gray'), black: _cv('--ic-black') };
 
 function ratingTextColor(rating) {
   if (!rating) return '#888';
   const r = rating.toLowerCase();
-  if (r.startsWith('blue'))   return '#4488ff';
+  if (r.startsWith('blue'))   return _cv('--blue');
   if (r.startsWith('green'))  return '#00cc44';
-  if (r.startsWith('orange')) return '#ff9900';
-  if (r.startsWith('red'))    return '#ff3333';
-  if (r.startsWith('black'))  return '#bb44ff';
+  if (r.startsWith('orange')) return _cv('--amber');
+  if (r.startsWith('red'))    return _cv('--red');
+  if (r.startsWith('black'))  return _cv('--purple');
   return '#888';
 }
 
@@ -581,14 +585,14 @@ async function createHost() {
 }
 
 function _ratingColor(rating) {
-  if (!rating) return '#1a3a1a';
+  if (!rating) return _cv('--rating-none');
   const r = rating.toLowerCase();
-  if (r.startsWith('blue'))   return '#0a1a3a';
-  if (r.startsWith('green'))  return '#0a2a0a';
-  if (r.startsWith('orange')) return '#2a1a00';
-  if (r.startsWith('red'))    return '#2a0a0a';
-  if (r.startsWith('black'))  return '#1a001a';
-  return '#1a2a1a';
+  if (r.startsWith('blue'))   return _cv('--rating-blue');
+  if (r.startsWith('green'))  return _cv('--rating-green');
+  if (r.startsWith('orange')) return _cv('--rating-orange');
+  if (r.startsWith('red'))    return _cv('--rating-red');
+  if (r.startsWith('black'))  return _cv('--rating-black');
+  return _cv('--rating-none');
 }
 
 async function deleteCurrentHost() {
@@ -643,18 +647,18 @@ function endConnectMode() {
   _connectMode = false;
   _connectFrom = null;
   const btn = document.getElementById('btnConnect');
-  if (btn) { btn.textContent = 'Draw Link'; btn.style.color = '#bb44ff'; btn.style.borderColor = '#551177'; }
+  if (btn) { btn.textContent = 'Draw Link'; btn.style.color = _cv('--purple'); btn.style.borderColor = '#551177'; }
   if (_topology) renderNodes(_topology.nodes);
 }
 
 // ── System Zone management ──────────────────────────────────────────────────
 const ZONE_PALETTE = [
-  { label: 'Private System',    color: '#393980' },
-  { label: 'Secure Zone',       color: '#804F80' },
-  { label: 'Admin Network',     color: '#4F8080' },
-  { label: 'Research Grid',     color: '#804F00' },
-  { label: 'Classified Domain', color: '#802E35' },
-  { label: 'Restricted Core',   color: '#804F4F' },
+  { label: 'Private System',    color: _cv('--zone-private') },
+  { label: 'Secure Zone',       color: _cv('--zone-secure') },
+  { label: 'Admin Network',     color: _cv('--zone-admin') },
+  { label: 'Research Grid',     color: _cv('--zone-research') },
+  { label: 'Classified Domain', color: _cv('--zone-classified') },
+  { label: 'Restricted Core',   color: _cv('--zone-restricted') },
 ];
 
 function showSubnetPanel() {
@@ -667,7 +671,7 @@ function showSubnetPanel() {
 function renderSubnetPanel() {
   if (!_topology) return;
   if (!_topology.subnets || !_topology.subnets.length) {
-    _topology.subnets = [{ id: 'public', label: 'Public System', color: '#398039' }];
+    _topology.subnets = [{ id: 'public', label: 'Public System', color: _cv('--zone-public') }];
   }
   const list = document.getElementById('subnetList');
   list.innerHTML = '';

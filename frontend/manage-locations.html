@@ -324,7 +324,7 @@ async function saveLoc() {
 async function deleteLoc() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
   try {
     const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);

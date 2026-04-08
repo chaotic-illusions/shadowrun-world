@@ -34,6 +34,16 @@ class TestClientIp:
         req.headers = {"x-forwarded-for": "203.0.113.5, 10.0.0.1"}
         assert _client_ip(req) == "203.0.113.5"
 
+    def test_empty_forwarded_for_falls_back(self):
+        req = _mock_request("10.0.0.1")
+        req.headers = {"x-forwarded-for": " , "}
+        assert _client_ip(req) == "10.0.0.1"
+
+    def test_blank_forwarded_for_falls_back(self):
+        req = _mock_request("10.0.0.1")
+        req.headers = {"x-forwarded-for": ""}
+        assert _client_ip(req) == "10.0.0.1"
+
 
 class TestRecordFailure:
     def test_first_failure(self):
