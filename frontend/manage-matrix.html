@@ -5,152 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Matrix Hosts | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    /* ── Layout ─────────────────────────────────────── */
-    .mx-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
-    @media (max-width: 900px) { .mx-layout { grid-template-columns: 1fr; } }
-
-    /* ── Left panel ─────────────────────────────────── */
-    .mx-panel { background: var(--bg-card); border: 1px solid #111; padding: 16px; }
-    .mx-panel-title { font-size: 0.68rem; letter-spacing: 3px; color: var(--cyan); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid #1a2a1a; padding-bottom: 8px; }
-
-    .field label { font-size: 0.65rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 4px; }
-    .field { margin-bottom: 12px; }
-    .field input, .field select, .field textarea {
-      width: 100%; background: var(--bg-input, #0a0a0a); border: 1px solid var(--green-dark);
-      color: var(--text-bright); padding: 6px 10px; font-family: var(--font); font-size: 0.82rem;
-      box-sizing: border-box; outline: none;
-    }
-    .field input:focus, .field select:focus { border-color: var(--green-dim); }
-
-    .host-item {
-      padding: 10px 12px; border: 1px solid #111; border-left: 3px solid var(--text-dim);
-      margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
-    }
-    .host-item:hover, .host-item.active { border-left-color: var(--cyan); background: #0a0f0a; }
-    .host-name { font-size: 0.85rem; color: var(--text-bright); letter-spacing: 1px; }
-    .host-meta { font-size: 0.62rem; color: var(--text-dim); letter-spacing: 1px; margin-top: 3px; }
-
-    /* ── Node palette ───────────────────────────────── */
-    .palette-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .palette-item {
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      padding: 8px 4px; border: 1px solid #1a2a1a; background: #080808;
-      cursor: grab; user-select: none; font-size: 0.6rem; letter-spacing: 1px;
-      color: var(--text-dim); transition: border-color .15s;
-    }
-    .palette-item:hover { border-color: var(--cyan); color: var(--text-bright); }
-    .palette-item:active { cursor: grabbing; }
-
-    /* ── Right panel: SVG canvas ───────────────────── */
-    .mx-canvas-wrap {
-      background: #050505; border: 1px solid #111; position: relative;
-      overflow: hidden; height: 600px;
-    }
-    #matrixSvg { width: 100%; height: 100%; display: block; cursor: grab; }
-    #matrixSvg.dragging { cursor: grabbing; }
-
-    /* ── Canvas toolbar ─────────────────────────────── */
-    .mx-toolbar {
-      display: flex; gap: 8px; align-items: center;
-      padding: 8px 12px; background: #0a0a0a; border-bottom: 1px solid #111;
-    }
-    .mx-toolbar .btn { padding: 4px 12px; font-size: 0.65rem; letter-spacing: 1px; }
-    .mx-mode-badge {
-      font-size: 0.6rem; letter-spacing: 2px; padding: 3px 10px;
-      border: 1px solid; text-transform: uppercase;
-    }
-    .mx-mode-view  { color: #c87533; border-color: #5a3010; }
-    .mx-mode-edit  { color: #c87533; border-color: #5a3010; }
-
-    /* ── Visibility badge ───────────────────────────── */
-    .vis-badge {
-      display: inline-block; font-size: 0.57rem; letter-spacing: 1.5px;
-      padding: 2px 7px; border: 1px solid; cursor: pointer;
-      text-transform: uppercase; float: right; margin-top: 2px;
-    }
-    .vis-revealed { color: var(--green-dim); border-color: #004400; }
-    .vis-hidden   { color: var(--text-dim);  border-color: #222; }
-    .vis-revealed:hover { border-color: var(--green); color: var(--green); }
-    .vis-hidden:hover   { border-color: var(--amber); color: var(--amber); }
-
-    /* ── Player discovered panel ────────────────────── */
-    #playerInfoPanel {
-      background: #080e08; border: 1px solid #0e2a0e; border-left: 3px solid var(--cyan);
-      padding: 12px 14px; margin-bottom: 8px; font-size: 0.7rem;
-    }
-    .pi-header { font-size: 0.6rem; letter-spacing: 3px; color: var(--cyan); margin-bottom: 10px; }
-    .pi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .pi-stat label { display: block; font-size: 0.58rem; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 2px; }
-    .pi-notes { margin-top: 10px; color: var(--text-dim); font-size: 0.68rem; line-height: 1.5; border-top: 1px solid #1a2a1a; padding-top: 8px; }
-
-    /* ── IC Tooltip ─────────────────────────────────── */
-    #icTooltip {
-      position: fixed; z-index: 1000; background: #0d0d0d; border: 1px solid #1a2a1a;
-      padding: 10px 14px; max-width: 280px; pointer-events: none; display: none;
-    }
-    .ic-tt-type     { font-size: 0.7rem; letter-spacing: 2px; color: var(--text-bright); margin-bottom: 4px; }
-    .ic-tt-cat      { font-size: 0.58rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
-    .ic-tt-cat-white { color: #cccccc; }
-    .ic-tt-cat-gray  { color: var(--text-dim); }
-    .ic-tt-cat-black { color: var(--red); }
-    .ic-tt-rating   { font-size: 0.62rem; color: var(--cyan); margin-bottom: 6px; }
-    .ic-tt-summary  { font-size: 0.72rem; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
-    .ic-tt-flavor   { font-size: 0.68rem; color: var(--text-dim); font-style: italic; line-height: 1.4; }
-
-    /* ── Node legend ────────────────────────────────── */
-    .mx-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; background: #080808; border-top: 1px solid #111; }
-    .mx-leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); }
-    .mx-leg-swatch { width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
-
-    /* ── Connection matrix legend ───────────────────── */
-    .conn-legend { background: #080808; border: 1px solid #111; border-top: none; padding: 12px; overflow-x: auto; }
-    .conn-legend-title { font-size: 0.6rem; letter-spacing: 3px; color: var(--text-dim); margin-bottom: 8px; }
-    .conn-table { border-collapse: collapse; font-size: 0.6rem; font-family: var(--font); letter-spacing: 1px; }
-    .conn-table th, .conn-table td { padding: 4px 8px; border: 1px solid #1a2a1a; text-align: center; }
-    .conn-table th { color: var(--text-dim); background: #0a0a0a; }
-    .conn-table td.conn-yes { color: var(--green); }
-    .conn-table td.conn-no  { color: #222; }
-    .conn-table td.conn-hdr { color: var(--cyan); background: #0a0a0a; text-align: left; padding-left: 10px; }
-
-    /* ── Node edit modal ────────────────────────────── */
-    #nodeModal {
-      display: none; position: fixed; inset: 0; z-index: 500;
-      background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
-    }
-    #nodeModal.open { display: flex; }
-    .modal-box {
-      background: #0e0e0e; border: 1px solid #1a2a1a; padding: 20px 24px;
-      width: 420px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
-    }
-    .modal-title { font-size: 0.7rem; letter-spacing: 3px; color: var(--cyan); margin-bottom: 16px; }
-    .modal-field { margin-bottom: 12px; }
-    .modal-field label { font-size: 0.62rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 4px; }
-    .modal-field input, .modal-field select {
-      width: 100%; background: var(--bg-input, #0a0a0a); border: 1px solid #1a2a1a;
-      color: var(--text-bright); padding: 6px 10px; font-family: var(--font); font-size: 0.8rem;
-      box-sizing: border-box; outline: none;
-    }
-    .ic-row { display: grid; grid-template-columns: 1fr 80px 32px; gap: 6px; margin-bottom: 6px; align-items: center; }
-    .ic-row select, .ic-row input { padding: 5px 8px; font-size: 0.78rem; }
-    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
-    .modal-actions .btn { flex: 1; justify-content: center; font-size: 0.65rem; }
-
-    /* ── Ghost drag node ────────────────────────────── */
-    #paletteDragGhost {
-      position: fixed; pointer-events: none; z-index: 999;
-      display: none; transform: translate(-50%,-50%);
-    }
-
-    /* ── Empty / loading states ─────────────────────── */
-    .mx-empty { display: flex; align-items: center; justify-content: center; height: 100%;
-      font-size: 0.72rem; letter-spacing: 2px; color: var(--text-dim); }
-  </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -163,7 +22,7 @@
 </header>
 
 <main>
-  <div id="pageTitle" class="page-title">&gt;&gt; MATRIX SYSTEM DESIGNER <em style="font-style:normal;color:var(--text-dim)">//</em> Topology Editor</div>
+  <div id="pageTitle" class="page-title">&gt;&gt; MATRIX SYSTEM DESIGNER <em class="sep">//</em> Topology Editor</div>
   <div class="page-sub">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
 
   <div id="mxAlert" class="alert" style="margin-bottom:12px"></div>
@@ -173,28 +32,28 @@
     <!-- ── LEFT: new host form + palette + host list ── -->
     <div>
       <!-- New Host Form (GM only) -->
-      <div class="mx-panel gm-only" style="margin-bottom:16px">
+      <div class="mx-panel gm-only mb-16">
         <div class="mx-panel-title">&gt;&gt; New Matrix Host</div>
 
-        <div class="field">
+        <div class="mx-field">
           <label>Organization</label>
           <select id="new-org-source" onchange="onOrgSourceChange()">
             <option value="">— One-off system (no org) —</option>
           </select>
         </div>
-        <div class="field" id="ltgSourceField" style="display:none">
+        <div class="mx-field" id="ltgSourceField" style="display:none">
           <label>LTG / System Entry</label>
           <select id="new-ltg-source" onchange="onLtgSourceChange()">
             <option value="">— Select entry —</option>
           </select>
         </div>
 
-        <div class="field">
+        <div class="mx-field">
           <label>Host Name *</label>
-          <input type="text" id="new-name" placeholder="Aztechnology Seattle Payroll...">
+          <input type="text" id="new-name" placeholder="Aztechnology Seattle Payroll..." maxlength="200">
         </div>
 
-        <div class="field">
+        <div class="mx-field">
           <label>SAN Rating</label>
           <select id="new-san-rating">
             <option value="">— Unknown —</option>
@@ -219,7 +78,7 @@
           </select>
         </div>
 
-        <div class="field">
+        <div class="mx-field">
           <label>Notes</label>
           <textarea id="new-notes" rows="2" placeholder="GM notes..."></textarea>
         </div>
@@ -235,15 +94,29 @@
         <div class="palette-grid" id="paletteGrid"></div>
         <div style="margin-top:10px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
           Drag a node type onto the canvas to place it.<br>
-          Drop near an existing compatible node to auto-connect.
+          Drop <em>on</em> an existing compatible node to connect &amp; auto-position.<br>
+          Use <strong>Draw Link</strong> (edit mode) to connect two existing nodes.
+        </div>
+      </div>
+
+      <!-- System Zone Manager (GM only, visible when host loaded) -->
+      <div class="mx-panel gm-only" id="subnetPanel" style="margin-bottom:16px;display:none">
+        <div class="mx-panel-title flex-between">
+          <span>&gt;&gt; System Zones</span>
+          <button class="btn" style="font-size:0.55rem;padding:2px 8px;color:var(--cyan);border-color:#004455" onclick="addSubnetZone()">+ Add Zone</button>
+        </div>
+        <div id="subnetList"></div>
+        <div style="margin-top:8px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
+          A node can belong to only one zone but may connect to nodes<br>
+          in other zones — use this for nested private systems.
         </div>
       </div>
 
       <!-- Host List -->
       <div class="mx-panel">
-        <div class="mx-panel-title" style="display:flex;justify-content:space-between">
+        <div class="mx-panel-title flex-between">
           <span>&gt;&gt; Saved Hosts</span>
-          <span id="hostCount" style="color:var(--text-dim)">—</span>
+          <span id="hostCount" class="text-dim">—</span>
         </div>
         <div id="hostList"><div class="mx-empty" style="height:60px">No hosts saved</div></div>
       </div>
@@ -267,9 +140,10 @@
 
       <div class="mx-toolbar gm-only">
         <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem;color:#c87533;border-color:#5a3010">Edit Layout</button>
-        <button class="btn btn-red" id="btnDeleteNode" style="font-size:0.65rem;display:none" onclick="deleteSelectedNode()">Delete Node</button>
+        <button class="btn btn-red" id="btnDeleteNode" style="font-size:0.65rem;display:none" onclick="deleteSelectedNode()">Delete Selected</button>
+        <button class="btn" id="btnConnect" style="font-size:0.65rem;color:#bb44ff;border-color:#551177;display:none" onclick="toggleConnectMode()">Draw Link</button>
         <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()">Delete System Map</button>
-        <div style="flex:1"></div>
+        <div class="flex-1"></div>
         <div class="mx-mode-badge mx-mode-view" id="modeBadge">VIEWING</div>
         <button class="btn" onclick="resetZoom()" style="font-size:0.62rem;color:var(--text-dim)">Reset Zoom</button>
       </div>
@@ -292,13 +166,13 @@
         <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-right:4px">NODES:</span>
         <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ff41"></div>CPU</div>
         <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#00ccff"></div>SPU</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#4488ff"></div>SAN</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff9900"></div>SN</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#bb44ff"></div>I/OP</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#888"></div>DS</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#6688ff"></div>SAN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff5500"></div>SN</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#c87533"></div>I/OP</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#cc9900"></div>DS</div>
         <span style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-left:12px;margin-right:4px">IC:</span>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#e8e8e8"></div>White</div>
-        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#888"></div>Gray</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#f5f5f5"></div>White</div>
+        <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#606060"></div>Gray</div>
         <div class="mx-leg-item"><div class="mx-leg-swatch" style="background:#ff3333"></div>Black</div>
       </div>
 
@@ -323,8 +197,8 @@
 
 <!-- ── Node edit modal ─────────────────────────────── -->
 <div id="nodeModal">
-  <div class="modal-box">
-    <div class="modal-title">&gt;&gt; EDIT NODE</div>
+  <div class="mx-modal-box">
+    <div class="mx-modal-title">&gt;&gt; EDIT NODE</div>
     <div class="modal-field">
       <label>Node Type</label>
       <input type="text" id="modal-type" readonly style="color:var(--cyan)">
@@ -357,13 +231,29 @@
         <option value="Black-14">Black-14</option>
       </select>
     </div>
+    <div class="modal-field">
+      <label>System Zone</label>
+      <select id="modal-subnet"></select>
+    </div>
     <div style="font-size:0.62rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">IC PROGRAMS</div>
     <div id="icList"></div>
-    <button class="btn" style="font-size:0.62rem;margin-bottom:12px" onclick="addIcRow()">+ Add IC</button>
-    <div class="modal-actions">
+    <button class="btn btn-amber" style="font-size:0.62rem;margin-bottom:12px" onclick="addIcRow()">+ Add IC</button>
+    <div class="mx-modal-actions">
       <button class="btn btn-green" onclick="saveNodeModal()">Save</button>
       <button class="btn btn-red" onclick="deleteModalNode()">Delete Node</button>
-      <button class="btn" onclick="closeNodeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeNodeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm dialog ────────────────────────────────── -->
+<div id="confirmModal">
+  <div class="mx-modal-box" style="width:340px">
+    <div class="mx-modal-title">&gt;&gt; CONFIRM ACTION</div>
+    <div id="confirmModalMsg" style="font-size:0.8rem;color:var(--text-bright);margin-bottom:20px;line-height:1.5"></div>
+    <div class="mx-modal-actions">
+      <button class="btn btn-red" id="confirmModalOk">Delete</button>
+      <button class="btn btn-ghost" id="confirmModalCancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -392,25 +282,66 @@ let _vp = { tx: 0, ty: 0, scale: 1 };
 let _panStart = null;
 
 // Drag state (canvas node dragging)
-let _nodeDrag = null;   // { nodeId, startX, startY, origX, origY }
+let _nodeDrag = null;      // { startX, startY, origPositions: Map<id,{x,y}> }
+let _nodeDragMoved = false; // true if mouse moved during drag (suppresses click)
+
+// Lasso selection
+let _lasso = null;          // { svgX1, svgY1, el: SVGRectElement }
+
+// Multi-select
+let _selectedNodes = new Set(); // set of selected node IDs
 
 // Palette drag state
 let _paletteDrag = null;  // { nodeType }
-let _selectedNodeId = null;
 
 // Edit mode
 let _editMode = false;
+// Connect mode: click source node then target node to draw an edge
+let _connectMode = false;
+let _connectFrom = null;
 
 // Modal state
 let _modalNodeId = null;
 
 // ── Color & shape config ───────────────────────────────────────────────────
 const NODE_COLOR = {
-  CPU: '#00ff41', SPU: '#00ccff', SAN: '#4488ff',
-  SN:  '#ff9900', IOP: '#bb44ff', DS:  '#888888',
+  CPU: '#00ff41', SPU: '#00ccff', SAN: '#6688ff',
+  SN:  '#ff5500', IOP: '#c87533', DS:  '#cc9900',
 };
 const NODE_TYPES = ['CPU', 'SPU', 'SAN', 'SN', 'IOP', 'DS'];
-const IC_COLOR = { white: '#e0e0e0', gray: '#aaaaaa', black: '#ff3333' };
+const IC_COLOR = { white: '#f5f5f5', gray: '#606060', black: '#ff3333' };
+
+function ratingTextColor(rating) {
+  if (!rating) return '#888';
+  const r = rating.toLowerCase();
+  if (r.startsWith('blue'))   return '#4488ff';
+  if (r.startsWith('green'))  return '#00cc44';
+  if (r.startsWith('orange')) return '#ff9900';
+  if (r.startsWith('red'))    return '#ff3333';
+  if (r.startsWith('black'))  return '#bb44ff';
+  return '#888';
+}
+
+function showConfirm(message, okLabel = 'Delete') {
+  return new Promise(resolve => {
+    document.getElementById('confirmModalMsg').textContent = message;
+    document.getElementById('confirmModalOk').textContent  = okLabel;
+    const modal  = document.getElementById('confirmModal');
+    const okBtn  = document.getElementById('confirmModalOk');
+    const cancelBtn = document.getElementById('confirmModalCancel');
+    modal.classList.add('open');
+    function cleanup(result) {
+      modal.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    }
+    function onOk()     { cleanup(true);  }
+    function onCancel() { cleanup(false); }
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
 const IC_TYPES = {
   white: ['Access', 'Barrier', 'Scramble'],
   gray:  ['Blaster', 'Killer', 'Tar Baby', 'Tar Pit', 'Trace & Report', 'Trace & Dump', 'Trace & Burn'],
@@ -427,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!_authUser) return;
   await Promise.all([loadMeta(), loadHosts()]);
   if (!isAdmin()) {
-    document.getElementById('pageTitle').textContent = '>> MATRIX INTELLIGENCE FILE // TOPOLOGY VIEWER';
+    document.getElementById('pageTitle').innerHTML = '&gt;&gt; MATRIX INTELLIGENCE FILE <em class="sep">//</em> TOPOLOGY VIEWER';
     document.getElementById('svgEmpty').textContent = 'SELECT A REVEALED HOST TO VIEW TOPOLOGY';
   } else {
     await loadOrgsForDropdown();
@@ -539,7 +470,7 @@ async function selectHost(id) {
     if (!res.ok) return;
     _currentHost = await res.json();
     _topology = _currentHost.topology_json || { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: '#1a3a1a' }] };
-    _selectedNodeId = null;
+    _selectedNodes.clear();
     renderHostList();
     renderCanvas();
     document.getElementById('canvasHostTitle').style.display = 'block';
@@ -550,6 +481,7 @@ async function selectHost(id) {
     populatePlayerPanel();
     if (isAdmin()) {
       document.getElementById('palettePanel').style.display = '';
+      showSubnetPanel();
     }
   } catch(_e) {}
 }
@@ -592,7 +524,7 @@ function populatePlayerPanel() {
   const icCount = (topo.nodes || []).reduce((s, n) => s + (n.ic?.length || 0), 0);
   const edgeCount = (topo.edges || []).length;
   document.getElementById('piStats').innerHTML = `
-    <div class="pi-stat"><label>SAN RATING</label><span style="color:var(--amber)">${esc(cfg.san_rating || 'Unknown')}</span></div>
+    <div class="pi-stat"><label>SAN RATING</label><span class="text-amber">${esc(cfg.san_rating || 'Unknown')}</span></div>
     <div class="pi-stat"><label>NODES MAPPED</label><span>${topo.nodes?.length || 0}</span></div>
     <div class="pi-stat"><label>CONNECTIONS</label><span>${edgeCount}</span></div>
     <div class="pi-stat"><label>IC ACTIVE</label><span style="color:${icCount > 0 ? 'var(--red)' : 'var(--text-dim)'}">${icCount}</span></div>
@@ -624,19 +556,17 @@ async function createHost() {
   };
   try {
     const res = await apiFetch(`${API}/matrix-hosts/`, { method: 'POST', body: JSON.stringify(payload) });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || res.statusText);
-    }
+    if (!res.ok) await apiThrow(res);
     _currentHost = await res.json();
     _topology = _currentHost.topology_json;
-    _selectedNodeId = null;
+    _selectedNodes.clear();
     await loadHosts();
     renderCanvas();
     document.getElementById('canvasHostTitle').style.display = 'block';
     document.getElementById('canvasTitle').textContent = '>> ' + _currentHost.name;
     document.getElementById('canvasRating').textContent = sanRating ? `[${sanRating}]` : '';
     document.getElementById('palettePanel').style.display = '';
+    showSubnetPanel();
     updateVisibilityIndicator();
     showAlert(document.getElementById('mxAlert'), `>> CANVAS CREATED // "${name}" ready.`, false);
     // Reset form
@@ -663,14 +593,15 @@ function _ratingColor(rating) {
 
 async function deleteCurrentHost() {
   if (!_currentHost) return;
-  if (!confirm(`DELETE "${_currentHost.name}"? This cannot be undone.`)) return;
+  if (!await showConfirm(`DELETE "${_currentHost.name}"? This cannot be undone.`)) return;
   try {
     await apiFetch(`${API}/matrix-hosts/${_currentHost.id}`, { method: 'DELETE' });
     _currentHost = null;
     _topology = null;
-    _selectedNodeId = null;
+    _selectedNodes.clear();
     clearCanvas();
     document.getElementById('palettePanel').style.display = 'none';
+    document.getElementById('subnetPanel').style.display = 'none';
     await loadHosts();
   } catch(e) {
     showAlert(document.getElementById('mxAlert'), `>> DELETE FAILED // ${e.message}`, true);
@@ -679,10 +610,12 @@ async function deleteCurrentHost() {
 
 // ── Edit mode ──────────────────────────────────────────────────────────────
 function toggleEditMode() {
+  if (_connectMode) endConnectMode();
   _editMode = !_editMode;
   clearEdgeSelection();
-  _selectedNodeId = null;
+  _selectedNodes.clear();
   document.getElementById('btnDeleteNode').style.display = 'none';
+  document.getElementById('btnConnect').style.display = _editMode ? '' : 'none';
   document.getElementById('modeBadge').textContent = _editMode ? 'EDITING' : 'VIEWING';
   document.getElementById('modeBadge').className = 'mx-mode-badge ' + (_editMode ? 'mx-mode-edit' : 'mx-mode-view');
   document.getElementById('btnEditMode').textContent = _editMode ? 'Done Editing' : 'Edit Layout';
@@ -692,9 +625,115 @@ function toggleEditMode() {
   if (_topology) renderNodes(_topology.nodes);
 }
 
+function toggleConnectMode() {
+  if (_connectMode) { endConnectMode(); return; }
+  _connectMode = true;
+  _connectFrom = null;
+  clearEdgeSelection();
+  _selectedNodes.clear();
+  document.getElementById('btnDeleteNode').style.display = 'none';
+  const btn = document.getElementById('btnConnect');
+  btn.textContent = 'Cancel Link';
+  btn.style.color = '#ffaa33';
+  btn.style.borderColor = '#886611';
+  if (_topology) renderNodes(_topology.nodes);
+}
+
+function endConnectMode() {
+  _connectMode = false;
+  _connectFrom = null;
+  const btn = document.getElementById('btnConnect');
+  if (btn) { btn.textContent = 'Draw Link'; btn.style.color = '#bb44ff'; btn.style.borderColor = '#551177'; }
+  if (_topology) renderNodes(_topology.nodes);
+}
+
+// ── System Zone management ──────────────────────────────────────────────────
+const ZONE_PALETTE = [
+  { label: 'Private System',    color: '#393980' },
+  { label: 'Secure Zone',       color: '#804F80' },
+  { label: 'Admin Network',     color: '#4F8080' },
+  { label: 'Research Grid',     color: '#804F00' },
+  { label: 'Classified Domain', color: '#802E35' },
+  { label: 'Restricted Core',   color: '#804F4F' },
+];
+
+function showSubnetPanel() {
+  const panel = document.getElementById('subnetPanel');
+  if (!isAdmin() || !_currentHost) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  renderSubnetPanel();
+}
+
+function renderSubnetPanel() {
+  if (!_topology) return;
+  if (!_topology.subnets || !_topology.subnets.length) {
+    _topology.subnets = [{ id: 'public', label: 'Public System', color: '#398039' }];
+  }
+  const list = document.getElementById('subnetList');
+  list.innerHTML = '';
+  _topology.subnets.forEach((subnet, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px';
+
+    const colorDot = document.createElement('input');
+    colorDot.type = 'color';
+    colorDot.value = subnet.color;
+    colorDot.style.cssText = 'width:22px;height:22px;border:none;padding:0;cursor:pointer;background:none;flex-shrink:0';
+    colorDot.title = 'Zone color';
+    colorDot.addEventListener('change', (e) => {
+      _topology.subnets[i].color = e.target.value;
+      renderCanvas(); saveTopology();
+    });
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = subnet.label;
+    nameInput.style.cssText = 'flex:1;background:var(--bg-input,#0a0a0a);border:1px solid #1a2a1a;color:var(--text-bright);padding:4px 8px;font-family:var(--font);font-size:0.72rem;outline:none';
+    nameInput.addEventListener('change', (e) => {
+      _topology.subnets[i].label = e.target.value.trim() || subnet.label;
+      renderCanvas(); saveTopology();
+    });
+
+    row.appendChild(colorDot);
+    row.appendChild(nameInput);
+
+    // Primary subnet cannot be deleted
+    if (i > 0) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-red';
+      delBtn.style.cssText = 'font-size:0.55rem;padding:2px 7px;flex-shrink:0';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Remove zone — nodes reassigned to Public System';
+      delBtn.addEventListener('click', () => removeSubnetZone(subnet.id));
+      row.appendChild(delBtn);
+    }
+
+    list.appendChild(row);
+  });
+}
+
+function addSubnetZone() {
+  if (!_topology) return;
+  const idx = Math.min(_topology.subnets.length - 1, ZONE_PALETTE.length - 1);
+  const def = ZONE_PALETTE[idx] || ZONE_PALETTE[0];
+  const id = `zone_${Date.now()}`;
+  _topology.subnets.push({ id, label: def.label, color: def.color });
+  renderSubnetPanel();
+  saveTopology();
+}
+
+async function removeSubnetZone(zoneId) {
+  if (!_topology) return;
+  if (!await showConfirm('Remove this system zone? Nodes inside will be reassigned to Public System.', 'Remove')) return;
+  _topology.subnets = _topology.subnets.filter(s => s.id !== zoneId);
+  _topology.nodes.forEach(n => { if (n.subnet === zoneId) n.subnet = 'public'; });
+  renderSubnetPanel();
+  renderCanvas();
+  saveTopology();
+}
+
 // ── Canvas render ──────────────────────────────────────────────────────────
 function clearCanvas() {
-  document.getElementById('subnetLayer').innerHTML = '';
   document.getElementById('edgeLayer').innerHTML = '';
   document.getElementById('nodeLayer').innerHTML = '';
   document.getElementById('svgEmpty').style.display = '';
@@ -830,9 +869,9 @@ function clearEdgeSelection() {
   _edgeSel = null;
 }
 
-function deleteSelectedEdge() {
+async function deleteSelectedEdge() {
   if (!_edgeSel || !_topology) return;
-  if (!confirm('Delete this connection?')) return;
+  if (!await showConfirm('Delete this connection?')) return;
   _topology.edges = _topology.edges.filter(
     e => !(e.from === _edgeSel.from && e.to === _edgeSel.to)
   );
@@ -871,24 +910,33 @@ function clearHighlightNodes() {
 function renderNodes(nodes) {
   const layer = document.getElementById('nodeLayer');
   layer.innerHTML = '';
+  // Pre-compute connect mode state for this render pass
+  const nodeMap = _connectMode && _connectFrom ? buildNodeMap() : null;
+  const connectSourceType = nodeMap ? (nodeMap[_connectFrom]?.type || null) : null;
+
   for (const node of nodes) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'mx-node');
     g.dataset.nodeid = node.id;
     g.setAttribute('transform', `translate(${node.x},${node.y})`);
-    const isSelected = node.id === _selectedNodeId;
+    const isSelected = _selectedNodes.has(node.id);
+    const isConnectSource = _connectMode && node.id === _connectFrom;
+    const isConnectTarget = connectSourceType != null && node.id !== _connectFrom &&
+                            (_connMatrix[connectSourceType] || []).includes(node.type);
+    const isConnectDimmed = _connectMode && _connectFrom != null && !isConnectSource && !isConnectTarget;
 
     const shapeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     shapeG.setAttribute('class', 'node-body');
-    if (isSelected) shapeG.setAttribute('filter', 'url(#glow-sel)');
+    if (isSelected || isConnectSource || isConnectTarget) shapeG.setAttribute('filter', 'url(#glow-sel)');
+    if (isConnectDimmed) shapeG.setAttribute('opacity', '0.3');
     drawNodeShape(shapeG, node);
     g.appendChild(shapeG);
 
     const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     lbl.setAttribute('text-anchor', 'middle');
-    lbl.setAttribute('y', '38');
-    lbl.setAttribute('fill', '#aaaaaa');
-    lbl.setAttribute('font-size', '8');
+    lbl.setAttribute('y', '40');
+    lbl.setAttribute('fill', '#cccccc');
+    lbl.setAttribute('font-size', '10');
     lbl.setAttribute('letter-spacing', '1');
     lbl.setAttribute('font-family', "'Share Tech Mono',monospace");
     lbl.textContent = node.label || node.type;
@@ -898,9 +946,9 @@ function renderNodes(nodes) {
     if (node.rating) {
       const rl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       rl.setAttribute('text-anchor', 'middle');
-      rl.setAttribute('y', '47');
-      rl.setAttribute('fill', '#555');
-      rl.setAttribute('font-size', '7');
+      rl.setAttribute('y', '52');
+      rl.setAttribute('fill', ratingTextColor(node.rating));
+      rl.setAttribute('font-size', '9');
       rl.setAttribute('letter-spacing', '0');
       rl.setAttribute('font-family', "'Share Tech Mono',monospace");
       rl.textContent = node.rating;
@@ -927,45 +975,97 @@ function renderNodes(nodes) {
     }
 
     // Interaction
-    g.style.cursor = _editMode ? 'grab' : 'pointer';
+    g.style.cursor = _connectMode ? 'crosshair' : (_editMode ? 'grab' : 'default');
     g.addEventListener('mousedown', (e) => {
+      if (_connectMode) return;
       if (!_editMode) return;
       e.stopPropagation();
+      _nodeDragMoved = false;
+
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+click: toggle node in/out of selection (no drag)
+        if (_selectedNodes.has(node.id)) _selectedNodes.delete(node.id);
+        else _selectedNodes.add(node.id);
+        document.getElementById('btnDeleteNode').style.display = _selectedNodes.size ? '' : 'none';
+        renderNodes(_topology.nodes);
+        return;
+      }
+
+      // Plain mousedown: if node not already selected, reset to just this node
+      if (!_selectedNodes.has(node.id)) {
+        _selectedNodes.clear();
+        _selectedNodes.add(node.id);
+        document.getElementById('btnDeleteNode').style.display = '';
+        renderNodes(_topology.nodes);
+      }
+
+      // Initiate drag for all currently selected nodes
       const svgPt = svgPoint(e);
-      _nodeDrag = { nodeId: node.id, origX: node.x, origY: node.y,
-                    startX: svgPt.x, startY: svgPt.y };
+      const origPositions = new Map();
+      _selectedNodes.forEach(nid => {
+        const n = _topology.nodes.find(nd => nd.id === nid);
+        if (n) origPositions.set(nid, { x: n.x, y: n.y });
+      });
+      _nodeDrag = { startX: svgPt.x, startY: svgPt.y, origPositions };
       g.style.cursor = 'grabbing';
     });
 
     g.addEventListener('click', (e) => {
-      if (_nodeDrag) return; // was a drag, not a click
-      if (isAdmin() && _editMode) {
+      if (_nodeDragMoved) { _nodeDragMoved = false; return; }
+      if (_connectMode) {
         e.stopPropagation();
-        selectCanvasNode(node.id);
-      } else if (isAdmin()) {
-        e.stopPropagation();
-        openNodeModal(node.id);
+        if (!_connectFrom) {
+          _connectFrom = node.id;
+          renderNodes(_topology.nodes);
+        } else if (_connectFrom === node.id) {
+          endConnectMode();
+        } else {
+          if (canConnect(_connectFrom, node.id)) {
+            const already = _topology.edges.find(
+              ed => (ed.from === _connectFrom && ed.to === node.id) ||
+                    (ed.from === node.id && ed.to === _connectFrom)
+            );
+            if (!already) {
+              _topology.edges.push({ from: _connectFrom, to: node.id });
+              renderEdges(_topology.edges);
+              saveTopology();
+            }
+          } else {
+            showAlert('mxAlert', 'These node types cannot be connected.', 'error');
+          }
+          endConnectMode();
+        }
+        return;
       }
+      if (!isAdmin()) return;
+      if (_editMode) {
+        e.stopPropagation();
+        // Selection already handled in mousedown; nothing extra for plain click
+      }
+    });
+
+    // Right-click always opens the edit modal for admins (regardless of edit mode)
+    g.addEventListener('contextmenu', (e) => {
+      if (!isAdmin()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openNodeModal(node.id);
     });
 
     layer.appendChild(g);
   }
 }
 
-function selectCanvasNode(nodeId) {
-  _selectedNodeId = (_selectedNodeId === nodeId) ? null : nodeId;
-  document.getElementById('btnDeleteNode').style.display = _selectedNodeId ? '' : 'none';
-  renderNodes(_topology.nodes);
-}
-
-function deleteSelectedNode() {
-  if (!_selectedNodeId || !_topology) return;
-  const node = _topology.nodes.find(n => n.id === _selectedNodeId);
-  if (!node) return;
-  if (!confirm(`Delete node "${node.label || node.type}"?`)) return;
-  _topology.nodes = _topology.nodes.filter(n => n.id !== _selectedNodeId);
-  _topology.edges = _topology.edges.filter(e => e.from !== _selectedNodeId && e.to !== _selectedNodeId);
-  _selectedNodeId = null;
+async function deleteSelectedNode() {
+  if (!_selectedNodes.size || !_topology) return;
+  const count = _selectedNodes.size;
+  const label = count === 1
+    ? `"${_topology.nodes.find(n => n.id === [..._selectedNodes][0])?.label || '?'}"`
+    : `${count} nodes`;
+  if (!await showConfirm(`Delete ${label}?`)) return;
+  _topology.nodes = _topology.nodes.filter(n => !_selectedNodes.has(n.id));
+  _topology.edges = _topology.edges.filter(e => !_selectedNodes.has(e.from) && !_selectedNodes.has(e.to));
+  _selectedNodes.clear();
   document.getElementById('btnDeleteNode').style.display = 'none';
   renderCanvas();
   saveTopology();
@@ -1047,15 +1147,17 @@ function drawSphere(g, c) {
 
 // SAN: wide rectangle
 function drawCuboid(g, c) {
-  const w = 32, h = 18;
+  const w = 35, h = 18;
   g.appendChild(svgRect(-w/2, -h/2, w, h, c, '0.15', c, '5', 'url(#node-glow)'));
   g.appendChild(svgRect(-w/2, -h/2, w, h, c, '0.8', c, '1.5'));
 }
 
-// IOP: diamond
+// IOP: upward-pointing triangle
 function drawPyramid(g, c) {
-  const r = 19;
-  const pts = `0,${-r} ${r},0 0,${r} ${-r},0`;
+  const r = 20;
+  const bx = (r * Math.sin(Math.PI * 2 / 3)).toFixed(2);
+  const by = (r * 0.5).toFixed(2);
+  const pts = `0,${-r} ${bx},${by} -${bx},${by}`;
   g.appendChild(svgPoly(pts, c, '0.15', c, '5', 'url(#node-glow)'));
   g.appendChild(svgPoly(pts, c, '0.8', c, '1.5'));
 }
@@ -1082,11 +1184,36 @@ function initSvgEvents() {
   }, { passive: false });
 
   svg.addEventListener('mousedown', (e) => {
-    if (e.target === svg || e.target.id === 'svgRoot' || e.target.id === 'subnetLayer') {
-      clearEdgeSelection();
-      svg.classList.add('dragging');
-      _panStart = { x: e.clientX - _vp.tx, y: e.clientY - _vp.ty };
+    const onBackground = e.target === svg || e.target.id === 'svgRoot'
+      || e.target.id === 'subnetLayer' || e.target.parentElement?.id === 'subnetLayer'
+      || e.target.id === 'svgEmpty';
+    if (!onBackground) return;
+    if (_connectMode) { endConnectMode(); return; }
+
+    if (e.shiftKey && _editMode) {
+      // Start lasso select
+      const pt = svgPoint(e);
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      el.setAttribute('fill', 'rgba(0,204,255,0.05)');
+      el.setAttribute('stroke', '#00ccff');
+      el.setAttribute('stroke-width', '0.5');
+      el.setAttribute('stroke-dasharray', '4 3');
+      el.setAttribute('x', pt.x); el.setAttribute('y', pt.y);
+      el.setAttribute('width', '0'); el.setAttribute('height', '0');
+      document.getElementById('svgRoot').appendChild(el);
+      _lasso = { svgX1: pt.x, svgY1: pt.y, el };
+      return;
     }
+
+    // Plain click on background: clear selection
+    if (!e.shiftKey && _editMode) {
+      _selectedNodes.clear();
+      document.getElementById('btnDeleteNode').style.display = 'none';
+      if (_topology) renderNodes(_topology.nodes);
+    }
+    clearEdgeSelection();
+    svg.classList.add('dragging');
+    _panStart = { x: e.clientX - _vp.tx, y: e.clientY - _vp.ty };
   });
 
   window.addEventListener('mousemove', (e) => {
@@ -1095,31 +1222,63 @@ function initSvgEvents() {
       _vp.ty = e.clientY - _panStart.y;
       applyViewport();
     }
+    if (_lasso) {
+      const pt = svgPoint(e);
+      const x = Math.min(pt.x, _lasso.svgX1);
+      const y = Math.min(pt.y, _lasso.svgY1);
+      _lasso.el.setAttribute('x', x); _lasso.el.setAttribute('y', y);
+      _lasso.el.setAttribute('width',  Math.abs(pt.x - _lasso.svgX1));
+      _lasso.el.setAttribute('height', Math.abs(pt.y - _lasso.svgY1));
+    }
     if (_nodeDrag && _editMode) {
       const pt = svgPoint(e);
       const dx = pt.x - _nodeDrag.startX;
       const dy = pt.y - _nodeDrag.startY;
-      const node = _topology.nodes.find(n => n.id === _nodeDrag.nodeId);
-      if (node) {
-        node.x = _nodeDrag.origX + dx;
-        node.y = _nodeDrag.origY + dy;
-        // Move node group
-        const g = document.querySelector(`g[data-nodeid="${node.id}"]`);
-        if (g) g.setAttribute('transform', `translate(${node.x},${node.y})`);
-        renderEdges(_topology.edges);
-        renderSubnets(_topology.nodes, _topology.subnets);
-      }
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) _nodeDragMoved = true;
+      _nodeDrag.origPositions.forEach((orig, nid) => {
+        const node = _topology.nodes.find(n => n.id === nid);
+        if (node) {
+          node.x = orig.x + dx;
+          node.y = orig.y + dy;
+          const g = document.querySelector(`g[data-nodeid="${nid}"]`);
+          if (g) g.setAttribute('transform', `translate(${node.x},${node.y})`);
+        }
+      });
+      renderEdges(_topology.edges);
+      renderSubnets(_topology.nodes, _topology.subnets);
     }
   });
 
   window.addEventListener('mouseup', (e) => {
     if (_panStart) { _panStart = null; document.getElementById('matrixSvg').classList.remove('dragging'); }
+    if (_lasso) {
+      const pt = svgPoint(e);
+      const x1 = Math.min(pt.x, _lasso.svgX1), x2 = Math.max(pt.x, _lasso.svgX1);
+      const y1 = Math.min(pt.y, _lasso.svgY1), y2 = Math.max(pt.y, _lasso.svgY1);
+      _lasso.el.remove();
+      _lasso = null;
+      if (_topology && (x2 - x1 > 4 || y2 - y1 > 4)) {
+        if (!e.ctrlKey && !e.metaKey) _selectedNodes.clear();
+        _topology.nodes.forEach(n => {
+          if (n.x >= x1 && n.x <= x2 && n.y >= y1 && n.y <= y2) _selectedNodes.add(n.id);
+        });
+        document.getElementById('btnDeleteNode').style.display = _selectedNodes.size ? '' : 'none';
+        renderNodes(_topology.nodes);
+      }
+      return;
+    }
     if (_nodeDrag) {
-      const gEl = document.querySelector(`g[data-nodeid="${_nodeDrag.nodeId}"]`);
-      if (gEl) gEl.style.cursor = 'grab';
+      _nodeDrag.origPositions.forEach((_, nid) => {
+        const gEl = document.querySelector(`g[data-nodeid="${nid}"]`);
+        if (gEl) gEl.style.cursor = 'grab';
+      });
       _nodeDrag = null;
       saveTopology();
     }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _connectMode) endConnectMode();
   });
 }
 
@@ -1226,8 +1385,44 @@ function initPaletteDrag() {
         e.clientY < rect.top  || e.clientY > rect.bottom) return;
 
     // Convert to SVG coords
-    const svgX = (e.clientX - rect.left - _vp.tx) / _vp.scale;
-    const svgY = (e.clientY - rect.top  - _vp.ty) / _vp.scale;
+    let svgX = (e.clientX - rect.left - _vp.tx) / _vp.scale;
+    let svgY = (e.clientY - rect.top  - _vp.ty) / _vp.scale;
+
+    // Check if dropped on an existing compatible node (snap-connect mode)
+    const HIT_RADIUS = 30;
+    const ORBITAL_DIST = 90;
+    let snapTarget = null;
+    for (const existing of _topology.nodes) {
+      const compatible = (_connMatrix[nodeType] || []).includes(existing.type);
+      if (!compatible) continue;
+      if (Math.hypot(existing.x - svgX, existing.y - svgY) <= HIT_RADIUS) {
+        snapTarget = existing;
+        break;
+      }
+    }
+
+    let attachId = null;
+    if (snapTarget) {
+      // Snap: place new node in an orbit around the target, away from existing neighbors
+      const neighbors = _topology.edges
+        .filter(ed => ed.from === snapTarget.id || ed.to === snapTarget.id)
+        .map(ed => _topology.nodes.find(n => n.id === (ed.from === snapTarget.id ? ed.to : ed.from)))
+        .filter(Boolean);
+      // Try 8 candidate angles; pick the one furthest from all neighbors
+      const candidateAngles = Array.from({ length: 8 }, (_, i) => i * Math.PI / 4);
+      let bestAngle = 0, bestScore = -1;
+      for (const angle of candidateAngles) {
+        const cx = snapTarget.x + ORBITAL_DIST * Math.cos(angle);
+        const cy = snapTarget.y + ORBITAL_DIST * Math.sin(angle);
+        const minDist = neighbors.length
+          ? Math.min(...neighbors.map(nb => Math.hypot(nb.x - cx, nb.y - cy)))
+          : Infinity;
+        if (minDist > bestScore) { bestScore = minDist; bestAngle = angle; }
+      }
+      svgX = snapTarget.x + ORBITAL_DIST * Math.cos(bestAngle);
+      svgY = snapTarget.y + ORBITAL_DIST * Math.sin(bestAngle);
+      attachId = snapTarget.id;
+    }
 
     // Place node
     const id = `n${Date.now()}`;
@@ -1238,28 +1433,31 @@ function initPaletteDrag() {
       label:  `${nodeType}-${typeCount}`,
       x:      svgX,
       y:      svgY,
-      subnet: 'public',
+      subnet: snapTarget ? (snapTarget.subnet || 'public') : 'public',
       ic:     [],
       rating: null,
     };
     _topology.nodes.push(newNode);
 
-    // Auto-connect to nearest compatible node within 120px
-    let closestDist = 120, closestId = null;
-    for (const existing of _topology.nodes) {
-      if (existing.id === id) continue;
-      const compatible = (_connMatrix[nodeType] || []).includes(existing.type);
-      if (!compatible) continue;
-      const already = _topology.edges.find(
-        ed => (ed.from === id && ed.to === existing.id) ||
-              (ed.from === existing.id && ed.to === id)
-      );
-      if (already) continue;
-      const dist = Math.hypot(existing.x - svgX, existing.y - svgY);
-      if (dist < closestDist) { closestDist = dist; closestId = existing.id; }
-    }
-    if (closestId) {
-      _topology.edges.push({ from: id, to: closestId });
+    if (attachId) {
+      // Snap-connect: link to the snapped target
+      _topology.edges.push({ from: id, to: attachId });
+    } else {
+      // Fallback: auto-connect to nearest compatible node within 120px
+      let closestDist = 120, closestId = null;
+      for (const existing of _topology.nodes) {
+        if (existing.id === id) continue;
+        const compatible = (_connMatrix[nodeType] || []).includes(existing.type);
+        if (!compatible) continue;
+        const already = _topology.edges.find(
+          ed => (ed.from === id && ed.to === existing.id) ||
+                (ed.from === existing.id && ed.to === id)
+        );
+        if (already) continue;
+        const dist = Math.hypot(existing.x - svgX, existing.y - svgY);
+        if (dist < closestDist) { closestDist = dist; closestId = existing.id; }
+      }
+      if (closestId) _topology.edges.push({ from: id, to: closestId });
     }
 
     renderCanvas();
@@ -1323,6 +1521,16 @@ function openNodeModal(nodeId) {
   document.getElementById('modal-type').value   = node.type;
   document.getElementById('modal-label').value  = node.label || node.type;
   document.getElementById('modal-rating').value = node.rating || '';
+  // Populate System Zone dropdown
+  const subnetSel = document.getElementById('modal-subnet');
+  subnetSel.innerHTML = '';
+  (_topology?.subnets || [{ id: 'public', label: 'Public System' }]).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label;
+    if (s.id === (node.subnet || 'public')) opt.selected = true;
+    subnetSel.appendChild(opt);
+  });
   // Build IC list
   const icList = document.getElementById('icList');
   icList.innerHTML = '';
@@ -1350,10 +1558,12 @@ function addIcRow(ic) {
   catSel.innerHTML = opts;
   if (ic) catSel.value = `${ic.category}|${ic.type}`;
 
-  const ratingIn = document.createElement('input');
-  ratingIn.type  = 'number'; ratingIn.min = '1'; ratingIn.max = '20';
-  ratingIn.placeholder = 'Rtg';
-  ratingIn.value = ic?.rating || '';
+  const ratingIn = document.createElement('select');
+  ratingIn.className = 'ic-rating-sel';
+  let rOpts = '';
+  for (let i = 1; i <= 20; i++) rOpts += `<option value="${i}"${ic?.rating == i ? ' selected' : ''}>${i}</option>`;
+  ratingIn.innerHTML = rOpts;
+  if (!ic) ratingIn.value = '1';
 
   const del = document.createElement('button');
   del.className = 'btn btn-red';
@@ -1374,12 +1584,13 @@ function saveNodeModal() {
   if (!node) return;
   node.label  = document.getElementById('modal-label').value.trim() || node.type;
   node.rating = document.getElementById('modal-rating').value || null;
+  node.subnet = document.getElementById('modal-subnet').value || 'public';
   // Read IC rows
   const rows = document.getElementById('icList').querySelectorAll('.ic-row');
   node.ic = Array.from(rows).map(row => {
     const catType = row.querySelector('select')?.value || '';
     const [category, type] = catType.split('|');
-    const rating = parseInt(row.querySelector('input[type=number]')?.value) || 1;
+    const rating = parseInt(row.querySelector('select.ic-rating-sel')?.value) || 1;
     return { category, type, rating };
   }).filter(ic => ic.type);
   closeNodeModal();
@@ -1387,11 +1598,11 @@ function saveNodeModal() {
   saveTopology();
 }
 
-function deleteModalNode() {
+async function deleteModalNode() {
   if (!_modalNodeId || !_topology) return;
   const node = _topology.nodes.find(n => n.id === _modalNodeId);
   if (!node) return;
-  if (!confirm(`Delete node "${node.label || node.type}"?`)) return;
+  if (!await showConfirm(`Delete node "${node.label || node.type}"?`)) return;
   _topology.nodes = _topology.nodes.filter(n => n.id !== _modalNodeId);
   _topology.edges = _topology.edges.filter(e => e.from !== _modalNodeId && e.to !== _modalNodeId);
   closeNodeModal();
@@ -1445,15 +1656,6 @@ function hideIcTooltip() {
   document.getElementById('icTooltip').style.display = 'none';
 }
 
-function showAlert(el, msg, isErr) {
-  el.textContent = msg;
-  el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 </script>
 </body>
 </html>

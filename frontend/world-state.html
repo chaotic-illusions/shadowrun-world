@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span style="color:var(--cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html" class="active">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -23,7 +23,7 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em style="font-style:normal;color:var(--text-dim)">//</em> Seattle Metroplex <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="srDate"></span> <em style="font-style:normal;color:var(--text-dim)">//</em> <span id="liveClock"></span></div>
+  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em class="sep">//</em> Seattle Metroplex <em class="sep">//</em> <span id="srDate"></span> <em class="sep">//</em> <span id="liveClock"></span></div>
   <div style="font-family:var(--font);font-size:0.78rem;letter-spacing:2px;color:#aa2a2a;margin-bottom:20px;text-align:right">... do you know where your meat-body is?</div>
   <div class="page-sub" style="margin-top:-14px">INTELLIGENCE DATASTORE // PROCESSING... // READY</div>
 
@@ -36,12 +36,12 @@
   <div class="stat-bar" id="statBar">
     <div class="stat-card stat-card-nav" onclick="toggleSection('pcs')" title="Jump to Runner Team" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
       <div style="display:flex;gap:16px;align-items:center;justify-content:center">
-        <div style="text-align:center">
+        <div class="text-center">
           <div class="stat-num" id="sc-chars" style="font-size:1.8rem">—</div>
           <div style="font-size:0.58rem;letter-spacing:2px;color:#b8d4ff;text-transform:uppercase;margin-top:3px">Active</div>
         </div>
         <div style="width:1px;height:36px;background:#1a1a1a"></div>
-        <div style="text-align:center">
+        <div class="text-center">
           <div class="stat-num" id="sc-chars-inactive" style="font-size:1.8rem;color:var(--red);text-shadow:0 0 8px #ff333355">—</div>
           <div style="font-size:0.58rem;letter-spacing:2px;color:#b8d4ff;text-transform:uppercase;margin-top:3px">Inactive</div>
         </div>
@@ -65,14 +65,14 @@
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="npcModalName"></div>
-        <div id="npcModalBadge" style="margin-top:4px"></div>
+        <div id="npcModalBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeNpcModal()" style="align-self:center">✕ Close</button>
+      <button class="btn btn-red" onclick="closeNpcModal()" class="self-center">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="npcModalBody"></div>
     <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none">
-      <button class="btn btn-green" id="npcNotesSaveBtn" style="flex:1;justify-content:center">>> Save Notes</button>
-      <button class="btn" onclick="closeNpcModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green" id="npcNotesSaveBtn" class="flex-1 flex-center">>> Save Notes</button>
+      <button class="btn" onclick="closeNpcModal()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
@@ -99,7 +99,7 @@
     <div class="edit-modal-head">
       <div>
         <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
-        <div id="oeDossierBadge" style="margin-top:4px"></div>
+        <div id="oeDossierBadge" class="mt-4"></div>
       </div>
       <button class="btn btn-red" onclick="closeOrgEditModal()">✕</button>
     </div>
@@ -108,8 +108,8 @@
       <div id="orgDossierView" style="display:none"></div>
       <div id="orgFormContent">
       <!-- ── CORE IDENTITY ── -->
-      <div class="section-head" style="margin-bottom:12px">Core Identity</div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="section-head mb-12">Core Identity</div>
+      <div class="grid2 mb-14">
         <div class="field">
           <label>Designation *</label>
           <input type="text" id="oe-name" placeholder="Organization name...">
@@ -140,11 +140,11 @@
             </optgroup>
           </select>
           <div id="oe-org_type-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="oe-org_type-custom" placeholder="Enter classification..." style="width:100%">
+            <input type="text" id="oe-org_type-custom" placeholder="Enter classification...">
           </div>
         </div>
       </div>
-      <div class="grid3" style="margin-bottom:14px">
+      <div class="grid3 mb-14">
         <div class="field">
           <label>Threat Tier</label>
           <div class="tier-row">
@@ -168,48 +168,48 @@
               <input type="checkbox" id="oe-is_active" checked onchange="document.getElementById('oeStatusLbl').textContent=this.checked?'ACTIVE':'INACTIVE';document.getElementById('oeStatusLbl').style.color=this.checked?'var(--green)':'var(--text-dim)'">
               <span class="tog-sl"></span>
             </label>
-            <span class="tog-label" id="oeStatusLbl" style="color:var(--green)">ACTIVE</span>
+            <span class="tog-label" id="oeStatusLbl" class="text-green">ACTIVE</span>
           </div>
         </div>
       </div>
-      <hr class="rule" style="margin:14px 0">
+      <hr class="rule my-14">
       <!-- // PROFILE -->
       <div class="section-head" style="margin-bottom:10px">Profile</div>
-      <div class="field" style="margin-bottom:14px"><label>Description / Known Intel</label><textarea id="oe-description" rows="4" placeholder="Public face, known operations..."></textarea></div>
-      <div class="field gm-only" style="margin-bottom:14px"><label>Field Notes (GM Only)</label><textarea id="oe-notes" rows="3" placeholder="Hidden agendas, plot hooks..."></textarea></div>
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Command Structure</div>
-      <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddLeader()">+ Add Executive</button></div>
+      <div class="field mb-14"><label>Description / Known Intel</label><textarea id="oe-description" rows="4" placeholder="Public face, known operations..."></textarea></div>
+      <div class="field gm-only mb-14"><label>Field Notes (GM Only)</label><textarea id="oe-notes" rows="3" placeholder="Hidden agendas, plot hooks..."></textarea></div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">Command Structure</div>
+      <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddLeader()">+ Add Executive</button></div>
       <div class="lead-wrap">
         <table class="lead-table">
           <thead><tr><th>Name</th><th>Title / Role</th><th>Notes</th><th class="gm-only"></th></tr></thead>
           <tbody id="oeLeadBody"><tr id="oeEmptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr></tbody>
         </table>
       </div>
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Political Relationships</div>
-      <div class="grid2" style="margin-bottom:14px">
-        <div class="field"><label style="display:flex;justify-content:space-between"><span>Allied Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label><div class="chk-list" id="oeAllyList"></div></div>
-        <div class="field"><label style="display:flex;justify-content:space-between"><span>Hostile Organizations</span><span style="color:var(--text-dim);font-size:.68rem;letter-spacing:.06em">REVEAL</span></label><div class="chk-list" id="oeEnemyList"></div></div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">Political Relationships</div>
+      <div class="grid2 mb-14">
+        <div class="field"><label class="flex-between"><span>Allied Organizations</span><span class="dim-label-sm">REVEAL</span></label><div class="chk-list" id="oeAllyList"></div></div>
+        <div class="field"><label class="flex-between"><span>Hostile Organizations</span><span class="dim-label-sm">REVEAL</span></label><div class="chk-list" id="oeEnemyList"></div></div>
       </div>
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">RTG/LTG Network Directory</div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">RTG/LTG Network Directory</div>
       <div style="margin-bottom:18px">
         <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
-        <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
+        <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
-            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th class="gm-only" style="text-align:center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th class="gm-only text-center">Reveal</th><th class="gm-only"></th></tr></thead>
             <tbody id="oeTelecomBody"><tr id="oeEmptyTelecom"><td colspan="5" class="empty-lead">No telecom numbers</td></tr></tbody>
           </table>
         </div>
       </div>
       <div>
         <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
-        <div class="gm-only" style="margin-bottom:8px"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
+        <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
-            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th class="gm-only" style="text-align:center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>SAN Rating</th><th>Visibility</th><th class="gm-only text-center">Reveal</th><th class="gm-only"></th></tr></thead>
             <tbody id="oeHostBody"><tr id="oeEmptyHost"><td colspan="8" class="empty-lead">No matrix hosts</td></tr></tbody>
           </table>
         </div>
@@ -217,8 +217,8 @@
       </div><!-- /orgFormContent -->
     </div>
     <div class="edit-modal-foot" id="orgEditFoot">
-      <button class="btn btn-green" onclick="saveOrgEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
-      <button class="btn" onclick="closeOrgEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green" onclick="saveOrgEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
+      <button class="btn" onclick="closeOrgEditModal()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
@@ -229,9 +229,9 @@
     <div class="ltg-modal-head loc-modal-head">
       <div>
         <div class="ltg-modal-title loc-modal-title" id="leTitle">Site Report // Location</div>
-        <div id="leBadge" style="margin-top:4px"></div>
+        <div id="leBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeLocEditModal()" style="align-self:center">✕ Close</button>
+      <button class="btn btn-red" onclick="closeLocEditModal()" class="self-center">✕ Close</button>
     </div>
     <!-- Runner dossier view -->
     <div id="locDossierView" class="ltg-modal-body" style="display:none"></div>
@@ -239,7 +239,7 @@
     <div id="locFormContent">
     <div class="ltg-modal-body">
       <div id="leAlert" class="alert"></div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>Name *</label><input type="text" id="le-name" placeholder="Location name..."></div>
         <div class="field"><label>Type</label>
           <select id="le-location_type" onchange="onLeLocTypeChange()">
@@ -305,15 +305,15 @@
             </optgroup>
           </select>
           <div id="le-location_type-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="le-location_type-custom" placeholder="Enter location type..." style="width:100%">
+            <input type="text" id="le-location_type-custom" placeholder="Enter location type...">
           </div>
         </div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>City</label><input type="text" id="le-city" placeholder="Seattle..."></div>
         <div class="field"><label>District</label><input type="text" id="le-district" placeholder="Redmond Barrens..."></div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>Security Level</label>
           <select id="le-security_level">
             <option value="">— Unknown —</option>
@@ -330,13 +330,13 @@
           <select id="le-controlling_org_id"><option value="">— Independent / Unknown —</option></select>
         </div>
       </div>
-      <div class="field" style="margin-bottom:14px"><label>Description</label><textarea id="le-description" rows="4" placeholder="What do the runners know about this place?"></textarea></div>
+      <div class="field mb-14"><label>Description</label><textarea id="le-description" rows="4" placeholder="What do the runners know about this place?"></textarea></div>
       <div class="field"><label>Notes (GM Only)</label><textarea id="le-notes" rows="3" placeholder="Secret details, plot hooks..."></textarea></div>
     </div>
     </div><!-- /locFormContent -->
     <div class="edit-modal-foot" id="locEditFoot">
-      <button class="btn btn-green" onclick="saveLocEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
-      <button class="btn" onclick="closeLocEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green" onclick="saveLocEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
+      <button class="btn" onclick="closeLocEditModal()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
@@ -347,17 +347,17 @@
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="ceTitle">Edit Character</div>
-        <div id="ceBadge" style="margin-top:4px"></div>
+        <div id="ceBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeCharEditModal()" style="align-self:center">✕ Close</button>
+      <button class="btn btn-red" onclick="closeCharEditModal()" class="self-center">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
         <div class="field" id="ce-title-field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>Archetype</label>
           <select id="ce-archetype" onchange="onCeArchChange()">
             <optgroup label="── Runners ──">
@@ -393,12 +393,12 @@
             <optgroup label="── Other ──"><option value="Custom">Custom…</option></optgroup>
           </select>
           <div id="ce-arch-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="ce-arch-custom" placeholder="Enter archetype..." style="width:100%">
+            <input type="text" id="ce-arch-custom" placeholder="Enter archetype...">
           </div>
           <span class="ce-sel-val" id="ce-archetype-val"></span>
         </div>
       </div>
-      <div class="grid3" style="margin-bottom:14px">
+      <div class="grid3 mb-14">
         <div class="field"><label>Race / Metatype</label>
           <select id="ce-race">
             <option value="Human">Human</option><option value="Elf">Elf</option>
@@ -409,54 +409,54 @@
         <div class="field"><label>Gender</label><input type="text" id="ce-gender" placeholder="Male, Female..."></div>
         <div class="field"><label>Age</label><input type="number" id="ce-age" placeholder="28" min="1" max="200"></div>
       </div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="grid2 mb-14">
         <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
         <div class="field"><label>Affiliation</label>
           <select id="ce-org_id"><option value="">— Independent / Unknown —</option></select>
           <span class="ce-sel-val" id="ce-org_id-val"></span>
         </div>
       </div>
-      <div class="grid2" id="ceTypeActiveRow" style="margin-bottom:14px">
+      <div class="grid2 mb-14" id="ceTypeActiveRow">
         <div class="field"><label>Type</label>
-          <div class="toggle-wrap" style="padding-top:6px">
+          <div class="toggle-wrap pt-6">
             <label class="toggle"><input type="checkbox" id="ce-is_pc" onchange="cePcToggle()"><span class="tog-sl"></span></label>
             <span class="tog-label" id="cePcLbl">NPC</span>
           </div>
         </div>
         <div class="field"><label>Active</label>
-          <div class="toggle-wrap" style="padding-top:6px">
+          <div class="toggle-wrap pt-6">
             <label class="toggle"><input type="checkbox" id="ce-is_active" checked><span class="tog-sl"></span></label>
             <span class="tog-label">Active</span>
           </div>
         </div>
       </div>
       <div id="cePcSection" style="display:none">
-        <hr class="rule" style="margin:14px 0">
-        <div class="section-head" style="margin-bottom:12px">Karma <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
-        <div class="grid2" style="margin-bottom:14px">
+        <hr class="rule my-14">
+        <div class="section-head mb-12">Karma <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
+        <div class="grid2 mb-14">
           <div class="field"><label>Total Karma</label><input type="number" id="ce-karma_total" min="0" placeholder="0"></div>
           <div class="field"><label>Current Karma</label><input type="number" id="ce-karma_current" min="0" placeholder="0"></div>
         </div>
       </div>
       <div id="ceNpcSection">
-        <hr class="rule" style="margin:14px 0">
-        <div class="section-head" style="margin-bottom:12px">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
-        <div class="field" style="margin-bottom:14px"><label>Connection Rating (1–6)</label><input type="number" id="ce-connection" min="1" max="6" value="1" style="width:80px"></div>
-        <div class="field" style="margin-bottom:14px">
+        <hr class="rule my-14">
+        <div class="section-head mb-12">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
+        <div class="field mb-14"><label>Connection Rating (1–6)</label><input type="number" id="ce-connection" min="1" max="6" value="1" style="width:80px"></div>
+        <div class="field mb-14">
           <label>Contact Skills / Services</label>
           <textarea id="ce-contact_skills" rows="3" placeholder="One service per line"></textarea>
           <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line.</div>
         </div>
       </div>
-      <hr class="rule" style="margin:14px 0">
-      <div class="section-head" style="margin-bottom:12px">Profile</div>
-      <div class="field" style="margin-bottom:14px"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
-      <div class="field" style="margin-bottom:14px"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">Profile</div>
+      <div class="field mb-14"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
+      <div class="field mb-14"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
       <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green gm-only" id="ceSaveBtn" onclick="saveCharEdit()" style="flex:1;justify-content:center">&gt;&gt; Save Changes</button>
-      <button class="btn gm-only" onclick="closeCharEditModal()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green gm-only" id="ceSaveBtn" onclick="saveCharEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
+      <button class="btn gm-only" onclick="closeCharEditModal()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
@@ -492,14 +492,14 @@
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="seTitle">Faction Standings</div>
-        <div id="sePcBadge" style="margin-top:4px"></div>
+        <div id="sePcBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeStandingEditor()" style="align-self:center">✕ Close</button>
+      <button class="btn btn-red" onclick="closeStandingEditor()" class="self-center">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="seBody" style="max-height:60vh;overflow-y:auto"></div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" onclick="saveStandingEditor()" style="flex:1;justify-content:center">>> Save Changes</button>
-      <button class="btn" onclick="closeStandingEditor()" style="color:var(--text-dim);border-color:#222">Cancel</button>
+      <button class="btn btn-green" onclick="saveStandingEditor()" class="flex-1 flex-center">>> Save Changes</button>
+      <button class="btn" onclick="closeStandingEditor()" class="btn-ghost">Cancel</button>
     </div>
   </div>
 </div>
