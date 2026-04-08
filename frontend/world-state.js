@@ -44,9 +44,16 @@ function openArchModal(charId) {
   const named = ARCHETYPES.slice(0, -1).find(a => a.label.toLowerCase() === current.toLowerCase());
   const customInput = document.getElementById('archCustomInput');
 
-  document.getElementById('archOptList').innerHTML = ARCHETYPES.map(a => `
-    <div class="arch-opt ${a.cls}" data-label="${a.label}" onclick="selectArchOpt('${a.label}')">${a.label}</div>
-  `).join('');
+  const archList = document.getElementById('archOptList');
+  archList.innerHTML = '';
+  ARCHETYPES.forEach(a => {
+    const div = document.createElement('div');
+    div.className = `arch-opt ${a.cls}`;
+    div.dataset.label = a.label;
+    div.textContent = a.label;
+    div.addEventListener('click', () => selectArchOpt(a.label));
+    archList.appendChild(div);
+  });
 
   if (named) {
     selectedArch = named.label;

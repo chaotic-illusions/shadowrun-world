@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
@@ -47,7 +48,10 @@ async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await _migrate_plaintext_owner_tokens()
+    try:
+        await _migrate_plaintext_owner_tokens()
+    except Exception:
+        logging.getLogger(__name__).exception("owner-token migration failed")
     yield
 
 

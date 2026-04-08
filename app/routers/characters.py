@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -9,7 +9,7 @@ from app.models.reputation import Reputation
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary
 from app.schemas.contact import ContactRead
 from app.schemas.reputation import ReputationRead
-from app.auth.core import verify_user_token, verify_admin_token, hash_token
+from app.auth.core import hash_token
 from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
@@ -29,14 +29,10 @@ async def _load_character(db: AsyncSession, character_id: int) -> Character:
 @router.get("/mine")
 async def my_character_ids(
     db: AsyncSession = Depends(get_db),
-    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
-    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    ctx: dict = Depends(get_any_token),
 ):
     """Return IDs of characters owned by the caller's token."""
-    token = x_user_token or x_admin_token
-    if not token:
-        return {"ids": []}
-    caller_hash = hash_token(token)
+    caller_hash = hash_token(ctx["user_token"])
     result = await db.execute(
         select(Character.id).where(Character.owner_token == caller_hash)
     )
@@ -88,13 +84,12 @@ async def update_character(
     character_id: int,
     body: CharacterUpdate,
     db: AsyncSession = Depends(get_db),
-    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
-    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    ctx: dict = Depends(get_any_token),
 ):
     char = await _load_character(db, character_id)
-    is_admin = bool(x_admin_token and await verify_admin_token(db, x_admin_token))
-    caller_hash = hash_token(x_user_token) if x_user_token else None
-    is_owner = bool(caller_hash and char.owner_token == caller_hash)
+    is_admin = ctx["is_admin"]
+    caller_hash = hash_token(ctx["user_token"])
+    is_owner = bool(char.owner_token and char.owner_token == caller_hash)
 
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="Admin or character owner required")
@@ -147,16 +142,10 @@ async def get_character_reputation(character_id: int, db: AsyncSession = Depends
 async def claim_character(
     character_id: int,
     db: AsyncSession = Depends(get_db),
-    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
-    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+    ctx: dict = Depends(get_any_token),
 ):
     """Player or admin claims a PC by writing their token hash onto it."""
-    if x_user_token and await verify_user_token(db, x_user_token):
-        claim_hash = hash_token(x_user_token)
-    elif x_admin_token and await verify_admin_token(db, x_admin_token):
-        claim_hash = hash_token(x_admin_token)
-    else:
-        raise HTTPException(status_code=403, detail="Valid user token required to claim a character")
+    claim_hash = hash_token(ctx["user_token"])
 
     char = await _load_character(db, character_id)
     if not char.is_pc:
@@ -174,14 +163,13 @@ async def claim_character(
 async def unclaim_character(
     character_id: int,
     db: AsyncSession = Depends(get_db),
-    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
-    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    ctx: dict = Depends(get_any_token),
 ):
     """Admin or the owning player can unclaim a character."""
     char = await _load_character(db, character_id)
-    is_admin = bool(x_admin_token and await verify_admin_token(db, x_admin_token))
-    caller_hash = hash_token(x_user_token) if x_user_token else None
-    is_owner = bool(caller_hash and char.owner_token == caller_hash)
+    is_admin = ctx["is_admin"]
+    caller_hash = hash_token(ctx["user_token"])
+    is_owner = bool(char.owner_token and char.owner_token == caller_hash)
 
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="Only the owning player or an admin can unclaim")

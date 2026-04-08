@@ -243,7 +243,7 @@ async function saveRTG() {
 async function deleteRTG() {
   if (!editingId) return;
   const code = document.getElementById('f-code').value;
-  if (!confirm(`DELETE RTG "${code}"? This cannot be undone.`)) return;
+    if (!await showConfirm(`DELETE RTG "${code}"? This cannot be undone.`, 'Delete')) return;
   try {
     const res = await apiFetch(`${API}/rtgs/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);

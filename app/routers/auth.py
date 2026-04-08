@@ -106,6 +106,36 @@ async def rename_token(
     return ut
 
 
+@router.post("/tokens/{token_id}/regenerate", response_model=UserTokenCreateResponse)
+async def regenerate_token(
+    token_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_admin_token),
+):
+    result = await db.execute(select(UserToken).where(UserToken.id == token_id))
+    ut = result.scalars().first()
+    if not ut:
+        raise HTTPException(status_code=404, detail="Token not found")
+    # Re-point any characters owned by the old hash to the new hash
+    plaintext = generate_token(24)
+    new_hash = hash_token(plaintext)
+    char_result = await db.execute(
+        select(Character).where(Character.owner_token == ut.token_hash)
+    )
+    for char in char_result.scalars().all():
+        char.owner_token = new_hash
+    ut.token_hash = new_hash
+    await db.commit()
+    await db.refresh(ut)
+    return UserTokenCreateResponse(
+        id=ut.id,
+        token=plaintext,
+        label=ut.label,
+        is_admin=ut.is_admin,
+        created_at=ut.created_at,
+    )
+
+
 @router.delete("/tokens/{token_id}", status_code=204)
 async def revoke_token(
     token_id: int,

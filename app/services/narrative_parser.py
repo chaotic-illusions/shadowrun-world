@@ -3,6 +3,7 @@ Parses a GM's free-form run narrative using Claude.
 Returns structured run data and proposed world-state changes.
 """
 import json
+import os
 import pathlib
 import re
 
@@ -125,7 +126,7 @@ async def parse_narrative(narrative: str, world_context: dict) -> dict:
     )
 
     message = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
         max_tokens=2048,
         system=_FULL_SYSTEM,
         messages=[{"role": "user", "content": user_msg}],

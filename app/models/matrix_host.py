@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, UTC
 from sqlalchemy import Boolean, String, Text, Integer, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -32,9 +34,9 @@ class MatrixHost(Base):
         default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
-    owner_org: Mapped["Organization | None"] = relationship(  # type: ignore[name-defined]
+    owner_org: Mapped[Organization | None] = relationship(
         "Organization", foreign_keys=[owner_org_id]
     )
-    location: Mapped["Location | None"] = relationship(  # type: ignore[name-defined]
+    location: Mapped[Location | None] = relationship(
         "Location", foreign_keys=[location_id]
     )

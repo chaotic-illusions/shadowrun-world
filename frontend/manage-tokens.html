@@ -61,7 +61,7 @@
   <!-- ── Result modal ──────────────────────────────────────────────────────── -->
   <div id="resultModal" class="modal-overlay">
     <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:28px 32px;width:100%;max-width:480px">
-      <div style="font-size:.85rem;letter-spacing:2px;color:var(--amber);margin-bottom:6px">&gt;&gt; TOKEN GENERATED</div>
+      <div style="font-size:.85rem;letter-spacing:2px;color:var(--amber);margin-bottom:6px" id="resultModalTitle">&gt;&gt; TOKEN GENERATED</div>
       <div style="font-size:.6rem;letter-spacing:1px;color:var(--text-dim);margin-bottom:16px">SHARE THIS — IT WILL NOT BE SHOWN AGAIN</div>
       <div id="generatedToken"
         style="font-size:.85rem;letter-spacing:2px;color:var(--text-bright);background:var(--bg-input);
@@ -105,12 +105,11 @@ function renderTokenTable(tokens, containerId, accentColor) {
   wrap.innerHTML = `
     <table class="token-table">
       <colgroup>
-        <col class="col-token"><col class="col-label">
-        <col class="col-date"><col class="col-act">
+        <col class="col-label"><col class="col-date"><col class="col-act">
       </colgroup>
       <thead>
         <tr>
-          <th>Token</th><th>Label</th><th>Created</th><th></th>
+          <th>Label</th><th>Created</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -118,11 +117,12 @@ function renderTokenTable(tokens, containerId, accentColor) {
           const actions = `
             <button class="btn" style="padding:4px 8px;font-size:.6rem;color:var(--text-dim);border-color:#333;margin-right:4px"
               onclick="openRenameModal(${t.id}, '${esc(t.label || '')}')">Rename</button>
+            <button class="btn" style="padding:4px 8px;font-size:.6rem;color:var(--amber);border-color:var(--amber);margin-right:4px"
+              onclick="regenerateToken(${t.id})">Regenerate</button>
             <button class="btn btn-red" style="padding:4px 8px;font-size:.6rem"
               onclick="deleteToken(${t.id})">Delete</button>`;
           return `
             <tr>
-              <td style="color:${accentColor};letter-spacing:1px;font-size:.7rem;font-family:var(--font);word-break:break-all">${esc(t.token)}</td>
               <td class="dim-meta">${esc(t.label || '—')}</td>
               <td style="color:var(--text-dim);font-size:.65rem">${new Date(t.created_at).toLocaleDateString()}</td>
               <td style="white-space:nowrap">${actions}</td>
@@ -182,6 +182,7 @@ async function submitNewToken() {
     if (!res.ok) await apiThrow(res);
     const tok = await res.json();
     closeTokenModal();
+    document.getElementById('resultModalTitle').textContent = '>> TOKEN GENERATED';
     document.getElementById('generatedToken').textContent = tok.token;
     document.getElementById('resultModal').style.display = 'flex';
     await loadTokens();
@@ -230,10 +231,27 @@ async function submitRename() {
   }
 }
 
+// ── Regenerate ────────────────────────────────────────────────────────────────
+
+async function regenerateToken(id) {
+    if (!await showConfirm('Regenerate this token? The old token will stop working immediately. Any player using it must be given the new token.', 'Regenerate', 'btn-amber')) return;
+  try {
+    const res = await apiFetch(`/auth/tokens/${id}/regenerate`, { method: 'POST' });
+    if (!res.ok) await apiThrow(res);
+    const tok = await res.json();
+    document.getElementById('resultModalTitle').textContent = '>> TOKEN REGENERATED';
+    document.getElementById('generatedToken').textContent = tok.token;
+    document.getElementById('resultModal').style.display = 'flex';
+    await loadTokens();
+  } catch(e) {
+    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 async function deleteToken(id) {
-  if (!confirm('Delete this token? The player will lose access and their characters will be unclaimed.')) return;
+    if (!await showConfirm('Delete this token? The player will lose access and their characters will be unclaimed.', 'Delete')) return;
   try {
     const res = await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);
@@ -254,10 +272,10 @@ function renderPlayerView(ctx) {
     <div id="alert" class="alert"></div>
     <div style="margin-top:28px;background:var(--bg-card);border:1px solid #1a3a1a;padding:20px 24px;max-width:640px">
       <div style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">YOUR TOKEN</div>
-      <div style="font-family:var(--font);font-size:.8rem;letter-spacing:1px;color:var(--green);word-break:break-all;margin-bottom:16px">${_escHtml(ctx.user_token)}</div>
+      <div style="font-family:var(--font);font-size:.8rem;letter-spacing:1px;color:var(--green);word-break:break-all;margin-bottom:16px">${esc(ctx.user_token)}</div>
       <div style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">LABEL</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="playerRenameInput" value="${_escHtml(ctx.token_label || '')}"
+        <input type="text" id="playerRenameInput" value="${esc(ctx.token_label || '')}"
           placeholder="e.g. Sam's token" class="flex-1"
           onkeydown="if(event.key==='Enter') submitPlayerRename()">
         <button class="btn btn-green" onclick="submitPlayerRename()">&gt;&gt; Save</button>

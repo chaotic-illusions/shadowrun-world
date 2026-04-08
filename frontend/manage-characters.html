@@ -629,7 +629,7 @@ async function saveChar() {
 async function deleteChar() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-  if (!confirm(`DELETE "${name}"? This cannot be undone.`)) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
   try {
     const res = await apiFetch(`${API}/characters/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);
@@ -644,7 +644,7 @@ async function deleteChar() {
 async function unclaimChar() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-  if (!confirm(`Unclaim "${name}"? The player will lose ownership but their data is preserved.`)) return;
+    if (!await showConfirm(`Unclaim "${name}"? The player will lose ownership but their data is preserved.`, 'Unclaim')) return;
   try {
     const res = await apiFetch(`${API}/characters/${editingId}/unclaim`, { method: 'POST' });
     if (!res.ok) await apiThrow(res);
@@ -721,7 +721,7 @@ async function addContactLinkFromForm() {
 }
 
 async function removeContactLinkFromForm(contactId) {
-  if (!confirm('Remove this contact link?')) return;
+    if (!await showConfirm('Remove this contact link?', 'Remove')) return;
   await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
   const r = await apiFetch(`${API}/contacts/`);
   allContacts = await r.json();

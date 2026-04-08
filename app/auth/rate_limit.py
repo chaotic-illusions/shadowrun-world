@@ -36,7 +36,9 @@ def _client_ip(request: Request) -> str:
     """Best-effort client IP — respects X-Forwarded-For behind a reverse proxy."""
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        ip = forwarded.split(",")[0].strip()
+        if ip:
+            return ip
     return request.client.host if request.client else "unknown"
 
 

@@ -30,6 +30,16 @@ uvicorn app.main:app --reload
 
 Open `frontend/index.html` in a browser (or serve it from a local web server).
 
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` | Initial admin password used by `seed.py` and for first login |
+| `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key for AI narrative parsing |
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` | Claude model name used by the narrative parser |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins for CORS |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./data/shadowrun.db` | SQLAlchemy async database URL |
+
 ### Docker
 
 ```bash
