@@ -32,48 +32,48 @@ for _cat, _types in IC_BY_LETHALITY.items():
 # IC tooltips: { type: { "summary": str, "flavor": str } }
 IC_INFO: dict[str, dict[str, str]] = {
     "Access": {
-        "summary": "Probes the intruder's access code. Failed probe triggers immediate counter-intrusion.",
-        "flavor": "Manifests as a security guard icon scanning the node entry point.",
+        "summary": "Probes the intruder's access code. Invalid access code triggers immediate counter-intrusion response.",
+        "flavor": "Manifests as a security guard icon scanning the node entry point, or a shimmering doorway leading further into the system.",
     },
     "Barrier": {
-        "summary": "On trigger, raises the host's effective security rating by its own rating for the remainder of the run.",
+        "summary": "Blocks data signals to the node, unless permission is given from outside the system.  Must be crashed/sleazed to pass.",
         "flavor": "Appears as a crackling energy wall or hardened vault door sealing across the datapath.",
     },
     "Scramble": {
-        "summary": "Disconnects the decker from the host immediately. Causes no damage but terminates the run.",
-        "flavor": "A sudden static burst — the Matrix dissolves into white noise and the decker is expelled.",
+        "summary": "Destructive IC that protects data. Crash it or copy the file with it.  Fail, and the file is gone.",
+        "flavor": "A halo of light, or a tightly coiled snake wrapped around the datastore.",
     },
     "Blaster": {
-        "summary": "Deals Stun damage to the decker via biofeedback. Can incapacitate if damage accumulates.",
-        "flavor": "An arc of blue-white electricity that strikes the decker's icon before grounding out.",
+        "summary": "Don't let this stuff your Persona or it can burn out your decks MPCP chips.",
+        "flavor": "A warrior, soldier, attack drone, or thunderstorm imagery are common. They have big weapons, and bright lightning",
     },
     "Killer": {
-        "summary": "Deals Physical damage directly to the decker. Lethal if not crashed quickly.",
-        "flavor": "Appears as a bladed weapon or predatory animal — fast, aggressive, relentless.",
+        "summary": "This IC attacks and damages your Persona, trying to crash you out.",
+        "flavor": "A warrior, soldier, attack drone, or thunderstorm imagery are common — fast, aggressive, relentless.",
     },
     "Tar Baby": {
-        "summary": "Freezes movement — the decker cannot jack out or relocate until the IC is crashed.",
-        "flavor": "A viscous, jet-black mass that encases the decker's icon, pulsing as it tightens.",
+        "summary": "Trap IC.  It'll self-crash and take your program with it.",
+        "flavor": "Concealed until activation, then a trap, pit, pool, or snare imagery.",
     },
     "Tar Pit": {
-        "summary": "Reduces the decker's initiative by its rating while active. Does not freeze but slows all actions.",
-        "flavor": "The surrounding Matrix geometry thickens and distorts — every movement costs twice the effort.",
+        "summary": "Trap IC.  It'll self-crash like Tar Baby, but also corrupt every copy of your program on your deck.",
+        "flavor": "Concealed until activation, then a trap, pit, pool, or snare imagery.",
     },
     "Trace & Report": {
-        "summary": "Traces the decker's physical location and reports the address to the system operator. No immediate disconnect.",
-        "flavor": "A bloodhound icon circling the decker's persona, nose to the datastream.",
+        "summary": "Traces the decker's physical location and reports the address to the system operator before going dormant.",
+        "flavor": "A bloodhound circling the decker's persona, nose to the datastream.",
     },
     "Trace & Dump": {
-        "summary": "Traces the decker's location, then forcibly ejects them from the host.",
-        "flavor": "The bloodhound locks on — then detonates, hurling the decker's icon out of the system.",
+        "summary": "Traces the decker's physical location, then forcibly ejects them from the system.",
+        "flavor": "A bloodhound that circles the decker's persona, locks on — then detonates, exploding your view in spectacular white static as you're dumped out of the system.",
     },
     "Trace & Burn": {
-        "summary": "Traces the decker's location, then destroys the deck's MPCP on a successful trace roll.",
-        "flavor": "Leaves a searing afterimage as it burns the decker's access path back to the hardware.",
+        "summary": "Traces the decker's location, then attacks the deck's MPCP at the node of entry.  Hope you brought backup.",
+        "flavor": "A wolf sniffing the datastream.  A pack manifests at your entry point, destroying your Matrix tether.",
     },
     "Black": {
         "summary": "Deals Physical damage (occasionally Stun, GM discretion). Most lethal IC in the host. No sub-type.",
-        "flavor": "Unknown. Changes form each time it manifests. Some deckers report it wearing their own face.",
+        "flavor": "Unknown. Changes form each time it manifests. Some deckers report it wearing their own face, pursuing them relentlessly through the system.",
     },
 }
 
