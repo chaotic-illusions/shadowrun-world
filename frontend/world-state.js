@@ -38,6 +38,7 @@ function selectArchOpt(label) {
 }
 
 function openArchModal(charId) {
+  pausePoll();
   const current = charMapStore[charId]?.archetype || '';
   archModalCharId = charId;
 
@@ -75,6 +76,7 @@ function openArchModal(charId) {
 }
 
 function closeEditModal() {
+  resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
   archModalCharId = null;
@@ -244,6 +246,7 @@ function mergeContacts(contacts) {
 function openNpcModal(charId) {
   const char = charMapStore[charId];
   if (!char || char.is_pc) return;
+  pausePoll();
   npcModalCharId = charId;
   const race      = char.race || null;
   const archetype = char.archetype || null;
@@ -317,6 +320,7 @@ function openNpcModal(charId) {
 }
 
 function closeNpcModal() {
+  resumePoll();
   document.getElementById('npcOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -438,6 +442,7 @@ let nonNpcModalId = null;
 function openNonNpcContactModal(contactId) {
   const merged = nonNpcContactStore[contactId];
   if (!merged) return;
+  pausePoll();
   nonNpcModalId = contactId;
   const org = merged.organization_id ? orgStore[merged.organization_id] : null;
   const race = merged.race || null;
@@ -835,6 +840,7 @@ let _seCharName = null;
 let _seOrgData  = [];   // [{org_id, org_name, standing_id, standing}]
 
 function openStandingEditor(charId) {
+  pausePoll();
   const pc = charMapStore[charId];
   const charName = pc ? pc.name : `Character #${charId}`;
   const standings = _standingsStore[charId] || [];
@@ -888,6 +894,7 @@ function seUpdateLabel(input, idx) {
 }
 
 function closeStandingEditor() {
+  resumePoll();
   document.getElementById('standingEditorOverlay').classList.remove('open');
 }
 
@@ -1320,6 +1327,7 @@ function renderOrgDossierView(org) {
 function openOrgEditModal(orgId) {
   const org = orgStore[orgId];
   if (!org) return;
+  pausePoll();
   oeEditingId = orgId;
 
   const adminMode = isAdminMode();
@@ -1403,6 +1411,7 @@ function openOrgEditModal(orgId) {
 }
 
 function closeOrgEditModal() {
+  resumePoll();
   document.getElementById('orgEditOverlay').classList.remove('open');
   document.body.style.overflow = '';
   oeEditingId = null;
@@ -1492,6 +1501,7 @@ function onLeLocTypeChange() {
 function openLocEditModal(locId) {
   const loc = locStore[locId];
   if (!loc) return;
+  pausePoll();
   leEditingId = locId;
   document.getElementById('leTitle').textContent =
     isAdminMode() ? `Edit // ${loc.name}` : `Site Report // ${loc.name}`;
@@ -1544,6 +1554,7 @@ function openLocEditModal(locId) {
 }
 
 function closeLocEditModal() {
+  resumePoll();
   document.getElementById('locEditOverlay').classList.remove('open');
   document.getElementById('locDossierView').style.display = 'none';
   document.getElementById('locFormContent').style.display = '';
@@ -1654,6 +1665,7 @@ function cePcToggle() {
 function openCharEditModal(charId) {
   const char = charMapStore[charId];
   if (!char) return;
+  pausePoll();
   const archSel = document.getElementById('ce-archetype');
 
   // Cache the full archetype dropdown HTML the first time so we can restore it for NPC edit mode
@@ -1751,6 +1763,7 @@ function openCharEditModal(charId) {
 }
 
 function closeCharEditModal() {
+  resumePoll();
   document.getElementById('charEditOverlay').classList.remove('open');
   document.body.style.overflow = '';
   ceEditingId = null;
@@ -1988,28 +2001,34 @@ async function releaseChar(charId) {
 
 // ── Styled dialog utilities (replace native confirm/alert/prompt) ────────
 function showConfirm(message, onOk, confirmLabel = 'Confirm') {
+  pausePoll();
   document.getElementById('srConfirmMsg').textContent = message;
   document.getElementById('srConfirmOkBtn').textContent = '>> ' + confirmLabel;
   document.getElementById('srConfirmOverlay').classList.add('open');
   document.getElementById('srConfirmOkBtn').onclick = () => {
+    resumePoll();
     document.getElementById('srConfirmOverlay').classList.remove('open');
     if (onOk) onOk();
   };
   document.getElementById('srConfirmCancelBtn').onclick = () => {
+    resumePoll();
     document.getElementById('srConfirmOverlay').classList.remove('open');
   };
 }
 
 function closeAlert() {
+  resumePoll();
   document.getElementById('srAlertOverlay').classList.remove('open');
 }
 
 function showAlert(message) {
+  pausePoll();
   document.getElementById('srAlertMsg').textContent = message;
   document.getElementById('srAlertOverlay').classList.add('open');
 }
 
 function showPrompt(message, defaultVal, onOk) {
+  pausePoll();
   const overlay = document.getElementById('srPromptOverlay');
   // Use classList.add/remove('open') — ltg-overlay CSS controls visibility via opacity/pointer-events
   const input   = document.getElementById('srPromptInput');
@@ -2018,10 +2037,12 @@ function showPrompt(message, defaultVal, onOk) {
   overlay.classList.add('open');
   setTimeout(() => { input.focus(); input.select(); }, 50);
   document.getElementById('srPromptOkBtn').onclick = () => {
+    resumePoll();
     overlay.classList.remove('open');
     if (onOk) onOk(input.value);
   };
   document.getElementById('srPromptCancelBtn').onclick = () => {
+    resumePoll();
     overlay.classList.remove('open');
   };
   input.onkeydown = (e) => {
@@ -2030,7 +2051,7 @@ function showPrompt(message, defaultVal, onOk) {
   };
 }
 
-bootstrapAuth().then(u => { if (u) loadAll(); });
+bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
 
 (function() {
   function pad(n) { return String(n).padStart(2, '0'); }

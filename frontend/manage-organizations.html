@@ -454,11 +454,13 @@ function openModal(id) {
   } else {
     resetForm();
   }
+  pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
+  resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -727,6 +729,7 @@ bootstrapAuth().then(async u => {
     document.getElementById('btnNewOrg').style.display = 'none';
   }
   await Promise.all([loadOrgs(), loadRTGs()]);
+  startPolling(() => { loadOrgs(); loadRTGs(); });
 
   // Support legacy ?id= deep links
   const params  = new URLSearchParams(window.location.search);

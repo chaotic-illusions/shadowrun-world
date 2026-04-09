@@ -220,8 +220,7 @@ function toggleNewRun() {
   const open  = panel.style.display === 'none';
   panel.style.display = open ? '' : 'none';
   btn.textContent = open ? '[–] Close' : '[+] New Run';
-  btn.style.color = open ? 'var(--red)' : 'var(--green)';
-}
+  btn.style.color = open ? 'var(--red)' : 'var(--green)';  if (open) pausePoll(); else resumePoll();}
 
 function setMode(mode) {
   document.getElementById('aiMode').style.display     = mode === 'ai'     ? '' : 'none';
@@ -946,7 +945,7 @@ async function loadWorldData() {
 document.getElementById('ai-date').value  = today();
 document.getElementById('m-date').value   = today();
 setMode('ai');
-bootstrapAuth().then(u => { if (u) { loadRuns(); loadWorldData(); } });
+bootstrapAuth().then(u => { if (u) { loadRuns(); loadWorldData(); startPolling(loadRuns); } });
 </script>
 </body>
 </html>

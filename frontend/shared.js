@@ -1,5 +1,13 @@
 // Shared UI helpers — included by all app pages
 
+// ── Polling helpers ───────────────────────────────────────────────────────────
+let _pollPaused = false;
+function pausePoll()  { _pollPaused = true;  }
+function resumePoll() { _pollPaused = false; }
+function startPolling(loadFn, intervalMs = 5000) {
+  setInterval(() => { if (!_pollPaused) loadFn(); }, intervalMs);
+}
+
 // ── Auth constants ────────────────────────────────────────────────────────────
 
 const LS_ADMIN = 'sr_admin_token';
@@ -247,9 +255,11 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
     msg.textContent    = message;
     okBtn.textContent  = okLabel;
     okBtn.className    = `btn ${okClass}`;
+    pausePoll();
     overlay.style.display = 'flex';
 
     function cleanup(result) {
+      resumePoll();
       overlay.style.display = 'none';
       okBtn.removeEventListener('click', onOk);
       cancel.removeEventListener('click', onCancel);
