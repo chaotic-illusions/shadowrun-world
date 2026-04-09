@@ -1245,8 +1245,8 @@
             "headquarters": "Chicago, UCAS",
             "leadership": [
                 {
-                    "title": "President, Knight Errant Security Services",
-                    "name": "Michelle Colt"
+                    "title": "Executive Vice President, Knight Errant Security Services",
+                    "name": "Roger Soaring-Owl"
                 },
                 {
                     "title": "Seattle Regional Commander",
@@ -1352,6 +1352,10 @@
             "headquarters": "Austin, UCAS",
             "leadership": [
                 {
+                    "title": "CEO",
+                    "name": "Theodore W.D. Winslow"
+                },
+                {
                     "title": "Seattle Director",
                     "name": "Chief Hargrove"
                 },
@@ -1453,11 +1457,11 @@
             "org_type": "crime syndicate",
             "tier": 5,
             "description": "The dominant organized crime organization in Seattle, and one of the most powerful Yakuza families in North America. The Watada-rengo controls the majority of Seattle's vice economy — gambling, BTL distribution, prostitution, loan sharking, and protection — primarily in Japanese and metahuman communities. Operates with a strict code of honor (ninkyo) that distinguishes it from western crime organizations and makes it both more predictable and more dangerous.",
-            "headquarters": "Seattle, UCAS (Little Tokyo / Downtown)",
+            "headquarters": "Chiba, Japanese Imperial State // Seattle, UCAS (Little Tokyo / Downtown)",
             "leadership": [
                 {
                     "title": "Oyabun (Boss)",
-                    "name": "Hanzo Shotozumi"
+                    "name": "Akira Watada"
                 },
                 {
                     "title": "Wakagashira (Underboss)",
@@ -1967,8 +1971,8 @@
                     "name": "Sharpe"
                 },
                 {
-                    "title": "National Gang Leader",
-                    "name": "Green Lucifer — based in Chicago, sets overall policy"
+                    "title": "Chicago Chapter Leader",
+                    "name": "Green Lucifer"
                 },
                 {
                     "title": "Logistics / Smuggling",
@@ -2095,7 +2099,7 @@
             "description": "Multi-level nightclub with a hell theme. Popular with shadowrunners and corporate suits alike.",
             "security_level": "Patrolled / Commercial",
             "controlling_org_name": null,
-            "notes": "Good place to meet fixers. Avoid the upper floors — Yakuza territory."
+            "notes": "Good place to meet fixers. Avoid the upper floors — Yakuza territory (allegedly)."
         },
         {
             "name": "The Rusty Nail",

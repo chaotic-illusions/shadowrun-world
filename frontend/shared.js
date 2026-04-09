@@ -4,7 +4,7 @@
 let _pollPaused = false;
 function pausePoll()  { _pollPaused = true;  }
 function resumePoll() { _pollPaused = false; }
-function startPolling(loadFn, intervalMs = 5000) {
+function startPolling(loadFn, intervalMs = 2500) {
   setInterval(() => { if (!_pollPaused) loadFn(); }, intervalMs);
 }
 
