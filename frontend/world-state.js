@@ -306,6 +306,12 @@ function openNpcModal(charId) {
     foot.style.display = 'none';
   }
 
+  // NPC/POI dossier is always dark-purple regardless of affiliation
+  const npcOverlayEl = document.getElementById('npcOverlay');
+  ['oc-megacorp','oc-government','oc-syndicate','oc-gang','oc-fixer_network','oc-cult','oc-other']
+    .forEach(c => npcOverlayEl.classList.remove(c));
+  npcOverlayEl.classList.add('npc-overlay-default');
+
   document.getElementById('npcOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -469,11 +475,16 @@ function openNonNpcContactModal(contactId) {
     ${ownerRows ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Contact Relationships</div>${ownerRows}</div>` : ''}`;
 
   document.getElementById('npcModalFoot').style.display = 'none';
+  // Contact modal (non-NPC) is also always dark-purple
+  const _nonNpcOverlay = document.getElementById('npcOverlay');
+  ['oc-megacorp','oc-government','oc-syndicate','oc-gang','oc-fixer_network','oc-cult','oc-other']
+    .forEach(c => _nonNpcOverlay.classList.remove(c));
+  _nonNpcOverlay.classList.add('npc-overlay-default');
   document.getElementById('npcOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
-async function removeNonNpcLink(contactId) {
+function removeNonNpcLink(contactId) {
   showConfirm('Remove this contact link?', async () => {
     await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
     const contactsRes = await apiFetch(`${API}/contacts/`);
@@ -626,14 +637,25 @@ function buildContactCard(merged, charMap, orgMap) {
     </div>`;
 }
 
+const expandedLocs = {};
+function toggleLocDesc(id) {
+  expandedLocs[id] = !expandedLocs[id];
+  const el  = document.getElementById(`lc-desc-${id}`);
+  const btn = document.getElementById(`lc-xbtn-${id}`);
+  if (el)  el.classList.toggle('lc-desc-expanded', expandedLocs[id]);
+  if (btn) btn.textContent = expandedLocs[id] ? '[ collapse ]' : '[ expand ]';
+}
+
 function buildLocCard(loc, orgMap) {
   const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
+  const longDesc = loc.description && loc.description.length > 100;
   return `
     <div class="loc-card" onclick="openLocEditModal(${loc.id})" class="clickable" title="View location">
       <div class="lc-name">${esc(loc.name)}</div>
       <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
       ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
-      ${loc.description ? `<div class="lc-desc">${esc(loc.description)}</div>` : ''}
+      ${loc.description ? `<div class="lc-desc" id="lc-desc-${loc.id}">${esc(loc.description)}</div>` : ''}
+      ${longDesc ? `<div><button class="oc-expand-btn" id="lc-xbtn-${loc.id}" onclick="event.stopPropagation();toggleLocDesc(${loc.id})">[ expand ]</button></div>` : ''}
     </div>`;
 }
 
@@ -705,12 +727,12 @@ function buildCharCard(char, orgMap = {}) {
             : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
-        ${repStr ? `<div class="ch-finance ws-ch-stat" style="margin-top:4px"><span class="text-dim">STREET REP: </span>${repStr}</div>` : ''}
-        ${paStr  ? `<div class="ch-finance ws-ch-stat text-dim" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
+        ${repStr ? `<div class="ch-finance ws-ch-stat" style="margin-top:4px"><span style="color:var(--steel-blue)">STREET REP: </span>${repStr}</div>` : ''}
+        ${paStr  ? `<div class="ch-finance ws-ch-stat" style="color:var(--steel-blue)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
         ${heatStr && isAdminMode()
-          ? `<div class="ch-finance ws-ch-stat"><span class="text-dim">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
+          ? `<div class="ch-finance ws-ch-stat"><span style="color:var(--steel-blue)">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
           : heatStr && isMine
-          ? `<div class="ch-finance ws-ch-stat"><span class="text-dim">HEAT: </span>${heatStr}</div>`
+          ? `<div class="ch-finance ws-ch-stat"><span style="color:var(--steel-blue)">HEAT: </span>${heatStr}</div>`
           : ''}
       </div>
       ${claimBtn}${ownerBadge}
@@ -842,7 +864,7 @@ function renderStandingEditor() {
     const cls = standingClass(standingLabel(val));
     return `
       <div class="faction-row ws-se-row">
-        <span class="faction-org" style="flex:2" title="${esc(o.org_name)}">${esc(o.org_name)}</span>
+        <span class="faction-org ws-se-org" title="${esc(o.org_name)}">${esc(o.org_name)}</span>
         <input type="number" class="se-val ws-se-input" data-idx="${i}"
           value="${val}" min="-10" max="10"
           oninput="seUpdateLabel(this,${i})">
@@ -861,7 +883,7 @@ function seUpdateLabel(input, idx) {
   if (lbl) {
     const l = standingLabel(val);
     lbl.textContent = l;
-    lbl.className = `se-label ${standingClass(l)}`;
+    lbl.className = `se-label ws-se-label ${standingClass(l)}`;
   }
 }
 
@@ -1324,6 +1346,11 @@ function openOrgEditModal(orgId) {
     document.getElementById('orgDossierView').style.display = '';
     document.getElementById('orgFormContent').style.display = 'none';
     document.getElementById('orgEditFoot').style.display = 'none';
+    // Theme the org modal border/title to match the org card's left-border color
+    const _orgEditEl = document.getElementById('orgEditOverlay');
+    ['oc-megacorp','oc-government','oc-syndicate','oc-gang','oc-fixer_network','oc-cult','oc-other']
+      .forEach(c => _orgEditEl.classList.remove(c));
+    _orgEditEl.classList.add(orgClass(org.org_type));
     document.getElementById('orgEditOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
     return;
@@ -1366,6 +1393,11 @@ function openOrgEditModal(orgId) {
   });
   document.getElementById('oeAlert').className = 'alert';
   document.getElementById('orgEditFoot').style.display = '';
+  // Theme the org modal border/title to match the org card's left-border color
+  const orgEditOverlayEl = document.getElementById('orgEditOverlay');
+  ['oc-megacorp','oc-government','oc-syndicate','oc-gang','oc-fixer_network','oc-cult','oc-other']
+    .forEach(c => orgEditOverlayEl.classList.remove(c));
+  orgEditOverlayEl.classList.add(orgClass(org.org_type));
   document.getElementById('orgEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1616,7 +1648,6 @@ function onCeArchChange() {
 function cePcToggle() {
   const isPC = document.getElementById('ce-is_pc').checked;
   document.getElementById('cePcLbl').textContent = isPC ? 'PC // Runner' : 'NPC';
-  document.getElementById('cePcSection').style.display  = isPC ? '' : 'none';
   document.getElementById('ceNpcSection').style.display = isPC ? 'none' : '';
 }
 
@@ -1641,8 +1672,6 @@ function openCharEditModal(charId) {
   document.getElementById('ce-description').value      = char.description        || '';
   document.getElementById('ce-background').value       = char.background         || '';
   document.getElementById('ce-notes').value            = char.notes              || '';
-  document.getElementById('ce-karma_total').value      = char.karma_total        ?? 0;
-  document.getElementById('ce-karma_current').value    = char.karma_current      ?? 0;
   document.getElementById('ce-connection').value       = char.connection         ?? 1;
   document.getElementById('ce-contact_skills').value   = (char.contact_skills || []).join('\n');
 
@@ -1656,36 +1685,43 @@ function openCharEditModal(charId) {
     // ── DOSSIER MODE (PC) ─────────────────────────────────────
     document.getElementById('ceTitle').textContent = `Dossier // ${char.name}`;
     const ceRaceProf = [char.race, char.title || char.archetype].filter(Boolean).join(' | ');
-    document.getElementById('ceBadge').innerHTML = ceRaceProf ? `<span class="cc-race-prof">${esc(ceRaceProf)}</span>` : '';
-    document.getElementById('ce-title-field').style.display = 'none';
+    document.getElementById('ceBadge').innerHTML = ceRaceProf
+      ? `<span class="cc-race-prof ${archetypeClass(char.archetype || '')}">${esc(ceRaceProf)}</span>` : '';
 
-    // Reduce archetype dropdown to PC options only
-    const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept'];
-    archSel.innerHTML = PC_ARCHETYPES.map(a => `<option value="${a}">${a}</option>`).join('') +
-      '<option value="Custom">Custom\u2026</option>';
+    const org = char.organization_id ? orgStore[char.organization_id] : null;
+    const metaItems = [];
+    if (char.gender)      metaItems.push(['Gender', char.gender]);
+    if (char.age)         metaItems.push(['Age', char.age]);
+    if (char.nationality) metaItems.push(['Nationality', char.nationality]);
+    metaItems.push(['Affiliation', org ? org.name : '[Independent]']);
 
-    const arch = char.archetype || '';
-    if (PC_ARCHETYPES.includes(arch)) {
-      archSel.value = arch;
-      document.getElementById('ce-arch-custom-wrap').style.display = 'none';
-    } else {
-      archSel.value = 'Custom';
-      document.getElementById('ce-arch-custom-wrap').style.display = arch ? '' : 'none';
-      document.getElementById('ce-arch-custom').value = arch;
-    }
-    // Copy archetype into hidden title field so existing display logic continues to work
-    document.getElementById('ce-title').value = arch;
+    const sep = `<span class="cc-org-sep" style="margin-bottom:2px">//</span>`;
+    const metaHtml = metaItems.map(([lbl, val], i) =>
+      `${i > 0 ? sep : ''}<div style="display:flex;flex-direction:column;gap:2px">` +
+      `<span style="font-size:0.5rem;letter-spacing:2px;color:var(--green);text-shadow:var(--glow-green);text-transform:uppercase">${lbl}</span>` +
+      `<span style="font-size:0.78rem;color:var(--text)">${esc(String(val))}</span></div>`
+    ).join('');
 
-    // Finances hidden (not in use); NPC contact section irrelevant for PCs
-    document.getElementById('cePcSection').style.display  = 'none';
-    document.getElementById('ceNpcSection').style.display = 'none';
-    document.getElementById('cePcLbl').textContent = 'PC // Runner';
+    document.getElementById('ceFormBody').style.display = 'none';
+    const pcBody = document.getElementById('pcDossierBody');
+    pcBody.style.display = '';
+    pcBody.innerHTML =
+      `<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">${metaHtml}</div>` +
+      (char.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(char.description)}</div></div>` : '') +
+      (char.background  ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>` : '') +
+      `<div class="npc-modal-gm-banner gm-only">// GM EYES ONLY //</div>` +
+      `<div class="field gm-only"><textarea id="pcNotesInput" rows="4" class="ws-notes-ta">${esc(char.notes || '')}</textarea></div>`;
 
-    setCeDossierMode(true);
     document.getElementById('ceSaveBtn').textContent = '>> Save Notes';
+    document.getElementById('ceAlert').className = 'alert';
+    document.getElementById('charEditOverlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    return;
 
   } else {
     // ── EDIT MODE (NPC) ───────────────────────────────────────
+    document.getElementById('pcDossierBody').style.display = 'none';
+    document.getElementById('ceFormBody').style.display = '';
     document.getElementById('ceTitle').textContent = `Edit // ${char.name}`;
     document.getElementById('ceBadge').innerHTML = '';
     document.getElementById('ce-title-field').style.display = '';
@@ -1728,7 +1764,7 @@ async function saveCharEdit() {
     try {
       const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
         method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ notes: document.getElementById('ce-notes').value.trim() || null }),
+        body: JSON.stringify({ notes: document.getElementById('pcNotesInput').value.trim() || null }),
       });
       if (!res.ok) await apiThrow(res);
       closeCharEditModal();
@@ -1772,13 +1808,8 @@ async function saveCharEdit() {
     background:      document.getElementById('ce-background').value.trim() || null,
     notes:           document.getElementById('ce-notes').value.trim() || null,
   };
-  if (isPC) {
-    payload.karma_total   = parseInt(document.getElementById('ce-karma_total').value)   || 0;
-    payload.karma_current = parseInt(document.getElementById('ce-karma_current').value) || 0;
-  } else {
-    payload.connection     = parseInt(document.getElementById('ce-connection').value) || 1;
-    payload.contact_skills = document.getElementById('ce-contact_skills').value.split('\n').map(s => s.trim()).filter(Boolean);
-  }
+  payload.connection     = parseInt(document.getElementById('ce-connection').value) || 1;
+  payload.contact_skills = document.getElementById('ce-contact_skills').value.split('\n').map(s => s.trim()).filter(Boolean);
   try {
     const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
       method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),

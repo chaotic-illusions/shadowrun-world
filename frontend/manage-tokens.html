@@ -124,7 +124,7 @@ function renderTokenTable(tokens, containerId, accentColor) {
           return `
             <tr>
               <td class="dim-meta">${esc(t.label || '—')}</td>
-              <td style="color:var(--text-dim);font-size:.65rem">${new Date(t.created_at).toLocaleDateString()}</td>
+              <td style="color:var(--text);font-size:.65rem">${new Date(t.created_at).toLocaleDateString()}</td>
               <td style="white-space:nowrap">${actions}</td>
             </tr>`;
         }).join('')}
