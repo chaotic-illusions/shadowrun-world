@@ -49,7 +49,7 @@ do_reseed() {
   echo ""
   echo "[4/5] Reseeding database..."
   cd "$SCRIPT_DIR"
-  python3 seed.py
+  docker compose -f "$SCRIPT_DIR/docker-compose.yml" exec shadowrun-world python3 seed.py
 
   echo ""
   echo "[5/5] Cleaning up __pycache__..."
