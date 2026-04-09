@@ -3,6 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from sqlalchemy import select, func
@@ -101,12 +102,6 @@ app.include_router(matrix_hosts.router,   prefix="/matrix-hosts",  tags=["Matrix
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 
 
-@app.get("/", tags=["Info"])
+@app.get("/", tags=["Info"], include_in_schema=False)
 async def root():
-    return {
-        "name": "Shadowrun World Engine",
-        "edition": "2nd Edition",
-        "version": "0.1.0",
-        "docs": "/docs",
-        "redoc": "/redoc",
-    }
+    return RedirectResponse(url="/ui/")

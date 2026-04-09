@@ -2,12 +2,12 @@ services:
   shadowrun-world:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:2050:8000"
     volumes:
       - ./data:/app/data
       - ./frontend:/app/frontend
     environment:
-      - DATABASE_URL=sqlite:///./data/shadowrun.db
+      - DATABASE_URL=sqlite+aiosqlite:///./data/shadowrun.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - BOOTSTRAP_ADMIN_KEY=${BOOTSTRAP_ADMIN_KEY:-shadowrunner}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}

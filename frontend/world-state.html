@@ -10,7 +10,7 @@
 <body>
 
 <header>
-  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
   <nav>
     <a href="world-state.html" class="active">World State</a>
     <a href="manage-characters.html">Characters</a>
@@ -28,7 +28,7 @@
   <div class="page-sub" style="margin-top:-14px">INTELLIGENCE DATASTORE // PROCESSING... // READY</div>
 
   <div class="status-bar">
-    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>ACTIVE</span></div>
+    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>DIRECT // [CYBER-4]</span></div>
     <div class="status-item">TEAM HEAT: <span id="sb-heat">—</span></div>
     <div class="status-item">TEAM REPUTATION: <span id="sb-rep">—</span></div>
   </div>
@@ -53,26 +53,23 @@
     <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" title="Jump to Locations"><span class="stat-num" id="sc-locs">—</span><div class="stat-lbl">Locations</div></div>
   </div>
 
-  <div class="gm-only" style="text-align:right;margin-bottom:12px">
-    <button class="btn btn-red" style="font-size:0.65rem;padding:4px 14px;letter-spacing:1px" onclick="resetPcData()">&gt;&gt; RESET ALL PC DATA</button>
-  </div>
   <div id="worldContent"><div class="loading">Loading world data</div></div>
 </main>
 
 <!-- ── NPC DOSSIER MODAL ────────────────────────────────────────── -->
 <div id="npcOverlay" class="ltg-overlay" onclick="npcOverlayClick(event)">
-  <div class="ltg-modal" id="npcModal" style="max-width:640px">
+  <div class="ltg-modal" id="npcModal">
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="npcModalName"></div>
         <div id="npcModalBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeNpcModal()" class="self-center">✕ Close</button>
+      <button class="btn btn-red self-center" onclick="closeNpcModal()">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="npcModalBody"></div>
     <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none">
-      <button class="btn btn-green" id="npcNotesSaveBtn" class="flex-1 flex-center">>> Save Notes</button>
-      <button class="btn" onclick="closeNpcModal()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-green flex-1 flex-center" id="npcNotesSaveBtn">>> Save Notes</button>
+      <button class="btn btn-ghost" onclick="closeNpcModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -88,14 +85,14 @@
       onkeydown="if(event.key==='Enter')saveEditModal();if(event.key==='Escape')closeEditModal();">
     <div class="edit-modal-btns">
       <button class="btn btn-green" onclick="saveEditModal()">Save</button>
-      <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ── ORG EDIT MODAL ─────────────────────────────────────── -->
 <div id="orgEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeOrgEditModal()">
-  <div class="edit-modal" style="max-width:960px">
+  <div class="edit-modal">
     <div class="edit-modal-head">
       <div>
         <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
@@ -168,7 +165,7 @@
               <input type="checkbox" id="oe-is_active" checked onchange="document.getElementById('oeStatusLbl').textContent=this.checked?'ACTIVE':'INACTIVE';document.getElementById('oeStatusLbl').style.color=this.checked?'var(--green)':'var(--text-dim)'">
               <span class="tog-sl"></span>
             </label>
-            <span class="tog-label" id="oeStatusLbl" class="text-green">ACTIVE</span>
+            <span class="tog-label text-green" id="oeStatusLbl">ACTIVE</span>
           </div>
         </div>
       </div>
@@ -194,8 +191,8 @@
       </div>
       <hr class="rule my-14">
       <div class="section-head mb-12">RTG/LTG Network Directory</div>
-      <div style="margin-bottom:18px">
-        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Telecom Numbers</div>
+      <div class="mb-16">
+        <div class="sub-head">Telecom Numbers</div>
         <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
@@ -205,7 +202,7 @@
         </div>
       </div>
       <div>
-        <div class="section-head" style="font-size:0.68rem;color:var(--text-dim);border-color:#1a1a1a;margin-bottom:10px">Matrix Hosts</div>
+        <div class="sub-head">Matrix Hosts</div>
         <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
         <div class="lead-wrap">
           <table class="lead-table">
@@ -217,21 +214,21 @@
       </div><!-- /orgFormContent -->
     </div>
     <div class="edit-modal-foot" id="orgEditFoot">
-      <button class="btn btn-green" onclick="saveOrgEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
-      <button class="btn" onclick="closeOrgEditModal()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-green flex-1 flex-center" onclick="saveOrgEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeOrgEditModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ── LOCATION EDIT MODAL ────────────────────────────────── -->
 <div id="locEditOverlay" class="ltg-overlay loc-overlay" onclick="if(event.target===this)closeLocEditModal()">
-  <div class="ltg-modal loc-modal" style="max-width:640px">
+  <div class="ltg-modal loc-modal">
     <div class="ltg-modal-head loc-modal-head">
       <div>
         <div class="ltg-modal-title loc-modal-title" id="leTitle">Site Report // Location</div>
         <div id="leBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeLocEditModal()" class="self-center">✕ Close</button>
+      <button class="btn btn-red self-center" onclick="closeLocEditModal()">✕ Close</button>
     </div>
     <!-- Runner dossier view -->
     <div id="locDossierView" class="ltg-modal-body" style="display:none"></div>
@@ -335,21 +332,21 @@
     </div>
     </div><!-- /locFormContent -->
     <div class="edit-modal-foot" id="locEditFoot">
-      <button class="btn btn-green" onclick="saveLocEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
-      <button class="btn" onclick="closeLocEditModal()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-green flex-1 flex-center" onclick="saveLocEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeLocEditModal()">Cancel</button>
     </div>
   </div>
 </div>
 
 <!-- ── CHARACTER EDIT MODAL ───────────────────────────────── -->
 <div id="charEditOverlay" class="ltg-overlay" onclick="if(event.target===this)closeCharEditModal()">
-  <div class="ltg-modal" style="max-width:720px">
+  <div class="ltg-modal">
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="ceTitle">Edit Character</div>
         <div id="ceBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeCharEditModal()" class="self-center">✕ Close</button>
+      <button class="btn btn-red self-center" onclick="closeCharEditModal()">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
@@ -455,8 +452,8 @@
       <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green gm-only" id="ceSaveBtn" onclick="saveCharEdit()" class="flex-1 flex-center">&gt;&gt; Save Changes</button>
-      <button class="btn gm-only" onclick="closeCharEditModal()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-green gm-only flex-1 flex-center" id="ceSaveBtn" onclick="saveCharEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost gm-only" onclick="closeCharEditModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -464,12 +461,12 @@
 <script src="world-state.js"></script>
 <!-- ── CONFIRM DIALOG ──────────────────────────────────── -->
 <div id="srConfirmOverlay" class="ltg-overlay" style="z-index:3000">
-  <div class="ltg-modal" style="max-width:420px">
+  <div class="ltg-modal modal-sm">
     <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
       <div id="srConfirmMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
       <div style="display:flex;gap:12px;justify-content:center">
         <button class="btn btn-red" id="srConfirmOkBtn" style="min-width:110px">>> Confirm</button>
-        <button class="btn" id="srConfirmCancelBtn" style="min-width:90px;color:var(--text-dim);border-color:#333">Cancel</button>
+        <button class="btn btn-ghost" id="srConfirmCancelBtn" style="min-width:90px">Cancel</button>
       </div>
     </div>
   </div>
@@ -477,7 +474,7 @@
 
 <!-- ── ALERT DIALOG ────────────────────────────────────── -->
 <div id="srAlertOverlay" class="ltg-overlay" style="z-index:3000" onclick="if(event.target===this)closeAlert()">
-  <div class="ltg-modal" style="max-width:380px">
+  <div class="ltg-modal modal-xs">
     <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
       <div id="srAlertMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
       <button class="btn btn-green" onclick="closeAlert()" style="min-width:90px">>> OK</button>
@@ -494,25 +491,25 @@
         <div class="ltg-modal-title" id="seTitle">Faction Standings</div>
         <div id="sePcBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeStandingEditor()" class="self-center">✕ Close</button>
+      <button class="btn btn-red self-center" onclick="closeStandingEditor()">✕ Close</button>
     </div>
     <div class="ltg-modal-body" id="seBody" style="max-height:60vh;overflow-y:auto"></div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" onclick="saveStandingEditor()" class="flex-1 flex-center">>> Save Changes</button>
-      <button class="btn" onclick="closeStandingEditor()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-green flex-1 flex-center" onclick="saveStandingEditor()">>> Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeStandingEditor()">Cancel</button>
     </div>
   </div>
 </div>
 
 <div id="srPromptOverlay" class="ltg-overlay" style="z-index:3000">
-  <div class="ltg-modal" style="max-width:380px">
+  <div class="ltg-modal modal-xs">
     <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
       <div id="srPromptMsg" style="color:var(--text-bright);margin-bottom:14px;font-size:0.88rem;letter-spacing:0.5px"></div>
       <input type="number" id="srPromptInput" min="1" max="6"
         style="width:100%;margin-bottom:18px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);padding:7px 12px;font-family:inherit;font-size:0.9rem;text-align:center;outline:none">
       <div style="display:flex;gap:12px;justify-content:center">
         <button class="btn btn-green" id="srPromptOkBtn" style="min-width:90px">>> OK</button>
-        <button class="btn" id="srPromptCancelBtn" style="min-width:90px;color:var(--text-dim);border-color:#333">Cancel</button>
+        <button class="btn btn-ghost" id="srPromptCancelBtn" style="min-width:90px">Cancel</button>
       </div>
     </div>
   </div>
