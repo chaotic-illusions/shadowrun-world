@@ -1355,7 +1355,36 @@ select option { background: #090909; }
 .extracted-value { font-size: 0.82rem; color: var(--text-bright); }
 
 /* Manual change-row inputs override global width:100% */
-.mcr-input { padding: 4px 8px !important; font-size: .75rem !important; }
+.mcr-input { padding: 5px 9px !important; font-size: .82rem !important; }
+.mcr-row {
+  border: 1px solid #111; background: #0d0d0d;
+  padding: 10px 12px 8px; margin-bottom: 8px;
+}
+.mcr-top { display: flex; align-items: center; gap: 8px; }
+.mcr-runners {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 4px 6px; padding: 5px 0 0 26px;
+}
+.mcr-apply-label {
+  font-size: .62rem; letter-spacing: 2px; color: var(--amber);
+  flex-shrink: 0; user-select: none;
+}
+.mcr-pill {
+  font-size: .68rem; letter-spacing: 1px; padding: 2px 8px;
+  border: 1px solid var(--green-dark); color: var(--green-dark);
+  background: transparent; cursor: pointer; transition: all .15s;
+  user-select: none; white-space: nowrap;
+}
+.mcr-pill:hover { border-color: var(--green-dim); color: var(--green-dim); }
+.mcr-pill.selected { border-color: var(--green-dim); color: var(--green); background: #001a00; }
+.mcr-pill-all {
+  font-size: .6rem; letter-spacing: 2px; padding: 2px 6px;
+  border: 1px solid #1a2a1a; color: var(--text-dim);
+  background: transparent; cursor: pointer; margin-right: 4px;
+  user-select: none; transition: all .15s;
+}
+.mcr-pill-all:hover { color: var(--green); border-color: var(--green-dim); }
+.mcr-pill-all.selected { border-color: var(--green-dim); color: var(--green); background: #001a00; }
 
 
 /* ══ MATRIX HOST DESIGNER ══════════════════════════════════════ */
