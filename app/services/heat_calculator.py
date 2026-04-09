@@ -241,10 +241,10 @@ def decay_heat(heat: int, days_ago: int, accel: float = 1.0) -> float:
 # Magnitude of standing drives tier — both tables are keyed on abs(standing).
 STANDING_HALF_LIVES_NEG: list[tuple[int, int, float]] = [
     (0,  0, float('inf')),  # neutral — never decays
-    (1,  3, 3.0),            # unfriendly/friendly low
-    (4,  6, 6.0),            # unfriendly/friendly high
-    (7,  9, 10.0),           # hostile/allied low-mid
-    (10, 10, 14.0),          # hostile/allied max
+    (1,  3, 4.0),            # unfriendly low   (pos 6.0 / 1.5)
+    (4,  6, 8.0),            # unfriendly high  (pos 12.0 / 1.5)
+    (7,  9, 13.0),           # hostile low-mid  (pos 20.0 / 1.5)
+    (10, 10, 19.0),          # hostile max      (pos 28.0 / 1.5)
 ]
 STANDING_HALF_LIVES_POS: list[tuple[int, int, float]] = [
     (0,  0, float('inf')),
