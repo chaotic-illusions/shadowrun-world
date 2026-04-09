@@ -521,11 +521,13 @@ function openModal(id) {
       });
   }
 
+  pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
+  resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -763,6 +765,7 @@ bootstrapAuth().then(u => {
       document.getElementById('filterType').value = '';
     }
     loadChars();
+    startPolling(loadChars);
   }
 });
 </script>

@@ -271,11 +271,13 @@ function openModal(id) {
     document.getElementById('f-location_type-custom-wrap').style.display = '';
   }
 
+  pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
+  resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -366,7 +368,7 @@ async function loadAll() {
   }
 }
 
-bootstrapAuth().then(u => { if (u) loadAll(); });
+bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
 </script>
 </body>
 </html>

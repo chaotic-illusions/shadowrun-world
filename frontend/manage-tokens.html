@@ -167,10 +167,11 @@ function openNewTokenModal(isAdmin) {
     btn.style.borderColor = 'var(--green-dim)';
     btn.style.color       = 'var(--green)';
   }
+  pausePoll();
   document.getElementById('tokenModal').style.display = 'flex';
 }
 
-function closeTokenModal() { document.getElementById('tokenModal').style.display = 'none'; }
+function closeTokenModal() { resumePoll(); document.getElementById('tokenModal').style.display = 'none'; }
 
 async function submitNewToken() {
   const label = document.getElementById('tokenLabel').value.trim() || null;
@@ -191,7 +192,7 @@ async function submitNewToken() {
   }
 }
 
-function closeResultModal() { document.getElementById('resultModal').style.display = 'none'; }
+function closeResultModal() { resumePoll(); document.getElementById('resultModal').style.display = 'none'; }
 
 async function copyToken() {
   const text = document.getElementById('generatedToken').textContent;
@@ -207,11 +208,13 @@ async function copyToken() {
 function openRenameModal(id, currentLabel) {
   _renameId = id;
   document.getElementById('renameInput').value = currentLabel;
+  pausePoll();
   document.getElementById('renameModal').style.display = 'flex';
   setTimeout(() => document.getElementById('renameInput').select(), 50);
 }
 
 function closeRenameModal() {
+  resumePoll();
   document.getElementById('renameModal').style.display = 'none';
   _renameId = null;
 }
@@ -319,6 +322,7 @@ async function init() {
     return;
   }
   await loadTokens();
+  startPolling(loadTokens);
 }
 
 init();

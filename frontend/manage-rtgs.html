@@ -198,11 +198,13 @@ function openModal(id) {
   document.getElementById('f-canonical').checked     = rtg?.canonical !== false;
   document.getElementById('f-notes').value           = rtg?.notes || '';
 
+  pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
+  resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -277,7 +279,7 @@ async function loadRTGs() {
   }
 }
 
-bootstrapAuth().then(u => { if (u) loadRTGs(); });
+bootstrapAuth().then(u => { if (u) { loadRTGs(); startPolling(loadRTGs); } });
 </script>
 </body>
 </html>
