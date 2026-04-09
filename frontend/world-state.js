@@ -375,10 +375,10 @@ function renderPromoteSection(charId) {
       <label class="promote-field-lbl">Loyalty
         <input type="number" id="promoteLoyalty" class="promote-num" min="1" max="6" value="1">
       </label>
-      <button class="btn btn-green" style="font-size:0.62rem;padding:3px 10px" onclick="addContactLink()">Link</button>
-      <button class="btn btn-ghost" style="font-size:0.62rem;padding:3px 8px" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
+      <button class="btn btn-green btn-sm" onclick="addContactLink()">Link</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
     </div>
-    <button class="btn btn-amber gm-only" style="font-size:0.62rem;padding:3px 10px;margin-top:6px" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
+    <button class="btn btn-amber btn-sm gm-only mt-6" onclick="document.getElementById('promoteAddForm').style.display=document.getElementById('promoteAddForm').style.display===''?'none':''">+ Link Runner</button>
   ` : (existing.length ? '<div class="promote-all-linked">All active runners already linked.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
 
   const hasContent = existing.length > 0 || isAdminMode();
@@ -774,7 +774,7 @@ function buildFactionRepSection(activePcs, repStore, myCharIds) {
         <div class="faction-pc-card">
           <div class="faction-pc-name" style="display:flex;justify-content:space-between;align-items:center">
             <span>${esc(pc.name)}</span>
-            <button class="btn" style="font-size:.58rem;padding:2px 8px;letter-spacing:1px;color:var(--cyan);border-color:#0a2a3a"
+            <button class="btn btn-sm" style="color:var(--cyan);border-color:#0a2a3a"
               onclick="openStandingEditor(${pc.id})">Edit</button>
           </div>
           ${nonZero.length
@@ -1872,7 +1872,8 @@ async function loadAll() {
     // ── 1. Team (expanded) ────────────────────────────────────
     if (pcs.length)
       html += section('pcs', 'Team',
-        `<div class="char-grid">${pcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`,
+        `<div class="char-grid">${pcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`
+        + `<div class="gm-only" style="text-align:left;margin-top:12px"><button class="btn btn-red btn-sm" onclick="resetPcData()">&gt;&gt; RESET ALL PC DATA</button></div>`,
         'manage-characters.html');
 
     // ── 2. Contacts (expanded) ────────────────────────────────

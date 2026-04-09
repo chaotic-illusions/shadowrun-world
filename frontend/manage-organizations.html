@@ -50,7 +50,7 @@
 
 <!-- ── EDIT MODAL ──────────────────────────────────────────── -->
 <div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="edit-modal" style="max-width:860px">
+  <div class="edit-modal">
     <div class="edit-modal-head">
       <div>
         <div class="edit-modal-title" id="modalTitle">New Organization</div>
@@ -123,7 +123,7 @@
               <input type="checkbox" id="is_active" checked onchange="updateStatus()">
               <span class="tog-sl"></span>
             </label>
-            <span class="tog-label" id="activeStatus" class="text-green">ACTIVE</span>
+            <span class="tog-label text-green" id="activeStatus">ACTIVE</span>
           </div>
         </div>
       </div>
@@ -204,9 +204,9 @@
       </div>
     </div>
     <div class="edit-modal-foot">
-      <button class="btn btn-green" onclick="submitForm()" id="submitBtn" class="flex-1 flex-center">&gt;&gt; Submit to Database</button>
+      <button class="btn btn-green flex-1 flex-center" onclick="submitForm()" id="submitBtn">&gt;&gt; Submit to Database</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
-      <button class="btn" onclick="closeModal()" class="btn-ghost">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -589,7 +589,7 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '—')}</td>
             ${adminMode ? `<td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>` : ''}
             <td class="td-act">
-              ${adminMode ? `<button class="btn btn-amber" style="font-size:0.65rem;padding:4px 10px" onclick="openModal(${o.id})">Edit</button>` : ''}
+              ${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${o.id})">Edit</button>` : ''}
             </td>
           </tr>`).join('')}
       </tbody>

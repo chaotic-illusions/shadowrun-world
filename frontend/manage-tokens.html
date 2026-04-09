@@ -115,11 +115,11 @@ function renderTokenTable(tokens, containerId, accentColor) {
       <tbody>
         ${tokens.map(t => {
           const actions = `
-            <button class="btn" style="padding:4px 8px;font-size:.6rem;color:var(--text-dim);border-color:#333;margin-right:4px"
+            <button class="btn btn-ghost btn-sm" style="margin-right:4px"
               onclick="openRenameModal(${t.id}, '${esc(t.label || '')}')">Rename</button>
-            <button class="btn" style="padding:4px 8px;font-size:.6rem;color:var(--amber);border-color:var(--amber);margin-right:4px"
+            <button class="btn btn-amber btn-sm" style="margin-right:4px"
               onclick="regenerateToken(${t.id})">Regenerate</button>
-            <button class="btn btn-red" style="padding:4px 8px;font-size:.6rem"
+            <button class="btn btn-red btn-sm"
               onclick="deleteToken(${t.id})">Delete</button>`;
           return `
             <tr>

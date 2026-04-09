@@ -103,7 +103,7 @@
       <div class="mx-panel gm-only" id="subnetPanel" style="margin-bottom:16px;display:none">
         <div class="mx-panel-title flex-between">
           <span>&gt;&gt; System Zones</span>
-          <button class="btn" style="font-size:0.55rem;padding:2px 8px;color:var(--cyan);border-color:#004455" onclick="addSubnetZone()">+ Add Zone</button>
+          <button class="btn btn-sm" style="color:var(--cyan);border-color:#004455" onclick="addSubnetZone()">+ Add Zone</button>
         </div>
         <div id="subnetList"></div>
         <div style="margin-top:8px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
@@ -139,13 +139,13 @@
       </div>
 
       <div class="mx-toolbar gm-only">
-        <button class="btn" id="btnEditMode" onclick="toggleEditMode()" style="font-size:0.65rem;color:var(--node-iop);border-color:#5a3010">Edit Layout</button>
-        <button class="btn btn-red" id="btnDeleteNode" style="font-size:0.65rem;display:none" onclick="deleteSelectedNode()">Delete Selected</button>
-        <button class="btn" id="btnConnect" style="font-size:0.65rem;color:var(--purple);border-color:#551177;display:none" onclick="toggleConnectMode()">Draw Link</button>
-        <button class="btn btn-red" style="font-size:0.65rem" onclick="deleteCurrentHost()">Delete System Map</button>
+        <button class="btn btn-sm" id="btnEditMode" onclick="toggleEditMode()" style="color:var(--node-iop);border-color:#5a3010">Edit Layout</button>
+        <button class="btn btn-red btn-sm" id="btnDeleteNode" style="display:none" onclick="deleteSelectedNode()">Delete Selected</button>
+        <button class="btn btn-sm" id="btnConnect" style="color:var(--purple);border-color:#551177;display:none" onclick="toggleConnectMode()">Draw Link</button>
+        <button class="btn btn-red btn-sm" onclick="deleteCurrentHost()">Delete System Map</button>
         <div class="flex-1"></div>
         <div class="mx-mode-badge mx-mode-view" id="modeBadge">VIEWING</div>
-        <button class="btn" onclick="resetZoom()" style="font-size:0.62rem;color:var(--text-dim)">Reset Zoom</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetZoom()">Reset Zoom</button>
       </div>
 
       <div class="mx-canvas-wrap" id="canvasWrap">
@@ -235,9 +235,9 @@
       <label>System Zone</label>
       <select id="modal-subnet"></select>
     </div>
-    <div style="font-size:0.62rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">IC PROGRAMS</div>
+    <div class="sub-head">IC PROGRAMS</div>
     <div id="icList"></div>
-    <button class="btn btn-amber" style="font-size:0.62rem;margin-bottom:12px" onclick="addIcRow()">+ Add IC</button>
+    <button class="btn btn-amber btn-sm mb-12" onclick="addIcRow()">+ Add IC</button>
     <div class="mx-modal-actions">
       <button class="btn btn-green" onclick="saveNodeModal()">Save</button>
       <button class="btn btn-red" onclick="deleteModalNode()">Delete Node</button>
@@ -1144,7 +1144,7 @@ function drawHexPrism(g, c) {
 
 // SN: filled circle
 function drawSphere(g, c) {
-  const r = 17;
+  const r = 14;
   g.appendChild(svgCirc(r + 4, c, '0.15', 'none', '0', 'url(#node-glow)'));
   g.appendChild(svgCirc(r, c, '0.8', c, '1.5'));
 }
@@ -1158,7 +1158,7 @@ function drawCuboid(g, c) {
 
 // IOP: upward-pointing triangle
 function drawPyramid(g, c) {
-  const r = 20;
+  const r = 14;
   const bx = (r * Math.sin(Math.PI * 2 / 3)).toFixed(2);
   const by = (r * 0.5).toFixed(2);
   const pts = `0,${-r} ${bx},${by} -${bx},${by}`;
