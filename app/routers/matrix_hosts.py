@@ -6,10 +6,9 @@ from app.dependencies import get_db
 from app.models.matrix_host import MatrixHost
 from app.schemas.matrix_host import (
     MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostSummary,
-    MatrixHostConfig,
 )
 from app.auth.dependencies import get_admin_token, get_any_token
-from app.services.matrix_generator import generate, IC_INFO, VALID_CONNECTIONS
+from app.services.matrix_generator import IC_INFO, VALID_CONNECTIONS
 
 router = APIRouter()
 
@@ -43,25 +42,6 @@ async def create_host(body: MatrixHostCreate, db: AsyncSession = Depends(get_db)
     await db.refresh(host)
     return host
 
-
-@router.post("/generate", response_model=MatrixHostRead, status_code=201,
-             dependencies=[Depends(get_admin_token)])
-async def generate_host(body: MatrixHostConfig, db: AsyncSession = Depends(get_db)):
-    """Generate a topology from parameters, save, and return the full host record."""
-    config = body.model_dump()
-    topology = generate(config)
-    host = MatrixHost(
-        name=body.name,
-        owner_org_id=body.owner_org_id,
-        location_id=body.location_id,
-        notes=body.notes,
-        config_json=config,
-        topology_json=topology,
-    )
-    db.add(host)
-    await db.commit()
-    await db.refresh(host)
-    return host
 
 
 @router.get("/ic-info")
