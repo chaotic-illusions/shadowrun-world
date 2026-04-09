@@ -15,7 +15,7 @@ import app.models  # noqa: F401 — registers all ORM models with Base.metadata
 
 from app.routers import (
     characters, contacts, locations, organizations,
-    reputation, adventure_logs, house_rules, consequences, rtgs,
+    reputation, adventure_logs, consequences, rtgs,
     matrix_hosts,
 )
 from app.routers import auth as auth_router
@@ -61,7 +61,7 @@ app = FastAPI(
     description=(
         "GM toolkit for Shadowrun 2nd Edition. "
         "Track characters, contacts, locations, organizations, reputation, "
-        "adventure logs, consequence suggestions, and house rules."
+        "adventure logs, and consequence suggestions."
     ),
     version="0.1.0",
     lifespan=lifespan,
@@ -94,7 +94,6 @@ app.include_router(locations.router,      prefix="/locations",     tags=["Locati
 app.include_router(organizations.router,  prefix="/organizations", tags=["Organizations"],      dependencies=_auth)
 app.include_router(reputation.router,     prefix="/reputation",    tags=["Reputation"],         dependencies=_auth)
 app.include_router(adventure_logs.router, prefix="/runs",          tags=["Adventure Logs"],     dependencies=_auth)
-app.include_router(house_rules.router,    prefix="/house-rules",   tags=["House Rules"],        dependencies=_auth)
 app.include_router(consequences.router,   prefix="/consequences",  tags=["Consequence Engine"], dependencies=_auth)
 app.include_router(rtgs.router,           prefix="/rtgs",          tags=["RTGs"],               dependencies=_auth)
 app.include_router(matrix_hosts.router,   prefix="/matrix-hosts",  tags=["Matrix Hosts"],       dependencies=_auth)

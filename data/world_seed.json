@@ -2775,26 +2775,6 @@
                               "notes":  "Hacked their grid once. They don\u0027t know it was her."
                           }
                       ],
-    "house_rules":  [
-                        {
-                            "title":  "Recoil Reset",
-                            "category":  "combat",
-                            "source_reference":  "SR2 p.112",
-                            "original_rule":  "Recoil accumulates across all actions in an initiative pass.",
-                            "modification":  "Recoil resets at the start of each combat turn, not each initiative pass.",
-                            "reason":  "Simplifies tracking and speeds up combat for new players.",
-                            "is_active":  true
-                        },
-                        {
-                            "title":  "Contact Loyalty Favors",
-                            "category":  "social",
-                            "source_reference":  "SR2 p.245",
-                            "original_rule":  "Contacts provide services based on Connection only.",
-                            "modification":  "Contacts with Loyalty 4+ will occasionally volunteer information without being asked.",
-                            "reason":  "Makes high-loyalty contacts feel meaningfully different.",
-                            "is_active":  true
-                        }
-                    ],
     "adventure_logs":  [
                            {
                                "title":  "The Aztechnology Extraction",

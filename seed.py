@@ -136,12 +136,7 @@ def _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids):
         result = post(client, "/reputation/standings", payload)
         print(f"  + {char_name} <-> {org_name} (standing {payload['standing']}) -> id {result['id']}")
 
-    print("\n[6/7] House Rules")
-    for rule in data.get("house_rules", []):
-        result = post(client, "/house-rules/", rule)
-        print(f"  + {rule['title']} -> id {result['id']}")
-
-    print("\n[7/7] Adventure Logs")
+    print("\n[6/6] Adventure Logs")
     for log in data.get("adventure_logs", []):
         payload = {k: v for k, v in log.items()
                    if k not in ("participant_names", "location_names", "org_names")}
