@@ -1,6 +1,9 @@
 from typing import Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Fieldclass MatrixHostCreate(BaseModel):
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class MatrixHostCreate(BaseModel):
     name: str = Field(max_length=200)
     owner_org_id: Optional[int] = None
     location_id: Optional[int] = None
