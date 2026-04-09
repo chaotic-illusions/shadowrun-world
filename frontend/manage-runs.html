@@ -50,9 +50,9 @@
       <div id="run-participants" style="display:flex;flex-wrap:wrap;gap:4px 18px;min-height:22px"></div>
       <div style="margin-top:10px;padding-top:8px;border-top:1px solid #111;display:flex;align-items:center;gap:10px">
         <label style="font-size:.62rem;letter-spacing:1px;color:var(--text-dim)">TICK OVERRIDE</label>
-        <input type="number" id="run-tick-count" min="1" max="5" value="1"
+        <input type="number" id="run-tick-count" min="1" max="14" value="1"
           style="width:52px;padding:2px 6px;font-size:.78rem;background:#0a0a0a;border:1px solid #2a2a2a;color:var(--text)">
-        <span style="font-size:.62rem;color:var(--text-dim)">ticks to advance &nbsp;&nbsp;(1 = normal session &nbsp;·&nbsp; 2–5 = extended downtime)</span>
+        <span style="font-size:.62rem;color:var(--text-dim)">Number of days elapsed for this run</span>
       </div>
     </div>
 
@@ -335,10 +335,11 @@ async function applyAndLog() {
   // Apply world changes
   if (changesApplied.length) {
     try {
+      const tickCount = Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1));
       const res = await apiFetch(`${API}/runs/apply-changes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: changesApplied }),
+        body: JSON.stringify({ changes: changesApplied, tick_count: tickCount }),
       });
       if (!res.ok) await apiThrow(res);
       const result = await res.json();
@@ -364,7 +365,7 @@ async function applyAndLog() {
     gm_notes:         document.getElementById('aiNarrative').value.trim(),
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    tick_count:       Math.min(5, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
+    tick_count:       Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
     participant_ids:  getChecked('run-participants'),
     location_ids:     [],
     org_ids:          [],
@@ -719,12 +720,13 @@ async function submitManual() {
   const { applied: changesApplied, excluded: changesExcluded } = getManualChanges();
 
   // Apply world changes first (same flow as AI parse)
+  const tickCount = Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1));
   if (changesApplied.length) {
     try {
       const r = await apiFetch(`${API}/runs/apply-changes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: changesApplied }),
+        body: JSON.stringify({ changes: changesApplied, tick_count: tickCount }),
       });
       if (!r.ok) await apiThrow(r);
       const result = await r.json();
@@ -748,7 +750,7 @@ async function submitManual() {
     outcome_tags:     outcomeTags,
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    tick_count:       Math.min(5, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
+    tick_count:       tickCount,
     participant_ids:  getChecked('run-participants'),
     location_ids:     getChecked('m-locations'),
     org_ids:          getChecked('m-orgs'),

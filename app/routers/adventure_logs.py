@@ -42,6 +42,7 @@ class ChangeItem(BaseModel):
 
 class ApplyChangesRequest(BaseModel):
     changes: list[ChangeItem]
+    tick_count: int = 0
 
 
 router = APIRouter()
@@ -318,7 +319,7 @@ async def apply_world_changes(
     """Apply a reviewed set of world-state changes (reputation, org standings)."""
     applied = []
     errors = []
-    tick = await current_tick(db)
+    tick = await current_tick(db) + body.tick_count
 
     for ch in body.changes:
         try:
