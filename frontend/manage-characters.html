@@ -49,7 +49,7 @@
 
 <!-- ── EDIT MODAL ─────────────────────────────────────── -->
 <div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
-  <div class="edit-modal" style="max-width:720px">
+  <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New Dossier</div>
       <button class="btn btn-red" onclick="closeModal()">✕</button>
@@ -68,7 +68,7 @@
           <label>Title *</label>
           <input type="text" id="f-title" placeholder="Yakuza Underboss, Corporate Decker..." required maxlength="200">
         </div>
-        <div class="field">
+        <div class="field" id="f-archetype-wrap">
           <label id="f-archetype-lbl">Archetype</label>
           <!-- PC archetype: 7 runner options matching world-state card colors -->
           <select id="f-archetype-pc" onchange="onPCArchetypeChange()" style="display:none">
@@ -156,7 +156,7 @@
           <label>Type</label>
           <div class="toggle-wrap pt-6" id="f-type-wrap">
             <label class="toggle">
-              <input type="checkbox" id="f-is_pc" checked onchange="updatePCLabel()">
+              <input type="checkbox" id="f-is_pc" checked onchange="if(!this.checked)document.getElementById('f-title').value='';updatePCLabel()">
               <span class="tog-sl"></span>
             </label>
             <span class="tog-label" id="pcLabel">PC // Runner</span>
@@ -340,12 +340,11 @@ function updatePCLabel() {
   document.getElementById('pcLabel').textContent = isPC ? 'PC // Runner' : 'NPC';
   document.getElementById('npcSection').style.display = isPC ? 'none' : '';
   // Switch archetype picker and title visibility
+  document.getElementById('f-archetype-wrap').style.display  = isPC ? '' : 'none';
   document.getElementById('f-archetype-pc').style.display   = isPC ? '' : 'none';
   document.getElementById('f-archetype').style.display       = isPC ? 'none' : '';
   document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
   document.getElementById('f-title-wrap').style.display     = isPC ? 'none' : '';
-  // Clear title when switching to NPC so the placeholder shows
-  if (!isPC) document.getElementById('f-title').value = '';
   // Reputation section: admin-only, PC-only; visible for new PCs too
   document.getElementById('repSection').style.display = (isPC && isAdminMode()) ? '' : 'none';
 }

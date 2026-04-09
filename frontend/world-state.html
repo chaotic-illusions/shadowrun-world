@@ -350,106 +350,101 @@
     </div>
     <div class="ltg-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
-      <div class="grid2 mb-14">
-        <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
-        <div class="field" id="ce-title-field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
-      </div>
-      <div class="grid2 mb-14">
-        <div class="field"><label>Archetype</label>
-          <select id="ce-archetype" onchange="onCeArchChange()">
-            <optgroup label="── Runners ──">
-              <option value="Street Samurai">Street Samurai</option>
-              <option value="Decker">Decker</option>
-              <option value="Mage">Mage</option>
-              <option value="Shaman">Shaman</option>
-              <option value="Rigger">Rigger</option>
-              <option value="Face">Face</option>
-              <option value="Adept">Adept</option>
-              <option value="Weapons Specialist">Weapons Specialist</option>
-              <option value="Infiltrator">Infiltrator</option>
-              <option value="Combat Mage">Combat Mage</option>
-            </optgroup>
-            <optgroup label="── Street / Underworld ──">
-              <option value="Fixer">Fixer</option>
-              <option value="Ganger">Ganger</option>
-              <option value="Gang Boss">Gang Boss</option>
-              <option value="Mercenary">Mercenary</option>
-              <option value="Bodyguard">Bodyguard</option>
-              <option value="Assassin">Assassin</option>
-              <option value="Smuggler">Smuggler</option>
-              <option value="Bounty Hunter">Bounty Hunter</option>
-              <option value="Street Doc">Street Doc</option>
-            </optgroup>
-            <optgroup label="── Corporate / Authority ──">
-              <option value="Corporate Security">Corporate Security</option>
-              <option value="Corporate Executive">Corporate Executive</option>
-              <option value="Mr. Johnson">Mr. Johnson</option>
-              <option value="Detective">Detective</option>
-              <option value="Beat Cop">Beat Cop</option>
-            </optgroup>
-            <optgroup label="── Other ──"><option value="Custom">Custom…</option></optgroup>
-          </select>
-          <div id="ce-arch-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="ce-arch-custom" placeholder="Enter archetype...">
-          </div>
-          <span class="ce-sel-val" id="ce-archetype-val"></span>
-        </div>
-      </div>
-      <div class="grid3 mb-14">
-        <div class="field"><label>Race / Metatype</label>
-          <select id="ce-race">
-            <option value="Human">Human</option><option value="Elf">Elf</option>
-            <option value="Dwarf">Dwarf</option><option value="Ork">Ork</option><option value="Troll">Troll</option>
-          </select>
-          <span class="ce-sel-val" id="ce-race-val"></span>
-        </div>
-        <div class="field"><label>Gender</label><input type="text" id="ce-gender" placeholder="Male, Female..."></div>
-        <div class="field"><label>Age</label><input type="number" id="ce-age" placeholder="28" min="1" max="200"></div>
-      </div>
-      <div class="grid2 mb-14">
-        <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
-        <div class="field"><label>Affiliation</label>
-          <select id="ce-org_id"><option value="">— Independent / Unknown —</option></select>
-          <span class="ce-sel-val" id="ce-org_id-val"></span>
-        </div>
-      </div>
-      <div class="grid2 mb-14" id="ceTypeActiveRow">
-        <div class="field"><label>Type</label>
-          <div class="toggle-wrap pt-6">
-            <label class="toggle"><input type="checkbox" id="ce-is_pc" onchange="cePcToggle()"><span class="tog-sl"></span></label>
-            <span class="tog-label" id="cePcLbl">NPC</span>
-          </div>
-        </div>
-        <div class="field"><label>Active</label>
-          <div class="toggle-wrap pt-6">
-            <label class="toggle"><input type="checkbox" id="ce-is_active" checked><span class="tog-sl"></span></label>
-            <span class="tog-label">Active</span>
-          </div>
-        </div>
-      </div>
-      <div id="cePcSection" style="display:none">
-        <hr class="rule my-14">
-        <div class="section-head mb-12">Karma <span style="font-size:0.6rem;color:var(--text-dim)">// PC ONLY</span></div>
+      <div id="pcDossierBody" style="display:none"></div>
+      <div id="ceFormBody">
         <div class="grid2 mb-14">
-          <div class="field"><label>Total Karma</label><input type="number" id="ce-karma_total" min="0" placeholder="0"></div>
-          <div class="field"><label>Current Karma</label><input type="number" id="ce-karma_current" min="0" placeholder="0"></div>
+          <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
+          <div class="field" id="ce-title-field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
         </div>
-      </div>
-      <div id="ceNpcSection">
+        <div class="grid2 mb-14">
+          <div class="field"><label>Archetype</label>
+            <select id="ce-archetype" onchange="onCeArchChange()">
+              <optgroup label="── Runners ──">
+                <option value="Street Samurai">Street Samurai</option>
+                <option value="Decker">Decker</option>
+                <option value="Mage">Mage</option>
+                <option value="Shaman">Shaman</option>
+                <option value="Rigger">Rigger</option>
+                <option value="Face">Face</option>
+                <option value="Adept">Adept</option>
+                <option value="Weapons Specialist">Weapons Specialist</option>
+                <option value="Infiltrator">Infiltrator</option>
+                <option value="Combat Mage">Combat Mage</option>
+              </optgroup>
+              <optgroup label="── Street / Underworld ──">
+                <option value="Fixer">Fixer</option>
+                <option value="Ganger">Ganger</option>
+                <option value="Gang Boss">Gang Boss</option>
+                <option value="Mercenary">Mercenary</option>
+                <option value="Bodyguard">Bodyguard</option>
+                <option value="Assassin">Assassin</option>
+                <option value="Smuggler">Smuggler</option>
+                <option value="Bounty Hunter">Bounty Hunter</option>
+                <option value="Street Doc">Street Doc</option>
+              </optgroup>
+              <optgroup label="── Corporate / Authority ──">
+                <option value="Corporate Security">Corporate Security</option>
+                <option value="Corporate Executive">Corporate Executive</option>
+                <option value="Mr. Johnson">Mr. Johnson</option>
+                <option value="Detective">Detective</option>
+                <option value="Beat Cop">Beat Cop</option>
+              </optgroup>
+              <optgroup label="── Other ──"><option value="Custom">Custom…</option></optgroup>
+            </select>
+            <div id="ce-arch-custom-wrap" style="display:none;margin-top:6px">
+              <input type="text" id="ce-arch-custom" placeholder="Enter archetype...">
+            </div>
+            <span class="ce-sel-val" id="ce-archetype-val"></span>
+          </div>
+        </div>
+        <div class="grid3 mb-14">
+          <div class="field"><label>Race / Metatype</label>
+            <select id="ce-race">
+              <option value="Human">Human</option><option value="Elf">Elf</option>
+              <option value="Dwarf">Dwarf</option><option value="Ork">Ork</option><option value="Troll">Troll</option>
+            </select>
+            <span class="ce-sel-val" id="ce-race-val"></span>
+          </div>
+          <div class="field"><label>Gender</label><input type="text" id="ce-gender" placeholder="Male, Female..."></div>
+          <div class="field"><label>Age</label><input type="number" id="ce-age" placeholder="28" min="1" max="200"></div>
+        </div>
+        <div class="grid2 mb-14">
+          <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
+          <div class="field"><label>Affiliation</label>
+            <select id="ce-org_id"><option value="">— Independent / Unknown —</option></select>
+            <span class="ce-sel-val" id="ce-org_id-val"></span>
+          </div>
+        </div>
+        <div class="grid2 mb-14" id="ceTypeActiveRow">
+          <div class="field"><label>Type</label>
+            <div class="toggle-wrap pt-6">
+              <label class="toggle"><input type="checkbox" id="ce-is_pc" onchange="cePcToggle()"><span class="tog-sl"></span></label>
+              <span class="tog-label" id="cePcLbl">NPC</span>
+            </div>
+          </div>
+          <div class="field"><label>Active</label>
+            <div class="toggle-wrap pt-6">
+              <label class="toggle"><input type="checkbox" id="ce-is_active" checked><span class="tog-sl"></span></label>
+              <span class="tog-label">Active</span>
+            </div>
+          </div>
+        </div>
+        <div id="ceNpcSection">
+          <hr class="rule my-14">
+          <div class="section-head mb-12">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
+          <div class="field mb-14"><label>Connection Rating (1–6)</label><input type="number" id="ce-connection" min="1" max="6" value="1" style="width:80px"></div>
+          <div class="field mb-14">
+            <label>Contact Skills / Services</label>
+            <textarea id="ce-contact_skills" rows="3" placeholder="One service per line"></textarea>
+            <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line.</div>
+          </div>
+        </div>
         <hr class="rule my-14">
-        <div class="section-head mb-12">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
-        <div class="field mb-14"><label>Connection Rating (1–6)</label><input type="number" id="ce-connection" min="1" max="6" value="1" style="width:80px"></div>
-        <div class="field mb-14">
-          <label>Contact Skills / Services</label>
-          <textarea id="ce-contact_skills" rows="3" placeholder="One service per line"></textarea>
-          <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line.</div>
-        </div>
-      </div>
-      <hr class="rule my-14">
-      <div class="section-head mb-12">Profile</div>
-      <div class="field mb-14"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
-      <div class="field mb-14"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
-      <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
+        <div class="section-head mb-12">Profile</div>
+        <div class="field mb-14"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
+        <div class="field mb-14"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
+        <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
+      </div><!-- /ceFormBody -->
     </div>
     <div class="edit-modal-foot">
       <button class="btn btn-green gm-only flex-1 flex-center" id="ceSaveBtn" onclick="saveCharEdit()">&gt;&gt; Save Changes</button>

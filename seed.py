@@ -10,33 +10,35 @@ Usage:
 import json
 import os
 import argparse
-import urllib.request
-import urllib.error
+import httpx
 
 
 ADMIN_PASSWORD = os.environ.get("BOOTSTRAP_ADMIN_KEY", "shadowrunner")
 
 
-def post(base_url, path, payload):
-    url = f"{base_url}{path}"
-    data = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        url, data=data,
-        headers={"Content-Type": "application/json", "X-Admin-Token": ADMIN_PASSWORD},
-        method="POST",
-    )
+def post(client, path, payload):
     try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        raise RuntimeError(f"ERROR {e.code} on POST {path}: {body}") from e
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"Connection failed for POST {path}: {e.reason}") from e
+        resp = client.post(path, json=payload)
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"ERROR {e.response.status_code} on POST {path}: {e.response.text}") from e
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Connection failed for POST {path}: {e}") from e
+
+
+def patch(client, path, payload):
+    try:
+        resp = client.patch(path, json=payload)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"ERROR {e.response.status_code} on PATCH {path}: {e.response.text}") from e
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Connection failed for PATCH {path}: {e}") from e
 
 
 def seed(base_url, seed_file):
-    with open(seed_file, encoding="utf-8") as f:
+    with open(seed_file, encoding="utf-8-sig") as f:
         data = json.load(f)
 
     rtg_ids = {}
@@ -44,9 +46,15 @@ def seed(base_url, seed_file):
     location_ids = {}
     character_ids = {}
 
+    headers = {"X-Admin-Token": ADMIN_PASSWORD}
+    with httpx.Client(base_url=base_url, headers=headers, timeout=30.0) as client:
+        _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids)
+
+
+def _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids):
     print("\n[0/7] RTGs")
     for rtg in data.get("rtgs", []):
-        result = post(base_url, "/rtgs/", rtg)
+        result = post(client, "/rtgs/", rtg)
         rtg_ids[rtg["code"]] = result["id"]
         print(f"  + {rtg['code']} ({rtg.get('region', '')}) -> id {result['id']}")
 
@@ -55,7 +63,7 @@ def seed(base_url, seed_file):
         payload = {k: v for k, v in org.items() if k not in ("ally_names", "enemy_names")}
         payload["ally_ids"] = []
         payload["enemy_ids"] = []
-        result = post(base_url, "/organizations/", payload)
+        result = post(client, "/organizations/", payload)
         org_ids[org["name"]] = result["id"]
         print(f"  + {org['name']} -> id {result['id']}")
 
@@ -63,18 +71,14 @@ def seed(base_url, seed_file):
         ally_ids = [org_ids[n] for n in org.get("ally_names", []) if n in org_ids]
         enemy_ids = [org_ids[n] for n in org.get("enemy_names", []) if n in org_ids]
         if ally_ids or enemy_ids:
-            url = f"{base_url}/organizations/{org_ids[org['name']]}"
-            payload = json.dumps({"ally_ids": ally_ids, "enemy_ids": enemy_ids}).encode()
-            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json", "X-Admin-Token": ADMIN_PASSWORD}, method="PATCH")
-            with urllib.request.urlopen(req):
-                pass
+            patch(client, f"/organizations/{org_ids[org['name']]}", {"ally_ids": ally_ids, "enemy_ids": enemy_ids})
 
     print("\n[2/7] Locations")
     for loc in data.get("locations", []):
         payload = {k: v for k, v in loc.items() if k != "controlling_org_name"}
         org_name = loc.get("controlling_org_name")
         payload["controlling_org_id"] = org_ids.get(org_name) if org_name else None
-        result = post(base_url, "/locations/", payload)
+        result = post(client, "/locations/", payload)
         location_ids[loc["name"]] = result["id"]
         print(f"  + {loc['name']} -> id {result['id']}")
 
@@ -83,13 +87,13 @@ def seed(base_url, seed_file):
         rep_data = char.pop("reputation", None)
         org_name = char.pop("organization_name", None)
         char["organization_id"] = org_ids.get(org_name) if org_name else None
-        result = post(base_url, "/characters/", char)
+        result = post(client, "/characters/", char)
         char_id = result["id"]
         character_ids[char["name"]] = char_id
         print(f"  + {char['name']} ({'PC' if char.get('is_pc') else 'NPC'}) -> id {char_id}")
         if rep_data is not None:
             rep_payload = dict(rep_data, character_id=char_id)
-            rep_result = post(base_url, "/reputation/", rep_payload)
+            rep_result = post(client, "/reputation/", rep_payload)
             print(f"    + reputation -> id {rep_result['id']}")
 
     print("\n[4/7] Contacts")
@@ -113,7 +117,7 @@ def seed(base_url, seed_file):
         if "name" not in payload:
             payload["name"] = npc_name or "Unknown"
 
-        result = post(base_url, "/contacts/", payload)
+        result = post(client, "/contacts/", payload)
         print(f"  + {payload['name']} (owner: {owner_name}) -> id {result['id']}")
 
     print("\n[5/7] Org Standings")
@@ -129,12 +133,12 @@ def seed(base_url, seed_file):
             "standing": standing.get("standing", 0),
             "notes": standing.get("notes"),
         }
-        result = post(base_url, "/reputation/standings", payload)
+        result = post(client, "/reputation/standings", payload)
         print(f"  + {char_name} <-> {org_name} (standing {payload['standing']}) -> id {result['id']}")
 
     print("\n[6/7] House Rules")
     for rule in data.get("house_rules", []):
-        result = post(base_url, "/house-rules/", rule)
+        result = post(client, "/house-rules/", rule)
         print(f"  + {rule['title']} -> id {result['id']}")
 
     print("\n[7/7] Adventure Logs")
@@ -144,7 +148,7 @@ def seed(base_url, seed_file):
         payload["participant_ids"] = [character_ids[n] for n in log.get("participant_names", []) if n in character_ids]
         payload["location_ids"] = [location_ids[n] for n in log.get("location_names", []) if n in location_ids]
         payload["org_ids"] = [org_ids[n] for n in log.get("org_names", []) if n in org_ids]
-        result = post(base_url, "/runs/", payload)
+        result = post(client, "/runs/", payload)
         print(f"  + {log['title']} -> id {result['id']}")
 
     print("\nDone. World data seeded successfully.")

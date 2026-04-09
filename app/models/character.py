@@ -30,9 +30,6 @@ class Character(Base):
 
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
-    karma_total: Mapped[int] = mapped_column(Integer, default=0)
-    karma_current: Mapped[int] = mapped_column(Integer, default=0)
-
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     # SHA-256 hash of the owning player's token

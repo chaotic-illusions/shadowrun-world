@@ -38,6 +38,7 @@
   --straw:        #eecc66;
   --red:          #ff3333;
   --dark-red:     #aa2a2a;
+  --steel-blue:   #4a7a8a;
   --cyan:         #00ccff;
   --blue:         #4488ff;
   --violet:       #9966ff;
@@ -434,7 +435,7 @@ select option { background: #090909; }
 .oc-gang        { border-left-color: #ff4444 !important; }
 .oc-cult        { border-left-color: #66aa44 !important; }
 .oc-fixer_network { border-left-color: var(--green) !important; }
-.oc-other       { border-left-color: var(--text-dim) !important; }
+.oc-other       { border-left-color: var(--gold) !important; }
 .org-card:hover           { border-color: #1f1f1f; border-left-color: inherit; }
 .oc-megacorp:hover        { border-color: var(--amber); }
 .oc-government:hover      { border-color: #5566aa; }
@@ -442,7 +443,7 @@ select option { background: #090909; }
 .oc-gang:hover            { border-color: #ff4444; }
 .oc-cult:hover            { border-color: #66aa44; }
 .oc-fixer_network:hover   { border-color: var(--green); }
-.oc-other:hover           { border-color: var(--text-dim); }
+.oc-other:hover           { border-color: var(--gold); }
 
 .oc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
 .oc-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); letter-spacing: 1px; }
@@ -512,6 +513,7 @@ select option { background: #090909; }
 .lc-ctrl::before { content: 'CTRL ▸ '; }
 .lc-desc { font-size: 0.73rem; color: var(--text-dim); margin-top: 6px; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lc-desc.lc-desc-expanded { display: block; overflow: visible; -webkit-line-clamp: unset; }
 
 /* Contact cards */
 .contact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: var(--gap-card); margin-bottom: 8px; }
@@ -534,7 +536,7 @@ select option { background: #090909; }
 .cc-ratings    { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; font-size: 0.78rem; }
 .cc-rating-lbl { font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
 .cc-dots       { letter-spacing: 1px; }
-.cc-org            { font-size: 0.68rem; color: var(--amber); margin-bottom: 8px; }
+.cc-org            { font-size: 0.68rem; color: var(--text); margin-bottom: 8px; }
 .cc-org-lbl        { font-size: 0.58rem; letter-spacing: 1px; color: var(--green); text-shadow: var(--glow-green); text-transform: uppercase; }
 .cc-org-sep        { color: #555; }
 .cc-connection-gm  { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; padding: 4px 0; border-top: 1px solid #111; border-bottom: 1px solid #111; }
@@ -776,6 +778,38 @@ select option { background: #090909; }
 .loc-overlay .ltg-modal          { border-color: var(--cyan); box-shadow: 0 0 60px rgba(0,204,255,.12), 0 0 120px rgba(0,0,0,.9); }
 .loc-overlay .ltg-modal-body::-webkit-scrollbar-thumb { background: #001a22; }
 
+/* ── NPC MODAL THEMES (by org type) ──────────────────────── */
+/* default / fixer / unknown — dark purple */
+.npc-overlay-default .ltg-modal        { border-color: #2a2a4a; box-shadow: 0 0 60px rgba(42,42,74,.25), 0 0 120px rgba(0,0,0,.9); }
+.npc-overlay-default .ltg-modal-head   { border-bottom-color: #1a1a2a; }
+.npc-overlay-default .ltg-modal-title  { color: #6666aa; text-shadow: none; }
+.npc-overlay-default .ltg-modal-body::-webkit-scrollbar-thumb { background: #2a2a4a; }
+/* megacorp — amber (same class as org card) */
+.oc-megacorp .ltg-modal           { border-color: var(--amber); box-shadow: 0 0 60px rgba(200,146,42,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-megacorp .ltg-modal-head      { border-bottom-color: #2a1800; }
+.oc-megacorp .ltg-modal-title     { color: var(--amber); text-shadow: none; }
+.oc-megacorp .ltg-modal-body::-webkit-scrollbar-thumb { background: #2a1800; }
+/* government / law enforcement — steel blue */
+.oc-government .ltg-modal           { border-color: #5566aa; box-shadow: 0 0 60px rgba(85,102,170,.15), 0 0 120px rgba(0,0,0,.9); }
+.oc-government .ltg-modal-head      { border-bottom-color: #1a1f33; }
+.oc-government .ltg-modal-title     { color: #5566aa; text-shadow: none; }
+.oc-government .ltg-modal-body::-webkit-scrollbar-thumb { background: #1a1f33; }
+/* syndicate / organized crime — purple */
+.oc-syndicate .ltg-modal      { border-color: #8855cc; box-shadow: 0 0 60px rgba(136,85,204,.15), 0 0 120px rgba(0,0,0,.9); }
+.oc-syndicate .ltg-modal-head { border-bottom-color: #221133; }
+.oc-syndicate .ltg-modal-title{ color: #8855cc; text-shadow: none; }
+.oc-syndicate .ltg-modal-body::-webkit-scrollbar-thumb { background: #221133; }
+/* gang / street gangs — red */
+.oc-gang .ltg-modal           { border-color: #ff4444; box-shadow: 0 0 60px rgba(255,68,68,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-gang .ltg-modal-head      { border-bottom-color: #2a1010; }
+.oc-gang .ltg-modal-title     { color: #ff4444; text-shadow: none; }
+.oc-gang .ltg-modal-body::-webkit-scrollbar-thumb { background: #2a1010; }
+/* cult / fringe groups — muted chartreuse */
+.oc-cult .ltg-modal           { border-color: #66aa44; box-shadow: 0 0 60px rgba(102,170,68,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-cult .ltg-modal-head      { border-bottom-color: #1a2a10; }
+.oc-cult .ltg-modal-title     { color: #66aa44; text-shadow: none; }
+.oc-cult .ltg-modal-body::-webkit-scrollbar-thumb { background: #1a2a10; }
+
 .loc-dossier-field { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #0a1a20; margin-bottom: 2px; }
 .loc-dossier-lbl   { font-size: var(--lbl-fs); letter-spacing: var(--lbl-ls); color: var(--text-dim); text-transform: uppercase; min-width: 130px; flex-shrink: 0; }
 .loc-dossier-val   { color: var(--text-bright); font-size: 0.88rem; }
@@ -989,6 +1023,29 @@ select option { background: #090909; }
   transition: transform .25s;
 }
 .edit-overlay.open .edit-modal { transform: translateY(0); }
+
+/* ── ORG MODAL THEMES (by org type, matching card left-border colors) ─── */
+.oc-government  .edit-modal  { border-color: #5566aa; box-shadow: 0 0 60px rgba(85,102,170,.15), 0 0 120px rgba(0,0,0,.9); }
+.oc-government  .edit-modal-head  { border-bottom-color: #1a1f33; }
+.oc-government  .edit-modal-title { color: #5566aa; }
+.oc-government  .edit-modal-body::-webkit-scrollbar-thumb { background: #1a1f33; }
+.oc-syndicate   .edit-modal  { border-color: #8855cc; box-shadow: 0 0 60px rgba(136,85,204,.15), 0 0 120px rgba(0,0,0,.9); }
+.oc-syndicate   .edit-modal-head  { border-bottom-color: #221133; }
+.oc-syndicate   .edit-modal-title { color: #8855cc; }
+.oc-syndicate   .edit-modal-body::-webkit-scrollbar-thumb { background: #221133; }
+.oc-gang        .edit-modal  { border-color: #ff4444; box-shadow: 0 0 60px rgba(255,68,68,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-gang        .edit-modal-head  { border-bottom-color: #2a1010; }
+.oc-gang        .edit-modal-title { color: #ff4444; }
+.oc-gang        .edit-modal-body::-webkit-scrollbar-thumb { background: #2a1010; }
+.oc-cult        .edit-modal  { border-color: #66aa44; box-shadow: 0 0 60px rgba(102,170,68,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-cult        .edit-modal-head  { border-bottom-color: #1a2a10; }
+.oc-cult        .edit-modal-title { color: #66aa44; }
+.oc-cult        .edit-modal-body::-webkit-scrollbar-thumb { background: #1a2a10; }
+.oc-other       .edit-modal  { border-color: var(--gold); box-shadow: 0 0 60px rgba(232,170,58,.12), 0 0 120px rgba(0,0,0,.9); }
+.oc-other       .edit-modal-head  { border-bottom-color: #2a1e00; }
+.oc-other       .edit-modal-title { color: var(--gold); }
+.oc-other       .edit-modal-body::-webkit-scrollbar-thumb { background: #2a1e00; }
+/* megacorp stays amber — already the default .edit-modal style */
 .edit-modal-head {
   padding: 14px 20px;
   border-bottom: 1px solid #2a1a00;
@@ -1022,12 +1079,12 @@ select option { background: #090909; }
 }
 
 /* ── HEAT LEVEL COLORS ──────────────────────────────────── */
-.heat-neutral   { color: var(--text-dim);  border-color: #222 !important; }
-.heat-noticed   { color: #cccc44;          border-color: #333300 !important; }
-.heat-flagged   { color: #ffaa22;          border-color: #442a00 !important; }
-.heat-wanted    { color: #ff7700;          border-color: #442200 !important; }
-.heat-hot       { color: #ff4422;          border-color: #441100 !important; }
-.heat-nova-hot  { color: #ff1111;          border-color: #440000 !important;
+.heat-neutral   { color: var(--text-dim)  !important; border-color: #222 !important; }
+.heat-noticed   { color: #cccc44          !important; border-color: #333300 !important; }
+.heat-flagged   { color: #ffaa22          !important; border-color: #442a00 !important; }
+.heat-wanted    { color: #ff7700          !important; border-color: #442200 !important; }
+.heat-hot       { color: #ff4422          !important; border-color: #441100 !important; }
+.heat-nova-hot  { color: #ff1111          !important; border-color: #440000 !important;
                   text-shadow: 0 0 8px rgba(255,17,17,.5); }
 
 /* ── REP LEVEL COLORS (for inline use — also defined as JS helpers) ─ */
@@ -1114,7 +1171,7 @@ select option { background: #090909; }
 }
 .faction-org {
   flex: 1;
-  color: var(--text-dim);
+  color: var(--steel-blue);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1520,11 +1577,12 @@ select option { background: #090909; }
 /* ── world-state.js dynamic card classes ── */
 .ws-empty       { color: var(--text-dim); font-size: .75rem; padding: 4px; }
 .ws-dim-tier    { color: var(--text-dim); font-size: .7rem; }
-.ws-se-row      { padding: 5px 0; border-bottom: 1px solid #111; }
-.ws-se-input    { width: 58px; background: var(--bg-input); border: 1px solid #2a2a2a;
+.ws-se-row      { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #111; overflow: hidden; }
+.ws-se-org      { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--steel-blue); font-size: .64rem; letter-spacing: 1px; }
+.ws-se-row .ws-se-input { flex: 0 0 54px; width: 54px; background: var(--bg-input); border: 1px solid #2a2a2a;
                   color: var(--text-bright); padding: 3px 6px; font-family: inherit;
-                  font-size: .78rem; text-align: center; }
-.ws-se-label    { width: 80px; text-align: right; font-size: .64rem; letter-spacing: 1px; }
+                  font-size: .78rem; text-align: center; box-sizing: border-box; }
+.ws-se-label    { flex: 0 0 90px; overflow: hidden; white-space: nowrap; font-size: .64rem; letter-spacing: 1px; }
 .ws-allies-hd   { color: var(--green-dim); font-size: .68rem; letter-spacing: .08em; margin-bottom: 6px; }
 .ws-enemies-hd  { color: var(--red); font-size: .68rem; letter-spacing: .08em; opacity: .7; margin-bottom: 6px; }
 .ws-sec-hd      { font-size: var(--lbl-fs); letter-spacing: .1em; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }

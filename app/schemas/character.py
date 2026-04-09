@@ -15,8 +15,6 @@ class CharacterBase(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: bool = False
-    karma_total: int = Field(default=0, ge=0)
-    karma_current: int = Field(default=0, ge=0)
     is_active: bool = True
     notes: Optional[str] = None
     owner_token: Optional[str] = Field(default=None, max_length=64)
@@ -40,8 +38,6 @@ class CharacterUpdate(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: Optional[bool] = None
-    karma_total: Optional[int] = Field(default=None, ge=0)
-    karma_current: Optional[int] = Field(default=None, ge=0)
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     owner_token: Optional[str] = Field(default=None, max_length=64)
