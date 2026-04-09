@@ -394,38 +394,101 @@ function getChecked(containerId) {
 
 let _mcrIdx = 0;
 
+// ── Multi-character pill helpers ──────────────────────────────
+function getSelectedRunners() {
+  return Array.from(document.querySelectorAll('#run-participants input[type=checkbox]:checked'))
+    .map(cb => {
+      const id = parseInt(cb.value);
+      return allChars.find(c => c.id === id);
+    })
+    .filter(Boolean);
+}
+
+function onParticipantChange() {
+  document.querySelectorAll('#m-changes .mcr-row').forEach(row => {
+    if (row.dataset.ripple === '1') return;
+    rebuildRunnerPills(row);
+  });
+}
+
+function rebuildRunnerPills(row) {
+  const pillContainer = row.querySelector('.mcr-runners');
+  if (!pillContainer) return;
+  const runners = getSelectedRunners();
+  const prevSelected = new Set();
+  pillContainer.querySelectorAll('.mcr-pill.selected').forEach(p => {
+    prevSelected.add(parseInt(p.dataset.charId));
+  });
+  const label  = `<span class="mcr-apply-label">APPLY TO</span>`;
+  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" title="Select / deselect all">ALL</button>`;
+  const pills  = runners.map(c => {
+    const sel = prevSelected.has(c.id) ? ' selected' : '';
+    return `<button type="button" class="mcr-pill${sel}" data-char-id="${c.id}" onclick="togglePill(this)">${esc(c.name)}</button>`;
+  }).join('');
+  pillContainer.innerHTML = label + allBtn + pills;
+  syncAllButton(row);
+}
+
+function togglePill(btn) {
+  btn.classList.toggle('selected');
+  syncAllButton(btn.closest('.mcr-row'));
+}
+
+function toggleAllPills(allBtn) {
+  const row = allBtn.closest('.mcr-row');
+  const pills = row.querySelectorAll('.mcr-pill');
+  const allSelected = [...pills].every(p => p.classList.contains('selected'));
+  pills.forEach(p => {
+    if (allSelected) p.classList.remove('selected');
+    else p.classList.add('selected');
+  });
+  syncAllButton(row);
+}
+
+function syncAllButton(row) {
+  if (!row) return;
+  const allBtn = row.querySelector('.mcr-pill-all');
+  if (!allBtn) return;
+  const pills = row.querySelectorAll('.mcr-pill');
+  const allSelected = pills.length > 0 && [...pills].every(p => p.classList.contains('selected'));
+  allBtn.classList.toggle('selected', allSelected);
+}
+
+// ── Change row management ─────────────────────────────────────
 function addChangeRow() {
   const container = document.getElementById('m-changes');
   const n = _mcrIdx++;
-  const charOpts = allChars.filter(c => c.is_pc).map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
+  const runners = getSelectedRunners();
   const orgOpts = allOrgs.map(o =>
     `<option value="${o.id}">${esc(o.name)}</option>`
   ).join('');
+  const label  = `<span class="mcr-apply-label">APPLY TO</span>`;
+  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" title="Select / deselect all">ALL</button>`;
+  const pills  = runners.map(c =>
+    `<button type="button" class="mcr-pill" data-char-id="${c.id}" onclick="togglePill(this)">${esc(c.name)}</button>`
+  ).join('');
   const row = document.createElement('div');
-  row.className = 'change-item';
+  row.className = 'mcr-row';
   row.id = `mcr-${n}`;
-  row.style.alignItems = 'center';
   row.innerHTML = `
-    <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--green);margin:0">
-    <select class="mcr-char mcr-input" style="width:140px" title="Character">
-      <option value="">— character —</option>${charOpts}
-    </select>
-    <select class="mcr-type mcr-input" style="width:148px" onchange="mcrTypeChange(this,${n})">
-      <option value="street_cred">street cred</option>
-      <option value="notoriety">notoriety</option>
-      <option value="public_awareness">public awareness</option>
-      <option value="org_standing">org standing</option>
-      <option value="heat">heat</option>
-    </select>
-    <input type="number" class="mcr-delta mcr-input" style="width:70px" placeholder="±0">
-    <select class="mcr-org mcr-input" style="display:none;width:140px" title="Organization">
-      <option value="">— org —</option>${orgOpts}
-    </select>
-    <input type="text" class="mcr-reason mcr-input" style="flex:1;width:auto;min-width:100px" placeholder="reason...">
-    <button type="button" onclick="document.getElementById('mcr-${n}').remove();syncRippleButton()"
-      style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+    <div class="mcr-top">
+      <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--green);margin:0">
+      <select class="mcr-type mcr-input" style="width:148px" onchange="mcrTypeChange(this,${n})">
+        <option value="street_cred">street cred</option>
+        <option value="notoriety">notoriety</option>
+        <option value="public_awareness">public awareness</option>
+        <option value="org_standing">org standing</option>
+        <option value="heat">heat</option>
+      </select>
+      <select class="mcr-org mcr-input" style="display:none;width:160px" title="Organization">
+        <option value="">— org —</option>${orgOpts}
+      </select>
+      <input type="number" class="mcr-delta mcr-input" style="width:70px" placeholder="±0">
+      <input type="text" class="mcr-reason mcr-input" style="flex:1;width:auto;min-width:100px" placeholder="reason...">
+      <button type="button" onclick="document.getElementById('mcr-${n}').remove();syncRippleButton()"
+        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+    </div>
+    <div class="mcr-runners">${label}${allBtn}${pills}</div>
   `;
   container.appendChild(row);
   syncRippleButton();
@@ -438,8 +501,6 @@ function mcrTypeChange(sel, n) {
 }
 
 function syncRippleButton() {
-  // Show the ripple button only when at least one org_standing row exists
-  const hasOrgStanding = !!document.querySelector('#m-changes .mcr-type [value="org_standing"]:checked, #m-changes .mcr-type');
   const anyOrgRow = [...document.querySelectorAll('#m-changes .mcr-type')].some(s => s.value === 'org_standing');
   const btn = document.getElementById('previewRippleBtn');
   if (btn) btn.style.display = anyOrgRow ? '' : 'none';
@@ -448,7 +509,7 @@ function syncRippleButton() {
 const RIPPLE_FACTOR = 0.4;
 const RIPPLE_CAP    = 2;
 
-function computeRipples(orgId, delta, charId, charName) {
+function computeRipples(orgId, delta, charIds, charNames) {
   const org = allOrgs.find(o => o.id === orgId);
   if (!org || delta === 0) return [];
   const rippleMag = Math.min(RIPPLE_CAP, Math.max(1, Math.round(Math.abs(delta) * RIPPLE_FACTOR)));
@@ -456,47 +517,55 @@ function computeRipples(orgId, delta, charId, charName) {
   for (const allyId of (org.ally_ids || [])) {
     const ally = allOrgs.find(o => o.id === allyId);
     if (!ally) continue;
-    items.push({
-      type: 'org_standing', character_id: charId, character_name: charName,
-      delta: delta > 0 ? rippleMag : -rippleMag,
-      org_id: allyId, org_name: ally.name,
-      reason: `Faction ripple: ${org.name} ally (standing changed by ${delta > 0 ? '+' : ''}${delta})`,
-      ripple: true,
-    });
+    for (let i = 0; i < charIds.length; i++) {
+      items.push({
+        type: 'org_standing', character_id: charIds[i], character_name: charNames[i],
+        delta: delta > 0 ? rippleMag : -rippleMag,
+        org_id: allyId, org_name: ally.name,
+        reason: `Faction ripple: ${org.name} ally (standing changed by ${delta > 0 ? '+' : ''}${delta})`,
+        ripple: true,
+      });
+    }
   }
   for (const enemyId of (org.enemy_ids || [])) {
     const enemy = allOrgs.find(o => o.id === enemyId);
     if (!enemy) continue;
-    items.push({
-      type: 'org_standing', character_id: charId, character_name: charName,
-      delta: delta > 0 ? -rippleMag : rippleMag,
-      org_id: enemyId, org_name: enemy.name,
-      reason: `Faction ripple: ${org.name} enemy (standing changed by ${delta > 0 ? '+' : ''}${delta})`,
-      ripple: true,
-    });
+    for (let i = 0; i < charIds.length; i++) {
+      items.push({
+        type: 'org_standing', character_id: charIds[i], character_name: charNames[i],
+        delta: delta > 0 ? -rippleMag : rippleMag,
+        org_id: enemyId, org_name: enemy.name,
+        reason: `Faction ripple: ${org.name} enemy (standing changed by ${delta > 0 ? '+' : ''}${delta})`,
+        ripple: true,
+      });
+    }
   }
   return items;
 }
 
 function previewRipple() {
-  // Collect all org_standing rows that have a char + org + delta
-  const orgRows = [...document.querySelectorAll('#m-changes .change-item')].filter(row => {
+  const orgRows = [...document.querySelectorAll('#m-changes .mcr-row:not([data-ripple="1"])')].filter(row => {
     const typeSel = row.querySelector('.mcr-type');
     return typeSel && typeSel.value === 'org_standing';
   });
 
-  // Build a dedup map: (charId, orgId) -> largest-magnitude ripple
   const rippleIndex = {};
   for (const row of orgRows) {
-    const charSel  = row.querySelector('.mcr-char');
     const orgSel   = row.querySelector('.mcr-org');
     const deltaInp = row.querySelector('.mcr-delta');
-    const charId   = parseInt(charSel?.value);
     const orgId    = parseInt(orgSel?.value);
     const delta    = parseInt(deltaInp?.value);
-    if (!charId || !orgId || isNaN(delta) || delta === 0) continue;
-    const charName = charSel.selectedOptions[0]?.text.replace(' [NPC]', '').trim() || null;
-    for (const rpl of computeRipples(orgId, delta, charId, charName)) {
+    if (!orgId || isNaN(delta) || delta === 0) continue;
+
+    const selectedPills = row.querySelectorAll('.mcr-pill.selected');
+    const charIds = [], charNames = [];
+    selectedPills.forEach(p => {
+      charIds.push(parseInt(p.dataset.charId));
+      charNames.push(p.textContent.trim());
+    });
+    if (!charIds.length) continue;
+
+    for (const rpl of computeRipples(orgId, delta, charIds, charNames)) {
       const key = `${rpl.character_id}_${rpl.org_id}`;
       if (!rippleIndex[key] || Math.abs(rpl.delta) > Math.abs(rippleIndex[key].delta)) {
         rippleIndex[key] = rpl;
@@ -504,12 +573,10 @@ function previewRipple() {
     }
   }
 
-  // Remove stale ripple rows first, then inject new ones
-  document.querySelectorAll('#m-changes .change-item[data-ripple="1"]').forEach(r => r.remove());
+  document.querySelectorAll('#m-changes .mcr-row[data-ripple="1"]').forEach(r => r.remove());
 
   const newRipples = Object.values(rippleIndex);
   if (!newRipples.length) {
-    // No ripple relationships found — give feedback
     const info = document.createElement('div');
     info.style.cssText = 'font-size:.66rem;color:var(--purple);letter-spacing:1px;margin:6px 0 2px';
     info.textContent = 'No faction relationships found for current org standing changes.';
@@ -519,93 +586,118 @@ function previewRipple() {
     return;
   }
 
+  const grouped = {};
   for (const rpl of newRipples) {
-    addRippleRow(rpl);
+    const key = `${rpl.org_id}_${rpl.delta}_${rpl.reason}`;
+    if (!grouped[key]) {
+      grouped[key] = { ...rpl, charIds: [], charNames: [] };
+    }
+    grouped[key].charIds.push(rpl.character_id);
+    grouped[key].charNames.push(rpl.character_name);
+  }
+
+  for (const grp of Object.values(grouped)) {
+    addRippleRow(grp);
   }
 }
 
 function addRippleRow(rpl) {
   const container = document.getElementById('m-changes');
   const n = _mcrIdx++;
+  const deltaStr = rpl.delta > 0 ? `+${rpl.delta}` : `${rpl.delta}`;
+  const orgLabel = esc(rpl.org_name || '?');
+  const runnerLabels = (rpl.charNames || [rpl.character_name]).map(name =>
+    `<span style="font-size:.6rem;letter-spacing:1px;padding:1px 6px;border:1px solid #1a0033;color:var(--purple);opacity:.7">${esc(name)}</span>`
+  ).join(' ');
+  const charIds  = rpl.charIds  || [rpl.character_id];
+  const charNames = rpl.charNames || [rpl.character_name];
+  const hiddenInputs = charIds.map((cid, i) =>
+    `<input type="hidden" class="mcr-ripple-char" data-char-id="${cid}" data-char-name="${esc(charNames[i])}">`
+  ).join('') +
+  `<input type="hidden" class="mcr-delta" value="${rpl.delta}">` +
+  `<input type="hidden" class="mcr-org" value="${rpl.org_id}" data-name="${esc(rpl.org_name || '')}">` +
+  `<input type="hidden" class="mcr-reason" value="${esc(rpl.reason || '')}">`;
+
   const row = document.createElement('div');
-  row.className = 'change-item';
+  row.className = 'mcr-row';
   row.id = `mcr-${n}`;
   row.dataset.ripple = '1';
-  row.style.alignItems = 'center';
   row.style.opacity = '0.75';
-  const deltaStr  = rpl.delta > 0 ? `+${rpl.delta}` : `${rpl.delta}`;
-  const charLabel = esc(rpl.character_name || '?');
-  const orgLabel  = esc(rpl.org_name || '?');
   row.innerHTML = `
-    <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--purple);margin:0">
-    <span style="font-size:.62rem;letter-spacing:1px;color:var(--purple);border:1px solid #2a0044;padding:1px 5px;flex-shrink:0">ripple</span>
-    <span class="mcr-input" style="width:140px;font-size:.72rem;color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${charLabel}">${charLabel}</span>
-    <span class="mcr-type" style="width:148px;font-size:.72rem;color:var(--text-dim)">org standing</span>
-    <input type="hidden" class="mcr-delta" value="${rpl.delta}">
-    <input type="hidden" class="mcr-char" value="${rpl.character_id}">
-    <input type="hidden" class="mcr-org" value="${rpl.org_id}" data-name="${orgLabel}">
-    <span class="mcr-input" style="flex:1;font-size:.72rem;color:var(--text-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
-      ${orgLabel} <span class="${rpl.delta > 0 ? 'change-delta-pos' : 'change-delta-neg'}">${deltaStr}</span>
-    </span>
-    <input type="hidden" class="mcr-reason" value="${esc(rpl.reason || '')}">
-    <button type="button" onclick="this.closest('.change-item').remove();syncRippleButton()"
-      style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+    <div class="mcr-top">
+      <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--purple);margin:0">
+      <span style="font-size:.62rem;letter-spacing:1px;color:var(--purple);border:1px solid #2a0044;padding:1px 5px;flex-shrink:0">ripple</span>
+      <span class="mcr-type" style="font-size:.72rem;color:var(--text-dim)">org standing</span>
+      <span style="font-size:.72rem;color:var(--text-dim);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+        ${orgLabel} <span class="${rpl.delta > 0 ? 'change-delta-pos' : 'change-delta-neg'}">${deltaStr}</span>
+      </span>
+      <button type="button" onclick="this.closest('.mcr-row').remove();syncRippleButton()"
+        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+    </div>
+    <div style="padding:4px 0 0 26px;display:flex;flex-wrap:wrap;gap:4px 6px">
+      ${runnerLabels}
+    </div>
+    ${hiddenInputs}
   `;
   container.appendChild(row);
 }
 
 function getManualChanges() {
   const applied = [], excluded = [];
-  document.querySelectorAll('#m-changes .change-item').forEach(row => {
-    const checked   = row.querySelector('input[type=checkbox]').checked;
-    const isRipple  = row.dataset.ripple === '1';
+  document.querySelectorAll('#m-changes .mcr-row').forEach(row => {
+    const checked  = row.querySelector('input[type=checkbox]').checked;
+    const isRipple = row.dataset.ripple === '1';
 
     if (isRipple) {
-      // Ripple rows use hidden inputs; read directly
-      const charInput  = row.querySelector('.mcr-char');
-      const orgInput   = row.querySelector('.mcr-org');
-      const deltaInput = row.querySelector('.mcr-delta');
+      const deltaInput  = row.querySelector('.mcr-delta');
+      const orgInput    = row.querySelector('.mcr-org');
       const reasonInput = row.querySelector('.mcr-reason');
-      const charId = parseInt(charInput?.value);
-      const delta  = parseInt(deltaInput?.value);
-      if (!charId || isNaN(delta)) return;
-      const charObj = allChars.find(c => c.id === charId);
-      const ch = {
-        type:           'org_standing',
-        character_id:   charId,
-        character_name: charObj ? charObj.name : null,
-        delta,
-        org_id:   parseInt(orgInput?.value) || null,
-        org_name: orgInput?.dataset.name || null,
-        reason:   reasonInput?.value || null,
-        ripple:   true,
-      };
-      if (checked) applied.push(ch);
-      else excluded.push(ch);
+      const delta = parseInt(deltaInput?.value);
+      if (isNaN(delta)) return;
+      row.querySelectorAll('.mcr-ripple-char').forEach(inp => {
+        const ch = {
+          type:           'org_standing',
+          character_id:   parseInt(inp.dataset.charId),
+          character_name: inp.dataset.charName,
+          delta,
+          org_id:   parseInt(orgInput?.value) || null,
+          org_name: orgInput?.dataset.name || null,
+          reason:   reasonInput?.value || null,
+          ripple:   true,
+        };
+        if (checked) applied.push(ch);
+        else excluded.push(ch);
+      });
       return;
     }
 
-    const charSel   = row.querySelector('.mcr-char');
     const typeSel   = row.querySelector('.mcr-type');
     const deltaInp  = row.querySelector('.mcr-delta');
     const orgSel    = row.querySelector('.mcr-org');
     const reasonInp = row.querySelector('.mcr-reason');
-    const charId = parseInt(charSel.value);
-    const delta  = parseInt(deltaInp.value);
-    if (!charId || isNaN(delta)) return; // skip incomplete rows
-    const ch = {
-      type:           typeSel.value,
-      character_id:   charId,
-      character_name: charSel.selectedOptions[0]?.text.replace(' [NPC]', '').trim() || null,
-      delta,
-      reason: reasonInp.value.trim() || null,
-    };
-    if (typeSel.value === 'org_standing' && orgSel.value) {
-      ch.org_id   = parseInt(orgSel.value);
-      ch.org_name = orgSel.selectedOptions[0]?.text || null;
-    }
-    if (checked) applied.push(ch);
-    else excluded.push(ch);
+    const delta = parseInt(deltaInp?.value);
+    if (isNaN(delta)) return;
+
+    const selectedPills = row.querySelectorAll('.mcr-pill.selected');
+    if (!selectedPills.length) return;
+
+    selectedPills.forEach(pill => {
+      const charId   = parseInt(pill.dataset.charId);
+      const charName = pill.textContent.trim();
+      const ch = {
+        type:           typeSel.value,
+        character_id:   charId,
+        character_name: charName,
+        delta,
+        reason: reasonInp?.value.trim() || null,
+      };
+      if (typeSel.value === 'org_standing' && orgSel?.value) {
+        ch.org_id   = parseInt(orgSel.value);
+        ch.org_name = orgSel.selectedOptions?.[0]?.text || null;
+      }
+      if (checked) applied.push(ch);
+      else excluded.push(ch);
+    });
   });
   return { applied, excluded };
 }
@@ -838,7 +930,7 @@ async function loadWorldData() {
     // Shared PC runner section — active PCs only, required for both modes
     const pcRunners = allChars.filter(c => c.is_pc && c.is_active !== false);
     document.getElementById('run-participants').innerHTML =
-      pcRunners.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}" onchange="validateParticipants()"><span>${esc(c.name)}</span></label>`).join('');
+      pcRunners.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}" onchange="validateParticipants();onParticipantChange()"><span>${esc(c.name)}</span></label>`).join('');
     validateParticipants();
 
     document.getElementById('m-locations').innerHTML =

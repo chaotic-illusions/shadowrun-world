@@ -93,9 +93,15 @@ Tags are narrative flavor applied to runs. They feed the **consequence engine** 
 
 Available tags: `witnesses`, `collateral_damage`, `public_scene`, `media_attention`, `casualties`, `wetwork`, `assassination`, `magic_use`, `vehicle_chase`, `data_theft`, `extraction`, `bribery`, `false_flag`, `stealth`.
 
+## Consequence Engine
+
+Given a set of consequence tags from a run, the engine returns ordered GM-facing suggestions ranked by severity. It supports both single-tag triggers (e.g., `witnesses` alone) and compound triggers (e.g., `witnesses` + `public_scene` together produce a more specific consequence). Duplicate suggestions are deduplicated across rules.
+
+This is a flavor/narrative tool — it does not modify any game state.
+
 ### Tick System
 
-Each run advances the campaign clock by 1–5 ticks (representing short sessions to extended downtime). Ticks drive all decay calculations — the current campaign tick is the sum of all run `tick_count` values.
+Each run advances the campaign clock by 1–5 ticks (where each tick represents one day in the game world). Ticks drive all decay calculations — the current campaign tick is the sum of all run `tick_count` values.
 
 ---
 
@@ -216,18 +222,6 @@ All changes are **proposed only**. The GM reviews each suggestion and can accept
 
 The Matrix host designer generates and edits host network topologies for Shadowrun 2nd Edition's virtual reality Matrix.
 
-### Generation
-
-Provide a configuration and the generator builds a full topology:
-
-| Parameter | Description |
-|---|---|
-| **Complexity** (1–5) | Controls total node count (5–45 nodes) |
-| **Base Rating** | Host security rating (e.g., Orange-6) |
-| **IC Lethality** | `white` (defensive), `gray` (damaging), or `black` (lethal) |
-| **Owner Hint** | corp / government / military / criminal — biases node distribution |
-| **Has Private Subnet** | If true, generates a restricted inner zone |
-
 ### Node Types
 
 | Abbreviation | Full Name | Role |
@@ -239,29 +233,21 @@ Provide a configuration and the generator builds a full topology:
 | SN | Slave Node | Device control |
 | IOP | I/O Port | External interface |
 
-The generator enforces valid connection rules between node types (e.g., CPU connects to DS, IOP, SN, SPU, SAN; DS cannot connect directly to IOP).
+The editor enforces valid connection rules between node types, and includes a chart showing valid connections between nodes (e.g., CPU connects to DS, IOP, SN, SPU, SAN; DS cannot connect directly to IOP).
 
 ### IC (Intrusion Countermeasures)
 
-13 IC types across lethality tiers:
+11 IC types across lethality tiers:
 
 - **White** (defensive): Access, Barrier, Scramble
-- **Gray** (damaging): Blaster, Killer, Tar Baby, Tar Pit
-- **Black** (lethal): Trace-and-Burn, Trace-and-Dump, Trace-and-Lock, Trace-and-Report, Black IC
+- **Gray** (damaging): Blaster, Killer, Tar Baby, Tar Pit, Trace (Trace IC has 3 subtypes; Burn, Dump, Report)
+- **Black** (lethal): Black IC
 
-IC assignment scales with complexity and is weighted by host area — CPUs and SANs receive more IC coverage.
+In a typical system IC assignment scales with complexity and is weighted by host area — CPUs and SANs receive more (and potentially more lethal) IC coverage.
 
 ### Visual Editor
 
-The `manage-matrix.html` page provides an SVG canvas editor with drag-and-drop node placement, connection drawing, IC assignment, zone editing, and a threat legend. Admins can toggle host visibility to control what players see.
-
----
-
-## Consequence Engine
-
-Given a set of consequence tags from a run, the engine returns ordered GM-facing suggestions ranked by severity. It supports both single-tag triggers (e.g., `witnesses` alone) and compound triggers (e.g., `witnesses` + `public_scene` together produce a more specific consequence). Duplicate suggestions are deduplicated across rules.
-
-This is a flavor/narrative tool — it does not modify any game state.
+The `manage-matrix.html` page provides an SVG canvas editor with drag-and-drop node placement, connection drawing, IC assignment, zone editing, and a node connection legend. Admins can toggle host visibility to control what players see.
 
 ---
 
@@ -269,15 +255,15 @@ This is a flavor/narrative tool — it does not modify any game state.
 
 | Page | Description |
 |---|---|
+| **Login** | Authentication page — enter access token to log in. |  *Only shown when no valid token is detected.
 | **World State** | Main dashboard. Displays team heat, runner count, contacts, active orgs, locations. PC cards show reputation (street cred, notoriety, PA, heat) and faction standings. NPC/org/location cards open detail modals. Faction standings editor lets GMs adjust per-PC standings. Location cards have expandable descriptions. Admin view shows full controls; player view is scoped to owned characters. |
-| **Manage Runs** | Adventure log manager. Create runs via AI narrative parser or manual form. Select participants, locations, orgs. Add consequence tags and world-state changes. Browse run history with full details. |
 | **Manage Characters** | Character database. Create/edit PCs and NPCs. PCs have archetype selection (Street Samurai, Decker, Mage, etc.), reputation fields (street cred, notoriety, PA, heat), and org standings. NPCs have connection rating and contact skills. Archetype is hidden when creating NPCs. |
 | **Manage Organizations** | Organization registry. Create factions with type (megacorp, syndicate, gang, government, cult, fixer network, other), threat tier (1–6), command structure, political relationships (ally/enemy links). Org type determines card border color and modal theming. |
 | **Manage Locations** | Location database. Sites with security level, controlling org, district info, and descriptions. |
 | **Manage RTGs** | Regional Telecommunications Grid registry. Canonical (source-book) and campaign-created nodes with security ratings (Green-3 through Black-10). Used as backbone references for Matrix host placement. |
+| **Manage Runs** | Adventure log manager. Create runs via AI narrative parser or manual form. Select participants, locations, orgs. Add consequence tags and world-state changes. Browse run history with full details. |
 | **Manage Matrix** | Matrix host topology editor. Generate hosts from configuration parameters, then edit visually on SVG canvas. Drag-and-drop nodes, draw connections, assign IC, define zones. Toggle player visibility per host. |
 | **Manage Tokens** | Access control panel. GMs create, rename, regenerate, and revoke admin and player tokens. Token plaintext shown once at creation. |
-| **Login** | Authentication page — enter access token to log in. |
 
 ---
 
