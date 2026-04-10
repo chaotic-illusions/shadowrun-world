@@ -884,11 +884,11 @@ async function toggleRunDetail(id) {
 
 function renderRuns(runs) {
   const el = document.getElementById('runsList');
+  let newHtml;
   if (!runs.length) {
-    el.innerHTML = '<div class="loading">No runs logged yet</div>';
-    return;
-  }
-  el.innerHTML = runs.map(r => {
+    newHtml = '<div class="loading">No runs logged yet</div>';
+  } else {
+  newHtml = runs.map(r => {
     const hc = heatClass(r.heat || 0);
     const hl = heatLabelStr(r.heat || 0);
     return `
@@ -906,7 +906,12 @@ function renderRuns(runs) {
       <div class="run-detail" id="rd-${r.id}"></div>
     </div>`;
   }).join('');
+  }
+  if (newHtml === renderRuns._lastHtml) return;
+  renderRuns._lastHtml = newHtml;
+  el.innerHTML = newHtml;
 }
+renderRuns._lastHtml = null;
 
 async function loadRuns() {
   try {

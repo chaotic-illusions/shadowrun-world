@@ -201,14 +201,15 @@ function fmtType(s) {
 }
 
 // ── Render table ──────────────────────────────────────────────
+let _lastLocsHtml = null;
 function renderTable(data) {
   const orgMap = Object.fromEntries(allOrgs.map(o => [o.id, o.name]));
   const wrap = document.getElementById('tableWrap');
+  let newHtml;
   if (!data.length) {
-    wrap.innerHTML = '<div class="loading">No locations found</div>';
-    return;
-  }
-  wrap.innerHTML = `
+    newHtml = '<div class="loading">No locations found</div>';
+  } else {
+  newHtml = `
     <table class="manage-table">
       <thead>
         <tr>
@@ -232,6 +233,10 @@ function renderTable(data) {
           </tr>`).join('')}
       </tbody>
     </table>`;
+  }
+  if (newHtml === _lastLocsHtml) return;
+  _lastLocsHtml = newHtml;
+  wrap.innerHTML = newHtml;
 }
 
 function applyFilter() {
