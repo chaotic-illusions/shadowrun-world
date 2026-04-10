@@ -95,14 +95,15 @@ let _creatingAdmin = false;
 let _renameId = null;
 
 // ── Render tokens ─────────────────────────────────────────────────────────────
+const _lastTokenHtml = {};
 
 function renderTokenTable(tokens, containerId, accentColor) {
   const wrap = document.getElementById(containerId);
+  let newHtml;
   if (!tokens.length) {
-    wrap.innerHTML = '<div class="loading mb-8">None</div>';
-    return;
-  }
-  wrap.innerHTML = `
+    newHtml = '<div class="loading mb-8">None</div>';
+  } else {
+  newHtml = `
     <table class="token-table">
       <colgroup>
         <col class="col-label"><col class="col-date"><col class="col-act">
@@ -130,6 +131,10 @@ function renderTokenTable(tokens, containerId, accentColor) {
         }).join('')}
       </tbody>
     </table>`;
+  }
+  if (newHtml === _lastTokenHtml[containerId]) return;
+  _lastTokenHtml[containerId] = newHtml;
+  wrap.innerHTML = newHtml;
 }
 
 async function loadTokens() {

@@ -477,11 +477,18 @@ select option { background: #090909; }
 .npc-desc.npc-desc-expanded {
   display: block; overflow: visible; -webkit-line-clamp: unset; line-clamp: unset;
 }
+.pc-desc {
+  font-size: 0.73rem; color: var(--text-dim); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pc-desc.pc-desc-expanded {
+  display: block; overflow: visible; -webkit-line-clamp: unset; line-clamp: unset;
+}
 .oc-expand-btn {
   font-family: var(--font);
   font-size: 0.6rem;
   letter-spacing: 1px;
-  color: var(--text-dim);
+  color: var(--green-dim);
   background: none;
   border: none;
   cursor: pointer;
@@ -489,7 +496,7 @@ select option { background: #090909; }
   margin-top: 2px;
   transition: color .15s;
 }
-.oc-expand-btn:hover { color: var(--green-dim); }
+.oc-expand-btn:hover { color: var(--green); }
 .oc-foot {
   margin-top: 10px; padding-top: 8px; border-top: 1px solid #111;
   display: flex; gap: 16px; font-size: 0.68rem;
@@ -573,6 +580,7 @@ select option { background: #090909; }
   transition: border-color .2s;
 }
 .char-card.is-pc { border-color: #1a3a1a; }
+.char-card.is-pc.npc-clickable:hover { border-color: var(--green-dim); }
 .char-card:not(.is-pc) { border-left: 3px solid #2a2a4a; }
 .char-card:not(.is-pc):hover { border-color: #2a2a4a; }
 .ch-name { font-family: var(--font-display); font-size: 1.05rem; color: var(--text-bright); margin-bottom: 5px; }

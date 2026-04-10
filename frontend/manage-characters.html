@@ -379,6 +379,7 @@ function updateRepPreview() {
 
 // ── Render table ──────────────────────────────────────────────
 let _myCharIds = new Set();
+let _lastTableHtml = null;
 
 function getMyCharIds() {
   return _myCharIds;
@@ -386,13 +387,13 @@ function getMyCharIds() {
 
 function renderTable(data) {
   const wrap = document.getElementById('tableWrap');
+  let newHtml;
 
   if (!data.length) {
-    wrap.innerHTML = '<div class="loading">No characters found</div>';
-    return;
-  }
+    newHtml = '<div class="loading">No characters found</div>';
+  } else {
   const myIds = typeof getMyCharIds === 'function' ? getMyCharIds() : new Set();
-  wrap.innerHTML = `
+  newHtml = `
     <table class="manage-table">
       <thead>
         <tr>
@@ -428,6 +429,11 @@ function renderTable(data) {
         }).join('')}
       </tbody>
     </table>`;
+  }
+
+  if (newHtml === _lastTableHtml) return;
+  _lastTableHtml = newHtml;
+  wrap.innerHTML = newHtml;
 }
 
 function applyFilter() {

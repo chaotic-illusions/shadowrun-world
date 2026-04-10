@@ -6,6 +6,7 @@ let charMapStore = {};
 let contactStore = [];   // raw contacts array, refreshed on loadAll
 let nonNpcContactStore = {};  // merged contacts without character records, keyed by id
 let locStore = {};              // location_id -> location object
+let _lastWorldHtml = null;   // cached HTML to skip DOM rebuild when data unchanged
 let npcModalCharId = null;
 
 // ── Archetype Edit Modal ──────────────────────────────────────
@@ -353,6 +354,19 @@ async function toggleDataReveal(charId, field, currentState) {
   }
 }
 
+// Same as toggleDataReveal but refreshes the PC dossier modal instead of the NPC modal.
+async function togglePcReveal(charId, field, currentState) {
+  const res = await apiFetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ [field]: !currentState })
+  });
+  if (res.ok) {
+    if (charMapStore[charId]) charMapStore[charId][field] = !currentState;
+    openCharEditModal(charId);
+  }
+}
+
 function npcOverlayClick(e) {
   if (e.target === document.getElementById('npcOverlay')) closeNpcModal();
 }
@@ -674,6 +688,39 @@ function toggleNpcDesc(id) {
   if (btn) btn.textContent = expandedNpcs[id] ? '[ collapse ]' : '[ expand ]';
 }
 
+const expandedPcs = {};
+function togglePcDesc(id) {
+  expandedPcs[id] = !expandedPcs[id];
+  const el  = document.getElementById(`pc-desc-${id}`);
+  const btn = document.getElementById(`pc-xbtn-${id}`);
+  if (el)  el.classList.toggle('pc-desc-expanded', expandedPcs[id]);
+  if (btn) btn.textContent = expandedPcs[id] ? '[ collapse ]' : '[ expand ]';
+}
+
+// Re-apply all in-memory expanded states after DOM is re-rendered by loadAll()
+function reapplyExpanded() {
+  for (const [id, v] of Object.entries(expandedOrgs)) {
+    if (!v) continue;
+    const el = document.getElementById(`oc-desc-${id}`); if (el) el.classList.add('oc-desc-expanded');
+    const btn = document.getElementById(`oc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
+  }
+  for (const [id, v] of Object.entries(expandedNpcs)) {
+    if (!v) continue;
+    const el = document.getElementById(`npc-desc-${id}`); if (el) el.classList.add('npc-desc-expanded');
+    const btn = document.getElementById(`npc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
+  }
+  for (const [id, v] of Object.entries(expandedLocs)) {
+    if (!v) continue;
+    const el = document.getElementById(`lc-desc-${id}`); if (el) el.classList.add('lc-desc-expanded');
+    const btn = document.getElementById(`lc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
+  }
+  for (const [id, v] of Object.entries(expandedPcs)) {
+    if (!v) continue;
+    const el = document.getElementById(`pc-desc-${id}`); if (el) el.classList.add('pc-desc-expanded');
+    const btn = document.getElementById(`pc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
+  }
+}
+
 function buildCharCard(char, orgMap = {}) {
   const race      = char.race || null;
   const archetype = char.archetype || null;
@@ -690,7 +737,7 @@ function buildCharCard(char, orgMap = {}) {
   const heatStr = rep
     ? `<span class="${heatClass(heatVal)}" style="font-size:.6rem;letter-spacing:1px;border:1px solid;padding:1px 6px">${rep.heat_label || heatLabelStr(heatVal)}</span>`
     : null;
-  const longDesc = !char.is_pc && char.description && char.description.length > 120;
+  const longDesc = char.description && char.description.length > 120;
   const isActive = char.is_active !== false;
 
   const isMine = char.is_pc && _myCharIds.has(char.id);
@@ -708,9 +755,9 @@ function buildCharCard(char, orgMap = {}) {
     ? `<button class="btn ws-card-action" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
     : '';
 
-  const cardClass = `char-card ${char.is_pc ? 'is-pc' : (isActive ? 'npc-clickable' : '')}`;
-  const clickAttr = char.is_pc && isAdminMode()
-    ? `onclick="openCharEditModal(${char.id})" title="Edit character" style="cursor:pointer;position:relative"`
+  const cardClass = `char-card ${char.is_pc ? `is-pc${isActive ? ' npc-clickable' : ''}` : (isActive ? 'npc-clickable' : '')}`;
+  const clickAttr = char.is_pc && (isAdminMode() || isActive)
+    ? `onclick="openCharEditModal(${char.id})" title="View dossier" style="cursor:pointer;position:relative"`
     : char.is_pc
       ? `style="cursor:default;position:relative"`
       : (isActive ? `onclick="openNpcModal(${char.id})" title="View dossier"` : '');
@@ -728,7 +775,8 @@ function buildCharCard(char, orgMap = {}) {
         ${char.nationality ? `<div class="ws-nationality">${esc(char.nationality)}</div>` : ''}
         ${char.description
           ? char.is_pc
-            ? `<div style="margin-top:6px;color:var(--text-dim)">${esc(char.description).substring(0,120)}${char.description.length>120?'…':''}</div>`
+            ? `<div class="pc-desc" id="pc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
+               ${longDesc ? `<div><button class="oc-expand-btn" id="pc-xbtn-${char.id}" onclick="event.stopPropagation();togglePcDesc(${char.id})">[ expand ]</button></div>` : ''}`
             : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
@@ -1714,13 +1762,23 @@ function openCharEditModal(charId) {
       `<span style="font-size:0.78rem;color:var(--text)">${esc(String(val))}</span></div>`
     ).join('');
 
+    const adminMode = isAdminMode();
     document.getElementById('ceFormBody').style.display = 'none';
     const pcBody = document.getElementById('pcDossierBody');
     pcBody.style.display = '';
+    const revealBgBtn = (char.background && adminMode)
+      ? `<button class="npc-reveal-btn" onclick="togglePcReveal(${charId},'show_background',${!!char.show_background})">${char.show_background ? '\u2299 Hide from Players' : '\u25cc Reveal to Players'}</button>`
+      : '';
+    const bgSection = char.background
+      ? `<div class="npc-modal-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div class="npc-modal-sec-lbl" style="margin-bottom:0">Background</div>${revealBgBtn}</div>
+          <div class="npc-modal-text">${esc(char.background)}</div>
+        </div>`
+      : '';
     pcBody.innerHTML =
       `<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">${metaHtml}</div>` +
       (char.description ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Profile</div><div class="npc-modal-text">${esc(char.description)}</div></div>` : '') +
-      (char.background  ? `<div class="npc-modal-section"><div class="npc-modal-sec-lbl">Background</div><div class="npc-modal-text">${esc(char.background)}</div></div>` : '') +
+      ((adminMode || char.show_background) ? bgSection : '') +
       `<div class="npc-modal-gm-banner gm-only">// GM EYES ONLY //</div>` +
       `<div class="field gm-only"><textarea id="pcNotesInput" rows="4" class="ws-notes-ta">${esc(char.notes || '')}</textarea></div>`;
 
@@ -1958,8 +2016,12 @@ async function loadAll() {
         `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
         'manage-locations.html', true);
 
-    document.getElementById('worldContent').innerHTML =
-      html || '<div class="loading">No world data found — run the seed script.</div>';
+    const _newWorldHtml = html || '<div class="loading">No world data found — run the seed script.</div>';
+    if (_newWorldHtml !== _lastWorldHtml) {
+      _lastWorldHtml = _newWorldHtml;
+      document.getElementById('worldContent').innerHTML = _newWorldHtml;
+      reapplyExpanded();
+    }
 
   } catch(e) {
     document.getElementById('worldContent').innerHTML =

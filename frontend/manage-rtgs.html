@@ -132,13 +132,14 @@ function ratingClass(r) {
 }
 
 // ── Render table ──────────────────────────────────────────────
+let _lastRTGsHtml = null;
 function renderTable(data) {
   const wrap = document.getElementById('tableWrap');
+  let newHtml;
   if (!data.length) {
-    wrap.innerHTML = '<div class="loading">No RTGs found</div>';
-    return;
-  }
-  wrap.innerHTML = `
+    newHtml = '<div class="loading">No RTGs found</div>';
+  } else {
+  newHtml = `
     <table class="manage-table">
       <thead>
         <tr>
@@ -164,6 +165,10 @@ function renderTable(data) {
           </tr>`).join('')}
       </tbody>
     </table>`;
+  }
+  if (newHtml === _lastRTGsHtml) return;
+  _lastRTGsHtml = newHtml;
+  wrap.innerHTML = newHtml;
 }
 
 function applyFilter() {

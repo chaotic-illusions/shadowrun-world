@@ -551,6 +551,7 @@ function populateForm(org) {
 
 // ── Table rendering ───────────────────────────────────────────
 let allOrgsForTable = [];
+let _lastOrgsHtml = null;
 
 function applyFilter() {
   const search     = document.getElementById('filterInput').value.toLowerCase();
@@ -565,12 +566,12 @@ function applyFilter() {
   });
 
   const wrap = document.getElementById('tableWrap');
+  let newHtml;
   if (!filtered.length) {
-    wrap.innerHTML = '<div class="loading">No organizations match the filter</div>';
-    return;
-  }
+    newHtml = '<div class="loading">No organizations match the filter</div>';
+  } else {
   const adminMode = isAdminMode();
-  wrap.innerHTML = `
+  newHtml = `
     <table class="manage-table">
       <thead>
         <tr>
@@ -596,6 +597,10 @@ function applyFilter() {
           </tr>`).join('')}
       </tbody>
     </table>`;
+  }
+  if (newHtml === _lastOrgsHtml) return;
+  _lastOrgsHtml = newHtml;
+  wrap.innerHTML = newHtml;
 }
 
 // ── Org checkboxes ────────────────────────────────────────────
