@@ -29,3 +29,6 @@ env/
 
 #AI
 .claude
+
+# Local dev scripts
+localdev.ps1
