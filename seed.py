@@ -4,7 +4,7 @@ Seed script for Shadowrun World Engine.
 Reads data/world_seed.json and populates the API in dependency order.
 
 Usage:
-    python seed.py [--url http://localhost:8000] [--file data/world_seed.json]
+    python seed.py [--url http://localhost:8000] [--file data/world_seed.json] [--admin-token <token>]
 """
 
 import json
@@ -37,7 +37,7 @@ def patch(client, path, payload):
         raise RuntimeError(f"Connection failed for PATCH {path}: {e}") from e
 
 
-def seed(base_url, seed_file):
+def seed(base_url, seed_file, admin_token=None):
     with open(seed_file, encoding="utf-8-sig") as f:
         data = json.load(f)
 
@@ -46,7 +46,8 @@ def seed(base_url, seed_file):
     location_ids = {}
     character_ids = {}
 
-    headers = {"X-Admin-Token": ADMIN_PASSWORD}
+    token = admin_token or ADMIN_PASSWORD
+    headers = {"X-Admin-Token": token}
     with httpx.Client(base_url=base_url, headers=headers, timeout=30.0) as client:
         _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids)
 
@@ -153,11 +154,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed the Shadowrun World Engine API")
     parser.add_argument("--url", default="http://localhost:8000", help="Base API URL")
     parser.add_argument("--file", default="data/world_seed.json", help="Path to seed JSON file")
+    parser.add_argument(
+        "--admin-token",
+        default=None,
+        help="Admin token/password for authenticated API calls (defaults to BOOTSTRAP_ADMIN_KEY env var)",
+    )
     args = parser.parse_args()
 
     print(f"Seeding {args.file} -> {args.url}")
     try:
-        seed(args.url, args.file)
+        seed(args.url, args.file, args.admin_token)
     except RuntimeError as e:
         print(f"  {e}")
         raise SystemExit(1) from e

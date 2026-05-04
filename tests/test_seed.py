@@ -1,8 +1,7 @@
 """Tests for seed.py error handling."""
-import json
-import urllib.error
-from unittest.mock import patch, MagicMock
 import pytest
+from unittest.mock import MagicMock
+import httpx
 
 from seed import post
 
@@ -10,29 +9,31 @@ from seed import post
 class TestPost:
     def test_successful_post(self):
         response_data = {"id": 1, "name": "test"}
+        mock_client = MagicMock()
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps(response_data).encode()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.json.return_value = response_data
+        mock_resp.raise_for_status.return_value = None
+        mock_client.post.return_value = mock_resp
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            result = post("http://localhost:8000", "/test/", {"name": "test"})
+        result = post(mock_client, "/test/", {"name": "test"})
+
         assert result == response_data
+        mock_client.post.assert_called_once_with("/test/", json={"name": "test"})
 
     def test_http_error_raises_runtime(self):
-        error = urllib.error.HTTPError(
-            url="http://localhost:8000/test/",
-            code=409,
-            msg="Conflict",
-            hdrs={},
-            fp=MagicMock(read=lambda: b'{"detail":"already exists"}'),
-        )
-        with patch("urllib.request.urlopen", side_effect=error):
-            with pytest.raises(RuntimeError, match="ERROR 409"):
-                post("http://localhost:8000", "/test/", {"name": "dup"})
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 409
+        mock_response.text = '{"detail":"already exists"}'
+        error = httpx.HTTPStatusError("409 Conflict", request=MagicMock(), response=mock_response)
+        mock_client.post.return_value.raise_for_status.side_effect = error
+
+        with pytest.raises(RuntimeError, match="ERROR 409"):
+            post(mock_client, "/test/", {"name": "dup"})
 
     def test_url_error_raises_runtime(self):
-        error = urllib.error.URLError(reason="Connection refused")
-        with patch("urllib.request.urlopen", side_effect=error):
-            with pytest.raises(RuntimeError, match="Connection failed"):
-                post("http://localhost:8000", "/test/", {"name": "x"})
+        mock_client = MagicMock()
+        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+
+        with pytest.raises(RuntimeError, match="Connection failed"):
+            post(mock_client, "/test/", {"name": "x"})

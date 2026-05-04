@@ -304,21 +304,67 @@
             "rtg_security_rating": "Green-3"
         },
         {
-            "code": "EU/AGS-NW",
-            "region": "Allied German States Northwest (Hamburg, Bremen)",
+            "code": "EU/AGS-GF",
+            "region": "Allied German States Greater Frankfurt",
             "political_entity": "Allied German States",
             "continent": "Europe",
-            "canonical": false,
-            "notes": "Campaign-created. Not in SR2/3 source material.",
+            "canonical": true,
             "rtg_security_rating": "Green-4"
         },
         {
-            "code": "EU/AGS-NE",
-            "region": "Allied German States Northeast (Berlin)",
+            "code": "EU/AGS-FFT",
+            "region": "Allied German States (Frankfurt)",
             "political_entity": "Allied German States",
             "continent": "Europe",
-            "canonical": false,
-            "notes": "Campaign-created. Not in SR2/3 source material.",
+            "canonical": true,
+            "rtg_security_rating": "Orange-3"
+        },
+        {
+            "code": "EU/AGS-MW",
+            "region": "Allied German States Greater Frankfurt (Mainz, Wiesbaden)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-ML",
+            "region": "Allied German States Greater Frankfurt (Mannheim, Ludwigshafen)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-NOR",
+            "region": "Allied German States North",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-3"
+        },
+        {
+            "code": "EU/AGS-BER",
+            "region": "Allied German States North (Berlin)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Orange-3"
+        },
+        {
+            "code": "EU/AGS-BRM",
+            "region": "Allied German States North (Bremen)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-5"
+        },
+        {
+            "code": "EU/AGS-HAM",
+            "region": "Allied German States North (Hamburg)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
             "rtg_security_rating": "Green-4"
         },
         {
