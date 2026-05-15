@@ -5,6 +5,7 @@ Reads data/world_seed.json and populates the API in dependency order.
 
 Usage:
     python seed.py [--url http://localhost:8000] [--file data/world_seed.json] [--admin-token <token>]
+    python seed.py --upsert-rtgs-only [--url http://localhost:8000] [--file data/world_seed.json] [--admin-token <token>]
 """
 
 import json
@@ -37,7 +38,37 @@ def patch(client, path, payload):
         raise RuntimeError(f"Connection failed for PATCH {path}: {e}") from e
 
 
-def seed(base_url, seed_file, admin_token=None):
+def get_json(client, path, params=None):
+    try:
+        resp = client.get(path, params=params)
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"ERROR {e.response.status_code} on GET {path}: {e.response.text}") from e
+    except httpx.RequestError as e:
+        raise RuntimeError(f"Connection failed for GET {path}: {e}") from e
+
+
+def upsert_rtgs(client, data, rtg_ids):
+    print("\n[0/7] RTGs")
+    existing_rtgs = get_json(client, "/rtgs/")
+    existing_by_code = {r.get("code"): r for r in existing_rtgs if r.get("code")}
+
+    for rtg in data.get("rtgs", []):
+        code = rtg["code"]
+        existing = existing_by_code.get(code)
+        if existing:
+            patch(client, f"/rtgs/{existing['id']}", rtg)
+            rtg_ids[code] = existing["id"]
+            print(f"  ~ {code} ({rtg.get('region', '')}) -> updated id {existing['id']}")
+            continue
+
+        result = post(client, "/rtgs/", rtg)
+        rtg_ids[code] = result["id"]
+        print(f"  + {code} ({rtg.get('region', '')}) -> id {result['id']}")
+
+
+def seed(base_url, seed_file, admin_token=None, upsert_rtgs_only=False):
     with open(seed_file, encoding="utf-8-sig") as f:
         data = json.load(f)
 
@@ -49,15 +80,15 @@ def seed(base_url, seed_file, admin_token=None):
     token = admin_token or ADMIN_PASSWORD
     headers = {"X-Admin-Token": token}
     with httpx.Client(base_url=base_url, headers=headers, timeout=30.0) as client:
+        if upsert_rtgs_only:
+            upsert_rtgs(client, data, rtg_ids)
+            print("\nDone. RTGs upserted successfully.")
+            return
         _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids)
 
 
 def _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids):
-    print("\n[0/7] RTGs")
-    for rtg in data.get("rtgs", []):
-        result = post(client, "/rtgs/", rtg)
-        rtg_ids[rtg["code"]] = result["id"]
-        print(f"  + {rtg['code']} ({rtg.get('region', '')}) -> id {result['id']}")
+    upsert_rtgs(client, data, rtg_ids)
 
     print("\n[1/7] Organizations")
     for org in data.get("organizations", []):
@@ -159,11 +190,16 @@ if __name__ == "__main__":
         default=None,
         help="Admin token/password for authenticated API calls (defaults to BOOTSTRAP_ADMIN_KEY env var)",
     )
+    parser.add_argument(
+        "--upsert-rtgs-only",
+        action="store_true",
+        help="Only upsert RTGs by code (non-destructive). Useful for applying RTG updates to an existing world DB.",
+    )
     args = parser.parse_args()
 
     print(f"Seeding {args.file} -> {args.url}")
     try:
-        seed(args.url, args.file, args.admin_token)
+        seed(args.url, args.file, args.admin_token, upsert_rtgs_only=args.upsert_rtgs_only)
     except RuntimeError as e:
         print(f"  {e}")
         raise SystemExit(1) from e
