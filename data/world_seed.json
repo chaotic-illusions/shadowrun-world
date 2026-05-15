@@ -368,22 +368,124 @@
             "rtg_security_rating": "Green-4"
         },
         {
-            "code": "EU/AGS-SW",
-            "region": "Allied German States Southwest (Frankfurt, Stuttgart)",
+            "code": "EU/AGS-HAN",
+            "region": "Allied German States North (Hannover)",
             "political_entity": "Allied German States",
             "continent": "Europe",
-            "canonical": false,
-            "notes": "Campaign-created. Not in SR2/3 source material.",
+            "canonical": true,
+            "rtg_security_rating": "Orange-5"
+        },
+        {
+            "code": "EU/AGS-RUG",
+            "region": "Allied German States North (Rügen)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Orange-5"
+        },
+        {
+            "code": "EU/AGS-RR",
+            "region": "Allied German States Rhine-Ruhr",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-COL",
+            "region": "Allied German States Rhine-Ruhr (Cologne)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
             "rtg_security_rating": "Green-3"
         },
         {
-            "code": "EU/AGS-SE",
-            "region": "Allied German States Southeast (Munich, Bavaria)",
+            "code": "EU/AGS-DOR",
+            "region": "Allied German States Rhine-Ruhr (Dortmund)",
             "political_entity": "Allied German States",
             "continent": "Europe",
-            "canonical": false,
-            "notes": "Campaign-created. Not in SR2/3 source material.",
+            "canonical": true,
+            "rtg_security_rating": "Green-2"
+        },
+        {
+            "code": "EU/AGS-DUS",
+            "region": "Allied German States Rhine-Ruhr (Düsseldorf)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-ESS",
+            "region": "Allied German States Rhine-Ruhr (Essen)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-RUV",
+            "region": "Allied German States Rhine-Ruhr (Ruhr University)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Orange-4"
+        },
+        {
+            "code": "EU/AGS-SOU",
+            "region": "Allied German States South",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-HDL",
+            "region": "Allied German States South (Heidelberg)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
             "rtg_security_rating": "Green-3"
+        },
+        {
+            "code": "EU/AGS-MUN",
+            "region": "Allied German States South (Munich)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/AGS-NUR",
+            "region": "Allied German States South (Nuremberg)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-3"
+        },
+        {
+            "code": "EU/AGS-STU",
+            "region": "Allied German States South (Stuttgart)",
+            "political_entity": "Allied German States",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Green-4"
+        },
+        {
+            "code": "EU/GB",
+            "region": "Great Britain",
+            "political_entity": "Great Britain",
+            "continent": "Europe",
+            "canonical": true,
+            "rtg_security_rating": "Orange-5"
+        },
+        {
+            "code": "NA/TNN",
+            "region": "Tíg na NÓg",
+            "political_entity": "Elvish Nations...?",
+            "continent": "Europe?",
+            "canonical": true,
+            "rtg_security_rating": "Red-5"
         },
         {
             "code": "AS/RUS-FE",
