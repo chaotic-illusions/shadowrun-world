@@ -32,3 +32,6 @@ env/
 
 # Local dev scripts
 localdev.ps1
+
+#Printed Materials
+.VR2
