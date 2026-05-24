@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sets kernel config options required for Docker for the Shadowrun World project.
-# Single-container use case — skips swarm, Kubernetes, overlay networks, IP_VS etc.
+# Single-container use case -- skips swarm, Kubernetes, overlay networks, IP_VS etc.
 #
 # Usage:  sudo bash docker-kernel-config.sh [/path/to/kernel/source]
 # Default kernel source: /usr/src/linux (symlink to active source on Gentoo)
@@ -18,7 +18,7 @@ KDIR="${1:-/usr/src/linux}"
 CONFIG="${KDIR}/.config"
 SCRIPTS_CONFIG="${KDIR}/scripts/config"
 
-# ── Preflight checks ─────────────────────────────────────────────────────────
+# -- Preflight checks ---------------------------------------------------------
 
 if [[ $EUID -ne 0 ]]; then
   echo "ERROR: Run this script as root." >&2
@@ -41,7 +41,7 @@ echo "==> Kernel source: ${KDIR}"
 echo "==> Config file:   ${CONFIG}"
 echo ""
 
-# ── Helper ───────────────────────────────────────────────────────────────────
+# -- Helper -------------------------------------------------------------------
 
 CHANGED=0
 ALREADY_SET=0
@@ -75,7 +75,7 @@ set_option() {
 }
 
 # Use set_module for options that MUST be loadable .ko files.
-# iptables-legacy userspace calls modprobe by name — =y (built-in) won't work.
+# iptables-legacy userspace calls modprobe by name -- =y (built-in) won't work.
 set_module() {
   local opt="$1"
   local desc="$2"
@@ -102,7 +102,7 @@ set_module() {
   fi
 }
 
-# ── Generally Necessary (missing from your check-config output) ───────────────
+# -- Generally Necessary (missing from your check-config output) ---------------
 
 echo "--- cgroup controllers ---"
 set_option CONFIG_CGROUP_DEVICE    "container device access control"
@@ -128,7 +128,7 @@ echo "--- IPv4 netfilter (MUST be modules -- modprobe called by name at runtime)
 # Linux 6.x gates the entire legacy iptables path behind this flag.
 # Without it, CONFIG_IP_NF_IPTABLES=m is ignored and ip_tables.ko never compiles.
 set_option CONFIG_NETFILTER_XTABLES_LEGACY "enable legacy xtables path (required for ip_tables.ko)"
-# CONFIG_IP_NF_IPTABLES builds ip_tables.ko — this is what modprobe looks for
+# CONFIG_IP_NF_IPTABLES builds ip_tables.ko -- this is what modprobe looks for
 set_module CONFIG_IP_NF_IPTABLES         "ip_tables.ko (iptables-legacy core)"
 set_module CONFIG_IP_NF_FILTER           "iptable_filter.ko"
 set_module CONFIG_IP_NF_NAT             "iptable_nat.ko (Docker NAT chain lives here)"
@@ -153,7 +153,7 @@ echo ""
 echo "--- pids cgroup (optional but useful) ---"
 set_option CONFIG_CGROUP_PIDS      "pids cgroup controller"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# -- Summary -------------------------------------------------------------------
 
 echo ""
 echo "========================================"
@@ -181,5 +181,5 @@ if [[ $CHANGED -gt 0 ]]; then
   echo "After rebooting into the new kernel, re-run check-config.sh to verify."
 else
   echo ""
-  echo "No changes needed — all required options already enabled."
+  echo "No changes needed -- all required options already enabled."
 fi

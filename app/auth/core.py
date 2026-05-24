@@ -41,7 +41,7 @@ async def verify_admin_token(db: AsyncSession, token: str) -> bool:
 
 
 async def is_default_admin_password(db: AsyncSession) -> bool:
-    """True if no admin tokens have been created yet — user needs to set one."""
+    """True if no admin tokens have been created yet -- user needs to set one."""
     return not await _active_admin_exists(db)
 
 

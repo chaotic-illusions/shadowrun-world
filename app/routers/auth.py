@@ -19,7 +19,7 @@ from app.schemas.auth import (
 router = APIRouter()
 
 
-# ── Verify ───────────────────────────────────────────────────────────────────
+# -- Verify -------------------------------------------------------------------
 
 @router.post("/verify", response_model=VerifyResponse, dependencies=[Depends(enforce_rate_limit)])
 async def verify(body: VerifyRequest, request: Request, db: AsyncSession = Depends(get_db)):
@@ -43,7 +43,7 @@ async def verify(body: VerifyRequest, request: Request, db: AsyncSession = Depen
     )
 
 
-# ── Token management ──────────────────────────────────────────────────────────
+# -- Token management ----------------------------------------------------------
 
 @router.post("/tokens", response_model=UserTokenCreateResponse)
 async def create_token(

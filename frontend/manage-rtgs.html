@@ -18,13 +18,16 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html" class="active">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="manage-matrix.html">Matrix</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
   </nav>
 </header>
 
 <main>
   <div class="page-title">&gt;&gt; Matrix Topology <em class="sep">//</em> Regional Telecommunications Grids</div>
-  <div class="page-sub">NODE REGISTRY — CANONICAL &amp; CAMPAIGN ENTRIES</div>
+  <div class="page-sub" style="color:var(--cyan)">NODE REGISTRY -- CANONICAL &amp; CAMPAIGN ENTRIES</div>
 
   <div id="alert" class="alert"></div>
 
@@ -43,12 +46,12 @@
   </div>
 </main>
 
-<!-- ── EDIT MODAL ─────────────────────────────────────── -->
+<!-- -- EDIT MODAL --------------------------------------- -->
 <div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New RTG</div>
-      <button class="btn btn-red" onclick="closeModal()">✕</button>
+      <button class="btn btn-red" onclick="closeModal()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
@@ -59,27 +62,19 @@
         </div>
         <div class="field">
           <label>Security Rating</label>
-          <select id="f-rtg_security_rating">
-            <option value="">— Unrated —</option>
-            <option value="Green-3">Green-3</option>
-            <option value="Green-4">Green-4</option>
-            <option value="Green-5">Green-5</option>
-            <option value="Orange-4">Orange-4</option>
-            <option value="Orange-5">Orange-5</option>
-            <option value="Orange-6">Orange-6</option>
-            <option value="Orange-7">Orange-7</option>
-            <option value="Orange-8">Orange-8</option>
-            <option value="Red-5">Red-5</option>
-            <option value="Red-6">Red-6</option>
-            <option value="Red-7">Red-7</option>
-            <option value="Red-8">Red-8</option>
-            <option value="Red-9">Red-9</option>
-            <option value="Black-6">Black-6</option>
-            <option value="Black-7">Black-7</option>
-            <option value="Black-8">Black-8</option>
-            <option value="Black-9">Black-9</option>
-            <option value="Black-10">Black-10</option>
-          </select>
+          <div style="display:flex;gap:6px">
+            <select id="f-sec-code" style="flex:1">
+              <option value="">-- Code --</option>
+              <option value="Blue">Blue</option>
+              <option value="Green">Green</option>
+              <option value="Orange">Orange</option>
+              <option value="Red">Red</option>
+              <option value="Black">Black</option>
+            </select>
+            <select id="f-sec-value" style="width:60px">
+              <option value="">--</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="grid2 mb-14">
@@ -126,12 +121,14 @@ const API = '';
 let allRTGs = [];
 let editingId = null;
 
+// buildLTGCodeOpts / buildSecValOpts / parseSan live in shared.js
+
 function ratingClass(r) {
   const c = (r||'').split('-')[0].toLowerCase();
   return {blue:'r-blue',green:'r-green',orange:'r-orange',red:'r-red',black:'r-black'}[c] || 'r-green';
 }
 
-// ── Render table ──────────────────────────────────────────────
+// -- Render table ----------------------------------------------
 let _lastRTGsHtml = null;
 function renderTable(data) {
   const wrap = document.getElementById('tableWrap');
@@ -157,9 +154,9 @@ function renderTable(data) {
           <tr>
             <td style="color:var(--green-dim);letter-spacing:1px">${esc(r.code)}</td>
             <td>${esc(r.region)}</td>
-            <td class="text-dim">${esc(r.political_entity||'—')}</td>
-            <td class="text-dim">${esc(r.continent||'—')}</td>
-            <td>${r.rtg_security_rating ? `<span class="ltg-rating ${ratingClass(r.rtg_security_rating)}">${esc(r.rtg_security_rating)}</span>` : '<span style="color:#333">—</span>'}</td>
+            <td class="text-dim">${esc(r.political_entity||'--')}</td>
+            <td class="text-dim">${esc(r.continent||'--')}</td>
+            <td>${r.rtg_security_rating ? `<span class="ltg-rating ${ratingClass(r.rtg_security_rating)}">${esc(r.rtg_security_rating)}</span>` : '<span style="color:#333">--</span>'}</td>
             <td style="color:var(--text-dim);font-size:.65rem;letter-spacing:1px">${r.canonical ? 'CANONICAL' : 'CAMPAIGN'}</td>
             <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber btn-sm" onclick="openModal(${r.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
@@ -187,7 +184,7 @@ function applyFilter() {
   renderTable(filtered);
 }
 
-// ── Modal ─────────────────────────────────────────────────────
+// -- Modal -----------------------------------------------------
 function openModal(id) {
   editingId = id || null;
   const rtg = id ? allRTGs.find(r => r.id === id) : null;
@@ -195,11 +192,13 @@ function openModal(id) {
   document.getElementById('deleteBtn').style.display = rtg ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
 
-  document.getElementById('f-code').value           = rtg?.code || '';
+  document.getElementById('f-code').value            = rtg?.code || '';
   document.getElementById('f-region').value          = rtg?.region || '';
   document.getElementById('f-political_entity').value= rtg?.political_entity || '';
   document.getElementById('f-continent').value       = rtg?.continent || '';
-  document.getElementById('f-rtg_security_rating').value     = rtg?.rtg_security_rating || '';
+  const { code: rtgCode, value: rtgVal } = parseSan(rtg?.rtg_security_rating);
+  document.getElementById('f-sec-code').value = rtgCode;
+  document.getElementById('f-sec-value').innerHTML = buildSecValOpts(rtgVal);
   document.getElementById('f-canonical').checked     = rtg?.canonical !== false;
   document.getElementById('f-notes').value           = rtg?.notes || '';
 
@@ -229,7 +228,11 @@ async function saveRTG() {
     region:           document.getElementById('f-region').value.trim() || null,
     political_entity: document.getElementById('f-political_entity').value.trim() || null,
     continent:        document.getElementById('f-continent').value.trim() || null,
-    rtg_security_rating:      document.getElementById('f-rtg_security_rating').value || null,
+    rtg_security_rating: (() => {
+      const c = document.getElementById('f-sec-code').value;
+      const v = document.getElementById('f-sec-value').value;
+      return (c && v) ? `${c}-${v}` : null;
+    })(),
     canonical:        document.getElementById('f-canonical').checked,
     notes:            document.getElementById('f-notes').value.trim() || null,
   };
@@ -262,7 +265,7 @@ async function deleteRTG() {
   }
 }
 
-// ── Load data ─────────────────────────────────────────────────
+// -- Load data -------------------------------------------------
 async function loadRTGs() {
   try {
     const res = await apiFetch(`${API}/rtgs/`);

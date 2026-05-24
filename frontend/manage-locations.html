@@ -18,13 +18,16 @@
     <a href="manage-locations.html" class="active">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="manage-matrix.html">Matrix</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
   </nav>
 </header>
 
 <main>
   <div class="page-title">&gt;&gt; Location Registry <em class="sep">//</em> Known Sites &amp; Territories</div>
-  <div class="page-sub">GEOGRAPHICAL INTEL — SEATTLE METROPLEX &amp; SURROUNDING REGIONS</div>
+  <div class="page-sub" style="color:var(--cyan)">GEOGRAPHICAL INTEL -- SEATTLE METROPLEX &amp; SURROUNDING REGIONS</div>
 
   <div id="alert" class="alert"></div>
 
@@ -43,12 +46,12 @@
   </div>
 </main>
 
-<!-- ── EDIT MODAL ─────────────────────────────────────── -->
+<!-- -- EDIT MODAL --------------------------------------- -->
 <div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New Location</div>
-      <button class="btn btn-red" onclick="closeModal()">✕</button>
+      <button class="btn btn-red" onclick="closeModal()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
@@ -61,7 +64,7 @@
         <div class="field">
           <label>Type</label>
           <select id="f-location_type" onchange="onLocTypeChange()">
-            <optgroup label="── Entertainment ──">
+            <optgroup label="-- Entertainment --">
               <option value="nightclub">Nightclub</option>
               <option value="bar">Bar / Tavern</option>
               <option value="restaurant">Restaurant</option>
@@ -69,7 +72,7 @@
               <option value="btl den">BTL Den</option>
               <option value="brothel">Brothel</option>
             </optgroup>
-            <optgroup label="── Corporate ──">
+            <optgroup label="-- Corporate --">
               <option value="corporate facility">Corporate Facility</option>
               <option value="corporate headquarters">Corporate Headquarters</option>
               <option value="corporate megastructure">Corporate Megastructure</option>
@@ -77,7 +80,7 @@
               <option value="data center">Data Center</option>
               <option value="corporate arcology">Corporate Arcology</option>
             </optgroup>
-            <optgroup label="── Retail &amp; Commercial ──">
+            <optgroup label="-- Retail &amp; Commercial --">
               <option value="commercial district">Commercial District</option>
               <option value="convenience store">Convenience Store</option>
               <option value="mall">Mall</option>
@@ -85,14 +88,14 @@
               <option value="pawn shop">Pawn Shop / Fence</option>
               <option value="black market">Black Market</option>
             </optgroup>
-            <optgroup label="── Residential ──">
+            <optgroup label="-- Residential --">
               <option value="residential community">Residential Community</option>
               <option value="apartment complex">Apartment Complex</option>
               <option value="squatter camp">Squatter Camp</option>
               <option value="subterranean community">Subterranean Community</option>
               <option value="penthouse">Penthouse / High-Rise</option>
             </optgroup>
-            <optgroup label="── Government &amp; Infrastructure ──">
+            <optgroup label="-- Government &amp; Infrastructure --">
               <option value="government building">Government Building</option>
               <option value="military installation">Military Installation</option>
               <option value="police station">Police Station</option>
@@ -100,25 +103,25 @@
               <option value="transportation hub">Transportation Hub</option>
               <option value="power plant">Power Plant / Utility</option>
             </optgroup>
-            <optgroup label="── Underground &amp; Criminal ──">
+            <optgroup label="-- Underground &amp; Criminal --">
               <option value="gang territory">Gang Territory</option>
               <option value="safehouse">Safehouse</option>
               <option value="smugglers den">Smuggler's Den</option>
               <option value="underground bunker">Underground Bunker</option>
               <option value="chop shop">Chop Shop</option>
             </optgroup>
-            <optgroup label="── Matrix ──">
+            <optgroup label="-- Matrix --">
               <option value="matrix host">Matrix Host / Node</option>
               <option value="virtual space">Virtual Space</option>
               <option value="pirate node">Pirate Node</option>
             </optgroup>
-            <optgroup label="── Landmark ──">
+            <optgroup label="-- Landmark --">
               <option value="landmark / restaurant">Landmark / Restaurant</option>
               <option value="landmark / monument">Landmark / Monument</option>
               <option value="ruins">Ruins</option>
             </optgroup>
-            <optgroup label="── Other ──">
-              <option value="Custom">Custom…</option>
+            <optgroup label="-- Other --">
+              <option value="Custom">Custom...</option>
             </optgroup>
           </select>
           <div id="f-location_type-custom-wrap" style="display:none;margin-top:6px">
@@ -140,20 +143,20 @@
         <div class="field">
           <label>Security Level</label>
           <select id="f-security_level">
-            <option value="">— Unknown —</option>
+            <option value="">-- Unknown --</option>
             <option value="Corporate Extraterritorial">Corporate Extraterritorial</option>
             <option value="Corporate High Security">Corporate High Security</option>
             <option value="Corporate Standard">Corporate Standard</option>
             <option value="Patrolled / Commercial">Patrolled / Commercial</option>
             <option value="Low Security">Low Security</option>
             <option value="No Security / Barrens">No Security / Barrens</option>
-            <option value="Zero Zone — Lethal Response">Zero Zone — Lethal Response</option>
+            <option value="Zero Zone -- Lethal Response">Zero Zone -- Lethal Response</option>
           </select>
         </div>
         <div class="field">
           <label>Controlling Organization</label>
           <select id="f-controlling_org_id">
-            <option value="">— None —</option>
+            <option value="">-- None --</option>
           </select>
         </div>
       </div>
@@ -200,7 +203,7 @@ function fmtType(s) {
   return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
 }
 
-// ── Render table ──────────────────────────────────────────────
+// -- Render table ----------------------------------------------
 let _lastLocsHtml = null;
 function renderTable(data) {
   const orgMap = Object.fromEntries(allOrgs.map(o => [o.id, o.name]));
@@ -225,10 +228,10 @@ function renderTable(data) {
         ${data.map(l => `
           <tr>
             <td style="color:var(--cyan)">${esc(l.name)}</td>
-            <td style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;text-transform:uppercase">${esc(l.location_type||'—')}</td>
-            <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '—'}</td>
-            <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'—')}</td>
-            <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'—')}</td>
+            <td style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;text-transform:uppercase">${esc(l.location_type||'--')}</td>
+            <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '--'}</td>
+            <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'--')}</td>
+            <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'--')}</td>
             <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber btn-sm" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
@@ -249,7 +252,7 @@ function applyFilter() {
   renderTable(filtered);
 }
 
-// ── Modal ─────────────────────────────────────────────────────
+// -- Modal -----------------------------------------------------
 function openModal(id) {
   editingId = id || null;
   const loc = id ? allLocs.find(l => l.id === id) : null;
@@ -343,7 +346,7 @@ async function deleteLoc() {
   }
 }
 
-// ── Load data ─────────────────────────────────────────────────
+// -- Load data -------------------------------------------------
 async function loadAll() {
   try {
     const [locRes, orgRes] = await Promise.all([
@@ -355,7 +358,7 @@ async function loadAll() {
 
     // Populate org dropdown in modal
     const orgSel = document.getElementById('f-controlling_org_id');
-    orgSel.innerHTML = '<option value="">— None —</option>' +
+    orgSel.innerHTML = '<option value="">-- None --</option>' +
       allOrgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
 
     // Build type filter

@@ -1,6 +1,6 @@
 """
 All M2M association tables live here to avoid circular imports.
-These are plain Table objects — no mapped classes.
+These are plain Table objects -- no mapped classes.
 """
 from sqlalchemy import Column, Integer, ForeignKey, Table
 from app.db.base import Base

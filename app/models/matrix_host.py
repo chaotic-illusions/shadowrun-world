@@ -29,6 +29,12 @@ class MatrixHost(Base):
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     is_visible_to_players: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # SR universe linkage
+    ltg_address: Mapped[str | None] = mapped_column(String(100), default=None)
+
+    # Trap doors to other hosts (list of dicts)
+    trap_doors_json: Mapped[list | None] = mapped_column(JSON, default=None)
+
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)

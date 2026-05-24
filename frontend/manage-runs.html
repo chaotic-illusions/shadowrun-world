@@ -18,17 +18,20 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html" class="active">Runs</a>
-    <a href="manage-matrix.html">Matrix</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
   </nav>
 </header>
 
 <main>
   <div class="page-title">&gt;&gt; Adventure Logs <em class="sep">//</em> Run History</div>
-  <div class="page-sub">RESTRICTED OPERATIONAL RECORDS &gt;&gt; MISSION DEBRIEFS</div>
+  <div class="page-sub" style="color:var(--red)">RESTRICTED OPERATIONAL RECORDS <span style="color:var(--cyan)">&gt;&gt; MISSION DEBRIEFS</span></div>
 
   <div id="globalAlert" class="alert"></div>
 
-  <!-- ── New Run Section ──────────────────────────────────── -->
+  <!-- -- New Run Section ------------------------------------ -->
   <div class="gm-only" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div class="section-head" style="margin:0;border:none">Log a New Run</div>
     <button class="sec-toggle" id="newRunToggle" onclick="toggleNewRun()" style="font-size:0.8rem;padding:4px 10px;border:1px solid #1a2a1a;color:var(--green)">[+] New Run</button>
@@ -41,7 +44,7 @@
       <button class="btn" id="modeManual" onclick="setMode('manual')" style="border-color:#222;color:var(--text-dim)">Manual Entry</button>
     </div>
 
-    <!-- ── Runner selection (required for both modes) ─────── -->
+    <!-- -- Runner selection (required for both modes) ------- -->
     <div style="margin-bottom:16px;padding:12px 14px;border:1px solid #1a2a1a;background:#040a04">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div class="section-head" style="margin:0;border:none;font-size:.72rem;color:var(--green)">Runners on this Job <span class="text-dim">*</span></div>
@@ -56,16 +59,16 @@
       </div>
     </div>
 
-    <!-- ── AI Mode ─────────────────────────────────────────── -->
+    <!-- -- AI Mode ------------------------------------------- -->
     <div id="aiMode">
       <div class="field mb-14">
         <label>Mission Date</label>
         <input type="date" id="ai-date" style="max-width:200px;font-size:.7rem">
       </div>
       <div class="field mb-14">
-        <label>GM Narrative — describe what happened during the run</label>
+        <label>GM Narrative -- describe what happened during the run</label>
         <textarea id="aiNarrative" rows="8"
-          placeholder="The team accepted a job from Mr. Johnson — a well-dressed corp type — to extract a researcher from Aztechnology's Bellevue campus. The payout was ¥15,000 per runner...&#10;&#10;Describe the run: who hired them, the terms, what the objectives were, what actually happened, notable events, injuries, witnesses, etc."></textarea>
+          placeholder="The team accepted a job from Mr. Johnson -- a well-dressed corp type -- to extract a researcher from Aztechnology's Bellevue campus. The payout was Y15,000 per runner...&#10;&#10;Describe the run: who hired them, the terms, what the objectives were, what actually happened, notable events, injuries, witnesses, etc."></textarea>
       </div>
       <button class="btn btn-green" id="parseBtn" onclick="parseNarrative()">&gt;&gt; Parse with AI</button>
       <div id="parseSpinner" style="display:none;margin-top:10px;color:var(--text-dim);font-size:.8rem;letter-spacing:2px">TRANSMITTING TO MATRIX... STAND BY</div>
@@ -74,11 +77,11 @@
       <div id="parseResults" style="display:none;margin-top:20px">
         <div class="section-head mb-12">Extracted Run Data</div>
         <div class="grid2 mb-16">
-          <div class="extracted-field"><div class="extracted-label">Title</div><div class="extracted-value" id="pr-title">—</div></div>
-          <div class="extracted-field"><div class="extracted-label">Outcome</div><div class="extracted-value" id="pr-outcome">—</div></div>
-          <div class="extracted-field"><div class="extracted-label">Objective</div><div class="extracted-value" id="pr-objective">—</div></div>
-          <div class="extracted-field"><div class="extracted-label">Employer</div><div class="extracted-value" id="pr-employer">—</div></div>
-          <div class="extracted-field"><div class="extracted-label">Result</div><div class="extracted-value" id="pr-result">—</div></div>
+          <div class="extracted-field"><div class="extracted-label">Title</div><div class="extracted-value" id="pr-title">--</div></div>
+          <div class="extracted-field"><div class="extracted-label">Outcome</div><div class="extracted-value" id="pr-outcome">--</div></div>
+          <div class="extracted-field"><div class="extracted-label">Objective</div><div class="extracted-value" id="pr-objective">--</div></div>
+          <div class="extracted-field"><div class="extracted-label">Employer</div><div class="extracted-value" id="pr-employer">--</div></div>
+          <div class="extracted-field"><div class="extracted-label">Result</div><div class="extracted-value" id="pr-result">--</div></div>
         </div>
 
         <div class="section-head mb-12">Proposed World Changes
@@ -94,7 +97,7 @@
       </div>
     </div>
 
-    <!-- ── Manual Mode ─────────────────────────────────────── -->
+    <!-- -- Manual Mode --------------------------------------- -->
     <div id="manualMode" style="display:none">
       <div class="grid2 mb-14">
         <div class="field">
@@ -109,7 +112,7 @@
       <div class="field mb-14">
         <label>Outcome</label>
         <select id="m-outcome">
-          <option value="">— Unknown —</option>
+          <option value="">-- Unknown --</option>
           <option value="success">Success</option>
           <option value="partial_success">Partial Success</option>
           <option value="failure">Failure</option>
@@ -139,20 +142,20 @@
         <!-- Run Tags  --> 
         <div class="section-head" style="margin:0 0 8px;border:none;font-size:.72rem">Tags</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="witnesses"><span>witnesses</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="collateral_damage"><span>collateral damage</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="public_scene"><span>public scene</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="media_attention"><span>media attention</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="casualties"><span>casualties</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="wetwork"><span>wetwork</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="assassination"><span>assassination</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="magic_use"><span>magic use</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="vehicle_chase"><span>vehicle chase</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="data_theft"><span>data theft</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="extraction"><span>extraction</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="bribery"><span>bribery</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="false_flag"><span>false flag</span></label>
-          <label class="chk-item"><input type="checkbox" name="run-tag" value="stealth"><span>stealth</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="witnesses"><span>witnesses</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="collateral_damage"><span>collateral damage</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="public_scene"><span>public scene</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="media_attention"><span>media attention</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="casualties"><span>casualties</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="wetwork"><span>wetwork</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="assassination"><span>assassination</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="magic_use"><span>magic use</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="vehicle_chase"><span>vehicle chase</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="data_theft"><span>data theft</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="extraction"><span>extraction</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="bribery"><span>bribery</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="false_flag"><span>false flag</span></label>
+          <label class="chk-item"><input type="checkbox" class="chk-select" name="run-tag" value="stealth"><span>stealth</span></label>
         </div>
       </div>
       <div class="field mb-14">
@@ -165,7 +168,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="section-head" style="margin:0;border:none;font-size:.72rem">World-State Changes</div>
           <div class="flex-row-8">
-            <button type="button" class="btn btn-sm" id="previewRippleBtn" onclick="previewRipple()" style="border-color:#2a0044;color:var(--purple);display:none">⟳ Preview Ripple</button>
+            <button type="button" class="btn btn-sm" id="previewRippleBtn" onclick="previewRipple()" style="border-color:#2a0044;color:var(--purple);display:none">[refresh] Preview Ripple</button>
             <button type="button" class="btn btn-green btn-sm" onclick="addChangeRow()">[+] Add Change</button>
           </div>
         </div>
@@ -192,7 +195,7 @@
 
   <hr class="rule">
 
-  <!-- ── Existing Runs ────────────────────────────────────── -->
+  <!-- -- Existing Runs -------------------------------------- -->
   <div class="section-head mb-16">Run History</div>
   <div id="runsList"><div class="loading">Loading run history</div></div>
 </main>
@@ -213,13 +216,13 @@ function srDate(dateStr) {
   return `${parseInt(y) + YEAR_OFFSET}-${m}-${d}`;
 }
 
-// ── UI helpers ────────────────────────────────────────────────
+// -- UI helpers ------------------------------------------------
 function toggleNewRun() {
   const panel = document.getElementById('newRunPanel');
   const btn   = document.getElementById('newRunToggle');
   const open  = panel.style.display === 'none';
   panel.style.display = open ? '' : 'none';
-  btn.textContent = open ? '[–] Close' : '[+] New Run';
+  btn.textContent = open ? '[-] Close' : '[+] New Run';
   btn.style.color = open ? 'var(--red)' : 'var(--green)';  if (open) pausePoll(); else resumePoll();}
 
 function setMode(mode) {
@@ -231,7 +234,7 @@ function setMode(mode) {
   document.getElementById('modeManual').style.color       = mode === 'manual' ? 'var(--amber)' : 'var(--text-dim)';
 }
 
-// ── Participant validation ─────────────────────────────────────
+// -- Participant validation -------------------------------------
 function validateParticipants() {
   const selected = getChecked('run-participants');
   const ok = selected.length > 0;
@@ -243,7 +246,7 @@ function validateParticipants() {
   return ok;
 }
 
-// ── AI parse flow ─────────────────────────────────────────────
+// -- AI parse flow ---------------------------------------------
 async function parseNarrative() {
   const narrative = document.getElementById('aiNarrative').value.trim();
   if (!narrative) return;
@@ -272,11 +275,11 @@ async function parseNarrative() {
 }
 
 function renderParsedResults(data) {
-  document.getElementById('pr-title').textContent    = data.title    || '—';
-  document.getElementById('pr-outcome').textContent  = (data.outcome || '—').replace(/_/g,' ').toUpperCase();
-  document.getElementById('pr-objective').textContent= data.objective || '—';
-  document.getElementById('pr-employer').textContent = data.employer  || '—';
-  document.getElementById('pr-result').textContent   = data.result    || '—';
+  document.getElementById('pr-title').textContent    = data.title    || '--';
+  document.getElementById('pr-outcome').textContent  = (data.outcome || '--').replace(/_/g,' ').toUpperCase();
+  document.getElementById('pr-objective').textContent= data.objective || '--';
+  document.getElementById('pr-employer').textContent = data.employer  || '--';
+  document.getElementById('pr-result').textContent   = data.result    || '--';
 
   const changes = data.proposed_changes || [];
   const list = document.getElementById('changesList');
@@ -293,11 +296,11 @@ function renderParsedResults(data) {
     return `
       <div class="change-item">
         <label>
-          <input type="checkbox" id="ch-${i}" data-idx="${i}" checked>
+          <input type="checkbox" class="chk-select" id="ch-${i}" data-idx="${i}" checked>
           <div>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:3px">
               <span class="change-type ct-${c.type}">${c.type.replace(/_/g,' ')}</span>
-              <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> — <span class="${deltaClass}">${label}</span></span>
+              <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span></span>
             </div>
             <div class="change-reason">${esc(c.reason || '')}</div>
           </div>
@@ -377,7 +380,7 @@ async function applyAndLog() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) await apiThrow(res);
-    showAlert(document.getElementById('globalAlert'), `>> RUN LOGGED // "${payload.title}" — changes applied.`, false);
+    showAlert(document.getElementById('globalAlert'), `>> RUN LOGGED // "${payload.title}" -- changes applied.`, false);
     cancelParse();
     toggleNewRun();
     await loadRuns();
@@ -386,7 +389,7 @@ async function applyAndLog() {
   }
 }
 
-// ── Manual entry ──────────────────────────────────────────────
+// -- Manual entry ----------------------------------------------
 function getChecked(containerId) {
   return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`))
     .map(cb => parseInt(cb.value));
@@ -394,7 +397,7 @@ function getChecked(containerId) {
 
 let _mcrIdx = 0;
 
-// ── Multi-character pill helpers ──────────────────────────────
+// -- Multi-character pill helpers ------------------------------
 function getSelectedRunners() {
   return Array.from(document.querySelectorAll('#run-participants input[type=checkbox]:checked'))
     .map(cb => {
@@ -420,7 +423,7 @@ function rebuildRunnerPills(row) {
     prevSelected.add(parseInt(p.dataset.charId));
   });
   const label  = `<span class="mcr-apply-label">APPLY TO</span>`;
-  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" title="Select / deselect all">ALL</button>`;
+  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" data-tip="Select / deselect all">ALL</button>`;
   const pills  = runners.map(c => {
     const sel = prevSelected.has(c.id) ? ' selected' : '';
     return `<button type="button" class="mcr-pill${sel}" data-char-id="${c.id}" onclick="togglePill(this)">${esc(c.name)}</button>`;
@@ -454,7 +457,7 @@ function syncAllButton(row) {
   allBtn.classList.toggle('selected', allSelected);
 }
 
-// ── Change row management ─────────────────────────────────────
+// -- Change row management -------------------------------------
 function addChangeRow() {
   const container = document.getElementById('m-changes');
   const n = _mcrIdx++;
@@ -463,7 +466,7 @@ function addChangeRow() {
     `<option value="${o.id}">${esc(o.name)}</option>`
   ).join('');
   const label  = `<span class="mcr-apply-label">APPLY TO</span>`;
-  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" title="Select / deselect all">ALL</button>`;
+  const allBtn = `<button type="button" class="mcr-pill-all" onclick="toggleAllPills(this)" data-tip="Select / deselect all">ALL</button>`;
   const pills  = runners.map(c =>
     `<button type="button" class="mcr-pill" data-char-id="${c.id}" onclick="togglePill(this)">${esc(c.name)}</button>`
   ).join('');
@@ -472,7 +475,7 @@ function addChangeRow() {
   row.id = `mcr-${n}`;
   row.innerHTML = `
     <div class="mcr-top">
-      <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--green);margin:0">
+      <input type="checkbox" class="chk-select" checked style="flex-shrink:0;margin:0">
       <select class="mcr-type mcr-input" style="width:148px" onchange="mcrTypeChange(this,${n})">
         <option value="street_cred">street cred</option>
         <option value="notoriety">notoriety</option>
@@ -480,13 +483,13 @@ function addChangeRow() {
         <option value="org_standing">org standing</option>
         <option value="heat">heat</option>
       </select>
-      <select class="mcr-org mcr-input" style="display:none;width:160px" title="Organization">
-        <option value="">— org —</option>${orgOpts}
+      <select class="mcr-org mcr-input" style="display:none;width:160px" data-tip="Organization">
+        <option value="">-- org --</option>${orgOpts}
       </select>
-      <input type="number" class="mcr-delta mcr-input" style="width:70px" placeholder="±0">
+      <input type="number" class="mcr-delta mcr-input" style="width:70px" placeholder="+/-0">
       <input type="text" class="mcr-reason mcr-input" style="flex:1;width:auto;min-width:100px" placeholder="reason...">
       <button type="button" onclick="document.getElementById('mcr-${n}').remove();syncRippleButton()"
-        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">x</button>
     </div>
     <div class="mcr-runners">${label}${allBtn}${pills}</div>
   `;
@@ -625,14 +628,14 @@ function addRippleRow(rpl) {
   row.style.opacity = '0.75';
   row.innerHTML = `
     <div class="mcr-top">
-      <input type="checkbox" checked style="flex-shrink:0;accent-color:var(--purple);margin:0">
+      <input type="checkbox" class="chk-select" checked style="flex-shrink:0;margin:0">
       <span style="font-size:.62rem;letter-spacing:1px;color:var(--purple);border:1px solid #2a0044;padding:1px 5px;flex-shrink:0">ripple</span>
       <span class="mcr-type" style="font-size:.72rem;color:var(--text-dim)">org standing</span>
       <span style="font-size:.72rem;color:var(--text-dim);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
         ${orgLabel} <span class="${rpl.delta > 0 ? 'change-delta-pos' : 'change-delta-neg'}">${deltaStr}</span>
       </span>
       <button type="button" onclick="this.closest('.mcr-row').remove();syncRippleButton()"
-        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">×</button>
+        style="flex-shrink:0;background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">x</button>
     </div>
     <div style="padding:4px 0 0 26px;display:flex;flex-wrap:wrap;gap:4px 6px">
       ${runnerLabels}
@@ -762,7 +765,7 @@ async function submitManual() {
     });
     if (!r.ok) await apiThrow(r);
     const msg = changesApplied.length
-      ? `>> RUN LOGGED // "${title}" — ${changesApplied.length} change(s) applied.`
+      ? `>> RUN LOGGED // "${title}" -- ${changesApplied.length} change(s) applied.`
       : `>> RUN LOGGED // "${title}" created.`;
     showAlert(document.getElementById('globalAlert'), msg, false);
     toggleNewRun();
@@ -772,7 +775,7 @@ async function submitManual() {
   }
 }
 
-// ── Run list ──────────────────────────────────────────────────
+// -- Run list --------------------------------------------------
 function outcomeClass(o) {
   return { success:'out-success', partial_success:'out-partial_success', failure:'out-failure',
            critical_failure:'out-critical_failure', abandoned:'out-abandoned' }[o] || 'out-abandoned';
@@ -795,7 +798,7 @@ function buildRunDetail(run) {
       <span class="change-type ct-${c.type}">${c.type.replace(/_/g,' ')}</span>
       <div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">
-          <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> — <span class="${deltaClass}">${label}</span></span>${rippleTag}
+          <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span></span>${rippleTag}
         </div>
         <div class="change-reason">${esc(c.reason || '')}</div>
       </div>
@@ -850,7 +853,7 @@ async function updateRunTick(id) {
     });
     if (!res.ok) await apiThrow(res);
     const msg = document.getElementById(`rd-tick-msg-${id}`);
-    if (msg) { msg.textContent = '✓ saved'; setTimeout(() => { if (msg) msg.textContent = ''; }, 2000); }
+    if (msg) { msg.textContent = '[ok] saved'; setTimeout(() => { if (msg) msg.textContent = ''; }, 2000); }
     delete _detailCache[id];  // force re-render next open
   } catch(e) {
     const msg = document.getElementById(`rd-tick-msg-${id}`);
@@ -895,8 +898,8 @@ function renderRuns(runs) {
     <div class="run-card outcome-${r.outcome||''}">
       <div class="run-head" onclick="toggleRunDetail(${r.id})" style="cursor:pointer">
         <div>
-          <div class="run-title">${r.run_number ? `#${r.run_number} — ` : ''}${esc(r.title)}</div>
-          <div class="run-meta">${srDate(r.session_date)}${r.employer ? ` &nbsp;·&nbsp; ${esc(r.employer)}` : ''}</div>
+          <div class="run-title">${r.run_number ? `#${r.run_number} -- ` : ''}${esc(r.title)}</div>
+          <div class="run-meta">${srDate(r.session_date)}${r.employer ? ` &nbsp;-&nbsp; ${esc(r.employer)}` : ''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           ${(r.heat || 0) > 0 ? `<span class="run-outcome ${hc}" style="border-color:transparent">heat: ${hl.toLowerCase()}</span>` : ''}
@@ -923,7 +926,7 @@ async function loadRuns() {
   }
 }
 
-// ── World data for manual form ────────────────────────────────
+// -- World data for manual form --------------------------------
 async function loadWorldData() {
   try {
     const [cr, lr, or_] = await Promise.all([
@@ -933,20 +936,20 @@ async function loadWorldData() {
     allLocs  = await lr.json();
     allOrgs  = await or_.json();
 
-    // Shared PC runner section — active PCs only, required for both modes
+    // Shared PC runner section -- active PCs only, required for both modes
     const pcRunners = allChars.filter(c => c.is_pc && c.is_active !== false);
     document.getElementById('run-participants').innerHTML =
-      pcRunners.map(c => `<label class="chk-item"><input type="checkbox" value="${c.id}" onchange="validateParticipants();onParticipantChange()"><span>${esc(c.name)}</span></label>`).join('');
+      pcRunners.map(c => `<label class="chk-item"><input type="checkbox" class="chk-select" value="${c.id}" onchange="validateParticipants();onParticipantChange()"><span>${esc(c.name)}</span></label>`).join('');
     validateParticipants();
 
     document.getElementById('m-locations').innerHTML =
-      allLocs.map(l => `<label class="chk-item"><input type="checkbox" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('');
+      allLocs.map(l => `<label class="chk-item"><input type="checkbox" class="chk-select" value="${l.id}"><span>${esc(l.name)}</span></label>`).join('');
     document.getElementById('m-orgs').innerHTML =
-      allOrgs.map(o => `<label class="chk-item"><input type="checkbox" value="${o.id}"><span>${esc(o.name)}</span></label>`).join('');
+      allOrgs.map(o => `<label class="chk-item"><input type="checkbox" class="chk-select" value="${o.id}"><span>${esc(o.name)}</span></label>`).join('');
   } catch(e) { console.warn('Could not load world data for manual form:', e.message); }
 }
 
-// ── Init ──────────────────────────────────────────────────────
+// -- Init ------------------------------------------------------
 document.getElementById('ai-date').value  = today();
 document.getElementById('m-date').value   = today();
 setMode('ai');

@@ -86,10 +86,10 @@ class TestRecordSuccess:
 class TestBackoffCalculation:
     def test_delay_grows_exponentially(self):
         # After N failures, delay = BASE_DELAY * 2^(N-1)
-        assert BASE_DELAY * (2 ** 0) == 1.0   # 1 failure  → 1s
-        assert BASE_DELAY * (2 ** 1) == 2.0   # 2 failures → 2s
-        assert BASE_DELAY * (2 ** 2) == 4.0   # 3 failures → 4s
-        assert BASE_DELAY * (2 ** 3) == 8.0   # 4 failures → 8s
+        assert BASE_DELAY * (2 ** 0) == 1.0   # 1 failure  -> 1s
+        assert BASE_DELAY * (2 ** 1) == 2.0   # 2 failures -> 2s
+        assert BASE_DELAY * (2 ** 2) == 4.0   # 3 failures -> 4s
+        assert BASE_DELAY * (2 ** 3) == 8.0   # 4 failures -> 8s
 
     def test_capped_at_max(self):
         delay = min(BASE_DELAY * (2 ** 99), MAX_DELAY)

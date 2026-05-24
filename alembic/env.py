@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.db.base import Base
 from app.db.session import DATABASE_URL
-import app.models  # noqa: F401 — ensure all models are registered
+import app.models  # noqa: F401 -- ensure all models are registered
 
 config = context.config
 if config.config_file_name is not None:
@@ -17,7 +17,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode — emit SQL to stdout."""
+    """Run migrations in 'offline' mode -- emit SQL to stdout."""
     url = DATABASE_URL
     context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
     with context.begin_transaction():

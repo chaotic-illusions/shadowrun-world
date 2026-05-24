@@ -2,8 +2,8 @@
 Secret retrieval utilities.
 
 Resolution order:
-  1. Windows Credential Manager (via keyring) — for local development
-  2. Environment variable — for Docker / CI / production
+  1. Windows Credential Manager (via keyring) -- for local development
+  2. Environment variable -- for Docker / CI / production
 """
 import os
 

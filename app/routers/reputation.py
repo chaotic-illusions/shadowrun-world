@@ -56,7 +56,7 @@ async def update_reputation(
     _: str = Depends(get_admin_token),
 ):
     rep = await get_or_404(db, Reputation, rep_id)
-    # apply_update without committing — we need to stamp ticks first
+    # apply_update without committing -- we need to stamp ticks first
     await apply_update(db, rep, body, commit=False)
 
     tick = await current_tick(db)

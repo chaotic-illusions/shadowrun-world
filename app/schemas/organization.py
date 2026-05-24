@@ -45,6 +45,12 @@ class OrganizationRead(OrganizationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LtgSecurityUpdate(BaseModel):
+    rtg: str
+    ltg: str
+    san_access_rating: str
+
+
 class OrganizationSummary(BaseModel):
     id: int
     name: str

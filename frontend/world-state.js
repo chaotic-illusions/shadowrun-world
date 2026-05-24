@@ -9,7 +9,7 @@ let locStore = {};              // location_id -> location object
 let _lastWorldHtml = null;   // cached HTML to skip DOM rebuild when data unchanged
 let npcModalCharId = null;
 
-// ── Archetype Edit Modal ──────────────────────────────────────
+// -- Archetype Edit Modal --------------------------------------
 const ARCHETYPES = [
   { label: 'Street Samurai', cls: 'arch-samurai' },
   { label: 'Decker',         cls: 'arch-decker'  },
@@ -102,32 +102,32 @@ async function saveEditModal() {
   closeEditModal();
 }
 
-// ── Tooltip definitions ───────────────────────────────────────
+// -- Tooltip definitions ---------------------------------------
 const PA_TIPS = {
-  'Shadow':           'Unknown to the public — identity fully secure.',
-  'Seen':             'Noticed — face has surfaced; word is starting to spread in certain circles.',
-  'Recognized':       'Known — regularly recognized on the street or picked up in news feeds.',
-  'In the Spotlight': 'Exposed — featured in media coverage; corp security may already have a file.',
-  'Burned':           'Compromised — identity widely known; too hot to work openly without serious risk.',
+  'Shadow':           'Unknown to the public -- identity fully secure.',
+  'Seen':             'Noticed -- face has surfaced; word is starting to spread in certain circles.',
+  'Recognized':       'Known -- regularly recognized on the street or picked up in news feeds.',
+  'In the Spotlight': 'Exposed -- featured in media coverage; corp security may already have a file.',
+  'Burned':           'Compromised -- identity widely known; too hot to work openly without serious risk.',
 };
 
 const CONNECTION_TIPS = [
   '',
-  'Connection 1 — Street-level only. Knows a handful of people; handles small-time requests with limited reach.',
-  'Connection 2 — Neighborhood reach. Reliable within their own community; limited contacts outside it.',
-  'Connection 3 — City-wide network. Can pull strings across Seattle and is trusted in their field.',
-  'Connection 4 — Regional influence. Cross-sector contacts with access to restricted resources and information.',
-  'Connection 5 — National reach. A major player operating in high-stakes circles with serious leverage.',
-  'Connection 6 — Global or corporate-tier. Extraordinary access across borders — very few doors are closed.',
+  'Connection 1 -- Street-level only. Knows a handful of people; handles small-time requests with limited reach.',
+  'Connection 2 -- Neighborhood reach. Reliable within their own community; limited contacts outside it.',
+  'Connection 3 -- City-wide network. Can pull strings across Seattle and is trusted in their field.',
+  'Connection 4 -- Regional influence. Cross-sector contacts with access to restricted resources and information.',
+  'Connection 5 -- National reach. A major player operating in high-stakes circles with serious leverage.',
+  'Connection 6 -- Global or corporate-tier. Extraordinary access across borders -- very few doors are closed.',
 ];
 
-// ── Helpers ───────────────────────────────────────────────────
+// -- Helpers ---------------------------------------------------
 function tierLabel(n) {
   return ['','Street','Local','City','Regional','National','Global'][n] || `T${n}`;
 }
 function orgClass(t) { return `oc-${TYPE_GROUP[t] || 'other'}`; }
 
-// ── Section collapse state ────────────────────────────────────
+// -- Section collapse state ------------------------------------
 const collapsed = {};
 function toggleSection(key) {
   // Ensure section is expanded and scroll to it
@@ -160,23 +160,23 @@ function toggleAllOrgs() {
   if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── Org description expand ────────────────────────────────────
+// -- Org description expand ------------------------------------
 const expandedOrgs = {};
 function toggleOrgDesc(orgId) {
   expandedOrgs[orgId] = !expandedOrgs[orgId];
   const el  = document.getElementById(`oc-desc-${orgId}`);
   const btn = document.getElementById(`oc-xbtn-${orgId}`);
-  if (el)  el.classList.toggle('oc-desc-expanded', expandedOrgs[orgId]);
+  if (el)  el.classList.toggle('expanded', expandedOrgs[orgId]);
   if (btn) btn.textContent = expandedOrgs[orgId] ? '[ collapse ]' : '[ expand ]';
 }
 
-// ── LTG Modal ─────────────────────────────────────────────────
+// -- LTG Modal -------------------------------------------------
 function ratingClass(r) {
   const color = (r || '').split('-')[0].toLowerCase();
   return { blue:'r-blue', green:'r-green', orange:'r-orange', red:'r-red', black:'r-black' }[color] || 'r-green';
 }
 
-// ── Card Builders ─────────────────────────────────────────────
+// -- Card Builders ---------------------------------------------
 function buildOrgCard(org, orgMap) {
   const allyIds  = isAdminMode() ? (org.ally_ids  || []) : (org.revealed_ally_ids  || []);
   const enemyIds = isAdminMode() ? (org.enemy_ids || []) : (org.revealed_enemy_ids || []);
@@ -184,7 +184,7 @@ function buildOrgCard(org, orgMap) {
   const enemies = enemyIds.map(id => orgMap[id]?.name).filter(Boolean);
   const longDesc = org.description && org.description.length > 160;
   return `
-    <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" class="clickable" title="Click to edit">
+    <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" class="clickable" data-tip="Click to edit">
       <div class="oc-head">
         <div class="oc-name">${esc(org.name)}</div>
         <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
@@ -192,13 +192,13 @@ function buildOrgCard(org, orgMap) {
       <div class="oc-type">${esc(org.org_type || 'unclassified')}</div>
       ${org.headquarters ? `<div class="oc-hq">${esc(org.headquarters)}</div>` : ''}
       ${org.description
-        ? `<div class="oc-desc" id="oc-desc-${org.id}">${esc(org.description)}</div>`
-        : '<div class="oc-desc" style="color:#333">No public intel available.</div>'}
+        ? `<div class="desc-clamp-3" id="oc-desc-${org.id}">${esc(org.description)}</div>`
+        : '<div class="desc-clamp-3" style="color:#333">No public intel available.</div>'}
       ${longDesc ? `<div><button class="oc-expand-btn" id="oc-xbtn-${org.id}" onclick="event.stopPropagation();toggleOrgDesc(${org.id})">[ expand ]</button></div>` : ''}
       ${(allies.length || enemies.length) ? `
         <div class="oc-foot">
-          ${allies.length  ? `<span class="rel-ally">▲ ALLIES: ${allies.map(esc).join(', ')}</span>` : ''}
-          ${enemies.length ? `<span class="rel-enemy">▼ HOSTILE: ${enemies.map(esc).join(', ')}</span>` : ''}
+          ${allies.length  ? `<span class="rel-ally">^ ALLIES: ${allies.map(esc).join(', ')}</span>` : ''}
+          ${enemies.length ? `<span class="rel-enemy">v HOSTILE: ${enemies.map(esc).join(', ')}</span>` : ''}
         </div>` : ''}
     </div>`;
 }
@@ -221,8 +221,16 @@ function editCharArchetype(charId) {
 
 function loyaltyDots(n, max) {
   return Array.from({length: max}, (_, i) =>
-    `<span style="color:${i < n ? 'var(--amber)' : '#333'}">●</span>`
+    `<span style="color:${i < n ? 'var(--amber)' : '#333'}">*</span>`
   ).join('');
+}
+
+function loyaltyPickerDots(currentVal, onClickBuilder, extraClass = '') {
+  return `<span class="loyalty-dot-picker ${extraClass}">${Array.from({length: 6}, (_, i) => {
+    const val = i + 1;
+    const active = val <= currentVal;
+    return `<button class="loyalty-dot-btn${active ? ' active' : ''}" onclick="${onClickBuilder(val)}" data-tip="Set loyalty ${val}">${active ? '*' : 'o'}</button>`;
+  }).join('')}</span>`;
 }
 
 // Merge raw contacts array: group by npc_id (or by name if no npc_id)
@@ -230,7 +238,7 @@ function mergeContacts(contacts) {
   const byNpc  = {};  // npc_id (int) -> merged
   const byName = {};  // name (lowercase) -> merged
   contacts.forEach(c => {
-    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection, is_active: c.is_active !== false };
+    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection };
     if (c.npc_id) {
       if (!byNpc[c.npc_id]) byNpc[c.npc_id] = { ...c, owners: [] };
       byNpc[c.npc_id].owners.push(ownerEntry);
@@ -243,7 +251,7 @@ function mergeContacts(contacts) {
   return [...Object.values(byNpc), ...Object.values(byName)];
 }
 
-// ── NPC Dossier Modal ─────────────────────────────────────────
+// -- NPC Dossier Modal -----------------------------------------
 function openNpcModal(charId) {
   const char = charMapStore[charId];
   if (!char || char.is_pc) return;
@@ -340,7 +348,7 @@ async function saveNpcNotes(charId) {
   }
 }
 
-// Generic boolean field reveal toggle — pass any PATCH-able boolean field name.
+// Generic boolean field reveal toggle -- pass any PATCH-able boolean field name.
 // Usage: toggleDataReveal(charId, 'show_background', currentBoolValue)
 async function toggleDataReveal(charId, field, currentState) {
   const res = await apiFetch(`${API}/characters/${charId}`, {
@@ -373,7 +381,7 @@ function npcOverlayClick(e) {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeNpcModal(); closeEditModal(); closeOrgEditModal(); closeLocEditModal(); closeCharEditModal(); } });
 
-// ── Contact Promotion (NPC modal) ─────────────────────────────
+// -- Contact Promotion (NPC modal) -----------------------------
 function renderPromoteSection(charId) {
   const char = charMapStore[charId];
   const existing = contactStore.filter(c => c.npc_id === charId);
@@ -386,8 +394,9 @@ function renderPromoteSection(charId) {
     const ownerActive = owner?.is_active !== false;
     return `<div class="promote-row${ownerActive ? '' : ' promote-row-inactive'}">
       <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}${ownerActive ? '' : ' <span style="color:#555;font-size:0.6rem">(inactive)</span>'}</span>
-      <span class="promote-meta">Loyalty ${c.loyalty}</span>
-      <button class="promote-remove gm-only" onclick="removeContactLink(${c.id})" title="Remove link">✕</button>
+      <span class="promote-meta promote-meta-loyalty">Loyalty ${c.loyalty}</span>
+      ${loyaltyPickerDots(c.loyalty || 1, (val) => `event.stopPropagation();setContactLoyalty(${c.id},${val})`, 'gm-only')}
+      <button class="promote-remove gm-only" onclick="removeContactLink(${c.id})" data-tip="Remove link">x</button>
     </div>`;
   }).join('');
 
@@ -396,9 +405,9 @@ function renderPromoteSection(charId) {
       <select id="promoteOwnerSel" class="promote-select">
         ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
       </select>
-      <label class="promote-field-lbl">Loyalty
-        <input type="number" id="promoteLoyalty" class="promote-num" min="1" max="6" value="1">
-      </label>
+      <div class="promote-field-lbl">Loyalty</div>
+      <input type="hidden" id="promoteLoyalty" value="1">
+      ${loyaltyPickerDots(1, (val) => `event.stopPropagation();setPromoteLoyalty(${val})`, 'picker-promote')}
       <button class="btn btn-green btn-sm" onclick="addContactLink()">Link</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('promoteAddForm').style.display='none'">Cancel</button>
     </div>
@@ -440,6 +449,35 @@ async function addContactLink() {
   loadAll();
 }
 
+function setPromoteLoyalty(value) {
+  const n = Math.min(6, Math.max(1, parseInt(value, 10) || 1));
+  const hidden = document.getElementById('promoteLoyalty');
+  if (hidden) hidden.value = String(n);
+  const picker = document.querySelector('#promoteAddForm .picker-promote');
+  if (!picker) return;
+  picker.querySelectorAll('.loyalty-dot-btn').forEach((btn, idx) => {
+    btn.classList.toggle('active', idx < n);
+    btn.textContent = idx < n ? '*' : 'o';
+  });
+}
+
+async function setContactLoyalty(contactId, loyalty) {
+  const n = Math.min(6, Math.max(1, parseInt(loyalty, 10) || 1));
+  await apiFetch(`${API}/contacts/${contactId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ loyalty: n })
+  });
+  const contactsRes = await apiFetch(`${API}/contacts/`);
+  contactStore = await contactsRes.json();
+  if (npcModalCharId) {
+    const wrap = document.getElementById('promoteSectionWrap');
+    if (wrap) wrap.outerHTML = renderPromoteSection(npcModalCharId);
+  }
+  if (nonNpcModalId) openNonNpcContactModal(nonNpcModalId);
+  loadAll();
+}
+
 async function removeContactLink(contactId) {
   showConfirm('Remove this contact link?', async () => {
     await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
@@ -450,7 +488,7 @@ async function removeContactLink(contactId) {
   });
 }
 
-// ── Non-NPC Contact Modal (contacts without a character record) ──
+// -- Non-NPC Contact Modal (contacts without a character record) --
 let nonNpcModalId = null;
 
 function openNonNpcContactModal(contactId) {
@@ -475,13 +513,14 @@ function openNonNpcContactModal(contactId) {
     const name = ownerChar ? esc(ownerChar.name) : `#${o.owner_id}`;
     return `<div class="promote-row">
       <span class="promote-runner">${name}</span>
-      <span class="promote-meta">Loyalty ${o.loyalty || 0}</span>
-      <button class="promote-remove gm-only" onclick="removeNonNpcLink(${o.contact_id})" title="Remove link">✕</button>
+      <span class="promote-meta promote-meta-loyalty">Loyalty ${o.loyalty || 0}</span>
+      ${loyaltyPickerDots(o.loyalty || 1, (val) => `event.stopPropagation();setContactLoyalty(${o.contact_id},${val})`, 'gm-only')}
+      <button class="promote-remove gm-only" onclick="removeNonNpcLink(${o.contact_id})" data-tip="Remove link">x</button>
     </div>`;
   }).join('');
 
   const connDisplay = `
-    <div class="cc-connection-gm mb-12" title="${CONNECTION_TIPS[connVal] || ''}">
+    <div class="cc-connection-gm mb-12" data-tip="${CONNECTION_TIPS[connVal] || ''}">
       <span class="cc-conn-lbl">Connection</span>
       <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
       <span class="cc-via-num">${connVal}</span>
@@ -529,17 +568,8 @@ function getMyCharIds() {
   return _myCharIds;
 }
 
-async function toggleContactActive(contactId, currentlyActive) {
-  await apiFetch(`${API}/contacts/${contactId}`, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ is_active: !currentlyActive })
-  });
-  loadAll();
-}
-
 async function patchNpcConnection(charId, currentVal) {
-  showPrompt('Connection rating (1–6):', currentVal, async (raw) => {
+  showPrompt('Connection rating (1-6):', currentVal, async (raw) => {
     const n = parseInt(raw, 10);
     if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
     await apiFetch(`${API}/characters/${charId}`, {
@@ -552,7 +582,7 @@ async function patchNpcConnection(charId, currentVal) {
 }
 
 async function patchConnection(cardKey, currentVal, contactIds) {
-  showPrompt('Connection rating (1–6):', currentVal, async (raw) => {
+  showPrompt('Connection rating (1-6):', currentVal, async (raw) => {
     const n = parseInt(raw, 10);
     if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
     await Promise.all(contactIds.map(cid =>
@@ -569,6 +599,7 @@ function buildContactCard(merged, charMap, orgMap) {
   const org    = merged.organization_id ? orgMap[merged.organization_id] : null;
   const npc    = merged.npc_id ? charMap[merged.npc_id] : null;
   const skills = npc?.contact_skills || [];
+  const profileText = merged.description || npc?.description || null;
   const race   = merged.race || npc?.race || null;
   const prof   = merged.profession || npc?.title || npc?.archetype || null;
   // Connection: from NPC character record if linked, else from contact record
@@ -579,39 +610,13 @@ function buildContactCard(merged, charMap, orgMap) {
   const raceProf = [race, prof].filter(Boolean).join(' | ');
   const orgDisplay = org ? esc(org.name) : '[Unknown]';
 
-  // Activity state: NPC must be active AND at least one owner row must be active
-  const npcIsActive    = npc ? (npc.is_active !== false) : true;
-  const hasActiveOwner = !merged.owners || merged.owners.length === 0 || merged.owners.some(o => o.is_active !== false);
-  const isActive       = npcIsActive && hasActiveOwner;
+  const clickHandler = merged.npc_id
+    ? `onclick="openNpcModal(${merged.npc_id})" data-tip="View dossier"`
+    : `onclick="openNonNpcContactModal(${merged.id})" data-tip="View contact"`;
 
-  // Clickable only when NPC is active
-  const clickHandler = isActive
-    ? (merged.npc_id
-        ? `onclick="openNpcModal(${merged.npc_id})" title="View dossier"`
-        : `onclick="openNonNpcContactModal(${merged.id})" title="View contact"`)
-    : '';
-
-  // Active toggle (card-level) — admin only, acts on the NPC character record
-  const contactToggleBtn = npc
-    ? `<button class="card-active-btn gm-only ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${npc.id},${npcIsActive})" title="${npcIsActive ? 'Mark inactive' : 'Mark active'}">${npcIsActive ? '● active' : '○ activate'}</button>`
-    : '';
-  const contactOverlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
-
-  const myCharIds = getMyCharIds();
   const ownerRows = (merged.owners || []).map(o => {
     const ownerChar = charMap[o.owner_id];
     const name = ownerChar ? esc(ownerChar.name) : `#${o.owner_id}`;
-    const rowActive = o.is_active !== false;
-    const canToggleRow = isAdminMode() || myCharIds.has(o.owner_id);
-    if (!rowActive) {
-      return `
-        <div class="cc-via-row cc-via-row-inactive">
-          <span class="cc-via-name" style="color:var(--red)">${name} <span style="font-size:0.65rem;letter-spacing:1px">(INACTIVE)</span></span>
-          ${canToggleRow
-            ? `<button class="cc-via-toggle-btn" onclick="event.stopPropagation();toggleContactActive(${o.contact_id},false)" title="Reactivate">○ reactivate</button>`
-            : `<button class="cc-via-toggle-btn cc-via-toggle-other" disabled title="Managed by another runner">○ inactive</button>`}
-        </div>`;
-    }
     return `
       <div class="cc-via-row">
         <span class="cc-via-name">${name}</span>
@@ -620,39 +625,35 @@ function buildContactCard(merged, charMap, orgMap) {
           <span class="cc-via-dots">${loyaltyDots(o.loyalty||0,6)}</span>
           <span class="cc-via-num">${o.loyalty||0}</span>
         </div>
-        ${canToggleRow
-          ? `<button class="cc-via-toggle-btn cc-via-toggle-active" onclick="event.stopPropagation();toggleContactActive(${o.contact_id},true)" title="Mark inactive">● active</button>`
-          : `<button class="cc-via-toggle-btn cc-via-toggle-other" disabled title="Managed by another runner">● active</button>`}
       </div>`;
   });
 
   // Connection edit: NPC-linked patches the character; non-NPC patches the contact record
   const connEditBtn = npc
-    ? `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchNpcConnection(${npc.id},${connVal})">✎</button>`
-    : `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchConnection('${cardKey}',${connVal},${contactIds})">✎</button>`;
+    ? `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchNpcConnection(${npc.id},${connVal})">[edit]</button>`
+    : `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchConnection('${cardKey}',${connVal},${contactIds})">[edit]</button>`;
 
   return `
     <div class="contact-card cc-clickable" ${clickHandler}>
-      ${contactToggleBtn}
-      ${contactOverlay}
       <div class="cc-head">
         <div class="cc-name">${esc(merged.name)}</div>
       </div>
       ${raceProf ? `<div style="margin-bottom:6px"><span class="cc-race-prof">${esc(raceProf)}</span></div>` : ''}
       <div class="cc-org"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${orgDisplay}</div>
-      <div class="cc-connection-gm" title="${CONNECTION_TIPS[connVal] || ''}">
+      <div class="cc-connection-gm" data-tip="${CONNECTION_TIPS[connVal] || ''}">
         <span class="cc-conn-lbl">Connection</span>
         <span class="cc-via-dots">${loyaltyDots(connVal,6)}</span>
         <span class="cc-via-num">${connVal}</span>
       </div>
       <div class="cc-known-via-lbl">Known via</div>
       ${ownerRows.join('')}
-      ${merged.description ? `<div class="cc-desc">${esc(merged.description)}</div>` : ''}
       ${skills.length ? `
         <div class="cc-skills">
           <div class="cc-skills-lbl">Services</div>
           ${skills.map(s => `<div class="cc-skill">&#8250; ${esc(s)}</div>`).join('')}
         </div>` : ''}
+      ${profileText ? `
+        <div class="cc-profile-text">${esc(profileText)}</div>` : ''}
     </div>`;
 }
 
@@ -661,7 +662,7 @@ function toggleLocDesc(id) {
   expandedLocs[id] = !expandedLocs[id];
   const el  = document.getElementById(`lc-desc-${id}`);
   const btn = document.getElementById(`lc-xbtn-${id}`);
-  if (el)  el.classList.toggle('lc-desc-expanded', expandedLocs[id]);
+  if (el)  el.classList.toggle('expanded', expandedLocs[id]);
   if (btn) btn.textContent = expandedLocs[id] ? '[ collapse ]' : '[ expand ]';
 }
 
@@ -669,11 +670,11 @@ function buildLocCard(loc, orgMap) {
   const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
   const longDesc = loc.description && loc.description.length > 100;
   return `
-    <div class="loc-card" onclick="openLocEditModal(${loc.id})" class="clickable" title="View location">
+    <div class="loc-card" onclick="openLocEditModal(${loc.id})" class="clickable" data-tip="View location">
       <div class="lc-name">${esc(loc.name)}</div>
       <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
       ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
-      ${loc.description ? `<div class="lc-desc" id="lc-desc-${loc.id}">${esc(loc.description)}</div>` : ''}
+      ${loc.description ? `<div class="desc-clamp-3" id="lc-desc-${loc.id}">${esc(loc.description)}</div>` : ''}
       ${longDesc ? `<div><button class="oc-expand-btn" id="lc-xbtn-${loc.id}" onclick="event.stopPropagation();toggleLocDesc(${loc.id})">[ expand ]</button></div>` : ''}
     </div>`;
 }
@@ -684,7 +685,7 @@ function toggleNpcDesc(id) {
   expandedNpcs[id] = !expandedNpcs[id];
   const el  = document.getElementById(`npc-desc-${id}`);
   const btn = document.getElementById(`npc-xbtn-${id}`);
-  if (el)  el.classList.toggle('npc-desc-expanded', expandedNpcs[id]);
+  if (el)  el.classList.toggle('expanded', expandedNpcs[id]);
   if (btn) btn.textContent = expandedNpcs[id] ? '[ collapse ]' : '[ expand ]';
 }
 
@@ -693,7 +694,7 @@ function togglePcDesc(id) {
   expandedPcs[id] = !expandedPcs[id];
   const el  = document.getElementById(`pc-desc-${id}`);
   const btn = document.getElementById(`pc-xbtn-${id}`);
-  if (el)  el.classList.toggle('pc-desc-expanded', expandedPcs[id]);
+  if (el)  el.classList.toggle('expanded', expandedPcs[id]);
   if (btn) btn.textContent = expandedPcs[id] ? '[ collapse ]' : '[ expand ]';
 }
 
@@ -701,22 +702,22 @@ function togglePcDesc(id) {
 function reapplyExpanded() {
   for (const [id, v] of Object.entries(expandedOrgs)) {
     if (!v) continue;
-    const el = document.getElementById(`oc-desc-${id}`); if (el) el.classList.add('oc-desc-expanded');
+    const el = document.getElementById(`oc-desc-${id}`); if (el) el.classList.add('expanded');
     const btn = document.getElementById(`oc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
   }
   for (const [id, v] of Object.entries(expandedNpcs)) {
     if (!v) continue;
-    const el = document.getElementById(`npc-desc-${id}`); if (el) el.classList.add('npc-desc-expanded');
+    const el = document.getElementById(`npc-desc-${id}`); if (el) el.classList.add('expanded');
     const btn = document.getElementById(`npc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
   }
   for (const [id, v] of Object.entries(expandedLocs)) {
     if (!v) continue;
-    const el = document.getElementById(`lc-desc-${id}`); if (el) el.classList.add('lc-desc-expanded');
+    const el = document.getElementById(`lc-desc-${id}`); if (el) el.classList.add('expanded');
     const btn = document.getElementById(`lc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
   }
   for (const [id, v] of Object.entries(expandedPcs)) {
     if (!v) continue;
-    const el = document.getElementById(`pc-desc-${id}`); if (el) el.classList.add('pc-desc-expanded');
+    const el = document.getElementById(`pc-desc-${id}`); if (el) el.classList.add('expanded');
     const btn = document.getElementById(`pc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
   }
 }
@@ -743,11 +744,11 @@ function buildCharCard(char, orgMap = {}) {
   const isMine = char.is_pc && _myCharIds.has(char.id);
   const isUnclaimed = char.is_pc && !char.is_claimed;
 
-  const canToggle = isAdminMode() || (char.is_pc && isMine);
+  const canToggle = char.is_pc && (isAdminMode() || isMine);
   const toggleBtn = canToggle
-    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}${!char.is_pc ? ' gm-only' : ''}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" title="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '● active' : '○ activate'}</button>`
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" data-tip="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '* active' : 'o activate'}</button>`
     : '';
-  const overlay = isActive ? '' : `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>`;
+  const overlay = char.is_pc && !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   const claimBtn = char.is_pc && !isAdminMode() && isUnclaimed
     ? `<button class="btn btn-green ws-card-action" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
     : '';
@@ -755,12 +756,12 @@ function buildCharCard(char, orgMap = {}) {
     ? `<button class="btn ws-card-action" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
     : '';
 
-  const cardClass = `char-card ${char.is_pc ? `is-pc${isActive ? ' npc-clickable' : ''}` : (isActive ? 'npc-clickable' : '')}`;
+  const cardClass = `char-card ${char.is_pc ? `is-pc${isActive ? ' npc-clickable' : ''}` : 'npc-clickable'}`;
   const clickAttr = char.is_pc && (isAdminMode() || isActive)
-    ? `onclick="openCharEditModal(${char.id})" title="View dossier" style="cursor:pointer;position:relative"`
+    ? `onclick="openCharEditModal(${char.id})" data-tip="View dossier" style="cursor:pointer;position:relative"`
     : char.is_pc
       ? `style="cursor:default;position:relative"`
-      : (isActive ? `onclick="openNpcModal(${char.id})" title="View dossier"` : '');
+      : `onclick="openNpcModal(${char.id})" data-tip="View dossier"`;
 
   return `
     <div class="${cardClass}" ${clickAttr}>
@@ -768,20 +769,20 @@ function buildCharCard(char, orgMap = {}) {
       ${overlay}
       <div class="ch-name">${esc(char.name)}</div>
       ${char.is_pc
-        ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" title="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}</span></div>`
+        ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" data-tip="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}</span></div>`
         : (raceProf ? `<div><span class="cc-race-prof">${esc(raceProf)}</span></div>` : '')}
       ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
       <div class="ch-meta">
         ${char.nationality ? `<div class="ws-nationality">${esc(char.nationality)}</div>` : ''}
         ${char.description
           ? char.is_pc
-            ? `<div class="pc-desc" id="pc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
+            ? `<div class="desc-clamp-3" id="pc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="pc-xbtn-${char.id}" onclick="event.stopPropagation();togglePcDesc(${char.id})">[ expand ]</button></div>` : ''}`
-            : `<div class="npc-desc" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
+            : `<div class="desc-clamp-3" id="npc-desc-${char.id}" style="margin-top:6px">${esc(char.description)}</div>
                ${longDesc ? `<div><button class="oc-expand-btn" id="npc-xbtn-${char.id}" onclick="event.stopPropagation();toggleNpcDesc(${char.id})">[ expand ]</button></div>` : ''}`
           : ''}
         ${repStr ? `<div class="ch-finance ws-ch-stat" style="margin-top:4px"><span style="color:var(--steel-blue)">STREET REP: </span>${repStr}</div>` : ''}
-        ${paStr  ? `<div class="ch-finance ws-ch-stat" style="color:var(--steel-blue)" title="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
+        ${paStr  ? `<div class="ch-finance ws-ch-stat" style="color:var(--steel-blue)" data-tip="${PA_TIPS[paStr] || ''}">PUBLIC AWARENESS: ${paStr}</div>` : ''}
         ${heatStr && isAdminMode()
           ? `<div class="ch-finance ws-ch-stat"><span style="color:var(--steel-blue)">HEAT: </span>${heatStr} <span style="color:var(--text-dim);font-size:.58rem">(${heatVal})</span></div>`
           : heatStr && isMine
@@ -806,7 +807,7 @@ function section(key, title, html, manageUrl) {
     <hr class="rule">`;
 }
 
-// ── Faction Reputation ────────────────────────────────────────
+// -- Faction Reputation ----------------------------------------
 const _standingsStore = {};  // charId -> standings array; populated in buildFactionRepSection
 const STANDING_TIERS = [
   [-10, -7, 'hostile'],
@@ -876,13 +877,13 @@ function buildFactionRepSection(activePcs, repStore, myCharIds) {
 
   if (!cards.length) {
     return admin
-      ? '<div class="empty-lead" style="margin:10px 0">No faction standings on record for any active PC.</div>'
-      : '<div class="empty-lead" style="margin:10px 0">No notable faction ties on record for your runners.</div>';
+      ? '<div class="empty-msg" style="margin:10px 0">No faction standings on record for any active PC.</div>'
+      : '<div class="empty-msg" style="margin:10px 0">No notable faction ties on record for your runners.</div>';
   }
   return `<div class="faction-grid">${cards.join('')}</div>`;
 }
 
-// ── Standing Editor ─────────────────────────────────────────
+// -- Standing Editor -----------------------------------------
 let _seCharId   = null;
 let _seCharName = null;
 let _seOrgData  = [];   // [{org_id, org_name, standing_id, standing}]
@@ -984,7 +985,7 @@ async function saveStandingEditor() {
   }
   await loadAll();
   closeStandingEditor();
-  if (errors) showAlert(`${errors} standing(s) failed to save — check console.`);
+  if (errors) showAlert(`${errors} standing(s) failed to save -- check console.`);
 }
 
 async function resetPcData() {
@@ -1005,8 +1006,8 @@ async function resetPcData() {
   );
 }
 
-// ── Org grouping config ───────────────────────────────────────
-// Maps every known org_type value → canonical display group
+// -- Org grouping config ---------------------------------------
+// Maps every known org_type value -> canonical display group
 const TYPE_GROUP = {
   'megacorp':              'megacorp',
   'government':            'government',
@@ -1025,14 +1026,14 @@ const ORG_ORDER  = ['megacorp','government','syndicate','gang','fixer_network','
 const ORG_LABELS = {
   megacorp:   'Megacorporate Presence',
   government: 'Law Enforcement & Government',
-  syndicate:  'Organized Crime — Syndicates',
+  syndicate:  'Organized Crime -- Syndicates',
   gang:       'Street Gangs',
   fixer_network: 'Fixer Networks',
   cult:       'Cults & Fringe Groups',
   other:      'Other Organizations',
 };
 
-// ── LTG / Org-edit helpers ────────────────────────────────────
+// -- LTG / Org-edit helpers ------------------------------------
 const OE_VIS_ORDER   = { listed: 0, unlisted: 1, black: 2 };
 const OE_COLOR_ORDER = { blue: 0, green: 1, orange: 2, red: 3, black: 4 };
 function oeRatingSort(r) {
@@ -1042,12 +1043,7 @@ function oeRatingSort(r) {
 }
 const OE_VIS_OPTS = `<option value="listed">Listed</option><option value="unlisted">Unlisted</option><option value="black">Black</option>`;
 
-const OE_RATING_OPTS = `
-  <option value="Blue-3">Blue-3</option>
-  <option value="Green-4">Green-4</option><option value="Green-5">Green-5</option><option value="Green-6">Green-6</option><option value="Green-8">Green-8</option>
-  <option value="Orange-5">Orange-5</option><option value="Orange-6">Orange-6</option><option value="Orange-8">Orange-8</option><option value="Orange-9">Orange-9</option>
-  <option value="Red-6">Red-6</option><option value="Red-8">Red-8</option><option value="Red-9">Red-9</option><option value="Red-10">Red-10</option>
-  <option value="Black-8">Black-8</option><option value="Black-9">Black-9</option><option value="Black-10">Black-10</option><option value="Black-11">Black-11</option><option value="Black-12">Black-12</option>`;
+// buildLTGCodeOpts / buildSecValOpts / parseSan live in shared.js
 
   const OE_DEFAULT_RTG = 'NA/UCAS-SEA';
 
@@ -1064,8 +1060,8 @@ let oeHostCount = 0;
 })();
 
 function oeBuildRTGOptions(selected) {
-  return '<option value="">— Select RTG —</option>' +
-    oeRTGs.map(r => `<option value="${esc(r.code)}"${r.code===selected?' selected':''}>${esc(r.code)} — ${esc(r.region||'')}</option>`).join('');
+  return '<option value="">-- Select RTG --</option>' +
+    oeRTGs.map(r => `<option value="${esc(r.code)}"${r.code===selected?' selected':''}>${esc(r.code)} -- ${esc(r.region||'')}</option>`).join('');
 }
 
 function oeGenerateLTG() {
@@ -1102,8 +1098,8 @@ function oeAddTelecom(data) {
     <td><input type="text" placeholder="(206) 555-0100" data-field="number" value="${esc(data?.number||'')}" inputmode="tel"></td>
     <td><input type="text" placeholder="Main switchboard..." data-field="description" value="${esc(data?.description||'')}"></td>
     <td><select data-field="visibility">${selVis}</select></td>
-    <td class="gm-only text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
-    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeTelecomBody','oeEmptyTelecom',5)">✕</button></td>`;
+    <td class="gm-only" style="width:28px;text-align:center;padding:0 4px"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeTelecomBody','oeEmptyTelecom',5)">x</button></td>`;
   const numInput = tr.querySelector('[data-field="number"]');
   numInput.addEventListener('input', () => oeFormatTelecom(numInput));
   tbody.appendChild(tr);
@@ -1119,16 +1115,19 @@ function oeAddHost(data) {
   const ltgCode    = data?.ltg || oeGenerateLTG();
   const defaultRTG = data?.rtg ?? OE_DEFAULT_RTG;
   const selVis    = OE_VIS_OPTS.replace(`value="${data?.visibility||'listed'}"`, `value="${data?.visibility||'listed'}" selected`);
-  const selRating = OE_RATING_OPTS.replace(`value="${data?.san_access_rating||''}"`, `value="${data?.san_access_rating||''}" selected`);
+  const { code: secCode, value: secVal } = parseSan(data?.san_access_rating);
   tr.innerHTML = `
-    <td><select data-field="rtg" style="min-width:160px">${oeBuildRTGOptions(defaultRTG)}</select></td>
-    <td><input type="text" data-field="ltg" value="${esc(ltgCode)}" style="width:70px;color:var(--text-dim)" readonly title="Auto-generated LTG code"></td>
+    <td><select data-field="rtg" style="min-width:115px">${oeBuildRTGOptions(defaultRTG)}</select></td>
+    <td><input type="text" data-field="ltg" value="${esc(ltgCode)}" style="width:70px;color:var(--text-dim)" readonly data-tip="Auto-generated LTG code"></td>
     <td><input type="text" placeholder="ID001" data-field="id_code" value="${esc(data?.id_code||'')}" style="width:105px"></td>
     <td><input type="text" placeholder="Description..." data-field="description" value="${esc(data?.description||'')}"></td>
-    <td><select data-field="san_access_rating" style="width:110px">${selRating}</select></td>
+    <td style="white-space:nowrap"><div style="display:flex;gap:3px">
+      <select data-field="san_access_code" style="width:91px">${buildLTGCodeOpts(secCode)}</select>
+      <select data-field="san_access_value" style="width:54px">${buildSecValOpts(secVal)}</select>
+    </div></td>
     <td><select data-field="visibility" style="width:90px">${selVis}</select></td>
-    <td class="gm-only text-center"><input type="checkbox" data-field="revealed" ${data?.revealed ? 'checked' : ''} title="Reveal to players"></td>
-    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',8)">✕</button></td>`;
+    <td class="gm-only" style="width:28px;text-align:center;padding:0 4px"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveRow('${id}','oeHostBody','oeEmptyHost',8)">x</button></td>`;
   const idInput = tr.querySelector('[data-field="id_code"]');
   idInput.addEventListener('input', () => oeEnforceIdCode(idInput));
   tbody.appendChild(tr);
@@ -1140,7 +1139,7 @@ function oeRemoveRow(id, tbodyId, emptyId, cols) {
   if (!tbody.querySelector(`tr:not(#${emptyId})`)) {
     const tr = document.createElement('tr');
     tr.id = emptyId;
-    tr.innerHTML = `<td colspan="${cols}" class="empty-lead">None defined</td>`;
+    tr.innerHTML = `<td colspan="${cols}" class="empty-msg">None defined</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -1157,8 +1156,12 @@ function oeGetLTGs() {
   const telecoms = oeGetTableData('oeTelecomBody', 'oeEmptyTelecom', ['number','description','visibility','revealed'])
     .map(t => ({ type:'telecom', ...t }))
     .sort((a,b) => (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9));
-  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','san_access_rating','visibility','revealed'])
-    .map(h => ({ type:'matrix_host', ...h }))
+  const hosts = oeGetTableData('oeHostBody', 'oeEmptyHost', ['rtg','ltg','id_code','description','san_access_code','san_access_value','visibility','revealed'])
+    .map(({ san_access_code: code, san_access_value: val, ...rest }) => ({
+      type: 'matrix_host',
+      san_access_rating: (code && val) ? `${code}-${val}` : null,
+      ...rest,
+    }))
     .sort((a,b) => {
       const vd = (OE_VIS_ORDER[a.visibility]??9) - (OE_VIS_ORDER[b.visibility]??9);
       return vd !== 0 ? vd : oeRatingSort(a.san_access_rating) - oeRatingSort(b.san_access_rating);
@@ -1166,7 +1169,7 @@ function oeGetLTGs() {
   return [...telecoms, ...hosts];
 }
 
-// ── Org Edit Modal ────────────────────────────────────────────
+// -- Org Edit Modal --------------------------------------------
 const PREDEFINED_ORG_TYPES = [
   'megacorp','corporation','security contractor',
   'government','nation-state',
@@ -1201,7 +1204,7 @@ function oeAddLeader(data) {
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun..." data-field="title" value="${esc(data?.title||'')}"></td>
     <td><input type="text" placeholder="Notes..." data-field="notes" value="${esc(data?.notes||'')}"></td>
-    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveLeader('${id}')">✕</button></td>`;
+    <td class="gm-only"><button type="button" class="btn btn-red" onclick="oeRemoveLeader('${id}')">x</button></td>`;
   tbody.appendChild(tr);
 }
 
@@ -1211,7 +1214,7 @@ function oeRemoveLeader(id) {
   if (!tbody.querySelector('tr:not(#oeEmptyLead)')) {
     const tr = document.createElement('tr');
     tr.id = 'oeEmptyLead';
-    tr.innerHTML = '<td colspan="4" class="empty-lead">No executives defined</td>';
+    tr.innerHTML = '<td colspan="4" class="empty-msg">No executives defined</td>';
     tbody.appendChild(tr);
   }
 }
@@ -1256,10 +1259,10 @@ function oeRenderRelations(currentOrgId) {
     document.getElementById(lid).innerHTML = orgs.length
       ? orgs.map(o => `
         <label class="chk-item">
-          <input type="checkbox" value="${o.id}" class="rel-chk" ${set.has(o.id) ? 'checked' : ''}>
+          <input type="checkbox" value="${o.id}" class="rel-chk chk-select" ${set.has(o.id) ? 'checked' : ''}>
           <span>${esc(o.name)} <span class="ws-dim-tier">[T${o.tier}]</span></span>
           <span style="margin-left:auto">
-            <input type="checkbox" value="${o.id}" class="rev-chk" ${revSet.has(o.id) ? 'checked' : ''} title="Reveal to players">
+            <input type="checkbox" value="${o.id}" class="rev-chk chk-reveal" ${revSet.has(o.id) ? 'checked' : ''} data-tip="Reveal to players">
           </span>
         </label>`).join('')
       : '<div class="ws-empty" style="padding:8px">No other organizations</div>';
@@ -1279,7 +1282,7 @@ function renderOrgDossierView(org) {
     ? `<span class="text-green">&#9679; ACTIVE</span>`
     : `<span class="text-dim">&#9675; INACTIVE</span>`;
 
-  // Leadership — two-column grid: name | title (aligned, close together)
+  // Leadership -- two-column grid: name | title (aligned, close together)
   const leads = (org.leadership || []);
   const leadHtml = leads.length
     ? `<div class="dossier-cmd-grid">${leads.map(l =>
@@ -1381,7 +1384,7 @@ function openOrgEditModal(orgId) {
   const adminMode = isAdminMode();
   document.getElementById('oeTitle').textContent = `Intelligence Report // ${org.name}`;
 
-  // Populate header badge: classification · tier · status
+  // Populate header badge: classification - tier - status
   const typeLabel = (org.org_type || 'UNKNOWN').toUpperCase();
   const tier = org.tier || 1;
   const isActive = org.is_active !== false;
@@ -1436,12 +1439,12 @@ function openOrgEditModal(orgId) {
   lbl.textContent = isActiveCb.checked ? 'ACTIVE' : 'INACTIVE';
   lbl.style.color  = isActiveCb.checked ? 'var(--green)' : 'var(--text-dim)';
   oeSetTier(org.tier || 1);
-  document.getElementById('oeLeadBody').innerHTML = '<tr id="oeEmptyLead"><td colspan="4" class="empty-lead">No executives defined</td></tr>';
+  document.getElementById('oeLeadBody').innerHTML = '<tr id="oeEmptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
   oeLeaderCount = 0;
   (org.leadership || []).forEach(l => oeAddLeader(l));
   oeRenderRelations(orgId);
-  document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="5" class="empty-lead">No telecom numbers</td></tr>';
-  document.getElementById('oeHostBody').innerHTML    = '<tr id="oeEmptyHost"><td colspan="8" class="empty-lead">No matrix hosts</td></tr>';
+  document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="5" class="empty-msg">No telecom numbers</td></tr>';
+  document.getElementById('oeHostBody').innerHTML    = '<tr id="oeEmptyHost"><td colspan="8" class="empty-msg">No matrix hosts</td></tr>';
   oeTelecomCount = 0; oeHostCount = 0;
   (org.ltgs || []).forEach(e => {
     if (e.type === 'telecom')          oeAddTelecom(e);
@@ -1509,7 +1512,7 @@ async function saveOrgEdit() {
   }
 }
 
-// ── Location Edit Modal ───────────────────────────────────────
+// -- Location Edit Modal ---------------------------------------
 let leEditingId = null;
 
 function renderLocDossier(loc) {
@@ -1517,7 +1520,7 @@ function renderLocDossier(loc) {
   const typeBadge = loc.location_type
     ? `<span class="cc-race-prof ws-loc-type">${esc(loc.location_type.toUpperCase())}</span>` : '';
   const orgLine = orgName
-    ? `<div class="loc-org-line"><span class="cc-org-lbl">Controlling Organization ▸</span>&nbsp;<span class="text-amber">${esc(orgName)}</span></div>` : '';
+    ? `<div class="loc-org-line"><span class="cc-org-lbl">Controlling Organization ></span>&nbsp;<span class="text-amber">${esc(orgName)}</span></div>` : '';
   const fields = [
     ['City',           loc.city],
     ['District',       loc.district],
@@ -1562,7 +1565,7 @@ function openLocEditModal(locId) {
     document.getElementById('locFormContent').style.display = '';
     document.getElementById('locEditFoot').style.display = '';
     document.getElementById('le-name').value = loc.name || '';
-  // Populate type dropdown — handle Custom values
+  // Populate type dropdown -- handle Custom values
   const leLocTypeVal = loc.location_type || '';
   const leLocTypeSel = document.getElementById('le-location_type');
   const leLocTypeOpts = Array.from(leLocTypeSel.options).map(o => o.value);
@@ -1581,7 +1584,7 @@ function openLocEditModal(locId) {
     document.getElementById('le-description').value = loc.description || '';
     document.getElementById('le-notes').value = loc.notes || '';
     const sel = document.getElementById('le-controlling_org_id');
-    sel.innerHTML = '<option value="">— Independent / Unknown —</option>' +
+    sel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
       Object.values(orgStore).map(o => `<option value="${o.id}"${o.id===loc.controlling_org_id?' selected':''}>${esc(o.name)}</option>`).join('');
     document.getElementById('leAlert').className = 'alert';
   } else {
@@ -1660,7 +1663,7 @@ async function saveLocEdit() {
   }
 }
 
-// ── Character Edit Modal ──────────────────────────────────────
+// -- Character Edit Modal --------------------------------------
 let ceEditingId  = null;
 let ceFullArchHtml = null; // cached full archetype dropdown HTML, set on first openCharEditModal call
 
@@ -1674,16 +1677,16 @@ function setCeDossierMode(readOnly) {
     const archVal = archSel.value === 'Custom'
       ? document.getElementById('ce-arch-custom').value
       : archSel.value;
-    document.getElementById('ce-archetype-val').textContent = archVal || '—';
+    document.getElementById('ce-archetype-val').textContent = archVal || '--';
     document.getElementById('ce-archetype-val').style.display = 'block';
     archSel.style.display = 'none';
     document.getElementById('ce-arch-custom-wrap').style.display = 'none';
     const raceSel = document.getElementById('ce-race');
-    document.getElementById('ce-race-val').textContent = raceSel.options[raceSel.selectedIndex]?.text || '—';
+    document.getElementById('ce-race-val').textContent = raceSel.options[raceSel.selectedIndex]?.text || '--';
     document.getElementById('ce-race-val').style.display = 'block';
     raceSel.style.display = 'none';
     const orgSel = document.getElementById('ce-org_id');
-    document.getElementById('ce-org_id-val').textContent = orgSel.options[orgSel.selectedIndex]?.text || '—';
+    document.getElementById('ce-org_id-val').textContent = orgSel.options[orgSel.selectedIndex]?.text || '--';
     document.getElementById('ce-org_id-val').style.display = 'block';
     orgSel.style.display = 'none';
     // Hide type/active toggles (edit-only concept)
@@ -1736,13 +1739,13 @@ function openCharEditModal(charId) {
   document.getElementById('ce-contact_skills').value   = (char.contact_skills || []).join('\n');
 
   const orgSel = document.getElementById('ce-org_id');
-  orgSel.innerHTML = '<option value="">— Independent / Unknown —</option>' +
+  orgSel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
     Object.values(orgStore).map(o =>
       `<option value="${o.id}"${o.id === char.organization_id ? ' selected' : ''}>${esc(o.name)}</option>`
     ).join('');
 
   if (char.is_pc) {
-    // ── DOSSIER MODE (PC) ─────────────────────────────────────
+    // -- DOSSIER MODE (PC) -------------------------------------
     document.getElementById('ceTitle').textContent = `Dossier // ${char.name}`;
     const ceRaceProf = [char.race, char.title || char.archetype].filter(Boolean).join(' | ');
     document.getElementById('ceBadge').innerHTML = ceRaceProf
@@ -1789,7 +1792,7 @@ function openCharEditModal(charId) {
     return;
 
   } else {
-    // ── EDIT MODE (NPC) ───────────────────────────────────────
+    // -- EDIT MODE (NPC) ---------------------------------------
     document.getElementById('pcDossierBody').style.display = 'none';
     document.getElementById('ceFormBody').style.display = '';
     document.getElementById('ceTitle').textContent = `Edit // ${char.name}`;
@@ -1830,7 +1833,7 @@ function closeCharEditModal() {
 async function saveCharEdit() {
   const char = charMapStore[ceEditingId];
 
-  // ── PC DOSSIER MODE: only save GM Notes ──────────────────────
+  // -- PC DOSSIER MODE: only save GM Notes ----------------------
   if (char?.is_pc) {
     try {
       const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
@@ -1848,7 +1851,7 @@ async function saveCharEdit() {
     return;
   }
 
-  // ── NPC EDIT MODE: full save ──────────────────────────────────
+  // -- NPC EDIT MODE: full save ----------------------------------
   const name  = document.getElementById('ce-name').value.trim();
   const title = document.getElementById('ce-title').value.trim();
   if (!name || !title) {
@@ -1895,7 +1898,7 @@ async function saveCharEdit() {
   }
 }
 
-// ── Main data load ────────────────────────────────────────────
+// -- Main data load --------------------------------------------
 async function loadAll() {
   try {
     const [orgsRes, locsRes, charsRes, contactsRes, statsRes, mineRes] = await Promise.all([
@@ -1916,7 +1919,7 @@ async function loadAll() {
     ]);
     _myCharIds = new Set(mineData.ids || []);
 
-    // ── Wire party stats ──────────────────────────────────────
+    // -- Wire party stats --------------------------------------
     if (stats) {
       charRepStore = stats.char_rep || {};
       const heatEl = document.getElementById('sb-heat');
@@ -1962,39 +1965,35 @@ async function loadAll() {
     locStore     = Object.fromEntries(locs.map(l => [l.id, l]));
 
     // Active contact count: only merged contacts where NPC is active AND at least one owner row is active
-    const activeContactCount = mergedContacts.filter(m => {
-      const npc = m.npc_id ? charMap[m.npc_id] : null;
-      return (npc ? npc.is_active !== false : true) &&
-             (!m.owners || m.owners.length === 0 || m.owners.some(o => o.is_active !== false));
-    }).length;
+    const activeContactCount = mergedContacts.length;
     document.getElementById('sc-contacts').textContent = activeContactCount;
 
     let html = '';
 
-    // ── 1. Team (expanded) ────────────────────────────────────
+    // -- 1. Team (expanded) ------------------------------------
     if (pcs.length)
       html += section('pcs', 'Team',
         `<div class="char-grid">${pcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`
         + `<div class="gm-only" style="text-align:left;margin-top:12px"><button class="btn btn-red btn-sm" onclick="resetPcData()">&gt;&gt; RESET ALL PC DATA</button></div>`,
         'manage-characters.html');
 
-    // ── 2. Contacts (expanded) ────────────────────────────────
+    // -- 2. Contacts (expanded) --------------------------------
     if (mergedContacts.length)
       html += section('contacts', 'Contacts',
         `<div class="contact-grid">${mergedContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
-    // ── 2.5 Faction Reputation ────────────────────────────────
+    // -- 2.5 Faction Reputation --------------------------------
     html += section('factions', 'Faction Reputation',
       buildFactionRepSection(activePcs, charRepStore, getMyCharIds()));
 
-    // ── 3. Persons of Interest (expanded) ─────────────────────
+    // -- 3. Persons of Interest (expanded) ---------------------
     if (npcs.length)
       html += section('npcs', 'Persons of Interest',
         `<div class="char-grid">${npcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
-    // ── 4. Organizations (collapsed) ─────────────────────────
+    // -- 4. Organizations (collapsed) -------------------------
     const activeOrgs = orgs.filter(o => o.is_active);
     const byGroup = {};
     activeOrgs.forEach(o => {
@@ -2010,13 +2009,13 @@ async function loadAll() {
         'manage-organizations.html', true);
     });
 
-    // ── 5. Locations (collapsed) ──────────────────────────────
+    // -- 5. Locations (collapsed) ------------------------------
     if (locs.length)
       html += section('locs', 'Known Locations',
         `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
         'manage-locations.html', true);
 
-    const _newWorldHtml = html || '<div class="loading">No world data found — run the seed script.</div>';
+    const _newWorldHtml = html || '<div class="loading">No world data found -- run the seed script.</div>';
     if (_newWorldHtml !== _lastWorldHtml) {
       _lastWorldHtml = _newWorldHtml;
       document.getElementById('worldContent').innerHTML = _newWorldHtml;
@@ -2061,7 +2060,7 @@ async function releaseChar(charId) {
   }, 'Release');
 }
 
-// ── Styled dialog utilities (replace native confirm/alert/prompt) ────────
+// -- Styled dialog utilities (replace native confirm/alert/prompt) --------
 function showConfirm(message, onOk, confirmLabel = 'Confirm') {
   pausePoll();
   document.getElementById('srConfirmMsg').textContent = message;
@@ -2092,7 +2091,7 @@ function showAlert(message) {
 function showPrompt(message, defaultVal, onOk) {
   pausePoll();
   const overlay = document.getElementById('srPromptOverlay');
-  // Use classList.add/remove('open') — ltg-overlay CSS controls visibility via opacity/pointer-events
+  // Use classList.add/remove('open') -- ltg-overlay CSS controls visibility via opacity/pointer-events
   const input   = document.getElementById('srPromptInput');
   document.getElementById('srPromptMsg').textContent = message;
   input.value = defaultVal ?? '';

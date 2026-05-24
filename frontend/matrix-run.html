@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matrix Run | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html" class="active">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; MATRIX RUN <em class="sep">//</em> Live Intrusion Interface</div>
+  <div class="page-sub" style="color:var(--cyan)">DECKER OPERATIONS TERMINAL // AWAITING LOGIN...</div>
+
+  <div id="pageAlert" class="alert" style="margin-bottom:14px"></div>
+
+  <!-- -- SETUP VIEW ---------------------------------------------- -->
+  <div id="setupView">
+    <div class="mr-panel" style="max-width:900px;margin:0 auto">
+      <div class="panel-title panel-title-green">&gt;&gt; INITIATE MATRIX INTRUSION // Host Selection &amp; Decker Configuration</div>
+
+      <div id="hostSelectWrap">
+        <label>Target Host</label>
+        <select id="hostSelect">
+          <option value="">-- Loading hosts... --</option>
+        </select>
+      </div>
+
+      <div class="setup-grid">
+        <!-- Deck Stats -->
+        <div class="mr-section-head">&gt;&gt; DECK STATS</div>
+
+        <div class="mr-field">
+          <label>Decker Name</label>
+          <input type="text" id="cfg-name" placeholder="Ghost" maxlength="80">
+          <span class="tip">Optional handle. Default: Ghost.</span>
+        </div>
+        <div class="mr-field">
+          <label>Deck Mode</label>
+          <select id="cfg-mode">
+            <option value="hot">Hot -- Full simsense (no modifier)</option>
+            <option value="cool">Cool -- Reduced feedback (-2 dice)</option>
+            <option value="tortoise">Tortoise -- Minimal feedback (-4 dice)</option>
+          </select>
+          <span class="tip">hot/cool/tortoise. Affects damage and dice pool.</span>
+        </div>
+
+        <div class="mr-field">
+          <label>MPCP (1-20)</label>
+          <input type="number" id="cfg-mpcp" min="1" max="20" value="6">
+          <span class="tip">Master Persona Control Program. Deck brain. Affects Hacking Pool.</span>
+        </div>
+        <div class="mr-field">
+          <label>BOD (1-20)</label>
+          <input type="number" id="cfg-bod" min="1" max="20" value="4">
+          <span class="tip">Deck Body. Resistor against IC attacks on your persona.</span>
+        </div>
+        <div class="mr-field">
+          <label>Evasion (1-20)</label>
+          <input type="number" id="cfg-evasion" min="1" max="20" value="4">
+          <span class="tip">Deck Evasion. Defense against being traced/located.</span>
+        </div>
+        <div class="mr-field">
+          <label>Masking (1-20)</label>
+          <input type="number" id="cfg-masking" min="1" max="20" value="4">
+          <span class="tip">Deck Masking. Reduces Detection Factor -- lower means harder to detect.</span>
+        </div>
+        <div class="mr-field">
+          <label>Sensor (1-20)</label>
+          <input type="number" id="cfg-sensor" min="1" max="20" value="4">
+          <span class="tip">Deck Sensor. Helps analyze and locate IC/data.</span>
+        </div>
+
+        <!-- Persona Stats -->
+        <div class="mr-section-head">&gt;&gt; PERSONA STATS</div>
+
+        <div class="mr-field">
+          <label>Computer Skill (1-20)</label>
+          <input type="number" id="cfg-computer" min="1" max="20" value="4">
+          <span class="tip">Base dice for all system tests.</span>
+        </div>
+        <div class="mr-field">
+          <label>Intelligence (1-20)</label>
+          <input type="number" id="cfg-intelligence" min="1" max="20" value="4">
+          <span class="tip">Hacking Pool: floor((Intel + MPCP) / 3).</span>
+        </div>
+        <div class="mr-field">
+          <label>Quickness (1-12)</label>
+          <input type="number" id="cfg-quickness" min="1" max="12" value="4">
+          <span class="tip">Reaction = ceil((Quickness + Intel) / 2).</span>
+        </div>
+        <div class="mr-field">
+          <label>Willpower (1-20)</label>
+          <input type="number" id="cfg-willpower" min="1" max="20" value="4">
+          <span class="tip">Resist Black IC and simsense overload.</span>
+        </div>
+        <div class="mr-field">
+          <label>Body (1-12)</label>
+          <input type="number" id="cfg-body" min="1" max="12" value="3">
+          <span class="tip">Resist dump shock and Sparky discharge.</span>
+        </div>
+
+        <!-- Hardware Options -->
+        <div class="mr-section-head">&gt;&gt; HARDWARE OPTIONS</div>
+
+        <div class="mr-field">
+          <label>Hardening (0-6)</label>
+          <input type="number" id="cfg-hardening" min="0" max="6" value="0">
+          <span class="tip">+1 TN for gray/black IC MPCP attacks. Reduces Black IC power.</span>
+        </div>
+        <div class="mr-field">
+          <label>Response Increase (0-3)</label>
+          <input type="number" id="cfg-response-increase" min="0" max="3" value="0">
+          <span class="tip">+2 Reaction and +1D6 Initiative per point.</span>
+        </div>
+        <div class="mr-field">
+          <label>Jackpoint Modifier (-6 to +6)</label>
+          <input type="number" id="cfg-trace-factor" min="-6" max="6" value="0">
+          <span class="tip">Trace Factor component from jackpoint type. Console Access = -6, Workstation = -4.</span>
+        </div>
+        <div class="mr-field">
+          <label>Bandwidth Modifier (-6 to +6)</label>
+          <input type="number" id="cfg-bandwidth-mod" min="-6" max="6" value="0">
+          <span class="tip">Trace Factor component. Negative if icon BW exceeds I/O speed.</span>
+        </div>
+        <div class="mr-field">
+          <label>Active Memory (Mp)</label>
+          <input type="number" id="cfg-active-memory" min="0" step="10" value="0">
+          <span class="tip">Limits utilities loadable simultaneously. 0 = unlimited (ignore tracking).</span>
+        </div>
+        <div class="mr-field">
+          <label>I/O Speed (Mp/ct)</label>
+          <input type="number" id="cfg-io-speed" min="0" step="10" value="0">
+          <span class="tip">Max I/O bandwidth = Sensor x MPCP x 10 Mp.</span>
+        </div>
+        <div class="mr-field span2" style="padding-top:4px">
+          <div class="mr-checkbox-row">
+            <input type="checkbox" class="chk-reveal" id="cfg-iccm">
+            <label for="cfg-iccm">ICCM Biofeedback Filter</label>
+          </div>
+          <span class="tip">Allows Willpower vs Body choice vs Black IC. Lowers jack-out TN by 2.</span>
+        </div>
+
+        <!-- Utilities -->
+        <div class="mr-section-head">&gt;&gt; UTILITIES (RATING 0-20)</div>
+
+        <div class="mr-sub-head">Stealth / Trace</div>
+        <div class="mr-field">
+          <label>Sleaze <span style="color:#444">(passive DF)</span></label>
+          <input type="number" id="cfg-u-sleaze" min="0" max="20" value="0">
+          <span class="tip">Detection Factor: (Masking + Sleaze) / 2.</span>
+        </div>
+        <div class="mr-field">
+          <label>Camo <span style="color:#444">(Trace Factor +)</span></label>
+          <input type="number" id="cfg-u-camo" min="0" max="20" value="0">
+          <span class="tip">Adds to Trace Factor. Also reduces Redirect Datatrail TN.</span>
+        </div>
+
+        <div class="mr-sub-head">Operations</div>
+        <div class="mr-field">
+          <label>Deception</label>
+          <input type="number" id="cfg-u-deception" min="0" max="20" value="0">
+          <span class="tip">Logon / Logoff TN reduction.</span>
+        </div>
+        <div class="mr-field">
+          <label>Browse</label>
+          <input type="number" id="cfg-u-browse" min="0" max="20" value="0">
+          <span class="tip">Locate File / Slave / Access Node.</span>
+        </div>
+        <div class="mr-field">
+          <label>Analyze</label>
+          <input type="number" id="cfg-u-analyze" min="0" max="20" value="0">
+          <span class="tip">Analyze IC / Host / Security. Locate IC.</span>
+        </div>
+        <div class="mr-field">
+          <label>Evaluate</label>
+          <input type="number" id="cfg-u-evaluate" min="0" max="20" value="0">
+          <span class="tip">Locate Paydata.</span>
+        </div>
+        <div class="mr-field">
+          <label>Decrypt</label>
+          <input type="number" id="cfg-u-decrypt" min="0" max="20" value="0">
+          <span class="tip">Defeat scramble IC.</span>
+        </div>
+        <div class="mr-field">
+          <label>Crash</label>
+          <input type="number" id="cfg-u-crash" min="0" max="20" value="0">
+          <span class="tip">Crash application or host.</span>
+        </div>
+        <div class="mr-field">
+          <label>Mirrors</label>
+          <input type="number" id="cfg-u-mirrors" min="0" max="20" value="0">
+          <span class="tip">Decoy operation TN.</span>
+        </div>
+        <div class="mr-field">
+          <label>Validate</label>
+          <input type="number" id="cfg-u-validate" min="0" max="20" value="0">
+          <span class="tip">Validate / Invalidate Passcode. Dump Log.</span>
+        </div>
+        <div class="mr-field">
+          <label>Read/Write</label>
+          <input type="number" id="cfg-u-read-write" min="0" max="20" value="0">
+          <span class="tip">Download / Edit / Upload files.</span>
+        </div>
+        <div class="mr-field">
+          <label>Spoof</label>
+          <input type="number" id="cfg-u-spoof" min="0" max="20" value="0">
+          <span class="tip">Control / Edit / Monitor slave systems.</span>
+        </div>
+        <div class="mr-field">
+          <label>Relocate</label>
+          <input type="number" id="cfg-u-relocate" min="0" max="20" value="0">
+          <span class="tip">Defeats trace IC during location cycle. Not effective during hunt cycle.</span>
+        </div>
+
+        <div class="mr-sub-head">Combat / Defense</div>
+        <div class="mr-field">
+          <label>Attack</label>
+          <input type="number" id="cfg-u-attack" min="0" max="20" value="0">
+          <span class="tip">Offensive cybercombat pool.</span>
+        </div>
+        <div class="mr-field">
+          <label>Armor</label>
+          <input type="number" id="cfg-u-armor" min="0" max="20" value="0">
+          <span class="tip">Reduces IC attack Power. Loses 1 rating per hit.</span>
+        </div>
+        <div class="mr-field">
+          <label>Shield</label>
+          <input type="number" id="cfg-u-shield" min="0" max="20" value="0">
+          <span class="tip">Active parry. Net successes reduce attacker damage. Loses 1 per use.</span>
+        </div>
+        <div class="mr-field">
+          <label>Restore</label>
+          <input type="number" id="cfg-u-restore" min="0" max="20" value="0">
+          <span class="tip">Repairs BEMS attribute damage from cripplers. 1 pt per 2 successes.</span>
+        </div>
+        <div class="mr-field">
+          <label>Medic</label>
+          <input type="number" id="cfg-u-medic" min="0" max="20" value="0">
+          <span class="tip">Heals persona CM boxes. Loses 1 rating per use.</span>
+        </div>
+        <div class="mr-field">
+          <label>Cloak</label>
+          <input type="number" id="cfg-u-cloak" min="0" max="20" value="0">
+          <span class="tip">Evasion maneuver TN reduction.</span>
+        </div>
+        <div class="mr-field">
+          <label>Lock On</label>
+          <input type="number" id="cfg-u-lock-on" min="0" max="20" value="0">
+          <span class="tip">Sensor maneuver targeting aid.</span>
+        </div>
+
+        <!-- Computed Stats -->
+        <div class="computed-row" id="computedStats">
+          <div class="computed-stat">
+            <span class="cs-label">Hacking Pool</span>
+            <span class="cs-value" id="stat-hacking-pool">--</span>
+          </div>
+          <div class="computed-stat">
+            <span class="cs-label">Detection Factor</span>
+            <span class="cs-value" id="stat-df">--</span>
+          </div>
+          <div class="computed-stat">
+            <span class="cs-label">Reaction</span>
+            <span class="cs-value" id="stat-reaction">--</span>
+          </div>
+          <div class="computed-stat">
+            <span class="cs-label">Trace TN (base)</span>
+            <span class="cs-value" id="stat-trace-tn">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+        <button class="btn btn-green" style="flex:1;justify-content:center;padding:12px" id="startRunBtn" onclick="startRun()">&gt;&gt; Jack In // Start Run</button>
+        <span id="startSpinner" class="spinner" style="display:none">CONNECTING...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- RUN VIEW ------------------------------------------------ -->
+  <div id="runView" style="display:none">
+    <div class="mr-layout">
+
+      <!-- -- LEFT: Decker Status ---------------------- -->
+      <div class="mr-col-left">
+        <div class="mr-panel">
+          <div class="panel-title panel-title-green">&gt;&gt; DECKER STATUS</div>
+          <div class="decker-name" id="run-decker-name">Ghost</div>
+          <div class="decker-mode">Deck Mode: <span id="run-deck-mode">--</span></div>
+
+          <div style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase">Condition Monitor</div>
+          <div class="cond-row">
+            <div class="cond-label">Persona</div>
+            <div class="cond-boxes" id="persona-boxes"></div>
+            <div class="cond-count" id="persona-count">--/10</div>
+          </div>
+          <div class="cond-row">
+            <div class="cond-label">Physical</div>
+            <div class="cond-boxes" id="physical-boxes"></div>
+            <div class="cond-count" id="physical-count">--/10</div>
+          </div>
+          <div id="crashed-banner" style="display:none">
+            <span class="crashed-label">&gt;&gt; PERSONA CRASHED</span>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="hp-display">
+              <span class="hp-value" id="run-hp">--</span>
+              <span class="hp-label">Hacking Pool dice</span>
+            </div>
+            <div class="df-display">Detection Factor: <span id="run-df">--</span></div>
+          </div>
+
+          <div style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;padding-top:8px;border-top:1px solid #1a2a1a">Deck Stats</div>
+          <div class="deck-stats-row" id="run-deck-stats"></div>
+          <div class="ds-damage-row" id="run-mpcp-damage"></div>
+          <div class="ds-damage-row" id="run-persona-damage"></div>
+        </div>
+
+        <!-- Host info -->
+        <div class="mr-panel">
+          <div class="panel-title panel-title-green">&gt;&gt; HOST STATUS</div>
+          <div class="sec-code-display">Security: <span class="sec-code-value" id="run-sec-code">--</span> // Value <span class="sec-code-value" id="run-sec-value">--</span></div>
+          <div id="run-alert-badge" class="alert-badge alert-none">NONE</div>
+          <div id="run-status-badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="tally-display gm-only" id="run-tally-gm"></div>
+        </div>
+      </div>
+
+      <!-- -- RIGHT: IC + Log -------------------------- -->
+      <div class="mr-col-right">
+
+        <!-- Active IC -->
+        <div class="mr-panel">
+          <div class="panel-title panel-title-green">&gt;&gt; ACTIVE IC</div>
+          <div id="run-ic-list"><div class="empty-msg">No IC active</div></div>
+        </div>
+
+        <!-- Trap Doors -->
+        <div class="mr-panel" id="run-trap-door-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; TRAP DOORS</div>
+          <div id="run-trap-door-list"></div>
+        </div>
+
+        <!-- Key Paydata -->
+        <div class="mr-panel" id="run-key-paydata-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; KEY PAYDATA <em style="float:right;font-size:0.58rem;color:var(--amber)">OBJECTIVE</em></div>
+          <div id="run-key-paydata-list"></div>
+        </div>
+
+        <!-- Event log -->
+        <div class="mr-panel">
+          <div class="panel-title panel-title-green">&gt;&gt; EVENT LOG <em style="float:right;font-size:0.58rem;color:var(--text-dim)" id="run-turn-badge"></em></div>
+          <div class="event-log" id="run-event-log">
+            <div class="empty-msg">No events yet</div>
+          </div>
+        </div>
+
+        <!-- Action bar -->
+        <div class="action-bar" id="run-action-bar">
+          <div class="panel-title panel-title-green">&gt;&gt; ACTIONS</div>
+          <div id="action-area"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- -- IC Attack Modal ------------------------------- -->
+<div class="modal-overlay" id="attackModal">
+  <div class="mr-modal-box">
+    <div class="mr-modal-title">&gt;&gt; EXECUTE IC ATTACK</div>
+    <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:12px" id="attackModalTarget"></div>
+    <div class="setup-grid" style="gap:10px">
+      <div class="mr-field">
+        <label>Attack Pool</label>
+        <input type="number" id="atk-pool" min="0" max="30" value="0">
+      </div>
+      <div class="mr-field">
+        <label>Hacking Pool Dice</label>
+        <input type="number" id="atk-hp-dice" min="0" max="20" value="0">
+      </div>
+      <div class="mr-field span2">
+        <label>Armor Utility Rating</label>
+        <input type="number" id="atk-armor" min="0" max="20" value="0">
+        <span class="tip">Your deck's Armor utility rating.</span>
+      </div>
+    </div>
+    <div class="mr-modal-actions">
+      <button class="btn btn-red" id="attackConfirmBtn" onclick="submitAttack()">&gt;&gt; Execute Attack</button>
+      <button class="btn btn-ghost" onclick="closeAttackModal()">Cancel</button>
+    </div>
+    <div id="attackModalAlert" class="alert" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- -- Reactive IC Resolution Modal (GM) ------------ -->
+<div class="modal-overlay" id="reactiveModal">
+  <div class="mr-modal-box" style="border-top-color:var(--amber)">
+    <div class="mr-modal-title" style="color:var(--amber)">&gt;&gt; RESOLVE REACTIVE IC</div>
+    <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:12px" id="reactiveModalTarget"></div>
+    <div class="setup-grid" style="gap:10px">
+      <div class="mr-field">
+        <label>Utility Name</label>
+        <input type="text" id="reactive-util-name" placeholder="Attack" maxlength="40">
+      </div>
+      <div class="mr-field">
+        <label>Utility Rating</label>
+        <input type="number" id="reactive-util-rating" min="1" max="20" value="1">
+      </div>
+    </div>
+    <div class="mr-modal-actions">
+      <button class="btn btn-amber" id="reactiveConfirmBtn" onclick="submitReactive()">&gt;&gt; Trigger Resolution</button>
+      <button class="btn btn-ghost" onclick="closeReactiveModal()">Cancel</button>
+    </div>
+    <div id="reactiveModalAlert" class="alert" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- -- Graceful Logoff Modal ------------------------- -->
+<div class="modal-overlay" id="logoffModal">
+  <div class="mr-modal-box logoff-theme">
+    <div class="mr-modal-title">&gt;&gt; GRACEFUL LOGOFF</div>
+    <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:12px">Attempt a clean disconnect. May fail if host is alerted.</div>
+    <div class="setup-grid" style="gap:10px">
+      <div class="mr-field">
+        <label>Hacking Pool Dice</label>
+        <input type="number" id="logoff-hp-dice" min="0" max="20" value="0">
+      </div>
+      <div class="mr-field">
+        <label>Deception Utility Rating</label>
+        <input type="number" id="logoff-deception" min="0" max="20" value="0">
+        <span class="tip">Pre-filled from your deck config.</span>
+      </div>
+    </div>
+    <div class="mr-modal-actions">
+      <button class="btn btn-amber" onclick="submitLogoff()">&gt;&gt; Attempt Logoff</button>
+      <button class="btn btn-ghost" onclick="closeLogoffModal()">Cancel</button>
+    </div>
+    <div id="logoffModalAlert" class="alert" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+'use strict';
+
+const API = '';
+
+// -- State ------------------------------------------------------------------
+let _hosts    = [];
+let _run      = null;   // current MatrixRunRead
+let _attackTargetId   = null;
+let _reactiveTargetId = null;
+let _hostTrapDoors  = [];        // trap_doors_json from the host
+let _trapDoorsFound = new Set(); // ids the GM has marked as found
+let _hostKeyPaydata = [];        // key paydata files from host config_json
+let _hostHasTapeworm = false;    // true if host has a Tapeworm worm
+let _retrievedKeyFiles = new Set(); // file names the decker has retrieved
+
+// -- Action subsystem map ---------------------------------------------------
+const ACTION_SUBSYSTEM = {
+  logon_to_host:     'access',
+  logon_to_ltg:      'access',
+  graceful_logoff:   'access',
+  analyze_host:      'control',
+  analyze_ic:        'control',
+  analyze_security:  'control',
+  analyze_subsystem: 'control',
+  locate_file:       'index',
+  locate_paydata:    'index',
+  locate_ic:         'index',
+  locate_slave:      'index',
+  download_data:     'files',
+  edit_file:         'files',
+  upload_data:       'files',
+  control_slave:     'slave',
+  monitor_slave:     'slave',
+  null_operation:      'control',
+  crash_host:          'control',
+  decrypt_file:        'files',
+  validate_passcode:   'control',
+  invalidate_passcode: 'control',
+  decoy:               'control',
+  redirect_datatrail:  'control',
+  relocate:            'control',
+};
+
+// -- Boot -------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = await bootstrapAuth();
+  if (!auth) return;
+
+  // Apply custom number steppers to setup form
+  initNumSteppers(document.getElementById('setupView'));
+
+  // Wire computed stats listeners
+  const calcInputs = [
+    'cfg-intelligence', 'cfg-quickness', 'cfg-mpcp',
+    'cfg-masking', 'cfg-u-sleaze', 'cfg-u-camo',
+    'cfg-evasion', 'cfg-trace-factor', 'cfg-bandwidth-mod',
+  ];
+  calcInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateComputedStats);
+  });
+  updateComputedStats();
+
+  // Load action subsystem auto-select
+  const actionSel = document.getElementById('actionType');
+  if (actionSel) {
+    actionSel.addEventListener('change', () => {
+      const sub = ACTION_SUBSYSTEM[actionSel.value] || '';
+      const subSel = document.getElementById('actionSubsystem');
+      if (subSel && sub) subSel.value = sub;
+    });
+  }
+
+  // Pre-select host if arriving via trap door "Enter"
+  const pendingHost = sessionStorage.getItem('pending_trap_door_host');
+  if (pendingHost) {
+    sessionStorage.removeItem('pending_trap_door_host');
+    await loadHosts();
+    const sel = document.getElementById('hostSelect');
+    if (sel) sel.value = pendingHost;
+    startPolling(loadHosts, 2500);
+    return;
+  }
+
+  // Try to resume a run from session storage
+  const savedId = sessionStorage.getItem('active_run_id');
+  if (savedId) {
+    try {
+      const res = await apiFetch(`${API}/matrix-runs2/${savedId}`);
+      if (res.ok) {
+        const run = await res.json();
+        if (run.status === 'active') {
+          _run = run;
+          await loadHosts();
+          showRunView(run);
+          return;
+        }
+      }
+    } catch(_e) {}
+    sessionStorage.removeItem('active_run_id');
+  }
+
+  await loadHosts();
+  startPolling(loadHosts, 2500);
+});
+
+// -- Host list --------------------------------------------------------------
+async function loadHosts() {
+  try {
+    const res = await apiFetch(`${API}/matrix-hosts/`);
+    if (!res.ok) return;
+    const all = await res.json();
+    // Non-admins can only see visible hosts
+    _hosts = isAdminMode() ? all : all.filter(h => h.is_visible_to_players);
+    renderHostSelect();
+  } catch(_e) {}
+}
+
+function renderHostSelect() {
+  const sel = document.getElementById('hostSelect');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- Select a target host --</option>';
+  _hosts.forEach(h => {
+    const opt = document.createElement('option');
+    opt.value = h.id;
+    const cfg = h.config_json || {};
+    const san = cfg.san_rating ? ` [${cfg.san_rating}]` : '';
+    opt.textContent = `${h.name}${san}`;
+    sel.appendChild(opt);
+  });
+  if (prev) sel.value = prev;
+}
+
+// -- Computed stats ---------------------------------------------------------
+function updateComputedStats() {
+  const intel    = parseInt(document.getElementById('cfg-intelligence')?.value) || 0;
+  const quick    = parseInt(document.getElementById('cfg-quickness')?.value)    || 0;
+  const mpcp     = parseInt(document.getElementById('cfg-mpcp')?.value)         || 0;
+  const masking  = parseInt(document.getElementById('cfg-masking')?.value)      || 0;
+  const evasion  = parseInt(document.getElementById('cfg-evasion')?.value)      || 0;
+  const sleaze   = parseInt(document.getElementById('cfg-u-sleaze')?.value)     || 0;
+  const camo     = parseInt(document.getElementById('cfg-u-camo')?.value)       || 0;
+  const jackpt   = parseInt(document.getElementById('cfg-trace-factor')?.value) || 0;
+  const bwMod    = parseInt(document.getElementById('cfg-bandwidth-mod')?.value)|| 0;
+
+  const hp       = Math.floor((intel + mpcp) / 3);
+  const df       = Math.ceil((masking + sleaze) / 2);
+  const reaction = Math.ceil((quick + intel) / 2);
+  // Base trace TN (no IC rating yet -- shows best-case with no IC)
+  const traceTN  = Math.max(2, evasion + camo + jackpt + bwMod);
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('stat-hacking-pool', hp);
+  set('stat-df', df);
+  set('stat-reaction', reaction);
+  set('stat-trace-tn', `${traceTN}+ (-IC rating at run time)`);
+}
+
+// -- Start run --------------------------------------------------------------
+async function startRun() {
+  const hostId = parseInt(document.getElementById('hostSelect').value);
+  if (!hostId) { showAlert(document.getElementById('pageAlert'), 'Select a target host.', true); return; }
+
+  const gi  = id => document.getElementById(id);
+  const gn  = id => parseInt(gi(id)?.value) || 0;
+  const gn1 = id => Math.max(1, gn(id));
+
+  const name     = gi('cfg-name').value.trim() || 'Ghost';
+  const mpcp     = gn1('cfg-mpcp');
+  const bod      = gn1('cfg-bod');
+  const evasion  = gn1('cfg-evasion');
+  const masking  = gn1('cfg-masking');
+  const sensor   = gn1('cfg-sensor');
+  const computer = gn1('cfg-computer');
+  const intel    = gn1('cfg-intelligence');
+  const quick    = gn1('cfg-quickness');
+  const willpower= gn1('cfg-willpower');
+  const body     = gn1('cfg-body');
+  const mode     = gi('cfg-mode').value;
+  const hardening= gn('cfg-hardening');
+  const resp     = gn('cfg-response-increase');
+  const trace    = parseInt(gi('cfg-trace-factor')?.value) || 0;
+  const bwMod    = parseInt(gi('cfg-bandwidth-mod')?.value) || 0;
+  const actMem   = gn('cfg-active-memory');
+  const ioSpeed  = gn('cfg-io-speed');
+  const iccm     = gi('cfg-iccm').checked;
+
+  const utilities = {
+    // Stealth
+    sleaze:     gn('cfg-u-sleaze'),
+    camo:       gn('cfg-u-camo'),
+    // Operations
+    deception:  gn('cfg-u-deception'),
+    browse:     gn('cfg-u-browse'),
+    analyze:    gn('cfg-u-analyze'),
+    evaluate:   gn('cfg-u-evaluate'),
+    decrypt:    gn('cfg-u-decrypt'),
+    crash:      gn('cfg-u-crash'),
+    mirrors:    gn('cfg-u-mirrors'),
+    validate_pgm: gn('cfg-u-validate'),
+    read_write: gn('cfg-u-read-write'),
+    spoof:      gn('cfg-u-spoof'),
+    relocate:   gn('cfg-u-relocate'),
+    // Combat
+    attack:     gn('cfg-u-attack'),
+    armor:      gn('cfg-u-armor'),
+    shield:     gn('cfg-u-shield'),
+    restore:    gn('cfg-u-restore'),
+    medic:      gn('cfg-u-medic'),
+    cloak:      gn('cfg-u-cloak'),
+    lock_on:    gn('cfg-u-lock-on'),
+  };
+
+  const decker = {
+    name, mpcp, bod, evasion, masking, sensor,
+    computer_skill: computer,
+    intelligence: intel,
+    quickness: quick,
+    willpower, body,
+    deck_mode: mode,
+    hardening,
+    response_increase: resp,
+    trace_factor: trace,
+    bandwidth_modifier: bwMod,
+    active_memory: actMem,
+    io_speed: ioSpeed,
+    iccm,
+    utilities,
+  };
+
+  const btn = document.getElementById('startRunBtn');
+  const spin = document.getElementById('startSpinner');
+  btn.disabled = true;
+  spin.style.display = '';
+
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/`, {
+      method: 'POST',
+      body: JSON.stringify({ host_id: hostId, decker }),
+    });
+    if (!res.ok) await apiThrow(res);
+    _run = await res.json();
+    sessionStorage.setItem('active_run_id', _run.id);
+    showRunView(_run);
+  } catch(e) {
+    showAlert(document.getElementById('pageAlert'), `>> JACK-IN FAILED // ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    spin.style.display = 'none';
+  }
+}
+
+// -- Switch to run view ------------------------------------------------------
+async function showRunView(run) {
+  document.getElementById('setupView').style.display = 'none';
+  document.getElementById('runView').style.display = '';
+  renderRunState(run);
+  // Load host config (non-blocking; panels update when ready)
+  if (run.host_id) {
+    try {
+      const res = await apiFetch(`${API}/matrix-hosts/${run.host_id}`);
+      if (res.ok) {
+        const host = await res.json();
+        _hostTrapDoors = Array.isArray(host.trap_doors_json) ? host.trap_doors_json : [];
+        renderTrapDoorsPanel();
+        const cfg = host.config_json || {};
+        _hostKeyPaydata  = (Array.isArray(cfg.paydata) ? cfg.paydata : []).filter(p => p.is_key);
+        _hostHasTapeworm = (Array.isArray(cfg.worms) ? cfg.worms : []).some(w => w.variant === 'tapeworm');
+        renderKeyPaydataPanel();
+      }
+    } catch(_e) {}
+  }
+}
+
+// -- Trap Doors panel --------------------------------------------------------
+function renderTrapDoorsPanel() {
+  const panel = document.getElementById('run-trap-door-panel');
+  const list  = document.getElementById('run-trap-door-list');
+  if (!panel || !list) return;
+  if (_hostTrapDoors.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const admin = isAdmin();
+  list.innerHTML = _hostTrapDoors.map(td => {
+    const found  = _trapDoorsFound.has(td.id);
+    const hidden = !!td.hidden;
+    const destLabel = td.destination_label || td.destination_ltg
+      || (td.destination_host_id ? `Host #${td.destination_host_id}` : '???');
+
+    if (hidden && !found) {
+      // Concealed -- GM sees a "Mark Found" button; player sees nothing
+      if (!admin) return '';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-size:.65rem;letter-spacing:1px;color:var(--text-dim)">[HIDDEN] ??? -> ???</span>
+        <button class="btn btn-ghost btn-sm" onclick="markTrapDoorFound(${td.id})" style="padding:2px 8px;font-size:.62rem">Mark Found</button>
+      </div>`;
+    }
+
+    const enterBtn = admin
+      ? `<button class="btn btn-ghost btn-sm" onclick="enterTrapDoor(${td.id})"
+           style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -></button>`
+      : '';
+    const foundBadge = hidden
+      ? `<span style="font-size:.58rem;color:var(--cyan);letter-spacing:1px">[FOUND]</span>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      ${foundBadge}
+      <span style="font-size:.72rem;color:var(--cyan)">-> ${esc(destLabel)}</span>
+      ${enterBtn}
+    </div>`;
+  }).join('');
+}
+
+function markTrapDoorFound(id) {
+  _trapDoorsFound.add(id);
+  renderTrapDoorsPanel();
+}
+
+// -- Key Paydata panel -------------------------------------------------------
+function renderKeyPaydataPanel() {
+  const panel = document.getElementById('run-key-paydata-panel');
+  const list  = document.getElementById('run-key-paydata-list');
+  if (!panel || !list) return;
+  if (!_hostKeyPaydata.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const twarnHtml = _hostHasTapeworm
+    ? `<div style="font-size:.6rem;color:var(--amber);letter-spacing:1px;margin-bottom:8px;padding:4px 6px;border:1px solid #442200;background:rgba(255,153,0,.06)">TAPEWORM ACTIVE -- retrieving key data triggers 1D6 corruption check (5-6 = lost)</div>`
+    : '';
+
+  list.innerHTML = twarnHtml + _hostKeyPaydata.map((p, i) => {
+    const retrieved = _retrievedKeyFiles.has(p.name);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span style="font-size:.72rem;${retrieved ? 'color:var(--green);text-decoration:line-through' : 'color:var(--amber)'}">${esc(p.name)}</span>
+      <span style="font-size:.58rem;color:var(--text-dim)">${p.density || '?'}Mp</span>
+      ${retrieved
+        ? `<span style="font-size:.58rem;letter-spacing:1px;color:var(--green)">[RETRIEVED]</span>`
+        : `<button class="btn btn-amber btn-sm" onclick="markKeyFileRetrieved(${i})" style="padding:2px 8px;font-size:.62rem">&gt;&gt; Retrieved</button>`
+      }
+    </div>`;
+  }).join('');
+}
+
+function markKeyFileRetrieved(i) {
+  const p = _hostKeyPaydata[i];
+  if (!p || _retrievedKeyFiles.has(p.name)) return;
+  _retrievedKeyFiles.add(p.name);
+
+  if (_hostHasTapeworm) {
+    const roll = Math.floor(Math.random() * 6) + 1;
+    const corrupted = roll >= 5;
+    const logEl = document.getElementById('run-event-log');
+    const resultHtml = `
+    <div class="ev-entry ${corrupted ? 'ev-crash' : 'ev-action-ok'}">
+      <span class="ev-turn">T${_run?.state_json?.current_turn ?? '?'}</span>
+      <span class="ev-type-badge" style="color:var(--amber);border-color:#44220040">TAPEWORM</span>
+      <span class="ev-desc">Key data "${esc(p.name)}" retrieved -- Tapeworm corruption check: rolled ${roll}/6. ${corrupted ? 'CORRUPTED -- file lost.' : 'Intact.'}</span>
+    </div>`;
+    if (logEl) logEl.insertAdjacentHTML('afterbegin', resultHtml);
+    showAlert(document.getElementById('pageAlert'),
+      `Tapeworm check for "${p.name}": rolled ${roll} -- ${corrupted ? 'CORRUPTED (5-6).' : 'Intact.'}`,
+      corrupted);
+  }
+  renderKeyPaydataPanel();
+}
+
+async function enterTrapDoor(id) {
+  const td = _hostTrapDoors.find(t => t.id === id);
+  if (!td) return;
+  const dest = td.destination_label || td.destination_ltg || `Host #${td.destination_host_id}`;
+  const source = td.source_piece || 'trap device';
+
+  if (td.destination_host_id) {
+    const ok = await showConfirm(
+      `Enter trap door from "${source}" to "${dest}"? This runs two separate checks: graceful logoff on this host, then logon on the destination host.`,
+      'Enter', 'btn-cyan'
+    );
+    if (!ok) return;
+
+    try {
+      // Check 1: graceful logoff on the current host (uses decker's loaded Deception utility by default).
+      const deception = parseInt(_run?.decker_json?.utilities?.deception, 10) || 0;
+      const logoffRes = await apiFetch(`${API}/matrix-runs2/${_run.id}/logoff`, {
+        method: 'POST',
+        body: JSON.stringify({ hacking_pool_dice: 0, deception_utility: deception }),
+      });
+      if (!logoffRes.ok) await apiThrow(logoffRes);
+      const loggedOffRun = await logoffRes.json();
+      renderRunState(loggedOffRun);
+
+      const ended = !!loggedOffRun?.state_json?.run_ended;
+      const graceful = loggedOffRun?.state_json?.end_reason === 'graceful_logoff';
+      if (!ended || !graceful) {
+        showAlert(
+          document.getElementById('runAlert'),
+          'Trap-door transit aborted: graceful logoff failed on the current host.',
+          true
+        );
+        return;
+      }
+
+      // Check 2: start linked run and perform logon on destination host.
+      const createRes = await apiFetch(`${API}/matrix-runs2/`, {
+        method: 'POST',
+        body: JSON.stringify({
+          host_id: td.destination_host_id,
+          decker: loggedOffRun.decker_json || _run.decker_json,
+        }),
+      });
+      if (!createRes.ok) await apiThrow(createRes);
+      const linkedRun = await createRes.json();
+
+      const logonRes = await apiFetch(`${API}/matrix-runs2/${linkedRun.id}/action`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action_type: 'logon_to_host',
+          subsystem: 'access',
+          utility_rating: 0,
+          hacking_pool_dice: 0,
+        }),
+      });
+      if (!logonRes.ok) await apiThrow(logonRes);
+      const linkedRunAfterLogon = await logonRes.json();
+
+      sessionStorage.setItem('active_run_id', linkedRunAfterLogon.id);
+      await showRunView(linkedRunAfterLogon);
+      showAlert(
+        document.getElementById('pageAlert'),
+        `Trap-door transit complete: ${source} -> ${dest}.`,
+        false
+      );
+    } catch (e) {
+      showAlert(
+        document.getElementById('runAlert') || document.getElementById('pageAlert'),
+        `Trap-door transit failed: ${e.message}`,
+        true
+      );
+    }
+  } else {
+    // LTG-only destination -- surface the address for the GM
+    await showConfirm(
+      `Trap door leads to: ${dest}\n\nNo designed host is linked. Navigate to this LTG manually or create a host for it in the Matrix Designer.`,
+      'OK', 'btn-ghost'
+    );
+  }
+}
+
+function showSetupView() {
+  document.getElementById('runView').style.display = 'none';
+  document.getElementById('setupView').style.display = '';
+  _run = null;
+  _hostKeyPaydata  = [];
+  _hostHasTapeworm = false;
+  _retrievedKeyFiles.clear();
+  sessionStorage.removeItem('active_run_id');
+}
+
+// -- Render entire run state ------------------------------------------------
+function renderRunState(run) {
+  if (!run) return;
+  _run = run;
+  const state = run.state_json || {};
+  const decker = run.decker_json || {};
+
+  // Decker name / mode
+  document.getElementById('run-decker-name').textContent = decker.name || 'Ghost';
+  document.getElementById('run-deck-mode').textContent = (decker.deck_mode || 'hot').toUpperCase();
+
+  // Condition monitor
+  const cm = state.condition_monitor || {};
+  renderConditionBoxes('persona-boxes',  cm.persona_boxes  || 0, 10, 'persona');
+  renderConditionBoxes('physical-boxes', cm.physical_boxes || 0, 10, 'physical');
+  document.getElementById('persona-count').textContent  = `${cm.persona_boxes || 0}/10`;
+  document.getElementById('physical-count').textContent = `${cm.physical_boxes || 0}/10`;
+
+  const crashed = (cm.persona_boxes || 0) >= 10;
+  document.getElementById('crashed-banner').style.display = crashed ? '' : 'none';
+
+  // Hacking pool / DF
+  const hpTotal     = state.hackingPool_total     ?? Math.floor(((decker.intelligence || 0) + (decker.mpcp || 0)) / 3);
+  const hpRemaining = state.hackingPool_remaining ?? hpTotal;
+  const sleaze = (decker.utilities || {}).sleaze || 0;
+  const df = Math.ceil(((decker.masking || 0) + sleaze) / 2);
+  const hpEl = document.getElementById('run-hp');
+  hpEl.textContent = `${hpRemaining}/${hpTotal}`;
+  hpEl.style.color = hpRemaining === 0 ? 'var(--red)' : hpRemaining < hpTotal ? 'var(--amber)' : '';
+  document.getElementById('run-df').textContent = df;
+
+  // Deck stats
+  const mpcpDmg = cm.mpcp_damage || 0;
+  const pdmg    = cm.persona_damage || {};
+  document.getElementById('run-deck-stats').innerHTML =
+    `<span class="ds-stat">MPCP: <span>${decker.mpcp || 0}</span></span>` +
+    `<span class="ds-stat">BOD: <span>${decker.bod || 0}</span></span>` +
+    `<span class="ds-stat">EVA: <span>${decker.evasion || 0}</span></span>` +
+    `<span class="ds-stat">MASK: <span>${decker.masking || 0}</span></span>` +
+    `<span class="ds-stat">SENS: <span>${decker.sensor || 0}</span></span>`;
+  document.getElementById('run-mpcp-damage').innerHTML =
+    mpcpDmg > 0 ? `MPCP Damage: <span>${mpcpDmg}</span>` : '';
+  const pdmgParts = [];
+  if (pdmg.bod)     pdmgParts.push(`BOD:${pdmg.bod}`);
+  if (pdmg.evasion) pdmgParts.push(`EVA:${pdmg.evasion}`);
+  if (pdmg.masking) pdmgParts.push(`MASK:${pdmg.masking}`);
+  if (pdmg.sensor)  pdmgParts.push(`SENS:${pdmg.sensor}`);
+  document.getElementById('run-persona-damage').innerHTML =
+    pdmgParts.length ? `Persona Dmg: <span>${pdmgParts.join(' ')}</span>` : '';
+
+  // Host status
+  document.getElementById('run-sec-code').textContent  = state.host_security_code  || '--';
+  document.getElementById('run-sec-value').textContent = state.host_security_value || '--';
+  renderAlertBadge(state.alert_status || 'none');
+
+  // Status badges: Validate Passcode + Decoy
+  const badgeEl = document.getElementById('run-status-badges');
+  if (badgeEl) {
+    const badges = [];
+    if (state.has_legitimate_status) {
+      badges.push(`<span style="font-size:.65rem;letter-spacing:2px;padding:2px 7px;background:rgba(0,200,100,.15);border:1px solid var(--green-dim);color:var(--green-dim);border-radius:3px">LEGITIMATE</span>`);
+    }
+    const decoySucc = state.decoy_successes || 0;
+    const decoyHp   = state.decoy_hp || 0;
+    if (decoySucc > 0) {
+      badges.push(`<span style="font-size:.65rem;letter-spacing:2px;padding:2px 7px;background:rgba(0,180,255,.1);border:1px solid var(--cyan);color:var(--cyan);border-radius:3px">DECOY ${decoyHp}/10</span>`);
+    }
+    badgeEl.innerHTML = badges.join('');
+  }
+
+  // GM-only tally
+  if (isAdmin()) {
+    document.getElementById('run-tally-gm').innerHTML =
+      `Security Tally: <span>${state.security_tally ?? '--'}</span>`;
+  }
+
+  // Active IC (including lurking reactive IC)
+  renderActiveIC(state.active_ic || [], state.lurking_ic || [], state.run_ended, crashed);
+  renderTrapDoorsPanel();
+
+  // Event log
+  renderEventLog(state.event_log || [], state);
+
+  // Turn badge
+  const lastEvent = (state.event_log || []).slice(-1)[0];
+  if (lastEvent) {
+    document.getElementById('run-turn-badge').textContent = `TURN ${lastEvent.turn}`;
+  }
+
+  // Action area
+  renderActionArea(state, decker, crashed);
+}
+
+// -- Condition boxes --------------------------------------------------------
+function renderConditionBoxes(containerId, filled, total, type) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const box = document.createElement('div');
+    box.className = 'cond-box';
+    if (i < filled) box.classList.add(`filled-${type}`);
+    el.appendChild(box);
+  }
+}
+
+// -- Alert badge ------------------------------------------------------------
+function renderAlertBadge(status) {
+  const el = document.getElementById('run-alert-badge');
+  if (!el) return;
+  el.className = 'alert-badge';
+  if (status === 'active') {
+    el.classList.add('alert-active');
+    el.textContent = 'ACTIVE ALERT';
+  } else if (status === 'passive') {
+    el.classList.add('alert-passive');
+    el.textContent = 'PASSIVE ALERT';
+  } else {
+    el.classList.add('alert-none');
+    el.textContent = 'NONE';
+  }
+}
+
+// -- Active IC --------------------------------------------------------------
+function renderActiveIC(icList, lurkingList, runEnded, crashed) {
+  const el = document.getElementById('run-ic-list');
+  if (!el) return;
+
+  if (!icList.length && !lurkingList.length) {
+    el.innerHTML = '<div class="empty-msg">No IC active</div>';
+    return;
+  }
+
+  const gm = isAdmin();
+
+  // Determine cluster sizes for Party IC penalty display
+  const clusterCounts = {};
+  icList.forEach(ic => {
+    if (ic.cluster_id && ic.status === 'active') {
+      clusterCounts[ic.cluster_id] = (clusterCounts[ic.cluster_id] || 0) + 1;
+    }
+  });
+
+  let html = icList.map(ic => {
+    const isCrashed = ic.status === 'crashed';
+    const isConstruct = ic.type === 'Construct';
+    const isParty     = !!ic.cluster_id;
+    const cardCat     = isConstruct ? 'construct' : isParty ? 'party' : (ic.category || 'white').toLowerCase();
+    const badgeCat    = (ic.category || 'white').toLowerCase();
+    const boxes       = renderConditionBoxesHTML(ic.boxes || 0, 10, 'ic');
+    const canAtk      = !runEnded && !crashed && !isCrashed;
+
+    // Trap badge -- GM sees hidden IC type; player sees [TRAP]
+    let trapBadge = '';
+    if (ic.trap_hidden) {
+      trapBadge = gm
+        ? `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[TRAP&#8594;${esc(ic.trap_hidden.type)}-${ic.trap_hidden.rating}]</span>`
+        : `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[TRAP]</span>`;
+    }
+
+    // Party IC cluster penalty indicator
+    let partyBadge = '';
+    if (isParty) {
+      const sz = clusterCounts[ic.cluster_id] || 1;
+      partyBadge = `<span style="font-size:0.5rem;color:var(--cyan);margin-left:5px">[PARTY x${sz}${sz > 1 ? ` TN+${sz}` : ''}]</span>`;
+    }
+
+    // Construct component list
+    let constructDetails = '';
+    if (isConstruct && ic.construct_components && ic.construct_components.length) {
+      const comps = ic.construct_components.map(c =>
+        `<span style="color:#aaaa00">${esc(c.type || '?')}-${c.rating || '?'}</span>`
+      ).join(' + ');
+      constructDetails = `<div style="font-size:0.6rem;margin:4px 0 4px;color:var(--text-dim)">${comps}</div>`;
+    }
+
+    return `
+    <div class="ic-card ic-${esc(cardCat)}${isCrashed ? ' ic-crashed' : ''}">
+      <div class="ic-head">
+        <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span>${trapBadge}${partyBadge}</span>
+        <span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>
+      </div>
+      <div class="ic-meta">
+        <span>Initiative: <span>${ic.initiative || '--'}</span></span>
+        <span>Status: <span style="color:${isCrashed ? 'var(--text-dim)' : 'var(--red)'}">${isCrashed ? 'CRASHED' : 'ACTIVE'}</span></span>
+      </div>
+      ${constructDetails}
+      <div class="cond-row" style="margin-bottom:6px">
+        <div class="cond-label">Cond</div>
+        <div style="display:flex;gap:3px;flex:1">${boxes}</div>
+        <div class="cond-count">${ic.boxes || 0}/10</div>
+      </div>
+      ${canAtk ? `<button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>` : ''}
+    </div>`;
+  }).join('');
+
+  // Lurking (reactive) IC section
+  if (lurkingList.length) {
+    html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Lurking -- Reactive</div>`;
+    html += lurkingList.map(ic => {
+      const canResolve = gm && !runEnded && !crashed;
+      return `
+      <div class="ic-card ic-lurking">
+        <div class="ic-head">
+          <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span></span>
+          <span class="ic-badge" style="color:var(--amber);border-color:#442200">LURKING</span>
+        </div>
+        <div class="ic-meta">
+          <span style="color:var(--amber)">Triggers on utility use</span>
+        </div>
+        ${canResolve ? `<button class="btn btn-amber btn-sm" onclick="openReactiveModal('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})">&gt;&gt; Resolve (GM)</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  el.innerHTML = html || '<div class="empty-msg">No IC active</div>';
+}
+
+function renderConditionBoxesHTML(filled, total, type) {
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const cls = i < filled ? ` style="background:var(--red);border-color:var(--red)"` : '';
+    html += `<div class="cond-box"${cls}></div>`;
+  }
+  return html;
+}
+
+// -- Event log --------------------------------------------------------------
+function renderEventLog(events, state) {
+  const el = document.getElementById('run-event-log');
+  if (!el) return;
+  if (!events.length) {
+    el.innerHTML = '<div class="empty-msg">No events yet</div>';
+    return;
+  }
+
+  const reversed = [...events].reverse();
+  el.innerHTML = reversed.map(ev => renderEventEntry(ev)).join('');
+}
+
+function renderEventEntry(ev) {
+  const turn = ev.turn ?? '?';
+  const type = ev.type || 'unknown';
+  const desc = esc(ev.description || '');
+
+  let cls = 'ev-neutral';
+  let badgeColor = '#333';
+  let badgeText  = type.replace(/_/g,' ').toUpperCase();
+
+  switch (type) {
+    case 'action':
+      cls = ev.success ? 'ev-action-ok' : 'ev-action-fail';
+      badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
+      badgeText = ev.success ? 'SUCCESS' : 'FAILED';
+      break;
+    case 'ic_activation':
+      cls = 'ev-ic-activate';
+      badgeColor = 'var(--red)';
+      badgeText = 'IC ALERT';
+      break;
+    case 'ic_attack':
+      cls = 'ev-ic-attack';
+      badgeColor = '#ff7700';
+      badgeText = 'IC ATTACK';
+      break;
+    case 'decker_attack':
+      cls = 'ev-decker-atk';
+      badgeColor = 'var(--blue)';
+      badgeText = 'ATTACK';
+      break;
+    case 'ic_crashed':
+      cls = 'ev-ic-crashed';
+      badgeColor = 'var(--green)';
+      badgeText = 'IC CRASH';
+      break;
+    case 'alert':
+      cls = 'ev-alert';
+      badgeColor = 'var(--amber)';
+      badgeText = 'ALERT';
+      break;
+    case 'logon':
+      cls = 'ev-logon';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'LOGON';
+      break;
+    case 'logoff_success':
+      cls = 'ev-logoff-ok';
+      badgeColor = 'var(--green)';
+      badgeText = 'LOGOFF';
+      break;
+    case 'logoff_fail':
+      cls = 'ev-logoff-fail';
+      badgeColor = 'var(--amber)';
+      badgeText = 'LOGOFF FAIL';
+      break;
+    case 'jack_out':
+      cls = 'ev-jack-out';
+      badgeColor = 'var(--amber)';
+      badgeText = 'JACK OUT';
+      break;
+    case 'persona_crash':
+      cls = 'ev-crash';
+      badgeColor = 'var(--red)';
+      badgeText = 'CRASH';
+      break;
+    case 'dump_shock':
+      cls = 'ev-dump-shock';
+      badgeColor = 'var(--red)';
+      badgeText = 'DUMP SHOCK';
+      break;
+    case 'simsense_overload':
+      cls = 'ev-simsense';
+      badgeColor = 'var(--amber)';
+      badgeText = 'SIMSENSE';
+      break;
+    case 'new_turn':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'NEW TURN';
+      break;
+    case 'reactive_ic_armed':
+      cls = 'ev-reactive';
+      badgeColor = 'var(--amber)';
+      badgeText = 'LURKING IC';
+      break;
+    case 'party_ic_activation':
+      cls = 'ev-party-ic';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'PARTY IC';
+      break;
+    case 'reactive_ic_resolved':
+      cls = ev.outcome === 'ic_wins' ? 'ev-ic-attack' : 'ev-ic-crashed';
+      badgeColor = ev.outcome === 'ic_wins' ? '#ff7700' : 'var(--green)';
+      badgeText = ev.outcome === 'ic_wins' ? 'REACTIVE HIT' : 'REACTIVE MISS';
+      break;
+    case 'tar_pit_corruption':
+      cls = 'ev-crash';
+      badgeColor = 'var(--red)';
+      badgeText = 'TAR PIT';
+      break;
+    case 'validate_passcode':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--green-dim)';
+      badgeText = 'PASSCODE';
+      break;
+    case 'decoy_deployed':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'DECOY';
+      break;
+    case 'decoy_intercepted':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'DECOY HIT';
+      break;
+    case 'relocate':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--green-dim)';
+      badgeText = 'RELOCATE';
+      break;
+    case 'redirect_placed':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'REDIRECT';
+      break;
+  }
+
+  // Dice summary
+  let diceLine = '';
+  if (ev.decker_roll || ev.host_roll) {
+    const parts = [];
+    if (ev.decker_roll) {
+      const dr = ev.decker_roll;
+      parts.push(`Decker: [${(dr.dice || []).join(',')}] &rarr; ${dr.successes ?? 0} hits`);
+    }
+    if (ev.host_roll) {
+      const hr = ev.host_roll;
+      parts.push(`Host: [${(hr.dice || []).join(',')}] &rarr; ${hr.successes ?? 0} hits`);
+    }
+    if (parts.length) {
+      diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
+    }
+  }
+
+  return `
+  <div class="ev-entry ${cls}">
+    <span class="ev-turn">T${turn}</span>
+    <span class="ev-type-badge" style="color:${badgeColor};border-color:${badgeColor}40">${badgeText}</span>
+    <span class="ev-desc">${desc}</span>
+    ${diceLine}
+  </div>`;
+}
+
+// -- Action area ------------------------------------------------------------
+function renderActionArea(state, decker, crashed) {
+  const el = document.getElementById('action-area');
+  if (!el) return;
+  const runEnded    = state.run_ended || false;
+  const logonDone   = state.logon_complete || false;
+
+  if (runEnded) {
+    el.innerHTML = `
+      <div class="run-ended-msg">&gt;&gt; RUN ENDED: ${esc(state.end_reason || 'unknown')}</div>
+      <button class="btn btn-ghost" onclick="abandonRun()">&gt;&gt; Close / Abandon</button>`;
+    return;
+  }
+
+  if (!logonDone) {
+    const hpRem = state.hackingPool_remaining ?? 0;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="mr-field" style="min-width:80px;max-width:100px">
+          <label>HP Dice <span style="color:var(--text-dim)">(${hpRem} left)</span></label>
+          <input type="number" id="logonHpDice" min="0" max="${hpRem}" value="0">
+        </div>
+        <div style="padding-bottom:2px">
+          <button class="btn btn-green" onclick="doLogon()">&gt;&gt; Log On to Host</button>
+        </div>
+        <span style="font-size:0.68rem;color:var(--text-dim);letter-spacing:1px">Establish connection to target system</span>
+        <button class="btn btn-red btn-sm" style="margin-left:auto" onclick="abandonRun()">&gt;&gt; Abandon Run</button>
+      </div>`;
+    return;
+  }
+
+  // Main action controls
+  const utilityRating = (decker.utilities || {}).deception || 0;
+
+  el.innerHTML = `
+    <div class="action-controls">
+      <div class="mr-field" style="min-width:70px;max-width:90px">
+        <label>Util Rating</label>
+        <input type="number" id="actionUtilRating" min="0" max="20" value="0">
+      </div>
+      <div class="mr-field" style="min-width:70px;max-width:90px">
+        <label>HP Dice</label>
+        <input type="number" id="actionHpDice" min="0" max="20" value="0">
+      </div>
+      <div class="mr-field" style="min-width:180px">
+        <label>Action</label>
+        <select id="actionType" onchange="onActionTypeChange()">
+          <optgroup label="Analysis">
+            <option value="analyze_host">Analyze Host</option>
+            <option value="analyze_ic">Analyze IC</option>
+            <option value="analyze_security">Analyze Security</option>
+            <option value="analyze_subsystem">Analyze Subsystem</option>
+          </optgroup>
+          <optgroup label="Locate">
+            <option value="locate_file">Locate File</option>
+            <option value="locate_paydata">Locate Paydata</option>
+            <option value="locate_ic">Locate IC</option>
+            <option value="locate_slave">Locate Slave</option>
+          </optgroup>
+          <optgroup label="Files">
+            <option value="download_data">Download Data</option>
+            <option value="edit_file">Edit File</option>
+            <option value="upload_data">Upload Data</option>
+            <option value="decrypt_file">Decrypt File</option>
+          </optgroup>
+          <optgroup label="Slave">
+            <option value="control_slave">Control Slave</option>
+            <option value="monitor_slave">Monitor Slave</option>
+            <option value="edit_slave">Edit Slave</option>
+          </optgroup>
+          <optgroup label="Stealth / Counter-Trace">
+            <option value="redirect_datatrail">Redirect Datatrail</option>
+            <option value="relocate">Relocate (vs Trace IC)</option>
+          </optgroup>
+          <optgroup label="Misc">
+            <option value="null_operation">Null Operation</option>
+            <option value="crash_host">Crash Host</option>
+            <option value="validate_passcode">Validate Passcode</option>
+            <option value="invalidate_passcode">Invalidate Passcode</option>
+            <option value="decoy">Decoy</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="mr-field" style="min-width:120px">
+        <label>Subsystem</label>
+        <select id="actionSubsystem">
+          <option value="access">Access</option>
+          <option value="files">Files</option>
+          <option value="slave">Slave</option>
+          <option value="control">Control</option>
+          <option value="index">Index</option>
+          <option value="sensor">Sensor</option>
+        </select>
+      </div>
+      <div style="padding-bottom:2px">
+        <button class="btn btn-green" onclick="performAction()">&gt;&gt; Perform Action</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #1a2a1a;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-sm" style="color:var(--cyan);border-color:#004455" onclick="doNewTurn()" data-tip="Refresh Hacking Pool and advance turn counter">&gt;&gt; New Turn (Refresh HP)</button>
+      <div style="width:1px;background:#1a2a1a;height:22px;margin:0 4px"></div>
+      <button class="btn btn-amber btn-sm" onclick="openLogoffModal(${utilityRating})">&gt;&gt; Graceful Logoff</button>
+      <button class="btn btn-ghost btn-sm" onclick="doJackOut()">&gt;&gt; Jack Out (Emergency)</button>
+    </div>`;
+
+  // Set default subsystem for default action
+  onActionTypeChange();
+}
+
+function onActionTypeChange() {
+  const actionSel = document.getElementById('actionType');
+  const subSel    = document.getElementById('actionSubsystem');
+  if (!actionSel || !subSel) return;
+  const sub = ACTION_SUBSYSTEM[actionSel.value] || 'access';
+  subSel.value = sub;
+}
+
+// -- Perform action ---------------------------------------------------------
+async function performAction() {
+  if (!_run) return;
+  const actionType    = document.getElementById('actionType')?.value;
+  const subsystem     = document.getElementById('actionSubsystem')?.value;
+  const utilityRating = parseInt(document.getElementById('actionUtilRating')?.value) || 0;
+  const hpDice        = parseInt(document.getElementById('actionHpDice')?.value) || 0;
+
+  if (!actionType) return;
+
+  const body = {
+    action_type: actionType,
+    subsystem,
+    utility_rating: utilityRating,
+    hacking_pool_dice: hpDice,
+  };
+
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, body);
+}
+
+async function doLogon() {
+  if (!_run) return;
+  const hpInput = document.getElementById('logonHpDice');
+  const hpDice  = hpInput ? (parseInt(hpInput.value) || 0) : 0;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'logon_to_host',
+    subsystem:   'access',
+    utility_rating: 0,
+    hacking_pool_dice: hpDice,
+  });
+}
+
+async function doNewTurn() {
+  if (!_run) return;
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/new-turn`, { method: 'POST' });
+    if (!res.ok) await apiThrow(res);
+    renderRunState(await res.json());
+  } catch(e) {
+    showAlert(document.getElementById('runAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
+async function doJackOut() {
+  if (!_run) return;
+  const ok = await showConfirm(
+    'Emergency jack-out will cause dump shock damage. Continue?',
+    'Jack Out',
+    'btn-red'
+  );
+  if (!ok) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/jack-out`, {});
+}
+
+// -- Attack modal -----------------------------------------------------------
+function openAttackModal(icId, icType, icRating) {
+  _attackTargetId = icId;
+  document.getElementById('attackModalTarget').textContent =
+    `Target: ${icType} (Rating ${icRating})`;
+  // Pre-fill attack utility and armor from decker
+  const armor  = (_run?.decker_json?.utilities?.armor)  || 0;
+  const attack = (_run?.decker_json?.utilities?.attack) || 0;
+  document.getElementById('atk-armor').value = armor;
+  document.getElementById('atk-pool').value  = attack;
+  document.getElementById('atk-hp-dice').value = 0;
+  document.getElementById('attackModalAlert').className = 'alert';
+  document.getElementById('attackModal').classList.add('open');
+}
+
+function closeAttackModal() {
+  document.getElementById('attackModal').classList.remove('open');
+  _attackTargetId = null;
+}
+
+async function submitAttack() {
+  if (!_run || !_attackTargetId) return;
+  const attackPool = parseInt(document.getElementById('atk-pool').value) || 0;
+  const hpDice     = parseInt(document.getElementById('atk-hp-dice').value) || 0;
+  const armor      = parseInt(document.getElementById('atk-armor').value) || 0;
+
+  const btn = document.getElementById('attackConfirmBtn');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/attack`, {
+      method: 'POST',
+      body: JSON.stringify({
+        target_ic_id:     _attackTargetId,
+        attack_pool:      attackPool,
+        hacking_pool_dice:hpDice,
+        armor_utility:    armor,
+      }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    closeAttackModal();
+    renderRunState(updated);
+  } catch(e) {
+    showAlert(document.getElementById('attackModalAlert'), e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// -- Logoff modal -----------------------------------------------------------
+function openLogoffModal(deceptionUtility) {
+  document.getElementById('logoff-hp-dice').value   = 0;
+  document.getElementById('logoff-deception').value = deceptionUtility || 0;
+  document.getElementById('logoffModalAlert').className = 'alert';
+  document.getElementById('logoffModal').classList.add('open');
+}
+
+function closeLogoffModal() {
+  document.getElementById('logoffModal').classList.remove('open');
+}
+
+async function submitLogoff() {
+  if (!_run) return;
+  const hpDice    = parseInt(document.getElementById('logoff-hp-dice').value) || 0;
+  const deception = parseInt(document.getElementById('logoff-deception').value) || 0;
+
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/logoff`, {
+      method: 'POST',
+      body: JSON.stringify({ hacking_pool_dice: hpDice, deception_utility: deception }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    closeLogoffModal();
+    renderRunState(updated);
+  } catch(e) {
+    showAlert(document.getElementById('logoffModalAlert'), e.message, true);
+  }
+}
+
+// -- Generic action POST ----------------------------------------------------
+async function postAction(url, body) {
+  try {
+    const res = await apiFetch(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    renderRunState(updated);
+  } catch(e) {
+    showAlert(document.getElementById('pageAlert'), `>> ${e.message}`, true);
+  }
+}
+
+// -- Reactive IC modal (GM only) --------------------------------------------
+function openReactiveModal(icId, icType, icRating) {
+  _reactiveTargetId = icId;
+  document.getElementById('reactiveModalTarget').textContent =
+    `${icType} Rating ${icRating} -- triggered against which utility?`;
+  document.getElementById('reactive-util-name').value   = '';
+  document.getElementById('reactive-util-rating').value = '1';
+  document.getElementById('reactiveModalAlert').className = 'alert';
+  document.getElementById('reactiveModal').classList.add('open');
+}
+
+function closeReactiveModal() {
+  document.getElementById('reactiveModal').classList.remove('open');
+  _reactiveTargetId = null;
+}
+
+async function submitReactive() {
+  if (!_run || !_reactiveTargetId) return;
+  const utilName   = document.getElementById('reactive-util-name').value.trim();
+  const utilRating = parseInt(document.getElementById('reactive-util-rating').value) || 0;
+  if (!utilName)     { showAlert(document.getElementById('reactiveModalAlert'), 'Enter utility name.', true); return; }
+  if (utilRating < 1){ showAlert(document.getElementById('reactiveModalAlert'), 'Utility rating must be >= 1.', true); return; }
+
+  const btn = document.getElementById('reactiveConfirmBtn');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/resolve-reactive`, {
+      method: 'POST',
+      body: JSON.stringify({ ic_id: _reactiveTargetId, utility_name: utilName, utility_rating: utilRating }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    closeReactiveModal();
+    renderRunState(updated);
+  } catch(e) {
+    showAlert(document.getElementById('reactiveModalAlert'), e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// -- Abandon / close run ----------------------------------------------------
+async function abandonRun() {
+  if (!_run) { showSetupView(); return; }
+  const state = _run.state_json || {};
+  if (!state.run_ended) {
+    const ok = await showConfirm('Abandon this Matrix run? This cannot be undone.', 'Abandon', 'btn-red');
+    if (!ok) return;
+    try {
+      await apiFetch(`${API}/matrix-runs2/${_run.id}`, { method: 'DELETE' });
+    } catch(_e) {}
+  }
+  showSetupView();
+}
+</script>
+</body>
+</html>

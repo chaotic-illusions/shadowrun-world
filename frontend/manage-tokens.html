@@ -18,32 +18,35 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="manage-matrix.html">Matrix</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
     <a href="manage-tokens.html" class="active">Tokens</a>
   </nav>
 </header>
 
 <main>
   <div class="page-title">&gt;&gt; Access Control <em class="sep">//</em> Tokens</div>
-  <div class="page-sub">GENERATE — RENAME — REVOKE</div>
+  <div class="page-sub" style="color: var(--cyan)">GENERATE -- RENAME -- REVOKE</div>
 
   <div id="alert" class="alert"></div>
 
-  <!-- ── Admin Tokens ──────────────────────────────────────────────────────── -->
+  <!-- -- Admin Tokens -------------------------------------------------------- -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:28px">
     <div style="font-size:.7rem;letter-spacing:2px;color:var(--amber)">ADMIN ACCESS TOKENS</div>
     <button class="btn btn-amber" onclick="openNewTokenModal(true)">+ New Admin Token</button>
   </div>
   <div id="adminTokenWrap"><div class="loading">Loading tokens</div></div>
 
-  <!-- ── Player Tokens ─────────────────────────────────────────────────────── -->
+  <!-- -- Player Tokens ------------------------------------------------------- -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:32px">
     <div style="font-size:.7rem;letter-spacing:2px;color:var(--green)">PLAYER ACCESS TOKENS</div>
     <button class="btn btn-green" onclick="openNewTokenModal(false)">+ New Player Token</button>
   </div>
   <div id="playerTokenWrap"><div class="loading">Loading tokens</div></div>
 
-  <!-- ── New token modal ───────────────────────────────────────────────────── -->
+  <!-- -- New token modal ----------------------------------------------------- -->
   <div id="tokenModal" class="modal-overlay">
     <div style="background:var(--bg-card);border:1px solid #1a3a1a;padding:28px 32px;width:100%;max-width:420px" id="tokenModalBox">
       <div style="font-size:.85rem;letter-spacing:2px;margin-bottom:16px" id="tokenModalTitle">&gt;&gt; CREATE TOKEN</div>
@@ -58,21 +61,21 @@
     </div>
   </div>
 
-  <!-- ── Result modal ──────────────────────────────────────────────────────── -->
+  <!-- -- Result modal -------------------------------------------------------- -->
   <div id="resultModal" class="modal-overlay">
     <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--amber);padding:28px 32px;width:100%;max-width:480px">
       <div style="font-size:.85rem;letter-spacing:2px;color:var(--amber);margin-bottom:6px" id="resultModalTitle">&gt;&gt; TOKEN GENERATED</div>
-      <div style="font-size:.6rem;letter-spacing:1px;color:var(--text-dim);margin-bottom:16px">SHARE THIS — IT WILL NOT BE SHOWN AGAIN</div>
+      <div style="font-size:.6rem;letter-spacing:1px;color:var(--text-dim);margin-bottom:16px">SHARE THIS -- IT WILL NOT BE SHOWN AGAIN</div>
       <div id="generatedToken"
         style="font-size:.85rem;letter-spacing:2px;color:var(--text-bright);background:var(--bg-input);
                border:1px solid #333;padding:12px 14px;word-break:break-all;margin-bottom:16px;cursor:pointer"
-        onclick="copyToken()" title="Click to copy"></div>
+        onclick="copyToken()" data-tip="Click to copy"></div>
       <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:16px">Click the token to copy it to clipboard.</div>
       <button class="btn btn-green w-full" onclick="closeResultModal()">&gt;&gt; Done</button>
     </div>
   </div>
 
-  <!-- ── Rename modal ──────────────────────────────────────────────────────── -->
+  <!-- -- Rename modal -------------------------------------------------------- -->
   <div id="renameModal" class="modal-overlay">
     <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--green-dim);padding:28px 32px;width:100%;max-width:420px">
       <div style="font-size:.85rem;letter-spacing:2px;color:var(--green);margin-bottom:16px">&gt;&gt; RENAME TOKEN</div>
@@ -94,7 +97,7 @@
 let _creatingAdmin = false;
 let _renameId = null;
 
-// ── Render tokens ─────────────────────────────────────────────────────────────
+// -- Render tokens -------------------------------------------------------------
 const _lastTokenHtml = {};
 
 function renderTokenTable(tokens, containerId, accentColor) {
@@ -124,7 +127,7 @@ function renderTokenTable(tokens, containerId, accentColor) {
               onclick="deleteToken(${t.id})">Delete</button>`;
           return `
             <tr>
-              <td class="dim-meta">${esc(t.label || '—')}</td>
+              <td class="dim-meta">${esc(t.label || '--')}</td>
               <td style="color:var(--text);font-size:.65rem">${new Date(t.created_at).toLocaleDateString()}</td>
               <td style="white-space:nowrap">${actions}</td>
             </tr>`;
@@ -151,7 +154,7 @@ async function loadTokens() {
   }
 }
 
-// ── New token modal ───────────────────────────────────────────────────────────
+// -- New token modal -----------------------------------------------------------
 
 function openNewTokenModal(isAdmin) {
   _creatingAdmin = isAdmin;
@@ -208,7 +211,7 @@ async function copyToken() {
   } catch(_) {}
 }
 
-// ── Rename modal ──────────────────────────────────────────────────────────────
+// -- Rename modal --------------------------------------------------------------
 
 function openRenameModal(id, currentLabel) {
   _renameId = id;
@@ -239,7 +242,7 @@ async function submitRename() {
   }
 }
 
-// ── Regenerate ────────────────────────────────────────────────────────────────
+// -- Regenerate ----------------------------------------------------------------
 
 async function regenerateToken(id) {
     if (!await showConfirm('Regenerate this token? The old token will stop working immediately. Any player using it must be given the new token.', 'Regenerate', 'btn-amber')) return;
@@ -256,7 +259,7 @@ async function regenerateToken(id) {
   }
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
+// -- Delete --------------------------------------------------------------------
 
 async function deleteToken(id) {
     if (!await showConfirm('Delete this token? The player will lose access and their characters will be unclaimed.', 'Delete')) return;
@@ -270,7 +273,7 @@ async function deleteToken(id) {
   }
 }
 
-// ── Player view ───────────────────────────────────────────────────────────────
+// -- Player view ---------------------------------------------------------------
 
 function renderPlayerView(ctx) {
   const main = document.querySelector('main');
@@ -317,7 +320,7 @@ async function submitPlayerRename() {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// -- Init ----------------------------------------------------------------------
 
 async function init() {
   const ctx = await bootstrapAuth();
