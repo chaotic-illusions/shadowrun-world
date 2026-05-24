@@ -9,7 +9,7 @@ from app.services.heat_calculator import (
 )
 
 
-# ── Label functions ──────────────────────────────────────────────────────────
+# -- Label functions ----------------------------------------------------------
 
 class TestHeatLabel:
     def test_neutral(self):
@@ -61,7 +61,7 @@ class TestRepLabels:
         assert pa_label(15) == "Burned"
 
 
-# ── compute_heat ─────────────────────────────────────────────────────────────
+# -- compute_heat -------------------------------------------------------------
 
 class TestComputeHeat:
     def test_clean_success(self):
@@ -90,7 +90,7 @@ class TestComputeHeat:
         assert h == 2  # defaults to base of 2
 
 
-# ── Decay functions ──────────────────────────────────────────────────────────
+# -- Decay functions ----------------------------------------------------------
 
 class TestDecayHeat:
     def test_no_decay_at_zero(self):
@@ -136,7 +136,7 @@ class TestDecayStanding:
         assert -8 < result < 0
 
 
-# ── Faction ripple ───────────────────────────────────────────────────────────
+# -- Faction ripple -----------------------------------------------------------
 
 class TestComputeRipple:
     @pytest.fixture

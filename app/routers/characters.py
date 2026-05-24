@@ -136,7 +136,7 @@ async def get_character_reputation(character_id: int, db: AsyncSession = Depends
     return result.scalars().first()
 
 
-# ── Claim / unclaim ───────────────────────────────────────────────────────────
+# -- Claim / unclaim -----------------------------------------------------------
 
 @router.post("/{character_id}/claim", response_model=CharacterRead)
 async def claim_character(

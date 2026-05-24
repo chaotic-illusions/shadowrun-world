@@ -7,7 +7,7 @@ from app.db.base import Base
 class UserToken(Base):
     """
     Tokens distributed to players (is_admin=False) or used as admin credentials (is_admin=True).
-    Tokens are stored as SHA-256 hashes — the plaintext is shown only at creation time.
+    Tokens are stored as SHA-256 hashes -- the plaintext is shown only at creation time.
     Bootstrap: if no active admin token exists in this table, the BOOTSTRAP_ADMIN_KEY env var is accepted.
     """
     __tablename__ = "auth_user_tokens"

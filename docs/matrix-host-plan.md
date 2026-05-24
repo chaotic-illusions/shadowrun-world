@@ -1,8 +1,8 @@
-# Matrix Host Generator — Implementation Plan
+# Matrix Host Generator -- Implementation Plan
 
 Branch: `matrix-host`  
 Edition: Shadowrun 2nd (geometric nodes, target numbers, Green/Blue/Orange/Red/Black security ratings)  
-Status: **Spec locked — ready to implement**
+Status: **Spec locked -- ready to implement**
 
 ---
 
@@ -17,11 +17,11 @@ Status: **Spec locked — ready to implement**
 | Node repositioning | Native SVG mouse events (drag nodes + drag-to-rewire edges) |
 | Navigation | New page `frontend/manage-matrix.html` in existing nav |
 | IC badges | Colored badge per IC on node; hover tooltip with mechanics + flavor |
-| Edge rewiring | Click edge → drag endpoint handle → drop on valid node |
+| Edge rewiring | Click edge -> drag endpoint handle -> drop on valid node |
 
 ---
 
-## Node Types — Confirmed SR2 Canonical
+## Node Types -- Confirmed SR2 Canonical
 
 | Code | Full Name | SR2 Flat Shape | 3D SVG Representation | Color Token |
 |---|---|---|---|---|
@@ -38,23 +38,23 @@ Rows = source node type. Columns = allowed target types.
 
 | From \ To | CPU | DS | I/OP | SN | SPU | SAN |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **CPU** | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **DS** | ✓ | ✓ | — | — | ✓ | — |
-| **I/OP** | ✓ | — | — | — | ✓ | — |
-| **SN** | ✓ | — | — | — | ✓ | — |
-| **SPU** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **SAN** | ✓ | ✓ | — | — | ✓ | — |
+| **CPU** | -- | [ok] | [ok] | [ok] | [ok] | [ok] |
+| **DS** | [ok] | [ok] | -- | -- | [ok] | -- |
+| **I/OP** | [ok] | -- | -- | -- | [ok] | -- |
+| **SN** | [ok] | -- | -- | -- | [ok] | -- |
+| **SPU** | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] |
+| **SAN** | [ok] | [ok] | -- | -- | [ok] | -- |
 
 **Key structural rules:**
-- **SPU is the universal hub** — connects to all types including other SPUs
-- **SAN is the only valid entry point** — I/OP and SN cannot connect to SAN; all external access must route through a SAN
-- **DS can chain** — DS→DS is legal (tiered storage)
-- **I/OP and SN are dead-ends** — only route outward to CPU or SPU
+- **SPU is the universal hub** -- connects to all types including other SPUs
+- **SAN is the only valid entry point** -- I/OP and SN cannot connect to SAN; all external access must route through a SAN
+- **DS can chain** -- DS->DS is legal (tiered storage)
+- **I/OP and SN are dead-ends** -- only route outward to CPU or SPU
 - The generator enforces this matrix for both generation and drag-to-rewire validation
 
 ---
 
-## IC Types — Confirmed
+## IC Types -- Confirmed
 
 All IC entries stored as: `{ "type": "Killer", "category": "gray", "rating": 6, "active": true }`
 
@@ -65,7 +65,7 @@ All IC entries stored as: `{ "type": "Killer", "category": "gray", "rating": 6, 
 | Barrier | Raises the host's security rating against the decker for the remainder of the run |
 | Scramble | Disconnects the decker from the host immediately on trigger |
 
-### Gray IC (conditionally lethal — can deal damage)
+### Gray IC (conditionally lethal -- can deal damage)
 | Type | Mechanic summary |
 |---|---|
 | Blaster | Deals Stun damage to decker's biofeedback; can KO |
@@ -76,7 +76,7 @@ All IC entries stored as: `{ "type": "Killer", "category": "gray", "rating": 6, 
 | Trace & Dump | Traces decker; forcibly disconnects (dumps) them from the host |
 | Trace & Burn | Traces decker; destroys their cyberdeck's MPCP on successful trace |
 
-**Note:** "Trace" is the parent program type. All Trace IC must carry a triggered action (Report, Dump, or Burn) — bare "Trace" IC does not exist as a standalone type.
+**Note:** "Trace" is the parent program type. All Trace IC must carry a triggered action (Report, Dump, or Burn) -- bare "Trace" IC does not exist as a standalone type.
 
 ### Black IC (lethal)
 No sub-type. Deals Physical damage (occasionally Stun at GM discretion). Typically the most aggressive and damaging IC in the host. Stored as: `{ "type": "Black", "category": "black", "rating": 8, "active": true }`
@@ -94,16 +94,16 @@ Each node shows stacked IC badges (small colored dots/rings near the node edge).
 
 ## Node Shape SVG Implementation
 
-All shapes rendered at a nominal 44px bounding box, isometric projection (approx 30° angle).
+All shapes rendered at a nominal 44px bounding box, isometric projection (approx 30 deg angle).
 
 | Type | SVG Approach |
 |---|---|
-| **CPU** | Outer hex ring (`<polygon>`) + inner offset hex (`<polygon>`) — both using isometric hex prism lines for the 3D top/sides; outer ring gets a darker fill to show the "wall" |
-| **SPU** | Single hexagonal prism — top face `<polygon>` + two parallelogram side faces |
-| **SN** | Sphere — `<circle>` with radial gradient (highlight at top-left, dark at bottom-right) |
-| **SAN** | Cuboid — three `<polygon>` faces (top, left side, right side) with distinct lightness |
-| **I/OP** | Pyramid — triangular top `<polygon>` + two trapezoidal side faces |
-| **DS** | Cube — three `<polygon>` faces (top, left, right) equal-sized, isometric orientation |
+| **CPU** | Outer hex ring (`<polygon>`) + inner offset hex (`<polygon>`) -- both using isometric hex prism lines for the 3D top/sides; outer ring gets a darker fill to show the "wall" |
+| **SPU** | Single hexagonal prism -- top face `<polygon>` + two parallelogram side faces |
+| **SN** | Sphere -- `<circle>` with radial gradient (highlight at top-left, dark at bottom-right) |
+| **SAN** | Cuboid -- three `<polygon>` faces (top, left side, right side) with distinct lightness |
+| **I/OP** | Pyramid -- triangular top `<polygon>` + two trapezoidal side faces |
+| **DS** | Cube -- three `<polygon>` faces (top, left, right) equal-sized, isometric orientation |
 
 All shapes use a `<defs>` gradient per color token. Selected nodes get a bright outer glow ring. IC badges are `<circle r="5">` elements positioned around the node perimeter, color-coded by lethality.
 
@@ -168,52 +168,52 @@ class MatrixHost(Base):
 
 | Parameter | Type | Range / Options | Description |
 |---|---|---|---|
-| Complexity | 1–5 | Simple / Standard / Complex / Major Corp / Black Site | Controls node count (see table) |
-| Base Rating | select | Green-4 … Black-20 | Sets IC/node ratings, colors the whole diagram |
+| Complexity | 1-5 | Simple / Standard / Complex / Major Corp / Black Site | Controls node count (see table) |
+| Base Rating | select | Green-4 ... Black-20 | Sets IC/node ratings, colors the whole diagram |
 | IC Lethality | select | White / Gray / Black | White = non-lethal only; Black = anything goes |
 | Private Subnet | toggle | yes / no | Adds a second isolated cluster linked to main via a single access node |
 | Owner Hint | select | Corp / Government / Criminal / Military / Unknown | Biases IC types and node flavors |
 | Seed | number (optional) | any integer | Reproducible generation; blank = random |
-| Name | text | — | Host name (e.g. "Aztechnology – Seattle Payroll") |
+| Name | text | -- | Host name (e.g. "Aztechnology - Seattle Payroll") |
 | Owner Org | FK select | from orgs list | Optional link to organization record |
 | Location | FK select | from locations list | Optional link to location record |
 
-### Complexity → Node Count Ranges
+### Complexity -> Node Count Ranges
 
 | Level | Name | Node Count | Notes |
 |---|---|---|---|
-| 1 | Simple | 5–8 | Single access node, minimal IC |
-| 2 | Standard | 9–14 | Typical corporate host |
-| 3 | Complex | 15–20 | Major facility or secure system |
-| 4 | Major Corp | 21–30 | AAA megacorp, government |
-| 5 | Black Site | 31–45 | Military, black ops, research |
+| 1 | Simple | 5-8 | Single access node, minimal IC |
+| 2 | Standard | 9-14 | Typical corporate host |
+| 3 | Complex | 15-20 | Major facility or secure system |
+| 4 | Major Corp | 21-30 | AAA megacorp, government |
+| 5 | Black Site | 31-45 | Military, black ops, research |
 
 ---
 
 ## Open Questions / Future Ideas
 
 ```
-matrix_generator.generate(config) → topology_json
+matrix_generator.generate(config) -> topology_json
 ```
 
 Steps:
 1. Seed the RNG (`random.seed(config.seed or random.randint(0, 99999))`)
 2. Determine total node count from complexity band (random within range)
-3. Place mandatory nodes: 1× CPU at center
+3. Place mandatory nodes: 1x CPU at center
 4. Add SPUs: `floor(node_count / 5)` minimum 1
 5. Add Access Nodes based on owner_hint + has_private_subnet
 6. Fill remaining budget with Storage Pools, Slave Controllers, I/O Ports weighted by owner_hint
 7. Wire edges following valid connection rules; ensure the graph is fully connected
 8. Place IC on nodes: Security Nodes guaranteed IC; CPU has IC above complexity 2; others by rating band
-9. Calculate initial positions (radial layout — see below)
-10. If has_private_subnet: repeat steps 3–9 for private cluster; link via one access node
+9. Calculate initial positions (radial layout -- see below)
+10. If has_private_subnet: repeat steps 3-9 for private cluster; link via one access node
 
 ### Initial Node Placement (Radial Layers)
 - Layer 0 (center): CPU
-- Layer 1 (inner ring, r≈120px): SPUs
-- Layer 2 (middle ring, r≈240px): Storage Pools, Slave Controllers
-- Layer 3 (outer ring, r≈360px): Access Nodes, I/O Ports
-- Private subnet cluster: offset ±500px from center, own identical radial layout
+- Layer 1 (inner ring, r~120px): SPUs
+- Layer 2 (middle ring, r~240px): Storage Pools, Slave Controllers
+- Layer 3 (outer ring, r~360px): Access Nodes, I/O Ports
+- Private subnet cluster: offset +/-500px from center, own identical radial layout
 - Subnet boundary box auto-calculated from node positions + 60px padding
 
 ---
@@ -262,10 +262,10 @@ svg.addEventListener('mouseup', () => { if (_drag) { savePositions(); _drag = nu
 
 ### Edge Rewiring
 Each edge `<path>` has an invisible 12px-wide hit area. Clicking an edge:
-1. Selects it — shows a drag handle circle at each endpoint
+1. Selects it -- shows a drag handle circle at each endpoint
 2. User drags either handle; valid drop targets highlight green, invalid targets red
 3. Validation runs against the connection matrix (same table used by generator)
-4. Drop on valid node → rewires edge; drop on invalid target or empty space → snaps back
+4. Drop on valid node -> rewires edge; drop on invalid target or empty space -> snaps back
 
 Right-click context menu on nodes: **Add connection** (draw mode to second node) and **Delete connection** (on edge right-click, with confirm).
 
@@ -343,11 +343,11 @@ conn.execute("""
 3. [ ] Alembic migration for `matrix_hosts` table
 4. [ ] `app/models/matrix_host.py`
 5. [ ] `app/schemas/matrix_host.py`
-6. [ ] `app/services/matrix_generator.py` — generation algorithm
-7. [ ] `app/routers/matrix_hosts.py` — CRUD + `/generate`
+6. [ ] `app/services/matrix_generator.py` -- generation algorithm
+7. [ ] `app/routers/matrix_hosts.py` -- CRUD + `/generate`
 8. [ ] Register router in `app/main.py`
-9. [ ] `frontend/manage-matrix.html` — form, SVG canvas, host list, drag/rewire
-10. [ ] `frontend/style.css` — isometric node styles, subnet box, IC badge colors, print media query
+9. [ ] `frontend/manage-matrix.html` -- form, SVG canvas, host list, drag/rewire
+10. [ ] `frontend/style.css` -- isometric node styles, subnet box, IC badge colors, print media query
 11. [ ] Add "Matrix" nav link to all existing HTML pages
 12. [ ] Error check all modified Python files
 13. [ ] Commit and push to `matrix-host` branch
@@ -357,8 +357,8 @@ conn.execute("""
 
 ## Open Questions / Future Ideas
 
-- **Claude name generation**: Optional call to generate thematic node labels (e.g. "AEGIS-CORE-7", "VAULT-DELTA") using the existing Anthropic integration — toggle in the config form.
+- **Claude name generation**: Optional call to generate thematic node labels (e.g. "AEGIS-CORE-7", "VAULT-DELTA") using the existing Anthropic integration -- toggle in the config form.
 - **Export to print**: A "Print View" button that opens an `<iframe>` with a stripped-down version for table use.
 - **Link to LTG records**: A Matrix host could be associated with an existing LTG record (host appears in the RTG viewer).
-- **Multiple access nodes to a private subnet**: If complexity ≥ 4, allow 2 bridge nodes between public and private.
-- **IC patrol paths**: Advanced — define which IC roves between nodes rather than sitting static.
+- **Multiple access nodes to a private subnet**: If complexity >= 4, allow 2 bridge nodes between public and private.
+- **IC patrol paths**: Advanced -- define which IC roves between nodes rather than sitting static.

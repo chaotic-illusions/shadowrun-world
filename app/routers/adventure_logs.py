@@ -25,7 +25,7 @@ from app.services.heat_calculator import (
 from app.auth.dependencies import get_admin_token
 
 
-# ── Narrative parsing schemas ─────────────────────────────────
+# -- Narrative parsing schemas ---------------------------------
 class NarrativeParseRequest(BaseModel):
     narrative: str
 
@@ -349,7 +349,7 @@ async def apply_world_changes(
                 rep.heat = min(10, max(0, (rep.heat or 0) + ch.delta))
                 rep.heat_updated_at = date.today()
                 rep.heat_stamped_tick = tick
-                applied.append({"desc": f"{ch.character_name or ch.character_id}: heat {ch.delta:+} → {rep.heat}", "reason": ch.reason})
+                applied.append({"desc": f"{ch.character_name or ch.character_id}: heat {ch.delta:+} -> {rep.heat}", "reason": ch.reason})
 
             elif ch.type == "org_standing":
                 if not ch.org_id:
@@ -374,7 +374,7 @@ async def apply_world_changes(
                     db.add(standing)
                 standing.standings_updated_at = date.today()
                 standing.standings_stamped_tick = tick
-                applied.append({"desc": f"{ch.character_name or ch.character_id} ↔ {ch.org_name or ch.org_id}: standing {ch.delta:+}", "reason": ch.reason})
+                applied.append({"desc": f"{ch.character_name or ch.character_id} <-> {ch.org_name or ch.org_id}: standing {ch.delta:+}", "reason": ch.reason})
 
             else:
                 errors.append(f"Unknown change type: {ch.type}")

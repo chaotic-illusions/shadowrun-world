@@ -1,17 +1,17 @@
 """
 Heat and faction standing calculator for completed runs.
 
-Heat (0-10) represents the team's exposure after a run — attention drawn from
+Heat (0-10) represents the team's exposure after a run -- attention drawn from
 corps, law enforcement, and the shadows.  It is a party-level value stored on
 the AdventureLog and is computed deterministically from run parameters.
 
 Heat scale:
   0        = Neutral   (baseline, no exposure)
-  1–2      = Noticed   (low heat, half-life 3 days)
-  3–4      = Flagged   (moderate, half-life 7 days)
-  5–6      = Wanted    (high, half-life 14 days)
-  7–8      = Hot       (very high, half-life 21 days)
-  9–10     = Nova Hot  (extreme, half-life 30 days)
+  1-2      = Noticed   (low heat, half-life 3 days)
+  3-4      = Flagged   (moderate, half-life 7 days)
+  5-6      = Wanted    (high, half-life 14 days)
+  7-8      = Hot       (very high, half-life 21 days)
+  9-10     = Nova Hot  (extreme, half-life 30 days)
 
 Faction ripple: a standing change with org X propagates (at reduced magnitude)
 to X's documented allies and enemies.
@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from datetime import date
 
-# ── Heat inputs ──────────────────────────────────────────────────────────────
+# -- Heat inputs --------------------------------------------------------------
 
 OUTCOME_HEAT: dict[str, int] = {
     "success":          2,
@@ -60,9 +60,9 @@ ORG_TYPE_HEAT: dict[str, int] = {
     "other":                0,
 }
 
-# ── Threshold tables ─────────────────────────────────────────────────────────
+# -- Threshold tables ---------------------------------------------------------
 
-# (lo, hi, label) — inclusive bounds
+# (lo, hi, label) -- inclusive bounds
 HEAT_THRESHOLDS: list[tuple[int, int, str]] = [
     (0,  0, "Neutral"),
     (1,  2, "Noticed"),
@@ -90,8 +90,8 @@ STANDING_TIERS: list[tuple[int, int, str]] = [
     (  7, 10, "allied"),
 ]
 
-# ── Reputation tier tables ────────────────────────────────────────────────────
-# Net rep = 20 + street_cred - notoriety, clamped 0–40.  20 = neutral baseline.
+# -- Reputation tier tables ----------------------------------------------------
+# Net rep = 20 + street_cred - notoriety, clamped 0-40.  20 = neutral baseline.
 
 PC_REP_TIERS: list[tuple[int, int, str]] = [
     ( 0,  0, "Infamous"),
@@ -135,16 +135,16 @@ PA_TIERS: list[tuple[int, int, str]] = [
     (13, 99, "Burned"),
 ]
 
-# Half-life in days per PA tier — media and public attention fades over time
+# Half-life in days per PA tier -- media and public attention fades over time
 PA_HALF_LIVES: list[tuple[int, int, float]] = [
-    ( 0,  0, float('inf')),  # Shadow — nothing to decay
-    ( 1,  3, 7.0),            # Seen — news cycle moves on quickly
+    ( 0,  0, float('inf')),  # Shadow -- nothing to decay
+    ( 1,  3, 7.0),            # Seen -- news cycle moves on quickly
     ( 4,  7, 14.0),           # Recognized
     ( 8, 12, 21.0),           # In the Spotlight
-    (13, 99, 30.0),           # Burned — hard to shake but fades eventually
+    (13, 99, 30.0),           # Burned -- hard to shake but fades eventually
 ]
 
-# ── Ripple parameters ────────────────────────────────────────────────────────
+# -- Ripple parameters --------------------------------------------------------
 
 RIPPLE_FACTOR = 0.4   # fraction of original delta applied to adjacent orgs
 RIPPLE_CAP    = 2     # maximum ripple magnitude in either direction
@@ -153,7 +153,7 @@ RIPPLE_CAP    = 2     # maximum ripple magnitude in either direction
 LYING_LOW_DECAY_ACCEL = 2.0
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
+# -- Public API ---------------------------------------------------------------
 
 def heat_label(heat: int) -> str:
     for lo, hi, label in HEAT_THRESHOLDS:
@@ -237,10 +237,10 @@ def decay_heat(heat: int, days_ago: int, accel: float = 1.0) -> float:
 
 
 # Half-lives in days for org standings decay.
-# Negative standings (hostility) fade faster; positive (loyalty) take 2× longer.
-# Magnitude of standing drives tier — both tables are keyed on abs(standing).
+# Negative standings (hostility) fade faster; positive (loyalty) take 2x longer.
+# Magnitude of standing drives tier -- both tables are keyed on abs(standing).
 STANDING_HALF_LIVES_NEG: list[tuple[int, int, float]] = [
-    (0,  0, float('inf')),  # neutral — never decays
+    (0,  0, float('inf')),  # neutral -- never decays
     (1,  3, 4.0),            # unfriendly low   (pos 6.0 / 1.5)
     (4,  6, 8.0),            # unfriendly high  (pos 12.0 / 1.5)
     (7,  9, 13.0),           # hostile low-mid  (pos 20.0 / 1.5)

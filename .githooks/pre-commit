@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+
+if command -v python >/dev/null 2>&1; then
+  python tools/check_text_hygiene.py --staged
+elif command -v python3 >/dev/null 2>&1; then
+  python3 tools/check_text_hygiene.py --staged
+else
+  echo "pre-commit: Python is required to run tools/check_text_hygiene.py"
+  exit 1
+fi

@@ -23,28 +23,28 @@
 
 <main>
   <div id="pageTitle" class="page-title">&gt;&gt; MATRIX SYSTEM DESIGNER <em class="sep">//</em> Topology Editor</div>
-  <div class="page-sub">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
+  <div class="page-sub" style="color:var(--cyan)">ARCHITECTURE ANALYSIS // NODE MAPPING // IC THREAT ASSESSMENT</div>
 
   <div id="mxAlert" class="alert" style="margin-bottom:12px"></div>
 
   <div class="mx-layout">
 
-    <!-- ── LEFT: new host form + palette + host list ── -->
+    <!-- -- LEFT: new host form + palette + host list -- -->
     <div>
       <!-- New Host Form (GM only) -->
       <div class="mx-panel gm-only mb-16">
-        <div class="mx-panel-title">&gt;&gt; New Matrix Host</div>
+        <div class="panel-title panel-title-cyan">&gt;&gt; New Matrix Host</div>
 
         <div class="mx-field">
           <label>Organization</label>
           <select id="new-org-source" onchange="onOrgSourceChange()">
-            <option value="">— One-off system (no org) —</option>
+            <option value="">-- One-off system (no org) --</option>
           </select>
         </div>
         <div class="mx-field" id="ltgSourceField" style="display:none">
           <label>LTG / System Entry</label>
           <select id="new-ltg-source" onchange="onLtgSourceChange()">
-            <option value="">— Select entry —</option>
+            <option value="">-- Select entry --</option>
           </select>
         </div>
 
@@ -54,9 +54,9 @@
         </div>
 
         <div class="mx-field">
-          <label>SAN Rating</label>
+          <label>Security</label>
           <select id="new-san-rating">
-            <option value="">— Unknown —</option>
+            <option value="">-- Unknown --</option>
             <option value="Blue-3">Blue-3</option>
             <option value="Green-4">Green-4</option>
             <option value="Green-5">Green-5</option>
@@ -90,7 +90,7 @@
 
       <!-- Node palette (GM only, shown when a canvas is active) -->
       <div class="mx-panel gm-only" id="palettePanel" style="margin-bottom:16px;display:none">
-        <div class="mx-panel-title">&gt;&gt; Node Palette</div>
+        <div class="panel-title panel-title-cyan">&gt;&gt; Node Palette</div>
         <div class="palette-grid" id="paletteGrid"></div>
         <div style="margin-top:10px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
           Drag a node type onto the canvas to place it.<br>
@@ -101,28 +101,28 @@
 
       <!-- System Zone Manager (GM only, visible when host loaded) -->
       <div class="mx-panel gm-only" id="subnetPanel" style="margin-bottom:16px;display:none">
-        <div class="mx-panel-title flex-between">
+        <div class="panel-title panel-title-cyan flex-between">
           <span>&gt;&gt; System Zones</span>
           <button class="btn btn-sm" style="color:var(--cyan);border-color:#004455" onclick="addSubnetZone()">+ Add Zone</button>
         </div>
         <div id="subnetList"></div>
         <div style="margin-top:8px;font-size:0.58rem;color:var(--text-dim);letter-spacing:1px;line-height:1.5">
           A node can belong to only one zone but may connect to nodes<br>
-          in other zones — use this for nested private systems.
+          in other zones -- use this for nested private systems.
         </div>
       </div>
 
       <!-- Host List -->
       <div class="mx-panel">
-        <div class="mx-panel-title flex-between">
+        <div class="panel-title panel-title-cyan flex-between">
           <span>&gt;&gt; Saved Hosts</span>
-          <span id="hostCount" class="text-dim">—</span>
+          <span id="hostCount" class="text-dim">--</span>
         </div>
-        <div id="hostList"><div class="mx-empty" style="height:60px">No hosts saved</div></div>
+        <div id="hostList"><div class="empty-msg" style="height:60px">No hosts saved</div></div>
       </div>
     </div>
 
-    <!-- ── RIGHT: SVG canvas ────────────────────────── -->
+    <!-- -- RIGHT: SVG canvas -------------------------- -->
     <div>
       <div id="canvasHostTitle" style="font-size:0.78rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;display:none">
         <span id="canvasTitle"></span>
@@ -186,7 +186,7 @@
   </div><!-- /mx-layout -->
 </main>
 
-<!-- ── IC Tooltip ──────────────────────────────────── -->
+<!-- -- IC Tooltip ------------------------------------ -->
 <div id="icTooltip">
   <div class="ic-tt-type" id="icTtType"></div>
   <div class="ic-tt-cat"  id="icTtCat"></div>
@@ -195,7 +195,7 @@
   <div class="ic-tt-flavor"  id="icTtFlavor"></div>
 </div>
 
-<!-- ── Node edit modal ─────────────────────────────── -->
+<!-- -- Node edit modal ------------------------------- -->
 <div id="nodeModal">
   <div class="mx-modal-box">
     <div class="mx-modal-title">&gt;&gt; EDIT NODE</div>
@@ -210,7 +210,7 @@
     <div class="modal-field">
       <label>Node Rating</label>
       <select id="modal-rating">
-        <option value="">— None —</option>
+        <option value="">-- None --</option>
         <option value="Blue-3">Blue-3</option>
         <option value="Green-4">Green-4</option>
         <option value="Green-5">Green-5</option>
@@ -246,7 +246,7 @@
   </div>
 </div>
 
-<!-- ── Confirm dialog ────────────────────────────────── -->
+<!-- -- Confirm dialog ---------------------------------- -->
 <div id="confirmModal">
   <div class="mx-modal-box" style="width:340px">
     <div class="mx-modal-title">&gt;&gt; CONFIRM ACTION</div>
@@ -258,7 +258,7 @@
   </div>
 </div>
 
-<!-- ── Palette drag ghost ──────────────────────────── -->
+<!-- -- Palette drag ghost ---------------------------- -->
 <svg id="paletteDragGhost" width="60" height="60" xmlns="http://www.w3.org/2000/svg">
   <g id="ghostNodeGroup" transform="translate(30,30)"></g>
 </svg>
@@ -269,7 +269,7 @@
 
 const API = '';
 
-// ── State ──────────────────────────────────────────────────────────────────
+// -- State ------------------------------------------------------------------
 let _hosts      = [];
 let _orgs       = [];       // all orgs (for LTG dropdown)
 let _icInfo     = {};
@@ -303,7 +303,7 @@ let _connectFrom = null;
 // Modal state
 let _modalNodeId = null;
 
-// ── Color & shape config ───────────────────────────────────────────────────
+// -- Color & shape config ---------------------------------------------------
 // Read CSS custom properties so colors are defined in one place (style.css :root)
 const _cs = getComputedStyle(document.documentElement);
 const _cv = (v) => _cs.getPropertyValue(v).trim();
@@ -354,11 +354,11 @@ const IC_TYPES = {
   black: ['Black IC'],
 };
 
-// Isometric offset constants (30° projection)
+// Isometric offset constants (30 deg projection)
 const ISO_DX = 12;
 const ISO_DY = 7;
 
-// ── Boot ───────────────────────────────────────────────────────────────────
+// -- Boot -------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   const _authUser = await bootstrapAuth();
   if (!_authUser) return;
@@ -413,7 +413,7 @@ function onOrgSourceChange() {
   const org = _orgs.find(o => o.id === orgId);
   if (!org) { ltgField.style.display = 'none'; return; }
   const hosts = (org.ltgs || []).filter(l => l.type === 'matrix_host' && l.san_access_rating);
-  ltgSel.innerHTML = '<option value="">— Select entry —</option>';
+  ltgSel.innerHTML = '<option value="">-- Select entry --</option>';
   hosts.forEach(ltg => {
     const opt = document.createElement('option');
     opt.value = JSON.stringify(ltg);
@@ -451,12 +451,14 @@ function renderHostList() {
   const el = document.getElementById('hostList');
   document.getElementById('hostCount').textContent = _hosts.length;
   if (!_hosts.length) {
-    el.innerHTML = '<div class="mx-empty" style="height:60px">No hosts saved</div>';
+    el.innerHTML = '<div class="empty-msg" style="height:60px">No hosts saved</div>';
     return;
   }
   el.innerHTML = _hosts.map(h => {
     const cfg = h.config_json || {};
-    const san = cfg.san_rating || '';
+    const san = (cfg.security_code && cfg.security_value)
+      ? `${cfg.security_code}-${cfg.security_value}`
+      : (cfg.san_rating || '');
     const visBadge = isAdmin()
       ? `<span class="vis-badge ${h.is_visible_to_players ? 'vis-revealed' : 'vis-hidden'}"
               onclick="event.stopPropagation();toggleVisibility(${h.id},${h.is_visible_to_players})">
@@ -531,7 +533,11 @@ function populatePlayerPanel() {
   const icCount = (topo.nodes || []).reduce((s, n) => s + (n.ic?.length || 0), 0);
   const edgeCount = (topo.edges || []).length;
   document.getElementById('piStats').innerHTML = `
-    <div class="pi-stat"><label>SAN RATING</label><span class="text-amber">${esc(cfg.san_rating || 'Unknown')}</span></div>
+    <div class="pi-stat"><label>SECURITY</label><span class="text-amber">${esc(
+      (cfg.security_code && cfg.security_value)
+        ? `${cfg.security_code}-${cfg.security_value}`
+        : (cfg.san_rating || 'Unknown')
+    )}</span></div>
     <div class="pi-stat"><label>NODES MAPPED</label><span>${topo.nodes?.length || 0}</span></div>
     <div class="pi-stat"><label>CONNECTIONS</label><span>${edgeCount}</span></div>
     <div class="pi-stat"><label>IC ACTIVE</label><span style="color:${icCount > 0 ? 'var(--red)' : 'var(--text-dim)'}">${icCount}</span></div>
@@ -546,7 +552,7 @@ function populatePlayerPanel() {
   panel.style.display = '';
 }
 
-// ── Create new host ────────────────────────────────────────────────────────
+// -- Create new host --------------------------------------------------------
 async function createHost() {
   const name = document.getElementById('new-name').value.trim();
   if (!name) { showAlert(document.getElementById('mxAlert'), 'Host name is required.', true); return; }
@@ -615,7 +621,7 @@ async function deleteCurrentHost() {
   }
 }
 
-// ── Edit mode ──────────────────────────────────────────────────────────────
+// -- Edit mode --------------------------------------------------------------
 function toggleEditMode() {
   if (_connectMode) endConnectMode();
   _editMode = !_editMode;
@@ -654,7 +660,7 @@ function endConnectMode() {
   if (_topology) renderNodes(_topology.nodes);
 }
 
-// ── System Zone management ──────────────────────────────────────────────────
+// -- System Zone management --------------------------------------------------
 const ZONE_PALETTE = [
   { label: 'Private System',    color: _cv('--zone-private') },
   { label: 'Secure Zone',       color: _cv('--zone-secure') },
@@ -709,8 +715,8 @@ function renderSubnetPanel() {
       const delBtn = document.createElement('button');
       delBtn.className = 'btn btn-red';
       delBtn.style.cssText = 'font-size:0.55rem;padding:2px 7px;flex-shrink:0';
-      delBtn.textContent = '✕';
-      delBtn.title = 'Remove zone — nodes reassigned to Public System';
+      delBtn.textContent = 'x';
+      delBtn.title = 'Remove zone -- nodes reassigned to Public System';
       delBtn.addEventListener('click', () => removeSubnetZone(subnet.id));
       row.appendChild(delBtn);
     }
@@ -739,7 +745,7 @@ async function removeSubnetZone(zoneId) {
   saveTopology();
 }
 
-// ── Canvas render ──────────────────────────────────────────────────────────
+// -- Canvas render ----------------------------------------------------------
 function clearCanvas() {
   document.getElementById('edgeLayer').innerHTML = '';
   document.getElementById('nodeLayer').innerHTML = '';
@@ -772,7 +778,7 @@ function buildDefs() {
   `;
 }
 
-// ── Subnet bounding boxes ──────────────────────────────────────────────────
+// -- Subnet bounding boxes --------------------------------------------------
 function renderSubnets(nodes, subnets) {
   const layer = document.getElementById('subnetLayer');
   layer.innerHTML = '';
@@ -803,7 +809,7 @@ function renderSubnets(nodes, subnets) {
   }
 }
 
-// ── Edges ──────────────────────────────────────────────────────────────────
+// -- Edges ------------------------------------------------------------------
 function renderEdges(edges) {
   const layer = document.getElementById('edgeLayer');
   layer.innerHTML = '';
@@ -862,7 +868,7 @@ function selectEdge(edge, g) {
   delTxt.setAttribute('x', mx); delTxt.setAttribute('y', my + 4);
   delTxt.setAttribute('text-anchor', 'middle'); delTxt.setAttribute('fill', '#ff3333');
   delTxt.setAttribute('font-size', '11'); delTxt.setAttribute('font-family', 'monospace');
-  delTxt.textContent = '✕';
+  delTxt.textContent = 'x';
   delBtn.appendChild(delBg); delBtn.appendChild(delTxt);
   delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSelectedEdge(); });
   layer.appendChild(delBtn);
@@ -913,7 +919,7 @@ function clearHighlightNodes() {
   });
 }
 
-// ── Nodes ──────────────────────────────────────────────────────────────────
+// -- Nodes ------------------------------------------------------------------
 function renderNodes(nodes) {
   const layer = document.getElementById('nodeLayer');
   layer.innerHTML = '';
@@ -1078,7 +1084,7 @@ async function deleteSelectedNode() {
   saveTopology();
 }
 
-// ── Flat 2D shape drawing ─────────────────────────────────────────────────
+// -- Flat 2D shape drawing -------------------------------------------------
 function drawNodeShape(g, node) {
   const c = NODE_COLOR[node.type] || '#888';
   switch (node.type) {
@@ -1176,7 +1182,7 @@ function drawCube(g, c) {
   g.appendChild(svgRect(-s/2, -s/2, s, s, c, '0.8', c, '1.5'));
 }
 
-// ── SVG events (pan/zoom + drag) ───────────────────────────────────────────
+// -- SVG events (pan/zoom + drag) -------------------------------------------
 function initSvgEvents() {
   const svg = document.getElementById('matrixSvg');
 
@@ -1289,7 +1295,7 @@ function initSvgEvents() {
   });
 }
 
-// ── Palette drag-to-canvas ─────────────────────────────────────────────────
+// -- Palette drag-to-canvas -------------------------------------------------
 function buildPalette() {
   const grid = document.getElementById('paletteGrid');
   NODE_TYPES.forEach(type => {
@@ -1505,7 +1511,7 @@ function findNodeAt(x, y, radius) {
   return null;
 }
 
-// ── Persist topology changes ───────────────────────────────────────────────
+// -- Persist topology changes -----------------------------------------------
 let _saveTimer = null;
 function saveTopology() {
   if (!_currentHost) return;
@@ -1520,7 +1526,7 @@ function saveTopology() {
   }, 800);
 }
 
-// ── Node edit modal ────────────────────────────────────────────────────────
+// -- Node edit modal --------------------------------------------------------
 function openNodeModal(nodeId) {
   const node = (_topology?.nodes || []).find(n => n.id === nodeId);
   if (!node) return;
@@ -1577,7 +1583,7 @@ function addIcRow(ic) {
   const del = document.createElement('button');
   del.className = 'btn btn-red';
   del.style.cssText = 'padding:4px 8px;font-size:0.65rem;min-width:0';
-  del.textContent = '✕';
+  del.textContent = 'x';
   del.type = 'button';
   del.onclick = () => row.remove();
 
@@ -1619,7 +1625,7 @@ async function deleteModalNode() {
   saveTopology();
 }
 
-// ── Connection legend ──────────────────────────────────────────────────────
+// -- Connection legend ------------------------------------------------------
 function buildConnLegend() {
   const tbl = document.getElementById('connLegendTable');
   if (!tbl) return;
@@ -1632,7 +1638,7 @@ function buildConnLegend() {
     html += `<tr><td class="conn-hdr" style="border-left:2px solid ${NODE_COLOR[from]}">${from}</td>`;
     types.forEach(to => {
       // Connection is valid if the connection matrix says so
-      const valid = (_connMatrix[from] || []).includes(to) ? '✓' : '';
+      const valid = (_connMatrix[from] || []).includes(to) ? '[ok]' : '';
       html += `<td class="${valid ? 'conn-yes' : 'conn-no'}">${valid}</td>`;
     });
     html += '</tr>';
@@ -1641,7 +1647,7 @@ function buildConnLegend() {
   tbl.innerHTML = html;
 }
 
-// ── IC tooltip ─────────────────────────────────────────────────────────────
+// -- IC tooltip -------------------------------------------------------------
 function showIcTooltip(e, ic) {
   const tt = document.getElementById('icTooltip');
   const info = _icInfo[ic.type] || {};

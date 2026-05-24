@@ -1,4 +1,4 @@
-# Virtual Realities 2.0 — Rules Reference
+# Virtual Realities 2.0 -- Rules Reference
 
 > Shadowrun 2nd Edition sourcebook. This document contains all mechanical rules extracted from the specified page ranges for use by an AI agent building Matrix-rules-aware applications.
 
@@ -52,7 +52,7 @@ The acronym **ACIFS** covers the five subsystems:
 | **Files** | Resists unauthorized reading, writing, editing, or deleting of data files. |
 | **Slave** | Resists unauthorized control of remote devices connected to the host. |
 
-High subsystem ratings do not impede **authorized** users — they only affect unauthorized (decker) attempts.
+High subsystem ratings do not impede **authorized** users -- they only affect unauthorized (decker) attempts.
 
 #### Security Codes
 
@@ -81,7 +81,7 @@ The power of a decker's persona is defined by:
 - **BEMS** (Bod, Evasion, Masking, Sensor): The four persona programs. These are the decker's "attributes" in the Matrix.
 
 **MPCP constraints:**
-- Total of all four persona programs (Bod + Evasion + Masking + Sensor) cannot exceed **MPCP Rating × 3**.
+- Total of all four persona programs (Bod + Evasion + Masking + Sensor) cannot exceed **MPCP Rating x 3**.
 - No single Persona Rating may exceed the MPCP Rating.
 - Maximum rating for most utility programs equals the MPCP Rating.
 
@@ -106,10 +106,10 @@ Detection Factor = Average (round up) of Masking Rating and Sleaze utility ratin
 
 If no Sleaze utility is running:
 ```
-Detection Factor = Masking Rating ÷ 2 (round up)
+Detection Factor = Masking Rating / 2 (round up)
 ```
 
-**Example:** MPCP-8/8/4/6/6 deck running Sleaze-8: Detection Factor = (6 + 8) ÷ 2 = 7.
+**Example:** MPCP-8/8/4/6/6 deck running Sleaze-8: Detection Factor = (6 + 8) / 2 = 7.
 
 ### Hacking Pool
 
@@ -117,7 +117,7 @@ The Hacking Pool provides bonus dice for Matrix tests.
 
 **Formula:**
 ```
-Hacking Pool = (Intelligence + MPCP Rating) ÷ 3, round down
+Hacking Pool = (Intelligence + MPCP Rating) / 3, round down
 ```
 
 Any increase to Intelligence (from cyberware, bioware, etc.) also increases the Hacking Pool.
@@ -169,7 +169,7 @@ When the tally reaches a gamemaster-set threshold, it triggers events: IC activa
 
 **This section removed as we will perform a different update to the LTG's/RTG's already in the shadowrun-world.db file.**
 
-When generating ratings for public grids not listed, assume Easy Intrusion Difficulty and subtract 2 from all ratings (range 6–8).
+When generating ratings for public grids not listed, assume Easy Intrusion Difficulty and subtract 2 from all ratings (range 6-8).
 
 #### Local Telecommunications Grids (LTG)
 
@@ -178,9 +178,9 @@ LTGs are the local "area codes" within an RTG. In North America, LTG ratings are
 **Optional Rule: Variable LTG Ratings**
 
 Roll 1D6:
-- 1–2: Reduce all LTG's basic System Ratings by 1.
-- 3–4: Ratings unchanged.
-- 5–6: Increase all LTG's System Ratings by 1.
+- 1-2: Reduce all LTG's basic System Ratings by 1.
+- 3-4: Ratings unchanged.
+- 5-6: Increase all LTG's System Ratings by 1.
 
 #### Private LTGs (PLTG)
 
@@ -200,12 +200,12 @@ Jackpoints are the physical connections deckers use to access the Matrix. Each t
 
 | Type | Trace Factor | Access Modifier | Base Bandwidth |
 |------|-------------|-----------------|---------------|
-| Legal Access | –2 | –2 | 20 Mp |
+| Legal Access | -2 | -2 | 20 Mp |
 | Illegal Access | +0 | +0 | 20 Mp |
 | Satellite Uplink | (varies.  Reference Satlink Target Numbers) | +2 | 50 Mp |
-| Workstation | –4 | –4 | 50 Mp |
+| Workstation | -4 | -4 | 50 Mp |
 | Remote Device | +4 | +4 | 20 Mp |
-| Console Access | –6 | See text | Unlimited |
+| Console Access | -6 | See text | Unlimited |
 
 - **Trace Factor**: Applied for the entire run. Lower = trace IC can locate the jackpoint more easily.
 - **Access modifier**: Applied to all the decker's Access Tests during the run.
@@ -213,13 +213,13 @@ Jackpoints are the physical connections deckers use to access the Matrix. Each t
 
 **Console Access:** Halve the opposing system's Access Rating and Security Value for all Access Tests. No bandwidth penalty. Requires physical access to the machine room.
 
-**Satellite Uplink:** Partial immunity to Trace IC — the IC can locate the satellite jackpoint but cannot pinpoint the decker's physical location. Also reduces Reaction by –2 due to signal lag.
+**Satellite Uplink:** Partial immunity to Trace IC -- the IC can locate the satellite jackpoint but cannot pinpoint the decker's physical location. Also reduces Reaction by -2 due to signal lag.
 
 **Bandwidth Trace Modifier (optional):**
 ```
-Modifier = (Decker's Bandwidth ÷ Base Bandwidth, rounded down) × –1
+Modifier = (Decker's Bandwidth / Base Bandwidth, rounded down) x -1
 ```
-Example: 78 Mp bandwidth, Base 20 Mp: modifier = –3 (78 ÷ 20 = 3.9, rounded down to 3, × –1).
+Example: 78 Mp bandwidth, Base 20 Mp: modifier = -3 (78 / 20 = 3.9, rounded down to 3, x -1).
 
 ### Grid Security Tallies
 
@@ -263,33 +263,33 @@ Host systems are where the Sixth World processes its data. Each host has a **Sec
 | **Green** | Moderate protection. More active intent to resist intruders. May include IC. |
 | **Orange** | Significant security including killer IC. Sensitive corporate/government data. |
 | **Red** | Maximum security. Killer defenses. Top-secret data. |
-| **UV** | Ultraviolet. Extremely rare. Qualitatively different cyberspace. Hot decks only. |
+| **Black** | Black/Ultraviolet. Extremely rare. Qualitatively different cyberspace. Hot decks only. |
 
 #### Intrusion Difficulty
 
 | Difficulty | Description | Security Value Range | Subsystem Rating Range |
 |------------|-------------|---------------------|----------------------|
-| Easy | Friendly to multiple users; high traffic | 4–6 | 8–10 |
-| Average | Standard corporate or government system | 7–9 | 11–15 |
-| Hard | High-security system | 8–12 | 13–18 |
+| Easy | Friendly to multiple users; high traffic | 4-6 | 8-10 |
+| Average | Standard corporate or government system | 7-9 | 11-15 |
+| Hard | High-security system | 8-12 | 13-18 |
 
 **Random Host Rating Generation:**
 
-Roll 1D6 for Security Value; divide by 2 and round up; add result to the base value for the security code:
-- Easy: base 4 → final range 5–7
-- Average: base 6 → final range 7–9
-- Hard: base 7 → final range 8–10
+Formula for Security Values:
+- Easy: 1D3 + 3 -> final range 4-6
+- Average: 1D3 + 6 -> final range 7-9
+- Hard: 2D3 + 6 -> final range 8-12
 
-Roll 2D3 + modifier for each Subsystem Rating:
-- Easy: base 9 → final range 11–15
-- Average: base 9 → final range 11–15
-- Hard: base 9 → final range 13–18
+Formulas for each Subsystem Rating:
+- Easy: 1D3 + 7 -> final range 8-10
+- Average: 2D3 + 9 -> final range 11-15
+- Hard: base 1D6 + 12 -> final range 13-18
 
 **Assigned Number Guidelines:**
 - Final Target Number of 3 or less: trivial.
 - Average system with a Computer-6 decker and decent Detection Factor: stiff opposition.
 - Hard system likely defeats a starting decker without very good utilities.
-- Deckers with skill 8+, Detection Factor 8–9, and utilities 8+ find Hard systems challenging but beatable.
+- Deckers with skill 8+, Detection Factor 8-9, and utilities 8+ find Hard systems challenging but beatable.
 
 **Optional Rule: Varying Subsystem Ratings**
 
@@ -311,14 +311,14 @@ A chokepoint host exists solely to block unauthorized access to more sensitive s
 
 #### Trap Doors
 
-A trap door is a concealed comm port connecting one host to another (or to a PLTG) that is **not accessible via the Access subsystem**. A different subsystem — such as Slave — controls passage, making the door invisible to standard Access analysis.
+A trap door is a concealed comm port connecting one host to another (or to a PLTG) that is **not accessible via the Access subsystem**. A different subsystem -- such as Slave -- controls passage, making the door invisible to standard Access analysis.
 
 **Using a Trap Door:**
 1. Detect the port via an **Analyze Subsystem** operation on the concealing subsystem.
 2. Perform a **Graceful Logoff** using the concealing subsystem's rating to exit through the trap door.
 3. Perform a **Logon to Host** operation to enter the destination host on the other side.
 
-Trap doors combined with chokepoints are especially dangerous — the decker must navigate a hostile chokepoint environment to find the hidden exit.
+Trap doors combined with chokepoints are especially dangerous -- the decker must navigate a hostile chokepoint environment to find the hidden exit.
 
 #### Networks (Hub/Second-Tier Systems)
 
@@ -367,7 +367,7 @@ Passcodes grant automatic success for specific tasks on a host. Any activity out
 
 **Passcode Types:**
 - **Simple passcode:** Symbol set entered at log-on.
-- **Linked passcode:** Works in combination with the user's MPCP signature. A stolen linked passcode gives a –2 target number bonus for Logon to Host operations when the decker uses a Deception utility.
+- **Linked passcode:** Works in combination with the user's MPCP signature. A stolen linked passcode gives a -2 target number bonus for Logon to Host operations when the decker uses a Deception utility.
 - **Passkey:** Locked to a specific chip installed on the user's terminal. A decker must steal or duplicate the key-chip. The key-chip algorithm is a 10 Mp program.
 
 **Passcode Duration:**
@@ -386,7 +386,7 @@ UV hosts are qualitatively different from all other Matrix environments. Rules:
 - Only **hot decks** can log on to UV hosts.
 - The decker's persona transforms: Strength and Body equal Bod Rating; Quickness equals Evasion Rating; Mental Attributes equal the decker's own.
 - Utility programs become physical tools, weapons, or armor.
-- **Damage to the persona is direct damage to the decker's body** (Mental damage → Mental Condition Monitor; Physical damage → Physical Condition Monitor).
+- **Damage to the persona is direct damage to the decker's body** (Mental damage -> Mental Condition Monitor; Physical damage -> Physical Condition Monitor).
 - Jacking out of a UV host: 12D Stun dump shock.
 - UV hosts are currently rumored but not confirmed. Possibly at Denver Nexus, UCAS government, Tir na nOg, Zulu Nation, Zurich-Orbital, and Renraku Arcology.
 
@@ -405,7 +405,7 @@ Each IC program has its own **rating**:
 
 ### Locating IC
 
-- **Proactive IC** is immediately visible when it activates — it betrays itself through action.
+- **Proactive IC** is immediately visible when it activates -- it betrays itself through action.
 - **Reactive IC** does not betray itself. To detect it, the gamemaster makes a secret **Sensor Test** vs. IC rating. On 0 successes, the decker is unaware. On 1 successes, the decker is informed their actions triggered IC. On 2 successes, the decker knows the IC type.  On 3+ successes, the Decker learns the IC's rating and location.
 
 ### Crashing IC
@@ -452,7 +452,7 @@ Killer IC attacks decker icons in cybercombat. Power equals the IC's rating. Dam
 
 Stage damage up 1 level for every 2 successes on the host's Attack Test (same as standard combat staging).
 
-If Killer IC fills the decker's Condition Monitor, the decker is **dumped**. Armor utility programs reduce the Power of Killer IC attacks. Killer IC does not permanently damage deck ratings or utilities — it is classified as **White IC**.
+If Killer IC fills the decker's Condition Monitor, the decker is **dumped**. Armor utility programs reduce the Power of Killer IC attacks. Killer IC does not permanently damage deck ratings or utilities -- it is classified as **White IC**.
 
 #### Data Bomb
 
@@ -464,11 +464,11 @@ A data bomb is a booby trap attached to a specific datafile or Slave-subsystem d
 
 **Defusing:**
 - Make a **Computer Test** against the controlling subsystem rating minus the Defuse utility rating.
-  - File bomb: **Files Rating − Defuse Rating** (target number)
-  - Slave device bomb: **Slave Rating − Defuse Rating** (target number)
+  - File bomb: **Files Rating - Defuse Rating** (target number)
+  - Slave device bomb: **Slave Rating - Defuse Rating** (target number)
 - Failed attempts leave the bomb primed (unless the decker rolls all 1s, which detonates it).
 - Each attempt may add successes to the security tally via the opposed Security Test.
-- Successful defuse does **not** count as crashing — do not add the bomb's rating to the tally. Once defused, no suppression is needed.
+- Successful defuse does **not** count as crashing -- do not add the bomb's rating to the tally. Once defused, no suppression is needed.
 
 **Triggering:** If the decker fails to defuse and then **succeeds** on a System Test to access the protected target, the bomb explodes. A failed access test does not trigger it.
 
@@ -508,17 +508,17 @@ If the utility wins: the utility survives; the gamemaster makes a secret Sensor 
 
 Tar baby can be placed inside a construct, party IC cluster, or combined with trap IC.
 
-**Note:** Tar baby is classified as White IC — it does not permanently damage utility programs.
+**Note:** Tar baby is classified as White IC -- it does not permanently damage utility programs.
 
 ### Gray IC
 
-Gray IC attacks the cyberdeck and its utilities directly. Damage is **permanent** — it reduces deck ratings until chips are replaced.
+Gray IC attacks the cyberdeck and its utilities directly. Damage is **permanent** -- it reduces deck ratings until chips are replaced.
 
 #### Blaster
 
 **Type:** Proactive
 
-Fights like killer IC. Armor reduces damage. If blaster IC dumps a decker, make a **Blaster Test** (IC Rating vs. MPCP Rating; Hardening increases the target number). Reduce the MPCP Rating by 1 point for every 2 successes. The decker may need to reduce persona programs to stay within the new limit (total persona ≤ MPCP × 3).
+Fights like killer IC. Armor reduces damage. If blaster IC dumps a decker, make a **Blaster Test** (IC Rating vs. MPCP Rating; Hardening increases the target number). Reduce the MPCP Rating by 1 point for every 2 successes. The decker may need to reduce persona programs to stay within the new limit (total persona <= MPCP x 3).
 
 #### Rippers
 
@@ -549,13 +549,13 @@ Worms booby-trap subsystems. Any System Test against a worm-infested subsystem r
 
 **Worm Infection Test:** Security Value dice vs. MPCP Rating. On 1+ success: worm infects the MPCP. If the deck has Hardening, the test must produce successes **greater** than the Hardening rating to infect.
 
-Once infected, the MPCP cannot be erased — the chip must be replaced. Detection: Computer skill or B/R skill, Base Time 10 hours.
+Once infected, the MPCP cannot be erased -- the chip must be replaced. Detection: Computer skill or B/R skill, Base Time 10 hours.
 
 **Dataworm variant:** Logs run information. Each time an infected deck logs onto a grid, roll 1D6. On a 1, the dataworm tries to send a report. Sensor (8) Test for the decker; on failure, he doesn't notice.  If noticed, the Decker can try to stop the report in cybercombat.  Data reports act as standard Icons with 3D6 initiative, and Evasion of 8.  They cannot attack and only use the **Evade Detection** Maneuver.
 
 **Deathworm variant:** Increases all target numbers for Attack and Resistance tests in cybercombat by 2. Multiple infections: +1 per additional worm.
 
-**Tapeworm variant:** Erases downloaded files. At the end of each run, roll 1D6–1; subtract from Paydata Points downloaded. On a 5–6 for specific datafiles: corrupts the information.
+**Tapeworm variant:** Erases downloaded files. At the end of each run, roll 1D6-1; subtract from Paydata Points downloaded. On a 5-6 for specific datafiles: corrupts the information.
 
 ### Trace IC
 
@@ -570,12 +570,12 @@ Trace IC has two phases:
 
 **Location Cycle:**
 - Begins when trace IC makes a successful Attack Test (the IC vanishes and becomes reactive).
-- Duration: 10 Combat Turns ÷ number of successes on the IC's Attack Test (rounded down).
+- Duration: 10 Combat Turns / number of successes on the IC's Attack Test (rounded down).
 - During this time, the decker can attempt to locate and neutralize the IC.
 
 **Trace Factor:**
 ```
-Trace Factor = Evasion Rating − Trace IC Rating + (number of Redirect Datatrail operations) + Camo utility rating + Jackpoint Trace modifier + Bandwidth Trace modifier
+Trace Factor = Evasion Rating - Trace IC Rating + (number of Redirect Datatrail operations) + Camo utility rating + Jackpoint Trace modifier + Bandwidth Trace modifier
 ```
 
 **Defeating Trace IC:**
@@ -583,7 +583,7 @@ Trace Factor = Evasion Rating − Trace IC Rating + (number of Redirect Datatrai
 2. **Graceful Logoff** (adds IC rating to the target number for the logoff operation).
 3. **Relocate utility**: Spend a Simple Action, make a **Control Test** (Relocate utility reduces target number). Gamemaster makes an opposing Security Test; successes add to security tally. If the decker's Control Test yields more successes, the trace is spoofed for that turn.  The Decker can choose to suppress the IC at this point and no further tests will be necessary unless the suppression is released.
 
-Simply jacking out does not stop trace IC — the commiline remains open, and the IC can still complete its cycle. Roll 1D6 (minimum 1); that many turns remain for the trace to complete after jack-out.
+Simply jacking out does not stop trace IC -- the commiline remains open, and the IC can still complete its cycle. Roll 1D6 (minimum 1); that many turns remain for the trace to complete after jack-out.
 
 **Trace Effects on Completion:**
 - Records jackpoint network address and physical location in security logs.
@@ -593,7 +593,7 @@ Simply jacking out does not stop trace IC — the commiline remains open, and th
 
 **Physical Measures:**
 
-Response speed depends on the invaded system owner's resources, jurisdictional concerns, proximity of security assets, local law-enforcement involvement, and the Security Rating of the jackpoint's location. Gamemasters may use discretion or roll on the table below. All values are **minutes**. "On-site" means the jackpoint is inside a manned facility belonging to the target system's owner. "Government" entries assume a UCAS setting — adjust for less organized or more paranoid governments.
+Response speed depends on the invaded system owner's resources, jurisdictional concerns, proximity of security assets, local law-enforcement involvement, and the Security Rating of the jackpoint's location. Gamemasters may use discretion or roll on the table below. All values are **minutes**. "On-site" means the jackpoint is inside a manned facility belonging to the target system's owner. "Government" entries assume a UCAS setting -- adjust for less organized or more paranoid governments.
 
 See [Security Asset Response Times](#security-asset-response-times-when-trace-ic-locates-deckers-jackpoint) in Reference Tables.
 
@@ -630,7 +630,7 @@ Stage up 1 level for every 2 successes on the IC's Attack Test.
 1. **Body Resistance Test** to resist damage to his physical body. Hardening reduces Power. Hacking Pool dice cannot be used; Karma Pool dice can.
 2. **Bod Resistance Test** to resist damage to the icon. Hardening reduces Power and Armor protects normally.
 
-**If the icon is killed before the decker dies:** The Matrix connection remains intact. The IC's effective rating increases by 2. The decker cannot fight back — only attempt to jack out.
+**If the icon is killed before the decker dies:** The Matrix connection remains intact. The IC's effective rating increases by 2. The decker cannot fight back -- only attempt to jack out.
 
 **If black IC kills the decker:** Connection automatically drops. Before releasing, the IC attacks the MPCP as blaster IC at **double its rating**. If the MPCP is destroyed (rating reduced to 0), all data downloaded during the run is deleted.
 
@@ -656,7 +656,7 @@ Same as non-lethal black IC, with the addition of psychological trauma on dump/u
 
 | D6 | Effect |
 |----|--------|
-| 1–3 | Cyberphobia |
+| 1-3 | Cyberphobia |
 | 4 | Judas effect |
 | 5 | Matrix Maniac |
 | 6 | PCPIC (Positive-Conditioning Psychotropic IC) |
@@ -683,13 +683,13 @@ Any IC program may carry defensive options:
 
 ### Trap IC
 
-Any white, gray, or trace IC can be used as **trap IC** — linked to hidden gray or black IC. When the trap IC is:
+Any white, gray, or trace IC can be used as **trap IC** -- linked to hidden gray or black IC. When the trap IC is:
 - Destroyed in cybercombat: triggers the hidden IC.
 - In the case of trace IC: when its location cycle completes successfully.
 
 If the decker **neutralizes** the trap IC without destroying it, the hidden IC is not triggered.
 
-Applications, files, and slave remotes can also be fitted with hidden gray or black IC — triggered when the decker crashes the protected icons or fails a System Test to control the icon. A **data bomb** variant detonates if the decker fails a test against the booby-trapped subsystem.
+Applications, files, and slave remotes can also be fitted with hidden gray or black IC -- triggered when the decker crashes the protected icons or fails a System Test to control the icon. A **data bomb** variant detonates if the decker fails a test against the booby-trapped subsystem.
 
 Detecting trap IC: **Analyze IC** operation on white IC, or **Analyze Icon** for other Matrix entities fitted with trap IC.
 
@@ -717,7 +717,7 @@ Expert IC provides a bonus to offense or defense. Value Range of 1 to 3.  Increa
 
 ### Constructs
 
-A construct is a gamemaster-designed icon combining two or more IC programs into a single Matrix critter. Constructs may have **Threat Ratings** — extra dice added to all tests except Initiative rolls:
+A construct is a gamemaster-designed icon combining two or more IC programs into a single Matrix critter. Constructs may have **Threat Ratings** -- extra dice added to all tests except Initiative rolls:
 
 | System Security Code | Maximum Threat Rating |
 |---------------------|-----------------------|
@@ -729,28 +729,28 @@ A construct is a gamemaster-designed icon combining two or more IC programs into
 
 #### Building Constructs
 
-**Capacity** = 2 × Security Value of the parent host/grid.
+**Capacity** = 2 x Security Value of the parent host/grid.
 
 - Combined IC program ratings cannot exceed the construct's capacity.
-- No single IC program may have a rating greater than ⌈Security Value × 2/3⌉ (rounded up).
+- No single IC program may have a rating greater than [Security Value x 2/3] (rounded up).
 - Gray IC programs cost 1 extra capacity point (e.g., Blaster-4 uses 5 points).
 - Black IC programs cost 2 extra capacity points.
 - Armor, Shield, or Shift defensive options each cost 2 capacity points.
 
-**Example:** Security Value 8 → capacity 16. Max single program rating = 6. Blaster-4 (gray) costs 5 points. Fitting Armor + Shift costs 4 points, leaving 12 for IC programs.
+**Example:** Security Value 8 -> capacity 16. Max single program rating = 6. Blaster-4 (gray) costs 5 points. Fitting Armor + Shift costs 4 points, leaving 12 for IC programs.
 
 #### Constructs in Cybercombat
 
 - Constructs are always **proactive** (a construct with only reactive components offers no advantage).
 - Attacks using any one available IC program per action.
-- Treated as a **single icon** with one Condition Monitor — fill it and all programs crash.
+- Treated as a **single icon** with one Condition Monitor -- fill it and all programs crash.
 - Attack and Damage Resistance Tests use the host/grid's **Security Value**; individual program ratings determine effect only.
 - Can use all standard combat maneuvers.
 - **Initiative** = lowest rating among all component IC programs.
 
 ### Party IC
 
-Party IC is a cluster of independent IC programs working cooperatively. Each component is a **separate icon** — the decker must defeat each one individually.
+Party IC is a cluster of independent IC programs working cooperatively. Each component is a **separate icon** -- the decker must defeat each one individually.
 
 **Attack penalty on party IC programs:** Increase the target number for all Attack Tests made by party IC programs by the number of programs in the cluster (host is dividing attention).
 
@@ -760,10 +760,10 @@ Both penalties apply even if the decker has already crashed some components.
 
 #### Building Party IC
 
-**Capacity** = 2 × Security Value of the parent host/grid.
+**Capacity** = 2 x Security Value of the parent host/grid.
 
-- Combined ratings of all component programs ≤ capacity.
-- Maximum number of components = ⌊Security Value / 2⌋.
+- Combined ratings of all component programs <= capacity.
+- Maximum number of components = [Security Value / 2].
 - Non-IC component programs may have any rating.
 - Each defensive option (Armor, Shield, Shift) consumes 1 capacity point.
 
@@ -775,15 +775,15 @@ If IC and constructs fail to stop an intruder, the host may initiate a self-shut
 
 | Security Value | Dice Rolled |
 |---------------|------------|
-| 1–2 | 1D6 |
-| 3–4 | 2D6 |
-| 5–6 | 3D6 |
-| 7–8 | 4D6 |
+| 1-2 | 1D6 |
+| 3-4 | 2D6 |
+| 5-6 | 3D6 |
+| 7-8 | 4D6 |
 | (and so on) | +1D6 per 2 points |
 
 Result = number of Combat Turns the shutdown sequence lasts.
 
-Also roll **1D3** to determine the **final warning turn** — the turn on which all deckers in the system are told the shutdown is in progress and how many turns remain.
+Also roll **1D3** to determine the **final warning turn** -- the turn on which all deckers in the system are told the shutdown is in progress and how many turns remain.
 
 **Detection:** At the end of each Combat Turn, make a secret **Sensor Test** for each decker against TN = turns remaining in the sequence. The first decker to succeed learns the host is shutting down. All deckers are informed automatically when the final warning turn is reached.
 
@@ -803,7 +803,7 @@ SANs connect hosts to grids and to each other. When a decker performs a Logon to
 
 ### Security Sheaves
 
-A **security sheaf** defines all of the security measures on a host or grid, expressed as a list of **trigger steps** — security tally thresholds. When the security tally reaches a trigger step, the host activates the specified IC programs and/or changes alert status.
+A **security sheaf** defines all of the security measures on a host or grid, expressed as a list of **trigger steps** -- security tally thresholds. When the security tally reaches a trigger step, the host activates the specified IC programs and/or changes alert status.
 
 **Sample Security Sheaf:**
 
@@ -858,9 +858,9 @@ All systems have three alert statuses:
 
 | 1D6 Result | No Alert | Passive Alert | Active Alert |
 |------------|----------|--------------|-------------|
-| 1–3 | Reactive White | Proactive White | Proactive Gray |
-| 4–5 | Proactive White | Reactive Gray | Proactive White |
-| 6–7 | Reactive Gray | Proactive Gray | Black IC |
+| 1-3 | Reactive White | Proactive White | Proactive Gray |
+| 4-5 | Proactive White | Reactive Gray | Proactive White |
+| 6-7 | Reactive Gray | Proactive Gray | Black IC |
 | 8+ | Passive Alert | Active Alert | Shutdown |
 
 At No Alert and Passive Alert: add the number of trigger steps already passed to the roll result.
@@ -869,7 +869,7 @@ At No Alert and Passive Alert: add the number of trigger steps already passed to
 
 | 1D6 Result | IC |
 |------------|----|
-| 1–2 | Probe |
+| 1-2 | Probe |
 | 3-5 | Trace |
 | 6 | Tar Baby |
 
@@ -877,45 +877,45 @@ At No Alert and Passive Alert: add the number of trigger steps already passed to
 
 | 2D6 Result | IC |
 |------------|----|
-| 2–5 | Crippler† |
-| 6–8 | Killer |
-| 9 | Trap Trace‡ |
-| 10 | Trap Probe‡ |
-| 11–12 | Construct/Party IC |
+| 2-5 | Crippler+ |
+| 6-8 | Killer |
+| 9 | Trap Trace++ |
+| 10 | Trap Probe++ |
+| 11-12 | Construct/Party IC |
 
-† Roll on Crippler/Ripper IC Table for persona attribute targeted; then roll on IC Rating table for the program rating.
-‡ Roll on Trap IC Table to determine type of trap IC; then roll on IC Ratings Table for the program rating.
++ Roll on Crippler/Ripper IC Table for persona attribute targeted; then roll on IC Rating table for the program rating.
+++ Roll on Trap IC Table to determine type of trap IC; then roll on IC Ratings Table for the program rating.
 
 **Reactive Gray IC Table (roll 1D6):**
 
 | 1D6 Result | IC |
 |------------|----|
-| 1–2 | Trap Probe‡ |
-| 3–5 | Trap Trace‡ |
+| 1-2 | Trap Probe++ |
+| 3-5 | Trap Trace++ |
 | 6 | Tar Pit |
 
-‡ Roll on Trap IC Table to determine type of trap IC; then roll on IC Ratings Table for the program rating.
+++ Roll on Trap IC Table to determine type of trap IC; then roll on IC Ratings Table for the program rating.
 
 **Proactive Gray IC Table (roll 2D6):**
 
 | 2D6 Result | IC |
 |------------|----|
-| 2–5 | Rippers† |
-| 6–8 | Blaster |
+| 2-5 | Rippers+ |
+| 6-8 | Blaster |
 | 9-10 | Sparky |
-| 11–12 | Construct/Party IC |
+| 11-12 | Construct/Party IC |
 
-† Roll on the Crippler/Ripper IC Table for persona attribute targeted; then roll on IC Rating table for the program rating.
++ Roll on the Crippler/Ripper IC Table for persona attribute targeted; then roll on IC Rating table for the program rating.
 
 **Black IC Table (roll 2D6):**
 
 | 2D6 Result | IC |
 |------------|----|
-| 2–4 | Lethal |
+| 2-4 | Lethal |
 | 5-9 | Non-Lethal |
-| 10–12 | Construct/Party IC |
+| 10-12 | Construct/Party IC |
 
-For Psychotropic type, roll 1D6: 1–3 = Cyberphobia; 4 = Judas; 5 = Matrix Maniac; 6 = PCPIC.  (NOTE:  Psychotropic is not being using in this campaign)
+For Psychotropic type, roll 1D6: 1-3 = Cyberphobia; 4 = Judas; 5 = Matrix Maniac; 6 = PCPIC.  (NOTE:  Psychotropic is not being using in this campaign)
 
 **Trap IC Table**
 | 2D6 Result | IC |
@@ -928,37 +928,37 @@ For Psychotropic type, roll 1D6: 1–3 = Cyberphobia; 4 = Judas; 5 = Matrix Mani
 
 | 1D6 | Attribute Targeted |
 |-----|--------------------|
-| 1–2 | Bod |
+| 1-2 | Bod |
 | 3 | Evasion |
-| 4–5 | Masking |
+| 4-5 | Masking |
 | 6 | Sensor |
 
 **IC Ratings Table (roll 2D6):**
 
-| 2D6 Result | Security Value 4 or less | Security Value 5–7 | Security Value 8-10 | Security Value 11+ |
+| 2D6 Result | Security Value 4 or less | Security Value 5-7 | Security Value 8-10 | Security Value 11+ |
 |------------|--------------------------|--------------------|---------------------|--------------------|
-| 2–5 | 4 | 5 |6 | 8 |
-| 6–8 | 5 | 7 | 8 | 10 |
-| 9–11 | 6 | 9 | 10 | 11 |
+| 2-5 | 4 | 5 |6 | 8 |
+| 6-8 | 5 | 7 | 8 | 10 |
+| 9-11 | 6 | 9 | 10 | 11 |
 | 12 | 7 | 10 | 12 | 12 |
 
 **IC Options Table (roll 2D6):**
 
 | 2D6 | Option |
 | 2 | Cascading |
-| 3-5 | Expert Offense† |
+| 3-5 | Expert Offense+ |
 | 6-8 | None |
-| 9-11 | Expert Defense† |
+| 9-11 | Expert Defense+ |
 | 12 | Cascading |
 
-† Roll 1D3 to determine Expert modifier value.
++ Roll 1D3 to determine Expert modifier value.
 
 **IC Defenses Table (roll 2D6):**
 
 | 2D6 | Defense |
 |-----|---------|
-| 2–3 | Armor and Shifting |
-| 4–5 | Armor |
+| 2-3 | Armor and Shifting |
+| 4-5 | Armor |
 | 6 | Shifting |
 | 7 | None |
 | 8 | Shielding |
@@ -979,7 +979,7 @@ After all deckers log off from a host, the host begins resetting itself:
 
 During reset, the security tally decreases. IC programs deactivate when the tally drops below the trigger step that activated them. Programs still running at the reset's start remain active until the tally drops below their trigger step.
 
-If a decker logs on illegally during a reset, his security tally begins at the tally level the reset has reached — he picks up where the previous decker left off.
+If a decker logs on illegally during a reset, his security tally begins at the tally level the reset has reached -- he picks up where the previous decker left off.
 
 Should a Decker logon before the tally resets, divide the number of elapsed minutes by reset time, and multiply the resulting percentage against the security tally to determine the new level.
 
@@ -997,14 +997,14 @@ The value decreases by 1 Paydata Point per day unsold (per standard SR fencing r
 
 **Paydata File Defenses (roll 1D6):**
 
-| Security Code | 1D6 Range: No Defense | Data Bomb | Scramble IC | Other |
+| Security Code | 1D6 Range: No Defense | Data Bomb | Scramble IC | Data Bomb + Scramble IC Combo |
 |---------------|----------------------|-----------|-------------|-------|
-| Green | 1–4 | 5 | 6 | Per GM discretion |
-| Orange | 1–3 | 4 | 5—6 | Per GM discretion |
-| Red | 1 | 2—3 | 4—5 | 6 |
-| Black | - | 1-3 | - | 4-6 |
+| Green | 1-4 | 5 | 6 | - |
+| Orange | 1-3 | 4 | 5--6 | - |
+| Red | 1 | 2--3 | 4--5 | 6 |
+| Black | - | 1-2 | 3-4 | 5-6 |
 
-(Specific defense results depend on 1D6 roll; gamemaster fills in or uses own judgment.  Default for other is a Data Bomb + Scramble IC combo)
+(Specific defense results depend on 1D6 roll)
 
 ### Slave Systems
 
@@ -1016,7 +1016,7 @@ To upload a program to control a slave via a remote device: use the Locate Slave
 
 ### UMS and Sculpted Systems
 
-**UMS (Universal Matrix Symbology):** The standard default visual representation of Matrix space — functional icons representing computer components.
+**UMS (Universal Matrix Symbology):** The standard default visual representation of Matrix space -- functional icons representing computer components.
 
 **Sculpted Systems:** Hosts designed with custom virtual reality imagery. When logging onto a sculpted system, everything is explained in terms of the system's central metaphor.
 
@@ -1087,7 +1087,7 @@ Round up all fractions. Throughput loss makes Evasion Mode especially costly ban
 Most decker construction and programming activities are **tasks** requiring:
 - A minimum set of tools and resources.
 - A base time (usually in days).
-- A **Success Test** (gamemaster rolls secretly; base time ÷ successes = task period).
+- A **Success Test** (gamemaster rolls secretly; base time / successes = task period).
 
 If the test fails: the number of days it fails by = wasted work before discovering the effort is flawed.
 
@@ -1119,20 +1119,20 @@ An Optical Chip Encoder is required to program the Optical Code Chips used in Cy
 
 #### MPCP (Master Persona Control Program)
 
-The MPCP is the heart of the cyberdeck — all other components depend on it.
+The MPCP is the heart of the cyberdeck -- all other components depend on it.
 
 **Software Task:**
 - Rating: MPCP Rating (add 2 if including a reality filter)
 - Multiplier: 8
 
 **Cook Task:**
-- Time: MPCP Rating × 3 days
+- Time: MPCP Rating x 3 days
 - Test: Computer B/R (MPCP Rating) Test
 - Parts: OCC @ program size
-- Tools: Personal Computer (memory ≥ program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
-- Time: MPCP Rating × 2 days
+- Time: MPCP Rating x 2 days
 - Test: Computer B/R (MPCP Rating) Test
 - Parts: PLC @ MPCP Rating^2; DTC @ MPCP Rating^2
 - Tools: Microtronics Shop
@@ -1153,13 +1153,13 @@ Until upgraded, the decker must choose: run with the old (lower) MPCP, or run wi
 - Multiplier: 3 (Bod and Evasion); 2 (Masking and Sensor)
 
 **Cook Task:**
-- Time: Program Rating × 3 days
+- Time: Program Rating x 3 days
 - Test: Computer B/R (Program Rating) Test
 - Parts: OCC @ program size
-- Tools: Personal Computer (memory ≥ persona program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= persona program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
-- Time: Program Rating × 2 days
+- Time: Program Rating x 2 days
 - Test: Computer B/R (Program Rating) Test
 - Parts: PLC @ Program Rating^2; DTC @ Program Rating^2
 - Tools: Microtronics Kit
@@ -1169,9 +1169,9 @@ Until upgraded, the decker must choose: run with the old (lower) MPCP, or run wi
 Active memory limits the utility programs the deck can run at one time. 100 Mp of active memory can run at most 100 Mp of utilities simultaneously.
 
 **Construction (Installation Task only):**
-- Time: Memory Size ÷ 100 days (round up)
-- Test: Computer B/R (Memory Size ÷ 100, round up) Test
-- Parts: OMC @ memory size; PLC @ memory size ÷ 10 (round up)
+- Time: Memory Size / 100 days (round up)
+- Test: Computer B/R (Memory Size / 100, round up) Test
+- Parts: OMC @ memory size; PLC @ memory size / 10 (round up)
 - Tools: Microtronics Kit
 
 #### ASIST Interface
@@ -1190,18 +1190,18 @@ Switching between hot, cool, and tortoise requires the same test as jacking out 
 
 Software Task:
 - Rating: MPCP Rating
-- Multiplier: Hot deck: MPCP Rating × 2 (approximately); Cool deck: MPCP Rating × 1
+- Multiplier: Hot deck: MPCP Rating x 2 (approximately); Cool deck: MPCP Rating x 1
 
 Cook Task:
 - Time: MPCP Rating days
 - Test: Computer B/R (MPCP Rating) Test
 - Parts: OCC @ program size
-- Tools:  Personal Computer (memory ≥ persona program size), Microtronics Shop, Optical-Chip Encoder
+- Tools:  Personal Computer (memory >= persona program size), Microtronics Shop, Optical-Chip Encoder
 
 Installation Task:
 - Time: MPCP Rating days
 - Test: Computer B/R (MPCP Rating) Test
-- Parts: Hot Deck: PLC @ MPCP Rating × 2; Cool Deck: PLC @ MPCP Rating; ASIST Processing Unit @ 1,250¥
+- Parts: Hot Deck: PLC @ MPCP Rating x 2; Cool Deck: PLC @ MPCP Rating; ASIST Processing Unit @ 1,250Y
 - Tools: Microtronics Kit
 
 #### Hardening
@@ -1215,12 +1215,12 @@ Hardening protects the deck from gray IC that targets the MPCP. Each point of Ha
 - Multiplier: 8
 
 **Cook Task:**
-- Time: MPCP Rating × Hardening Rating days
+- Time: MPCP Rating x Hardening Rating days
 - Parts: OCC @ Hardening program size
-- Tools: Personal Computer (memory ≥ hardening program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= hardening program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
-- Time: MPCP Rating × Hardening Rating x 2 days
+- Time: MPCP Rating x Hardening Rating x 2 days
 - Test: Computer B/R (MPCP Rating) Test
 - Parts: PLC @ Hardening Rating x 2; DTC @ Hardening Rating x 2
 - Tools: Microtronics Shop
@@ -1239,29 +1239,29 @@ The ICCM (Intrusion Counter-Countermeasures) biofeedback filter:
 - Multiplier: 4
 
 **Cook Task:**
-- Time: MPCP Rating × 2 days
+- Time: MPCP Rating x 2 days
 - Test: Average Computer B/R and Biotech (MPCP Rating) Test
 - Parts: OCC @ ICCM program size
-- Tools: Personal Computer (memory ≥ ICCM program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= ICCM program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
-- Time: MPCP Rating × 2 days
+- Time: MPCP Rating x 2 days
 - Test: Average Computer B/R and Biotech (MPCP Rating) Test
-- Parts: PLC @ MPCP Rating^2; DTC @ MPCP Rating^2; Bioscanner (5,000¥ fixed cost)
+- Parts: PLC @ MPCP Rating^2; DTC @ MPCP Rating^2; Bioscanner (5,000Y fixed cost)
 - Tools: Microtronics Shop
 
 #### I/O Speed
 
-I/O Speed determines the maximum bandwidth — the data transfer rate between the deck and the Matrix.
+I/O Speed determines the maximum bandwidth -- the data transfer rate between the deck and the Matrix.
 
 - Must be built in multiples of 10 Mp.
-- Maximum bandwidth = Sensor Rating × MPCP Rating × 10 Mp.
+- Maximum bandwidth = Sensor Rating x MPCP Rating x 10 Mp.
 - Icon bandwidth = sum of all persona program ratings + all loaded utility ratings.
 
 **Construction (Installation Task only):**
-- Time: I/O Speed ÷ 20 days (round up)
-- Test: Computer B/R (I/O Speed ÷ 100, round up) Test
-- Parts: PLC @ I/O Speed ÷ 20 (round up); DTC @ I/O Speed ÷ 10 (round up)
+- Time: I/O Speed / 20 days (round up)
+- Test: Computer B/R (I/O Speed / 100, round up) Test
+- Parts: PLC @ I/O Speed / 20 (round up); DTC @ I/O Speed / 10 (round up)
 - Tools: Microtronics Kit
 
 #### Response Increase
@@ -1274,25 +1274,25 @@ Response Increase is the Matrix equivalent of wired reflexes.
 
 **Constraints:**
 - Maximum 3 points from hardware alone.
-- Response Increase cannot exceed MPCP Rating ÷ 4 (round down). A deck with MPCP ≤ 3 cannot have any Response Increase.
+- Response Increase cannot exceed MPCP Rating / 4 (round down). A deck with MPCP <= 3 cannot have any Response Increase.
 - 1 additional point from a Reality Filter.
 - 1 additional point for running hot on pure DNI control.
 - **Absolute maximum: 5 points** (= +10 Reaction, 6D6 Initiative).
 
 **Software Task:**
 - Rating: MPCP Rating
-- Multiplier: Response Increase Rating × 2
+- Multiplier: Response Increase Rating x 2
 
 **Cook Task:**
-- Time: MPCP Rating × Response Increase Rating in days
-- Test: Computer B/R (Response Increase Rating × 2) Test
+- Time: MPCP Rating x Response Increase Rating in days
+- Test: Computer B/R (Response Increase Rating x 2) Test
 - Parts: OCC @ program size
-- Tools: Personal Computer (memory ≥ Response program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= Response program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
 - Time: (MPCP Rating + Response Increase Rating) days
-- Test: Computer B/R (Response Increase × 2) Test
-- Parts: PLC @ Rating × 3; DTC @ Rating × 3
+- Test: Computer B/R (Response Increase x 2) Test
+- Parts: PLC @ Rating x 3; DTC @ Rating x 3
 - Tools: Microtronics Shop
 
 #### Reality Filters
@@ -1318,7 +1318,7 @@ Allows the deck to connect via satellite uplink. Requires an external satellite 
 - Time: MPCP Rating days
 - Test: Computer B/R (MPCP Rating) Test
 - Parts: OCC @ program size
-- Tools: Personal Computer (memory ≥ MPCP program size), Microtronics Shop, Optical-Chip Encoder
+- Tools: Personal Computer (memory >= MPCP program size), Microtronics Shop, Optical-Chip Encoder
 
 **Installation Task:**
 - Time: MPCP Rating days
@@ -1330,24 +1330,24 @@ Allows the deck to connect via satellite uplink. Requires an external satellite 
 
 | Dish Type | Price |
 |-----------|-------|
-| Standard portable (0.5m) | 800¥ |
-| Large portable (1m) | 1,200¥ |
-| Fixed-base | 900¥ |
-| Cable | 10¥/meter |
-| Temporary dish electronics | 1,000¥ |
-| Temporary plastic webbing | 5¥ |
-| Temporary spray polymer (1 use) | 1¥ |
+| Standard portable (0.5m) | 800Y |
+| Large portable (1m) | 1,200Y |
+| Fixed-base | 900Y |
+| Cable | 10Y/meter |
+| Temporary dish electronics | 1,000Y |
+| Temporary plastic webbing | 5Y |
+| Temporary spray polymer (1 use) | 1Y |
 
-Large portable dishes reduce target numbers for satellite location tests by 1. Fixed-base: –2.
+Large portable dishes reduce target numbers for satellite location tests by 1. Fixed-base: -2.
 
 #### Storage Memory
 
 Programs not currently in active memory are stored here. Programs must be in storage memory to be loaded into active memory via Swap Memory operations. Cheaper than active memory.
 
 **Construction (Installation Task only):**
-- Time: Memory Size ÷ 100 days (round up)
-- Test: Computer B/R (Memory Size ÷ 100, round up) Test
-- Parts: OMC @ Memory Size; PLC @ Memory Size ÷ 10 (round up)
+- Time: Memory Size / 100 days (round up)
+- Test: Computer B/R (Memory Size / 100, round up) Test
+- Parts: OMC @ Memory Size; PLC @ Memory Size / 10 (round up)
 - Tools: Microtronics Kit
 
 ### Component Prices
@@ -1357,18 +1357,18 @@ Programs not currently in active memory are stored here. Programs must be in sto
 | Component | Price |
 |-----------|-------|
 | Casing (Basic, Impact 1) | Negligible |
-| Casing Level 1 (Impact 2, Ballistic 1) | 500¥ |
-| Casing Level 2 (Impact 3, Ballistic 2) | 2,000¥ |
-| Casing Level 3 (Impact 4, Ballistic 3) | 5,000¥ |
-| Hitcher Jack | 250¥ |
-| Off-line Storage (OMC) | 50¥ + 0.5¥/Mp |
-| Vidscreen | 100¥ |
+| Casing Level 1 (Impact 2, Ballistic 1) | 500Y |
+| Casing Level 2 (Impact 3, Ballistic 2) | 2,000Y |
+| Casing Level 3 (Impact 4, Ballistic 3) | 5,000Y |
+| Hitcher Jack | 250Y |
+| Off-line Storage (OMC) | 50Y + 0.5Y/Mp |
+| Vidscreen | 100Y |
 
 ### Decks a la Carte
 
-Deckers can order custom decks from manufacturers assembled from components they specify. Each price formula in the Deck Component Prices table covers the full cost of a component — software, hardware, circuitry, and installation.
+Deckers can order custom decks from manufacturers assembled from components they specify. Each price formula in the Deck Component Prices table covers the full cost of a component -- software, hardware, circuitry, and installation.
 
-Formulas for components with software use a **Program Factor (PF)**: a multiplier determined by a specific deck rating called the **PF basis**. For example, the PF basis for Hardening is the deck's MPCP rating — an MPCP-8 deck uses a PF of 500¥ in its Hardening formula.
+Formulas for components with software use a **Program Factor (PF)**: a multiplier determined by a specific deck rating called the **PF basis**. For example, the PF basis for Hardening is the deck's MPCP rating -- an MPCP-8 deck uses a PF of 500Y in its Hardening formula.
 
 A decker who already owns the object code for a component (e.g., an existing MPCP chip) only needs to pay for the OCC and installation portions, which can be calculated from the component's task description.
 
@@ -1376,9 +1376,9 @@ A decker who already owns the object code for a component (e.g., an existing MPC
 
 | Program Rating | PF (nuyen) |
 |---------------|-----------|
-| 1–3 | 100 |
-| 4–6 | 200 |
-| 7–9 | 500 |
+| 1-3 | 100 |
+| 4-6 | 200 |
+| 7-9 | 500 |
 | 10+ | 1,000 |
 
 See [Deck Component Prices](#deck-component-prices-quick-reference) in Reference Tables.
@@ -1409,14 +1409,14 @@ See [Deck Component Prices](#deck-component-prices-quick-reference) in Reference
 
 | Part | Price |
 |------|-------|
-| Optical Code Chip (OCC) | 20¥ per Mp |
-| Optical Memory Chip (OMC) | 5¥ per Mp |
-| Cranial OCC | 200¥ per Mp |
-| Cranial OMC | 50¥ per Mp |
-| Processor Logic Circuitry (PLC) | 25¥ × Rating |
-| Data Transport Circuitry (DTC) | 10¥ × Rating |
-| Cranial PLC | 250¥ × Rating |
-| Cranial DTC | 100¥ × Rating |
+| Optical Code Chip (OCC) | 20Y per Mp |
+| Optical Memory Chip (OMC) | 5Y per Mp |
+| Cranial OCC | 200Y per Mp |
+| Cranial OMC | 50Y per Mp |
+| Processor Logic Circuitry (PLC) | 25Y x Rating |
+| Data Transport Circuitry (DTC) | 10Y x Rating |
+| Cranial PLC | 250Y x Rating |
+| Cranial DTC | 100Y x Rating |
 
 ---
 
@@ -1539,7 +1539,7 @@ All operational utilities may use the DINAB, one-shot, optimization, and squeeze
   - The same drain repeats at the **end of every subsequent Combat Turn** until that program crashes.
   - Once a program crashes, Hog moves to the **next highest-rated program** and repeats, continuing until all programs on the deck are crashed.
 - Infected programs operate at their reduced ratings until fully crashed.
-- **Purging Hog:** Spend a Complex Action and succeed on a **Computer (Hog Rating − Hardening) Test**, with the target number increased by the original rating of the infected program. A single success wipes both the Hog virus and the infected program from active memory. The virus cannot be purged without also purging the infected program.
+- **Purging Hog:** Spend a Complex Action and succeed on a **Computer (Hog Rating - Hardening) Test**, with the target number increased by the original rating of the infected program. A single success wipes both the Hog virus and the infected program from active memory. The virus cannot be purged without also purging the infected program.
 - Crashed or purged programs can be reloaded via the Swap Memory operation.
 
 **Killjoy** | Multiplier: 10
@@ -1575,7 +1575,7 @@ All operational utilities may use the DINAB, one-shot, optimization, and squeeze
 **Steamroller** | Multiplier: 3
 - Target: Tar Baby and Tar Pit IC
 - Options: DINAB, One-shot, Optimization, Stealth, Targeting
-- Inflicts **(Rating)D** damage to tar IC programs. Immune to the destructive effect of tar programs — tar IC cannot crash the Steamroller utility.
+- Inflicts **(Rating)D** damage to tar IC programs. Immune to the destructive effect of tar programs -- tar IC cannot crash the Steamroller utility.
 - Crashing tar IC with Steamroller adds to the security tally unless the Steamroller has the **Stealth** option or the decker suppresses the IC per standard rules.
 
 #### Defensive Utilities
@@ -1636,9 +1636,9 @@ Options affect size in two ways:
 **When combining multiple options, apply in this order:**
 1. Apply all **rating modifiers** first (before any size calculations).
 2. Calculate program size based on the new rating.
-3. Apply any **percentage size changes** sequentially — each percentage change is applied to the result of the previous one, not the original size.
+3. Apply any **percentage size changes** sequentially -- each percentage change is applied to the result of the previous one, not the original size.
 
-**Example:** A 180 Mp program receives two 50% size reductions. First: 180 → 90. Then: 90 → 45.
+**Example:** A 180 Mp program receives two 50% size reductions. First: 180 -> 90. Then: 90 -> 45.
 
 #### Options and Ratings
 
@@ -1648,23 +1648,23 @@ Options affect size in two ways:
 
 #### Options and Cost
 
-Program price is based on **base rating** and **design size**. The multiplier is determined by the program's base rating — see the [Program Prices Table](#program-prices-table).
+Program price is based on **base rating** and **design size**. The multiplier is determined by the program's base rating -- see the [Program Prices Table](#program-prices-table).
 
-**Example:** Attack-6M (no options): base rating 6, design size 108 Mp → 108 × 200¥ = **21,600¥**. With a Skulk-4 option: effective rating 10, design size 300 Mp → 300 × 200¥ = **60,000¥** (multiplier still based on base rating 6).
+**Example:** Attack-6M (no options): base rating 6, design size 108 Mp -> 108 x 200Y = **21,600Y**. With a Skulk-4 option: effective rating 10, design size 300 Mp -> 300 x 200Y = **60,000Y** (multiplier still based on base rating 6).
 
 | Option | Rating Modifier | Notes |
 |--------|----------------|-------|
 | **Area** | +Area Rating | Engages up to (Area Rating) targets simultaneously. Make one Attack Test and apply the result to all specified targets. Increase the target number for **each target** by the total number of targets being attacked. Armor utility provides extra protection against Area attacks: targets carrying Armor add +2 to their effective Armor rating when hit by an Area-option utility. |
 | **Chaser** | +1 | Negates the +2 TN penalty for attacking IC with the **Shift** defensive utility. Adds a +2 TN penalty when attacking IC with the **Shield** defensive utility. Cannot be combined with Penetration. |
-| **DINAB** | +DINAB Rating | "Decker In A Box." Gives the utility a built-in Computer skill equal to the DINAB rating. The decker may spend a Free Action to let the utility run itself for that action; the decker cannot also use the program during any phase it runs autonomously. DINAB degrades (−1 rating point) each time it fails a test (opposed System Test lost to host, fails to hit in cybercombat, or target reduces all damage to 0). If a DINAB-controlled program rolls all 1s on a failed test, it crashes — reload via Swap Memory. Decker may override DINAB at any time and use their own Computer skill (normal action cost applies). Frames can carry DINAB; smart frames must have it. |
-| **Limit** | −1 | Restricts the utility to one target type (e.g., deckers, IC programs, or frames); useless against all other types. Because the option reduces effective rating, it also reduces the program's actual size accordingly. |
+| **DINAB** | +DINAB Rating | "Decker In A Box." Gives the utility a built-in Computer skill equal to the DINAB rating. The decker may spend a Free Action to let the utility run itself for that action; the decker cannot also use the program during any phase it runs autonomously. DINAB degrades (-1 rating point) each time it fails a test (opposed System Test lost to host, fails to hit in cybercombat, or target reduces all damage to 0). If a DINAB-controlled program rolls all 1s on a failed test, it crashes -- reload via Swap Memory. Decker may override DINAB at any time and use their own Computer skill (normal action cost applies). Frames can carry DINAB; smart frames must have it. |
+| **Limit** | -1 | Restricts the utility to one target type (e.g., deckers, IC programs, or frames); useless against all other types. Because the option reduces effective rating, it also reduces the program's actual size accordingly. |
 | **One-Shot** | Special | The utility executes once, then vanishes. Reload via Swap Memory to reuse. Reduces actual size by 75%; increases design size by 50%. Multiple copies may be loaded in active memory simultaneously, but tar baby and tar pit IC wipe **all copies** from active memory when they crash a One-Shot utility. |
 | **Optimization** | Special | Reduces actual size by 50%; increases design size by 100%. No effect on effective rating or performance. |
-| **Penetration** | +1 | Defeats the **Shield** defensive utility. Against IC with the **Shift** defensive utility, the program suffers a +2 TN penalty — in addition to the +2 penalty already granted by Shield. Cannot be combined with Chaser. |
+| **Penetration** | +1 | Defeats the **Shield** defensive utility. Against IC with the **Shift** defensive utility, the program suffers a +2 TN penalty -- in addition to the +2 penalty already granted by Shield. Cannot be combined with Chaser. |
 | **Sensitive** | Special | Restricts the utility to one manufacturer's hardware; useless on all other manufacturers' systems. Programming requires using the average of Computer skill and Computer Theory (or Matrix Theory concentration) for the programming test. Reduces actual size by 75%; increases design size by 50%. |
 | **Skulk** | +Skulk Rating | When this utility crashes an IC program, reduce the resulting security tally increase by the Skulk rating. *(Note: "Skulk" and "Stealth" are used interchangeably in the source material for this option.)* |
 | **Squeeze** | +1 | Self-compressed program. Actual size is reduced by 50% for uploading purposes. Cannot be used until decompressed (Complex Action, no test required). If also uploaded via the Compression utility, size is reduced 75% total, but requires two separate decompression actions. The +1 rating modifier affects design size only, not actual size. The deck must have enough free active memory to hold the fully decompressed program. |
-| **Targeting** | +2 | Provides a −2 TN modifier for all attacks made with this utility. |
+| **Targeting** | +2 | Provides a -2 TN modifier for all attacks made with this utility. |
 
 ### Command Sets
 
@@ -1681,9 +1681,9 @@ A command set is a simple program of orders left on a host to execute at a later
 
 The **Deception** utility reduces TN for all of these tests.
 
-**Complex sequences** (multi-step or conditional logic) require writing a dedicated program in advance and uploading it. Design size = 1D6 × 20 Mp. After uploading, the decker must succeed on a **Control Test** to load the program into the host.
+**Complex sequences** (multi-step or conditional logic) require writing a dedicated program in advance and uploading it. Design size = 1D6 x 20 Mp. After uploading, the decker must succeed on a **Control Test** to load the program into the host.
 
-**Detection and purge timer:** Total all successes the host scored opposing the subsystem tests. Divide 24 by that total — the result is the number of hours the command set runs undetected before the host purges it. If the host scored no successes, the command set runs undetected for **48 hours**.
+**Detection and purge timer:** Total all successes the host scored opposing the subsystem tests. Divide 24 by that total -- the result is the number of hours the command set runs undetected before the host purges it. If the host scored no successes, the command set runs undetected for **48 hours**.
 
 ### Frames
 
@@ -1694,8 +1694,8 @@ Frames are combinations of decker-selected utilities, analogous to constructs (w
 **Frame Core:**
 
 The frame core is the master control program for the frame:
-- Size: Frame Core Rating² × Frame Core Multiplier (2 for dumb cores; 3 for smart cores).
-- Core Ratings may not exceed the programmer's Computer Skill × 1.5 (round down).
+- Size: Frame Core Rating^2 x Frame Core Multiplier (2 for dumb cores; 3 for smart cores).
+- Core Ratings may not exceed the programmer's Computer Skill x 1.5 (round down).
 - Combined ratings of Bod, Evasion, Masking, and Sensor may not exceed the Core Rating.
 - Core Rating substitutes for MPCP Rating in any test requiring an MPCP Rating.
 - For smart frames: Reaction = Core Rating.
@@ -1712,14 +1712,14 @@ Dumb frames are deployed via a Decoy operation (see [System Operations](#system-
 ### Programming
 
 All programming follows the task rules:
-1. **Calculate program size:** Rating² × Multiplier (from program description). See Program Size Table.  Include any options in this calculation that would change the Rating value.
-2. **Calculate base time:** Program Size × 2 (in days).
-3. **Make a Computer Test** (target number = program rating) to determine task period = Base Time ÷ successes.  Use the base Program Rating for the Base Time test, not the utility augmented rating.
+1. **Calculate program size:** Rating^2 x Multiplier (from program description). See Program Size Table.  Include any options in this calculation that would change the Rating value.
+2. **Calculate base time:** Program Size x 2 (in days).
+3. **Make a Computer Test** (target number = program rating) to determine task period = Base Time / successes.  Use the base Program Rating for the Base Time test, not the utility augmented rating.
 4. **Work through the task period.**
 
-**Program Size Table (Rating² × Multiplier = size in Mp):**
+**Program Size Table (Rating^2 x Multiplier = size in Mp):**
 
-| Rating | ×1 | ×2 | ×3 | ×4 | ×5 | ×6 | ×7 | ×8 | ×9 | ×10 |
+| Rating | x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8 | x9 | x10 |
 |--------|-----|-----|-----|-----|-----|-----|-----|-----|-----|------|
 | 1 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | 2 | 4 | 8 | 12 | 16 | 20 | 24 | 28 | 32 | 36 | 40 |
@@ -1740,18 +1740,18 @@ All programming follows the task rules:
 
 | Tool | Task Bonus | Cost |
 |------|-----------|------|
-| Personal computer (base) | 0 | 20¥/Mp memory |
-| Personal computer (doubled memory) | +1 | 20¥/Mp memory |
-| Programming kit | +1 | 1,500¥ |
-| Programming shop | +2 | 15,000¥ |
-| Mainframe host | +4 | 100¥ × Security Value per day (5,000,000 x Security Value to purchase) |
-| Mainframe access | 0 | 100¥ × Security Value per day |
+| Personal computer (base) | 0 | 20Y/Mp memory |
+| Personal computer (doubled memory) | +1 | 20Y/Mp memory |
+| Programming kit | +1 | 1,500Y |
+| Programming shop | +2 | 15,000Y |
+| Mainframe host | +4 | 100Y x Security Value per day (5,000,000 x Security Value to purchase) |
+| Mainframe access | 0 | 100Y x Security Value per day |
 | Programming Suite | +5 | 300,000 to purchase |
 
 **Maximum program ratings:**
 - Persona programs and MPCP: no individual cap except MPCP Rating.
 - Utility programs: cannot exceed the designer's Computer Skill (or Software Concentration, or Matrix Programming Specialization) rating x 1.5 (effectively, cannot exceed MPCP Rating when installed on a specific deck).
-- Frame cores: cannot exceed programmer's Computer Skill × 1.5 (round down).
+- Frame cores: cannot exceed programmer's Computer Skill x 1.5 (round down).
 
 **Programming teams:**
 - Team size limit: half the highest Computer Skill rating (rounded down).
@@ -1764,10 +1764,10 @@ All programming follows the task rules:
 
 | Program Rating | Price | Availability | Street Index |
 |---------------|-------|-------------|-------------|
-| 1–3 | Size × 100¥ | 2/7 days | 1 |
-| 4–6 | Size × 200¥ | 4/7 days | 1.5 |
-| 7–9 | Size × 500¥ | 8/14 days | 2 |
-| 10+ | Size × 1,000¥ | 16/30 days | 3 |
+| 1-3 | Size x 100Y | 2/7 days | 1 |
+| 4-6 | Size x 200Y | 4/7 days | 1.5 |
+| 7-9 | Size x 500Y | 8/14 days | 2 |
+| 10+ | Size x 1,000Y | 16/30 days | 3 |
 
 **Upgrading Programs:**
 
@@ -1777,9 +1777,9 @@ Upgrading is a programming task. Determine the base time as follows:
 
 1. Calculate the base time to write the **upgraded version** from scratch.
 2. Calculate the base time to write the **current version** from scratch.
-3. Subtract: `Upgrade Base Time = Upgraded Version Base Time − Current Version Base Time`
+3. Subtract: `Upgrade Base Time = Upgraded Version Base Time - Current Version Base Time`
 
-**Task period:** Make a Computer Test against the **upgraded program's rating**. Divide the upgrade base time by the number of successes — the result is the task period in days. The rest of the process follows standard programming rules.
+**Task period:** Make a Computer Test against the **upgraded program's rating**. Divide the upgrade base time by the number of successes -- the result is the task period in days. The rest of the process follows standard programming rules.
 
 ---
 
@@ -1788,10 +1788,10 @@ Upgrading is a programming task. Determine the base time as follows:
 Every Matrix action is expressed as a system operation. Each operation has three components:
 - **Test:** Which Subsystem Test the decker makes (Access, Control, Index, Files, or Slave), rolled against the host/grid's corresponding Subsystem Rating.
 - **Utility:** The utility that reduces the target number for the Subsystem Test. Missing the right utility makes the operation harder but not impossible.
-- **Action:** The type of game action required — Free, Simple, or Complex.
+- **Action:** The type of game action required -- Free, Simple, or Complex.
 
 **Action type guidelines:**
-- **Free Action:** Very simple operations — obtaining a single piece of information, manipulating a single control. Matrix equivalents of opening a door or looking out a window.
+- **Free Action:** Very simple operations -- obtaining a single piece of information, manipulating a single control. Matrix equivalents of opening a door or looking out a window.
 - **Simple Action:** Operations involving a single program, icon, or control.
 - **Complex Action:** Any task involving a search, analysis, or control of a complicated or precise process.
 
@@ -1814,9 +1814,9 @@ During interrogation operations, the decker engages in a dialogue with the syste
 | Extremely vague or general | +2 |
 | Vague or general | +1 |
 | Specific (default) | 0 |
-| Well-phrased, relevant, or insightful | −1 or −2 |
+| Well-phrased, relevant, or insightful | -1 or -2 |
 
-Computers cannot lie — only conceal. A decker who has gathered good intel and phrases the inquiry precisely gets a real mechanical advantage.
+Computers cannot lie -- only conceal. A decker who has gathered good intel and phrases the inquiry precisely gets a real mechanical advantage.
 
 **Operations that are interrogations:** Locate Access Node, Locate File, Locate Paydata, Locate Slave, Dump Log.
 
@@ -1824,7 +1824,7 @@ Computers cannot lie — only conceal. A decker who has gathered good intel and 
 
 Some operations continue running after the initial System Test without further input from the decker (uploads, downloads, etc.).
 
-**Timing:** Time is measured in seconds per each operation's description. Convert to Combat Turns by dividing seconds by 3 — **do not round fractions.**
+**Timing:** Time is measured in seconds per each operation's description. Convert to Combat Turns by dividing seconds by 3 -- **do not round fractions.**
 
 | Upload Time | Combat Turns | Available |
 |---|---|---|
@@ -1857,40 +1857,40 @@ Monitored operations must be actively maintained after the initial System Test.
 | **Analyze Security** | Control | Analyze | Simple | Reveals current Security Rating of the host, the decker's security tally (including tally points accrued by this test), and the host's alert status. |
 | **Analyze Subsystem** | Targeted Subsystem | Analyze | Simple | Identifies anything out of the ordinary on the targeted subsystem: trap doors, worm IC, scramble IC, and other defenses or system tricks. |
 | **Control Slave** | Slave | Spoof | Complex | Monitored operation. Takes control of a remote device. For manufacturing or scientific processes, test with average of Computer + relevant B/R or Knowledge Skill. |
-| **Crash Application** | Appropriate Subsystem | Crash | Simple | Shuts down one of the host's application programs (legitimate programs — business processes, security installations, user sessions). Subsystem Test depends on the application targeted. No effect on IC, frames, constructs, or other deckers. |
+| **Crash Application** | Appropriate Subsystem | Crash | Simple | Shuts down one of the host's application programs (legitimate programs -- business processes, security installations, user sessions). Subsystem Test depends on the application targeted. No effect on IC, frames, constructs, or other deckers. |
 | **Crash Host** | Control | Crash | Complex | On success, divide decker's successes into 10 = turns before host shuts down. At end of each turn, host makes Security Value Test vs. decker's MPCP to abort. During countdown, all IC ratings are reduced by 2; ratings return to normal if abort succeeds. Successful crash wipes all frames, command sets, and decker-left programs; host reboots, clearing all security tallies and alerts. |
 | **Decrypt Access** | Access | Decrypt | Simple | Defeats scramble IC on a SAN. Must be performed before Logon to Host on a scrambled SAN. |
 | **Decrypt File** | Files | Decrypt | Simple | Defeats scramble IC protecting a specific file. Must be performed before other operations on a scrambled file. |
 | **Decrypt Slave** | Slave | Decrypt | Simple | Defeats scramble IC protecting a Slave subsystem. Must be performed before Slave Tests against a scrambled Slave subsystem. |
-| **Decoy** | Control | Mirrors | Complex | Creates a decoy copy of the decker's icon. Record Control Test successes; when proactive IC attacks the decker, roll 1D6 — if result < successes, IC attacks the decoy instead (ties go to the decoy). Decoys have no defenses, take full damage, and disappear when their Condition Monitors fill. Not effective against trace IC. Can be used to focus IC attention on frames. |
+| **Decoy** | Control | Mirrors | Complex | Creates a decoy copy of the decker's icon. Record Control Test successes; when proactive IC attacks the decker, roll 1D6 -- if result < successes, IC attacks the decoy instead (ties go to the decoy). Decoys have no defenses, take full damage, and disappear when their Condition Monitors fill. Not effective against trace IC. Can be used to focus IC attention on frames. |
 | **Disinfect** | Appropriate Subsystem | Disinfect | Complex | Destroys worm IC on a targeted subsystem. Test against the subsystem hosting the worm (e.g., Files Test for a Files subsystem worm). On failure, worm may infect the MPCP (see [Worms](#worms)). |
-| **Download Data** | Files | Read/Write | Simple | Ongoing operation. Copies a file to the decker's cyberdeck at allocated I/O bandwidth. Terminating early produces a corrupted (worthless) copy. Gamemaster may allow partial recovery: reconstruction base time = (full file size ÷ downloaded amount) × 2 days; chance of containing needed info = (downloaded ÷ full) × 100%. |
-| **Dump Log** | Control | Validate | Complex | Reads host access logs (identities of legal users, files accessed, programs run, intrusions). Logs may also be downloaded; 24-hour log size = multiplier × 100 Mp (Easy host: 2D6×5 Mp; Average: 2D6×2 Mp; Hard: 2D6 Mp). |
-| **Edit File** | Files | Read/Write | Simple | Creates, modifies, or erases a datafile. After altering, inserting, or deleting a file: Computer Test (TN = Files Rating × 2; add Masking to Computer Skill) to determine if host notices. Can copy a file within the same host (Files Test + subsystem test for destination). To detect tampering in a file: Computer Test (TN = Files Rating × 2; add Sensor to Computer Skill). |
+| **Download Data** | Files | Read/Write | Simple | Ongoing operation. Copies a file to the decker's cyberdeck at allocated I/O bandwidth. Terminating early produces a corrupted (worthless) copy. Gamemaster may allow partial recovery: reconstruction base time = (full file size / downloaded amount) x 2 days; chance of containing needed info = (downloaded / full) x 100%. |
+| **Dump Log** | Control | Validate | Complex | Reads host access logs (identities of legal users, files accessed, programs run, intrusions). Logs may also be downloaded; 24-hour log size = multiplier x 100 Mp (Easy host: 2D6x5 Mp; Average: 2D6x2 Mp; Hard: 2D6 Mp). |
+| **Edit File** | Files | Read/Write | Simple | Creates, modifies, or erases a datafile. After altering, inserting, or deleting a file: Computer Test (TN = Files Rating x 2; add Masking to Computer Skill) to determine if host notices. Can copy a file within the same host (Files Test + subsystem test for destination). To detect tampering in a file: Computer Test (TN = Files Rating x 2; add Sensor to Computer Skill). |
 | **Edit Slave** | Slave | Spoof | Complex | Monitored operation. Modifies data sent to or received from a remote device (video signals, sensor readings, console data). |
 | **Graceful Logoff** | Access | Deception | Complex | Safely disconnects from the Matrix without dump shock. On success, clears all traces of the decker from host security and memory systems, leaving decker invulnerable to trace IC after disconnecting. If trace IC is in progress, add its rating to the target number. |
-| **Improvised Attack** | — | — | Simple | See [Cybercombat](#cybercombat). |
+| **Improvised Attack** | -- | -- | Simple | See [Cybercombat](#cybercombat). |
 | **Invalidate Passcode** | Control | Validate | Complex | Erases a single passcode from the host's security tables. To wipe the entire passcode list: +4 TN modifier. |
-| **Locate Access Node** | Index | Browse | Complex | Finds LTG codes for specific hosts; also locates commcodes for comm calls. TN modifier: broad goal +1; specific goal: no modifier; very specific goal: −1. Interrogation operation. |
-| **Locate Decker** | Index | Scanner | Complex | Two-step: Index Test + Sensor Test. Locates other deckers whose Masking ≤ decker's Sensor Test result. If target runs Sleaze, add its rating to target's Masking for detection purposes. |
+| **Locate Access Node** | Index | Browse | Complex | Finds LTG codes for specific hosts; also locates commcodes for comm calls. TN modifier: broad goal +1; specific goal: no modifier; very specific goal: -1. Interrogation operation. |
+| **Locate Decker** | Index | Scanner | Complex | Two-step: Index Test + Sensor Test. Locates other deckers whose Masking <= decker's Sensor Test result. If target runs Sleaze, add its rating to target's Masking for detection purposes. |
 | **Locate File** | Index | Browse | Complex | Searches for specific datafiles. Decker must have a meaningful search goal. On success, decker knows the system location of the file. Interrogation operation. |
-| **Locate Frame** | Index | Scanner | Complex | Locates smart frames or SK programs running on the host. Not effective against IC constructs — use Locate IC instead. |
-| **Locate IC** | Index | Analyze | Complex | System Test only — no Sensor Test required; IC is auto-located if System Test succeeds. IC remains located unless it maneuvers to evade detection. |
+| **Locate Frame** | Index | Scanner | Complex | Locates smart frames or SK programs running on the host. Not effective against IC constructs -- use Locate IC instead. |
+| **Locate IC** | Index | Analyze | Complex | System Test only -- no Sensor Test required; IC is auto-located if System Test succeeds. IC remains located unless it maneuvers to evade detection. |
 | **Locate Paydata** | Index | Evaluate | Complex | Ongoing operation. Each net success locates 1 Paydata Point. Continues until stopped or all paydata found. Once located, paydata must be downloaded in its entirety. |
 | **Locate Slave** | Index | Analyze | Complex | Finds system addresses for specific remote devices. Decker needs only 3 successes to locate the target. Once located, can perform Control Slave, Monitor Slave, etc. |
 | **Logon to Host** | Access | Deception | Complex | Opposed Access Test vs. host Access Rating. Requires the LTG code. Trace from previous grid carries over to PLTG. If trace IC is running, add its rating to the TN. |
-| **Logon to LTG** | Access | Deception | Complex | Opposed Access Test vs. LTG Access Rating. Jackpoint Access modifier applies; bandwidth Trace Factor modifier applies. On failure, security tally remains on grid (public LTGs remember unauthorized access for 1D3×5 minutes). Decker can switch jackpoints to start a fresh tally. |
+| **Logon to LTG** | Access | Deception | Complex | Opposed Access Test vs. LTG Access Rating. Jackpoint Access modifier applies; bandwidth Trace Factor modifier applies. On failure, security tally remains on grid (public LTGs remember unauthorized access for 1D3x5 minutes). Decker can switch jackpoints to start a fresh tally. |
 | **Logon to RTG** | Access | Deception | Complex | Opposed Access Test vs. RTG Access Rating. Local LTG rating changes do not carry over to the RTG. RTG maintains the same security tally for all decker activity across all dependent LTGs and the RTG itself. |
 | **Make Comcall** | Files | Commlink | Complex | Places a Matrix communications call. Decker can link calls across multiple RTGs for a conference call; each additional link requires another opposed Files Test. Trace routines on the call are treated as trace IC. Decker can detect taps with Sensor (Device Rating) Test and neutralize them with Evasion (Device Rating) Test. Monitored operation. |
 | **Monitor Slave** | Slave | Spoof | Simple | Monitored operation. Reads real-time data from a remote device: audio pickups, cameras, medical scanners, etc. Provides constant updates while maintained. |
 | **Null Operation** | Control | Deception | Complex | Performed while waiting. Security Value modifier by inactivity duration: <10 sec: base SV; <1 min: +1; <1 hr: +2; <12 hrs: +4; each additional 12 hrs: +1. |
 | **Redirect Datatrail** | Control | Camo | Complex | Reduces the opposing Security Test TN by the decker's trace modifier (jackpoint Trace Factor). Decker can leave only one redirect per grid. Each redirect left on a grid reduces the decker's Trace Factor by 1 (does not affect bandwidth modifier's impact on further Redirect Datatrail tests). |
 | **Retrain** | Access | Commlink | Free | Reallocates I/O bandwidth between icon bandwidth and I/O bandwidth. Can be performed at any time, even while loading data. |
-| **Scan Icon** | Special | Scanner | Simple | Computer Test vs. target's Masking Rating. If target runs Sleaze: adjust TN by difference between Sleaze and Scanner ratings (reduce TN if scanner > sleaze; increase if sleaze > scanner). Each success: choose one — MPCP Rating, any Persona Rating, or Response Increase Rating. |
+| **Scan Icon** | Special | Scanner | Simple | Computer Test vs. target's Masking Rating. If target runs Sleaze: adjust TN by difference between Sleaze and Scanner ratings (reduce TN if scanner > sleaze; increase if sleaze > scanner). Each success: choose one -- MPCP Rating, any Persona Rating, or Response Increase Rating. |
 | **Swap Memory** | None | None | Simple | Loads a utility from storage to active memory (or vice versa). If insufficient active memory, first spend a Free Action to unload a program. No tests required. Squeezed or Compressed utilities must be decompressed before use (Complex Action required). |
 | **Tap Comcall** | Special | Commlink | Complex | Multi-step monitored operation. (1) Index Test to locate active commcodes on an LTG (must be on controlling RTG). (2) Control Test to trace call to origin/destination; each success on a conference call reveals one participant's commcode. (3) Files Test to record (1 Mp/minute). If scrambled: Computer Test vs. encryption rating (Decrypt reduces TN; +2 per retry). Dataline scanners: Computer Test vs. highest scanner rating, 1 success per scanner. Neither decryption nor scanner tests affect security tally. |
-| **Upload Data** | Files | Read/Write | Simple | Ongoing operation. Transmits data from deck storage to the Matrix. New files written automatically; modifying existing files requires Edit File afterward. Not used for utilities — use Swap Memory for that. |
-| **Validate Passcode** | Control | Validate | Complex | Plants a fake passcode on a host. +2 TN for superuser passcode; +6 TN for supervisor passcode. On success: passcode lasts 1D6 × successes days. If decker uses the passcode during a run that triggers an active alert, the host flags and deletes it. |
+| **Upload Data** | Files | Read/Write | Simple | Ongoing operation. Transmits data from deck storage to the Matrix. New files written automatically; modifying existing files requires Edit File afterward. Not used for utilities -- use Swap Memory for that. |
+| **Validate Passcode** | Control | Validate | Complex | Plants a fake passcode on a host. +2 TN for superuser passcode; +6 TN for supervisor passcode. On success: passcode lasts 1D6 x successes days. If decker uses the passcode during a run that triggers an active alert, the host flags and deletes it. |
 
 ---
 
@@ -1912,7 +1912,7 @@ Reaction + 1D6 (base)
 + Hot DNI bonus (+1D6 if running hot deck on pure DNI)
 ```
 
-Cool deck: –1D6 Initiative when running cool with manual controls.
+Cool deck: -1D6 Initiative when running cool with manual controls.
 
 Tortoise: only 1D6 Initiative regardless of Response Increase.
 
@@ -1950,7 +1950,7 @@ For any other program not previously defined, assume they have Reaction equal to
 
 - **Attack** (cybercombat attack with an offensive utility)
 - **Combat Maneuver** (see [Combat Maneuvers](#combat-maneuvers))
-- **Improvised Attack** (create a one-shot attack program on the fly — see [Improvised Attacks](#improvised-attacks))
+- **Improvised Attack** (create a one-shot attack program on the fly -- see [Improvised Attacks](#improvised-attacks))
 
 #### Complex Actions
 
@@ -2078,7 +2078,7 @@ When a decker's icon takes damage from **white or gray IC on a hot deck**, the d
 See [Simsense Overload TN](#cybercombat-summary-tables) in Reference Tables.
 
 - Running hot with DNI-only interface: +2 to TN.
-- ICCM filter: –2 to TN.
+- ICCM filter: -2 to TN.
 
 If the Willpower Test fails: decker suffers 1 box of Stun damage on his Mental Condition Monitor.
 
@@ -2097,9 +2097,9 @@ When a decker is **crashed off the Matrix** or jacks out without a Graceful Logo
 See [Dump Shock Damage Level by Host Security](#cybercombat-summary-tables) in Reference Tables.
 
 **Modifiers:**
-- Cool deck: –2 Power and Damage Level drops by 1 level.
-- ICCM filter: –2 Power and Damage Level drops by 1 level.
-- Both cool deck and ICCM: cumulative (–4 Power, –2 Damage Levels).
+- Cool deck: -2 Power and Damage Level drops by 1 level.
+- ICCM filter: -2 Power and Damage Level drops by 1 level.
+- Both cool deck and ICCM: cumulative (-4 Power, -2 Damage Levels).
 - Tortoise: immune to dump shock.
 
 ---
@@ -2108,7 +2108,7 @@ See [Dump Shock Damage Level by Host Security](#cybercombat-summary-tables) in R
 
 ### Security Asset Response Times (when trace IC locates decker's jackpoint)
 
-Results in **minutes**. "On-Site" = entry point inside a manned location owned by the system's owners. "Government" assumes a UCAS setting — adjust for other governments. On-Site values are divided by 2 (security is already present).
+Results in **minutes**. "On-Site" = entry point inside a manned location owned by the system's owners. "Government" assumes a UCAS setting -- adjust for other governments. On-Site values are divided by 2 (security is already present).
 
 | Jackpoint Security Rating | Public | Corporate | Megacorp | Government |
 |---------------------------|--------|-----------|----------|------------|
@@ -2122,48 +2122,48 @@ Results in **minutes**. "On-Site" = entry point inside a manned location owned b
 
 | System | Security Code | Security Value | Subsystem Base |
 |--------|---------------|---------------|----------------|
-| Easy | Blue | 4–6 | 8–10 |
-| Average | Green–Orange | 7–9 | 11–15 |
-| Hard | Orange–Red | 8–12 | 13–18 |
+| Easy | Blue | 4-6 | 8-10 |
+| Average | Green-Orange | 7-9 | 11-15 |
+| Hard | Orange-Red | 8-12 | 13-18 |
 
 ### Log Size Multipliers
 
-| Host Intrusion Difficulty | Log Size Multiplier (× 100 Mp per 24 hrs) |
+| Host Intrusion Difficulty | Log Size Multiplier (x 100 Mp per 24 hrs) |
 |--------------------------|------------------------------------------|
-| Easy | 2D6 × 5 |
-| Average | 2D6 × 2 |
+| Easy | 2D6 x 5 |
+| Average | 2D6 x 2 |
 | Hard | 2D6 |
 
 ### Paydata Points Table
 
 | System Security Code | Paydata Points Roll | Data Density Roll |
 |---------------------|--------------------|--------------------|
-| Blue | 1D6 – 1 | 2D6 × 20 Mp |
-| Green | 2D6 – 2 | 2D6 × 15 Mp |
-| Orange | 2D6 | 2D6 × 10 Mp |
-| Red | 2D6 + 2 | 2D6 × 5 Mp |
+| Blue | 1D6 - 1 | 2D6 x 20 Mp |
+| Green | 2D6 - 2 | 2D6 x 15 Mp |
+| Orange | 2D6 | 2D6 x 10 Mp |
+| Red | 2D6 + 2 | 2D6 x 5 Mp |
 | Black | 2D6 + 4 | 3D6 x 5 Mp |
 
-**Base street value per Paydata Point:** 5,000¥.
+**Base street value per Paydata Point:** 5,000Y.
 
 ### Sheaf Design Table Summary
 
 | Trigger Step Interval | Security Code |
 |----------------------|---------------|
-| +4 (range 5–7) | Blue |
-| +3 (range 4–6) | Green |
-| +2 (range 3–5) | Orange |
-| +1 (range 2–4) | Red |
+| +4 (range 5-7) | Blue |
+| +3 (range 4-6) | Green |
+| +2 (range 3-5) | Orange |
+| +1 (range 2-4) | Red |
 | +1 (range 2-4) | Black |
 
 ### Program Prices Table
 
 | Rating | Price | Availability | Street Index |
 |--------|-------|-------------|-------------|
-| 1–3 | Size × 100¥ | 2/7 days | 1 |
-| 4–6 | Size × 200¥ | 4/7 days | 1.5 |
-| 7–9 | Size × 500¥ | 8/14 days | 2 |
-| 10+ | Size × 1,000¥ | 16/30 days | 3 |
+| 1-3 | Size x 100Y | 2/7 days | 1 |
+| 4-6 | Size x 200Y | 4/7 days | 1.5 |
+| 7-9 | Size x 500Y | 8/14 days | 2 |
+| 10+ | Size x 1,000Y | 16/30 days | 3 |
 
 ### Deck Component Prices (quick reference)
 
@@ -2171,18 +2171,18 @@ All prices in nuyen. PF = Program Factor based on listed basis.
 
 | Component | Formula | PF Basis |
 |-----------|---------|----------|
-| MPCP | MPCP² × [(8 × PF) + 195] | MPCP Rating |
-| Bod or Evasion | Rating² × [(3 × PF) + 95] | Program Rating |
-| Masking or Sensor | Rating² × [(2 × PF) + 75] | Program Rating |
-| Active Memory | Mp × 7.5¥ | — |
-| Storage Memory | Mp × 6¥ | — |
-| ASIST (Hot) | (MPCP² × [(PF × 2) + 40]) + (MPCP × 50) | MPCP Rating |
-| ASIST (Cool) | (MPCP² × [(PF × 2) + 20]) + (MPCP × 25) | MPCP Rating |
-| Hardening | (Hardening² × [(PF × 8) + 160]) + (Hardening × 70) | MPCP Rating |
-| ICCM Filter | (MPCP² × [(PF × 4) + 115]) + 5,000 | MPCP Rating |
-| I/O Speed | Speed in MePS × 30¥ | — |
-| Response Increase | [(MPCP² × Response) × (PF + 80)] + (Response × 105) | MPCP Rating |
-| Satlink Interface | (MPCP² × [(PF × 2) + 40]) + (MPCP × 35) | MPCP Rating |
+| MPCP | MPCP^2 x [(8 x PF) + 195] | MPCP Rating |
+| Bod or Evasion | Rating^2 x [(3 x PF) + 95] | Program Rating |
+| Masking or Sensor | Rating^2 x [(2 x PF) + 75] | Program Rating |
+| Active Memory | Mp x 7.5Y | -- |
+| Storage Memory | Mp x 6Y | -- |
+| ASIST (Hot) | (MPCP^2 x [(PF x 2) + 40]) + (MPCP x 50) | MPCP Rating |
+| ASIST (Cool) | (MPCP^2 x [(PF x 2) + 20]) + (MPCP x 25) | MPCP Rating |
+| Hardening | (Hardening^2 x [(PF x 8) + 160]) + (Hardening x 70) | MPCP Rating |
+| ICCM Filter | (MPCP^2 x [(PF x 4) + 115]) + 5,000 | MPCP Rating |
+| I/O Speed | Speed in MePS x 30Y | -- |
+| Response Increase | [(MPCP^2 x Response) x (PF + 80)] + (Response x 105) | MPCP Rating |
+| Satlink Interface | (MPCP^2 x [(PF x 2) + 40]) + (MPCP x 35) | MPCP Rating |
 
 ### Cybercombat Summary Tables
 
@@ -2235,7 +2235,7 @@ Column headers = TN to hit an icon of that status.
 | Moderate | 3 |
 | Serious | 5 |
 
-(+2 TN if hot deck with DNI-only; –2 TN if ICCM equipped.)
+(+2 TN if hot deck with DNI-only; -2 TN if ICCM equipped.)
 
 ### System Operations Summary Table
 
@@ -2287,7 +2287,7 @@ Column headers = TN to hit an icon of that status.
 
 ### NPC Decker Guidelines
 
-**Inferior:** MPCP Rating = player decker's –2; Response Increase = player decker's –1.
+**Inferior:** MPCP Rating = player decker's -2; Response Increase = player decker's -1.
 **Equal:** All ratings = player decker's.
 **Superior:** MPCP Rating = player decker's +2; Response Increase = player decker's +1.
 
@@ -2307,9 +2307,9 @@ Government deckers specialize in track programs (Matrix law enforcement).
 
 NPC deckers on their own systems use Legitimate icons (IC does not attack them). Intruding deckers use the Legitimate target numbers column to attack these NPCs.
 
-### Ares Macrotechnology — Regional Sales
+### Ares Macrotechnology -- Regional Sales
 
-**Architecture:** Tiered (Open Access → Chokepoint → Hub-and-Spoke → Secure Host). Transaction packets between hosts pass through heavily loaded chokepoints. Working mainframes are IC-free for efficiency; chokepoints carry the security load.
+**Architecture:** Tiered (Open Access -> Chokepoint -> Hub-and-Spoke -> Secure Host). Transaction packets between hosts pass through heavily loaded chokepoints. Working mainframes are IC-free for efficiency; chokepoints carry the security load.
 
 **Host A** (Salesroom/Open Access)
 - Rating: `Green-5/8/10/8/10/10`
@@ -2346,15 +2346,15 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 | 35 | Black IC-8 (Armor) |
 | 38 | Shutdown |
 
-**Network C** (C1–C4, second-tier hosts)
+**Network C** (C1-C4, second-tier hosts)
 - Rating: `Green-7/12/13/15/12/13`
 - C1 (Accounting): Paydata 8
 - C2 (Tech Support): Paydata 5
 - C3 (Sales Management): Paydata 6
 - C4 (Maintenance): Paydata 4
-- Paydata Density: 2D6 × 15 Mp
+- Paydata Density: 2D6 x 15 Mp
 - Passive IC shuts down when decker logs off a C host. Active IC pursues to another C host or back to Host B. Security tallies persist per host (e.g., tally of 4 on C1 resumes at 4 on return).
-- C1 and C2 have PLTG gateways in their Access subsystems; protected by Scramble IC — must Decrypt to log on to the PLTG.
+- C1 and C2 have PLTG gateways in their Access subsystems; protected by Scramble IC -- must Decrypt to log on to the PLTG.
 - C4 trap door to Host D rotates randomly through all subsystems nanosecond-by-nanosecond; must search for it on every visit.
 
 | Trigger Step | Event |
@@ -2372,7 +2372,7 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 **Host D** (Executive files and security node)
 - Rating: `Red-9/15/14/16/14/16`
 - Paydata: 11
-- Paydata Density: 2D6 × 5 Mp
+- Paydata Density: 2D6 x 5 Mp
 - 2-in-6 chance any given slave system is rigged with a Data Bomb-6.
 - Sculpted as a giant chess game: pawns = Probe IC, knights = Trace IC, queen = Black IC.
 
@@ -2389,7 +2389,7 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 
 ### Shiseki Clan
 
-**Overview:** Mid-level Yakuza syndicate, Seattle area. Smuggling, industrial espionage, and secure communications services. Aggressively pursues, terminates, and makes examples of anyone who decks their systems — including accomplices and buyers of stolen data.
+**Overview:** Mid-level Yakuza syndicate, Seattle area. Smuggling, industrial espionage, and secure communications services. Aggressively pursues, terminates, and makes examples of anyone who decks their systems -- including accomplices and buyers of stolen data.
 
 **Tri-Marine Exports** (cover operation/front)
 - LTG: 1206
@@ -2413,7 +2413,7 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 **Shiseki Clan Host** (real operations computer)
 - Rating: `Red-10/16/18/14/16/14`
 - Paydata: 13
-- Paydata Density: 2D6 × 5 Mp
+- Paydata Density: 2D6 x 5 Mp
 - Military history metaphor; constantly switches historical periods, making preset MPCP iconography nearly impossible.
 - IC always appears in keeping with the active metaphor (another figure in the combat setting). Until IC lands a damaging attack, the decker may believe he is making a System Test rather than being attacked.
 - **All secure datafiles (including all paydata) are loaded with data bombs.**
@@ -2449,7 +2449,7 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 **Host A** (Public Access)
 - Rating: `Blue-4/8/10/9/9/8`
 - Paydata: 2
-- Paydata Density: 2D6 × 20 Mp
+- Paydata Density: 2D6 x 20 Mp
 - Plain UMS iconography; bureaucratic quality. Slave systems control building amenities. Paydata only in large, bulky packages (near-public records).
 
 | Trigger Step | Event |
@@ -2465,7 +2465,7 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 **Host B** (Day-to-day operations)
 - Rating: `Green-8/12/13/14/12/13`
 - Paydata: 6
-- Paydata Density: 2D6 × 15 Mp
+- Paydata Density: 2D6 x 15 Mp
 - Routine office records. Low-level employee private files stored here (illegally). Confidential-but-not-secret personnel or operational records also here. Secure operational files on Host D.
 
 | Trigger Step | Event |
@@ -2490,17 +2490,17 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 | 9 | 7 | Tar Baby-8 |
 | 12 | 9 | Trap Trace-10 (Killer-8) |
 | 16 | 12 | Passive Alert |
-| 21 | 16 | Expert Construct (Armor, +2 Defense/–2 Offense), Trace-8, Tar Baby-4, Marker-5 |
+| 21 | 16 | Expert Construct (Armor, +2 Defense/-2 Offense), Trace-8, Tar Baby-4, Marker-5 |
 | 24 | 18 | Cascading Blaster-8 |
 | 28 | 21 | Active Alert (Orange: government decker arrives in 1D3 turns; Red: arrives next turn) |
-| 31 | 23 | Expert Construct (Armor and Shielding, +2 Offense/–2 Defense), Black IC-8 (non-lethal/lethal), Acid-6 |
+| 31 | 23 | Expert Construct (Armor and Shielding, +2 Offense/-2 Defense), Black IC-8 (non-lethal/lethal), Acid-6 |
 | 36 | 27 | Cascading Black IC-7 (non-lethal/lethal) |
 | 39 | 29 | Shutdown |
 
 **Host D** (Sensitive government data + PLTG gateway)
 - Rating: `Green-10/17/18/13/15/14`
 - Paydata: 9
-- Paydata Density: 2D6 × 15 Mp
+- Paydata Density: 2D6 x 15 Mp
 - Access subsystem protected by Scramble IC (must Decrypt before logging on).
 - All secure datafiles protected by Scramble IC, data bombs, or worms.
 - Records distributed to PLTG: erasing or modifying them requires an additional, extremely dangerous run through the government grid.
@@ -2520,4 +2520,4 @@ NPC deckers on their own systems use Legitimate icons (IC does not attack them).
 
 ---
 
-*End of VR 2.0 Rules Reference. All content extracted from Shadowrun 2nd Edition: Virtual Realities 2.0, pages 22–27, 32–61, 68–77, 84–85, 90–99, 102–132, 157–172.*
+*End of VR 2.0 Rules Reference. All content extracted from Shadowrun 2nd Edition: Virtual Realities 2.0, pages 22-27, 32-61, 68-77, 84-85, 90-99, 102-132, 157-172.*

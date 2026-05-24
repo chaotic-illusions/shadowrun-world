@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deck Builder | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html" class="active">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; DECKER GEAR CALCULATOR <em class="sep">//</em> Cyberdeck &amp; Program Costs</div>
+  <div class="page-sub" style="color:var(--cyan)">HACKER HAVEN // DECK CONSTRUCTION // PROGRAM DESIGN // BUILD TIMES // <span style="color:var(--dark-red)">...INSERT CREDSTICK BELOW</span></div>
+
+  <div id="pageAlert" class="alert" style="margin-bottom:12px"></div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabBtn0" onclick="switchTab(0)">&#x25BA; Cyberdeck Builder</button>
+    <button class="tab-btn" id="tabBtn1" onclick="switchTab(1)">&#x25BA; Program / Utility Builder</button>
+  </div>
+
+  <!-- -------------------------- TAB 0: CYBERDECK BUILDER -- -->
+  <div class="tab-panel active" id="tabPanel0">
+    <div class="db-layout">
+
+      <!-- LEFT: inputs -->
+      <div>
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Deck Specification</div>
+
+          <div class="db-field">
+            <label>Deck Name (optional)</label>
+            <input type="text" id="deckName" placeholder="e.g. Ghost Rig Mk.II" oninput="calcDeck()">
+          </div>
+
+          <div class="db-field">
+            <label>Deck Type</label>
+            <select id="deckType" onchange="calcDeck()">
+              <option value="hot">Hot ASIST (full VR, fastest)</option>
+              <option value="cool">Cold ASIST (no biofeedback)</option>
+              <option value="tortoise">Tortoise (DNI optional, no ASIST)</option>
+            </select>
+          </div>
+
+          <div class="db-field">
+            <label>MPCP Rating (1-20) *</label>
+            <input type="number" id="mpcp" min="1" max="20" placeholder="e.g. 6" oninput="calcDeck()">
+            <div class="tip">The deck's brain. Sets the cap for all other programs.</div>
+          </div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Persona Programs</div>
+          <div class="tip" style="margin-bottom:10px">All persona ratings capped at MPCP. Sum of all four <= MPCP x 3.</div>
+
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Bod (x3 Mp)</label>
+              <input type="number" id="pBod" min="1" max="20" placeholder="--" oninput="calcDeck()">
+            </div>
+            <div class="db-field">
+              <label>Evasion (x3 Mp)</label>
+              <input type="number" id="pEvasion" min="1" max="20" placeholder="--" oninput="calcDeck()">
+            </div>
+          </div>
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Masking (x2 Mp)</label>
+              <input type="number" id="pMasking" min="1" max="20" placeholder="--" oninput="calcDeck()">
+            </div>
+            <div class="db-field">
+              <label>Sensor (x2 Mp)</label>
+              <input type="number" id="pSensor" min="1" max="20" placeholder="--" oninput="calcDeck()">
+            </div>
+          </div>
+
+          <div id="personaBar" class="persona-bar"></div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Hardware Components</div>
+
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Hardening (0-MPCP)</label>
+              <input type="number" id="hardening" min="0" max="20" value="0" oninput="calcDeck()">
+            </div>
+            <div class="db-field">
+              <label>Response Increase (0-3)</label>
+              <input type="number" id="respIncrease" min="0" max="3" value="0" oninput="calcDeck()">
+              <div class="tip" id="riTip"></div>
+            </div>
+          </div>
+
+          <label class="chk-row">
+            <input type="checkbox" class="chk-reveal" id="iccm" onchange="calcDeck()">
+            ICCM Biofeedback Filter
+            <span class="tip">// Protects vs. lethal damage from Black IC</span>
+          </label>
+
+          <label class="chk-row">
+            <input type="checkbox" class="chk-reveal" id="realityFilter" onchange="calcDeck()">
+            Reality Filter
+            <span class="tip">// +1 effective RI; +2 MPCP for cost calc; -1 MPCP for persona cap</span>
+          </label>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Memory &amp; I/O</div>
+
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Active Memory (Mp)</label>
+              <input type="number" id="activeMem" min="100" step="10" placeholder="100" oninput="calcDeck()">
+              <div class="tip">Multiples of 10, min 100. Loaded utility storage.</div>
+            </div>
+            <div class="db-field">
+              <label>I/O Speed (Mp/ct)</label>
+              <input type="number" id="ioSpeed" min="10" step="10" placeholder="10" oninput="calcDeck()">
+              <div class="tip">Multiples of 10, min 10.</div>
+            </div>
+          </div>
+
+          <div class="db-field">
+            <label>Offline Storage / OMC (Mp, optional)</label>
+            <input type="number" id="offlineStorage" min="0" step="10" placeholder="0" oninput="calcDeck()">
+          </div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Accessories</div>
+
+          <div class="db-field">
+            <label>Deck Casing</label>
+            <select id="deckCasing" onchange="calcDeck()">
+              <option value="0">None (bare board)</option>
+              <option value="1">Level 1 -- 500Y</option>
+              <option value="2">Level 2 -- 2,000Y</option>
+              <option value="3">Level 3 -- 5,000Y</option>
+            </select>
+          </div>
+
+          <label class="chk-row">
+            <input type="checkbox" class="chk-reveal" id="satlink" onchange="calcDeck()">
+            Satlink Interface -- 800Y
+            <span class="tip">// Standard portable 0.5m dish</span>
+          </label>
+
+          <label class="chk-row">
+            <input type="checkbox" class="chk-reveal" id="hitcherJack" onchange="calcDeck()">
+            Hitcher Jack -- 250Y
+            <span class="tip">// Allows a passenger in VR</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- RIGHT: output -->
+      <div>
+        <!-- Validity badge -->
+        <div id="validityBadge" class="validity-badge validity-ok">&#x25CF; ENTER MPCP RATING TO BEGIN</div>
+
+        <!-- Deck summary -->
+        <div class="db-panel" id="deckSummaryPanel" style="display:none">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Deck Summary</div>
+          <div class="sum-grid" id="deckSumGrid"></div>
+        </div>
+
+        <!-- Component cost breakdown -->
+        <div class="db-panel" id="costBreakdownPanel" style="display:none">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Component Cost Breakdown</div>
+          <div style="overflow-x:auto">
+            <table class="comp-table" id="costTable">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Size (Mp)</th>
+                  <th>OCC (Y)</th>
+                  <th>PLC/DTC (Y)</th>
+                  <th>Other (Y)</th>
+                  <th>Subtotal (Y)</th>
+                  <th>Cook</th>
+                  <th>Install</th>
+                </tr>
+              </thead>
+              <tbody id="costBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Save / load deck builds -->
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Saved Deck Builds</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <input type="text" id="deckSaveName" placeholder="Build name (uses Deck Name if blank)"
+              style="flex:1;min-width:140px;padding:6px 10px;font-size:.78rem;background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font)">
+            <button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save</button>
+          </div>
+          <div id="savedDecksList"><div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved builds.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -------------------------- TAB 1: PROGRAM BUILDER -- -->
+  <div class="tab-panel" id="tabPanel1">
+    <div class="db-layout">
+
+      <!-- LEFT: inputs -->
+      <div>
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Specification</div>
+
+          <div class="db-field">
+            <label>Utility Type</label>
+            <select id="utilType" onchange="onUtilTypeChange()">
+              <option value="">-- Select utility --</option>
+            </select>
+          </div>
+
+          <div class="db-field">
+            <label>Base Rating (1-20)</label>
+            <input type="number" id="utilRating" min="1" max="20" placeholder="e.g. 4" oninput="calcUtil()">
+          </div>
+
+          <!-- Attack damage level -->
+          <div class="db-field" id="attackDmgField" style="display:none">
+            <label>Damage Level (Attack)</label>
+            <select id="attackDmg" onchange="calcUtil()">
+              <option value="2">Light (x2)</option>
+              <option value="3">Moderate (x3)</option>
+              <option value="4">Serious (x4)</option>
+              <option value="5">Deadly (x5)</option>
+            </select>
+            <div class="tip">Determines multiplier for Attack program size and cost.</div>
+          </div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Options</div>
+          <div class="tip" style="margin-bottom:10px">Options modify effective rating and/or size. Not all options apply to all utilities.</div>
+
+          <div id="optionsArea">
+            <div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a utility to see applicable options.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: output -->
+      <div>
+        <!-- Program summary card -->
+        <div id="utilSummaryPanel" style="display:none">
+          <div class="prog-card" id="utilCard">
+            <div class="prog-card-title" id="utilCardTitle">--</div>
+            <div class="prog-card-sub" id="utilCardSub">--</div>
+            <div class="prog-stat-row" id="utilStatRow"></div>
+            <div id="utilNote" class="prog-note"></div>
+          </div>
+
+          <!-- Availability & cost breakdown -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Cost &amp; Availability</div>
+            <div class="sum-grid" id="utilCostGrid"></div>
+          </div>
+
+          <!-- Build time table -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Construction Time</div>
+            <div id="buildTimeMeta" style="font-size:.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px"></div>
+            <table class="build-time-table" id="buildTimeTable">
+              <thead>
+                <tr>
+                  <th>Successes</th>
+                  <th>Time (days)</th>
+                </tr>
+              </thead>
+              <tbody id="buildTimeBody"></tbody>
+            </table>
+          </div>
+
+          <!-- Add to deck load -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Deck Load Planner</div>
+            <div class="add-load-row">
+              <input type="text" id="loadLabelInput" placeholder="Custom label (optional)"
+                style="flex:1;min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <select id="loadTargetInput"
+                style="min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                <option value="active">Active</option>
+                <option value="storage">Storage</option>
+                <option value="both">Both</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="addToLoadPlanner()">&gt;&gt; Add to Load</button>
+            </div>
+            <div class="tip" style="margin-bottom:8px">Load each program to Active, Storage, or Both. Bars use this deck's Active Memory and Offline Storage from the Cyberdeck tab.</div>
+            <div id="loadPlannerArea"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #1a2a1a;flex-wrap:wrap">
+              <input type="text" id="loadSaveName" placeholder="Save load-out as..."
+                style="flex:1;min-width:120px;padding:5px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <button class="btn btn-green btn-sm" onclick="saveLoadout()">&gt;&gt; Save Load-out</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearLoadPlanner()">&gt;&gt; Clear</button>
+            </div>
+          </div>
+
+          <!-- Saved load-outs -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Saved Program Load-outs</div>
+            <div id="savedLoadoutsList"><div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved load-outs.</div></div>
+          </div>
+        </div>
+
+        <div id="utilEmpty" style="color:var(--text-dim);font-size:.72rem;letter-spacing:2px;padding:32px 0;text-align:center;text-transform:uppercase">
+          Select a utility type and set a rating to see calculations.
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+'use strict';
+
+// --- Utilities list ----------------------------------------------------------
+
+const UTILITIES = [
+  // Operational
+  { name: "Analyze",    mult: 3,  cat: "Operational", note: "Analyze IC/icons/security. Reduce TN for identification tests." },
+  { name: "Browse",     mult: 1,  cat: "Operational", note: "Locate file/slave/access nodes. Reduce TN for index searches." },
+  { name: "Commlink",   mult: 1,  cat: "Operational", note: "Retrain, Tap Comcall. Reduce TN for comms tests." },
+  { name: "Crash",      mult: 3,  cat: "Operational", note: "Crash Application, Crash Host. Reduce TN." },
+  { name: "Decrypt",    mult: 1,  cat: "Operational", note: "Defeat Scramble IC. Reduce TN for decryption." },
+  { name: "Deception",  mult: 2,  cat: "Operational", note: "Logon/Logoff. Reduce TN for all Access Tests." },
+  { name: "Defuse",     mult: 2,  cat: "Operational", note: "Defuse data bombs. Reduce TN." },
+  { name: "Disinfect",  mult: 2,  cat: "Operational", note: "Destroy worm viruses. Reduce TN." },
+  { name: "Evaluate",   mult: 2,  cat: "Operational", note: "Locate Paydata. Degrades -1D3 after each run." },
+  { name: "Mirrors",    mult: 3,  cat: "Operational", note: "Decoy operation. Reduce TN." },
+  { name: "Read/Write", mult: 2,  cat: "Operational", note: "Download/Edit/Upload files. Reduce TN." },
+  { name: "Relocate",   mult: 2,  cat: "Operational", note: "Defeat Trace IC during location cycle." },
+  { name: "Scanner",    mult: 3,  cat: "Operational", note: "Locate other Deckers and Frames." },
+  { name: "Spoof",      mult: 3,  cat: "Operational", note: "Command/Edit/Monitor slave systems." },
+  { name: "Validate",   mult: 4,  cat: "Operational", note: "Passcode operations. Dump Log." },
+  // Special
+  { name: "Compressor", mult: 2,  cat: "Special", note: "Reduce transfer file size by 50%. Max file = Rating\xd7100 Mp." },
+  { name: "Sleaze",     mult: 3,  cat: "Special", note: "Passive. Lowers Detection Factor. Run entire run." },
+  { name: "Track",      mult: 3,  cat: "Special", note: "Trace jacked-out deckers via datatrail." },
+  // Offensive
+  { name: "Attack",     mult: 2,  cat: "Offensive", dmg_levels: { Light:2, Moderate:3, Serious:4, Deadly:5 },
+    note: "Standard cybercombat. Multiplier varies by damage level chosen." },
+  { name: "Black Hammer",mult:20, cat: "Offensive", note: "Lethal damage to deckers. Max rating = Computer Skill \xf7 2." },
+  { name: "Hog",        mult: 3,  cat: "Offensive", note: "Virus: crashes deck programs in sequence. Hard to purge." },
+  { name: "Killjoy",    mult: 10, cat: "Offensive", note: "Stun version of Black Hammer." },
+  { name: "Poison",     mult: 3,  cat: "Offensive", note: "Attacks Bod attribute like Acid Crippler." },
+  { name: "Restrict",   mult: 3,  cat: "Offensive", note: "Attacks Evasion attribute like Binder Crippler." },
+  { name: "Reveal",     mult: 3,  cat: "Offensive", note: "Attacks Masking attribute like Marker Crippler." },
+  { name: "Slow",       mult: 4,  cat: "Offensive", note: "Slows proactive IC execution speed." },
+  // Defensive
+  { name: "Armor",      mult: 3,  cat: "Defensive", note: "Reduces Power of IC attacks. Loses 1 rating per hit." },
+  { name: "Camo",       mult: 3,  cat: "Defensive", note: "Adds rating to Trace Factor. Also reduces Redirect Datatrail TN." },
+  { name: "Cloak",      mult: 3,  cat: "Defensive", note: "Active defense. Improves evasion of IC attacks." },
+  { name: "Lock-On",    mult: 2,  cat: "Defensive", note: "Counters Jammer IC (targeting)." },
+  { name: "Medic",      mult: 4,  cat: "Defensive", note: "Heals persona CM boxes. Loses 1 rating each use. Reload via Swap Memory." },
+  { name: "Restore",    mult: 3,  cat: "Defensive", note: "Repairs BEMS damage from cripplers/rippers. 1 pt per 2 successes. Cannot fix permanent chip damage." },
+  { name: "Shield",     mult: 4,  cat: "Defensive", note: "Parries IC attacks. Net successes reduce damage. Loses 1 rating each use." },
+];
+
+// Options supported (all by default, Attack gets all, Black Hammer/Killjoy fewer)
+const OPTION_DEFS = [
+  { id: "area",         label: "Area",         type: "number", note: "Adds Area rating to effective rating; +Area\xb2\xd7mult Mp design." },
+  { id: "chaser",       label: "Chaser",        type: "check",  note: "+1 effective rating; +mult Mp design." },
+  { id: "dinab",        label: "DINAB",         type: "number", note: "Adds DINAB to effective; +DINAB\xb2\xd7mult Mp design." },
+  { id: "limit",        label: "Limit",         type: "check",  note: "-1 effective rating (lower size and cost)." },
+  { id: "oneshot",      label: "One-Shot",      type: "check",  note: "Actual size \xd70.25; design size \xd71.5." },
+  { id: "optimization", label: "Optimization",  type: "check",  note: "Actual size \xd70.5; design size \xd72.0." },
+  { id: "penetration",  label: "Penetration",   type: "check",  note: "+1 effective rating; +mult Mp design." },
+  { id: "skulk",        label: "Skulk",         type: "number", note: "Reduce tally increase when crashing IC; +Skulk\xb2\xd7mult Mp." },
+  { id: "squeeze",      label: "Squeeze",       type: "check",  note: "Actual size \xd70.5 (upload only); +1 to design effective rating." },
+  { id: "targeting",    label: "Targeting",     type: "check",  note: "+2 effective rating; +4\xd7mult Mp design." },
+];
+
+// Utilities where some options are excluded
+const OPTION_EXCLUSIONS = {
+  "Sleaze":       ["area","chaser","dinab","limit","oneshot","optimization","penetration","skulk","squeeze","targeting"],
+  "Compressor":   ["area","dinab","skulk","targeting"],
+  "Track":        ["area","targeting"],
+  "Black Hammer": ["area","targeting"],
+  "Killjoy":      ["area","targeting"],
+};
+
+// --- Deck load planner state ------------------------------------------------
+let loadPlannerItems = []; // [{label, actualSize}]
+
+// --- Tab switching -----------------------------------------------------------
+
+function switchTab(idx) {
+  for (let i = 0; i < 2; i++) {
+    document.getElementById(`tabBtn${i}`).classList.toggle('active', i === idx);
+    document.getElementById(`tabPanel${i}`).classList.toggle('active', i === idx);
+  }
+}
+
+// --- Helpers ----------------------------------------------------------------
+
+const $ = id => document.getElementById(id);
+
+function ni(id) {
+  const v = parseInt($(id)?.value, 10);
+  return isNaN(v) ? 0 : v;
+}
+function nf(id) {
+  const v = parseFloat($(id)?.value);
+  return isNaN(v) ? 0 : v;
+}
+function cb(id) { return $(id)?.checked || false; }
+
+function fmtN(n) {
+  if (!isFinite(n) || n === 0) return '0';
+  return n.toLocaleString('en-US');
+}
+function fmtY(n) { return '\xA5' + fmtN(Math.round(n)); }
+
+function pfFactor(r) {
+  if (r <= 3)  return 100;
+  if (r <= 6)  return 200;
+  if (r <= 9)  return 500;
+  return 1000;
+}
+
+// --- CYBERDECK BUILDER ------------------------------------------------------
+
+function calcDeck() {
+  const mpcp = ni('mpcp');
+  if (!mpcp || mpcp < 1 || mpcp > 20) {
+    $('validityBadge').className = 'validity-badge validity-ok';
+    $('validityBadge').textContent = '* ENTER MPCP RATING TO BEGIN';
+    $('deckSummaryPanel').style.display = 'none';
+    $('costBreakdownPanel').style.display = 'none';
+    return;
+  }
+
+  const deckType = $('deckType').value;
+  const bod      = ni('pBod');
+  const evasion  = ni('pEvasion');
+  const masking  = ni('pMasking');
+  const sensor   = ni('pSensor');
+  const hardening      = ni('hardening');
+  const ri             = Math.min(ni('respIncrease'), 3, Math.floor(mpcp / 4));
+  const hasIccm        = cb('iccm');
+  const hasRf          = cb('realityFilter');
+  const activeMem      = Math.max(ni('activeMem') || 100, 100);
+  const ioSpeed        = Math.max(ni('ioSpeed')   || 10,  10);
+  const offlineStorage = ni('offlineStorage');
+  const casingLvl      = parseInt($('deckCasing').value, 10);
+  const hasSatlink     = cb('satlink');
+  const hasHitcher     = cb('hitcherJack');
+
+  // Update RI tip
+  const riMax = Math.min(Math.floor(mpcp / 4), 3);
+  $('riTip').textContent = `Cap: floor(${mpcp}/4) = ${riMax}`;
+  if ($('respIncrease')) {
+    $('respIncrease').max = riMax;
+    if (ni('respIncrease') > riMax) $('respIncrease').value = riMax;
+  }
+
+  // -- Constraint check ----------------------------------
+  const errors = [];
+  const personaCapMpcp = hasRf ? mpcp - 1 : mpcp;
+
+  if (bod     > mpcp) errors.push(`Bod (${bod}) > MPCP (${mpcp})`);
+  if (evasion > mpcp) errors.push(`Evasion (${evasion}) > MPCP (${mpcp})`);
+  if (masking > mpcp) errors.push(`Masking (${masking}) > MPCP (${mpcp})`);
+  if (sensor  > mpcp) errors.push(`Sensor (${sensor}) > MPCP (${mpcp})`);
+
+  const personaSum  = bod + evasion + masking + sensor;
+  const personaCap  = personaCapMpcp * 3;
+  if (personaSum > personaCap) {
+    errors.push(`Persona total (${personaSum}) > MPCP\xd73 cap (${personaCap})${hasRf ? ' [RF reduces cap MPCP by 1]' : ''}`);
+  }
+
+  $('personaBar').innerHTML =
+    `Persona sum: <span class="${personaSum > personaCap ? 'warn' : 'ok'}">${personaSum}</span> / ${personaCap} cap`;
+
+  const vBadge = $('validityBadge');
+  if (errors.length) {
+    vBadge.className = 'validity-badge validity-err';
+    vBadge.textContent = '* CONSTRAINT VIOLATION: ' + errors.join(' // ');
+  } else {
+    vBadge.className = 'validity-badge validity-ok';
+    vBadge.textContent = '* VALID BUILD';
+  }
+
+  // -- Component calculations -----------------------------
+  const rows = [];
+  let totalCost = 0;
+  let corePresent = true;
+
+  // Effective MPCP for cost (Reality Filter adds +2)
+  const costMpcp = hasRf ? mpcp + 2 : mpcp;
+
+  // MPCP Core
+  {
+    const size  = mpcp * mpcp * 8;
+    const occ   = size * 20;
+    const plc   = 25 * mpcp * mpcp;
+    const dtc   = 10 * mpcp * mpcp;
+    const sub   = occ + plc + dtc;
+    const cook  = mpcp * 3;
+    const inst  = mpcp * 2;
+    rows.push({ name: `MPCP (Rtg ${mpcp})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    totalCost += sub;
+  }
+
+  // Persona programs
+  const personaDefs = [
+    { name: 'Bod',     r: bod,     m: 3 },
+    { name: 'Evasion', r: evasion, m: 3 },
+    { name: 'Masking', r: masking, m: 2 },
+    { name: 'Sensor',  r: sensor,  m: 2 },
+  ];
+  const personaPresent = personaDefs.every(p => p.r >= 1);
+  for (const p of personaDefs) {
+    if (p.r < 1) { corePresent = false; continue; }
+    const size  = p.r * p.r * p.m;
+    const occ   = size * 20;
+    const plc   = 25 * p.r * p.r;
+    const dtc   = 10 * p.r * p.r;
+    const sub   = occ + plc + dtc;
+    const cook  = p.r * 3;
+    const inst  = p.r * 2;
+    rows.push({ name: `${p.name} (Rtg ${p.r})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    totalCost += sub;
+  }
+  if (!personaPresent) corePresent = false;
+
+  // ASIST Interface
+  if (deckType !== 'tortoise') {
+    const isHot = deckType === 'hot';
+    const asistMult = isHot ? 2 : 1;
+    const size  = costMpcp * costMpcp * asistMult;
+    const occ   = size * 20;
+    const plcBase = isHot ? costMpcp * 2 : costMpcp;
+    const plc   = 25 * plcBase;
+    const apu   = 1250;
+    const sub   = occ + plc + apu;
+    const cook  = costMpcp;
+    const inst  = costMpcp;
+    rows.push({
+      name: `ASIST (${isHot ? 'Hot' : 'Cold'})`,
+      size, occ, plcDtc: plc, other: apu, sub, cook, inst,
+      otherLabel: 'APU 1,250'
+    });
+    totalCost += sub;
+  } else {
+    corePresent = false; // tortoise has no ASIST
+  }
+
+  // Reality Filter note row (no cost, just annotation)
+  if (hasRf) {
+    rows.push({
+      name: 'Reality Filter [NOTE]',
+      size: 0, occ: 0, plcDtc: 0, other: 0, sub: 0, cook: 0, inst: 0,
+      note: '+1 eff RI, +2 MPCP cost, -1 persona cap'
+    });
+  }
+
+  // Hardening
+  if (hardening > 0) {
+    const hr   = hardening;
+    const size = hr * hr * 8;
+    const occ  = size * 20;
+    const plc  = 25 * hr * 2;
+    const dtc  = 10 * hr * 2;
+    const sub  = occ + plc + dtc;
+    const cook = mpcp * hr;
+    const inst = mpcp * hr * 2;
+    rows.push({ name: `Hardening (Rtg ${hr})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    totalCost += sub;
+  }
+
+  // ICCM Filter
+  if (hasIccm) {
+    const size  = costMpcp * costMpcp * 4;
+    const occ   = size * 20;
+    const plc   = 25 * costMpcp * costMpcp;
+    const dtc   = 10 * costMpcp * costMpcp;
+    const bio   = 5000;
+    const sub   = occ + plc + dtc + bio;
+    const cook  = costMpcp * 2;
+    const inst  = costMpcp * 2;
+    rows.push({ name: 'ICCM Filter', size, occ, plcDtc: plc + dtc, other: bio, sub, cook, inst, otherLabel: 'Bioscanner 5k' });
+    totalCost += sub;
+  }
+
+  // Response Increase
+  if (ri > 0) {
+    const size  = costMpcp * costMpcp * (ri * 2);
+    const occ   = size * 20;
+    const plc   = 25 * ri * 3;
+    const dtc   = 10 * ri * 3;
+    const sub   = occ + plc + dtc;
+    const cook  = costMpcp * ri;
+    const inst  = costMpcp + ri;
+    rows.push({ name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    totalCost += sub;
+  }
+
+  // Active Memory (OMC)
+  {
+    const omcCost = activeMem * 5;
+    const plc     = 25 * Math.ceil(activeMem / 10);
+    const sub     = omcCost + plc;
+    const inst    = Math.ceil(activeMem / 100);
+    rows.push({ name: `Active Memory (${fmtN(activeMem)} Mp)`, size: activeMem, occ: 0, plcDtc: plc, other: omcCost, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omcCost)}` });
+    totalCost += sub;
+  }
+
+  // I/O Speed
+  {
+    const plc  = 25 * Math.ceil(ioSpeed / 20);
+    const dtc  = 10 * Math.ceil(ioSpeed / 10);
+    const sub  = plc + dtc;
+    const inst = Math.ceil(ioSpeed / 20);
+    rows.push({ name: `I/O Speed (${fmtN(ioSpeed)} Mp/ct)`, size: 0, occ: 0, plcDtc: plc + dtc, other: 0, sub, cook: 0, inst });
+    totalCost += sub;
+  }
+
+  // Offline Storage
+  if (offlineStorage > 0) {
+    const sub  = offlineStorage * 5;
+    rows.push({ name: `Offline Storage (${fmtN(offlineStorage)} Mp OMC)`, size: offlineStorage, occ: 0, plcDtc: 0, other: sub, sub, cook: 0, inst: 0, otherLabel: `OMC ${fmtY(sub)}` });
+    totalCost += sub;
+  }
+
+  // Accessories
+  const casingCosts = [0, 500, 2000, 5000];
+  if (casingLvl > 0) {
+    const sub = casingCosts[casingLvl];
+    rows.push({ name: `Deck Casing (Lvl ${casingLvl})`, size: 0, occ: 0, plcDtc: 0, other: sub, sub, cook: 0, inst: 0 });
+    totalCost += sub;
+  }
+  if (hasSatlink) {
+    rows.push({ name: 'Satlink Interface', size: 0, occ: 0, plcDtc: 0, other: 800, sub: 800, cook: 0, inst: 0 });
+    totalCost += 800;
+  }
+  if (hasHitcher) {
+    rows.push({ name: 'Hitcher Jack', size: 0, occ: 0, plcDtc: 0, other: 250, sub: 250, cook: 0, inst: 0 });
+    totalCost += 250;
+  }
+
+  // Package discount (10% if all core present)
+  const hasDiscount = corePresent && personaPresent;
+  const discountAmt = hasDiscount ? Math.round(totalCost * 0.10) : 0;
+  const finalCost   = totalCost - discountAmt;
+
+  // -- Total construction time ----------------------------
+  const totalCook = rows.reduce((s, r) => s + (r.cook || 0), 0);
+  const totalInst = rows.reduce((s, r) => s + (r.inst || 0), 0);
+
+  // -- Render cost table ----------------------------------
+  const tbody = $('costBody');
+  tbody.innerHTML = rows.map(r => {
+    if (r.note) {
+      return `<tr><td colspan="8" style="color:var(--amber);font-size:.65rem;font-style:italic;padding:4px 8px">
+        [Note: ${esc(r.note)}]</td></tr>`;
+    }
+    return `<tr>
+      <td>${esc(r.name)}</td>
+      <td>${r.size > 0 ? fmtN(r.size) : '--'}</td>
+      <td class="nuyen">${r.occ > 0 ? fmtN(r.occ) : '--'}</td>
+      <td class="nuyen">${r.plcDtc > 0 ? fmtN(r.plcDtc) : '--'}</td>
+      <td style="color:var(--text-dim);font-size:.65rem">${r.other > 0 ? (r.otherLabel || fmtY(r.other)) : '--'}</td>
+      <td class="nuyen">${fmtY(r.sub)}</td>
+      <td style="color:var(--green)">${r.cook > 0 ? r.cook + 'd' : '--'}</td>
+      <td style="color:var(--cyan)">${r.inst > 0 ? r.inst + 'd' : '--'}</td>
+    </tr>`;
+  }).join('') +
+  `<tr class="total-row">
+    <td colspan="5">TOTAL (before discount)</td>
+    <td class="nuyen">${fmtY(totalCost)}</td>
+    <td style="color:var(--green)">${totalCook}d cook</td>
+    <td style="color:var(--cyan)">${totalInst}d inst</td>
+  </tr>` +
+  (hasDiscount ? `<tr class="discount-row">
+    <td colspan="5" style="font-size:.65rem">10% Package Discount (all core components present)</td>
+    <td>- ${fmtY(discountAmt)}</td>
+    <td colspan="2">--</td>
+  </tr>
+  <tr class="total-row">
+    <td colspan="5" style="color:var(--green);text-shadow:var(--glow-green)">FINAL TOTAL (with discount)</td>
+    <td class="nuyen" style="color:var(--green);text-shadow:var(--glow-green)">${fmtY(finalCost)}</td>
+    <td colspan="2">--</td>
+  </tr>` : '');
+
+  // -- Deck summary grid ----------------------------------
+  const effectiveRI = ri + (hasRf ? 1 : 0);
+  const ioBandwidth = sensor > 0 ? sensor * mpcp * 10 : 0;
+  const dfNote = masking > 0 ? `Base DF reduced by Masking (${masking}) + Sleaze rating` : 'Set Masking to estimate';
+
+  const sumItems = [
+    { lbl: 'MPCP Rating', val: mpcp },
+    { lbl: 'Deck Type', val: deckType === 'hot' ? 'Hot ASIST' : deckType === 'cool' ? 'Cold ASIST' : 'Tortoise' },
+    { lbl: 'Persona B/E/M/S', val: `${bod||'--'}/${evasion||'--'}/${masking||'--'}/${sensor||'--'}` },
+    { lbl: 'Persona Sum / Cap', val: `${personaSum} / ${personaCap}`, cls: personaSum > personaCap ? 'warn' : '' },
+    { lbl: 'Hardening', val: hardening > 0 ? hardening : '--' },
+    { lbl: 'Response Increase', val: effectiveRI > 0 ? `${effectiveRI}${hasRf ? ' (incl. RF +1)' : ''}` : '--' },
+    { lbl: 'Active Memory', val: fmtN(activeMem) + ' Mp' },
+    { lbl: 'I/O Speed', val: fmtN(ioSpeed) + ' Mp/ct' },
+    { lbl: 'I/O Bandwidth', val: ioBandwidth > 0 ? fmtN(ioBandwidth) + ' Mp max' : '--' },
+    { lbl: 'Hacking Pool', val: 'floor((Intel + ' + mpcp + ') / 3) -- enter Intel on Matrix Run page' },
+    { lbl: 'Detection Factor', val: dfNote },
+    { lbl: 'Total Cost', val: fmtY(finalCost) + (hasDiscount ? ' (10% off)' : ''), cls: 'nuyen' },
+  ];
+
+  $('deckSumGrid').innerHTML = sumItems.map(s =>
+    `<div class="sum-item">
+      <div class="sum-label">${esc(s.lbl)}</div>
+      <div class="sum-value${s.cls === 'warn' ? '" style="color:var(--red)' : s.cls === 'nuyen' ? '" style="color:var(--amber)' : ''}">${esc(String(s.val))}</div>
+    </div>`
+  ).join('');
+
+  $('deckSummaryPanel').style.display  = '';
+  $('costBreakdownPanel').style.display = '';
+  renderLoadPlanner();
+}
+
+// --- PROGRAM / UTILITY BUILDER -----------------------------------------------
+
+function buildUtilDropdown() {
+  const sel = $('utilType');
+  sel.innerHTML = '<option value="">-- Select utility --</option>';
+  const cats = ['Operational', 'Special', 'Offensive', 'Defensive'];
+  for (const cat of cats) {
+    const group = document.createElement('optgroup');
+    group.label = cat;
+    for (const u of UTILITIES.filter(u => u.cat === cat)) {
+      const opt = document.createElement('option');
+      opt.value  = u.name;
+      opt.textContent = u.name + ' (x' + u.mult + ')';
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+}
+
+function onUtilTypeChange() {
+  const name = $('utilType').value;
+  const util = UTILITIES.find(u => u.name === name);
+
+  // Attack damage field
+  $('attackDmgField').style.display = (name === 'Attack') ? '' : 'none';
+
+  // Options area
+  const area = $('optionsArea');
+  if (!util) {
+    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a utility to see applicable options.</div>';
+    $('utilSummaryPanel').style.display = 'none';
+    $('utilEmpty').style.display = '';
+    return;
+  }
+
+  const excluded = OPTION_EXCLUSIONS[util.name] || [];
+  const applicable = OPTION_DEFS.filter(o => !excluded.includes(o.id));
+
+  if (applicable.length === 0) {
+    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No modifiable options for this utility.</div>';
+  } else {
+    area.innerHTML = '<div class="opt-grid">' +
+      applicable.map(o => {
+        if (o.type === 'check') {
+          return `<div class="opt-row">
+            <input type="checkbox" class="chk-select" id="opt_${o.id}" onchange="calcUtil()">
+            <span>${esc(o.label)}</span>
+            <span data-tip="${esc(o.note)}" style="color:var(--text-dim);cursor:help;font-size:.65rem">[?]</span>
+          </div>`;
+        } else {
+          return `<div class="opt-row">
+            <span style="font-size:.62rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px">${esc(o.label)}:</span>
+            <input type="number" id="opt_${o.id}" min="0" max="20" value="0" oninput="calcUtil()">
+            <span data-tip="${esc(o.note)}" style="color:var(--text-dim);cursor:help;font-size:.65rem">[?]</span>
+          </div>`;
+        }
+      }).join('') +
+      '</div>';
+  }
+
+  calcUtil();
+}
+
+function getOptVal(id, type) {
+  const el = $(`opt_${id}`);
+  if (!el) return 0;
+  if (type === 'check') return el.checked ? 1 : 0;
+  const v = parseInt(el.value, 10);
+  return isNaN(v) ? 0 : v;
+}
+
+function calcUtil() {
+  const name = $('utilType').value;
+  const util = UTILITIES.find(u => u.name === name);
+  if (!util) {
+    $('utilSummaryPanel').style.display = 'none';
+    $('utilEmpty').style.display = '';
+    return;
+  }
+
+  const baseR = ni('utilRating');
+  if (baseR < 1) {
+    $('utilSummaryPanel').style.display = 'none';
+    $('utilEmpty').style.display = '';
+    return;
+  }
+
+  // Effective multiplier (Attack: from damage dropdown)
+  let mult = util.mult;
+  if (name === 'Attack') {
+    mult = parseInt($('attackDmg')?.value, 10) || 2;
+  }
+
+  const excluded = OPTION_EXCLUSIONS[util.name] || [];
+
+  // Gather option modifiers
+  let effRatingAdd  = 0;  // additive to rating for design size
+  let designSizeMod = 0;  // additional Mp added to design size calc numerator-equiv
+  let oneShotActive = false;
+  let optimActive   = false;
+  let squeezeActive = false;
+  let limitActive   = false;
+
+  // Area
+  const areaVal = excluded.includes('area') ? 0 : getOptVal('area', 'number');
+  effRatingAdd  += areaVal;
+  designSizeMod += areaVal * areaVal * mult;
+
+  // Chaser
+  const chaserOn = excluded.includes('chaser') ? false : !!getOptVal('chaser', 'check');
+  if (chaserOn) { effRatingAdd += 1; designSizeMod += mult; }
+
+  // DINAB
+  const dinabVal = excluded.includes('dinab') ? 0 : getOptVal('dinab', 'number');
+  effRatingAdd  += dinabVal;
+  designSizeMod += dinabVal * dinabVal * mult;
+
+  // Limit (reduces eff rating)
+  limitActive = excluded.includes('limit') ? false : !!getOptVal('limit', 'check');
+  if (limitActive) effRatingAdd -= 1;
+
+  // Penetration
+  const penOn = excluded.includes('penetration') ? false : !!getOptVal('penetration', 'check');
+  if (penOn) { effRatingAdd += 1; designSizeMod += mult; }
+
+  // Skulk
+  const skulkVal = excluded.includes('skulk') ? 0 : getOptVal('skulk', 'number');
+  designSizeMod += skulkVal * skulkVal * mult;
+
+  // Squeeze
+  squeezeActive = excluded.includes('squeeze') ? false : !!getOptVal('squeeze', 'check');
+  if (squeezeActive) effRatingAdd += 1; // +1 to design effective rating
+
+  // Targeting
+  const targetOn = excluded.includes('targeting') ? false : !!getOptVal('targeting', 'check');
+  if (targetOn) { effRatingAdd += 2; designSizeMod += 4 * mult; }
+
+  // One-Shot and Optimization (size modifiers)
+  oneShotActive = excluded.includes('oneshot') ? false : !!getOptVal('oneshot', 'check');
+  optimActive   = excluded.includes('optimization') ? false : !!getOptVal('optimization', 'check');
+
+  const effRating = Math.max(1, baseR + effRatingAdd);
+
+  // Design size = effRating^2 * mult + extra addons (from options that add flat Mp)
+  // Note: designSizeMod already accounts for the extra option Mps directly in Mp
+  let designSize = effRating * effRating * mult;
+  // One-Shot design modifier: *1.5 BEFORE adding other option addons?
+  // Per spec: One-Shot: Actual size x0.25; design size x1.5
+  // Optimization: Actual size x0.5; design size x2.0
+  // The options that add Mp to design size (area, chaser, etc.) are addons on top
+  // Spec says "+Area^2 x multiplier Mp to design size" -- so they add to the base design
+  let baseDesignSize = effRating * effRating * mult;
+
+  // Apply one-shot/optimization to the base portion
+  if (oneShotActive)  baseDesignSize = Math.round(baseDesignSize * 1.5);
+  if (optimActive)    baseDesignSize = Math.round(baseDesignSize * 2.0);
+
+  designSize = baseDesignSize + designSizeMod;
+
+  // Actual size
+  let actualSize = designSize;
+  if (oneShotActive)  actualSize = Math.round(actualSize * 0.25);
+  if (optimActive)    actualSize = Math.round(actualSize * 0.5);
+  if (squeezeActive)  actualSize = Math.round(actualSize * 0.5); // upload only
+
+  // Base program size (no options)
+  const baseSize = baseR * baseR * mult;
+
+  // Cost based on base rating tier
+  const pf     = pfFactor(baseR);
+  const cost   = designSize * pf;
+  const siMult = baseR <= 3 ? 1 : baseR <= 6 ? 1.5 : baseR <= 9 ? 2 : 3;
+  const streetCost = Math.round(cost * siMult);
+
+  // Availability
+  let availStr, days;
+  if (baseR <= 3)  { availStr = '2/7 days';   days = 7;  }
+  else if (baseR <= 6)  { availStr = '4/7 days';   days = 7;  }
+  else if (baseR <= 9)  { availStr = '8/14 days';  days = 14; }
+  else                  { availStr = '16/30 days'; days = 30; }
+
+  // Build time
+  const baseConstructTime = designSize * 2; // days
+  const buildTimes = [1,2,3,4].map(s => ({ successes: s, days: Math.max(1, Math.floor(baseConstructTime / s)) }));
+
+  // -- Render --------------------------------------------
+  $('utilSummaryPanel').style.display = '';
+  $('utilEmpty').style.display = 'none';
+
+  const catClass = util.cat === 'Operational' ? 'cat-op' :
+                   util.cat === 'Special'      ? 'cat-sp' :
+                   util.cat === 'Offensive'    ? 'cat-off' : 'cat-def';
+
+  $('utilCardTitle').textContent = `${util.name} [Rtg ${baseR}${effRatingAdd !== 0 ? ` -> eff ${effRating}` : ''}]`;
+  $('utilCardSub').innerHTML =
+    `<span class="cat-badge ${catClass}">${esc(util.cat)}</span>` +
+    `Multiplier: x${mult}` +
+    (name === 'Attack' ? ` (${$('attackDmg')?.options[$('attackDmg')?.selectedIndex]?.text || ''})` : '');
+
+  const stats = [
+    { lbl: 'Base Size', val: fmtN(baseSize) + ' Mp' },
+    { lbl: 'Design Size', val: fmtN(designSize) + ' Mp' },
+    { lbl: 'Actual Size (loaded)', val: fmtN(actualSize) + ' Mp' },
+  ];
+  $('utilStatRow').innerHTML = stats.map(s =>
+    `<div class="prog-stat"><span class="ps-lbl">${esc(s.lbl)}</span><span class="ps-val">${esc(s.val)}</span></div>`
+  ).join('');
+
+  $('utilNote').textContent = util.note;
+
+  // Avail tier
+  const availTier = baseR <= 3 ? 1 : baseR <= 6 ? 2 : baseR <= 9 ? 3 : 3;
+
+  $('utilCostGrid').innerHTML = [
+    { lbl: 'Buy Cost', val: fmtY(cost) },
+    { lbl: 'Street Price', val: fmtY(streetCost) + ' (SI \xd7' + siMult + ')' },
+    { lbl: 'Availability', val: `<span class="avail-badge avail-${availTier}">${esc(availStr)}</span>` },
+    { lbl: 'Street Index', val: siMult + '\xd7' },
+    { lbl: 'Cost/Mp Tier', val: fmtY(pf) + '/Mp' },
+    { lbl: 'Eff Rating', val: `${effRating}${effRatingAdd !== 0 ? ` (base ${baseR} ${effRatingAdd >= 0 ? '+' : ''}${effRatingAdd})` : ''}` },
+  ].map(s =>
+    `<div class="sum-item">
+      <div class="sum-label">${esc(s.lbl)}</div>
+      <div class="sum-value">${s.val}</div>
+    </div>`
+  ).join('');
+
+  $('buildTimeMeta').textContent =
+    `Base construction time: ${fmtN(baseConstructTime)} days (design size ${fmtN(designSize)} Mp x 2).`;
+  $('buildTimeBody').innerHTML = buildTimes.map(bt =>
+    `<tr>
+      <td>${bt.successes} success${bt.successes > 1 ? 'es' : ''}</td>
+      <td>${fmtN(bt.days)} days</td>
+    </tr>`
+  ).join('');
+}
+
+// --- Load planner ------------------------------------------------------------
+
+function addToLoadPlanner() {
+  const name = $('utilType').value;
+  const util = UTILITIES.find(u => u.name === name);
+  if (!util) { showAlert($('pageAlert'), 'Select a utility first.', true); return; }
+
+  const baseR = ni('utilRating');
+  if (baseR < 1) { showAlert($('pageAlert'), 'Set a base rating first.', true); return; }
+
+  let mult = util.mult;
+  if (name === 'Attack') mult = parseInt($('attackDmg')?.value, 10) || 2;
+
+  // Recompute actual size (simplified recalc)
+  const excluded = OPTION_EXCLUSIONS[util.name] || [];
+  let effRatingAdd = 0, designSizeMod = 0;
+  let oneShotActive = false, optimActive = false, squeezeActive = false;
+
+  const areaVal = excluded.includes('area')    ? 0 : getOptVal('area',   'number');
+  effRatingAdd  += areaVal; designSizeMod += areaVal * areaVal * mult;
+  const chaserOn = excluded.includes('chaser') ? false : !!getOptVal('chaser', 'check');
+  if (chaserOn) { effRatingAdd += 1; designSizeMod += mult; }
+  const dinabVal = excluded.includes('dinab')  ? 0 : getOptVal('dinab',  'number');
+  effRatingAdd  += dinabVal; designSizeMod += dinabVal * dinabVal * mult;
+  if (!excluded.includes('limit') && getOptVal('limit', 'check')) effRatingAdd -= 1;
+  const penOn = excluded.includes('penetration') ? false : !!getOptVal('penetration', 'check');
+  if (penOn) { effRatingAdd += 1; designSizeMod += mult; }
+  const skulkVal = excluded.includes('skulk') ? 0 : getOptVal('skulk', 'number');
+  designSizeMod += skulkVal * skulkVal * mult;
+  squeezeActive = excluded.includes('squeeze') ? false : !!getOptVal('squeeze', 'check');
+  if (squeezeActive) effRatingAdd += 1;
+  const targetOn = excluded.includes('targeting') ? false : !!getOptVal('targeting', 'check');
+  if (targetOn) { effRatingAdd += 2; designSizeMod += 4 * mult; }
+  oneShotActive = excluded.includes('oneshot') ? false : !!getOptVal('oneshot', 'check');
+  optimActive   = excluded.includes('optimization') ? false : !!getOptVal('optimization', 'check');
+
+  const effRating = Math.max(1, baseR + effRatingAdd);
+  let baseDesignSize = effRating * effRating * mult;
+  if (oneShotActive)  baseDesignSize = Math.round(baseDesignSize * 1.5);
+  if (optimActive)    baseDesignSize = Math.round(baseDesignSize * 2.0);
+  let actualSize = baseDesignSize + designSizeMod;
+  if (oneShotActive)  actualSize = Math.round(actualSize * 0.25);
+  if (optimActive)    actualSize = Math.round(actualSize * 0.5);
+  if (squeezeActive)  actualSize = Math.round(actualSize * 0.5);
+
+  const customLabel = $('loadLabelInput')?.value.trim();
+  const label = customLabel || `${name} [${baseR}]`;
+  const target = $('loadTargetInput')?.value || 'active';
+
+  loadPlannerItems.push({ label, actualSize, target });
+  if ($('loadLabelInput')) $('loadLabelInput').value = '';
+  renderLoadPlanner();
+}
+
+function removePlannerItem(idx) {
+  loadPlannerItems.splice(idx, 1);
+  renderLoadPlanner();
+}
+
+function renderLoadPlanner() {
+  const area  = $('loadPlannerArea');
+  const activeCap = ni('activeMem');
+  const storageCap = ni('offlineStorage');
+  const normalized = loadPlannerItems.map(item => ({
+    ...item,
+    target: item.target || 'active',
+  }));
+  const activeUsed = normalized
+    .filter(i => i.target === 'active' || i.target === 'both')
+    .reduce((s, i) => s + i.actualSize, 0);
+  const storageUsed = normalized
+    .filter(i => i.target === 'storage' || i.target === 'both')
+    .reduce((s, i) => s + i.actualSize, 0);
+  const totalLoad = normalized.reduce((s, i) => s + i.actualSize, 0);
+
+  if (loadPlannerItems.length === 0) {
+    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;padding:12px 0">No programs added to load yet.</div>';
+    return;
+  }
+
+  const activeOver = activeCap > 0 && activeUsed > activeCap;
+  const storageOver = storageCap > 0 && storageUsed > storageCap;
+  const activePct = activeCap > 0 ? Math.min(100, Math.round(activeUsed / activeCap * 100)) : 0;
+  const storagePct = storageCap > 0 ? Math.min(100, Math.round(storageUsed / storageCap * 100)) : 0;
+
+  let html = '';
+
+  html += `<div class="load-meta">
+    <span>Active: ${fmtN(activeUsed)} Mp / ${fmtN(activeCap)} Mp</span>
+    <span style="color:${activeOver ? 'var(--red)' : 'var(--green)'}">${activeCap > 0 ? (activePct + '%' + (activeOver ? ' OVERLOAD' : ' OK')) : 'Set Active Mem'}</span>
+  </div>
+  <div class="load-bar-wrap" style="margin-bottom:8px">
+    <div class="load-bar-fill${activeOver ? ' overload' : ''}" style="width:${activePct}%"></div>
+  </div>
+  <div class="load-meta">
+    <span>Storage: ${fmtN(storageUsed)} Mp / ${fmtN(storageCap)} Mp</span>
+    <span style="color:${storageOver ? 'var(--red)' : 'var(--green)'}">${storageCap > 0 ? (storagePct + '%' + (storageOver ? ' OVERLOAD' : ' OK')) : 'Set Offline Storage'}</span>
+  </div>
+  <div class="load-bar-wrap" style="margin-bottom:8px">
+    <div class="load-bar-fill${storageOver ? ' overload' : ''}" style="width:${storagePct}%"></div>
+  </div>
+  <div class="load-meta" style="margin-bottom:6px">
+    <span>Total program footprint: ${fmtN(totalLoad)} Mp</span>
+    <span style="color:var(--text-dim)">"Both" counts against both memories</span>
+  </div>`;
+
+  html += `<table class="load-prog-table">
+    <thead><tr><th>#</th><th>Program</th><th>Target</th><th>Size (Mp)</th><th></th></tr></thead>
+    <tbody>` +
+    normalized.map((item, i) =>
+      `<tr>
+        <td style="color:var(--text-dim)">${i + 1}</td>
+        <td>${esc(item.label)}</td>
+        <td style="color:var(--amber)">${esc(item.target)}</td>
+        <td style="color:var(--cyan)">${fmtN(item.actualSize)}</td>
+        <td><button class="lp-remove-btn" onclick="removePlannerItem(${i})">[x]</button></td>
+      </tr>`
+    ).join('') +
+    `<tr>
+      <td colspan="3" style="color:var(--text-dim);font-size:.65rem;letter-spacing:1px">TOTAL</td>
+      <td style="color:var(--amber)">${fmtN(totalLoad)} Mp</td>
+      <td></td>
+    </tr>
+    </tbody>
+  </table>`;
+
+  area.innerHTML = html;
+}
+
+// --- Persistence (localStorage) ---------------------------------------------
+
+const DECK_STORE    = 'sr2_decks_v1';
+const LOADOUT_STORE = 'sr2_loadouts_v1';
+
+function _loadStore(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch (_) { return []; }
+}
+function _saveStore(key, data) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+// -- Cyberdeck save/load ------------------------------------------------------
+
+function saveDeckBuild() {
+  const label = ($('deckSaveName')?.value.trim()) || ($('deckName')?.value.trim()) || 'Unnamed Deck';
+  const mpcp  = ni('mpcp');
+  if (!mpcp) { showAlert($('pageAlert'), 'Enter at least an MPCP rating before saving.', true); return; }
+
+  const build = {
+    name: label,
+    savedAt: Date.now(),
+    deckName: $('deckName').value.trim(),
+    deckType: $('deckType').value,
+    mpcp,
+    pBod: ni('pBod'), pEvasion: ni('pEvasion'), pMasking: ni('pMasking'), pSensor: ni('pSensor'),
+    hardening: ni('hardening'), respIncrease: ni('respIncrease'),
+    iccm: cb('iccm'), realityFilter: cb('realityFilter'),
+    activeMem: ni('activeMem'), ioSpeed: ni('ioSpeed'), offlineStorage: ni('offlineStorage'),
+    casingLvl: parseInt($('deckCasing').value) || 0,
+    satlink: cb('satlink'), hitcherJack: cb('hitcherJack'),
+  };
+
+  const decks = _loadStore(DECK_STORE);
+  const idx   = decks.findIndex(d => d.name === label);
+  if (idx >= 0) decks[idx] = build; else decks.push(build);
+  _saveStore(DECK_STORE, decks);
+  if ($('deckSaveName')) $('deckSaveName').value = '';
+  showAlert($('pageAlert'), `>> SAVED // Deck build "${label}" stored.`, false);
+  renderSavedDecks();
+}
+
+function loadDeckBuild(name) {
+  const build = _loadStore(DECK_STORE).find(d => d.name === name);
+  if (!build) return;
+  $('deckName').value = build.deckName || '';
+  $('deckType').value = build.deckType || 'hot';
+  if (build.mpcp)     $('mpcp').value = build.mpcp;
+  if (build.pBod)     $('pBod').value = build.pBod;
+  if (build.pEvasion) $('pEvasion').value = build.pEvasion;
+  if (build.pMasking) $('pMasking').value = build.pMasking;
+  if (build.pSensor)  $('pSensor').value = build.pSensor;
+  $('hardening').value     = build.hardening    || 0;
+  $('respIncrease').value  = build.respIncrease || 0;
+  $('iccm').checked        = !!build.iccm;
+  $('realityFilter').checked = !!build.realityFilter;
+  if (build.activeMem)      $('activeMem').value = build.activeMem;
+  if (build.ioSpeed)        $('ioSpeed').value   = build.ioSpeed;
+  $('offlineStorage').value = build.offlineStorage || 0;
+  $('deckCasing').value     = build.casingLvl  || 0;
+  $('satlink').checked      = !!build.satlink;
+  $('hitcherJack').checked  = !!build.hitcherJack;
+  calcDeck();
+  showAlert($('pageAlert'), `>> LOADED // "${name}"`, false);
+}
+
+function deleteDeckBuild(name) {
+  const decks = _loadStore(DECK_STORE).filter(d => d.name !== name);
+  _saveStore(DECK_STORE, decks);
+  renderSavedDecks();
+}
+
+function renderSavedDecks() {
+  const el = $('savedDecksList');
+  if (!el) return;
+  const decks = _loadStore(DECK_STORE);
+  if (!decks.length) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved builds.</div>';
+    return;
+  }
+  el.innerHTML = `<table class="load-prog-table" style="margin-top:4px">
+    <thead><tr><th>Name</th><th>MPCP</th><th>Saved</th><th></th></tr></thead>
+    <tbody>` +
+    decks.map(d => `<tr>
+      <td style="color:var(--cyan)">${esc(d.name)}</td>
+      <td style="color:var(--amber)">${d.mpcp || '--'}</td>
+      <td style="color:var(--text-dim);font-size:.6rem">${new Date(d.savedAt).toLocaleDateString()}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='loadDeckBuild(${JSON.stringify(d.name)})'>&gt;&gt; Load</button>
+        <button class="lp-remove-btn" onclick='deleteDeckBuild(${JSON.stringify(d.name)})'>[x]</button>
+      </td>
+    </tr>`).join('') +
+    '</tbody></table>';
+}
+
+// -- Program load-out save/load ------------------------------------------------
+
+function saveLoadout() {
+  if (!loadPlannerItems.length) { showAlert($('pageAlert'), 'Add programs to the load planner first.', true); return; }
+  const name = $('loadSaveName')?.value.trim() || 'Unnamed Load-out';
+  const deckMem = ni('activeMem');
+  const loadout = { name, savedAt: Date.now(), deckMem, items: [...loadPlannerItems] };
+  const loadouts = _loadStore(LOADOUT_STORE);
+  const idx = loadouts.findIndex(l => l.name === name);
+  if (idx >= 0) loadouts[idx] = loadout; else loadouts.push(loadout);
+  _saveStore(LOADOUT_STORE, loadouts);
+  if ($('loadSaveName')) $('loadSaveName').value = '';
+  showAlert($('pageAlert'), `>> SAVED // Load-out "${name}" stored.`, false);
+  renderSavedLoadouts();
+}
+
+function loadLoadout(name) {
+  const lo = _loadStore(LOADOUT_STORE).find(l => l.name === name);
+  if (!lo) return;
+  loadPlannerItems = (lo.items || []).map(item => ({
+    ...item,
+    target: item.target || 'active',
+  }));
+  if (lo.deckMem && $('activeMem')) $('activeMem').value = lo.deckMem;
+  renderLoadPlanner();
+  showAlert($('pageAlert'), `>> LOADED // "${name}"`, false);
+}
+
+function deleteLoadout(name) {
+  const loadouts = _loadStore(LOADOUT_STORE).filter(l => l.name !== name);
+  _saveStore(LOADOUT_STORE, loadouts);
+  renderSavedLoadouts();
+}
+
+function clearLoadPlanner() {
+  if (!loadPlannerItems.length) return;
+  loadPlannerItems = [];
+  renderLoadPlanner();
+}
+
+function renderSavedLoadouts() {
+  const el = $('savedLoadoutsList');
+  if (!el) return;
+  const loadouts = _loadStore(LOADOUT_STORE);
+  if (!loadouts.length) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved load-outs.</div>';
+    return;
+  }
+  el.innerHTML = `<table class="load-prog-table" style="margin-top:4px">
+    <thead><tr><th>Name</th><th>Programs</th><th>Saved</th><th></th></tr></thead>
+    <tbody>` +
+    loadouts.map(lo => `<tr>
+      <td style="color:var(--cyan)">${esc(lo.name)}</td>
+      <td style="color:var(--text-dim)">${lo.items?.length ?? 0}</td>
+      <td style="color:var(--text-dim);font-size:.6rem">${new Date(lo.savedAt).toLocaleDateString()}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='loadLoadout(${JSON.stringify(lo.name)})'>&gt;&gt; Load</button>
+        <button class="lp-remove-btn" onclick='deleteLoadout(${JSON.stringify(lo.name)})'>[x]</button>
+      </td>
+    </tr>`).join('') +
+    '</tbody></table>';
+}
+
+// --- Init --------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await bootstrapAuth();
+  buildUtilDropdown();
+  calcDeck();
+  renderLoadPlanner();
+  renderSavedDecks();
+  renderSavedLoadouts();
+});
+</script>
+</body>
+</html>

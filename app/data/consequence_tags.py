@@ -2,7 +2,7 @@
 Consequence tag taxonomy for Shadowrun 2nd Edition.
 
 Tags are snake_case strings. Each entry maps a frozenset of tags to a list of
-narrative consequence suggestions. The engine uses subset matching — a rule fires
+narrative consequence suggestions. The engine uses subset matching -- a rule fires
 if its tag set is a subset of the active tags. More specific rules (larger sets)
 are listed first in the output.
 
@@ -18,7 +18,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "run_success_clean": {
         "severity": "positive",
         "suggestions": [
-            "The Johnson is satisfied — future work from this contact is likely.",
+            "The Johnson is satisfied -- future work from this contact is likely.",
             "Word travels quietly; the team's street cred improves in relevant circles.",
         ],
     },
@@ -33,7 +33,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "run_failure_quiet": {
         "severity": "moderate",
         "suggestions": [
-            "The target is now alert — security has been quietly tightened.",
+            "The target is now alert -- security has been quietly tightened.",
             "The Johnson may seek alternative runners or demand a discount on the next job.",
             "The team's reputation takes a minor hit in shadow circles.",
         ],
@@ -41,7 +41,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "run_failure_exposed": {
         "severity": "severe",
         "suggestions": [
-            "The target has faces, descriptions, or SINs — active investigation is underway.",
+            "The target has faces, descriptions, or SINs -- active investigation is underway.",
             "The Johnson distances themselves; no payment and possibly a public denial.",
             "Law enforcement or corp security is building a case.",
             "The team should expect increased scrutiny at checkpoints and corp-controlled zones.",
@@ -64,7 +64,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "run_abandoned": {
         "severity": "moderate",
         "suggestions": [
-            "The Johnson is owed an explanation — relations may sour permanently.",
+            "The Johnson is owed an explanation -- relations may sour permanently.",
             "Whatever triggered the abort (heat, betrayal, casualties) is still unresolved.",
             "The target remains at full readiness; a retry will be significantly harder.",
         ],
@@ -93,7 +93,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
         "suggestions": [
             "A corporate fixer reaches out with a job offer at improved rates.",
             "Corp-controlled zones and facilities may extend a degree of tolerance.",
-            "The team gains access to corporate resources or safe passage — for now.",
+            "The team gains access to corporate resources or safe passage -- for now.",
         ],
     },
 
@@ -117,7 +117,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "government_favored": {
         "severity": "positive",
         "suggestions": [
-            "A detective or official looks the other way — once.",
+            "A detective or official looks the other way -- once.",
             "The team may be able to call in this favor to suppress a warrant or get intel.",
         ],
     },
@@ -126,7 +126,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "gang_burned": {
         "severity": "moderate",
         "suggestions": [
-            "The gang marks the runners — their territory becomes actively hostile.",
+            "The gang marks the runners -- their territory becomes actively hostile.",
             "Gang members may harass known contacts or associates.",
             "A gang boss may put out a street-level bounty.",
         ],
@@ -143,7 +143,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "syndicate_burned": {
         "severity": "severe",
         "suggestions": [
-            "Organized crime sends a message — usually violent.",
+            "Organized crime sends a message -- usually violent.",
             "Shadow contacts with syndicate ties go quiet or turn hostile.",
             "The runners may find their gear or credstick suppliers suddenly unavailable.",
         ],
@@ -151,7 +151,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "syndicate_favored": {
         "severity": "positive",
         "suggestions": [
-            "A syndicate fixer owes a favor — it will come with strings.",
+            "A syndicate fixer owes a favor -- it will come with strings.",
             "Access to black market goods improves, temporarily.",
         ],
     },
@@ -160,7 +160,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "npc_major_killed": {
         "severity": "significant",
         "suggestions": [
-            "A power vacuum forms in the NPC's organization — factions scramble for control.",
+            "A power vacuum forms in the NPC's organization -- factions scramble for control.",
             "Loyal subordinates or family members seek revenge.",
             "Unfinished business the NPC was managing becomes an open, dangerous thread.",
             "Investigators (corporate, criminal, or legal) begin asking questions.",
@@ -176,7 +176,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "npc_major_betrayed": {
         "severity": "moderate",
         "suggestions": [
-            "Word spreads in the shadows — burning contacts has a cost.",
+            "Word spreads in the shadows -- burning contacts has a cost.",
             "The betrayed NPC, if alive, actively works against the team.",
             "The NPC's allies may treat the runners with distrust or hostility.",
         ],
@@ -184,14 +184,14 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "npc_major_rescued": {
         "severity": "positive",
         "suggestions": [
-            "The rescued NPC becomes a significant ally — at least for now.",
+            "The rescued NPC becomes a significant ally -- at least for now.",
             "Their organization may extend goodwill, resources, or intelligence.",
         ],
     },
     "npc_contact_burned": {
         "severity": "significant",
         "suggestions": [
-            "The contact is compromised, dead, or hostile — that resource is gone.",
+            "The contact is compromised, dead, or hostile -- that resource is gone.",
             "Other contacts in the same network may become wary.",
             "The opposition now knows the team had a contact in that network.",
         ],
@@ -199,7 +199,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "npc_contact_upgraded": {
         "severity": "positive",
         "suggestions": [
-            "The contact's loyalty or connection improves — they're more invested in the team's success.",
+            "The contact's loyalty or connection improves -- they're more invested in the team's success.",
             "The contact may proactively offer tips or introductions.",
         ],
     },
@@ -208,7 +208,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "pc_identity_exposed": {
         "severity": "severe",
         "suggestions": [
-            "The exposed runner's real SIN or identity is now known — new SIN required.",
+            "The exposed runner's real SIN or identity is now known -- new SIN required.",
             "Family, former employers, or old enemies may be contacted.",
             "Travel and financial transactions tied to that identity become a liability.",
         ],
@@ -232,7 +232,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
         "severity": "moderate",
         "suggestions": [
             "Recovery time may affect availability for the next run.",
-            "Medical treatment requires a trusted street doc — and discretion.",
+            "Medical treatment requires a trusted street doc -- and discretion.",
             "The injury may attract questions if the runner is seen in public.",
         ],
     },
@@ -241,7 +241,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "location_burned": {
         "severity": "moderate",
         "suggestions": [
-            "The location is now compromised — safe meetings and handoffs there are inadvisable.",
+            "The location is now compromised -- safe meetings and handoffs there are inadvisable.",
             "Assets or stashes left at the location may be seized or monitored.",
         ],
     },
@@ -250,14 +250,14 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
         "suggestions": [
             "Collateral damage draws heat from Lonestar, media, and the owning organization.",
             "Innocent bystanders create political complications for the Johnson.",
-            "The owning organization seeks accountability — the team may be blamed.",
+            "The owning organization seeks accountability -- the team may be blamed.",
         ],
     },
     "location_secured": {
         "severity": "positive",
         "suggestions": [
             "The team has a new operational base or safe house.",
-            "Track who knows about it — that number should stay small.",
+            "Track who knows about it -- that number should stay small.",
         ],
     },
     "location_corp_lockdown": {
@@ -270,7 +270,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "location_gang_claimed": {
         "severity": "moderate",
         "suggestions": [
-            "A previously neutral zone is now gang territory — tolls, hostility, or new leverage.",
+            "A previously neutral zone is now gang territory -- tolls, hostility, or new leverage.",
             "Former occupants or businesses may reach out for help reclaiming it.",
         ],
     },
@@ -279,7 +279,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "asset_data_stolen": {
         "severity": "variable",
         "suggestions": [
-            "The target organization initiates damage control — they know something was taken.",
+            "The target organization initiates damage control -- they know something was taken.",
             "The data may contain information with implications beyond the run's original scope.",
             "Counter-intelligence may attempt to trace the data or plant disinformation.",
         ],
@@ -287,7 +287,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "asset_data_leaked": {
         "severity": "significant",
         "suggestions": [
-            "Sensitive information is now in the wild — multiple parties may act on it.",
+            "Sensitive information is now in the wild -- multiple parties may act on it.",
             "The team may be held responsible for the fallout, even if unintentional.",
         ],
     },
@@ -295,7 +295,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
         "severity": "positive",
         "suggestions": [
             "The extracted person is now an asset, dependent, or complication.",
-            "The organization they were extracted from will want them back — or silenced.",
+            "The organization they were extracted from will want them back -- or silenced.",
         ],
     },
     "asset_person_lost": {
@@ -308,7 +308,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "asset_item_retrieved": {
         "severity": "positive",
         "suggestions": [
-            "The item's value is now known — others may seek it as well.",
+            "The item's value is now known -- others may seek it as well.",
             "Delivery to the Johnson completes the obligation, but the item's story may continue.",
         ],
     },
@@ -324,27 +324,27 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "heat_low": {
         "severity": "low",
         "suggestions": [
-            "Minor attention is on the team — lying low for a session or two clears it.",
+            "Minor attention is on the team -- lying low for a session or two clears it.",
         ],
     },
     "heat_medium": {
         "severity": "moderate",
         "suggestions": [
-            "Active investigation is underway — the team should avoid known haunts and public SIN checks.",
+            "Active investigation is underway -- the team should avoid known haunts and public SIN checks.",
             "Consider a temporary change of base or identity.",
         ],
     },
     "heat_high": {
         "severity": "severe",
         "suggestions": [
-            "Direct pursuit is active — hostile encounters at known locations are likely.",
+            "Direct pursuit is active -- hostile encounters at known locations are likely.",
             "Contacts may be pressured or monitored; use cutouts.",
         ],
     },
     "heat_extreme": {
         "severity": "severe",
         "suggestions": [
-            "Multiple factions are actively hunting — nowhere feels safe.",
+            "Multiple factions are actively hunting -- nowhere feels safe.",
             "The team needs to resolve the cause of the heat before any normal operations can resume.",
             "Consider drastic measures: new SINs, relocation, or negotiating a truce.",
         ],
@@ -352,7 +352,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "heat_cleared": {
         "severity": "positive",
         "suggestions": [
-            "Previous heat has gone cold or been resolved — normal operations can resume.",
+            "Previous heat has gone cold or been resolved -- normal operations can resume.",
             "Note what cleared the heat; the same approach may work again.",
         ],
     },
@@ -368,7 +368,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "corp_war_triggered": {
         "severity": "severe",
         "suggestions": [
-            "Corporate conflict escalates — shadow ops increase, collateral damage rises.",
+            "Corporate conflict escalates -- shadow ops increase, collateral damage rises.",
             "Both sides may recruit the runners, creating dangerous divided loyalties.",
             "Civilian zones near corp assets become unpredictable and dangerous.",
         ],
@@ -378,13 +378,13 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
         "suggestions": [
             "Magical or Awakened phenomena draw attention from Talismongers, corps, and cults.",
             "The event may have changed a location's background count permanently.",
-            "Awakened characters on the team may have new responsibilities — or enemies.",
+            "Awakened characters on the team may have new responsibilities -- or enemies.",
         ],
     },
     "matrix_event": {
         "severity": "variable",
         "suggestions": [
-            "A significant Matrix disruption may have left traces — the decker's ID may be at risk.",
+            "A significant Matrix disruption may have left traces -- the decker's ID may be at risk.",
             "Corps or the Shadowland BBS may have intel on the event.",
             "Damaged or altered systems may create downstream effects in future runs.",
         ],
@@ -392,7 +392,7 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
     "favor_owed_to_team": {
         "severity": "positive",
         "suggestions": [
-            "A powerful figure owes the runners a favor — track it, it can be called in.",
+            "A powerful figure owes the runners a favor -- track it, it can be called in.",
             "The relationship may shift faction allegiances over time.",
         ],
     },
@@ -406,13 +406,13 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Compound rules — fire when ALL tags in the key set are present
+# Compound rules -- fire when ALL tags in the key set are present
 # ---------------------------------------------------------------------------
 COMPOUND_TAG_RULES: dict[frozenset, dict[str, Any]] = {
     frozenset({"megacorp_burned", "run_failure_exposed"}): {
         "severity": "severe",
         "suggestions": [
-            "The corp has faces AND a motive — a dedicated extraction or elimination team is likely.",
+            "The corp has faces AND a motive -- a dedicated extraction or elimination team is likely.",
             "Public Awareness for all involved runners increases by at least 1.",
             "The Johnson who hired them may also face corporate pressure.",
         ],
@@ -420,21 +420,21 @@ COMPOUND_TAG_RULES: dict[frozenset, dict[str, Any]] = {
     frozenset({"megacorp_burned", "pc_identity_exposed"}): {
         "severity": "severe",
         "suggestions": [
-            "Corporate resources are focused on the exposed runner — family and associates are at risk.",
+            "Corporate resources are focused on the exposed runner -- family and associates are at risk.",
             "All legal financial accounts and registered assets tied to that identity should be considered compromised.",
         ],
     },
     frozenset({"npc_major_killed", "megacorp_burned"}): {
         "severity": "severe",
         "suggestions": [
-            "The corp mourns their asset and wants accountability — expect a high-value bounty.",
+            "The corp mourns their asset and wants accountability -- expect a high-value bounty.",
             "Internal corp politics around who replaces the NPC may create unexpected allies.",
         ],
     },
     frozenset({"location_destroyed", "megacorp_offended"}): {
         "severity": "significant",
         "suggestions": [
-            "Property damage plus operational disruption — the corp escalates from 'watch list' to 'respond'.",
+            "Property damage plus operational disruption -- the corp escalates from 'watch list' to 'respond'.",
             "Legal action (in addition to shadow action) may be filed against known identities.",
         ],
     },
@@ -448,7 +448,7 @@ COMPOUND_TAG_RULES: dict[frozenset, dict[str, Any]] = {
     frozenset({"run_success_clean", "npc_major_rescued"}): {
         "severity": "positive",
         "suggestions": [
-            "Clean success plus a significant rescue — the team's reputation in that NPC's network rises substantially.",
+            "Clean success plus a significant rescue -- the team's reputation in that NPC's network rises substantially.",
             "Future jobs from this network will come with better terms and better intelligence.",
         ],
     },

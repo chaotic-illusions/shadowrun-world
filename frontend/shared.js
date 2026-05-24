@@ -1,6 +1,6 @@
-// Shared UI helpers — included by all app pages
+// Shared UI helpers -- included by all app pages
 
-// ── Polling helpers ───────────────────────────────────────────────────────────
+// -- Polling helpers -----------------------------------------------------------
 let _pollPaused = false;
 function pausePoll()  { _pollPaused = true;  }
 function resumePoll() { _pollPaused = false; }
@@ -8,7 +8,7 @@ function startPolling(loadFn, intervalMs = 2500) {
   setInterval(() => { if (!_pollPaused) loadFn(); }, intervalMs);
 }
 
-// ── Auth constants ────────────────────────────────────────────────────────────
+// -- Auth constants ------------------------------------------------------------
 
 const LS_ADMIN = 'sr_admin_token';
 const LS_USER  = 'sr_user_token';
@@ -22,7 +22,7 @@ function isAdminMode() { return isAdmin() && (sessionStorage.getItem('sr_view') 
 function userToken()  { return localStorage.getItem(LS_USER)  || null; }
 function adminToken() { return localStorage.getItem(LS_ADMIN) || null; }
 
-// ── Auth headers ──────────────────────────────────────────────────────────────
+// -- Auth headers --------------------------------------------------------------
 
 function authHeaders(extra = {}) {
   const h = { ...extra };
@@ -33,7 +33,7 @@ function authHeaders(extra = {}) {
   return h;
 }
 
-// ── bootstrapAuth ─────────────────────────────────────────────────────────────
+// -- bootstrapAuth -------------------------------------------------------------
 
 async function bootstrapAuth() {
   const at = localStorage.getItem(LS_ADMIN);
@@ -79,7 +79,7 @@ async function bootstrapAuth() {
   }
 }
 
-// ── Auth label (bottom-right, no logout) ─────────────────────────────────────
+// -- Auth label (bottom-right, no logout) -------------------------------------
 
 function _injectAuthLabel() {
   // Add Tokens nav link for all authenticated users
@@ -132,7 +132,7 @@ function _injectAuthLabel() {
   document.body.appendChild(label);
 }
 
-// ── Auto-generate admin token overlay ─────────────────────────────────────────
+// -- Auto-generate admin token overlay -----------------------------------------
 
 async function _showAutoGenerateOverlay() {
   // Pre-generate the token from the server
@@ -173,7 +173,7 @@ async function _showAutoGenerateOverlay() {
 
   const subheading = document.createElement('div');
   subheading.style.cssText = 'color:var(--text-dim);font-size:.65rem;letter-spacing:2px;margin-bottom:20px';
-  subheading.textContent = 'SAVE THIS TOKEN — YOU WILL NEED IT TO LOG IN';
+  subheading.textContent = 'SAVE THIS TOKEN -- YOU WILL NEED IT TO LOG IN';
 
   const tokenDisplay = document.createElement('div');
   tokenDisplay.id = 'gen-token-display';
@@ -192,7 +192,7 @@ async function _showAutoGenerateOverlay() {
 
   const confirmBtn = document.createElement('button');
   confirmBtn.style.cssText = 'width:100%;padding:11px;background:transparent;border:1px solid var(--green-dim);color:var(--green);font-family:var(--font);font-size:.8rem;letter-spacing:2px;cursor:pointer';
-  confirmBtn.textContent = ">> I'VE SAVED IT — CONTINUE";
+  confirmBtn.textContent = ">> I'VE SAVED IT -- CONTINUE";
   confirmBtn.addEventListener('click', () => _confirmNewToken(generatedToken));
 
   card.append(heading, subheading, tokenDisplay, hint, confirmBtn);
@@ -208,11 +208,19 @@ function _confirmNewToken(token) {
 }
 
 
-// ── Shared DOM helpers ───────────────────────────────────────────────────────
+// -- Shared DOM helpers -------------------------------------------------------
 
-/** HTML-escape a string for safe insertion via innerHTML / template literals. */
+/** HTML-escape a string for safe insertion via innerHTML / template literals.
+ *  Also escapes ' and ` so it's safe inside single-quoted or backtick-quoted
+ *  attribute/JS-string contexts (e.g. onclick="f('${esc(x)}')"). */
 function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;')
+    .replace(/`/g,'&#96;');
 }
 
 /** Flash an alert banner inside the given element. */
@@ -224,8 +232,8 @@ function showAlert(el, msg, isErr) {
 
 /**
  * Show a styled confirmation dialog. Returns a Promise<boolean>.
- * okLabel  – label for the confirm button (default 'Confirm')
- * okClass  – CSS class for the confirm button (default 'btn-red')
+ * okLabel  - label for the confirm button (default 'Confirm')
+ * okClass  - CSS class for the confirm button (default 'btn-red')
  */
 function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
   return new Promise(resolve => {
@@ -280,7 +288,7 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
 }
 
 
-// ── API fetch wrapper ────────────────────────────────────────────────────────
+// -- API fetch wrapper --------------------------------------------------------
 
 function apiFetch(url, opts = {}) {
   opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
@@ -300,7 +308,7 @@ async function apiThrow(res) {
 }
 
 
-// ── Heat helpers ──────────────────────────────────────────────────────────────
+// -- Heat helpers --------------------------------------------------------------
 
 function heatClass(h) {
   if (h <= 0) return 'heat-neutral';
@@ -330,7 +338,34 @@ function heatColorStyle(heat) {
 }
 
 
-// ── Reputation helpers ────────────────────────────────────────────────────────
+// -- Security rating helpers (SR2 "Color-N" format) ---------------------------
+// Used by host/RTG/org editors. "Red-8" -> code "Red", value "8".
+
+/** Parse a "Color-Value" string. Returns {code, value} (both strings); empty if unset/malformed. */
+function parseSan(rating) {
+  const s = String(rating || '');
+  const i = s.indexOf('-');
+  return i > -1 ? { code: s.slice(0, i), value: s.slice(i + 1) } : { code: '', value: '' };
+}
+
+/** <option> markup for the security-code selector (Blue/Green/Orange/Red/Black). */
+function buildLTGCodeOpts(sel) {
+  return ['', 'Blue', 'Green', 'Orange', 'Red', 'Black'].map(c =>
+    `<option value="${c}"${c === sel ? ' selected' : ''}>${c || '--'}</option>`
+  ).join('');
+}
+
+/** <option> markup for the security-value selector (2-14, host dice vs decker). */
+function buildSecValOpts(selVal) {
+  let opts = '<option value="">--</option>';
+  for (let n = 2; n <= 14; n++) {
+    opts += `<option value="${n}"${String(n) === String(selVal) ? ' selected' : ''}>${n}</option>`;
+  }
+  return opts;
+}
+
+
+// -- Reputation helpers --------------------------------------------------------
 
 function repColorStyle(net_rep) {
   const delta = net_rep - 20;
@@ -345,3 +380,114 @@ function repColorStyle(net_rep) {
     return `color:rgba(255,${Math.round(51 * (1 - pct))},${Math.round(51 * (1 - pct))},${opacity});`;
   }
 }
+
+
+// -- Number stepper initializer ------------------------------------------------
+// Wraps every input[type=number] inside `root` with [-] input [+] controls.
+// Safe to call multiple times -- skips already-initialized inputs.
+// Buttons fire once on press, then repeat after 400ms hold at 80ms intervals.
+function initNumSteppers(root) {
+  (root || document).querySelectorAll('input[type=number]:not(.ns-init):not(.no-stepper)').forEach(inp => {
+    inp.classList.add('ns-init');
+    const wrap = document.createElement('div');
+    wrap.className = 'num-stepper';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+
+    function makeStep(dir) {
+      return function() {
+        const step = parseFloat(inp.step) || 1;
+        const min  = inp.min !== '' ? parseFloat(inp.min) : -Infinity;
+        const max  = inp.max !== '' ? parseFloat(inp.max) : Infinity;
+        const autoAtMin = inp.dataset.autoAtMin === 'true' || inp.dataset.autoAtMin === '1';
+        const raw = (inp.value || '').trim();
+        const hasNumeric = raw !== '' && !Number.isNaN(parseFloat(raw));
+
+        function emit() {
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        if (autoAtMin && dir < 0 && hasNumeric && Number.isFinite(min) && parseFloat(raw) <= min) {
+          inp.value = '';
+          emit();
+          return;
+        }
+
+        if (autoAtMin && dir > 0 && !hasNumeric) {
+          const seed = Number.isFinite(min) ? min : 0;
+          inp.value = seed;
+          emit();
+          return;
+        }
+
+        const val  = hasNumeric ? parseFloat(raw) : (Number.isFinite(min) ? min : 0);
+        const next = val + dir * step;
+        if (next < min || next > max) return;
+        inp.value = next;
+        emit();
+      };
+    }
+
+    function attachHold(btn, stepFn) {
+      let holdTimer = null;
+      let holdInterval = null;
+      function start(e) {
+        e.preventDefault();
+        stepFn();
+        holdTimer = setTimeout(() => {
+          holdInterval = setInterval(stepFn, 80);
+        }, 400);
+      }
+      function stop() {
+        clearTimeout(holdTimer);
+        clearInterval(holdInterval);
+        holdTimer = holdInterval = null;
+      }
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+      btn.addEventListener('touchstart', start, { passive: false });
+      btn.addEventListener('touchend', stop);
+      btn.addEventListener('touchcancel', stop);
+    }
+
+    const minus = document.createElement('button');
+    minus.type = 'button';
+    minus.className = 'ns-btn';
+    minus.textContent = '-';
+    attachHold(minus, makeStep(-1));
+
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'ns-btn';
+    plus.textContent = '+';
+    attachHold(plus, makeStep(1));
+
+    wrap.insertBefore(minus, inp);
+    wrap.appendChild(plus);
+  });
+}
+
+// -- Custom tooltip (data-tip) -------------------------------------------------
+(function () {
+  let _tip = null;
+  function tip() {
+    if (!_tip) { _tip = document.createElement('div'); _tip.id = 'app-tooltip'; document.body.appendChild(_tip); }
+    return _tip;
+  }
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) { tip().textContent = el.dataset.tip; tip().classList.add('tip-on'); }
+    else     { tip().classList.remove('tip-on'); }
+  });
+  document.addEventListener('mousemove', e => {
+    const t = tip();
+    if (!t.classList.contains('tip-on')) return;
+    const G = 14;
+    let x = e.clientX + G, y = e.clientY + G;
+    if (x + t.offsetWidth  > window.innerWidth)  x = e.clientX - t.offsetWidth  - G;
+    if (y + t.offsetHeight > window.innerHeight) y = e.clientY - t.offsetHeight - G;
+    t.style.left = x + 'px'; t.style.top = y + 'px';
+  });
+})();

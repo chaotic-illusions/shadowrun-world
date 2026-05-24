@@ -11,12 +11,12 @@ from app.db.base import Base
 from app.db.session import engine, async_session
 from app.auth.core import hash_token
 from app.models.character import Character
-import app.models  # noqa: F401 — registers all ORM models with Base.metadata
+import app.models  # noqa: F401 -- registers all ORM models with Base.metadata
 
 from app.routers import (
     characters, contacts, locations, organizations,
     reputation, adventure_logs, consequences, rtgs,
-    matrix_hosts,
+    matrix_hosts, matrix_runs,
 )
 from app.routers import auth as auth_router
 from app.auth.dependencies import get_any_token
@@ -67,7 +67,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — configurable via CORS_ORIGINS env var (comma-separated).
+# CORS -- configurable via CORS_ORIGINS env var (comma-separated).
 # Local dev default: * (open). Production: set to your server's URL, e.g.
 #   CORS_ORIGINS=https://yourserver.example.com
 # Since the frontend is served from the same FastAPI origin, CORS mainly
@@ -97,6 +97,7 @@ app.include_router(adventure_logs.router, prefix="/runs",          tags=["Advent
 app.include_router(consequences.router,   prefix="/consequences",  tags=["Consequence Engine"], dependencies=_auth)
 app.include_router(rtgs.router,           prefix="/rtgs",          tags=["RTGs"],               dependencies=_auth)
 app.include_router(matrix_hosts.router,   prefix="/matrix-hosts",  tags=["Matrix Hosts"],       dependencies=_auth)
+app.include_router(matrix_runs.router,    prefix="/matrix-runs2",  tags=["Matrix Runs SR2"],    dependencies=_auth)
 
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 

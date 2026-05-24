@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Decay simulator — shows per-tick evolution of heat, PA, and org standings.
+Decay simulator -- shows per-tick evolution of heat, PA, and org standings.
 
 Usage:
     python decay_sim.py [options]
@@ -11,7 +11,7 @@ Options:
     --standing INT      Starting org standing (-10 to 10)   [default: 6]
     --ticks INT         Number of ticks (days) to simulate  [default: 60]
     --step INT          Days per displayed row               [default: 7]
-    --lying-low         Apply 2× decay acceleration (lying low)
+    --lying-low         Apply 2x decay acceleration (lying low)
 
 Examples:
     python decay_sim.py --heat 8 --pa 7 --standing -5 --ticks 90 --step 7
@@ -35,12 +35,12 @@ from app.services.heat_calculator import (
 def _bar(val: float, lo: float, hi: float, width: int = 20) -> str:
     frac = (val - lo) / (hi - lo) if hi > lo else 0.0
     filled = round(max(0.0, min(1.0, frac)) * width)
-    return "[" + "█" * filled + "░" * (width - filled) + "]"
+    return "[" + "#" * filled + "" * (width - filled) + "]"
 
 
 def simulate(heat: int, pa: int, standing: int, ticks: int, step: int, lying_low: bool):
     accel = LYING_LOW_DECAY_ACCEL if lying_low else 1.0
-    accel_label = f" (lying low ×{accel:.0f})" if lying_low else ""
+    accel_label = f" (lying low x{accel:.0f})" if lying_low else ""
 
     print()
     print(f"  Decay Simulation{accel_label}")
@@ -85,7 +85,7 @@ def simulate(heat: int, pa: int, standing: int, ticks: int, step: int, lying_low
             diff = cur - prev
             if abs(diff) < 0.01:
                 return "="
-            return "▼" if diff < 0 else "▲"
+            return "v" if diff < 0 else "^"
 
         dh = delta(hi, prev_heat)
         dp = delta(pi, prev_pa)
@@ -130,7 +130,7 @@ def _summarise_crossings(name, start_val, ticks, accel, fn, label_fn, tiers):
             prev_label = lbl
 
     if crossings:
-        parts = [f"day {d}: {frm} → {to} ({v:+.2f})" for d, frm, to, v in crossings]
+        parts = [f"day {d}: {frm} -> {to} ({v:+.2f})" for d, frm, to, v in crossings]
         print(f"  {name}: {' | '.join(parts)}")
     else:
         final = fn(start_val, ticks, accel)
@@ -144,7 +144,7 @@ def main():
     p.add_argument("--standing",  type=int, default=6,  help="Starting org standing (-10 to 10)")
     p.add_argument("--ticks",     type=int, default=60, help="Days to simulate")
     p.add_argument("--step",      type=int, default=7,  help="Days per displayed row")
-    p.add_argument("--lying-low", action="store_true",  help="Apply 2× decay acceleration")
+    p.add_argument("--lying-low", action="store_true",  help="Apply 2x decay acceleration")
     args = p.parse_args()
 
     simulate(

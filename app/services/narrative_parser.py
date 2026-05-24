@@ -40,8 +40,8 @@ Respond ONLY with a single valid JSON object matching this schema exactly:
       "character_name": "Exact name from world context",
       "character_id": <integer id from world context>,
       "delta": <signed integer>,
-      "org_name": "Org name — only for org_standing type, otherwise omit",
-      "org_id": <integer id — only for org_standing type, otherwise omit>,
+      "org_name": "Org name -- only for org_standing type, otherwise omit",
+      "org_id": <integer id -- only for org_standing type, otherwise omit>,
       "reason": "One-sentence explanation"
     }
   ]
@@ -59,7 +59,7 @@ Rules for proposed_changes:
     A run failing cleanly does NOT generate notoriety.
 - public_awareness: +1 only if the event made news or caused a public scene visible to ordinary citizens.
 - org_standing: -5 to +5 based on how the run affected that org's interests (positive = helped them, negative = harmed them).
-- heat: individual character heat change (0–10 scale). Use +1 to +3 per runner who was personally exposed,
+- heat: individual character heat change (0-10 scale). Use +1 to +3 per runner who was personally exposed,
     identified, witnessed, or is now being hunted by law enforcement or a corp. Do NOT apply to runners
     who stayed hidden or were uninvolved in the exposure. A runner wanted by Lone Star is +2 to +4 heat.
     Reduce heat (-1 to -2) if a runner successfully disappeared or covered their tracks after a prior mission.
@@ -107,10 +107,10 @@ async def parse_narrative(narrative: str, world_context: dict) -> dict:
     Call Claude to parse a GM narrative into structured run data + proposed changes.
 
     world_context keys:
-      characters  – list of {id, name, is_pc}
-      organizations – list of {id, name, org_type}
-      reputation  – list of {character_id, street_cred, notoriety, public_awareness}
-      standings   – list of {character_id, org_id, standing}
+      characters  - list of {id, name, is_pc}
+      organizations - list of {id, name, org_type}
+      reputation  - list of {character_id, street_cred, notoriety, public_awareness}
+      standings   - list of {character_id, org_id, standing}
     """
     api_key = get_api_key()
     if not api_key:

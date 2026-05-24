@@ -7,22 +7,22 @@ applyTo: "seed.py,tests/**"
 ## seed.py
 - Uses `httpx.Client` (sync) with `base_url` and `headers={"X-Admin-Token": token}`
 - Auth: `--admin-token` CLI arg overrides `BOOTSTRAP_ADMIN_KEY` env var (default `shadowrunner`)
-- Seed order: RTGs → Organizations → (org ally/enemy links) → Locations → Characters → Contacts → Org Standings → Adventure Logs
-- `post(client, path, payload)` — raises `RuntimeError` on `HTTPStatusError` or `RequestError`
-- `patch(client, path, payload)` — same error contract as `post`
+- Seed order: RTGs -> Organizations -> (org ally/enemy links) -> Locations -> Characters -> Contacts -> Org Standings -> Adventure Logs
+- `post(client, path, payload)` -- raises `RuntimeError` on `HTTPStatusError` or `RequestError`
+- `patch(client, path, payload)` -- same error contract as `post`
 
 ## Test Suite
 - Runner: `pytest -v`; all tests are **sync** (no async fixtures)
-- `conftest.py` is empty — no shared fixtures
+- `conftest.py` is empty -- no shared fixtures
 
 ### test_seed.py
 - Mocks `httpx.Client` methods directly: `mock_client.post.return_value`
-- Does NOT patch `urllib` — seed.py uses httpx, not urllib
+- Does NOT patch `urllib` -- seed.py uses httpx, not urllib
 - Error cases: `httpx.HTTPStatusError` for 4xx/5xx, `httpx.ConnectError` for network failures
 
 ### test_auth.py
 - Tests `hash_token` (deterministic, 64-char hex output) and `generate_token` (unique, correct length)
-- No DB or HTTP calls — pure unit tests
+- No DB or HTTP calls -- pure unit tests
 
 ### test_rate_limit.py
 - Uses `_attempts` dict directly to inspect state; `autouse` fixture calls `_attempts.clear()`

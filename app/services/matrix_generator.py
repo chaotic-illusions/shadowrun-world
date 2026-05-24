@@ -5,7 +5,7 @@ Provides IC type metadata (IC_INFO) and the canonical node connection rules
 (VALID_CONNECTIONS) used by the frontend topology editor.
 """
 
-# ── Connection matrix ───────────────────────────────────────────────────────
+# -- Connection matrix -------------------------------------------------------
 # VALID_CONNECTIONS[source_type] = set of valid target types
 VALID_CONNECTIONS: dict[str, set[str]] = {
     "CPU":  {"DS", "IOP", "SN", "SPU", "SAN"},
@@ -16,7 +16,7 @@ VALID_CONNECTIONS: dict[str, set[str]] = {
     "SAN":  {"CPU", "DS", "SPU"},
 }
 
-# ── IC catalogue ────────────────────────────────────────────────────────────
+# -- IC catalogue ------------------------------------------------------------
 IC_BY_LETHALITY: dict[str, list[str]] = {
     "white": ["Access", "Barrier", "Scramble"],
     "gray":  ["Blaster", "Killer", "Tar Baby", "Tar Pit",
@@ -49,7 +49,7 @@ IC_INFO: dict[str, dict[str, str]] = {
     },
     "Killer": {
         "summary": "This IC attacks and damages your Persona, trying to crash you out.",
-        "flavor": "A warrior, soldier, attack drone, or thunderstorm imagery are common — fast, aggressive, relentless.",
+        "flavor": "A warrior, soldier, attack drone, or thunderstorm imagery are common -- fast, aggressive, relentless.",
     },
     "Tar Baby": {
         "summary": "Trap IC.  It'll self-crash and take your program with it.",
@@ -65,7 +65,7 @@ IC_INFO: dict[str, dict[str, str]] = {
     },
     "Trace & Dump": {
         "summary": "Traces the decker's physical location, then forcibly ejects them from the system.",
-        "flavor": "A bloodhound that circles the decker's persona, locks on — then detonates, exploding your view in spectacular white static as you're dumped out of the system.",
+        "flavor": "A bloodhound that circles the decker's persona, locks on -- then detonates, exploding your view in spectacular white static as you're dumped out of the system.",
     },
     "Trace & Burn": {
         "summary": "Traces the decker's location, then attacks the deck's MPCP at the node of entry.  Hope you brought backup.",
