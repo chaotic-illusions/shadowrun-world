@@ -130,29 +130,29 @@ SHEAF_CRIPPLER_RIPPER_TARGET_TABLE: list[tuple[tuple[int, int], str]] = [
     ((6, 6), "Sensor"),
 ]
 
-SHEAF_IC_OPTIONS_TABLE: list[tuple[tuple[int, int], str]] = [
-    ((2, 2), "Cascading"),
-    ((3, 5), "Expert Offense"),
-    ((6, 8), "None"),
-    ((9, 11), "Expert Defense"),
-    ((12, 12), "Cascading"),
-]
-
-SHEAF_IC_DEFENSES_TABLE: list[tuple[tuple[int, int], list[str]]] = [
-    ((2, 3), ["Armor", "Shifting"]),
-    ((4, 5), ["Armor"]),
-    ((6, 6), ["Shifting"]),
-    ((7, 7), []),
-    ((8, 8), ["Shielding"]),
-    ((9, 10), ["Armor"]),
-    ((11, 12), ["Armor", "Shielding"]),
-]
-
-#  Host design ranges 
+#  Host design ranges
+# sv_formula / acif_formula are dice expressions used by the frontend designer's
+# Quick-Fill button. Keep formula text aligned with the range so display tips and
+# generated values stay consistent.
 HOST_DIFFICULTY: dict[str, dict] = {
-    "Easy":    {"sv_range": (4, 6),  "subsystem_range": (8, 10),  "codes": ["Blue", "Green"]},
-    "Average": {"sv_range": (7, 9),  "subsystem_range": (11, 15), "codes": ["Green", "Orange"]},
-    "Hard":    {"sv_range": (8, 12), "subsystem_range": (13, 18), "codes": ["Orange", "Red"]},
+    "Easy": {
+        "sv_range": (4, 6), "sv_formula": "1D3+3",
+        "subsystem_range": (8, 10), "acif_formula": "1D3+7",
+        "codes": ["Blue", "Green"],
+        "description": "Friendly, high-traffic system.",
+    },
+    "Average": {
+        "sv_range": (7, 9), "sv_formula": "1D3+6",
+        "subsystem_range": (11, 15), "acif_formula": "2D3+9",
+        "codes": ["Green", "Orange"],
+        "description": "Standard corp/government system.",
+    },
+    "Hard": {
+        "sv_range": (8, 12), "sv_formula": "2D3+6",
+        "subsystem_range": (13, 18), "acif_formula": "1D6+12",
+        "codes": ["Orange", "Red"],
+        "description": "High-security or Top Secret system.",
+    },
 }
 
 #  Complete IC catalog 
@@ -328,14 +328,7 @@ IC_CATALOG: dict[str, dict] = {
     },
 }
 
-# Category + CSS color token mapping (for frontend)
-IC_CATEGORY_COLOR: dict[str, str] = {
-    "white": "var(--ic-white)",
-    "gray":  "var(--ic-gray)",
-    "black": "var(--ic-black)",
-}
-
-#  System Operations (summary for display) 
+#  System Operations (summary for display)
 # subsystem: access | control | index | files | slave | special
 SYSTEM_OPERATIONS: list[dict] = [
     {"name": "Logon to Host",       "subsystem": "access",  "utility": "Deception", "action": "Complex",

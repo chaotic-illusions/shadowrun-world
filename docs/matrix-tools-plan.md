@@ -1,5 +1,8 @@
 # Matrix Tools -- Internal Design Notes
-> SR2 / VR2.0 rules. DO NOT touch manage-matrix.html (SR1 fallback).
+> SR2 / VR2.0 rules. manage-matrix.html is the SR1 fallback editor -- no
+> *functional* changes (its behavior must stay stable for legacy hosts).
+> Cosmetic edits (CSS class consolidation, ASCII-only text, label tweaks) are
+> fine and expected as the rest of the UI is refreshed.
 
 ## New Pages
 | File | Purpose |

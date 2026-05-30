@@ -8,6 +8,7 @@ from app.models.character import Character
 from app.models.reputation import Reputation
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary
 from app.schemas.contact import ContactRead
+from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
 from app.auth.core import hash_token
 from app.auth.dependencies import get_admin_token, get_any_token
@@ -26,6 +27,13 @@ async def _load_character(db: AsyncSession, character_id: int) -> Character:
     return char
 
 
+def _is_owner_or_admin(char: Character, ctx: dict) -> bool:
+    if ctx["is_admin"]:
+        return True
+    caller_hash = hash_token(ctx["user_token"])
+    return bool(char.owner_token and char.owner_token == caller_hash)
+
+
 @router.get("/mine")
 async def my_character_ids(
     db: AsyncSession = Depends(get_db),
@@ -37,6 +45,38 @@ async def my_character_ids(
         select(Character.id).where(Character.owner_token == caller_hash)
     )
     return {"ids": [row[0] for row in result.all()]}
+
+
+@router.get("/{character_id}/deck-builder-state", response_model=DeckBuilderStateRead)
+async def get_deck_builder_state(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    char = await _load_character(db, character_id)
+    if not char.is_pc:
+        raise HTTPException(status_code=400, detail="Deck builder state is only available for PCs")
+    if not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=403, detail="Admin or character owner required")
+    return DeckBuilderStateRead(state=char.deck_builder_state or {})
+
+
+@router.put("/{character_id}/deck-builder-state", response_model=DeckBuilderStateRead)
+async def update_deck_builder_state(
+    character_id: int,
+    body: DeckBuilderStateUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    char = await _load_character(db, character_id)
+    if not char.is_pc:
+        raise HTTPException(status_code=400, detail="Deck builder state is only available for PCs")
+    if not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=403, detail="Admin or character owner required")
+    char.deck_builder_state = body.state or {}
+    await db.commit()
+    await db.refresh(char)
+    return DeckBuilderStateRead(state=char.deck_builder_state or {})
 
 
 @router.get("/", response_model=list[CharacterRead])
@@ -61,6 +101,15 @@ async def create_character(
     ctx: dict = Depends(get_any_token),
 ):
     data = body.model_dump()
+    if not ctx["is_admin"]:
+        data["computer_skill_enabled"] = False
+        data["computer_skill_rating"] = 0
+        data["software_skill_enabled"] = False
+        data["software_skill_rating"] = 0
+        data["matrix_skill_enabled"] = False
+        data["matrix_skill_rating"] = 0
+        data["computer_br_skill_enabled"] = False
+        data["computer_br_skill_rating"] = 0
     # Store the caller's token hash as owner only when a non-admin player creates a PC.
     # Admin-created PCs (including all seeded data) remain unclaimed so players can claim them.
     if data.get("is_pc", True) and not ctx["is_admin"]:

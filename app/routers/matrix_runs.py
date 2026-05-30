@@ -34,6 +34,12 @@ router = APIRouter()
 # (Admin and owner see the full state.)
 _GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs"}
 
+# Maps crippler/ripper IC type names to the decker attribute they attack.
+_CRIPPLER_TARGET: dict[str, str] = {
+    "Acid": "bod", "Binder": "evasion", "Jammer": "sensor", "Marker": "masking",
+    "Acid-rip": "bod", "Bind-rip": "evasion", "Jam-rip": "sensor", "Mark-rip": "masking",
+}
+
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -139,6 +145,53 @@ def _append_event(state: dict, event: dict) -> None:
     state["event_log"].append(event)
 
 
+def _roll_mpcp_damage(
+    state: dict,
+    decker: dict,
+    ic_rating: int,
+    *,
+    pool_multiplier: int = 1,
+    tn_bonus: int = 0,
+) -> tuple[int, dict]:
+    """Resolve a post-crash MPCP-damage test (Blaster / Sparky / Black IC).
+
+    Each variant rolls ``ic_rating * pool_multiplier`` dice vs.
+    ``mpcp + tn_bonus + hardening`` and deals 1 permanent MPCP damage per 2
+    successes. Black IC uses ``pool_multiplier=2``; Sparky adds ``tn_bonus=2``.
+    Returns (mpcp_hits, raw_roll). Caller composes the user-facing event.
+    """
+    hardening = decker.get("hardening", 0)
+    tn = max(2, decker.get("mpcp", 1) + tn_bonus + hardening)
+    roll = eng.roll_dice(ic_rating * pool_multiplier, tn)
+    mpcp_hit = roll["successes"] // 2
+    if mpcp_hit > 0:
+        state["condition_monitor"]["mpcp_damage"] = (
+            state["condition_monitor"].get("mpcp_damage", 0) + mpcp_hit
+        )
+    return mpcp_hit, roll
+
+
+def _apply_dump_shock(state: dict, decker: dict, sec_code: str, sec_value: int) -> dict:
+    """Roll dump shock and add any resulting boxes to the physical CM.
+
+    Returns the raw eng.dump_shock_roll result. Callers decide whether to log a
+    standalone ``dump_shock`` event or fold the result into another event
+    description (trace_dump / jack_out / persona_crash all do this differently).
+    """
+    ds = eng.dump_shock_roll(
+        security_code=sec_code, security_value=sec_value,
+        body=decker.get("body", 4),
+        is_cool_deck=decker.get("deck_mode") == "cool",
+        has_iccm=decker.get("iccm", False),
+        is_tortoise=decker.get("deck_mode") == "tortoise",
+    )
+    if not ds.get("immune"):
+        state["condition_monitor"]["physical_boxes"] = (
+            state["condition_monitor"].get("physical_boxes", 0) + ds["boxes"]
+        )
+    return ds
+
+
 def _check_sheaf_triggers(state: dict) -> list[dict]:
     """
     Check if the current security tally has crossed any sheaf trigger thresholds.
@@ -156,6 +209,18 @@ def _check_sheaf_triggers(state: dict) -> list[dict]:
             newly_triggered.append(step)
 
     return newly_triggered
+
+
+def _check_and_activate_sheaf(state: dict, security_code: str) -> None:
+    """Promote any newly-crossed sheaf thresholds and append their events to the log.
+
+    Call after any operation that bumps ``state["security_tally"]`` (action, probe,
+    IC crash, failed logoff). Idempotent against already-triggered steps because
+    ``_check_sheaf_triggers`` tracks ``sheaf_steps_triggered``.
+    """
+    for step in _check_sheaf_triggers(state):
+        for ev in _activate_sheaf_step(state, step, security_code):
+            _append_event(state, ev)
 
 
 def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[dict]:
@@ -396,13 +461,24 @@ async def system_operations():
     return rules.SYSTEM_OPERATIONS
 
 
+@router.get("/rules/host-difficulty")
+async def host_difficulty():
+    """Host design ranges + dice formulas keyed by difficulty tier."""
+    return rules.HOST_DIFFICULTY
+
+
+@router.get("/rules/paydata-table")
+async def paydata_table():
+    """Paydata points / density / base value keyed by host security code."""
+    return rules.PAYDATA_TABLE
+
+
 @router.post("/rules/sheaf-preview")
 async def sheaf_preview(body: SheafGenerateInput):
     """Generate a preview sheaf without saving it."""
     sheaf = eng.generate_sheaf(
         security_code=body.security_code,
         security_value=body.security_value,
-        owner_type=body.owner_type,
         step_count=body.step_count,
         seed=body.seed,
     )
@@ -433,7 +509,6 @@ async def generate_sheaf_endpoint(body: SheafGenerateInput):
     return {"sheaf": eng.generate_sheaf(
         security_code=body.security_code,
         security_value=body.security_value,
-        owner_type=body.owner_type,
         step_count=body.step_count,
         seed=body.seed,
     )}
@@ -632,11 +707,7 @@ async def perform_action(
         })
 
     # Check sheaf triggers
-    triggered = _check_sheaf_triggers(state)
-    for step in triggered:
-        step_events = _activate_sheaf_step(state, step, sec_code)
-        for ev in step_events:
-            _append_event(state, ev)
+    _check_and_activate_sheaf(state, sec_code)
 
     # Run probe tests for any active Probe IC
     for ic in state.get("active_ic", []):
@@ -655,20 +726,9 @@ async def perform_action(
                     ),
                     "tally_increase": probe["tally_increase"],
                 })
-            # Re-check triggers after probe
-            new_triggered = _check_sheaf_triggers(state)
-            for step in new_triggered:
-                step_events = _activate_sheaf_step(state, step, sec_code)
-                for ev in step_events:
-                    _append_event(state, ev)
+            _check_and_activate_sheaf(state, sec_code)
 
-    # Attribute map for crippler/ripper IC
-    _CRIPPLER_TARGET = {
-        "Acid": "bod", "Binder": "evasion", "Jammer": "sensor", "Marker": "masking",
-        "Acid-rip": "bod", "Bind-rip": "evasion", "Jam-rip": "sensor", "Mark-rip": "masking",
-    }
-
-    # Active IC attacks (proactive IC that has already activated, in initiative order)
+    # Active IC attacks (proactive IC + trace IC that has already activated, in initiative order)
     for ic in sorted(state.get("active_ic", []), key=lambda x: x.get("initiative", 0), reverse=True):
         if ic["status"] != "active" or ic.get("suppressed"):
             continue
@@ -676,7 +736,9 @@ async def perform_action(
         ic_category = ic_info.get("category", "white")
         ic_subtype = ic_info.get("subtype", "")
 
-        if ic_info.get("ic_type") != "proactive":
+        # Trace IC is classified "reactive" in the catalog but acts every turn on
+        # its initiative (hunt -> locate -> trigger), so let it through here.
+        if ic_info.get("ic_type") != "proactive" and ic_subtype != "trace":
             continue
         if ic["type"] == "Probe":
             continue  # already handled above
@@ -734,15 +796,7 @@ async def perform_action(
                             "trace_action": "report",
                         })
                     elif triggered_action == "dump":
-                        ds = eng.dump_shock_roll(
-                            security_code=sec_code, security_value=sec_value,
-                            body=decker.get("body", 4),
-                            is_cool_deck=decker.get("deck_mode") == "cool",
-                            has_iccm=decker.get("iccm", False),
-                            is_tortoise=decker.get("deck_mode") == "tortoise",
-                        )
-                        if not ds.get("immune"):
-                            state["condition_monitor"]["physical_boxes"] += ds["boxes"]
+                        ds = _apply_dump_shock(state, decker, sec_code, sec_value)
                         state["run_ended"] = True
                         state["end_reason"] = "trace_dump"
                         ic["status"] = "triggered"
@@ -929,21 +983,14 @@ async def perform_action(
                     "persona_damage": persona_dmg,
                 })
 
-            # Black IC: check thresholds (persona OR physical)
+            # Black IC: check thresholds (persona OR physical). On either, IC
+            # fires one final MPCP attack at 2x rating (Blaster mechanics).
             if state["condition_monitor"]["physical_boxes"] >= 10:
                 _append_event(state, {
                     "type": "persona_crash",
                     "description": "BLACK IC LETHAL -- physical damage threshold reached! Decker in critical condition.",
                 })
-                # IC attacks MPCP at 2x rating as Blaster
-                bl_tn   = max(2, decker.get("mpcp", 1) + hardening)
-                bl_pool = ic["rating"] * 2
-                bl_roll = eng.roll_dice(bl_pool, bl_tn)
-                mpcp_hit = bl_roll["successes"] // 2
-                if mpcp_hit > 0:
-                    state["condition_monitor"]["mpcp_damage"] = (
-                        state["condition_monitor"].get("mpcp_damage", 0) + mpcp_hit
-                    )
+                mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, ic["rating"], pool_multiplier=2)
                 _append_event(state, {
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Black IC",
@@ -959,30 +1006,15 @@ async def perform_action(
                     "type": "persona_crash",
                     "description": "PERSONA CRASHED by Black IC -- decker dumped!",
                 })
-                # Icon killed before decker: IC attacks MPCP at 2x rating
-                bl_tn   = max(2, decker.get("mpcp", 1) + hardening)
-                bl_pool = ic["rating"] * 2
-                bl_roll = eng.roll_dice(bl_pool, bl_tn)
-                mpcp_hit = bl_roll["successes"] // 2
-                if mpcp_hit > 0:
-                    state["condition_monitor"]["mpcp_damage"] = (
-                        state["condition_monitor"].get("mpcp_damage", 0) + mpcp_hit
-                    )
+                mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, ic["rating"], pool_multiplier=2)
                 _append_event(state, {
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Black IC",
                     "description": f"Black IC MPCP attack (icon crash): MPCP -{mpcp_hit} (permanent).",
                     "mpcp_roll": bl_roll, "mpcp_damage": mpcp_hit,
                 })
-                ds = eng.dump_shock_roll(
-                    security_code=sec_code, security_value=sec_value,
-                    body=decker.get("body", 4),
-                    is_cool_deck=decker.get("deck_mode") == "cool",
-                    has_iccm=decker.get("iccm", False),
-                    is_tortoise=decker.get("deck_mode") == "tortoise",
-                )
+                ds = _apply_dump_shock(state, decker, sec_code, sec_value)
                 if not ds.get("immune"):
-                    state["condition_monitor"]["physical_boxes"] += ds["boxes"]
                     _append_event(state, {
                         "type": "dump_shock",
                         "description": f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes).",
@@ -1053,32 +1085,21 @@ async def perform_action(
 
             # Blaster: MPCP damage test on persona crash (1 per 2 successes)
             if ic["type"] == "Blaster":
-                b_tn = max(2, decker.get("mpcp", 1) + hardening)
-                b_roll = eng.roll_dice(ic["rating"], b_tn)
-                mpcp_hit = b_roll["successes"] // 2
-                if mpcp_hit > 0:
-                    state["condition_monitor"]["mpcp_damage"] = (
-                        state["condition_monitor"].get("mpcp_damage", 0) + mpcp_hit
-                    )
+                mpcp_hit, b_roll = _roll_mpcp_damage(state, decker, ic["rating"])
                 _append_event(state, {
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Blaster",
                     "description": (
-                        f"Blaster post-crash MPCP test (TN {b_tn}): "
+                        f"Blaster post-crash MPCP test (TN {b_roll['tn']}): "
                         f"{b_roll['successes']} hits -> MPCP -{mpcp_hit} (permanent)."
                     ),
                     "blaster_roll": b_roll, "mpcp_damage": mpcp_hit,
                 })
 
-            # Sparky: MPCP damage (1 per 2 successes) + physical discharge
+            # Sparky: MPCP damage (1 per 2 successes) + physical discharge.
+            # Sparky raises the MPCP-test TN by 2 vs Blaster.
             elif ic["type"] == "Sparky":
-                s_tn = max(2, decker.get("mpcp", 1) + 2 + hardening)
-                s_roll = eng.roll_dice(ic["rating"], s_tn)
-                mpcp_hit = s_roll["successes"] // 2
-                if mpcp_hit > 0:
-                    state["condition_monitor"]["mpcp_damage"] = (
-                        state["condition_monitor"].get("mpcp_damage", 0) + mpcp_hit
-                    )
+                mpcp_hit, s_roll = _roll_mpcp_damage(state, decker, ic["rating"], tn_bonus=2)
                 sparky_phys = eng.stage_damage("Moderate", s_roll["successes"], 1)
                 sparky_boxes = rules.DAMAGE_BOXES[sparky_phys]
                 state["condition_monitor"]["physical_boxes"] += sparky_boxes
@@ -1086,7 +1107,7 @@ async def perform_action(
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Sparky",
                     "description": (
-                        f"Sparky discharge on crash (TN {s_tn}): MPCP -{mpcp_hit} (perm). "
+                        f"Sparky discharge on crash (TN {s_roll['tn']}): MPCP -{mpcp_hit} (perm). "
                         f"Physical: {sparky_phys} ({sparky_boxes} boxes)."
                     ),
                     "sparky_roll": s_roll,
@@ -1095,16 +1116,8 @@ async def perform_action(
                 })
 
             # Dump shock
-            ds = eng.dump_shock_roll(
-                security_code=sec_code,
-                security_value=sec_value,
-                body=decker.get("body", 4),
-                is_cool_deck=decker.get("deck_mode") == "cool",
-                has_iccm=decker.get("iccm", False),
-                is_tortoise=decker.get("deck_mode") == "tortoise",
-            )
+            ds = _apply_dump_shock(state, decker, sec_code, sec_value)
             if not ds.get("immune"):
-                state["condition_monitor"]["physical_boxes"] += ds["boxes"]
                 _append_event(state, {
                     "type": "dump_shock",
                     "description": (
@@ -1196,11 +1209,7 @@ async def attack_ic(
             ),
             "tally_increase": tally_increase,
         })
-        # Re-check sheaf after tally increase
-        triggered = _check_sheaf_triggers(state)
-        for step in triggered:
-            for ev in _activate_sheaf_step(state, step, sec_code):
-                _append_event(state, ev)
+        _check_and_activate_sheaf(state, sec_code)
 
         # Spawn hidden IC if this was a Trap IC
         trap_hidden = target_ic.get("trap_hidden")
@@ -1320,11 +1329,7 @@ async def graceful_logoff(
             "host_roll": test["host_roll"],
             "tally_increase": tally_increase,
         })
-        # Check sheaf triggers after failed logoff
-        triggered = _check_sheaf_triggers(state)
-        for step in triggered:
-            for ev in _activate_sheaf_step(state, step, sec_code):
-                _append_event(state, ev)
+        _check_and_activate_sheaf(state, sec_code)
 
     run.state_json = state
     await db.commit()
@@ -1459,19 +1464,7 @@ async def jack_out(
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
 
-    ds = eng.dump_shock_roll(
-        security_code=sec_code,
-        security_value=sec_value,
-        body=decker.get("body", 4),
-        is_cool_deck=decker.get("deck_mode") == "cool",
-        has_iccm=decker.get("iccm", False),
-        is_tortoise=decker.get("deck_mode") == "tortoise",
-    )
-
-    if not ds.get("immune"):
-        state["condition_monitor"]["physical_boxes"] = (
-            state["condition_monitor"].get("physical_boxes", 0) + ds["boxes"]
-        )
+    ds = _apply_dump_shock(state, decker, sec_code, sec_value)
 
     state["run_ended"] = True
     state["end_reason"] = "jack_out"

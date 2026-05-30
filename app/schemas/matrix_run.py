@@ -36,16 +36,16 @@ class DeckerUtilities(BaseModel):
 class DeckerStats(BaseModel):
     name: str = "Ghost"
     # Deck persona programs
-    mpcp:              int = Field(..., ge=1, le=20)
-    bod:               int = Field(..., ge=1, le=20)
-    evasion:           int = Field(..., ge=1, le=20)
-    masking:           int = Field(..., ge=1, le=20)
-    sensor:            int = Field(..., ge=1, le=20)
+    mpcp:              int = Field(..., ge=1, le=50)
+    bod:               int = Field(..., ge=1, le=50)
+    evasion:           int = Field(..., ge=1, le=50)
+    masking:           int = Field(..., ge=1, le=50)
+    sensor:            int = Field(..., ge=1, le=50)
     # Character attributes
-    computer_skill:    int = Field(..., ge=1, le=20)
-    intelligence:      int = Field(..., ge=1, le=20)
+    computer_skill:    int = Field(..., ge=1, le=50)
+    intelligence:      int = Field(..., ge=1, le=50)
     quickness:         int = Field(4, ge=1, le=12)   # Reaction = ceil((Q+I)/2)
-    willpower:         int = Field(4, ge=1, le=20)
+    willpower:         int = Field(4, ge=1, le=50)
     body:              int = Field(4, ge=1, le=12)    # physical body for dump shock
     # Hardware options
     deck_mode:         Literal["hot", "cool", "tortoise"] = "hot"
@@ -86,7 +86,7 @@ SubsystemType = Literal["access", "control", "index", "files", "slave"]
 class RunActionInput(BaseModel):
     action_type: ActionType
     subsystem: SubsystemType
-    utility_rating: int = Field(0, ge=0, le=20)
+    utility_rating: int = Field(0, ge=0, le=50)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     extra_tn_modifier: int = Field(0, ge=-6, le=6)
     note: str = Field("", max_length=500)
@@ -96,18 +96,18 @@ class RunAttackInput(BaseModel):
     target_ic_id: str = Field(..., max_length=64)
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
-    armor_utility: int = Field(0, ge=0, le=20)
+    armor_utility: int = Field(0, ge=0, le=50)
 
 
 class RunLogoffInput(BaseModel):
     hacking_pool_dice: int = Field(0, ge=0, le=40)
-    deception_utility: int = Field(0, ge=0, le=20)
+    deception_utility: int = Field(0, ge=0, le=50)
 
 
 class RunReactiveInput(BaseModel):
     ic_id: str = Field(..., max_length=64)
     utility_name: str = Field(..., max_length=80)
-    utility_rating: int = Field(..., ge=1, le=20)
+    utility_rating: int = Field(..., ge=1, le=50)
 
 
 # -- Sheaf + Host designer -----------------------------------------------------

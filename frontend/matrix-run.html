@@ -42,6 +42,43 @@
         </select>
       </div>
 
+      <div class="setup-grid" style="margin-bottom:10px;gap:10px">
+        <div class="mr-section-head">&gt;&gt; DECK LOADOUT</div>
+        <div class="mr-field">
+          <label>Saved Deck Build</label>
+          <select id="runDeckSelect" onchange="onDeckSelectionChange()">
+            <option value="">-- Select deck build --</option>
+          </select>
+          <span class="tip">Pulled from Deck Builder saves for active programmer profile.</span>
+        </div>
+        <div class="mr-field">
+          <label>Saved Program Load-out</label>
+          <select id="runLoadoutSelect" onchange="onLoadoutSelectionChange()">
+            <option value="">-- Select load-out --</option>
+          </select>
+          <span class="tip">Load-outs come from Deck Builder and must satisfy active/storage rules.</span>
+        </div>
+        <div class="mr-field span2">
+          <div id="runLoadoutStatus" class="tip">Select a deck and load-out.</div>
+        </div>
+        <div class="mr-field span2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="adjustLoadoutBtn" onclick="openLoadoutAdjuster()">&gt;&gt; Adjust Before Run</button>
+          <button class="btn btn-ghost btn-sm" id="clearDraftBtn" onclick="clearLoadoutDraft()" style="display:none">Clear Draft</button>
+          <span id="loadoutDraftBadge" class="tip" style="display:none;color:var(--amber)">Using temporary draft changes.</span>
+        </div>
+        <div class="mr-field span2" id="runLoadoutEditor" style="display:none;border:1px solid #1a2a1a;background:var(--bg-soft);padding:10px">
+          <div style="font-size:.68rem;letter-spacing:1.2px;color:var(--amber);text-transform:uppercase;margin-bottom:8px">Load-out Draft Editor</div>
+          <div id="runLoadoutEditorBody"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;border-top:1px solid #1a2a1a;padding-top:10px">
+            <button class="btn btn-ghost btn-sm" onclick="applyDraftTemporarily()">Use Draft For This Run</button>
+            <button class="btn btn-green btn-sm" onclick="updateSelectedLoadoutFromDraft()">Update Selected Load-out</button>
+            <input type="text" id="draftSaveAsName" placeholder="Save draft as new load-out..."
+              style="flex:1;min-width:180px;padding:5px 8px;font-size:.72rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+            <button class="btn btn-green btn-sm" onclick="saveDraftAsNewLoadout()">Save As New</button>
+          </div>
+        </div>
+      </div>
+
       <div class="setup-grid">
         <!-- Deck Stats -->
         <div class="mr-section-head">&gt;&gt; DECK STATS</div>
@@ -62,28 +99,28 @@
         </div>
 
         <div class="mr-field">
-          <label>MPCP (1-20)</label>
-          <input type="number" id="cfg-mpcp" min="1" max="20" value="6">
+          <label>MPCP (1-50)</label>
+          <input type="number" id="cfg-mpcp" min="1" max="50" value="6">
           <span class="tip">Master Persona Control Program. Deck brain. Affects Hacking Pool.</span>
         </div>
         <div class="mr-field">
-          <label>BOD (1-20)</label>
-          <input type="number" id="cfg-bod" min="1" max="20" value="4">
+          <label>BOD (1-50)</label>
+          <input type="number" id="cfg-bod" min="1" max="50" value="4">
           <span class="tip">Deck Body. Resistor against IC attacks on your persona.</span>
         </div>
         <div class="mr-field">
-          <label>Evasion (1-20)</label>
-          <input type="number" id="cfg-evasion" min="1" max="20" value="4">
+          <label>Evasion (1-50)</label>
+          <input type="number" id="cfg-evasion" min="1" max="50" value="4">
           <span class="tip">Deck Evasion. Defense against being traced/located.</span>
         </div>
         <div class="mr-field">
-          <label>Masking (1-20)</label>
-          <input type="number" id="cfg-masking" min="1" max="20" value="4">
+          <label>Masking (1-50)</label>
+          <input type="number" id="cfg-masking" min="1" max="50" value="4">
           <span class="tip">Deck Masking. Reduces Detection Factor -- lower means harder to detect.</span>
         </div>
         <div class="mr-field">
-          <label>Sensor (1-20)</label>
-          <input type="number" id="cfg-sensor" min="1" max="20" value="4">
+          <label>Sensor (1-50)</label>
+          <input type="number" id="cfg-sensor" min="1" max="50" value="4">
           <span class="tip">Deck Sensor. Helps analyze and locate IC/data.</span>
         </div>
 
@@ -91,13 +128,13 @@
         <div class="mr-section-head">&gt;&gt; PERSONA STATS</div>
 
         <div class="mr-field">
-          <label>Computer Skill (1-20)</label>
-          <input type="number" id="cfg-computer" min="1" max="20" value="4">
+          <label>Computer Skill (1-50)</label>
+          <input type="number" id="cfg-computer" min="1" max="50" value="4">
           <span class="tip">Base dice for all system tests.</span>
         </div>
         <div class="mr-field">
-          <label>Intelligence (1-20)</label>
-          <input type="number" id="cfg-intelligence" min="1" max="20" value="4">
+          <label>Intelligence (1-50)</label>
+          <input type="number" id="cfg-intelligence" min="1" max="50" value="4">
           <span class="tip">Hacking Pool: floor((Intel + MPCP) / 3).</span>
         </div>
         <div class="mr-field">
@@ -106,8 +143,8 @@
           <span class="tip">Reaction = ceil((Quickness + Intel) / 2).</span>
         </div>
         <div class="mr-field">
-          <label>Willpower (1-20)</label>
-          <input type="number" id="cfg-willpower" min="1" max="20" value="4">
+          <label>Willpower (1-50)</label>
+          <input type="number" id="cfg-willpower" min="1" max="50" value="4">
           <span class="tip">Resist Black IC and simsense overload.</span>
         </div>
         <div class="mr-field">
@@ -158,111 +195,111 @@
         </div>
 
         <!-- Utilities -->
-        <div class="mr-section-head">&gt;&gt; UTILITIES (RATING 0-20)</div>
+        <div class="mr-section-head">&gt;&gt; UTILITIES (RATING 0-50)</div>
 
         <div class="mr-sub-head">Stealth / Trace</div>
         <div class="mr-field">
           <label>Sleaze <span style="color:#444">(passive DF)</span></label>
-          <input type="number" id="cfg-u-sleaze" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-sleaze" min="0" max="50" value="0">
           <span class="tip">Detection Factor: (Masking + Sleaze) / 2.</span>
         </div>
         <div class="mr-field">
           <label>Camo <span style="color:#444">(Trace Factor +)</span></label>
-          <input type="number" id="cfg-u-camo" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-camo" min="0" max="50" value="0">
           <span class="tip">Adds to Trace Factor. Also reduces Redirect Datatrail TN.</span>
         </div>
 
         <div class="mr-sub-head">Operations</div>
         <div class="mr-field">
           <label>Deception</label>
-          <input type="number" id="cfg-u-deception" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-deception" min="0" max="50" value="0">
           <span class="tip">Logon / Logoff TN reduction.</span>
         </div>
         <div class="mr-field">
           <label>Browse</label>
-          <input type="number" id="cfg-u-browse" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-browse" min="0" max="50" value="0">
           <span class="tip">Locate File / Slave / Access Node.</span>
         </div>
         <div class="mr-field">
           <label>Analyze</label>
-          <input type="number" id="cfg-u-analyze" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-analyze" min="0" max="50" value="0">
           <span class="tip">Analyze IC / Host / Security. Locate IC.</span>
         </div>
         <div class="mr-field">
           <label>Evaluate</label>
-          <input type="number" id="cfg-u-evaluate" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-evaluate" min="0" max="50" value="0">
           <span class="tip">Locate Paydata.</span>
         </div>
         <div class="mr-field">
           <label>Decrypt</label>
-          <input type="number" id="cfg-u-decrypt" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-decrypt" min="0" max="50" value="0">
           <span class="tip">Defeat scramble IC.</span>
         </div>
         <div class="mr-field">
           <label>Crash</label>
-          <input type="number" id="cfg-u-crash" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-crash" min="0" max="50" value="0">
           <span class="tip">Crash application or host.</span>
         </div>
         <div class="mr-field">
           <label>Mirrors</label>
-          <input type="number" id="cfg-u-mirrors" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-mirrors" min="0" max="50" value="0">
           <span class="tip">Decoy operation TN.</span>
         </div>
         <div class="mr-field">
           <label>Validate</label>
-          <input type="number" id="cfg-u-validate" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-validate" min="0" max="50" value="0">
           <span class="tip">Validate / Invalidate Passcode. Dump Log.</span>
         </div>
         <div class="mr-field">
           <label>Read/Write</label>
-          <input type="number" id="cfg-u-read-write" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-read-write" min="0" max="50" value="0">
           <span class="tip">Download / Edit / Upload files.</span>
         </div>
         <div class="mr-field">
           <label>Spoof</label>
-          <input type="number" id="cfg-u-spoof" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-spoof" min="0" max="50" value="0">
           <span class="tip">Control / Edit / Monitor slave systems.</span>
         </div>
         <div class="mr-field">
           <label>Relocate</label>
-          <input type="number" id="cfg-u-relocate" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-relocate" min="0" max="50" value="0">
           <span class="tip">Defeats trace IC during location cycle. Not effective during hunt cycle.</span>
         </div>
 
         <div class="mr-sub-head">Combat / Defense</div>
         <div class="mr-field">
           <label>Attack</label>
-          <input type="number" id="cfg-u-attack" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-attack" min="0" max="50" value="0">
           <span class="tip">Offensive cybercombat pool.</span>
         </div>
         <div class="mr-field">
           <label>Armor</label>
-          <input type="number" id="cfg-u-armor" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-armor" min="0" max="50" value="0">
           <span class="tip">Reduces IC attack Power. Loses 1 rating per hit.</span>
         </div>
         <div class="mr-field">
           <label>Shield</label>
-          <input type="number" id="cfg-u-shield" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-shield" min="0" max="50" value="0">
           <span class="tip">Active parry. Net successes reduce attacker damage. Loses 1 per use.</span>
         </div>
         <div class="mr-field">
           <label>Restore</label>
-          <input type="number" id="cfg-u-restore" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-restore" min="0" max="50" value="0">
           <span class="tip">Repairs BEMS attribute damage from cripplers. 1 pt per 2 successes.</span>
         </div>
         <div class="mr-field">
           <label>Medic</label>
-          <input type="number" id="cfg-u-medic" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-medic" min="0" max="50" value="0">
           <span class="tip">Heals persona CM boxes. Loses 1 rating per use.</span>
         </div>
         <div class="mr-field">
           <label>Cloak</label>
-          <input type="number" id="cfg-u-cloak" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-cloak" min="0" max="50" value="0">
           <span class="tip">Evasion maneuver TN reduction.</span>
         </div>
         <div class="mr-field">
           <label>Lock On</label>
-          <input type="number" id="cfg-u-lock-on" min="0" max="20" value="0">
+          <input type="number" id="cfg-u-lock-on" min="0" max="50" value="0">
           <span class="tip">Sensor maneuver targeting aid.</span>
         </div>
 
@@ -396,11 +433,11 @@
       </div>
       <div class="mr-field">
         <label>Hacking Pool Dice</label>
-        <input type="number" id="atk-hp-dice" min="0" max="20" value="0">
+        <input type="number" id="atk-hp-dice" min="0" max="50" value="0">
       </div>
       <div class="mr-field span2">
         <label>Armor Utility Rating</label>
-        <input type="number" id="atk-armor" min="0" max="20" value="0">
+        <input type="number" id="atk-armor" min="0" max="50" value="0">
         <span class="tip">Your deck's Armor utility rating.</span>
       </div>
     </div>
@@ -424,7 +461,7 @@
       </div>
       <div class="mr-field">
         <label>Utility Rating</label>
-        <input type="number" id="reactive-util-rating" min="1" max="20" value="1">
+        <input type="number" id="reactive-util-rating" min="1" max="50" value="1">
       </div>
     </div>
     <div class="mr-modal-actions">
@@ -443,11 +480,11 @@
     <div class="setup-grid" style="gap:10px">
       <div class="mr-field">
         <label>Hacking Pool Dice</label>
-        <input type="number" id="logoff-hp-dice" min="0" max="20" value="0">
+        <input type="number" id="logoff-hp-dice" min="0" max="50" value="0">
       </div>
       <div class="mr-field">
         <label>Deception Utility Rating</label>
-        <input type="number" id="logoff-deception" min="0" max="20" value="0">
+        <input type="number" id="logoff-deception" min="0" max="50" value="0">
         <span class="tip">Pre-filled from your deck config.</span>
       </div>
     </div>
@@ -475,6 +512,482 @@ let _trapDoorsFound = new Set(); // ids the GM has marked as found
 let _hostKeyPaydata = [];        // key paydata files from host config_json
 let _hostHasTapeworm = false;    // true if host has a Tapeworm worm
 let _retrievedKeyFiles = new Set(); // file names the decker has retrieved
+let _savedDecks = [];
+let _savedLoadouts = [];
+let _runLoadoutDraft = null;
+
+const PROGRAMMER_PROFILE_STORE = 'sr2_deck_programmer_profile_v1';
+const DECK_STORE = 'sr2_decks_v1';
+const LOADOUT_STORE = 'sr2_loadouts_v1';
+
+const UTIL_FIELD_MAP = {
+  sleaze: 'cfg-u-sleaze',
+  camo: 'cfg-u-camo',
+  deception: 'cfg-u-deception',
+  browse: 'cfg-u-browse',
+  analyze: 'cfg-u-analyze',
+  evaluate: 'cfg-u-evaluate',
+  decrypt: 'cfg-u-decrypt',
+  crash: 'cfg-u-crash',
+  mirrors: 'cfg-u-mirrors',
+  validate: 'cfg-u-validate',
+  'read/write': 'cfg-u-read-write',
+  spoof: 'cfg-u-spoof',
+  relocate: 'cfg-u-relocate',
+  attack: 'cfg-u-attack',
+  armor: 'cfg-u-armor',
+  shield: 'cfg-u-shield',
+  restore: 'cfg-u-restore',
+  medic: 'cfg-u-medic',
+  cloak: 'cfg-u-cloak',
+  'lock-on': 'cfg-u-lock-on',
+};
+
+function _parseStoreSafely(raw) {
+  try {
+    return JSON.parse(raw || '[]');
+  } catch (_) {
+    return [];
+  }
+}
+
+function getSavedProgrammerProfile() {
+  try {
+    const raw = localStorage.getItem(PROGRAMMER_PROFILE_STORE);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getProgrammerScopedStoreKey(baseKey) {
+  const profile = getSavedProgrammerProfile();
+  const programmerId = profile?.characterId ? String(profile.characterId) : '';
+  return programmerId ? `${baseKey}_${programmerId}` : `${baseKey}_unassigned`;
+}
+
+function loadScopedStore(baseKey) {
+  return _parseStoreSafely(localStorage.getItem(getProgrammerScopedStoreKey(baseKey)));
+}
+
+function saveScopedStore(baseKey, data) {
+  localStorage.setItem(getProgrammerScopedStoreKey(baseKey), JSON.stringify(data || []));
+}
+
+function targetUsesActive(target) {
+  return target === 'active' || target === 'both';
+}
+
+function targetUsesStorage(target) {
+  // Active-loaded utilities must also exist in storage memory.
+  return target === 'storage' || target === 'both' || target === 'active';
+}
+
+function computeLoadoutUsage(items) {
+  const normalized = (items || []).map(item => ({
+    ...item,
+    target: item?.target || 'active',
+  }));
+
+  const activeUsed = normalized
+    .filter(i => targetUsesActive(i.target))
+    .reduce((sum, i) => sum + (parseInt(i.actualSize, 10) || 0), 0);
+
+  const storageUsed = normalized
+    .filter(i => targetUsesStorage(i.target))
+    .reduce((sum, i) => sum + (parseInt(i.actualSize, 10) || 0), 0);
+
+  return { activeUsed, storageUsed };
+}
+
+function normalizeUtilityName(rawName) {
+  const raw = String(rawName || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw === 'read_write' || raw === 'read/write') return 'read/write';
+  if (raw === 'lock_on' || raw === 'lock-on' || raw === 'lock on') return 'lock-on';
+  return raw;
+}
+
+function getProgramTypeKey(rawName) {
+  const norm = normalizeUtilityName(rawName);
+  if (!norm) return '';
+  if (norm === 'read/write') return 'read_write';
+  if (norm === 'lock-on') return 'lock_on';
+  return norm.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function parseProgramIdentity(item) {
+  const utilName = normalizeUtilityName(item?.utilName || item?.programTypeKey);
+  const baseRating = Math.max(0, parseInt(item?.baseRating, 10) || 0);
+  if (utilName && baseRating > 0) return { utilName, baseRating, typeKey: getProgramTypeKey(utilName) };
+
+  const match = String(item?.label || '').match(/^\s*([^|]+?)-(\d+)\s*\|/);
+  if (!match) return { utilName: '', baseRating: 0, typeKey: '' };
+  const parsedName = normalizeUtilityName(match[1]);
+  return {
+    utilName: parsedName,
+    baseRating: Math.max(0, parseInt(match[2], 10) || 0),
+    typeKey: getProgramTypeKey(parsedName),
+  };
+}
+
+function isOneShotItem(item) {
+  if (!!item?.isOneShot) return true;
+  return /\bone-shot\b/i.test(String(item?.mods || '')) || /\bone-shot\b/i.test(String(item?.label || ''));
+}
+
+function validateLoadoutRules(loadout) {
+  const issues = [];
+  const items = Array.isArray(loadout?.items) ? loadout.items : [];
+
+  const normalTypes = new Set();
+  items.forEach(item => {
+    const target = item?.target || 'active';
+    const parsed = parseProgramIdentity(item);
+    if (!parsed.typeKey) return;
+
+    if (!isOneShotItem(item)) {
+      if (normalTypes.has(parsed.typeKey)) {
+        issues.push(`Duplicate non-One-Shot type: ${parsed.utilName || parsed.typeKey}`);
+      } else {
+        normalTypes.add(parsed.typeKey);
+      }
+    }
+
+    if (targetUsesActive(target) && !(targetUsesStorage(target))) {
+      issues.push(`Active utility missing storage copy: ${parsed.utilName || parsed.typeKey}`);
+    }
+  });
+
+  return issues;
+}
+
+function setUtilityFieldsFromLoadout(loadout) {
+  Object.values(UTIL_FIELD_MAP).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '0';
+  });
+
+  const items = Array.isArray(loadout?.items) ? loadout.items : [];
+  const bestRatings = {};
+  items.forEach(item => {
+    const target = item?.target || 'active';
+    if (!targetUsesActive(target)) return;
+    const parsed = parseProgramIdentity(item);
+    if (!parsed.utilName || parsed.baseRating < 1) return;
+    bestRatings[parsed.utilName] = Math.max(bestRatings[parsed.utilName] || 0, parsed.baseRating);
+  });
+
+  Object.entries(bestRatings).forEach(([utilName, rating]) => {
+    const fieldId = UTIL_FIELD_MAP[utilName];
+    const el = fieldId ? document.getElementById(fieldId) : null;
+    if (el) el.value = String(rating);
+  });
+}
+
+function applySelectedDeckToConfig(deck) {
+  if (!deck) return;
+  const setNum = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el || val === undefined || val === null) return;
+    el.value = String(val);
+  };
+  const setChk = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = !!val;
+  };
+
+  setNum('cfg-mpcp', deck.mpcp || 1);
+  setNum('cfg-bod', deck.pBod || 1);
+  setNum('cfg-evasion', deck.pEvasion || 1);
+  setNum('cfg-masking', deck.pMasking || 1);
+  setNum('cfg-sensor', deck.pSensor || 1);
+  setNum('cfg-hardening', deck.hardening || 0);
+  setNum('cfg-response-increase', deck.respIncrease || 0);
+  setNum('cfg-active-memory', deck.activeMem || 0);
+  setNum('cfg-io-speed', deck.ioSpeed || 0);
+  setChk('cfg-iccm', !!deck.iccm);
+}
+
+function getSelectedDeck() {
+  const sel = document.getElementById('runDeckSelect');
+  if (!sel || !sel.value) return null;
+  return _savedDecks.find(d => d.name === sel.value) || null;
+}
+
+function getSelectedLoadout() {
+  const sel = document.getElementById('runLoadoutSelect');
+  if (!sel || !sel.value) return null;
+  return _savedLoadouts.find(l => l.name === sel.value) || null;
+}
+
+function cloneLoadout(loadout) {
+  if (!loadout) return null;
+  return {
+    name: loadout.name,
+    savedAt: loadout.savedAt,
+    deckMem: loadout.deckMem,
+    items: (Array.isArray(loadout.items) ? loadout.items : []).map(item => ({
+      ...item,
+      target: item?.target || 'active',
+    })),
+  };
+}
+
+function getEffectiveLoadout() {
+  return _runLoadoutDraft || getSelectedLoadout();
+}
+
+function updateDraftBadge() {
+  const badge = document.getElementById('loadoutDraftBadge');
+  const clearBtn = document.getElementById('clearDraftBtn');
+  if (badge) badge.style.display = _runLoadoutDraft ? '' : 'none';
+  if (clearBtn) clearBtn.style.display = _runLoadoutDraft ? '' : 'none';
+}
+
+function clearLoadoutDraft() {
+  _runLoadoutDraft = null;
+  updateDraftBadge();
+  renderLoadoutDraftEditor();
+  const selected = getSelectedLoadout();
+  if (selected) setUtilityFieldsFromLoadout(selected);
+  updateComputedStats();
+  updateRunStartEligibility();
+}
+
+function openLoadoutAdjuster() {
+  const selected = getSelectedLoadout();
+  if (!selected) {
+    showAlert(document.getElementById('pageAlert'), 'Select a saved load-out first.', true);
+    return;
+  }
+  if (!_runLoadoutDraft) {
+    _runLoadoutDraft = cloneLoadout(selected);
+  }
+  updateDraftBadge();
+  renderLoadoutDraftEditor();
+}
+
+function applyDraftTemporarily() {
+  if (!_runLoadoutDraft) return;
+  setUtilityFieldsFromLoadout(_runLoadoutDraft);
+  updateComputedStats();
+  updateRunStartEligibility();
+  showAlert(document.getElementById('pageAlert'), 'Using draft load-out for this run (temporary unless saved).', false);
+}
+
+function updateSelectedLoadoutFromDraft() {
+  if (!_runLoadoutDraft) return;
+  const selected = getSelectedLoadout();
+  if (!selected) {
+    showAlert(document.getElementById('pageAlert'), 'Select a load-out to update.', true);
+    return;
+  }
+  const idx = _savedLoadouts.findIndex(l => l.name === selected.name);
+  if (idx < 0) return;
+  _savedLoadouts[idx] = {
+    ..._runLoadoutDraft,
+    name: selected.name,
+    savedAt: Date.now(),
+  };
+  saveScopedStore(LOADOUT_STORE, _savedLoadouts);
+  renderDeckAndLoadoutSelectors();
+  const loadSel = document.getElementById('runLoadoutSelect');
+  if (loadSel) loadSel.value = selected.name;
+  showAlert(document.getElementById('pageAlert'), `Updated load-out "${selected.name}" from draft.`, false);
+  applyDraftTemporarily();
+}
+
+function saveDraftAsNewLoadout() {
+  if (!_runLoadoutDraft) return;
+  const nameInput = document.getElementById('draftSaveAsName');
+  const name = (nameInput?.value || '').trim();
+  if (!name) {
+    showAlert(document.getElementById('pageAlert'), 'Enter a name to save draft as new load-out.', true);
+    return;
+  }
+  const idx = _savedLoadouts.findIndex(l => l.name === name);
+  const next = {
+    ...cloneLoadout(_runLoadoutDraft),
+    name,
+    savedAt: Date.now(),
+  };
+  if (idx >= 0) _savedLoadouts[idx] = next;
+  else _savedLoadouts.push(next);
+  saveScopedStore(LOADOUT_STORE, _savedLoadouts);
+  renderDeckAndLoadoutSelectors();
+  const loadSel = document.getElementById('runLoadoutSelect');
+  if (loadSel) loadSel.value = name;
+  if (nameInput) nameInput.value = '';
+  _runLoadoutDraft = cloneLoadout(next);
+  updateDraftBadge();
+  renderLoadoutDraftEditor();
+  applyDraftTemporarily();
+  showAlert(document.getElementById('pageAlert'), `Saved draft as load-out "${name}".`, false);
+}
+
+function onDraftTargetChange(index, value) {
+  if (!_runLoadoutDraft || !_runLoadoutDraft.items?.[index]) return;
+  _runLoadoutDraft.items[index].target = value === 'storage' ? 'storage' : 'active';
+  renderLoadoutDraftEditor();
+  applyDraftTemporarily();
+}
+
+function removeDraftItem(index) {
+  if (!_runLoadoutDraft) return;
+  _runLoadoutDraft.items.splice(index, 1);
+  renderLoadoutDraftEditor();
+  applyDraftTemporarily();
+}
+
+function addDraftOneShotCopy(index) {
+  if (!_runLoadoutDraft || !_runLoadoutDraft.items?.[index]) return;
+  const item = _runLoadoutDraft.items[index];
+  if (!isOneShotItem(item)) return;
+  const copy = { ...item, target: 'active' };
+  _runLoadoutDraft.items.splice(index + 1, 0, copy);
+  renderLoadoutDraftEditor();
+  applyDraftTemporarily();
+}
+
+function renderLoadoutDraftEditor() {
+  const panel = document.getElementById('runLoadoutEditor');
+  const body = document.getElementById('runLoadoutEditorBody');
+  if (!panel || !body) return;
+  if (!_runLoadoutDraft) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+
+  const items = Array.isArray(_runLoadoutDraft.items) ? _runLoadoutDraft.items : [];
+  if (!items.length) {
+    body.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem">No programs in draft load-out.</div>';
+    return;
+  }
+
+  body.innerHTML = `<table class="load-prog-table" style="margin:0">
+    <thead><tr><th>#</th><th>Program</th><th>Target</th><th>Size</th><th></th></tr></thead>
+    <tbody>` + items.map((item, idx) => {
+      const parsed = parseProgramIdentity(item);
+      const typeLabel = parsed.utilName || 'unknown';
+      const oneShot = isOneShotItem(item);
+      return `<tr>
+        <td style="color:var(--text-dim)">${idx + 1}</td>
+        <td style="color:var(--cyan)">${esc(item.label || `${typeLabel}-${parsed.baseRating}`)}</td>
+        <td>
+          <select onchange="onDraftTargetChange(${idx}, this.value)" style="padding:3px 6px;font-size:.68rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright)">
+            <option value="active" ${item.target !== 'storage' ? 'selected' : ''}>Active+Storage</option>
+            <option value="storage" ${item.target === 'storage' ? 'selected' : ''}>Storage Only</option>
+          </select>
+        </td>
+        <td style="color:var(--amber)">${fmtN(parseInt(item.actualSize, 10) || 0)} Mp</td>
+        <td style="white-space:nowrap">
+          ${oneShot ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick="addDraftOneShotCopy(${idx})">+1 Active</button>` : ''}
+          <button class="lp-remove-btn" onclick="removeDraftItem(${idx})">[x]</button>
+        </td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function updateRunStartEligibility() {
+  const startBtn = document.getElementById('startRunBtn');
+  const statusEl = document.getElementById('runLoadoutStatus');
+  if (!startBtn || !statusEl) return;
+
+  const profile = getSavedProgrammerProfile();
+  if (!profile?.characterId) {
+    startBtn.disabled = true;
+    statusEl.textContent = 'No active programmer profile. Activate one in Deck Builder first.';
+    return;
+  }
+
+  const deck = getSelectedDeck();
+  const loadout = getEffectiveLoadout();
+  if (!deck || !loadout) {
+    startBtn.disabled = true;
+    statusEl.textContent = 'Select a deck build and a load-out from Deck Builder to start a run.';
+    return;
+  }
+
+  const usage = computeLoadoutUsage(loadout.items || []);
+  const ruleIssues = validateLoadoutRules(loadout);
+  const activeCap = Math.max(0, parseInt(deck.activeMem, 10) || 0);
+  const storageCap = Math.max(0, parseInt(deck.offlineStorage, 10) || 0);
+  const activeOverflow = activeCap > 0 && usage.activeUsed > activeCap;
+  const storageOverflow = storageCap > 0 && usage.storageUsed > storageCap;
+
+  if (ruleIssues.length) {
+    startBtn.disabled = true;
+    statusEl.textContent = `Invalid load-out rules: ${ruleIssues[0]}.`;
+    return;
+  }
+
+  if (activeOverflow || storageOverflow) {
+    startBtn.disabled = true;
+    statusEl.textContent = `Invalid load-out for selected deck: Active ${usage.activeUsed}/${activeCap} Mp, Storage ${usage.storageUsed}/${storageCap} Mp.`;
+    return;
+  }
+
+  startBtn.disabled = false;
+  statusEl.textContent = `Load-out valid: Active ${usage.activeUsed}/${activeCap} Mp, Storage ${usage.storageUsed}/${storageCap} Mp (active utilities require storage).`;
+}
+
+function renderDeckAndLoadoutSelectors() {
+  const deckSel = document.getElementById('runDeckSelect');
+  const loadSel = document.getElementById('runLoadoutSelect');
+  if (!deckSel || !loadSel) return;
+
+  const prevDeck = deckSel.value;
+  const prevLoad = loadSel.value;
+
+  deckSel.innerHTML = '<option value="">-- Select deck build --</option>';
+  _savedDecks.forEach(deck => {
+    const opt = document.createElement('option');
+    opt.value = deck.name;
+    opt.textContent = `${deck.name} [MPCP ${deck.mpcp || '--'}]`;
+    deckSel.appendChild(opt);
+  });
+
+  loadSel.innerHTML = '<option value="">-- Select load-out --</option>';
+  _savedLoadouts.forEach(load => {
+    const count = Array.isArray(load.items) ? load.items.length : 0;
+    const opt = document.createElement('option');
+    opt.value = load.name;
+    opt.textContent = `${load.name} (${count} programs)`;
+    loadSel.appendChild(opt);
+  });
+
+  if (prevDeck && _savedDecks.some(d => d.name === prevDeck)) deckSel.value = prevDeck;
+  if (prevLoad && _savedLoadouts.some(l => l.name === prevLoad)) loadSel.value = prevLoad;
+}
+
+function onDeckSelectionChange() {
+  const deck = getSelectedDeck();
+  if (deck) applySelectedDeckToConfig(deck);
+  updateComputedStats();
+  updateRunStartEligibility();
+}
+
+function onLoadoutSelectionChange() {
+  const loadout = getSelectedLoadout();
+  _runLoadoutDraft = null;
+  updateDraftBadge();
+  renderLoadoutDraftEditor();
+  if (loadout) setUtilityFieldsFromLoadout(loadout);
+  updateComputedStats();
+  updateRunStartEligibility();
+}
+
+function refreshDeckLoadoutSources() {
+  _savedDecks = loadScopedStore(DECK_STORE);
+  _savedLoadouts = loadScopedStore(LOADOUT_STORE);
+  updateDraftBadge();
+  renderLoadoutDraftEditor();
+  renderDeckAndLoadoutSelectors();
+  updateRunStartEligibility();
+}
 
 // -- Action subsystem map ---------------------------------------------------
 const ACTION_SUBSYSTEM = {
@@ -509,8 +1022,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = await bootstrapAuth();
   if (!auth) return;
 
-  // Apply custom number steppers to setup form
-  initNumSteppers(document.getElementById('setupView'));
+  refreshDeckLoadoutSources();
 
   // Wire computed stats listeners
   const calcInputs = [
@@ -618,10 +1130,18 @@ function updateComputedStats() {
   set('stat-df', df);
   set('stat-reaction', reaction);
   set('stat-trace-tn', `${traceTN}+ (-IC rating at run time)`);
+  updateRunStartEligibility();
 }
 
 // -- Start run --------------------------------------------------------------
 async function startRun() {
+  updateRunStartEligibility();
+  const startBtn = document.getElementById('startRunBtn');
+  if (startBtn?.disabled) {
+    showAlert(document.getElementById('pageAlert'), 'Select a valid deck load-out before starting a run.', true);
+    return;
+  }
+
   const hostId = parseInt(document.getElementById('hostSelect').value);
   if (!hostId) { showAlert(document.getElementById('pageAlert'), 'Select a target host.', true); return; }
 
@@ -1350,11 +1870,11 @@ function renderActionArea(state, decker, crashed) {
     <div class="action-controls">
       <div class="mr-field" style="min-width:70px;max-width:90px">
         <label>Util Rating</label>
-        <input type="number" id="actionUtilRating" min="0" max="20" value="0">
+        <input type="number" id="actionUtilRating" min="0" max="50" value="0">
       </div>
       <div class="mr-field" style="min-width:70px;max-width:90px">
         <label>HP Dice</label>
-        <input type="number" id="actionHpDice" min="0" max="20" value="0">
+        <input type="number" id="actionHpDice" min="0" max="50" value="0">
       </div>
       <div class="mr-field" style="min-width:180px">
         <label>Action</label>

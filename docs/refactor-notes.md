@@ -90,3 +90,37 @@ just for line counts.
 [`app/routers/matrix_runs.py:470`](../app/routers/matrix_runs.py#L470) carries a
 comment referencing this note so future readers / agents picking up the file are
 aware.
+
+---
+
+## R2 -- Rate-limit `/matrix-runs2/rules/sheaf-preview`
+
+**Status:** deferred. Surfaced during code review 2026-05-24. Not urgent because
+matrix_runs.py is still being actively reworked; revisit when that file lands its
+next stable cut.
+
+### Where
+[`app/routers/matrix_runs.py`](../app/routers/matrix_runs.py) -- the
+`/rules/sheaf-preview` endpoint (around line 405). Mounted at router-level auth
+(`get_any_token`), so any authenticated runner can call it.
+
+### Why
+The endpoint runs `eng.generate_sheaf` -- a non-trivial RNG/table-roll loop --
+on every call, no caching, no throttle. A bored runner (or compromised token)
+could spam it. Not exploitable for data leakage, but cheap to abuse for CPU.
+
+### Proposed
+Reuse the per-IP backoff pattern from [`app/auth/rate_limit.py`](../app/auth/rate_limit.py)
+or add a simple "N calls per token per minute" check. The save / generate-sheaf
+endpoints are already admin-gated and don't need it.
+
+### Risks
+- The frontend designer hits this endpoint on every parameter tweak (live preview).
+  Whatever limit we set must accommodate that interactive workflow -- something
+  like 30/min per token is probably right; 1/min would break the UX.
+- If we share the auth rate-limit store, make sure "preview" hits don't poison
+  the auth backoff counter.
+
+### When to act
+Before exposing the server to untrusted users in any deployment. Internal
+tabletop use can wait.

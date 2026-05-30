@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class CharacterBase(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     name: str = Field(max_length=200)
     is_pc: bool = True
     archetype: Optional[str] = Field(default=None, max_length=100)
@@ -20,6 +21,18 @@ class CharacterBase(BaseModel):
     owner_token: Optional[str] = Field(default=None, max_length=64)
     contact_skills: list[str] = []
     connection: int = Field(default=1, ge=1, le=6)
+    computer_skill_enabled: bool = False
+    computer_skill_rating: int = Field(default=0, ge=0, le=20)
+    software_skill_enabled: bool = False
+    software_skill_rating: int = Field(default=0, ge=0, le=20)
+    matrix_skill_enabled: bool = False
+    matrix_skill_rating: int = Field(default=0, ge=0, le=20)
+    computer_br_skill_enabled: bool = False
+    computer_br_skill_rating: int = Field(default=0, ge=0, le=20)
+    intelligence: int = Field(default=0, ge=0, le=20)
+    quickness: int = Field(default=0, ge=0, le=12)
+    willpower: int = Field(default=0, ge=0, le=20)
+    body: int = Field(default=0, ge=0, le=12)
     organization_id: Optional[int] = None
 
 
@@ -27,6 +40,7 @@ CharacterCreate = CharacterBase
 
 
 class CharacterUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     name: Optional[str] = Field(default=None, max_length=200)
     is_pc: Optional[bool] = None
     archetype: Optional[str] = Field(default=None, max_length=100)
@@ -43,6 +57,18 @@ class CharacterUpdate(BaseModel):
     owner_token: Optional[str] = Field(default=None, max_length=64)
     contact_skills: Optional[list[str]] = None
     connection: Optional[int] = Field(default=None, ge=1, le=6)
+    computer_skill_enabled: Optional[bool] = None
+    computer_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    software_skill_enabled: Optional[bool] = None
+    software_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    matrix_skill_enabled: Optional[bool] = None
+    matrix_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    computer_br_skill_enabled: Optional[bool] = None
+    computer_br_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    intelligence: Optional[int] = Field(default=None, ge=0, le=20)
+    quickness: Optional[int] = Field(default=None, ge=0, le=12)
+    willpower: Optional[int] = Field(default=None, ge=0, le=20)
+    body: Optional[int] = Field(default=None, ge=0, le=12)
     organization_id: Optional[int] = None
 
 
