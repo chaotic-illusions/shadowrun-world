@@ -438,7 +438,6 @@ def generate_sheaf(
     *,
     security_code: str,
     security_value: int,
-    owner_type: str = "corp",
     step_count: int | None = None,
     seed: int | None = None,
 ) -> list[dict]:

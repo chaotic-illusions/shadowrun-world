@@ -28,6 +28,22 @@ class Character(Base):
     # NPC connection rating (1-6); not applicable to PCs
     connection: Mapped[int] = mapped_column(Integer, default=1)
 
+    # Deck-programming skill controls (PC-focused).
+    computer_skill_enabled: Mapped[bool] = mapped_column(default=False)
+    computer_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
+    software_skill_enabled: Mapped[bool] = mapped_column(default=False)
+    software_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
+    matrix_skill_enabled: Mapped[bool] = mapped_column(default=False)
+    matrix_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
+    computer_br_skill_enabled: Mapped[bool] = mapped_column(default=False)
+    computer_br_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
+    intelligence: Mapped[int] = mapped_column(Integer, default=0)
+    quickness: Mapped[int] = mapped_column(Integer, default=0)
+    willpower: Mapped[int] = mapped_column(Integer, default=0)
+    body: Mapped[int] = mapped_column(Integer, default=0)
+    # Cross-device/browser persisted deck-builder state (programs, loadouts, jobs).
+    deck_builder_state: Mapped[dict] = mapped_column(JSON, default=dict)
+
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
     is_active: Mapped[bool] = mapped_column(default=True)

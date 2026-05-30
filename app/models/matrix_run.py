@@ -12,7 +12,8 @@ class MatrixRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     host_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("matrix_hosts.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("matrix_hosts.id", ondelete="SET NULL"),
+        nullable=True, index=True,
     )
 
     # SHA-256 of the user token that started this run. Mutations require admin or matching owner.

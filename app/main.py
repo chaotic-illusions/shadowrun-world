@@ -44,6 +44,23 @@ async def _migrate_plaintext_owner_tokens():
         print(f"[startup] Hashed {len(rows)} plaintext owner_token(s)")
 
 
+async def _ensure_character_deck_builder_state_column():
+    """Startup safety migration for deck_builder_state on SQLite deployments.
+
+    Some local/container setups may run newer app code against older DB files
+    before Alembic is applied. Add the JSON column in place when missing.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(characters)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "deck_builder_state" in cols:
+            return
+        await conn.exec_driver_sql(
+            "ALTER TABLE characters ADD COLUMN deck_builder_state JSON NOT NULL DEFAULT '{}'"
+        )
+        print("[startup] Added characters.deck_builder_state column")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
@@ -53,6 +70,10 @@ async def lifespan(app: FastAPI):
         await _migrate_plaintext_owner_tokens()
     except Exception:
         logging.getLogger(__name__).exception("owner-token migration failed")
+    try:
+        await _ensure_character_deck_builder_state_column()
+    except Exception:
+        logging.getLogger(__name__).exception("deck-builder-state migration failed")
     yield
 
 

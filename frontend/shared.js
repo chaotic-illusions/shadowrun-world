@@ -383,14 +383,27 @@ function repColorStyle(net_rep) {
 
 
 // -- Number stepper initializer ------------------------------------------------
-// Wraps every input[type=number] inside `root` with [-] input [+] controls.
+// Initialization contract:
+// 1) A single global call runs on DOMContentLoaded below.
+// 2) Individual pages should call initNumSteppers(subtree) only after injecting
+//    new number inputs at runtime (dynamic panels, rows, modals, etc.).
+// Wraps every input[type=number] inside `root` with in-field up/down controls.
 // Safe to call multiple times -- skips already-initialized inputs.
 // Buttons fire once on press, then repeat after 400ms hold at 80ms intervals.
 function initNumSteppers(root) {
   (root || document).querySelectorAll('input[type=number]:not(.ns-init):not(.no-stepper)').forEach(inp => {
     inp.classList.add('ns-init');
     const wrap = document.createElement('div');
-    wrap.className = 'num-stepper';
+    wrap.className = 'infield-num-wrap';
+
+    // Preserve explicit inline widths (e.g. style="width:80px") so in-field
+    // controls stay visually attached to compact numeric fields.
+    const explicitWidth = (inp.style.width || '').trim();
+    if (explicitWidth) {
+      wrap.style.width = explicitWidth;
+      inp.style.width = '100%';
+    }
+
     inp.parentNode.insertBefore(wrap, inp);
     wrap.appendChild(inp);
 
@@ -452,22 +465,32 @@ function initNumSteppers(root) {
       btn.addEventListener('touchcancel', stop);
     }
 
-    const minus = document.createElement('button');
-    minus.type = 'button';
-    minus.className = 'ns-btn';
-    minus.textContent = '-';
-    attachHold(minus, makeStep(-1));
+    const ctrls = document.createElement('div');
+    ctrls.className = 'infield-num-ctrls';
 
-    const plus = document.createElement('button');
-    plus.type = 'button';
-    plus.className = 'ns-btn';
-    plus.textContent = '+';
-    attachHold(plus, makeStep(1));
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'infield-num-btn';
+    up.setAttribute('aria-label', 'Increase value');
+    up.innerHTML = '&#9650;';
+    attachHold(up, makeStep(1));
 
-    wrap.insertBefore(minus, inp);
-    wrap.appendChild(plus);
+    const down = document.createElement('button');
+    down.type = 'button';
+    down.className = 'infield-num-btn';
+    down.setAttribute('aria-label', 'Decrease value');
+    down.innerHTML = '&#9660;';
+    attachHold(down, makeStep(-1));
+
+    ctrls.appendChild(up);
+    ctrls.appendChild(down);
+    wrap.appendChild(ctrls);
   });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  initNumSteppers(document);
+});
 
 // -- Custom tooltip (data-tip) -------------------------------------------------
 (function () {

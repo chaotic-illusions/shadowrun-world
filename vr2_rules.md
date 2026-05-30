@@ -1168,6 +1168,9 @@ Until upgraded, the decker must choose: run with the old (lower) MPCP, or run wi
 
 Active memory limits the utility programs the deck can run at one time. 100 Mp of active memory can run at most 100 Mp of utilities simultaneously.
 
+**App cap (implemented):**
+- Active Memory cannot exceed MPCP Rating x 100 Mp.
+
 **Construction (Installation Task only):**
 - Time: Memory Size / 100 days (round up)
 - Test: Computer B/R (Memory Size / 100, round up) Test
@@ -1255,6 +1258,7 @@ The ICCM (Intrusion Counter-Countermeasures) biofeedback filter:
 I/O Speed determines the maximum bandwidth -- the data transfer rate between the deck and the Matrix.
 
 - Must be built in multiples of 10 Mp.
+- App cap (implemented): I/O Speed cannot exceed MPCP Rating x 10 Mp/CT.
 - Maximum bandwidth = Sensor Rating x MPCP Rating x 10 Mp.
 - Icon bandwidth = sum of all persona program ratings + all loaded utility ratings.
 
@@ -1343,6 +1347,9 @@ Large portable dishes reduce target numbers for satellite location tests by 1. F
 #### Storage Memory
 
 Programs not currently in active memory are stored here. Programs must be in storage memory to be loaded into active memory via Swap Memory operations. Cheaper than active memory.
+
+**App cap (implemented):**
+- Storage Memory has no SR2 hard rules cap, but this app uses a practical upper bound of 65,535 Mp.
 
 **Construction (Installation Task only):**
 - Time: Memory Size / 100 days (round up)
@@ -1644,7 +1651,7 @@ Options affect size in two ways:
 
 - Option-driven rating changes do **not** count against the programmer's maximum designable rating. A Computer-8 programmer can design a base rating-8 utility regardless of how high options push the effective rating.
 - Option-driven rating changes do **not** affect the target number for the programming task. The TN is always based on the **base rating** (e.g., Slow-4 with Area-4 has a programming TN of 4, not 8).
-- Options that have their own ratings (e.g., Area) are capped at the **base rating of the program**. A Slow-4 program cannot have Area higher than 4, even if the programmer's skill is higher.
+- Options that have their own ratings (e.g., Area) are capped at the **base rating of the program**. A Slow-4 program cannot have higher than 4, even if the programmer's skill is higher.
 
 #### Options and Cost
 

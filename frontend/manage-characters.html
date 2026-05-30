@@ -177,6 +177,89 @@
         </div>
       </div>
 
+      <div id="skillsSection" style="display:none">
+        <hr class="rule my-14">
+        <div class="section-head mb-12">MATRIX VITAL STATISTICS</div>
+
+        <div class="grid2 mb-14" style="gap:14px;align-items:start">
+          <div>
+            <div class="skills-head-row">
+              <span class="skills-col-head">Attributes</span>
+              <span class="skills-col-head skills-col-head-rating">Rating</span>
+            </div>
+
+            <div class="mb-8 skills-row">
+              <label class="skills-label">Body</label>
+              <input type="number" id="f-body" class="skills-rating-input" min="0" max="12" value="0">
+              <span id="f-body-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div class="mb-8 skills-row">
+              <label class="skills-label">Quickness</label>
+              <input type="number" id="f-quickness" class="skills-rating-input" min="0" max="12" value="0">
+              <span id="f-quickness-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div class="mb-8 skills-row">
+              <label class="skills-label">Intelligence</label>
+              <input type="number" id="f-intelligence" class="skills-rating-input" min="0" max="20" value="0">
+              <span id="f-intelligence-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div class="mb-8 skills-row">
+              <label class="skills-label">Willpower</label>
+              <input type="number" id="f-willpower" class="skills-rating-input" min="0" max="20" value="0">
+              <span id="f-willpower-display" class="skills-rating-display">0</span>
+            </div>
+          </div>
+
+          <div>
+            <div class="skills-head-row">
+              <span class="skills-col-head">Skills</span>
+              <span class="skills-col-head skills-col-head-rating">Rating</span>
+            </div>
+
+            <div id="skill-row-computer" class="mb-8 skills-row">
+              <label id="skill-label-computer" class="chk-row skills-label">
+                <input type="checkbox" class="chk-reveal" id="f-computer_skill_enabled" onchange="onSkillToggleChange()">
+                Computer
+              </label>
+              <input type="number" id="f-computer_skill_rating" class="skills-rating-input" min="0" max="20" value="0" oninput="onSkillRatingInput(this)">
+              <span id="f-computer_skill_rating-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div id="skill-row-software" class="mb-8 skills-row">
+              <label id="skill-label-software" class="chk-row skills-label">
+                <input type="checkbox" class="chk-reveal" id="f-software_skill_enabled" onchange="onSkillToggleChange()">
+                Software (Concentration)
+              </label>
+              <input type="number" id="f-software_skill_rating" class="skills-rating-input" min="0" max="20" value="0" oninput="onSkillRatingInput(this)">
+              <span id="f-software_skill_rating-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div id="skill-row-matrix" class="mb-8 skills-row">
+              <label id="skill-label-matrix" class="chk-row skills-label">
+                <input type="checkbox" class="chk-reveal" id="f-matrix_skill_enabled" onchange="onSkillToggleChange()">
+                Matrix Programming (Specialization)
+              </label>
+              <input type="number" id="f-matrix_skill_rating" class="skills-rating-input" min="0" max="20" value="0" oninput="onSkillRatingInput(this)">
+              <span id="f-matrix_skill_rating-display" class="skills-rating-display">0</span>
+            </div>
+
+            <div id="skill-row-computer_br" class="mb-8 skills-row">
+              <label id="skill-label-computer_br" class="chk-row skills-label">
+                <input type="checkbox" class="chk-reveal" id="f-computer_br_skill_enabled" onchange="onSkillToggleChange()">
+                Computer B/R (Programming)
+              </label>
+              <input type="number" id="f-computer_br_skill_rating" class="skills-rating-input" min="0" max="20" value="0" oninput="onSkillRatingInput(this)">
+              <span id="f-computer_br_skill_rating-display" class="skills-rating-display">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="skillsRunnerHint" style="font-size:0.62rem;color:var(--text-dim);margin-top:-8px;margin-bottom:12px;letter-spacing:1px;display:none">Runner view shows enabled skills only.</div>
+      </div>
+
       <!-- Organization -->
       <hr class="rule my-14">
       <div class="section-head mb-12">Affiliation</div>
@@ -307,6 +390,7 @@ const PREDEFINED_ARCHETYPES = [
 ];
 
 const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
+const PC_SKILL_KEYS = ['computer', 'software', 'matrix', 'computer_br'];
 
 // Build "Title, OrgName" cell; falls back to "Independent" for no/unknown org
 function titleOrgCell(c) {
@@ -380,6 +464,150 @@ function updatePCLabel() {
   document.getElementById('f-title-wrap').style.display     = isPC ? 'none' : '';
   // Reputation section: admin-only, PC-only; visible for new PCs too
   document.getElementById('repSection').style.display = (isPC && isAdminMode()) ? '' : 'none';
+  syncSkillsSectionUI();
+}
+
+function onSkillToggleChange() {
+  enforceSkillOrder();
+  PC_SKILL_KEYS.forEach(syncSkillRatingRange);
+  syncSkillsSectionUI();
+}
+
+function onSkillRatingInput(inputEl) {
+  const key = String(inputEl.id || '').replace('f-', '').replace('_skill_rating', '');
+  const enabled = !!document.getElementById(`f-${key}_skill_enabled`)?.checked;
+  const min = enabled ? 1 : 0;
+  const v = parseInt(inputEl.value, 10);
+  if (isNaN(v) || v < min) inputEl.value = String(min);
+  else if (v > 20) inputEl.value = '20';
+}
+
+function syncSkillRatingRange(key) {
+  const enabled = !!document.getElementById(`f-${key}_skill_enabled`)?.checked;
+  const ratingEl = document.getElementById(`f-${key}_skill_rating`);
+  if (!ratingEl) return;
+  const min = enabled ? 1 : 0;
+  ratingEl.min = String(min);
+  if (!enabled) {
+    ratingEl.value = '0';
+    return;
+  }
+  const v = parseInt(ratingEl.value, 10);
+  if (isNaN(v) || v < min) ratingEl.value = String(min);
+  else if (v > 20) ratingEl.value = '20';
+}
+
+function setStepperButtonsEnabled(inputEl, enabled) {
+  const wrap = inputEl?.closest('.infield-num-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('.infield-num-btn').forEach(btn => {
+    btn.disabled = !enabled;
+  });
+}
+
+function enforceSkillOrder() {
+  const comp = document.getElementById('f-computer_skill_enabled');
+  const soft = document.getElementById('f-software_skill_enabled');
+  const matrix = document.getElementById('f-matrix_skill_enabled');
+  if (!comp || !soft || !matrix) return;
+
+  if (!comp.checked) {
+    soft.checked = false;
+    matrix.checked = false;
+  }
+  if (!soft.checked) {
+    matrix.checked = false;
+  }
+}
+
+function skillEnabledVal(key) {
+  return !!document.getElementById(`f-${key}_skill_enabled`)?.checked;
+}
+
+function syncSkillsSectionUI() {
+  const isPC = document.getElementById('f-is_pc').checked;
+  const isAdminView = isAdminMode();
+  const section = document.getElementById('skillsSection');
+  const runnerHint = document.getElementById('skillsRunnerHint');
+  const attrIds = ['f-body', 'f-quickness', 'f-intelligence', 'f-willpower'];
+
+  if (!section) return;
+  if (!isPC) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const anyEnabled = PC_SKILL_KEYS.some(k => skillEnabledVal(k));
+  section.style.display = isAdminView ? '' : (anyEnabled ? '' : 'none');
+  if (runnerHint) runnerHint.style.display = isAdminView ? '' : 'none';
+
+  // Attributes: admin shows editable input; runner shows plain number.
+  attrIds.forEach(id => {
+    const attrEl = document.getElementById(id);
+    const dispEl = document.getElementById(id + '-display');
+    if (!attrEl) return;
+    const attrWrap = attrEl.closest('.infield-num-wrap') || attrEl;
+    if (isAdminView) {
+      attrWrap.style.display = '';
+      attrEl.disabled = false;
+      attrEl.classList.remove('skills-rating-disabled');
+      setStepperButtonsEnabled(attrEl, true);
+      if (dispEl) dispEl.style.display = 'none';
+    } else {
+      attrWrap.style.display = 'none';
+      if (dispEl) {
+        dispEl.textContent = attrEl.value;
+        dispEl.style.display = 'block';
+      }
+    }
+  });
+
+  enforceSkillOrder();
+
+  PC_SKILL_KEYS.forEach((key) => {
+    const row = document.getElementById(`skill-row-${key}`);
+    const label = document.getElementById(`skill-label-${key}`);
+    const enabledEl = document.getElementById(`f-${key}_skill_enabled`);
+    const ratingEl = document.getElementById(`f-${key}_skill_rating`);
+    const enabled = !!enabledEl?.checked;
+
+    if (!row || !enabledEl || !ratingEl) return;
+
+    if (isAdminView) {
+      row.style.display = 'grid';
+      if (key === 'computer') enabledEl.disabled = false;
+      else if (key === 'software') enabledEl.disabled = !document.getElementById('f-computer_skill_enabled')?.checked;
+      else if (key === 'matrix') enabledEl.disabled = !document.getElementById('f-software_skill_enabled')?.checked;
+      else enabledEl.disabled = false;
+      ratingEl.disabled = !enabled;
+      syncSkillRatingRange(key);
+    } else {
+      row.style.display = enabled ? 'grid' : 'none';
+      enabledEl.disabled = true;
+      ratingEl.disabled = true;
+      const ratingWrap = ratingEl.closest('.infield-num-wrap') || ratingEl;
+      ratingWrap.style.display = 'none';
+      const ratingDisp = document.getElementById(ratingEl.id + '-display');
+      if (ratingDisp) {
+        ratingDisp.textContent = ratingEl.value;
+        ratingDisp.style.display = enabled ? 'block' : 'none';
+      }
+    }
+
+    if (isAdminView) {
+      const ratingWrap = ratingEl.closest('.infield-num-wrap') || ratingEl;
+      ratingWrap.style.display = '';
+      const ratingDisp = document.getElementById(ratingEl.id + '-display');
+      if (ratingDisp) ratingDisp.style.display = 'none';
+    }
+    setStepperButtonsEnabled(ratingEl, !ratingEl.disabled);
+
+    if (label) {
+      label.classList.toggle('skills-label-disabled', enabledEl.disabled);
+      label.classList.toggle('skills-label-inactive', !enabled);
+    }
+    ratingEl.classList.toggle('skills-rating-disabled', ratingEl.disabled);
+  });
 }
 
 const PC_REP_TIERS = [
@@ -533,11 +761,24 @@ function openModal(id) {
   document.getElementById('f-background').value    = ch?.background || '';
   document.getElementById('f-notes').value         = ch?.notes || '';
   document.getElementById('f-contact_skills').value = (ch?.contact_skills || []).join('\n');
+  document.getElementById('f-computer_skill_enabled').checked = !!ch?.computer_skill_enabled;
+  document.getElementById('f-computer_skill_rating').value = ch?.computer_skill_rating ?? 0;
+  document.getElementById('f-software_skill_enabled').checked = !!ch?.software_skill_enabled;
+  document.getElementById('f-software_skill_rating').value = ch?.software_skill_rating ?? 0;
+  document.getElementById('f-matrix_skill_enabled').checked = !!ch?.matrix_skill_enabled;
+  document.getElementById('f-matrix_skill_rating').value = ch?.matrix_skill_rating ?? 0;
+  document.getElementById('f-computer_br_skill_enabled').checked = !!ch?.computer_br_skill_enabled;
+  document.getElementById('f-computer_br_skill_rating').value = ch?.computer_br_skill_rating ?? 0;
+  document.getElementById('f-intelligence').value = ch?.intelligence ?? 0;
+  document.getElementById('f-quickness').value = ch?.quickness ?? 0;
+  document.getElementById('f-willpower').value = ch?.willpower ?? 0;
+  document.getElementById('f-body').value = ch?.body ?? 0;
   setConnectionValue(ch?.connection ?? 1);
   document.getElementById('addLinkForm').style.display = 'none';
   updatePCLabel();
   document.getElementById('f-type-wrap').style.display = '';
   document.getElementById('f-is_pc').disabled = !isAdminMode();
+  syncSkillsSectionUI();
   renderContactLinks();
 
   // Load reputation for existing PCs (admin mode only)
@@ -578,11 +819,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 async function saveChar() {
   const name  = document.getElementById('f-name').value.trim();
+  const isPC = document.getElementById('f-is_pc').checked;
   const title = document.getElementById('f-title').value.trim();
   if (!name)  { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
-  if (!title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
+  if (!isPC && !title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
 
-  const isPC = document.getElementById('f-is_pc').checked;
   const orgVal = document.getElementById('f-organization_id').value;
   const skillsRaw = document.getElementById('f-contact_skills').value;
   let archetypeVal;
@@ -597,11 +838,12 @@ async function saveChar() {
       ? (document.getElementById('f-archetype-custom').value.trim() || null)
       : (npcSel || null);
   }
+  const effectiveTitle = isPC ? (archetypeVal || null) : (title || null);
   const payload = (editingId && !isAdminMode())
     // Player editing their own PC -- only send fields they're allowed to modify
     ? {
         name,
-        title:       document.getElementById('f-title').value.trim() || null,
+        title:       effectiveTitle,
         archetype:   archetypeVal,
         race:        document.getElementById('f-race').value || 'Human',
         gender:      document.getElementById('f-gender').value.trim() || null,
@@ -615,7 +857,7 @@ async function saveChar() {
     // Admin -- full payload
     : {
         name,
-        title:           document.getElementById('f-title').value.trim() || null,
+      title:           effectiveTitle,
         archetype:       archetypeVal,
         race:            document.getElementById('f-race').value || 'Human',
         gender:          document.getElementById('f-gender').value.trim() || null,
@@ -629,6 +871,34 @@ async function saveChar() {
         notes:           document.getElementById('f-notes').value.trim() || null,
         contact_skills:  isPC ? [] : skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
         connection:      isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
+        computer_skill_enabled: isPC ? !!document.getElementById('f-computer_skill_enabled').checked : false,
+        computer_skill_rating: isPC
+          ? (document.getElementById('f-computer_skill_enabled').checked
+              ? Math.min(20, Math.max(1, parseInt(document.getElementById('f-computer_skill_rating').value) || 1))
+              : 0)
+          : 0,
+        software_skill_enabled: isPC ? !!document.getElementById('f-software_skill_enabled').checked : false,
+        software_skill_rating: isPC
+          ? (document.getElementById('f-software_skill_enabled').checked
+              ? Math.min(20, Math.max(1, parseInt(document.getElementById('f-software_skill_rating').value) || 1))
+              : 0)
+          : 0,
+        matrix_skill_enabled: isPC ? !!document.getElementById('f-matrix_skill_enabled').checked : false,
+        matrix_skill_rating: isPC
+          ? (document.getElementById('f-matrix_skill_enabled').checked
+              ? Math.min(20, Math.max(1, parseInt(document.getElementById('f-matrix_skill_rating').value) || 1))
+              : 0)
+          : 0,
+        computer_br_skill_enabled: isPC ? !!document.getElementById('f-computer_br_skill_enabled').checked : false,
+        computer_br_skill_rating: isPC
+          ? (document.getElementById('f-computer_br_skill_enabled').checked
+              ? Math.min(20, Math.max(1, parseInt(document.getElementById('f-computer_br_skill_rating').value) || 1))
+              : 0)
+          : 0,
+        intelligence: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-intelligence').value) || 0)) : 0,
+        quickness: isPC ? Math.min(12, Math.max(0, parseInt(document.getElementById('f-quickness').value) || 0)) : 0,
+        willpower: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-willpower').value) || 0)) : 0,
+        body: isPC ? Math.min(12, Math.max(0, parseInt(document.getElementById('f-body').value) || 0)) : 0,
       };
 
   try {
@@ -637,6 +907,19 @@ async function saveChar() {
     const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
     if (!res.ok) await apiThrow(res);
     const saved = await res.json().catch(() => ({}));
+
+    // Guard against silent schema drift: if new skill fields are dropped server-side,
+    // fail loudly so the issue is fixed immediately instead of appearing to save.
+    if (isAdminMode() && isPC) {
+      const expectedEnabled = !!payload.computer_br_skill_enabled;
+      const expectedRating = expectedEnabled ? (payload.computer_br_skill_rating || 0) : 0;
+      const gotEnabled = !!saved.computer_br_skill_enabled;
+      const gotRating = gotEnabled ? (saved.computer_br_skill_rating || 0) : 0;
+      if (expectedEnabled !== gotEnabled || expectedRating !== gotRating) {
+        throw new Error('Computer B/R was not persisted by the API. Rebuild/restart backend and verify character schema/route wiring.');
+      }
+    }
+
     const savedId = editingId || saved?.id;
 
     // Save reputation for PCs (admin mode only)

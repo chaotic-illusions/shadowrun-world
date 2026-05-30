@@ -103,11 +103,7 @@
             </div>
             <div class="mx-field" style="flex:1;min-width:0">
               <label>Security Value <span style="color:var(--text-dim)">(2-14)</span></label>
-              <div class="num-stepper">
-                <button class="ns-btn" onmousedown="svHoldStart(-1)" onmouseup="svHoldStop()" onmouseleave="svHoldStop()" data-tip="Decrease Security Value by 1.">-</button>
-                <input type="text" inputmode="numeric" id="secValue" value="9" oninput="onSecValueChange()" data-tip="Host dice pool. High value means more difficult host.">
-                <button class="ns-btn" onmousedown="svHoldStart(1)" onmouseup="svHoldStop()" onmouseleave="svHoldStop()" data-tip="Increase Security Value by 1.">+</button>
-              </div>
+              <input type="number" id="secValue" min="2" max="14" step="1" value="9" oninput="onSecValueChange()" data-tip="Host dice pool. High value means more difficult host.">
               <div class="tip" id="secValueTip">Dice the host rolls on all opposed tests. Range: 2-14.</div>
             </div>
           </div>
@@ -151,23 +147,23 @@
             <div class="acifs-grid">
               <div class="acifs-cell">
                 <label data-tip="Host's resistance to unauthorized access">Access</label>
-                <input type="number" id="acifA" min="1" max="20" placeholder="--" data-tip="Host's resistance to unauthorized access">
+                <input type="number" id="acifA" min="1" max="50" placeholder="--" data-tip="Host's resistance to unauthorized access">
               </div>
               <div class="acifs-cell">
                 <label data-tip="Governs manipulation of hardware and slave devices attached to the host.">Control</label>
-                <input type="number" id="acifC" min="1" max="20" placeholder="--" data-tip="Governs manipulation of hardware and slave devices attached to the host.">
+                <input type="number" id="acifC" min="1" max="50" placeholder="--" data-tip="Governs manipulation of hardware and slave devices attached to the host.">
               </div>
               <div class="acifs-cell">
                 <label data-tip="Governs searching for files, data stores, and hidden subsystems.">Index</label>
-                <input type="number" id="acifI" min="1" max="20" placeholder="--" data-tip="Governs searching for files, data stores, and hidden subsystems.">
+                <input type="number" id="acifI" min="1" max="50" placeholder="--" data-tip="Governs searching for files, data stores, and hidden subsystems.">
               </div>
               <div class="acifs-cell">
                 <label data-tip="Governs reading, copying, editing, and erasing data files.">Files</label>
-                <input type="number" id="acifF" min="1" max="20" placeholder="--" data-tip="Governs reading, copying, editing, and erasing data files.">
+                <input type="number" id="acifF" min="1" max="50" placeholder="--" data-tip="Governs reading, copying, editing, and erasing data files.">
               </div>
               <div class="acifs-cell">
                 <label data-tip="Governs direct control of slaved peripherals and remote sensors.">Slave</label>
-                <input type="number" id="acifS" min="1" max="20" placeholder="--" data-tip="Governs direct control of slaved peripherals and remote sensors.">
+                <input type="number" id="acifS" min="1" max="50" placeholder="--" data-tip="Governs direct control of slaved peripherals and remote sensors.">
               </div>
             </div>
             <div class="tip" id="acifsTip">Deckers must beat each rating to perform that operation type. Select an Intrusion Difficulty to see typical ranges.</div>
@@ -228,7 +224,7 @@
                 style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);appearance:none;-webkit-appearance:none;-moz-appearance:none;min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
                 <option value="">-- select target --</option>
               </select>
-              <input type="number" id="dbRating" min="1" max="20" placeholder="Rtg"
+              <input type="number" id="dbRating" min="1" max="50" placeholder="Rtg"
                 data-tip="Data Bomb rating. Higher rating increases damage and resistance."
                 style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
             </div>
@@ -260,7 +256,7 @@
                 style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
                 <option value="">-- select target --</option>
               </select>
-              <input type="number" id="scrRating" min="1" max="20" placeholder="Rtg"
+              <input type="number" id="scrRating" min="1" max="50" placeholder="Rtg"
                 data-tip="Scramble rating. This is the decrypt target number."
                 style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
             </div>
@@ -299,7 +295,7 @@
                 <option value="Files">Files</option>
                 <option value="Slave">Slave</option>
               </select>
-              <input type="number" id="wrmRating" min="1" max="20" placeholder="Rtg"
+              <input type="number" id="wrmRating" min="1" max="50" placeholder="Rtg"
                 data-tip="Worm rating. Higher rating increases the threat."
                 style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
             </div>
@@ -354,10 +350,10 @@
           <div class="flex-gap8 mb-12">
             <div style="display:flex;flex-direction:column;gap:3px">
               <label style="font-size:.58rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase">Step Count</label>
-              <input type="number" id="stepCountOverride" min="1" max="20" placeholder="auto"
+              <input type="number" id="stepCountOverride" min="1" max="50" placeholder="auto"
                 data-auto-at-min="true"
                 data-tip="Optional manual step count. Leave blank for auto."
-                style="width:54px;padding:5px 6px;font-size:.78rem;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                style="width:92px;padding:5px 6px;font-size:.78rem;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
             </div>
             <button class="btn btn-green" onclick="generateSheaf()" id="generateBtn" style="align-self:flex-end" data-tip="Generate a sheaf using the current security profile.">&gt;&gt; Generate Sheaf</button>
             <div id="genSpinner" style="display:none;align-self:flex-end;font-size:.7rem;letter-spacing:2px;color:var(--text-dim)">GENERATING...</div>
@@ -459,8 +455,8 @@
     <div id="icEditHeader" style="font-size:.72rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase">Edit IC Event: IC</div>
     <div style="display:flex;align-items:center;gap:6px">
       <label for="icEditRating" style="font-size:.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;min-width:52px">Rating</label>
-      <input type="number" id="icEditRating" min="1" max="20" placeholder="1-20"
-        class="edit-modal-input" style="max-width:110px" data-tip="IC rating 1-20">
+      <input type="number" id="icEditRating" min="1" max="50" placeholder="1-50"
+        class="edit-modal-input" style="max-width:110px" data-tip="IC rating 1-50">
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.68rem;color:var(--text-bright)">
       <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Armor: increases resistance against attacks."><input type="checkbox" class="chk-reveal" id="icEditArmor"> Armor</label>
@@ -735,18 +731,38 @@ const SEC_CODE_TIPS = {
   Black:  'Extremely rare. Qualitatively different cyberspace. Hot decks required. Not for the faint of heart.',
 };
 
-// VR2.0 Random Host Rating Generation (vr2_rules.md lines 278-286)
-const DIFFICULTY_INFO = {
-  Easy:    { svRange: '4-6',  svFormula: '1D3+3',  acifRange: '8-10',  acifFormula: '1D3+7' },
-  Average: { svRange: '7-9',  svFormula: '1D3+6',  acifRange: '11-15', acifFormula: '2D3+9' },
-  Hard:    { svRange: '8-12', svFormula: '2D3+6',  acifRange: '13-18', acifFormula: '1D6+12' },
-};
+// VR2.0 host design tables -- fetched from /matrix-runs2/rules/host-difficulty
+// and /matrix-runs2/rules/paydata-table. Single source of truth lives in
+// app/services/matrix_rules.py. Populated by loadHostRules() during init.
+let DIFFICULTY_INFO = {};   // { Easy: {sv_range:[4,6], sv_formula:'1D3+3', subsystem_range:[8,10], acif_formula:'1D3+7', codes:[...], description:''}, ... }
+let PAYDATA_INFO   = {};    // { Blue: {points_roll:'1D6-1', density_roll:'2D6x20 Mp', base_value:5000}, ... }
 
-const DIFFICULTY_TIPS = {
-  Easy:    'Friendly, high-traffic system. SV: 1D3+3 (4-6). ACIFS: 1D3+7 each (8-10).',
-  Average: 'Standard corp/government system. SV: 1D3+6 (7-9). ACIFS: 2D3+9 each (11-15).',
-  Hard:    'High-security or Top Secret system. SV: 2D3+6 (8-12). ACIFS: 1D6+12 each (13-18).',
-};
+function _difficultyRangeStr(diff, key) {
+  const r = DIFFICULTY_INFO[diff]?.[key];
+  return Array.isArray(r) && r.length === 2 ? `${r[0]}-${r[1]}` : '--';
+}
+function svRangeStr(diff)   { return _difficultyRangeStr(diff, 'sv_range'); }
+function acifRangeStr(diff) { return _difficultyRangeStr(diff, 'subsystem_range'); }
+function acifFormulaStr(diff) { return DIFFICULTY_INFO[diff]?.acif_formula || ''; }
+
+function difficultyTip(diff) {
+  const info = DIFFICULTY_INFO[diff];
+  if (!info) return '';
+  return `${info.description || ''} SV: ${info.sv_formula} (${svRangeStr(diff)}). ACIFS: ${info.acif_formula} each (${acifRangeStr(diff)}).`.trim();
+}
+
+// Parse a dice expression like "1D3+7", "2D6-1", "2D6x20", "3D6x5 Mp".
+// Trailing units (e.g. " Mp") are ignored. Returns 0 if unparseable.
+function rollFormula(s) {
+  const m = String(s || '').match(/(\d+)D(\d+)(?:([+-])(\d+))?(?:x(\d+))?/i);
+  if (!m) return 0;
+  const n = +m[1], sides = +m[2];
+  const mod = m[4] ? +m[4] * (m[3] === '-' ? -1 : 1) : 0;
+  const mult = m[5] ? +m[5] : 1;
+  let total = mod;
+  for (let i = 0; i < n; i++) total += Math.floor(Math.random() * sides) + 1;
+  return total * mult;
+}
 
 const OWNER_TYPE_TIPS = {
   public:     'Public access -- open municipal or civic node. Minimal IC, very low SV. Entry is trivial; the risk is exposure and logging, not resistance.',
@@ -823,9 +839,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog()]);
+  await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog(), loadHostRules()]);
   renderWizardStepsBar();
-  initNumSteppers(document);
   wireIcEditModal();
   wireSaveStateModal();
   startPolling(refreshCurrentHost, 2500);
@@ -838,6 +853,17 @@ async function loadIcInfo() {
     const res = await apiFetch('/matrix-runs2/rules/ic-info');
     if (!res.ok) return;
     icInfo = await res.json();
+  } catch (_) {}
+}
+
+async function loadHostRules() {
+  try {
+    const [diffRes, payRes] = await Promise.all([
+      apiFetch('/matrix-runs2/rules/host-difficulty'),
+      apiFetch('/matrix-runs2/rules/paydata-table'),
+    ]);
+    if (diffRes.ok) DIFFICULTY_INFO = await diffRes.json();
+    if (payRes.ok)  PAYDATA_INFO   = await payRes.json();
   } catch (_) {}
 }
 
@@ -1163,27 +1189,11 @@ function onSecCodeChange() {
   if (wizardStep === 6) renderSheaf();
 }
 
-let _svTimer = null, _svInterval = null;
-function svStep(delta) {
-  const el  = $('secValue');
-  const cur = parseInt(el.value, 10);
-  el.value  = Math.min(14, Math.max(2, (isNaN(cur) ? 9 : cur) + delta));
-  onSecValueChange();
-}
-function svHoldStart(delta) {
-  svStep(delta);
-  _svTimer = setTimeout(() => { _svInterval = setInterval(() => svStep(delta), 80); }, 400);
-}
-function svHoldStop() {
-  clearTimeout(_svTimer);
-  clearInterval(_svInterval);
-}
-
 function onSecValueChange() {
   const sv   = parseInt($('secValue').value, 10);
   const diff = $('intrusionDifficulty').value;
   if (!isNaN(sv) && sv > 0) {
-    const guide = diff && DIFFICULTY_INFO[diff] ? ` Typical for ${diff}: ${DIFFICULTY_INFO[diff].svRange}.` : '';
+    const guide = diff && DIFFICULTY_INFO[diff] ? ` Typical for ${diff}: ${svRangeStr(diff)}.` : '';
     $('secValueTip').textContent = `Host rolls ${sv} dice on all opposed tests.${guide}`;
   } else {
     $('secValueTip').textContent = 'Dice the host rolls on all opposed tests. Range: 2-14, independent of security code.';
@@ -1191,22 +1201,16 @@ function onSecValueChange() {
   updateSummary();
 }
 
-const DIFFICULTY_ACIF_BOUNDS = {
-  Easy:    { min: 8,  max: 10 },
-  Average: { min: 11, max: 15 },
-  Hard:    { min: 13, max: 18 },
-};
-
 function onDifficultyChange() {
   const d      = $('intrusionDifficulty').value;
-  const bounds = d ? (DIFFICULTY_ACIF_BOUNDS[d] || null) : null;
+  const range  = d ? DIFFICULTY_INFO[d]?.subsystem_range : null;
   for (const id of ['acifA', 'acifC', 'acifI', 'acifF', 'acifS']) {
     const el = $(id);
     if (!el) continue;
-    if (bounds) {
-      el.min = bounds.min;
-      el.max = bounds.max;
-      el.placeholder = `${bounds.min}-${bounds.max}`;
+    if (Array.isArray(range) && range.length === 2) {
+      el.min = range[0];
+      el.max = range[1];
+      el.placeholder = `${range[0]}-${range[1]}`;
     } else {
       el.min = 1;
       el.max = 20;
@@ -1214,10 +1218,10 @@ function onDifficultyChange() {
     }
   }
   if (d && DIFFICULTY_INFO[d]) {
-    const info = DIFFICULTY_INFO[d];
-    $('difficultyTip').textContent = DIFFICULTY_TIPS[d];
-    $('acifsTip').textContent = `${d}: ACIFS ${info.acifRange} (${info.acifFormula} per subsystem). Deckers must beat each rating for that operation type.`;
-    $('quickFillBtn').textContent = `>> Quick-Fill ACIFS (${d}: ${info.acifFormula})`;
+    const formula = acifFormulaStr(d);
+    $('difficultyTip').textContent = difficultyTip(d);
+    $('acifsTip').textContent = `${d}: ACIFS ${acifRangeStr(d)} (${formula} per subsystem). Deckers must beat each rating for that operation type.`;
+    $('quickFillBtn').textContent = `>> Quick-Fill ACIFS (${d}: ${formula})`;
     onSecValueChange();
   } else {
     $('difficultyTip').textContent = 'Determines typical SV and ACIFS ranges for random generation. Independent of security code.';
@@ -1234,16 +1238,9 @@ function onOwnerTypeChange() {
 
 // --- Quick-fill ACIFS --------------------------------------------------------
 
-function _d3() { return Math.floor(Math.random() * 3) + 1; }
-function _d6() { return Math.floor(Math.random() * 6) + 1; }
-
 function _rollAcif(difficulty) {
-  switch (difficulty) {
-    case 'Easy':    return _d3() + 7;
-    case 'Average': return _d3() + _d3() + 9;
-    case 'Hard':    return _d6() + 12;
-    default:        return null;
-  }
+  const formula = acifFormulaStr(difficulty);
+  return formula ? rollFormula(formula) : null;
 }
 
 async function quickFillAcifs() {
@@ -1333,15 +1330,8 @@ function removeDataBomb(i) {
 
 function _rollPaydataDensity() {
   const code = $('secCode')?.value || '';
-  const d6 = () => Math.floor(Math.random() * 6) + 1;
-  switch (code) {
-    case 'Blue':   return (d6() + d6()) * 20;
-    case 'Green':  return (d6() + d6()) * 15;
-    case 'Orange': return (d6() + d6()) * 10;
-    case 'Red':    return (d6() + d6()) * 5;
-    case 'Black':  return (d6() + d6() + d6()) * 5;
-    default:       return (d6() + d6()) * 10;
-  }
+  const formula = PAYDATA_INFO[code]?.density_roll || PAYDATA_INFO.Orange?.density_roll || '2D6x10';
+  return rollFormula(formula);
 }
 
 function renderPaydata() {
@@ -2522,7 +2512,7 @@ function renderStepHTML(step, si, alertState) {
         <input class="sheaf-trigger-input" type="number" min="${minTrig}" max="${maxTrig}"
           value="${esc(String(step.trigger ?? 0))}"
           onchange="updateTrigger(${si}, this.value)"
-          style="width:44px;padding:3px 4px;text-align:center"
+          style="width:92px;padding:3px 4px;text-align:center"
           data-tip="Trigger threshold: min ${minTrig}${maxTrig < 9999 ? ', max ' + maxTrig : ''} (ordered by prior/next step)">
       </div>
       <div class="sheaf-events" id="events-${si}">
@@ -2698,7 +2688,7 @@ function renderAddEventRow(si) {
         </optgroup>
       </select>
       <span id="ratingFieldWrap-${si}" style="display:none;align-items:center;gap:4px">
-        <input type="number" id="addEvRating-${si}" min="1" max="20" placeholder="?" value="${guessRating()}"
+        <input type="number" id="addEvRating-${si}" min="1" max="50" placeholder="?" value="${guessRating()}"
           style="width:52px;padding:3px 6px;font-size:.72rem;${inputStyle}" data-tip="Set the rating for the selected IC or event.">
       </span>
       <div id="icOptsRow-${si}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;width:100%;padding-left:2px">
@@ -2738,13 +2728,13 @@ function renderAddEventRow(si) {
           <option value="Probe">Surface: Probe</option>
           <option value="Trace">Surface: Trace</option>
         </select>
-        <input type="number" id="trapSurfaceRtg-${si}" min="1" max="20" placeholder="Rtg"
+        <input type="number" id="trapSurfaceRtg-${si}" min="1" max="50" placeholder="Rtg"
           style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Surface IC rating.">
         <span style="color:var(--text-dim);font-size:.8rem">-></span>
         <select id="trapHidden-${si}" style="padding:3px 6px;font-size:.72rem;${selectStyle}" data-tip="Choose the hidden payload IC.">
           ${hiddenIcOptions}
         </select>
-        <input type="number" id="trapHiddenRtg-${si}" min="1" max="20" placeholder="Rtg"
+        <input type="number" id="trapHiddenRtg-${si}" min="1" max="50" placeholder="Rtg"
           style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Hidden payload rating.">
       </div>
       <div id="groupIcBuilder-${si}" style="display:none;flex-direction:column;gap:6px;width:100%;margin-top:4px">
@@ -2757,7 +2747,7 @@ function renderAddEventRow(si) {
           <select id="groupIcType-${si}" style="flex:1;min-width:120px;padding:3px 6px;font-size:.72rem;${selectStyle}">
             ${groupIcOptions}
           </select>
-          <input type="number" id="groupIcRating-${si}" min="1" max="20" placeholder="Rtg"
+          <input type="number" id="groupIcRating-${si}" min="1" max="50" placeholder="Rtg"
             style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}">
           <button class="btn btn-ghost btn-sm" onclick="addGroupComponent(${si})" style="padding:3px 8px">+ IC</button>
         </div>
@@ -3025,9 +3015,9 @@ function syncIcEditExpertUI() {
     if (casc.parentElement) casc.parentElement.style.opacity = _icEditCascadeAllowed ? '' : '0.45';
   }
 
-  const stepper = val.closest('.num-stepper');
+  const stepper = val.closest('.infield-num-wrap');
   if (stepper) {
-    stepper.querySelectorAll('.ns-btn').forEach(btn => {
+    stepper.querySelectorAll('.infield-num-btn').forEach(btn => {
       btn.disabled = !on;
       btn.style.opacity = on ? '' : '0.35';
       btn.style.cursor = on ? '' : 'default';
@@ -3458,7 +3448,7 @@ function renderTraceBranchHTML(branch, si) {
             <option value="shutdown">Shutdown</option>
           </optgroup>
         </select>
-        <input type="number" id="brTrEvRating-${si}-${side}" min="1" max="20" placeholder="Rtg"
+        <input type="number" id="brTrEvRating-${si}-${side}" min="1" max="50" placeholder="Rtg"
           style="width:44px;padding:2px 4px;font-size:.7rem;${inStyle}">
         <button class="btn btn-ghost btn-sm" onclick="commitTraceBranchEvent(${si},'${side}')" style="padding:2px 7px;font-size:.6rem">+ Add</button>
       </div>`;
@@ -3762,3 +3752,4 @@ async function createHost() {
 </script>
 </body>
 </html>
+
