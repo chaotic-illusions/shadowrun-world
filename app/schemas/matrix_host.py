@@ -12,6 +12,7 @@ class MatrixHostCreate(BaseModel):
     notes: Optional[str] = None
     ltg_address: Optional[str] = Field(default=None, max_length=100)
     trap_doors_json: Optional[list[dict[str, Any]]] = None
+    is_visible_to_players: bool = False
 
 
 class MatrixHostUpdate(BaseModel):
