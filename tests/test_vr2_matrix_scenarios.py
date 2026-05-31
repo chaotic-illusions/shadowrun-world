@@ -310,3 +310,40 @@ class TestDetectionAndTrace:
         decker = {"evasion": 1, "trace_factor": -10, "bandwidth_modifier": 0, "utilities": {}}
         eff = {"evasion": 1}
         assert mr._compute_trace_tn({"redirects_placed": 0}, decker, 9, eff) == 2
+
+
+class TestLiveDetectionFactor:
+    """vr2_rules Detection Factor + Suppression -- DF is recomputed live, not frozen."""
+
+    def _decker(self, masking=6, sleaze=8):
+        return {"bod": 6, "evasion": 6, "masking": masking, "sensor": 6, "mpcp": 6,
+                "utilities": {"sleaze": sleaze}}
+
+    def test_base_matches_masking_sleaze_average(self):
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 0}, "mpcp_damage": 0}
+        # M6/S8 -> 7
+        assert mr._effective_detection_factor(state, self._decker(6, 8)) == 7
+
+    def test_masking_crippler_lowers_detection_factor(self):
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 4}, "mpcp_damage": 0}
+        # Masking 6->2, with Sleaze 8 -> ceil((2+8)/2) = 5
+        assert mr._effective_detection_factor(state, self._decker(6, 8)) == 5
+
+    def test_suppression_subtracts_one_per_ic(self):
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 0}, "mpcp_damage": 0}
+        state["active_ic"] = [
+            {"status": "active", "suppressed": True},
+            {"status": "active", "suppressed": True},
+            {"status": "active", "suppressed": False},  # not suppressed -> no DF cost
+        ]
+        # base 7 - 2 suppressed = 5
+        assert mr._effective_detection_factor(state, self._decker(6, 8)) == 5
+
+    def test_detection_factor_floored_at_one(self):
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 5}, "mpcp_damage": 0}
+        state["active_ic"] = [{"status": "active", "suppressed": True} for _ in range(9)]
+        assert mr._effective_detection_factor(state, self._decker(6, 0)) == 1
