@@ -109,7 +109,38 @@ Analyze success flag on each active_ic entry).
 - Remaining: surface the "utility wiped from all storage -- reload via Swap Memory" consequence
   in the run UI.
 
-## #11 Satlink + masking / detection-factor modifiers -- [DONE engine, GAP satlink jackpoint]
+## #11 -- COMPLETE MODIFIER INVENTORY (from full vr2_rules sweep 2026-05-31)
+
+The user asked to find ALL detection/masking/test modifiers, not just satlink. Full list:
+
+**Detection Factor inputs/modifiers:**
+- Base = ceil-avg(Masking, Sleaze), or ceil(Masking/2) if no Sleaze. [WIRED]
+- Marker / Mark-rip crippler reduces Masking -> lowers DF. [WIRED NOW -- live DF]
+- Suppression: -1 DF per suppressed IC, floor 1; restored on release (+tally). [DF math WIRED NOW;
+  the suppress/release *action* endpoint is still a separate TODO -- nothing sets suppressed=True yet]
+- Masking persona Mode: +50% Masking (raises DF); other BEMS modes reduce it. [GAP -- modes unmodelled]
+
+**Trace Factor (line 578): TF = Evasion - TraceIC + Redirects + Camo + Jackpoint + Bandwidth**
+- Camo utility, redirects, trace_factor (jackpoint), bandwidth_modifier all feed `_compute_trace_tn`. [WIRED as fields]
+
+**Jackpoint table (lines 201-216) -- Trace Factor AND Access modifier:**
+- Legal -2/-2, Illegal 0/0, Satellite varies/+2 (Trace immunity, Reaction -2), Workstation -4/-4,
+  Remote +4/+4, Console -6/halve Access Rating & Security Value.
+- Trace side surfaces via `trace_factor`; **Access modifier side is NOT auto-applied to Access Tests.** [GAP]
+
+**Other test modifiers found:**
+- Linked passcode: -2 TN to Logon when using Deception (line 370). [GAP]
+- Stealth option: crash-IC tally reduced by Stealth rating; Stealth-6+ = 0 tally (line 416). [verify wiring]
+- Shield: +2 TN to hit IC (Penetration negates; +4 vs Chaser). Shift: +2 TN (Chaser negates; +4 vs Penetration) (681-682). [verify wiring in attack_ic]
+- Bandwidth Trace modifier (optional): (bandwidth/base, floor) x -1 (218-222). [field exists]
+- Metaphor non-conformance: +2 all TNs (GM judgement, 1024). [intentionally manual]
+
+**Implemented this step:** live Detection Factor (`_effective_detection_factor`) -> accounts for
+Sleaze + crippler-reduced Masking + suppression count in one place. Committed, +4 tests.
+**Still GAP for #11 (next):** jackpoint Access modifier + Console halving; suppress/release action
+endpoint; linked-passcode -2; Shield/Shift to-hit penalty wiring; persona modes.
+
+## #11 Satlink + masking / detection-factor modifiers -- [PARTIAL: live DF done; jackpoint/modes gap]
 - `tests/test_vr2_matrix_scenarios.py::TestDetectionAndTrace`: Detection Factor = round-up avg of
   Masking & Sleaze (M6/S8 -> 7); masking-only = ceil(M/2); a Marker crippler lowering Masking
   lowers DF; Trace TN incorporates trace_factor + bandwidth_modifier; redirects reduce it; floors
