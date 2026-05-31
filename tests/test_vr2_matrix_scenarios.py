@@ -389,6 +389,23 @@ class TestScramblePaydata:
         c = eng.scramble_failure_consequence(variant="standard", is_key=True)
         assert c["data_destroyed"] is False
 
+    def test_initial_state_loads_paydata_and_scrambles(self):
+        class _Host:
+            config_json = {
+                "security_code": "Blue", "security_value": 4, "acifs": [8, 10, 9, 9, 8],
+                "paydata": [{"name": "Personnel Files", "is_key": True}],
+                "scrambles": [{"target_key": "Files:file:Personnel Files",
+                               "rating": 6, "variant": "poison"}],
+            }
+        st = mr._initial_state(
+            {"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}}, _Host())
+        assert st["paydata"][0]["is_key"] is True
+        assert st["scrambles"][0]["variant"] == "poison"
+
+    def test_scrambles_and_paydata_are_gm_only(self):
+        assert "scrambles" in mr._GM_ONLY_STATE_KEYS
+        assert "paydata" in mr._GM_ONLY_STATE_KEYS
+
 
 class TestAnalyzeGatedICReveal:
     """vr2 #9 + reactive-IC detection (line 409) -- graduated, surreptitious reveal."""

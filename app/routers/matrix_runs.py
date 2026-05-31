@@ -34,7 +34,7 @@ router = APIRouter()
 # State keys removed entirely from state_json when serving a non-admin.
 # (Admin sees the full state.) lurking_ic is GM-only: reactive IC "lurks
 # silently" by the rules, so players must not see it exists at all.
-_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic"}
+_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata"}
 
 # Maps crippler/ripper IC type names to the decker attribute they attack.
 _CRIPPLER_TARGET: dict[str, str] = {
@@ -175,6 +175,8 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "host_security_value": cfg.get("security_value", 6),
         "host_acifs": cfg.get("acifs", [10, 10, 10, 10, 10]),
         "sheaf": cfg.get("sheaf", []),
+        "paydata": cfg.get("paydata") or [],       # [{name, density, is_key, defense}]
+        "scrambles": cfg.get("scrambles") or [],   # [{target_key, rating, variant}]
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -737,6 +739,47 @@ async def perform_action(
     tn_modifier = body.extra_tn_modifier
     if body.utility_rating > 0:
         tn_modifier -= body.utility_rating  # utility reduces TN
+
+    # Decrypt File is resolved against a Scramble IC (its rating IS the decrypt TN),
+    # not the generic subsystem test. A failed decrypt vs a POISON Scramble destroys the
+    # protected data -- key data is a permanent, mission-critical loss shown to the player.
+    if body.action_type == "decrypt_file" and (state.get("scrambles") or []):
+        scrambles = state["scrambles"]
+        scr = None
+        if body.target_file:
+            scr = next((s for s in scrambles if s.get("target_key") == body.target_file), None)
+        if scr is None:
+            scr = scrambles[0]
+        dt = eng.scramble_decrypt_test(
+            decker_pool=pool,
+            scramble_rating=scr.get("rating", 6),
+            decrypt_utility=body.utility_rating,
+        )
+        if dt["decrypted"]:
+            state["scrambles"] = [s for s in scrambles if s is not scr]
+            _append_event(state, {
+                "type": "decrypt", "success": True, "decker_roll": dt["roll"],
+                "description": "Scramble decrypted -- protected data accessible. No tally increase.",
+            })
+        else:
+            paydata = state.get("paydata") or []
+            tkey = str(scr.get("target_key", ""))
+            protected = next((p for p in paydata if p.get("name") and p["name"] in tkey), None)
+            is_key = bool(protected and protected.get("is_key"))
+            cons = eng.scramble_failure_consequence(
+                variant=scr.get("variant", "standard"), is_key=is_key)
+            if cons.get("data_destroyed") and protected is not None:
+                protected["destroyed"] = True
+            _append_event(state, {
+                "type": "decrypt", "success": False, "decker_roll": dt["roll"],
+                "key_data_lost": cons.get("key_data_lost", False),
+                "data_destroyed": cons.get("data_destroyed", False),
+                "description": cons["message"],
+            })
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
 
     test = eng.system_test(
         decker_pool=pool,
