@@ -140,3 +140,17 @@ the load-out), same for other operations' default utilities.
 ## Harness / cleanup
 Throwaway Playwright specs in `D:\Code Projects\_sr_e2e\` (deck/prog/kit/loadout/designer/run
 .spec.js + screenshots) and `data/_e2e_sess2.db`; test server on `:8770`. All safe to delete.
+
+## Fix status (this session) -- known backlog cleared, all committed to matrix2
+
+- **U1/U4/U5/U9** done (run uses character skill/name; blocker surfaced; logon applies Deception).
+- **U10 FIXED** -- operations auto-fill UTIL RATING from the load-out (operation->utility map). Pending re-run.
+- **U6 FIXED** -- deck-builder blocks saving a load-out that exceeds the active deck's memory.
+- **U2 FIXED** -- matrix-run hydrates decks/load-outs from backend deck-builder-state on load (fill-only).
+- **U7 verified** (size = rating^2 x mult). **U8 closed** (deck-selection modal exists).
+- **U3 DOWNGRADED (clarity, not a blocker)** -- `getEffectiveLoadout()` = `_runLoadoutDraft ||
+  getSelectedLoadout()`; "Adjust Before Run" builds a draft that satisfies eligibility, so a *saved*
+  load-out isn't strictly required. Only optional discoverability polish remains.
+
+Next: re-run run.spec.js to confirm U10/U2/U1/U9, then the #1-#11 VR2 test matrix (building missing
+features per decision: enemy decker injected into a run, key-data-wipe UI, etc.).
