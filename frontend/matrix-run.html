@@ -710,6 +710,28 @@ function applySelectedDeckToConfig(deck) {
   setChk('cfg-iccm', !!deck.iccm);
 }
 
+// Populate the decker's name, Computer skill, and physical attributes from the active
+// programmer profile's character (deck stats come from the deck; skill/attrs come from
+// the PC). Without this the run used the hardcoded defaults (Computer 4, "Ghost").
+async function applyActiveCharacterToConfig() {
+  const profile = getSavedProgrammerProfile();
+  if (!profile?.characterId) return;
+  try {
+    const res = await apiFetch(`${API}/characters/${profile.characterId}`);
+    if (!res.ok) return;
+    const c = await res.json();
+    const set = (id, v) => { const e = document.getElementById(id); if (e && v !== undefined && v !== null && v !== '' && v !== 0) e.value = String(v); };
+    const nameEl = document.getElementById('cfg-name');
+    if (nameEl && c.name) nameEl.value = c.name;
+    if (c.computer_skill_enabled && c.computer_skill_rating) set('cfg-computer', c.computer_skill_rating);
+    set('cfg-intelligence', c.intelligence);
+    set('cfg-quickness', c.quickness);
+    set('cfg-willpower', c.willpower);
+    set('cfg-body', c.body);
+    if (typeof updateComputedStats === 'function') updateComputedStats();
+  } catch (_) { /* leave defaults on failure */ }
+}
+
 function getSelectedDeck() {
   const sel = document.getElementById('runDeckSelect');
   if (!sel || !sel.value) return null;
@@ -1017,12 +1039,27 @@ const ACTION_SUBSYSTEM = {
   relocate:            'control',
 };
 
+// Default utility (decker_json.utilities key) per operation -- VR2 System Operations Summary.
+// Used to auto-fill the per-action UTIL RATING from the decker's load-out so operations
+// apply their utility (a 0 means the decker doesn't carry that utility -- correct).
+const ACTION_UTILITY = {
+  logon_to_host: 'deception', logon_to_ltg: 'deception', graceful_logoff: 'deception',
+  analyze_host: 'analyze', analyze_ic: 'analyze', analyze_security: 'analyze', analyze_subsystem: 'analyze',
+  locate_file: 'browse', locate_paydata: 'evaluate', locate_ic: 'analyze', locate_slave: 'analyze',
+  download_data: 'read_write', edit_file: 'read_write', upload_data: 'read_write',
+  control_slave: 'spoof', monitor_slave: 'spoof', edit_slave: 'spoof',
+  null_operation: 'deception', crash_host: 'crash', validate_passcode: 'validate_pgm',
+  invalidate_passcode: 'validate_pgm', decoy: 'mirrors', redirect_datatrail: 'camo',
+  relocate: 'relocate', decrypt_file: 'decrypt',
+};
+
 // -- Boot -------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = await bootstrapAuth();
   if (!auth) return;
 
   refreshDeckLoadoutSources();
+  await applyActiveCharacterToConfig();
 
   // Wire computed stats listeners
   const calcInputs = [
@@ -1138,7 +1175,8 @@ async function startRun() {
   updateRunStartEligibility();
   const startBtn = document.getElementById('startRunBtn');
   if (startBtn?.disabled) {
-    showAlert(document.getElementById('pageAlert'), 'Select a valid deck load-out before starting a run.', true);
+    const reason = document.getElementById('runLoadoutStatus')?.textContent?.trim();
+    showAlert(document.getElementById('pageAlert'), reason || 'Select a valid deck load-out before starting a run.', true);
     return;
   }
 
@@ -1399,7 +1437,8 @@ async function enterTrapDoor(id) {
         body: JSON.stringify({
           action_type: 'logon_to_host',
           subsystem: 'access',
-          utility_rating: 0,
+          // VR2: Logon to Host uses the Deception utility to reduce the Access TN.
+          utility_rating: (linkedRun.decker_json && linkedRun.decker_json.utilities && linkedRun.decker_json.utilities.deception) || 0,
           hacking_pool_dice: 0,
         }),
       });
@@ -1947,6 +1986,13 @@ function onActionTypeChange() {
   if (!actionSel || !subSel) return;
   const sub = ACTION_SUBSYSTEM[actionSel.value] || 'access';
   subSel.value = sub;
+  // Auto-fill the per-action utility rating from the decker's load-out (editable override).
+  const utilField = document.getElementById('actionUtilRating');
+  const utilKey = ACTION_UTILITY[actionSel.value];
+  if (utilField && utilKey) {
+    const r = (_run && _run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities[utilKey]) || 0;
+    utilField.value = String(r);
+  }
 }
 
 // -- Perform action ---------------------------------------------------------
@@ -1973,10 +2019,12 @@ async function doLogon() {
   if (!_run) return;
   const hpInput = document.getElementById('logonHpDice');
   const hpDice  = hpInput ? (parseInt(hpInput.value) || 0) : 0;
+  // VR2: Logon to Host uses the Deception utility to reduce the Access TN.
+  const deception = (_run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities.deception) || 0;
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'logon_to_host',
     subsystem:   'access',
-    utility_rating: 0,
+    utility_rating: deception,
     hacking_pool_dice: hpDice,
   });
 }
