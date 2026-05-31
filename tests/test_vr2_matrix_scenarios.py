@@ -523,3 +523,13 @@ class TestLiveDetectionFactor:
         state["condition_monitor"] = {"persona_damage": {"masking": 5}, "mpcp_damage": 0}
         state["active_ic"] = [{"status": "active", "suppressed": True} for _ in range(9)]
         assert mr._effective_detection_factor(state, self._decker(6, 0)) == 1
+
+    def test_suppress_then_release_round_trips_df_and_tally(self):
+        # suppressing one IC drops DF by 1; the math reflects the flag immediately
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 0}, "mpcp_damage": 0}
+        ic = {"id": "ic_1", "status": "active", "rating": 6, "suppressed": False}
+        state["active_ic"] = [ic]
+        base = mr._effective_detection_factor(state, self._decker(6, 8))  # 7
+        ic["suppressed"] = True
+        assert mr._effective_detection_factor(state, self._decker(6, 8)) == base - 1

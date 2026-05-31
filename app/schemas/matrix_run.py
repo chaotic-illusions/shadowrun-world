@@ -112,6 +112,11 @@ class RunReactiveInput(BaseModel):
     utility_rating: int = Field(..., ge=1, le=50)
 
 
+class RunSuppressInput(BaseModel):
+    ic_id: str = Field(..., max_length=64)
+    release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
+
+
 # -- Sheaf + Host designer -----------------------------------------------------
 
 class SheafEvent(BaseModel):

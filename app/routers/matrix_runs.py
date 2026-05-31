@@ -23,7 +23,7 @@ from app.models.matrix_host import MatrixHost
 from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary,
     RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
-    SheaveSaveInput, SheafGenerateInput,
+    RunSuppressInput, SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
 from app.services import matrix_rules as rules
@@ -1720,6 +1720,57 @@ async def resolve_reactive_ic(
                 f"{body.utility_name}-{body.utility_rating}. "
                 f"Utility wins -- {lurking['type']} remains lurking."
             ),
+        })
+
+    run.state_json = state
+    await db.commit()
+    await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/suppress", response_model=MatrixRunRead)
+async def suppress_ic(
+    run_id: int,
+    body: RunSuppressInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Suppress or release an active IC (vr2 Suppression).
+
+    Suppressing costs 1 Detection Factor per IC (applied live by
+    _effective_detection_factor); releasing restores it and adds the IC's rating to the
+    security tally. The Decker's Detection Factor cannot fall below 1.
+    """
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)
+    decker = run.decker_json
+    ic = next((c for c in state.get("active_ic", [])
+               if c.get("id") == body.ic_id and c.get("status") == "active"), None)
+    if ic is None:
+        raise HTTPException(404, f"Active IC {body.ic_id} not found")
+
+    if body.release:
+        ic["suppressed"] = False
+        state["security_tally"] = state.get("security_tally", 0) + ic.get("rating", 0)
+        _append_event(state, {
+            "type": "ic_released", "ic_id": ic["id"],
+            "description": (
+                f"Suppressed IC released -- Detection Factor restored; tally "
+                f"+{ic.get('rating', 0)} -> {state['security_tally']}."
+            ),
+        })
+        _check_and_activate_sheaf(state, state["host_security_code"])
+    else:
+        ic["suppressed"] = True
+        df = _effective_detection_factor(state, decker)
+        state["detection_factor"] = df
+        _append_event(state, {
+            "type": "ic_suppressed", "ic_id": ic["id"],
+            "description": f"IC suppressed -- Detection Factor reduced to {df} (no tally increase).",
         })
 
     run.state_json = state
