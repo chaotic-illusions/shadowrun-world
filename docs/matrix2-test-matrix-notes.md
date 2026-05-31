@@ -99,8 +99,12 @@ can reasonably estimate) lets the player make the "am I out-classed?" call the u
 - IC type + rating: hidden until an Analyze IC success reveals it; then display it on the IC card.
 - Invisible Probe IC: hidden until a Sensor success.
 This gives the "know if you're being out-classed" payoff without trivializing Analyze.
-**Status: design decision recorded; implementation = [TODO]** (gate IC rating display behind an
-Analyze success flag on each active_ic entry).
+**Status: IMPLEMENTED (backend) 2026-05-31.** `_redact_ic` in matrix_runs.py hides type/rating of
+non-analyzed active IC for non-admins ("Unknown IC", rating null; category kept as colour hint);
+a successful `analyze_ic` action sets `analyzed=True` on the target (RunActionInput.target_ic_id,
+blank = first unknown) and emits an `ic_analyzed` reveal event. GM sees all. +3 tests.
+Remaining (optional polish): frontend click-to-target an IC card for Analyze, and the invisible-
+Probe-IC case (decker shouldn't see it at all until a Sensor success).
 
 ## #10 Tar Baby / Tar Pit deck-wipe -- [DONE]
 - `tests/test_vr2_matrix_scenarios.py::TestTarBabyTarPit`: Tar Baby win crashes BOTH the IC and
