@@ -91,6 +91,7 @@ class RunActionInput(BaseModel):
     extra_tn_modifier: int = Field(0, ge=-6, le=6)
     note: str = Field("", max_length=500)
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
+    target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
 
 
 class RunAttackInput(BaseModel):
