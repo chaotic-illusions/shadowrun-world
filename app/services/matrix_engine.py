@@ -702,3 +702,48 @@ def worm_attack(
         "mpcp_infected": infected,
         "chip_replacement_required": infected,
     }
+
+
+# -- Scramble IC (paydata protection) ------------------------------------------
+
+def scramble_decrypt_test(
+    *,
+    decker_pool: int,
+    scramble_rating: int,
+    decrypt_utility: int = 0,
+) -> dict[str, Any]:
+    """Attempt to Decrypt a Scramble IC (vr2): Computer Test vs the Scramble rating,
+    reduced by the Decrypt utility. Success defeats the Scramble with NO tally increase.
+    """
+    tn = max(2, scramble_rating - decrypt_utility)
+    roll = roll_dice(decker_pool, tn)
+    return {"roll": roll, "tn": tn, "decrypted": roll["successes"] > 0}
+
+
+def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any]:
+    """Consequence of a FAILED Decrypt against a Scramble IC (vr2).
+
+    - Poison: the Scramble destroys the data it protects. If that data is KEY data the
+      loss is permanent and mission-critical -- surfaced to the player as KEY DATA
+      DESTROYED so they know the objective is gone.
+    - Exploding: linked to a data bomb that detonates (data not wiped by the Scramble).
+    - Standard/other: no destruction -- the decker simply failed to decrypt.
+    """
+    if variant == "poison":
+        return {
+            "data_destroyed": True,
+            "key_data_lost": bool(is_key),
+            "message": (
+                "KEY DATA DESTROYED -- the Poison Scramble wiped the protected file. "
+                "It cannot be recovered."
+                if is_key else
+                "Protected data destroyed by Poison Scramble on the failed decrypt."
+            ),
+        }
+    if variant == "exploding":
+        return {
+            "data_destroyed": False,
+            "detonate_data_bomb": True,
+            "message": "Exploding Scramble triggered -- its linked data bomb detonates.",
+        }
+    return {"data_destroyed": False, "message": "Decrypt failed; the Scramble holds."}
