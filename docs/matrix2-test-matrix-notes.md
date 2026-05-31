@@ -75,10 +75,13 @@ Never touches the real `:8000` instance.
 ## #7 Worms, Data Bombs + Trap/Party/Construct -- [PARTIAL]
 - [DONE] Trap IC (surface conceals hidden), Party IC (cluster_id + `_cluster_size`), Construct
   (single combined icon) -- `tests/test_vr2_matrix_scenarios.py::TestTrapPartyConstruct`.
-- [PARTIAL] Worm + Data Bomb are in IC_CATALOG and place into the run, but their *unique*
-  resolution (Worm infects MPCP / chip replacement; Data Bomb explodes for (rating)M on undefended
-  access, +rating tally, Defuse utility) is not wired into the run action loop -> GAP to build +
-  test. Disinfect (anti-worm) and Defuse (anti-bomb) utilities exist in the catalog.
+- [DONE engine, GAP wiring] Worm + Data Bomb resolution FUNCTIONS implemented 2026-05-31 in
+  `matrix_engine.py`: `data_bomb_defuse` (Computer Test vs Subsystem-Defuse, floor TN 2),
+  `data_bomb_detonate` (fixed (rating)Moderate, Bod/Armor resist, tally += rating),
+  `worm_attack` (ic dice vs MPCP+Hardening+Disinfect; success = MPCP infected/chip replacement).
+  +6 tests. **Next:** wire into the run -- a Data Bomb armed on a file/slave should detonate when
+  that target is accessed undefused (hook into download/edit/access actions in perform_action),
+  and a Worm should resolve via resolve_reactive_ic (like Tar Baby). No endpoint calls these yet.
 
 ## #8 Passive Alert -> +2 all subsystem ratings + player notice -- [DONE]
 - `tests/test_vr2_matrix_scenarios.py::TestAlertEscalation`: `_subsystem_rating` adds +2 to ALL
@@ -170,7 +173,34 @@ endpoint; linked-passcode -2; Shield/Shift to-hit penalty wiring; persona modes.
   U10 operations auto-apply utility). See `docs/matrix2-ui-e2e-findings.md`.
 - `tests/test_vr2_matrix_scenarios.py` -- 41 tests, all green (#1/#7/#8/#10/#11 engine layer).
 
-## Next session
-Build the [GAP] features in priority order: #6 key-data-wipe event+UI, #5 enemy-decker
-injection, #7 Worm/Data-Bomb run resolution, #9 Analyze-gated IC rating display, #11 satlink
-jackpoint; then the [TODO] browser passes for #1/#3/#4 and the targeted #2/#3 size/cost sweep.
+## >>> RESUME CHECKPOINT (2026-05-31, end of low-budget session) <<<
+
+User priority for these sessions: **#11 (account for ALL modifiers), then #9, #7, #6; #5 later.**
+
+DONE & committed this session (all on `matrix2`, tests green = 54 in test_vr2_matrix_scenarios.py
++ 40 in test_matrix_engine.py):
+- #11 live Detection Factor (`_effective_detection_factor`): Sleaze + crippler-masking + suppression(-1/IC, floor 1). Full modifier inventory documented above.
+- #9 Analyze-gated IC reveal (`_redact_ic` + analyze_ic sets `analyzed`, RunActionInput.target_ic_id). Backend complete.
+- #7 Data Bomb + Worm ENGINE functions (data_bomb_defuse/detonate, worm_attack). NOT yet wired to any endpoint.
+
+PICK UP HERE, in order:
+1. **#7 wiring** (engine ready): in `perform_action`, when an action accesses a file/slave that
+   carries an armed Data Bomb and it isn't defused, call `eng.data_bomb_detonate` -> apply damage
+   boxes + `tally_increase`, emit event. Add a defuse path (action or pre-check) using
+   `eng.data_bomb_defuse`. For Worm: resolve via `resolve_reactive_ic` mirroring the Tar Baby
+   branch (worm lurks, GM triggers, `eng.worm_attack` -> on infect set an mpcp_infected flag +
+   event). Data bombs are defined on host files/slaves in the designer (host config_json).
+2. **#6 key-data-wipe** (we need this): on a failed Decrypt vs a **Poison** Scramble IC protecting
+   KEY data, destroy the protected data and emit a clear destructive event ("KEY DATA DESTROYED")
+   surfaced in the run log + paydata panel. Scramble variants live in the designer (Poison/Exploding).
+   Find where Decrypt resolves (search `decrypt` in matrix_runs.py) and the Scramble/paydata model.
+3. **#11 remaining**: jackpoint Access modifier (Legal -2 / Workstation -4 / Remote +4 / Satellite
+   +2 / Console halve) applied to Access Tests; suppress/release action endpoint (sets
+   `suppressed`, the DF math already responds); linked-passcode -2; Shield/Shift to-hit; persona modes.
+4. **#9 polish**: frontend click-to-target IC for Analyze; invisible-Probe-IC hidden until Sensor success.
+5. **#5 enemy-decker injection** (low priority, future).
+6. **[TODO] browser passes**: #1 forced-IC stacked view, #3 purchase perms, #4 trap-door traverse,
+   targeted #2/#3 size/cost sweep.
+
+Env to re-run anything live: see the env note at the top + memory `project_matrix2_test_matrix`.
+Test server launch = venv python via PowerShell Start-Process; admin token on every call.
