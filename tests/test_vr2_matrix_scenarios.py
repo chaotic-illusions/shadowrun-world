@@ -402,9 +402,17 @@ class TestScramblePaydata:
         assert st["paydata"][0]["is_key"] is True
         assert st["scrambles"][0]["variant"] == "poison"
 
-    def test_scrambles_and_paydata_are_gm_only(self):
-        assert "scrambles" in mr._GM_ONLY_STATE_KEYS
-        assert "paydata" in mr._GM_ONLY_STATE_KEYS
+    def test_initial_state_loads_data_bombs(self):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6,
+                           "data_bombs": [{"target": "Secure File", "rating": 6}]}
+        st = mr._initial_state({"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}}, _Host())
+        assert st["data_bombs"][0]["rating"] == 6
+        assert st["defused_bombs"] == []
+
+    def test_secret_state_keys_are_gm_only(self):
+        for k in ("scrambles", "paydata", "data_bombs"):
+            assert k in mr._GM_ONLY_STATE_KEYS
 
 
 class TestAnalyzeGatedICReveal:
