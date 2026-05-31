@@ -240,7 +240,7 @@
               style="flex:1;min-width:140px;padding:6px 10px;font-size:.78rem;background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font)">
             <button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save</button>
           </div>
-          <div id="savedDecksList"><div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved builds.</div></div>
+          <div id="savedDecksList"><div class="field-label">No saved builds.</div></div>
         </div>
       </div>
     </div>
@@ -302,7 +302,7 @@
           <div class="tip" style="margin-bottom:10px">Options modify effective rating and/or size. Not all options apply to all utilities.</div>
 
           <div id="optionsArea">
-            <div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a utility to see applicable options.</div>
+            <div class="field-label">Select a utility to see applicable options.</div>
           </div>
         </div>
       </div>
@@ -357,7 +357,7 @@
           <!-- Saved load-outs -->
           <div class="db-panel">
             <div class="panel-title panel-title-cyan">&gt;&gt; Saved Program Load-outs</div>
-            <div id="savedLoadoutsList"><div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved load-outs.</div></div>
+            <div id="savedLoadoutsList"><div class="field-label">No saved load-outs.</div></div>
           </div>
         </div>
 
@@ -368,7 +368,7 @@
           </div>
           <div class="tip" style="margin-bottom:8px">One normal program per type can be loaded to a deck. One-shots may have multiple active copies. Limit target is chosen when loading to active.</div>
           <div id="libraryLoadSnapshot" style="margin-bottom:10px"></div>
-          <div id="savedProgramsList"><div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved programs.</div></div>
+          <div id="savedProgramsList"><div class="field-label">No saved programs.</div></div>
         </div>
 
         <div id="utilEmpty" style="color:var(--text-dim);font-size:.72rem;letter-spacing:2px;padding:32px 0;text-align:center;text-transform:uppercase">
@@ -409,7 +409,7 @@
       <div class="panel-title panel-title-cyan">&gt;&gt; Purchased Program Options</div>
       <div class="tip" style="margin-bottom:10px">Options modify effective rating and/or size. Not all options apply to all utilities.</div>
       <div id="purchaseOptionsArea">
-        <div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a program type to see applicable options.</div>
+        <div class="field-label">Select a program type to see applicable options.</div>
       </div>
     </div>
 
@@ -696,10 +696,6 @@ function ni(id) {
   const v = parseInt($(id)?.value, 10);
   return isNaN(v) ? 0 : v;
 }
-function nf(id) {
-  const v = parseFloat($(id)?.value);
-  return isNaN(v) ? 0 : v;
-}
 function cb(id) { return $(id)?.checked || false; }
 
 function fmtN(n) {
@@ -785,22 +781,6 @@ function hasActiveDeckSkill(char) {
     (char.matrix_skill_enabled && (char.matrix_skill_rating || 0) >= 1)
   );
 }
-
-function getSkillSetFromCharacter(char) {
-  return {
-    computerBrEnabled: !!char?.computer_br_skill_enabled,
-    computerBrRating: clampInt(char?.computer_br_skill_rating || 0, 0, 20),
-    computerEnabled: !!char?.computer_skill_enabled,
-    computerRating: clampInt(char?.computer_skill_rating || 0, 0, 20),
-    softwareEnabled: !!char?.software_skill_enabled,
-    softwareRating: clampInt(char?.software_skill_rating || 0, 0, 20),
-    matrixEnabled: !!char?.matrix_skill_enabled,
-    matrixRating: clampInt(char?.matrix_skill_rating || 0, 0, 20),
-    intelligence: clampInt(char?.intelligence || 0, 0, 20),
-    quickness: clampInt(char?.quickness || 0, 0, 12),
-  };
-}
-
 function getSelectedProgrammerSkillSet() {
   const sel = $('programmerCharacter');
   if (!sel || !sel.value) return null;
@@ -1450,14 +1430,14 @@ function calcDeck() {
       <td class="nuyen">${r.plcDtc > 0 ? fmtN(r.plcDtc) : '--'}</td>
       <td style="color:var(--text-dim);font-size:.65rem">${r.other > 0 ? (r.otherLabel || fmtY(r.other)) : '--'}</td>
       <td class="nuyen">${fmtY(r.sub)}</td>
-      <td style="color:var(--green)">${r.cook > 0 ? r.cook + 'd' : '--'}</td>
+      <td class="text-green">${r.cook > 0 ? r.cook + 'd' : '--'}</td>
       <td style="color:var(--cyan)">${r.inst > 0 ? r.inst + 'd' : '--'}</td>
     </tr>`;
   }).join('') +
   `<tr class="total-row">
     <td colspan="5">TOTAL (before discount)</td>
     <td class="nuyen">${fmtY(totalCost)}</td>
-    <td style="color:var(--green)">${totalCook}d cook</td>
+    <td class="text-green">${totalCook}d cook</td>
     <td style="color:var(--cyan)">${totalInst}d inst</td>
   </tr>` +
   (hasDiscount ? `<tr class="discount-row">
@@ -1548,7 +1528,7 @@ function onUtilTypeChange() {
     ? (document.querySelector('input[name="opt_limit_target"]:checked')?.value || 'decker')
     : 'decker';
   if (!util) {
-    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a utility to see applicable options.</div>';
+    area.innerHTML = '<div class="field-label">Select a utility to see applicable options.</div>';
     $('utilSummaryPanel').style.display = 'none';
     $('utilEmpty').style.display = '';
     return;
@@ -1558,7 +1538,7 @@ function onUtilTypeChange() {
   const applicable = OPTION_DEFS.filter(o => !excluded.includes(o.id));
 
   if (applicable.length === 0) {
-    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No modifiable options for this utility.</div>';
+    area.innerHTML = '<div class="field-label">No modifiable options for this utility.</div>';
   } else {
     const optionOrder = ['area', 'dinab', 'skulk', 'chaser', 'oneshot', 'optimization', 'penetration', 'squeeze', 'targeting', 'limit'];
     const numberIds = new Set(['area', 'dinab', 'skulk']);
@@ -2126,7 +2106,7 @@ function renderPurchasedImportOptions() {
 
   const util = UTILITIES.find(u => u.name === purchasedImportDraft.utilName);
   if (!util) {
-    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Select a program type to see applicable options.</div>';
+    area.innerHTML = '<div class="field-label">Select a program type to see applicable options.</div>';
     if (utilBrief) utilBrief.textContent = 'Select a utility to see what it does.';
     if (attackField) attackField.style.display = 'none';
     refreshPurchaseImportPreview();
@@ -2143,7 +2123,7 @@ function renderPurchasedImportOptions() {
   const excluded = getUtilityOptionExclusions(util);
   const applicable = OPTION_DEFS.filter(o => !excluded.includes(o.id));
   if (!applicable.length) {
-    area.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No modifiable options for this utility.</div>';
+    area.innerHTML = '<div class="field-label">No modifiable options for this utility.</div>';
     refreshPurchaseImportPreview();
     return;
   }
@@ -2887,29 +2867,6 @@ function buildSourceVersionFromSnapshot(snapshot, versionNumber) {
     optionState: snapshot.optionState,
   };
 }
-
-function _normalizedOptionState(state) {
-  const checks = state?.checks || {};
-  const numbers = state?.numbers || {};
-  return {
-    checks: {
-      chaser: !!checks.chaser,
-      oneshot: !!checks.oneshot,
-      optimization: !!checks.optimization,
-      penetration: !!checks.penetration,
-      squeeze: !!checks.squeeze,
-      targeting: !!checks.targeting,
-      limit: !!checks.limit,
-    },
-    numbers: {
-      area: Math.max(0, parseInt(numbers.area, 10) || 0),
-      dinab: Math.max(0, parseInt(numbers.dinab, 10) || 0),
-      skulk: Math.max(0, parseInt(numbers.skulk, 10) || 0),
-    },
-    limitTarget: String(state?.limitTarget || '').trim().toLowerCase(),
-  };
-}
-
 function getFunctionalProgramSignature(data) {
   const utilName = String(data?.utilName || '').trim().toLowerCase();
   const typeKey = String(data?.programTypeKey || getProgramTypeKey(data?.utilName || '')).trim().toLowerCase();
@@ -3033,20 +2990,6 @@ function saveCurrentProgram() {
   renderSavedPrograms();
   showAlert($('pageAlert'), `>> UPGRADE COMPILE STARTED // ${nextName} // Delta Cost ${fmtY(deltaCost)} // Delta Time ${fmtN(deltaBaseDays)}d base / ${fmtN(deltaPlannedDays)}d planned.`, false);
 }
-
-function deleteSourceProject(sourceId) {
-  let sources = _loadStore(SOURCE_STORE);
-  const source = sources.find(s => s.id === sourceId);
-  sources = sources.filter(s => s.id !== sourceId);
-  _saveStore(SOURCE_STORE, sources);
-  if (editingSourceProjectId === sourceId) setProgramEditState('', '');
-  if (source) {
-    const jobs = _loadStore(COMPILE_JOB_STORE).filter(j => j.sourceId !== sourceId);
-    _saveStore(COMPILE_JOB_STORE, jobs);
-  }
-  renderSavedPrograms();
-}
-
 function compileSourceProject(sourceId, options = {}) {
   const sources = _loadStore(SOURCE_STORE);
   const src = sources.find(s => s.id === sourceId);
@@ -3211,11 +3154,6 @@ function addCompiledProgramToLoad(compiledId, target) {
     }
   }
 }
-
-function addPurchasedProgramToLibrary() {
-  openPurchasedImportModal();
-}
-
 function deleteCompiledProgram(compiledId) {
   const compiled = _loadStore(COMPILED_STORE).filter(a => a.id !== compiledId);
   _saveStore(COMPILED_STORE, compiled);
@@ -3365,7 +3303,7 @@ function renderSavedPrograms() {
   const el = $('savedProgramsList');
   if (!el) return;
   if (!getActiveProgrammerId()) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Activate a Programmer Profile to access Program Library and compile jobs.</div>';
+    el.innerHTML = '<div class="field-label">Activate a Programmer Profile to access Program Library and compile jobs.</div>';
     return;
   }
 
@@ -3406,7 +3344,7 @@ function renderSavedPrograms() {
           <tbody>` + rows.map(c => `<tr>
             <td style="color:var(--cyan)">${esc(c.name)}</td>
             <td style="color:var(--amber)">${fmtN(c.actualSize || 0)} Mp</td>
-            <td style="color:var(--text-dim);font-size:.6rem">${new Date(c.createdAt).toLocaleDateString()}${c.acquisition === 'purchased' ? ' <span style="color:var(--green)">[Purchased]</span>' : ' <span style="color:var(--amber)">[Built]</span>'}</td>
+            <td style="color:var(--text-dim);font-size:.6rem">${new Date(c.createdAt).toLocaleDateString()}${c.acquisition === 'purchased' ? ' <span class="text-green">[Purchased]</span>' : ' <span style="color:var(--amber)">[Built]</span>'}</td>
             <td style="white-space:nowrap">
               <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='addCompiledProgramToLoad(${JSON.stringify(c.id)}, "active")'>A</button>
               <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='addCompiledProgramToLoad(${JSON.stringify(c.id)}, "storage")'>S</button>
@@ -3445,12 +3383,6 @@ function renderSavedPrograms() {
 
   el.innerHTML = html;
 }
-
-function removePlannerItem(idx) {
-  loadPlannerItems.splice(idx, 1);
-  recalcLoadPlannerWithWarnings();
-}
-
 function recalcLoadPlannerWithWarnings() {
   const caps = { activeCap: ni('activeMem'), storageCap: ni('offlineStorage') };
   const usage = computeLoadUsage(loadPlannerItems);
@@ -4020,12 +3952,12 @@ function renderSavedDecks() {
   const el = $('savedDecksList');
   if (!el) return;
   if (!getActiveProgrammerId()) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Activate a Programmer Profile to access saved builds.</div>';
+    el.innerHTML = '<div class="field-label">Activate a Programmer Profile to access saved builds.</div>';
     return;
   }
   const decks = _loadStore(DECK_STORE);
   if (!decks.length) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved builds.</div>';
+    el.innerHTML = '<div class="field-label">No saved builds.</div>';
     return;
   }
   el.innerHTML = `<table class="load-prog-table" style="margin-top:4px">
@@ -4034,7 +3966,7 @@ function renderSavedDecks() {
     decks.map(d => `<tr>
       <td style="color:var(--cyan)">${esc(d.name)}</td>
       <td style="color:var(--amber)">${d.mpcp || '--'}</td>
-      <td style="color:var(--text-dim);font-size:.6rem">${new Date(d.savedAt).toLocaleDateString()}${activeDeckBuildName === d.name ? ' <span style="color:var(--green)">[Active]</span>' : ''}</td>
+      <td style="color:var(--text-dim);font-size:.6rem">${new Date(d.savedAt).toLocaleDateString()}${activeDeckBuildName === d.name ? ' <span class="text-green">[Active]</span>' : ''}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='loadDeckBuild(${JSON.stringify(d.name)})'>&gt;&gt; Load</button>
         <button class="lp-remove-btn" onclick='deleteDeckBuild(${JSON.stringify(d.name)})'>[x]</button>
@@ -4089,12 +4021,12 @@ function renderSavedLoadouts() {
   const el = $('savedLoadoutsList');
   if (!el) return;
   if (!getActiveProgrammerId()) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">Activate a Programmer Profile to access saved load-outs.</div>';
+    el.innerHTML = '<div class="field-label">Activate a Programmer Profile to access saved load-outs.</div>';
     return;
   }
   const loadouts = _loadStore(LOADOUT_STORE);
   if (!loadouts.length) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">No saved load-outs.</div>';
+    el.innerHTML = '<div class="field-label">No saved load-outs.</div>';
     return;
   }
   el.innerHTML = `<table class="load-prog-table" style="margin-top:4px">

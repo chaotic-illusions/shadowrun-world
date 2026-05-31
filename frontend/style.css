@@ -246,6 +246,7 @@ body {
 .dim-meta     { color: var(--text-dim); font-size: var(--fs-md); }
 .dim-label    { color: var(--text-dim); font-size: var(--lbl-fs); letter-spacing: var(--lbl-ls); }
 .dim-label-sm { color: var(--text-dim); font-size: var(--fs-sm); letter-spacing: .06em; }
+.field-label  { color: var(--text-dim); font-size: .7rem; letter-spacing: 1px; }   /* compact form-field label */
 .arch-badge   { color: var(--arch-custom); font-size: var(--fs-xs); }
 .nuyen        { color: var(--amber); }
 

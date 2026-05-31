@@ -28,9 +28,16 @@ class MatrixRun(Base):
     # active | escaped | crashed | shutdown
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
 
+    # Optimistic-lock counter (declared as version_id_col below). SQLAlchemy adds
+    # `WHERE version = :old` to every UPDATE and raises StaleDataError if a
+    # concurrent writer already bumped it -- preventing lost updates to state_json.
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     host: Mapped[MatrixHost | None] = relationship("MatrixHost", foreign_keys=[host_id])  # noqa: F821
+
+    __mapper_args__ = {"version_id_col": version}

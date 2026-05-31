@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.character import Character
+from app.models.contact import Contact
 from app.models.reputation import Reputation
 from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary
 from app.schemas.contact import ContactRead
@@ -163,6 +164,10 @@ async def delete_character(
     _: str = Depends(get_admin_token),
 ):
     char = await get_or_404(db, Character, character_id)
+    # Contacts that reference this character as their NPC have no DB ondelete rule; null
+    # them so foreign_keys=ON does not block the delete. (Owned contacts, reputation, and
+    # standings are removed by the ORM cascade on Character.)
+    await db.execute(sql_update(Contact).where(Contact.npc_id == character_id).values(npc_id=None))
     await db.delete(char)
     await db.commit()
 

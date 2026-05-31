@@ -29,17 +29,27 @@ class TestClientIp:
         req = _mock_request("10.0.0.1")
         assert _client_ip(req) == "10.0.0.1"
 
-    def test_forwarded_for(self):
+    def test_forwarded_for_ignored_by_default(self):
+        # X-Forwarded-For is client-spoofable, so it must be ignored unless the app is
+        # explicitly told it sits behind a trusted proxy (TRUST_PROXY_HEADERS).
+        req = _mock_request("10.0.0.1")
+        req.headers = {"x-forwarded-for": "203.0.113.5, 10.0.0.1"}
+        assert _client_ip(req) == "10.0.0.1"
+
+    def test_forwarded_for_used_when_proxy_trusted(self, monkeypatch):
+        monkeypatch.setattr("app.auth.rate_limit._TRUST_PROXY", True)
         req = _mock_request("10.0.0.1")
         req.headers = {"x-forwarded-for": "203.0.113.5, 10.0.0.1"}
         assert _client_ip(req) == "203.0.113.5"
 
-    def test_empty_forwarded_for_falls_back(self):
+    def test_empty_forwarded_for_falls_back_when_trusted(self, monkeypatch):
+        monkeypatch.setattr("app.auth.rate_limit._TRUST_PROXY", True)
         req = _mock_request("10.0.0.1")
         req.headers = {"x-forwarded-for": " , "}
         assert _client_ip(req) == "10.0.0.1"
 
-    def test_blank_forwarded_for_falls_back(self):
+    def test_blank_forwarded_for_falls_back_when_trusted(self, monkeypatch):
+        monkeypatch.setattr("app.auth.rate_limit._TRUST_PROXY", True)
         req = _mock_request("10.0.0.1")
         req.headers = {"x-forwarded-for": ""}
         assert _client_ip(req) == "10.0.0.1"

@@ -2304,67 +2304,6 @@ async function generateSheaf() {
     resumePoll();
   }
 }
-
-// --- Save sheaf --------------------------------------------------------------
-
-async function saveSheaf() {
-  if (!currentHost) { showAlert(alertEl(), 'No host selected.', true); return; }
-
-  const code  = $('secCode').value;
-  const sv    = parseInt($('secValue').value, 10);
-  const owner = $('ownerType').value;
-
-  if (!code)           { showAlert(alertEl(), 'Security code must be set before saving sheaf.', true); return; }
-  if (isNaN(sv) || sv < 1) { showAlert(alertEl(), 'Security value must be set before saving sheaf.', true); return; }
-
-  const acifs = collectAcifs();
-  if (!acifs) return;
-
-  if (sheafSteps.length === 0) {
-    const ok = await showConfirm('Save an empty sheaf? The host will have no IC activation sequence.', 'Save Empty', 'btn-amber');
-    if (!ok) return;
-  }
-
-  const incompleteBranches = sheafSteps.filter(s => s.trace_branch &&
-    (!s.trace_branch.yes_events?.length || !s.trace_branch.no_events?.length));
-  if (incompleteBranches.length > 0) {
-    showAlert(alertEl(), 'One or more Trace IC branches are incomplete -- both YES and NO outcomes are required before saving.', true);
-    return;
-  }
-
-  pausePoll();
-  try {
-    const res = await apiFetch(`/matrix-runs2/hosts/${currentHost.id}/sheaf`, {
-      method: 'POST',
-      body: JSON.stringify({
-        sheaf:          sheafSteps,
-        security_code:  code,
-        security_value: sv,
-        acifs,
-        owner_type:     owner || null,
-      }),
-    });
-    if (!res.ok) await apiThrow(res);
-    // Reload host
-    const hr = await apiFetch(`/matrix-hosts/${currentHost.id}`);
-    if (hr.ok) {
-      const updated = await hr.json();
-      const idx = hosts.findIndex(h => h.id === currentHost.id);
-      if (idx >= 0) hosts[idx] = updated;
-      currentHost = updated;
-      renderHostDropdown();
-      $('hostSelect').value = currentHost.id;
-    }
-    updateSummary();
-    checkRunReady();
-    showAlert(alertEl(), `Sheaf saved to "${currentHost.name}" -- host is run-ready.`, false);
-  } catch (e) {
-    showAlert(alertEl(), 'Sheaf save failed: ' + e.message, true);
-  } finally {
-    resumePoll();
-  }
-}
-
 // --- Run-ready check ---------------------------------------------------------
 
 function checkRunReady() {
@@ -2740,8 +2679,8 @@ function renderAddEventRow(si) {
       <div id="groupIcBuilder-${si}" style="display:none;flex-direction:column;gap:6px;width:100%;margin-top:4px">
         <div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px">
           Capacity: <span id="groupCapUsed-${si}" style="color:var(--amber)">0</span>
-          / <span id="groupCapMax-${si}" style="color:var(--text-bright)">0</span>
-          &nbsp;| Max IC rating: <span id="groupMaxRtg-${si}" style="color:var(--text-bright)">--</span>
+          / <span id="groupCapMax-${si}" class="text-bright">0</span>
+          &nbsp;| Max IC rating: <span id="groupMaxRtg-${si}" class="text-bright">--</span>
         </div>
         <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
           <select id="groupIcType-${si}" style="flex:1;min-width:120px;padding:3px 6px;font-size:.72rem;${selectStyle}">
@@ -2973,14 +2912,6 @@ function updateTrigger(si, val) {
   sheafSteps[si].trigger = Math.max(minTrig, Math.min(maxTrig, n));
   updateSummary();
 }
-
-function updateEventRating(si, ei, val) {
-  const n = parseInt(val, 10);
-  if (!isNaN(n) && sheafSteps[si] && sheafSteps[si].events[ei]) {
-    sheafSteps[si].events[ei].rating = n;
-  }
-}
-
 function editIcEvent(si, ei) {
   const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
   if (!ev || ev.type !== 'ic') return;
@@ -3663,7 +3594,7 @@ function renderReview() {
   const acifNames = ['Access', 'Control', 'Index', 'Files', 'Slave'];
   const acifVals  = acifIds.map((id, i) => {
     const v = parseInt($(id).value, 10);
-    return `<span>${acifNames[i]}:&nbsp;<strong style="color:var(--text-bright)">${!isNaN(v) && v > 0 ? v : '--'}</strong></span>`;
+    return `<span>${acifNames[i]}:&nbsp;<strong class="text-bright">${!isNaN(v) && v > 0 ? v : '--'}</strong></span>`;
   }).join('  ');
 
   const ownerLabel = owner !== '--' ? owner.charAt(0).toUpperCase() + owner.slice(1) : '--';
@@ -3689,10 +3620,10 @@ function renderReview() {
     <div style="font-size:.7rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">${acifVals}</div>
     <div class="summary-label" style="margin-bottom:5px">Files &amp; Passive IC</div>
     <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">
-      Paydata: <span style="color:var(--text-bright)">${paydata.length}</span>
-      &nbsp;&nbsp; Data Bombs: <span style="color:var(--text-bright)">${dataBombs.length}</span>
-      &nbsp;&nbsp; Scramble IC: <span style="color:var(--text-bright)">${scrambles.length}</span>
-      &nbsp;&nbsp; Worm IC: <span style="color:var(--text-bright)">${worms.length}</span>
+      Paydata: <span class="text-bright">${paydata.length}</span>
+      &nbsp;&nbsp; Data Bombs: <span class="text-bright">${dataBombs.length}</span>
+      &nbsp;&nbsp; Scramble IC: <span class="text-bright">${scrambles.length}</span>
+      &nbsp;&nbsp; Worm IC: <span class="text-bright">${worms.length}</span>
     </div>
     <div class="summary-label" style="margin-bottom:5px">Trap Doors</div>
     <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">

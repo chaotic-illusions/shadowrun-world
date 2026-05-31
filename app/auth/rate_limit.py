@@ -7,6 +7,7 @@ up to a configurable cap.  A successful auth resets the counter.
 Stale entries are pruned automatically.
 """
 import asyncio
+import os
 import time
 from fastapi import Request, HTTPException
 
@@ -16,6 +17,11 @@ from fastapi import Request, HTTPException
 BASE_DELAY = 1.0       # seconds after the first failure
 MAX_DELAY = 30.0       # hard cap on backoff
 STALE_AFTER = 300.0    # seconds of inactivity before an entry is pruned
+
+# X-Forwarded-For is client-spoofable. Only trust it when the app is explicitly told it
+# sits behind a proxy that overwrites the header; otherwise an attacker could rotate XFF
+# to get a fresh bucket per request and bypass the backoff. Default off (use peer IP).
+_TRUST_PROXY = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 # -- In-memory store ----------------------------------------------------------
@@ -33,12 +39,18 @@ def _prune() -> None:
 
 
 def _client_ip(request: Request) -> str:
-    """Best-effort client IP -- respects X-Forwarded-For behind a reverse proxy."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
-        if ip:
-            return ip
+    """Client IP used as the rate-limit key.
+
+    X-Forwarded-For is only honoured when TRUST_PROXY_HEADERS is set (the app is behind a
+    proxy that overwrites it). Otherwise the header is attacker-controlled and would let a
+    caller rotate it to dodge the backoff, so we fall back to the socket peer address.
+    """
+    if _TRUST_PROXY:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ip = forwarded.split(",")[0].strip()
+            if ip:
+                return ip
     return request.client.host if request.client else "unknown"
 
 
