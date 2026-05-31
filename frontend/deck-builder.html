@@ -3980,6 +3980,13 @@ function renderSavedDecks() {
 function saveLoadout() {
   if (!getActiveProgrammerId()) { showAlert($('pageAlert'), 'Activate a Programmer Profile before saving load-outs.', true); return; }
   if (!loadPlannerItems.length) { showAlert($('pageAlert'), 'Add programs to the load planner first.', true); return; }
+  // U6: do not save a load-out that exceeds the active deck's memory (the run rejects it anyway).
+  const _ac = ni('activeMem'), _sc = ni('offlineStorage');
+  const _use = computeLoadUsage(loadPlannerItems);
+  if ((_ac > 0 && _use.activeUsed > _ac) || (_sc > 0 && _use.storageUsed > _sc)) {
+    showAlert($('pageAlert'), `Cannot save -- load-out exceeds deck memory: Active ${fmtN(_use.activeUsed)}/${fmtN(_ac)} Mp, Storage ${fmtN(_use.storageUsed)}/${fmtN(_sc)} Mp. Reduce programs or increase the deck's memory.`, true);
+    return;
+  }
   const name = $('loadSaveName')?.value.trim() || 'Unnamed Load-out';
   const deckMem = ni('activeMem');
   const loadout = { name, savedAt: Date.now(), deckMem, items: [...loadPlannerItems] };
