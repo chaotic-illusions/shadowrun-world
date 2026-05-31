@@ -52,11 +52,13 @@ DAMAGE_LEVELS: list[str] = ["Light", "Moderate", "Serious", "Deadly"]
 # interval_range = (min_increment, max_increment) between trigger steps
 # first_range = (min, max) for first trigger threshold
 SHEAF_INTERVALS: dict[str, dict] = {
-    "Blue":   {"first_range": (5, 7), "interval_range": (4, 6)},
-    "Green":  {"first_range": (4, 6), "interval_range": (3, 5)},
-    "Orange": {"first_range": (3, 5), "interval_range": (2, 4)},
-    "Red":    {"first_range": (2, 4), "interval_range": (1, 3)},
-    "Black":  {"first_range": (2, 4), "interval_range": (1, 3)},
+    # VR2 "Generating Trigger Steps": every interval is 1D3 + modifier for ALL steps,
+    # so interval_range == first_range (1D3 spans 3, e.g. Blue 1D3+4 -> 5-7).
+    "Blue":   {"first_range": (5, 7), "interval_range": (5, 7)},
+    "Green":  {"first_range": (4, 6), "interval_range": (4, 6)},
+    "Orange": {"first_range": (3, 5), "interval_range": (3, 5)},
+    "Red":    {"first_range": (2, 4), "interval_range": (2, 4)},
+    "Black":  {"first_range": (2, 4), "interval_range": (2, 4)},
 }
 
 #  VR2 Security Sheaf Allocation Tables

@@ -384,13 +384,9 @@ class TestSheafGeneration:
         kinds = {e["type"] for s in sheaf for e in s["events"]}
         assert "passive_alert" in kinds and "active_alert" in kinds
 
-    @pytest.mark.xfail(reason=(
-        "VR2 'Generating Trigger Steps' (vr2_rules.md): every interval is 1D3+modifier "
-        "(Blue 5-7, Green 4-6, Orange 3-5, Red/Black 2-4) for ALL steps. matrix_rules."
-        "SHEAF_INTERVALS uses a lower interval_range than first_range, so subsequent "
-        "triggers cluster closer than the rules allow."
-    ), strict=True)
     def test_interval_range_matches_first_range(self):
+        # VR2 "Generating Trigger Steps": every interval is 1D3+modifier for ALL steps,
+        # so interval_range must equal first_range for each code (fixed: was lower).
         for code in ("Blue", "Green", "Orange", "Red", "Black"):
             iv = rules.SHEAF_INTERVALS[code]
             assert iv["interval_range"] == iv["first_range"]

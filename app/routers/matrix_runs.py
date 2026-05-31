@@ -5,6 +5,7 @@ Separate from /matrix-hosts (SR1 topology editor).
 
 from __future__ import annotations
 
+import copy
 import random
 import uuid
 from datetime import datetime, UTC
@@ -586,7 +587,7 @@ async def abandon_run(
     run = await _get_run_or_404(db, run_id)
     _assert_run_access(run, auth)
     run.status = "abandoned"
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     state["run_ended"] = True
     state["end_reason"] = "abandoned"
     run.state_json = state
@@ -615,12 +616,14 @@ async def perform_action(
     if run.status != "active":
         raise HTTPException(400, f"Run is not active (status: {run.status})")
 
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     eff = _get_decker_effective(decker, state)
 
     if state.get("run_ended"):
         raise HTTPException(400, "Run has already ended")
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
 
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
@@ -1017,28 +1020,21 @@ async def perform_action(
                 state["end_reason"] = "black_ic_lethal"
                 break
 
-            if state["condition_monitor"]["persona_boxes"] >= 10:
+            if state["condition_monitor"]["persona_boxes"] >= 10 and not state.get("icon_crashed"):
+                # VR2 Black IC: icon killed BEFORE the decker dies -> the Matrix connection
+                # HOLDS, the IC's effective rating rises by 2, and the decker can only attempt
+                # to jack out. The MPCP-as-blaster (2x) attack + dump shock happen ONLY when the
+                # physical CM fills (the decker is killed) -- handled in the block above.
+                state["icon_crashed"] = True
+                ic["rating"] += 2
                 _append_event(state, {
                     "type": "persona_crash",
-                    "description": "PERSONA CRASHED by Black IC -- decker dumped!",
-                })
-                mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, ic["rating"], pool_multiplier=2)
-                _append_event(state, {
-                    "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Black IC",
-                    "description": f"Black IC MPCP attack (icon crash): MPCP -{mpcp_hit} (permanent).",
-                    "mpcp_roll": bl_roll, "mpcp_damage": mpcp_hit,
+                    "description": (
+                        "ICON CRASHED by Black IC -- connection holds. Black IC effective "
+                        f"rating +2 (now {ic['rating']}). Decker can only attempt to jack out."
+                    ),
                 })
-                ds = _apply_dump_shock(state, decker, sec_code, sec_value)
-                if not ds.get("immune"):
-                    _append_event(state, {
-                        "type": "dump_shock",
-                        "description": f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes).",
-                        "dump_shock": ds,
-                    })
-                state["run_ended"] = True
-                state["end_reason"] = "persona_crashed"
-                break
             continue  # Black IC handled -- skip the rest of the standard combat block
 
         # -- Killer / Blaster / Sparky / Construct (non-black) ----------------
@@ -1116,19 +1112,27 @@ async def perform_action(
             # Sparky raises the MPCP-test TN by 2 vs Blaster.
             elif ic["type"] == "Sparky":
                 mpcp_hit, s_roll = _roll_mpcp_damage(state, decker, ic["rating"], tn_bonus=2)
-                sparky_phys = eng.stage_damage("Moderate", s_roll["successes"], 1)
-                sparky_boxes = rules.DAMAGE_BOXES[sparky_phys]
+                # VR2 "Sparky": (IC Rating)M physical -- stage up per Sparky-test successes,
+                # then the decker RESISTS with Body vs Power (IC rating, reduced by Hardening).
+                hardening = decker.get("hardening", 0)
+                sparky_staged = eng.stage_damage("Moderate", s_roll["successes"], 1)
+                sparky_power = max(1, ic["rating"] - hardening)
+                sparky_body = eng.roll_dice(decker.get("body", 4), sparky_power)
+                sparky_final = eng.stage_damage(sparky_staged, sparky_body["successes"], -1)
+                sparky_boxes = rules.DAMAGE_BOXES[sparky_final]
                 state["condition_monitor"]["physical_boxes"] += sparky_boxes
                 _append_event(state, {
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": "Sparky",
                     "description": (
                         f"Sparky discharge on crash (TN {s_roll['tn']}): MPCP -{mpcp_hit} (perm). "
-                        f"Physical: {sparky_phys} ({sparky_boxes} boxes)."
+                        f"Body resist ({sparky_body['successes']} hits): "
+                        f"{sparky_final} ({sparky_boxes} boxes physical)."
                     ),
                     "sparky_roll": s_roll,
+                    "body_roll": sparky_body,
                     "mpcp_damage": mpcp_hit,
-                    "physical_damage": sparky_phys,
+                    "physical_damage": sparky_final,
                 })
 
             # Dump shock
@@ -1183,11 +1187,13 @@ async def attack_ic(
     if run.status != "active":
         raise HTTPException(400, "Run is not active")
 
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
 
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
     target_ic = next((ic for ic in state.get("active_ic", []) if ic["id"] == body.target_ic_id), None)
     if not target_ic:
         raise HTTPException(404, f"IC {body.target_ic_id} not found or not active")
@@ -1291,7 +1297,7 @@ async def graceful_logoff(
     if run.status != "active":
         raise HTTPException(400, "Run is not active")
 
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
@@ -1364,7 +1370,7 @@ async def new_turn(
     _assert_run_access(run, auth)
     if run.status != "active":
         raise HTTPException(400, "Run is not active")
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     if state.get("run_ended"):
         raise HTTPException(400, "Run has already ended")
 
@@ -1475,7 +1481,7 @@ async def jack_out(
     if run.status != "active":
         raise HTTPException(400, "Run is not active")
 
-    state = dict(run.state_json)
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
