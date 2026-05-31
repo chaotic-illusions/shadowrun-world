@@ -34,7 +34,7 @@ router = APIRouter()
 # State keys removed entirely from state_json when serving a non-admin.
 # (Admin sees the full state.) lurking_ic is GM-only: reactive IC "lurks
 # silently" by the rules, so players must not see it exists at all.
-_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata"}
+_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata", "data_bombs"}
 
 # Maps crippler/ripper IC type names to the decker attribute they attack.
 _CRIPPLER_TARGET: dict[str, str] = {
@@ -177,6 +177,8 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "sheaf": cfg.get("sheaf", []),
         "paydata": cfg.get("paydata") or [],       # [{name, density, is_key, defense}]
         "scrambles": cfg.get("scrambles") or [],   # [{target_key, rating, variant}]
+        "data_bombs": cfg.get("data_bombs") or [], # [{target, rating}]
+        "defused_bombs": [],
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -780,6 +782,53 @@ async def perform_action(
         await db.commit()
         await db.refresh(run)
         return _serialize_run(run, auth)
+
+    # Data Bomb: accessing a bombed file/slave triggers it unless defused first (vr2).
+    # Supplying the Defuse utility (utility_rating) attempts a defuse; otherwise it detonates.
+    armed_bombs = state.get("data_bombs") or []
+    if (body.action_type in ("download_data", "edit_file", "upload_data")
+            and body.target_file and armed_bombs):
+        defused = set(state.get("defused_bombs") or [])
+        bomb = next((b for b in armed_bombs
+                     if b.get("target") == body.target_file and b.get("target") not in defused),
+                    None)
+        if bomb is not None:
+            btarget = bomb.get("target")
+            brating = bomb.get("rating", 6)
+            if body.utility_rating > 0:  # Defuse utility supplied -> attempt defuse first
+                df = eng.data_bomb_defuse(decker_pool=pool, subsystem_rating=subsystem_rating,
+                                          defuse_utility=body.utility_rating)
+                if df["defused"]:
+                    state.setdefault("defused_bombs", []).append(btarget)
+                    _append_event(state, {
+                        "type": "data_bomb", "outcome": "defused", "decker_roll": df["roll"],
+                        "description": f"Data bomb on {btarget} defused -- no tally increase.",
+                    })
+                    run.state_json = state
+                    await db.commit(); await db.refresh(run)
+                    return _serialize_run(run, auth)
+            # no Defuse utility, or the defuse failed -> the bomb detonates
+            det = eng.data_bomb_detonate(
+                ic_rating=brating, target_bod=eff["bod"],
+                armor_rating=(decker.get("utilities") or {}).get("armor", 0))
+            state["data_bombs"] = [b for b in armed_bombs if b is not bomb]  # one-shot
+            cm = state.setdefault("condition_monitor", {})
+            cm["persona_boxes"] = cm.get("persona_boxes", 0) + det["resistance"]["boxes"]
+            state["security_tally"] += det["tally_increase"]
+            _append_event(state, {
+                "type": "data_bomb", "outcome": "detonated",
+                "damage_level": det["resistance"]["final_damage_level"],
+                "tally_increase": det["tally_increase"],
+                "description": (
+                    f"DATA BOMB on {btarget} detonated -- "
+                    f"{det['resistance']['final_damage_level']} damage; tally "
+                    f"+{det['tally_increase']} -> {state['security_tally']}."
+                ),
+            })
+            _check_and_activate_sheaf(state, sec_code)
+            run.state_json = state
+            await db.commit(); await db.refresh(run)
+            return _serialize_run(run, auth)
 
     test = eng.system_test(
         decker_pool=pool,
