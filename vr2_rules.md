@@ -1258,7 +1258,6 @@ The ICCM (Intrusion Counter-Countermeasures) biofeedback filter:
 I/O Speed determines the maximum bandwidth -- the data transfer rate between the deck and the Matrix.
 
 - Must be built in multiples of 10 Mp.
-- App cap (implemented): I/O Speed cannot exceed MPCP Rating x 10 Mp/CT.
 - Maximum bandwidth = Sensor Rating x MPCP Rating x 10 Mp.
 - Icon bandwidth = sum of all persona program ratings + all loaded utility ratings.
 

@@ -447,6 +447,24 @@ def _compute_trace_tn(state: dict, decker: dict, ic_rating: int, eff: dict) -> i
     return max(2, tf)
 
 
+def _effective_detection_factor(state: dict, decker: dict) -> int:
+    """Live Detection Factor (vr2_rules Detection Factor + Suppression).
+
+    Recomputed each test rather than frozen at logon, so it reflects:
+      - Sleaze utility (round-up average with Masking, else Masking/2),
+      - Masking reduced by Marker/Mark-rip cripplers (via _get_decker_effective),
+      - minus 1 per suppressed active IC program (Suppression rule), floored at 1.
+    """
+    eff = _get_decker_effective(decker, state)
+    sleaze = (decker.get("utilities") or {}).get("sleaze", 0)
+    base = eng.detection_factor(eff["masking"], sleaze)
+    suppressed = sum(
+        1 for ic in state.get("active_ic", [])
+        if ic.get("suppressed") and ic.get("status") == "active"
+    )
+    return max(1, base - suppressed)
+
+
 def _get_decker_effective(decker: dict, state: dict) -> dict:
     """Return decker stats with crippler reductions applied."""
     dmg = state.get("condition_monitor", {}).get("persona_damage", {})
@@ -628,7 +646,8 @@ async def perform_action(
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
     subsystem_rating = _subsystem_rating(state, body.subsystem)
-    det_factor = state.get("detection_factor", 4)
+    det_factor = _effective_detection_factor(state, decker)
+    state["detection_factor"] = det_factor  # keep serialized run in sync for the UI
 
     # Decker skill dice + utility reduction
     _spend_hp(state, body.hacking_pool_dice)
@@ -1304,7 +1323,8 @@ async def graceful_logoff(
 
     # Graceful logoff: Access Test vs. host Access Rating
     access_rating = _subsystem_rating(state, "access")
-    det_factor = state.get("detection_factor", 4)
+    det_factor = _effective_detection_factor(state, decker)
+    state["detection_factor"] = det_factor
     deception = body.deception_utility
 
     # Check for active trace IC -- adds its rating to TN
