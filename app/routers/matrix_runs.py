@@ -531,15 +531,34 @@ def _effective_detection_factor(state: dict, decker: dict) -> int:
     return max(1, base - suppressed)
 
 
+# Persona Mode multipliers (vr2): the boosted attribute +50%, the listed others -50%.
+# Masking/Sensor modes leave bandwidth alone; Bod/Evasion modes also cut I/O bandwidth.
+_PERSONA_MODE_MULT = {
+    "bod":     {"bod": 1.5, "evasion": 0.5, "masking": 0.5, "sensor": 0.5},
+    "evasion": {"bod": 0.5, "evasion": 1.5, "masking": 0.5, "sensor": 0.5},
+    "masking": {"bod": 1.0, "evasion": 0.5, "masking": 1.5, "sensor": 0.5},
+    "sensor":  {"bod": 0.5, "evasion": 0.5, "masking": 0.5, "sensor": 1.5},
+}
+
+
 def _get_decker_effective(decker: dict, state: dict) -> dict:
-    """Return decker stats with crippler reductions applied."""
+    """Return decker persona stats with Persona Mode and crippler reductions applied."""
     dmg = state.get("condition_monitor", {}).get("persona_damage", {})
     mpcp_dmg = state.get("condition_monitor", {}).get("mpcp_damage", 0)
+    mode = (decker.get("persona_mode") or state.get("persona_mode") or "none")
+    mult = _PERSONA_MODE_MULT.get(mode, {})
+
+    def _attr(name: str) -> int:
+        base = decker.get(name, 4)
+        if mult:
+            base = max(1, round(base * mult.get(name, 1.0)))
+        return max(1, base - dmg.get(name, 0))
+
     return {
-        "bod":     max(1, decker.get("bod", 4) - dmg.get("bod", 0)),
-        "evasion": max(1, decker.get("evasion", 4) - dmg.get("evasion", 0)),
-        "masking": max(1, decker.get("masking", 4) - dmg.get("masking", 0)),
-        "sensor":  max(1, decker.get("sensor", 4) - dmg.get("sensor", 0)),
+        "bod":     _attr("bod"),
+        "evasion": _attr("evasion"),
+        "masking": _attr("masking"),
+        "sensor":  _attr("sensor"),
         "mpcp":    max(1, decker.get("mpcp", 4) - mpcp_dmg),
     }
 
