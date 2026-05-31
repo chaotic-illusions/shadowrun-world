@@ -312,6 +312,47 @@ class TestDetectionAndTrace:
         assert mr._compute_trace_tn({"redirects_placed": 0}, decker, 9, eff) == 2
 
 
+class TestDataBombAndWorm:
+    """vr2 #7 -- Data Bomb defuse/detonate and Worm infection resolution."""
+
+    def test_data_bomb_defuse_tn_reduced_by_defuse_utility(self, scripted):
+        scripted([6])  # one success
+        r = eng.data_bomb_defuse(decker_pool=8, subsystem_rating=9, defuse_utility=4)
+        assert r["tn"] == 5  # 9 - 4
+        assert r["defused"] is True
+
+    def test_data_bomb_defuse_floors_tn_at_two(self, scripted):
+        scripted([1])
+        r = eng.data_bomb_defuse(decker_pool=4, subsystem_rating=3, defuse_utility=9)
+        assert r["tn"] == 2
+        assert r["defused"] is False
+
+    def test_data_bomb_detonate_tally_equals_rating(self, scripted):
+        scripted([1, 1, 1])  # poor resist
+        r = eng.data_bomb_detonate(ic_rating=6, target_bod=6)
+        assert r["tally_increase"] == 6
+        assert r["damage_level"] == "Moderate"
+        assert "final_damage_level" in r["resistance"]
+
+    def test_data_bomb_armor_reduces_power(self, scripted):
+        scripted([1, 1, 1])
+        r = eng.data_bomb_detonate(ic_rating=6, target_bod=6, armor_rating=2)
+        assert r["resistance"]["effective_power"] == 4  # 6 - 2
+
+    def test_worm_infects_mpcp_on_success(self, scripted):
+        scripted([6, 6])
+        r = eng.worm_attack(ic_rating=6, mpcp_rating=4)
+        assert r["tn"] == 4
+        assert r["mpcp_infected"] is True
+        assert r["chip_replacement_required"] is True
+
+    def test_worm_disinfect_raises_tn_and_defends(self, scripted):
+        scripted([3, 3])  # below TN
+        r = eng.worm_attack(ic_rating=6, mpcp_rating=4, disinfect_utility=4)
+        assert r["tn"] == 8  # 4 + 0 + 4
+        assert r["mpcp_infected"] is False
+
+
 class TestAnalyzeGatedICReveal:
     """vr2 #9 -- IC type/rating hidden from the decker until an Analyze IC success."""
 

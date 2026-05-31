@@ -639,3 +639,66 @@ def tar_baby_test(
         result["all_copies_corrupted"] = pit_roll["successes"] > 0
 
     return result
+
+
+# -- Data Bomb -----------------------------------------------------------------
+
+def data_bomb_defuse(
+    *,
+    decker_pool: int,
+    subsystem_rating: int,
+    defuse_utility: int = 0,
+) -> dict[str, Any]:
+    """Defuse a Data Bomb (vr2): Computer Test vs (Subsystem Rating - Defuse utility).
+
+    Success (>=1 hit) defuses with no tally increase; failure leaves it armed.
+    """
+    tn = max(2, subsystem_rating - defuse_utility)
+    roll = roll_dice(decker_pool, tn)
+    return {"roll": roll, "tn": tn, "defused": roll["successes"] > 0}
+
+
+def data_bomb_detonate(
+    *,
+    ic_rating: int,
+    target_bod: int,
+    armor_rating: int = 0,
+) -> dict[str, Any]:
+    """Data Bomb explodes when a protected target is accessed undefused (vr2).
+
+    Inflicts a fixed (IC rating)M against the persona (Bod resists, Armor reduces
+    Power) and adds the IC rating to the security tally.
+    """
+    resist = damage_resistance(
+        bod=target_bod,
+        power=ic_rating,
+        armor_rating=armor_rating,
+        base_damage_level="Moderate",
+        attacker_successes=0,  # fixed (rating)M -- no attack-success staging
+    )
+    return {"damage_level": "Moderate", "tally_increase": ic_rating, "resistance": resist}
+
+
+# -- Worm ----------------------------------------------------------------------
+
+def worm_attack(
+    *,
+    ic_rating: int,
+    mpcp_rating: int,
+    hardening: int = 0,
+    disinfect_utility: int = 0,
+) -> dict[str, Any]:
+    """Worm infection test (vr2): ic_rating dice vs (MPCP + Hardening + Disinfect).
+
+    On any success the MPCP is infected and the chip must be replaced (permanent).
+    A running Disinfect utility raises the target number (defends the deck).
+    """
+    tn = mpcp_rating + hardening + disinfect_utility
+    roll = roll_dice(ic_rating, tn)
+    infected = roll["successes"] > 0
+    return {
+        "roll": roll,
+        "tn": tn,
+        "mpcp_infected": infected,
+        "chip_replacement_required": infected,
+    }
