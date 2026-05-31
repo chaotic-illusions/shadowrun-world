@@ -354,28 +354,76 @@ class TestDataBombAndWorm:
 
 
 class TestAnalyzeGatedICReveal:
-    """vr2 #9 -- IC type/rating hidden from the decker until an Analyze IC success."""
+    """vr2 #9 + reactive-IC detection (line 409) -- graduated, surreptitious reveal."""
 
-    def _ic(self, analyzed=False):
+    def _proactive(self, **kw):
         return {"id": "ic_1", "type": "Killer", "rating": 6, "category": "white",
-                "status": "active", "analyzed": analyzed}
+                "status": "active", **kw}
 
-    def test_unanalyzed_ic_redacted_for_player(self):
-        out = mr._redact_ic(self._ic(analyzed=False))
+    def _reactive(self, **kw):
+        return {"id": "ic_2", "type": "Probe", "rating": 6, "category": "white",
+                "status": "active", **kw}
+
+    # -- proactive IC betray themselves (visible, rating still hidden) --
+    def test_proactive_ic_visible_as_unknown(self):
+        out = mr._redact_ic(self._proactive())
+        assert out is not None
         assert out["type"] == "Unknown IC"
         assert out["rating"] is None
-        assert out["category"] == "white"  # coarse colour hint preserved
+        assert out["category"] == "white"
 
-    def test_analyzed_ic_reveals_type_and_rating(self):
-        out = mr._redact_ic(self._ic(analyzed=True))
-        assert out["type"] == "Killer"
-        assert out["rating"] == 6
+    def test_analyzed_ic_fully_revealed(self):
+        out = mr._redact_ic(self._proactive(analyzed=True))
+        assert out["type"] == "Killer" and out["rating"] == 6
 
     def test_trap_hidden_still_collapsed(self):
-        ic = self._ic(analyzed=True)
-        ic["trap_hidden"] = {"type": "Blaster", "rating": 6}
-        out = mr._redact_ic(ic)
-        assert out["trap_hidden"] is True  # never leaks the concealed IC
+        out = mr._redact_ic(self._proactive(analyzed=True, trap_hidden={"type": "Blaster", "rating": 6}))
+        assert out["trap_hidden"] is True
+
+    # -- reactive IC are invisible until detected --
+    def test_undetected_reactive_ic_hidden_entirely(self):
+        # Probe is reactive; no detection_level -> decker unaware -> dropped from list
+        assert mr._redact_ic(self._reactive()) is None
+
+    def test_reactive_level1_shows_presence_only(self):
+        out = mr._redact_ic(self._reactive(detection_level=1))
+        assert out is not None
+        assert out["type"] == "Unknown IC" and out["rating"] is None
+
+    def test_reactive_level2_shows_type_not_rating(self):
+        out = mr._redact_ic(self._reactive(detection_level=2))
+        assert out["type"] == "Probe" and out["rating"] is None
+
+    def test_reactive_level3_full_reveal(self):
+        out = mr._redact_ic(self._reactive(detection_level=3))
+        assert out["type"] == "Probe" and out["rating"] == 6
+
+    def test_detection_level_derivation(self):
+        assert mr._ic_detection_level(self._reactive()) == 0          # reactive default
+        assert mr._ic_detection_level(self._proactive()) == 1         # proactive default
+        assert mr._ic_detection_level(self._reactive(analyzed=True)) == 3
+
+    # -- secret Sensor Test raises level + emits graduated notice --
+    def test_secret_sensor_test_raises_level_and_notifies(self, scripted):
+        # IC rating 4 (TN 4); 6 Sensor dice scripted to exactly 2 successes (no rule-of-6)
+        scripted([4, 5, 1, 1, 1, 1])
+        state = _fresh_state()
+        state["event_log"] = []
+        state["condition_monitor"] = {"persona_damage": {}, "mpcp_damage": 0}
+        ic = self._reactive(rating=4)
+        decker = {"sensor": 6}
+        lvl = mr._secret_sensor_test(state, decker, ic)
+        assert lvl == 2
+        assert ic["detection_level"] == 2
+        assert any(e["type"] == "ic_detected" for e in state["event_log"])
+
+    def test_secret_sensor_test_never_lowers(self, scripted):
+        scripted([1, 1])  # 0 successes
+        state = _fresh_state(); state["event_log"] = []
+        state["condition_monitor"] = {"persona_damage": {}, "mpcp_damage": 0}
+        ic = self._reactive(detection_level=2)
+        lvl = mr._secret_sensor_test(state, {"sensor": 6}, ic)
+        assert lvl == 2  # stays at 2, not lowered to 0
 
 
 class TestLiveDetectionFactor:
