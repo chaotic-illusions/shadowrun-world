@@ -102,12 +102,16 @@ can reasonably estimate) lets the player make the "am I out-classed?" call the u
 - IC type + rating: hidden until an Analyze IC success reveals it; then display it on the IC card.
 - Invisible Probe IC: hidden until a Sensor success.
 This gives the "know if you're being out-classed" payoff without trivializing Analyze.
-**Status: IMPLEMENTED (backend) 2026-05-31.** `_redact_ic` in matrix_runs.py hides type/rating of
-non-analyzed active IC for non-admins ("Unknown IC", rating null; category kept as colour hint);
-a successful `analyze_ic` action sets `analyzed=True` on the target (RunActionInput.target_ic_id,
-blank = first unknown) and emits an `ic_analyzed` reveal event. GM sees all. +3 tests.
-Remaining (optional polish): frontend click-to-target an IC card for Analyze, and the invisible-
-Probe-IC case (decker shouldn't see it at all until a Sensor success).
+**Status: IMPLEMENTED (backend) 2026-05-31, then REFINED to the vr2 line-409 detection model.**
+Reactive IC 'do not betray themselves' -- they are now invisible until detected, not shown as
+"Unknown IC". Graduated detection (`_ic_detection_level` / `_redact_ic`):
+  0 unaware -> hidden entirely (dropped from player list)   2 -> type known, rating hidden
+  1 -> presence known ("Unknown IC")                        3 -> type + rating + location.
+Proactive IC betray themselves by attacking -> default level 1. `_secret_sensor_test` (decker
+Sensor vs IC rating) raises the level when a reactive IC acts and emits a graduated notice; the
+Probe loop reports the tally change at the detected level (no leak at 0); reactive-IC activation
+events are flagged `gm_only` and `_serialize_run` drops gm_only events for non-admins. Analyze IC
+still forces full reveal. +7 tests. Remaining polish: frontend click-to-target an IC for Analyze.
 
 ## #10 Tar Baby / Tar Pit deck-wipe -- [DONE]
 - `tests/test_vr2_matrix_scenarios.py::TestTarBabyTarPit`: Tar Baby win crashes BOTH the IC and

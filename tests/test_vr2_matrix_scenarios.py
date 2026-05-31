@@ -353,6 +353,43 @@ class TestDataBombAndWorm:
         assert r["mpcp_infected"] is False
 
 
+class TestScramblePaydata:
+    """vr2 #6 -- Decrypt vs Scramble IC; Poison wipes key data on failure."""
+
+    def test_decrypt_tn_reduced_by_decrypt_utility(self, scripted):
+        scripted([6])
+        r = eng.scramble_decrypt_test(decker_pool=8, scramble_rating=8, decrypt_utility=3)
+        assert r["tn"] == 5  # 8 - 3
+        assert r["decrypted"] is True
+
+    def test_decrypt_floor_tn_two(self, scripted):
+        scripted([1])
+        r = eng.scramble_decrypt_test(decker_pool=6, scramble_rating=4, decrypt_utility=9)
+        assert r["tn"] == 2
+        assert r["decrypted"] is False
+
+    def test_poison_failure_destroys_key_data(self):
+        c = eng.scramble_failure_consequence(variant="poison", is_key=True)
+        assert c["data_destroyed"] is True
+        assert c["key_data_lost"] is True
+        assert "KEY DATA DESTROYED" in c["message"]
+
+    def test_poison_failure_destroys_nonkey_data_quietly(self):
+        c = eng.scramble_failure_consequence(variant="poison", is_key=False)
+        assert c["data_destroyed"] is True
+        assert c["key_data_lost"] is False
+        assert "KEY DATA DESTROYED" not in c["message"]
+
+    def test_exploding_failure_triggers_data_bomb_not_wipe(self):
+        c = eng.scramble_failure_consequence(variant="exploding", is_key=True)
+        assert c["data_destroyed"] is False
+        assert c["detonate_data_bomb"] is True
+
+    def test_standard_failure_no_destruction(self):
+        c = eng.scramble_failure_consequence(variant="standard", is_key=True)
+        assert c["data_destroyed"] is False
+
+
 class TestAnalyzeGatedICReveal:
     """vr2 #9 + reactive-IC detection (line 409) -- graduated, surreptitious reveal."""
 
