@@ -95,13 +95,27 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
             state.pop(k, None)
         if isinstance(state.get("active_ic"), list):
             state["active_ic"] = [
-                {**ic, "trap_hidden": True}
-                if isinstance(ic, dict) and ic.get("trap_hidden")
-                else ic
-                for ic in state["active_ic"]
+                _redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)
             ]
         data["state_json"] = state
     return data
+
+
+def _redact_ic(ic: dict) -> dict:
+    """Player view of an active IC (vr2 #9).
+
+    - trap_hidden collapses to a bare True marker (generic [TRAP] badge, no leak).
+    - type/rating are hidden behind an "Unknown IC" marker until an Analyze IC
+      success sets ``analyzed``; category (white/gray/black hint) is preserved so the
+      UI can still colour the card. The decker thus learns ratings only when earned.
+    """
+    out = dict(ic)
+    if out.get("trap_hidden"):
+        out["trap_hidden"] = True
+    if not out.get("analyzed"):
+        out["type"] = "Unknown IC"
+        out["rating"] = None
+    return out
 
 
 def _initial_state(decker: dict, host: MatrixHost) -> dict:
@@ -687,6 +701,25 @@ async def perform_action(
         "note": body.note,
     }
     _append_event(state, log_entry)
+
+    # Analyze IC: a successful Analyze reveals an IC's type + rating to the decker (vr2 #9).
+    # Until then the player only sees an "Unknown IC" marker (redacted in _serialize_run).
+    if body.action_type == "analyze_ic" and test["success"]:
+        active = [ic for ic in state.get("active_ic", []) if ic.get("status") == "active"]
+        target = None
+        if body.target_ic_id:
+            target = next((ic for ic in active if ic["id"] == body.target_ic_id), None)
+        if target is None:
+            target = next((ic for ic in active if not ic.get("analyzed")), None)
+        if target is not None:
+            target["analyzed"] = True
+            _append_event(state, {
+                "type": "ic_analyzed",
+                "ic_id": target["id"],
+                "ic_type": target["type"],
+                "ic_rating": target["rating"],
+                "description": f"IC analyzed: {target['type']} Rating {target['rating']} revealed.",
+            })
 
     # Validate Passcode: grant Legitimate status (IC uses Legitimate TN column)
     if body.action_type == "validate_passcode" and test["success"]:

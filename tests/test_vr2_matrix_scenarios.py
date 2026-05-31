@@ -312,6 +312,31 @@ class TestDetectionAndTrace:
         assert mr._compute_trace_tn({"redirects_placed": 0}, decker, 9, eff) == 2
 
 
+class TestAnalyzeGatedICReveal:
+    """vr2 #9 -- IC type/rating hidden from the decker until an Analyze IC success."""
+
+    def _ic(self, analyzed=False):
+        return {"id": "ic_1", "type": "Killer", "rating": 6, "category": "white",
+                "status": "active", "analyzed": analyzed}
+
+    def test_unanalyzed_ic_redacted_for_player(self):
+        out = mr._redact_ic(self._ic(analyzed=False))
+        assert out["type"] == "Unknown IC"
+        assert out["rating"] is None
+        assert out["category"] == "white"  # coarse colour hint preserved
+
+    def test_analyzed_ic_reveals_type_and_rating(self):
+        out = mr._redact_ic(self._ic(analyzed=True))
+        assert out["type"] == "Killer"
+        assert out["rating"] == 6
+
+    def test_trap_hidden_still_collapsed(self):
+        ic = self._ic(analyzed=True)
+        ic["trap_hidden"] = {"type": "Blaster", "rating": 6}
+        out = mr._redact_ic(ic)
+        assert out["trap_hidden"] is True  # never leaks the concealed IC
+
+
 class TestLiveDetectionFactor:
     """vr2_rules Detection Factor + Suppression -- DF is recomputed live, not frozen."""
 
