@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.organization import Organization
+from app.models.character import Character
+from app.models.contact import Contact
+from app.models.location import Location
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary, LtgSecurityUpdate
 from app.auth.dependencies import get_admin_token
 
@@ -89,5 +92,11 @@ async def delete_organization(
     _: str = Depends(get_admin_token),
 ):
     org = await get_or_404(db, Organization, org_id)
+    # These FKs have no DB-level ondelete rule; with foreign_keys=ON a plain delete would
+    # be blocked, so null the references first (SET NULL semantics). org_standings are
+    # removed by the ORM cascade; matrix_host.owner_org_id is SET NULL at the DB level.
+    await db.execute(sql_update(Character).where(Character.organization_id == org_id).values(organization_id=None))
+    await db.execute(sql_update(Contact).where(Contact.organization_id == org_id).values(organization_id=None))
+    await db.execute(sql_update(Location).where(Location.controlling_org_id == org_id).values(controlling_org_id=None))
     await db.delete(org)
     await db.commit()

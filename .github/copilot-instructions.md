@@ -1,5 +1,10 @@
 # Shadowrun World Engine -- Copilot Reference
 
+> **Adding code? Read [`AGENTS.md`](../AGENTS.md) first** -- the working guide for
+> check-first / validate-after practices and common pitfalls (inline styles vs. style.css,
+> JSON-column updates, server-side GM redaction, migrations + startup guards, etc.).
+> This file is the *reference* for what the code is; AGENTS.md is *how to change it*.
+
 ## Stack
 - **Backend**: FastAPI (async), SQLAlchemy 2.x async ORM, Pydantic v2, aiosqlite, Alembic
 - **Database**: SQLite via `sqlite+aiosqlite:///./data/shadowrun.db` -- WAL mode, QueuePool (NOT NullPool -- causes Windows crash under load)
@@ -16,13 +21,15 @@ app/
   auth/            -- core.py (hash/verify/generate), dependencies.py (FastAPI deps), rate_limit.py
   db/              -- base.py (DeclarativeBase), session.py (engine + async_session)
   models/          -- SQLAlchemy ORM models (adventure_log, auth, character, contact, location,
-                     matrix_host, organization, reputation, rtg, associations)
+                     matrix_host, matrix_run, organization, reputation, rtg, associations)
   routers/         -- one file per resource; all world-data routes require get_any_token
+                     (matrix_runs.py = SR2 run engine, prefix /matrix-runs2; matrix_hosts.py = SR1 topology)
   schemas/         -- Pydantic v2 models (Create/Update/Read per resource)
   services/        -- campaign.py, consequence_engine.py, heat_calculator.py,
-                     matrix_generator.py, narrative_parser.py, secrets.py
+                     matrix_engine.py, matrix_generator.py, matrix_rules.py,
+                     narrative_parser.py, secrets.py
   data/            -- consequence_tags.py (SINGLE_TAG_RULES, COMPOUND_TAG_RULES)
-alembic/           -- env.py uses async engine; versions/ has 3 migrations
+alembic/           -- env.py uses async engine; versions/ holds the migration chain (keep a single head)
 tests/             -- pytest + pytest-asyncio; conftest.py is empty (no shared fixtures yet)
 frontend/          -- static files served at /ui/
 data/              -- world_seed.json, shadowrun.db (gitignored)

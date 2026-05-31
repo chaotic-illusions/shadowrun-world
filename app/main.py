@@ -1,12 +1,13 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from sqlalchemy import select, func
+from sqlalchemy.orm.exc import StaleDataError
 from app.db.base import Base
 from app.db.session import engine, async_session
 from app.auth.core import hash_token
@@ -61,6 +62,23 @@ async def _ensure_character_deck_builder_state_column():
         print("[startup] Added characters.deck_builder_state column")
 
 
+async def _ensure_matrix_run_version_column():
+    """Startup safety migration for the matrix_runs optimistic-lock column.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    matrix_runs table. Add it in place when an older DB file predates the column.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "version" in cols:
+            return
+        await conn.exec_driver_sql(
+            "ALTER TABLE matrix_runs ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
+        )
+        print("[startup] Added matrix_runs.version column")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
@@ -74,6 +92,10 @@ async def lifespan(app: FastAPI):
         await _ensure_character_deck_builder_state_column()
     except Exception:
         logging.getLogger(__name__).exception("deck-builder-state migration failed")
+    try:
+        await _ensure_matrix_run_version_column()
+    except Exception:
+        logging.getLogger(__name__).exception("matrix-run version-column migration failed")
     yield
 
 
@@ -103,6 +125,20 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Admin-Token", "X-User-Token"],
 )
+
+
+@app.exception_handler(StaleDataError)
+async def _stale_data_handler(request: Request, exc: StaleDataError):
+    """A concurrent writer bumped the optimistic-lock version mid-request.
+
+    Surfaces as 409 so the client can reload current state and retry rather than
+    silently clobbering the other writer's update.
+    """
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "This record was modified by another request. Reload and retry."},
+    )
+
 
 # Auth routes are unprotected (verify, set-password handle their own validation)
 app.include_router(auth_router.router, prefix="/auth", tags=["Auth"])

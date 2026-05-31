@@ -11,4 +11,6 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - BOOTSTRAP_ADMIN_KEY=${BOOTSTRAP_ADMIN_KEY:-shadowrunner}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      # Set to 1 only when behind a reverse proxy that overwrites X-Forwarded-For.
+      - TRUST_PROXY_HEADERS=${TRUST_PROXY_HEADERS:-}
     restart: unless-stopped

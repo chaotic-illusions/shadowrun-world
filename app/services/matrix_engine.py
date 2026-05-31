@@ -5,6 +5,7 @@ Dice rolling, cybercombat resolution, security sheaf generation.
 
 from __future__ import annotations
 
+import math
 import random
 from typing import Any
 
@@ -54,7 +55,6 @@ def hacking_pool(intelligence: int, mpcp: int) -> int:
 
 def detection_factor(masking: int, sleaze_rating: int = 0) -> int:
     """Detection Factor = ceil((masking + sleaze) / 2) if sleaze > 0, else ceil(masking / 2)."""
-    import math
     if sleaze_rating > 0:
         return math.ceil((masking + sleaze_rating) / 2)
     return math.ceil(masking / 2)
@@ -454,9 +454,25 @@ def generate_sheaf(
     - Passive Alert appears in mid-section, Active Alert in late section
     - Shutdown is always the last step
     """
-    if seed is not None:
-        random.seed(seed)
+    if seed is None:
+        return _generate_sheaf_impl(security_code, security_value, step_count)
+    # Confine the seed to this call: save/restore the global RNG so a seeded
+    # preview doesn't make every subsequent dice roll in the process predictable.
+    # generate_sheaf has no awaits, so save/restore is safe under the async loop.
+    saved = random.getstate()
+    random.seed(seed)
+    try:
+        return _generate_sheaf_impl(security_code, security_value, step_count)
+    finally:
+        random.setstate(saved)
 
+
+def _generate_sheaf_impl(
+    security_code: str,
+    security_value: int,
+    step_count: int | None,
+) -> list[dict]:
+    """Core sheaf builder. RNG seeding/confinement is handled by generate_sheaf."""
     intervals = SHEAF_INTERVALS[security_code]
     first_min, first_max = intervals["first_range"]
     iv_min, iv_max = intervals["interval_range"]

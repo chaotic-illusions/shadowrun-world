@@ -1,0 +1,32 @@
+# Keep the build context lean and avoid baking dev/secret files into the image.
+# IMPORTANT: Docker does NOT read .gitignore -- this file is the only thing that keeps
+# the local DB, git history, and the virtualenv out of `COPY . .` in the Dockerfile.
+
+# Git / CI / local tooling
+.git/
+.gitignore
+.githooks/
+.github/
+
+# Python virtualenv + caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local database + WAL sidecars (runtime uses the ./data volume mount, never the image copy)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Dev-only / editor / session artifacts
+localdev.ps1
+chat-session-resources/
+workspaceStorage/
+*.log

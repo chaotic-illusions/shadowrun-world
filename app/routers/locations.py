@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.location import Location
+from app.models.contact import Contact
 from app.schemas.location import LocationCreate, LocationUpdate, LocationRead
 from app.auth.dependencies import get_admin_token
 
@@ -65,5 +66,8 @@ async def delete_location(
     _: str = Depends(get_admin_token),
 ):
     loc = await get_or_404(db, Location, location_id)
+    # Contact.location_id has no DB ondelete rule; null it so foreign_keys=ON does not
+    # block the delete. (matrix_host.location_id is SET NULL at the DB level.)
+    await db.execute(sql_update(Contact).where(Contact.location_id == location_id).values(location_id=None))
     await db.delete(loc)
     await db.commit()

@@ -19,6 +19,7 @@ def set_sqlite_pragmas(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA busy_timeout=5000")  # must be set BEFORE journal_mode
     cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA foreign_keys=ON")  # SQLite ignores FK/ondelete rules unless enabled per connection
     cursor.close()
 
 

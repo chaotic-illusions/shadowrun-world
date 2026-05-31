@@ -30,9 +30,10 @@ from app.services import matrix_rules as rules
 router = APIRouter()
 
 
-# Fields stripped from state_json when serving a non-admin, non-owner.
-# (Admin and owner see the full state.)
-_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs"}
+# State keys removed entirely from state_json when serving a non-admin.
+# (Admin sees the full state.) lurking_ic is GM-only: reactive IC "lurks
+# silently" by the rules, so players must not see it exists at all.
+_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic"}
 
 # Maps crippler/ripper IC type names to the decker attribute they attack.
 _CRIPPLER_TARGET: dict[str, str] = {
@@ -77,12 +78,27 @@ def _assert_run_access(run: MatrixRun, auth: dict) -> None:
 
 
 def _serialize_run(run: MatrixRun, auth: dict) -> dict:
-    """Build a MatrixRunRead-shaped dict. Strips GM-only state keys for non-admins."""
+    """Build a MatrixRunRead-shaped dict, redacting GM-only state for non-admins.
+
+    The UI hides these secrets, but the raw JSON would otherwise still carry them,
+    so redaction must happen server-side:
+      - sheaf / host_acifs / lurking_ic: removed entirely (see _GM_ONLY_STATE_KEYS)
+      - active_ic[].trap_hidden: reduced to a bare ``True`` marker so the client can
+        still show a generic [TRAP] badge without leaking the concealed IC's
+        type/rating.
+    """
     data = MatrixRunRead.model_validate(run, from_attributes=True).model_dump()
     if not auth.get("is_admin"):
         state = dict(data.get("state_json") or {})
         for k in _GM_ONLY_STATE_KEYS:
             state.pop(k, None)
+        if isinstance(state.get("active_ic"), list):
+            state["active_ic"] = [
+                {**ic, "trap_hidden": True}
+                if isinstance(ic, dict) and ic.get("trap_hidden")
+                else ic
+                for ic in state["active_ic"]
+            ]
         data["state_json"] = state
     return data
 

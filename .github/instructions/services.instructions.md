@@ -45,6 +45,11 @@ async def endpoint(db: AsyncSession = Depends(get_db)):
 ### secrets.py
 - `get_api_key()` -> keyring first (Windows Credential Manager), then `ANTHROPIC_API_KEY` env var, else `None`
 
+### matrix_rules.py / matrix_engine.py (SR2 Matrix run engine)
+- `matrix_rules.py` -- static VR2 rules tables: `IC_CATALOG`, `COMBAT_TN`, `DAMAGE_BOXES`, `SHEAF_*` allocation tables, `HOST_DIFFICULTY`, `PAYDATA_TABLE`
+- `matrix_engine.py` -- `roll_dice(pool, tn)`, `system_test`, `cybercombat_attack`, dump shock / simsense, `generate_sheaf` (RNG seed is confined, never global)
+- Consumed by `routers/matrix_runs.py` (prefix `/matrix-runs2`). See `AGENTS.md` for the optimistic-locking (`version_id_col` -> 409) and server-side GM-redaction patterns this subsystem relies on.
+
 ## Model Notes
 | Model | Notable Fields |
 |-------|---------------|
@@ -53,7 +58,8 @@ async def endpoint(db: AsyncSession = Depends(get_db)):
 | `Reputation` | `street_cred`, `notoriety`, `public_awareness`, `pa_updated_at`, `pa_stamped_tick` |
 | `OrgStanding` | `standing` (-10 to +10), per character per org |
 | `Organization` | `ally_ids` (JSON list), `enemy_ids` (JSON list) -- used for ripple calc |
-| `MatrixHost` | `topology` (JSON), `is_visible` (bool -- player visibility toggle) |
+| `MatrixHost` | `config_json`, `topology_json`, `is_visible_to_players` (bool), `ltg_address`, `trap_doors_json` |
+| `MatrixRun` | `host_id`, `decker_json`, `state_json` (full run state), `status`, `owner_token_hash`, `version` (optimistic lock) |
 | `UserToken` | `token_hash` (64-char hex), `is_admin` (bool), `label` |
 
 ## Schema Conventions
