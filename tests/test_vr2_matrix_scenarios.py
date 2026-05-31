@@ -245,6 +245,20 @@ class TestAlertEscalation:
         active["alert_status"] = "active"
         assert mr._subsystem_rating(active, "access") == mr._subsystem_rating(base, "access")
 
+    def test_jackpoint_access_modifier_only_affects_access(self):
+        # Legal Access -2 lowers the Access Test rating but not other subsystems
+        st = _fresh_state(acifs=[8, 10, 9, 9, 8]); st["access_modifier"] = -2
+        assert mr._subsystem_rating(st, "access") == 6   # 8 - 2
+        assert mr._subsystem_rating(st, "control") == 10  # unchanged
+        # Remote Device +4 raises it
+        st["access_modifier"] = 4
+        assert mr._subsystem_rating(st, "access") == 12
+
+    def test_console_access_halves_access_rating(self):
+        st = _fresh_state(acifs=[9, 10, 9, 9, 8]); st["console_access"] = True
+        assert mr._subsystem_rating(st, "access") == 5   # ceil(9/2)
+        assert mr._subsystem_rating(st, "control") == 10  # other subsystems unaffected
+
 
 # -- #10 Tar Baby / Tar Pit deck-wipe -------------------------------------------
 
