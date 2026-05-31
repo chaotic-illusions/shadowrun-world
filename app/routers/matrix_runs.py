@@ -300,8 +300,9 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
             ic_type   = ev.get("ic_type", "Killer")
             ic_rating = ev.get("rating", 6)
 
-            if ic_type in ("Tar Baby", "Tar Pit"):
-                # Reactive IC -- lurks silently until the GM triggers it on utility use
+            if ic_type in ("Tar Baby", "Tar Pit", "Worm"):
+                # Ambush reactive IC -- lurks silently until the GM triggers it (Tar Baby/
+                # Tar Pit on utility use; Worm against the deck's MPCP).
                 lc_id = f"lc_{uuid.uuid4().hex[:8]}"
                 state.setdefault("lurking_ic", []).append({
                     "id": lc_id,
@@ -309,12 +310,14 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                     "rating": ic_rating,
                     "status": "lurking",
                 })
+                trigger = "against the deck's MPCP" if ic_type == "Worm" else "on utility use"
                 events.append({
                     "type": "reactive_ic_armed",
                     "ic_id": lc_id,
                     "ic_type": ic_type,
                     "ic_rating": ic_rating,
-                    "description": f"{ic_type}-{ic_rating} armed -- lurking. Triggers on utility use.",
+                    "gm_only": True,  # reactive ambush IC does not betray itself (vr2 line 409)
+                    "description": f"{ic_type}-{ic_rating} armed -- lurking. Triggers {trigger}.",
                 })
             else:
                 ic_id = f"ic_{uuid.uuid4().hex[:8]}"
@@ -1636,6 +1639,41 @@ async def resolve_reactive_ic(
     )
     if not lurking:
         raise HTTPException(404, f"Lurking IC {body.ic_id} not found")
+
+    if lurking["type"] == "Worm":
+        # Worm attacks the deck's MPCP; the Disinfect utility (utility_rating) defends.
+        wr = eng.worm_attack(
+            ic_rating=lurking["rating"],
+            mpcp_rating=decker.get("mpcp", 1),
+            hardening=decker.get("hardening", 0),
+            disinfect_utility=body.utility_rating,
+        )
+        if wr["mpcp_infected"]:
+            state["mpcp_infected"] = True
+            state["chip_replacement_required"] = True
+            state["lurking_ic"] = [
+                ic for ic in state.get("lurking_ic", []) if ic["id"] != body.ic_id]
+            _append_event(state, {
+                "type": "worm_resolved", "ic_id": body.ic_id, "ic_type": "Worm",
+                "outcome": "mpcp_infected", "roll": wr["roll"],
+                "description": (
+                    f"Worm-{lurking['rating']} infected the MPCP -- chip replacement required "
+                    f"(permanent). Disinfect {body.utility_name}-{body.utility_rating} failed."
+                ),
+            })
+        else:
+            _append_event(state, {
+                "type": "worm_resolved", "ic_id": body.ic_id, "ic_type": "Worm",
+                "outcome": "repelled", "roll": wr["roll"],
+                "description": (
+                    f"Worm-{lurking['rating']} repelled by Disinfect "
+                    f"{body.utility_name}-{body.utility_rating}. Worm still lurking."
+                ),
+            })
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
 
     is_tar_pit = lurking["type"] == "Tar Pit"
     result = eng.tar_baby_test(
