@@ -156,10 +156,14 @@ The user asked to find ALL detection/masking/test modifiers, not just satlink. F
 - Bandwidth Trace modifier (optional): (bandwidth/base, floor) x -1 (218-222). [field exists]
 - Metaphor non-conformance: +2 all TNs (GM judgement, 1024). [intentionally manual]
 
-**Implemented this step:** live Detection Factor (`_effective_detection_factor`) -> accounts for
-Sleaze + crippler-reduced Masking + suppression count in one place. Committed, +4 tests.
-**Still GAP for #11 (next):** jackpoint Access modifier + Console halving; suppress/release action
-endpoint; linked-passcode -2; Shield/Shift to-hit penalty wiring; persona modes.
+**Implemented:** live Detection Factor (`_effective_detection_factor` = Sleaze + crippler-reduced
+Masking + suppression count); **suppress/release endpoint** `POST /matrix-runs2/{id}/suppress`
+(suppress -1 DF/IC no tally; release restores DF + tally += rating); **jackpoint Access modifier**
+(`access_modifier` Legal -2/Satellite +2/Workstation -4/Remote +4 on Access Tests) + **Console**
+halving (round up). Complements existing `trace_factor` (jackpoint Trace side).
+**Still GAP for #11 (next):** linked-passcode -2 to Logon (with Deception); Shield/Shift +2 to-hit
+(verify in attack_ic); persona modes (Bod/Evasion/Masking/Sensor +-50%); Console halving of
+Security Value (only Access Rating is halved so far).
 
 ## #11 Satlink + masking / detection-factor modifiers -- [PARTIAL: live DF done; jackpoint/modes gap]
 - `tests/test_vr2_matrix_scenarios.py::TestDetectionAndTrace`: Detection Factor = round-up avg of
@@ -204,11 +208,11 @@ test_matrix_engine.py):
   + target_file), VERIFIED live.
 
 PICK UP HERE, in order:
-1. **#11 remaining modifiers**: jackpoint Access modifier (Legal -2 / Workstation -4 / Remote +4 /
-   Satellite +2 / Console halve Access Rating & Security Value) applied to Access Tests; a
-   suppress/release action endpoint (set IC `suppressed` -- `_effective_detection_factor` already
-   responds -1/IC); linked-passcode -2 to Logon; Shield/Shift +2 to-hit (verify attack_ic); persona
-   modes (Bod/Evasion/Masking/Sensor +-50%). See the #11 inventory section above for line refs.
+1. **#11 remaining modifiers** (jackpoint Access mod + Console-Access-Rating + suppress/release are
+   DONE): linked-passcode -2 to Logon (with Deception) -- needs a decker/state `linked_passcode`
+   flag applied at logon TN; Shield/Shift +2 to-hit (verify/wire in attack_ic); persona modes
+   (Bod/Evasion/Masking/Sensor +-50%); Console halving of Security Value (Access Rating done).
+   See the #11 inventory section above for line refs.
 2. **#9 / #6 frontend polish**: run UI click-to-target an IC card for Analyze; paydata panel that
    greys out `destroyed` files; surface the new `data_bomb` / `worm_resolved` / `ic_detected` /
    `decrypt` events nicely in the run log.
