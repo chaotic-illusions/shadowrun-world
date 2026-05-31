@@ -64,13 +64,20 @@ Never touches the real `:8000` instance.
 - No enemy-decker entity/injection path in `matrix_runs.py`. Build: an endpoint/state to add an
   opposing decker to a live run, with its own persona stats + a way to act against the player.
 
-## #6 Paydata (discoverable + key) vs Scramble IC -- [PARTIAL engine, GAP on key-data-wipe UI]
-- Paydata table + Scramble IC (Poison/Exploding variants) exist in designer; `Scramble`
-  summary: "Poison variant destroys protected data on failed decrypt." Decrypt utility reduces
-  the decrypt TN.
-- GAP: the *consequence* of a Poison-Scramble wiping **key data** is not surfaced to the player
-  (no "key data destroyed" event/UI). Build: on failed decrypt vs a Poison Scramble protecting
-  key data, emit a clear destructive event + show it in the run log / paydata panel.
+## #6 Paydata (discoverable + key) vs Scramble IC -- [DONE end-to-end, verified live]
+- Engine: `scramble_decrypt_test` (Computer Test vs Scramble rating - Decrypt utility, floor 2,
+  success = no tally) + `scramble_failure_consequence` (Poison wipes protected data; key data ->
+  permanent loss; Exploding -> linked data bomb; standard -> no destruction).
+- Run wiring: `_initial_state` loads host `paydata` + `scrambles` (both GM-only redacted);
+  `perform_action` intercepts `decrypt_file` (RunActionInput.target_file) and resolves vs the
+  targeted Scramble's rating. Success removes the Scramble; failure vs a Poison Scramble marks the
+  protected paydata `destroyed=True` and emits a `decrypt` event.
+- **Player representation (the user's question):** a failed decrypt vs a Poison Scramble on KEY
+  data emits the event **"KEY DATA DESTROYED -- the Poison Scramble wiped the protected file. It
+  cannot be recovered."** with `key_data_lost: true` -- shown in the run event log. VERIFIED live
+  2026-05-31 (rating-15 Poison vs pool 10/TN 14 -> 0 hits -> wipe). +8 tests.
+- Remaining polish: a paydata panel in the run UI that greys out `destroyed` files; Exploding-
+  Scramble -> data-bomb detonation hookup (needs #7 Data Bomb wiring); IC response on the decrypt turn.
 
 ## #7 Worms, Data Bombs + Trap/Party/Construct -- [PARTIAL]
 - [DONE] Trap IC (surface conceals hidden), Party IC (cluster_id + `_cluster_size`), Construct
