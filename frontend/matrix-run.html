@@ -1002,6 +1002,28 @@ function onLoadoutSelectionChange() {
   updateRunStartEligibility();
 }
 
+// U2: a fresh browser session has empty localStorage, so the deck/load-out dropdowns come up
+// blank. Pull the active PC's saved decks/load-outs from the backend deck-builder-state into
+// the scoped localStorage keys this page reads. Fill-only: never clobber unsynced local data.
+async function hydrateDeckLoadoutFromBackend() {
+  const profile = getSavedProgrammerProfile();
+  if (!profile?.characterId) return;
+  try {
+    const res = await apiFetch(`${API}/characters/${profile.characterId}/deck-builder-state`);
+    if (!res.ok) return;
+    const stores = ((await res.json())?.state || {}).stores || {};
+    for (const baseKey of [DECK_STORE, LOADOUT_STORE]) {
+      const scoped = getProgrammerScopedStoreKey(baseKey);
+      let localHas = false;
+      try { localHas = (JSON.parse(localStorage.getItem(scoped) || '[]') || []).length > 0; } catch (_) {}
+      const backendVal = stores[baseKey] || stores[scoped];
+      if (!localHas && Array.isArray(backendVal) && backendVal.length) {
+        localStorage.setItem(scoped, JSON.stringify(backendVal));
+      }
+    }
+  } catch (_) { /* offline: keep whatever local has */ }
+}
+
 function refreshDeckLoadoutSources() {
   _savedDecks = loadScopedStore(DECK_STORE);
   _savedLoadouts = loadScopedStore(LOADOUT_STORE);
@@ -1058,6 +1080,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = await bootstrapAuth();
   if (!auth) return;
 
+  await hydrateDeckLoadoutFromBackend();
   refreshDeckLoadoutSources();
   await applyActiveCharacterToConfig();
 
