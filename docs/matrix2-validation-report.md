@@ -193,5 +193,50 @@ Playwright UI harness already installed:
 
 - Throwaway: `D:\Code Projects\_sr_e2e\` (node_modules, Playwright, validation scripts) and
   `data/_e2e_test.db` / `data/_e2e_fix.db` (gitignored). Safe to delete.
-- Two background uvicorn instances were started on `:8765` and `:8766` against throwaway DBs;
-  your real instance on `:8000` was never touched.
+- Throwaway uvicorn instances were started on `:8765`-`:8769` against throwaway DBs and then
+  stopped; your real instance on `:8000` was never touched.
+
+## Playwright UI smoke (2026-05-30)
+
+Node `@playwright/test` + Chromium in `D:\Code Projects\_sr_e2e\` (config + `ui.spec.js` +
+`token.txt` + `shot-*.png`). Loaded all four matrix pages authenticated (admin token injected
+into localStorage):
+
+| Page | Loads | Console errors | Controls | Notes |
+|------|-------|----------------|----------|-------|
+| matrix-designer | yes | 0 | 78 | renders |
+| deck-builder | yes | 0 | 74 | has program + active/storage-memory + load controls |
+| matrix-run | yes | 0 | 146 | host selector + deck/load-out dropdowns + deck-stat inputs render |
+| manage-matrix (SR1) | yes | 0 | 23 | renders; delete control present |
+
+So the pages load, wire up auth, and render without JS errors, and the deck-builder DOES
+expose program active/storage-memory controls (one of the API-vs-UI concerns -- front-end
+exists). matrix-run shows a real cross-page dependency: "No active programmer profile.
+Activate one in Deck Builder first" -- a run needs a saved deck build from the Deck Builder.
+
+## NEXT-SESSION CHECKPOINT (deep UI-vs-API E2E)
+
+Done: fixes F1-F4,F6 committed (`8ba1126`); engine suite (`598a43b`); revert point
+(`c5cbf25`); UI smoke (above). Remaining is the **interactive** UI-vs-API parity pass --
+drive each workflow in the browser and assert the UI reflects/persists what the API does,
+and that every API capability is reachable from the UI:
+
+1. **Deck builder** (start here -- run depends on it): build a deck (assert MPCP/BEMS limits
+   in the UI: sum BEMS <= MPCP x 3, no rating > MPCP), add/edit/delete programs, set/unset
+   ratings, toggle programs active vs storage memory and verify the memory-cap math, save a
+   deck build + program load-out, reload, confirm persistence (localStorage + backend
+   `/characters/{id}/deck-builder-state`). Confirm there is a front-end for everything the
+   deck/program API accepts.
+2. **Host designer**: create a host (security code/value, ACIFS, quick-fill formulas), build
+   + preview a sheaf, set trap doors, save; verify via API that config_json/sheaf/visibility
+   persisted; check org-security sync.
+3. **Matrix run** (now meaningful -- F1 fixed): select host + deck load-out, start, then
+   exercise EACH System Operation (vr2 "System Operations Summary Table") and each IC type
+   (cripplers/rippers/tar baby/tar pit/trace hunt->locate, construct, party IC, Black IC
+   incl. the new icon-crash/jack-out path) -- confirm each is reachable from the UI and the
+   rendered state matches the API state_json.
+
+Harness run recipe: start a server on a spare port with a fresh DB + `BOOTSTRAP_ADMIN_KEY`,
+create an admin token, write it to `_sr_e2e/token.txt`, set `baseURL` in
+`playwright.config.js`, `cd _sr_e2e && npx playwright test`. Scratch dir + `data/_e2e_*.db`
+are throwaway.
