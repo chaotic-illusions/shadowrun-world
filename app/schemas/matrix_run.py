@@ -61,6 +61,7 @@ class DeckerStats(BaseModel):
     # Workstation -4 / Remote +4. Console halves Access Rating & Security Value.
     access_modifier:   int = Field(0, ge=-6, le=6)
     console_access:    bool = False
+    persona_mode:      Literal["none", "bod", "evasion", "masking", "sensor"] = "none"
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
 
 

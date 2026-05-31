@@ -367,6 +367,35 @@ class TestDataBombAndWorm:
         assert r["mpcp_infected"] is False
 
 
+class TestPersonaModes:
+    """vr2 Persona Modes -- boosted attribute +50%, others -50%; flows into DF + combat."""
+
+    def _decker(self, mode):
+        return {"bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 6,
+                "persona_mode": mode, "utilities": {"sleaze": 8}}
+
+    def _state(self):
+        s = _fresh_state()
+        s["condition_monitor"] = {"persona_damage": {}, "mpcp_damage": 0}
+        return s
+
+    def test_masking_mode_boosts_masking_and_raises_df(self):
+        eff = mr._get_decker_effective(self._decker("masking"), self._state())
+        assert eff["masking"] == 9   # 6 * 1.5
+        assert eff["evasion"] == 3 and eff["sensor"] == 3
+        assert eff["bod"] == 6       # Masking mode leaves Bod alone
+        # DF rises: ceil((9 + 8)/2) = 9 (vs 7 in standard mode)
+        assert mr._effective_detection_factor(self._state(), self._decker("masking")) == 9
+
+    def test_sensor_mode_boosts_sensor_cuts_masking(self):
+        eff = mr._get_decker_effective(self._decker("sensor"), self._state())
+        assert eff["sensor"] == 9 and eff["masking"] == 3
+
+    def test_no_mode_is_unchanged(self):
+        eff = mr._get_decker_effective(self._decker("none"), self._state())
+        assert eff == {"bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 6}
+
+
 class TestScramblePaydata:
     """vr2 #6 -- Decrypt vs Scramble IC; Poison wipes key data on failure."""
 
