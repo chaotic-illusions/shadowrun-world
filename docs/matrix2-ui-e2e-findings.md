@@ -154,3 +154,13 @@ Throwaway Playwright specs in `D:\Code Projects\_sr_e2e\` (deck/prog/kit/loadout
 
 Next: re-run run.spec.js to confirm U10/U2/U1/U9, then the #1-#11 VR2 test matrix (building missing
 features per decision: enemy decker injected into a run, key-data-wipe UI, etc.).
+
+### Re-run VERIFIED 2026-05-31 (Playwright, isolated :8770, fresh DB)
+- **U1 CONFIRMED** -- Nightlife rolls **10 dice** (`[4,5,6,1,4,3,4,6,2,6] -> 7 hits`), was 4.
+- **U9 CONFIRMED** -- Log On To Host succeeds with Deception applied (tally +3, "Logged on successfully").
+- **U10 CONFIRMED** -- operations auto-fill UTIL RATING from the load-out: Analyze Host 7 hits,
+  Analyze Security 4 hits, Null Operation 5 hits -- all succeeding (previously all failed at raw TN).
+- Eligibility line reads "Load-out valid: Active 468/500 Mp, Storage 468/600 Mp"; JACK IN enabled; run POST 201.
+- Env note: background-Bash `python` is not on PATH (exit 127); the test server must be launched via the
+  venv python (`.venv\Scripts\python.exe`) through PowerShell `Start-Process`. Setup scripts must send the
+  created admin token on EVERY call (bootstrap key is disabled the moment the first admin token exists).
