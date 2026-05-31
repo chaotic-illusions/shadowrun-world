@@ -94,27 +94,58 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
         for k in _GM_ONLY_STATE_KEYS:
             state.pop(k, None)
         if isinstance(state.get("active_ic"), list):
-            state["active_ic"] = [
-                _redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)
+            redacted = [_redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)]
+            state["active_ic"] = [ic for ic in redacted if ic is not None]
+        if isinstance(state.get("event_log"), list):
+            # Drop GM-only events (e.g. surreptitious reactive-IC activity the decker
+            # has not yet detected) so the log never betrays a hidden IC's presence.
+            state["event_log"] = [
+                e for e in state["event_log"]
+                if not (isinstance(e, dict) and e.get("gm_only"))
             ]
         data["state_json"] = state
     return data
 
 
-def _redact_ic(ic: dict) -> dict:
-    """Player view of an active IC (vr2 #9).
+def _ic_detection_level(ic: dict) -> int:
+    """Effective detection level the decker currently has on an IC (vr2 line 409).
 
-    - trap_hidden collapses to a bare True marker (generic [TRAP] badge, no leak).
-    - type/rating are hidden behind an "Unknown IC" marker until an Analyze IC
-      success sets ``analyzed``; category (white/gray/black hint) is preserved so the
-      UI can still colour the card. The decker thus learns ratings only when earned.
+    Proactive IC betray themselves by attacking -> default level 1 (presence known).
+    Reactive IC 'do not betray themselves' -> default level 0 (unaware) until a secret
+    Sensor Test or Analyze raises ``detection_level``. ``analyzed`` forces a full reveal.
     """
+    level = ic.get("detection_level")
+    if level is None:
+        is_reactive = rules.IC_CATALOG.get(ic.get("type", ""), {}).get("ic_type") == "reactive"
+        level = 0 if is_reactive else 1
+    if ic.get("analyzed"):
+        level = 3
+    return level
+
+
+def _redact_ic(ic: dict) -> dict | None:
+    """Player view of an active IC. Returns None when the decker is unaware of it.
+
+    Graduated reveal (vr2 reactive-IC detection, line 409, + #9):
+      0 -> unaware: hidden entirely (None)        2 -> type known, rating hidden
+      1 -> presence known ("Unknown IC")          3 -> type + rating revealed
+    Reactive IC running surreptitiously (Probe, Data Bomb, Scramble, Worm, Trace) stay
+    invisible until detected, so nothing leaks that they are operating. trap_hidden
+    always collapses to a bare marker.
+    """
+    level = _ic_detection_level(ic)
+    if level <= 0:
+        return None  # decker is unaware -- do not reveal the IC at all
     out = dict(ic)
     if out.get("trap_hidden"):
         out["trap_hidden"] = True
-    if not out.get("analyzed"):
+    if level == 1:
         out["type"] = "Unknown IC"
         out["rating"] = None
+    elif level == 2:
+        out["rating"] = None  # type known, exact rating still unknown
+    # level >= 3: full reveal
+    out["detection_level"] = level
     return out
 
 
@@ -295,12 +326,16 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                     "status": "active",
                     "hunt_cycle_successes": 0,
                 })
+                # Reactive IC do not betray themselves -- their activation is GM-only
+                # until a Sensor Test / Analyze detects them (vr2 line 409).
+                is_reactive = rules.IC_CATALOG.get(ic_type, {}).get("ic_type") == "reactive"
                 events.append({
                     "type": "ic_activation",
                     "description": f"IC activated: {ic_type} Rating {ic_rating} (initiative {initiative})",
                     "ic_id": ic_id,
                     "ic_type": ic_type,
                     "ic_rating": ic_rating,
+                    "gm_only": is_reactive,
                 })
 
         elif ev_type == "trap_ic":
@@ -329,6 +364,7 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                 "ic_type": surface_type,
                 "ic_rating": surface_rating,
                 "is_trap": True,
+                "gm_only": rules.IC_CATALOG.get(surface_type, {}).get("ic_type") == "reactive",
                 "description": (
                     f"Trap IC activated: {surface_type}-{surface_rating} "
                     f"(conceals {hidden_type}-{hidden_rating})"
@@ -490,6 +526,37 @@ def _get_decker_effective(decker: dict, state: dict) -> dict:
         "sensor":  max(1, decker.get("sensor", 4) - dmg.get("sensor", 0)),
         "mpcp":    max(1, decker.get("mpcp", 4) - mpcp_dmg),
     }
+
+
+def _secret_sensor_test(state: dict, decker: dict, ic: dict) -> int:
+    """GM secret Sensor Test when a reactive IC acts (vr2 line 409).
+
+    Rolls the decker's Sensor dice vs the IC rating and raises the IC's
+    ``detection_level`` to the number of successes (capped 3, never lowered):
+      0 unaware  1 'something triggered IC'  2 know the type  3 know rating + location.
+    Emits a graduated, player-facing notice when the level increases. Returns the level.
+    """
+    if ic.get("analyzed"):
+        ic["detection_level"] = 3
+        return 3
+    prev = _ic_detection_level(ic)
+    eff = _get_decker_effective(decker, state)
+    roll = eng.roll_dice(eff.get("sensor", 4), ic.get("rating", 6))
+    new = min(3, max(prev, roll["successes"]))
+    ic["detection_level"] = new
+    if new > prev:
+        notices = {
+            1: "You sense your actions have triggered hidden IC.",
+            2: f"You identify the lurking IC as {ic.get('type', '?')} IC.",
+            3: f"You pinpoint {ic.get('type', '?')}-{ic.get('rating', '?')} IC and its location.",
+        }
+        _append_event(state, {
+            "type": "ic_detected",
+            "ic_id": ic["id"],
+            "detection_level": new,
+            "description": notices[new],
+        })
+    return new
 
 
 # -- Rules / reference endpoints -----------------------------------------------
@@ -786,17 +853,26 @@ async def perform_action(
             continue
         if ic["type"] == "Probe":
             probe = eng.probe_test(ic["rating"], det_factor)
+            # Probe IC is invisible (reactive): make a secret Sensor Test, then report
+            # the tally change at a detail level matching what the decker has detected.
+            lvl = _secret_sensor_test(state, decker, ic)
             if probe["tally_increase"] > 0:
                 state["security_tally"] += probe["tally_increase"]
-                _append_event(state, {
-                    "type": "probe_ic",
-                    "ic_id": ic["id"],
-                    "description": (
-                        f"Probe-{ic['rating']} test: {probe['roll']['successes']} successes "
-                        f"-> tally +{probe['tally_increase']} -> {state['security_tally']}"
-                    ),
-                    "tally_increase": probe["tally_increase"],
-                })
+                tally = state["security_tally"]
+                inc = probe["tally_increase"]
+                if lvl >= 3:
+                    desc = (f"Probe-{ic['rating']} test: {probe['roll']['successes']} successes "
+                            f"-> tally +{inc} -> {tally}")
+                elif lvl == 2:
+                    desc = f"Probe IC test: tally +{inc} -> {tally}"
+                elif lvl == 1:
+                    desc = f"Hidden IC probes your actions: tally +{inc} -> {tally}"
+                else:
+                    desc = f"Security tally rose by {inc} -> {tally} (source unidentified)"
+                ev = {"type": "probe_ic", "description": desc, "tally_increase": inc}
+                if lvl >= 1:
+                    ev["ic_id"] = ic["id"]  # only reference the IC once its presence is known
+                _append_event(state, ev)
             _check_and_activate_sheaf(state, sec_code)
 
     # Active IC attacks (proactive IC + trace IC that has already activated, in initiative order)
