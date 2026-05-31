@@ -57,6 +57,10 @@ class DeckerStats(BaseModel):
     # Trace Factor components (fixed inputs; Evasion and Camo are dynamic)
     trace_factor:      int = Field(0, ge=-6, le=6)   # jackpoint modifier
     bandwidth_modifier: int = Field(0, ge=-6, le=6)  # I/O speed relative to icon BW
+    # Jackpoint Access side (vr2 Jackpoint table): Legal -2 / Illegal 0 / Satellite +2 /
+    # Workstation -4 / Remote +4. Console halves Access Rating & Security Value.
+    access_modifier:   int = Field(0, ge=-6, le=6)
+    console_access:    bool = False
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
 
 

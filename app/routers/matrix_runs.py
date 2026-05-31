@@ -179,6 +179,8 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "scrambles": cfg.get("scrambles") or [],   # [{target_key, rating, variant}]
         "data_bombs": cfg.get("data_bombs") or [], # [{target, rating}]
         "defused_bombs": [],
+        "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
+        "console_access": decker.get("console_access", False),
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -483,7 +485,14 @@ def _subsystem_rating(state: dict, subsystem: str) -> int:
     idx = mapping.get(subsystem, 1)
     base = acifs[idx] if idx < len(acifs) else 10
     modifier = {"passive": 2}.get(state.get("alert_status", "none"), 0)
-    return base + modifier
+    rating = base + modifier
+    # Jackpoint Access modifier applies to Access Tests only (vr2 Jackpoint table);
+    # Console access additionally halves the Access Rating (round up).
+    if subsystem == "access":
+        rating += state.get("access_modifier", 0)
+        if state.get("console_access"):
+            rating = -(-rating // 2)  # round-up halving
+    return max(2, rating)
 
 
 def _compute_trace_tn(state: dict, decker: dict, ic_rating: int, eff: dict) -> int:
