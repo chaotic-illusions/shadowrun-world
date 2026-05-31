@@ -104,7 +104,7 @@ class TestEveryICType:
         step = {"trigger": 10, "events": [{"type": "ic", "ic_type": ic_type, "rating": 6}]}
         events = mr._activate_sheaf_step(state, step, state["host_security_code"])
         assert events, f"{ic_type} produced no event"
-        if ic_type in ("Tar Baby", "Tar Pit"):
+        if ic_type in ("Tar Baby", "Tar Pit", "Worm"):
             assert len(state["lurking_ic"]) == 1
             assert state["lurking_ic"][0]["type"] == ic_type
             assert state["active_ic"] == []
