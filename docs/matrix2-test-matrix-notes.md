@@ -249,26 +249,24 @@ test_matrix_engine.py):
 - **#6** Scramble decrypt + Poison KEY-DATA-DESTROYED wipe, wired into perform_action (decrypt_file
   + target_file), VERIFIED live.
 
-ALL of #1-#11 + #5 are now DONE (backend + tests + run-UI + live-verified). PICK UP HERE:
-1. **Browser passes** (Playwright, isolated :8770) -- the remaining "user-perspective" verification:
-   #1 forced-IC stacked view; #3 program-purchase permutations; #4 trap-door discover->traverse
-   (host has trap_doors_json + renderTrapDoorsPanel + enterTrapDoor in matrix-run.html -- check the
-   traverse endpoint works); targeted #2/#3 size/cost sweep; and a UI pass exercising the new
-   enemy-decker panel + Strike Back, decrypt key-data-wipe, data bomb, suppress.
-2. **Designer data-population** so the new run logic gets exercised from authored hosts: Shield/Shift
-   IC flags (`ic.shield`/`ic.shift`); ensure designer writes paydata.is_key / scrambles.variant /
-   data_bombs as the run expects (the run reads config_json.{paydata,scrambles,data_bombs}).
-3. **Optional**: enemy-decker GM controls in the UI (inject/act buttons) for solo testing; PC-vs-
-   enemy initiative ordering; click-to-target Analyze IC (low value -- backend defaults work).
-2. **#9 / #6 frontend polish**: run UI click-to-target an IC card for Analyze; paydata panel that
-   greys out `destroyed` files; surface the new `data_bomb` / `worm_resolved` / `ic_detected` /
-   `decrypt` events nicely in the run log.
-3. **#5 enemy-decker injection** (low priority): endpoint/state to add an opposing decker to a live
-   run with its own persona + a way to act against the player.
-4. **[TODO] browser passes**: #1 forced-IC stacked view, #3 purchase perms, #4 trap-door traverse,
-   targeted #2/#3 size/cost sweep.
-5. **Exploding-Scramble -> Data-Bomb hookup**: a failed decrypt vs an Exploding Scramble should
-   detonate its linked data bomb (consequence fn already returns `detonate_data_bomb`; wire it).
+ALL of #1-#11 + #5 are DONE (backend + tests + run-UI + live-verified) AND the Playwright
+user-perspective passes are GREEN (2026-06-01, isolated :8770). Specs in `D:\Code Projects\_sr_e2e\`:
+- `run.spec.js` -- baseline run (logon + operations) PASS, no regressions.
+- `newfeatures.spec.js` -- 6/6: KEY PAYDATA panel; decrypt vs Poison Scramble -> KEY DATA DESTROYED
+  event + `[DESTROYED]` panel badge; data bomb detonation; HOSTILE DECKERS panel + Strike Back.
+- `prog.spec.js` -- #3: program build options + buy/Import flow + persistence PASS.
+- `stacked-trapdoor.spec.js` -- #1 stacked IC: 3 IC cards (Killer+Acid+Blaster) render together.
+- `trapdoor.spec.js` -- #4: Front Door -> graceful logoff -> NEW run on Back Room + logon
+  ("Trap-door transit complete"). PASS.
+Also added a run-UI **Target (file/slave)** input so data bombs / scramble targeting are reachable
+from the browser (newfeatures pass confirmed).
+
+REMAINING (optional polish, all backend logic already done + unit-tested):
+1. **Designer data-population**: author Shield/Shift IC flags (`ic.shield`/`ic.shift`) and confirm the
+   designer writes paydata.is_key / scrambles.variant / data_bombs as the run reads them.
+2. **Enemy-decker GM controls in the UI** (inject/act/program-pick buttons) for solo testing -- today
+   those go through the API (the player-facing HOSTILE DECKERS panel + Strike Back already render).
+3. **Nice-to-haves**: click-to-target Analyze IC (backend defaults work); PC-vs-enemy initiative order.
 
 Env to re-run anything live: see the env note at the top + memory `project_matrix2_test_matrix`.
 Test server launch = venv python via PowerShell Start-Process; admin token on every call.
