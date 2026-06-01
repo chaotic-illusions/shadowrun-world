@@ -470,6 +470,51 @@ class TestEnemyDeckerGeneration:
         assert d["status"] == "active" and d["located"] is False
 
 
+class _RunStub:
+    status = "active"
+
+
+class TestEnemyAutoActAndAutoInject:
+    """Gap C -- the app-as-GM runs the enemy decker automatically (shared helper) and an
+    authored host can dispatch one via a sheaf event."""
+
+    def _decker(self):
+        return {"bod": 5, "evasion": 5, "masking": 5, "sensor": 5, "mpcp": 6,
+                "intelligence": 5, "body": 5, "hardening": 0, "utilities": {"sleaze": 4}}
+
+    def _state(self):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["condition_monitor"] = {"persona_boxes": 0, "physical_boxes": 0, "mpcp_damage": 0,
+                                  "persona_damage": {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0}}
+        return s
+
+    def test_take_turn_phase1_locates_and_reveals(self, scripted):
+        scripted([6, 6, 6, 1, 1])  # enemy locate roll beats the PC -> progress, reveal
+        state = self._state()
+        enemy = eng.generate_enemy_decker("Red", 8); enemy["id"] = "ed1"
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["revealed"] is True   # PC now aware a hostile decker hunts them
+        assert any(e["type"] == "enemy_decker" for e in state["event_log"])
+
+    def test_take_turn_noop_when_run_ended_or_crashed(self, scripted):
+        scripted([6])
+        state = self._state(); state["run_ended"] = True
+        enemy = eng.generate_enemy_decker("Red", 8); enemy["id"] = "ed1"
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy.get("revealed") in (None, False)  # did nothing
+
+    def test_sheaf_enemy_decker_event_auto_injects(self, scripted):
+        scripted([3])
+        state = _fresh_state(); state["host_security_value"] = 8; state["enemy_deckers"] = []
+        events = mr._activate_sheaf_step(state, {"trigger": 10, "events": [{"type": "enemy_decker"}]}, "Red")
+        assert len(state["enemy_deckers"]) == 1
+        ed = state["enemy_deckers"][0]
+        assert ed["tier"] == "Red" and ed["computer_skill"] >= 1
+        inj = [e for e in events if e.get("type") == "enemy_decker_injected"]
+        assert inj and inj[0]["gm_only"] is True   # hidden from the player until detected
+
+
 class TestEnemyLocateAndIntent:
     def test_locate_progress_is_net_enemy_successes(self, scripted):
         # enemy 3 hits (TN low), PC 1 hit -> progress +2
