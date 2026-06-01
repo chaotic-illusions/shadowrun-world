@@ -65,19 +65,22 @@ Never touches the real `:8000` instance.
   (Blue->Black); skill/MPCP scale with security_value but never exceed the tier (a Blue-5 host
   yields Computer<=4, not 12). `enemy_locate_test` (opposed: enemy Computer vs PC Detection Factor,
   PC Evasion resists); `escalate_enemy_intent` (boot->dump->kill as the alarm rises).
-- **Rubric**: Blue/Green=boot (trace-dump), Orange/Red=dump (cybercombat crash), Black=kill
-  (Black Hammer lethal biofeedback). Scanner rated at persona level (not full skill) so a sleazy
-  PC keeps an evade window.
-- **Behaviour**: the enemy must LOCATE the PC first (gives counterplay turns); on first contact the
-  PC gets an ALERT (revealed) but progress is GM-only until pinpointed. All forced exits (trace-dump
-  or icon crash) inflict DUMP SHOCK -- only the PC's own graceful logoff avoids it (per the user's
-  correct VR2 reading). Two-way: the PC can Strike Back and crash the enemy's icon.
+- **Rubric / method** (corrected per VR2): Trace is host IC, NOT a decker tool -- an enemy decker
+  removes you only by CRASHING YOUR ICON in cybercombat (icon crash -> dump + dump shock). Intents:
+  `dump` (crash the icon) for Blue->Red, `kill` (Black Hammer lethal biofeedback) for Black; a dump
+  decker escalates to kill at high tally. Higher tiers (Orange+) carry deck-frying programs and
+  BURN CHIPS on a solid hit (permanent MPCP loss, Blaster-style). Scanner is persona-rated (not full
+  skill) so a sleazy PC keeps an evade window.
+- **Behaviour**: the enemy must LOCATE the PC first (Locate Decker / Scanner -- gives counterplay
+  turns); on first contact the PC gets an ALERT (revealed) but progress is GM-only until pinpointed.
+  Any forced exit (icon crash) inflicts DUMP SHOCK -- only the PC's own graceful logoff avoids it.
+  Two-way: the PC can Strike Back and crash the enemy's icon.
 - **Endpoints**: `POST .../enemy-decker` (GM inject, auto-scaled), `.../enemy-decker/act`
   (GM: locate then execute intent), `.../enemy-decker/attack` (PC strikes back).
 - **Redaction**: enemy deckers GM-only until `revealed`; players then see name/tier/intent/condition
   only (never raw ratings). **UI**: HOSTILE DECKERS panel + Strike Back + event badges.
-- VERIFIED live: Red-8 dump->persona crash->dumped; Black-9 Black Hammer->killed; PC strike-back
-  crashed a Green-6 enemy. +12 tests.
+- VERIFIED live: Red-8 located -> icon attack Deadly + Chip burn MPCP-1 -> persona crash -> dumped
+  (no fake "trace-dump"); Black-9 Black Hammer -> killed; PC strike-back crashed a Green-6 enemy.
 
 ## #6 Paydata (discoverable + key) vs Scramble IC -- [DONE end-to-end, verified live]
 - Engine: `scramble_decrypt_test` (Computer Test vs Scramble rating - Decrypt utility, floor 2,
