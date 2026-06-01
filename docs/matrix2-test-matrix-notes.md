@@ -65,12 +65,16 @@ Never touches the real `:8000` instance.
   (Blue->Black); skill/MPCP scale with security_value but never exceed the tier (a Blue-5 host
   yields Computer<=4, not 12). `enemy_locate_test` (opposed: enemy Computer vs PC Detection Factor,
   PC Evasion resists); `escalate_enemy_intent` (boot->dump->kill as the alarm rises).
-- **Rubric / method** (corrected per VR2): Trace is host IC, NOT a decker tool -- an enemy decker
-  removes you only by CRASHING YOUR ICON in cybercombat (icon crash -> dump + dump shock). Intents:
-  `dump` (crash the icon) for Blue->Red, `kill` (Black Hammer lethal biofeedback) for Black; a dump
-  decker escalates to kill at high tally. Higher tiers (Orange+) carry deck-frying programs and
-  BURN CHIPS on a solid hit (permanent MPCP loss, Blaster-style). Scanner is persona-rated (not full
-  skill) so a sleazy PC keeps an evade window.
+- **Offensive programs (faithful to vr2 "Offensive Utilities")**: Trace is host IC, NOT a decker
+  tool -- an enemy decker removes you only by CRASHING YOUR ICON in cybercombat (icon crash -> dump
+  shock). A plain **Attack** does icon-only damage (no deck damage). Lethal programs **Black Hammer**
+  (Physical) / **Killjoy** (Stun) are carried ONLY on deadly-force hosts (Red/Black, line 2310);
+  rating = half Computer skill; they add biofeedback (Body resists) AND burn MPCP on an icon crash at
+  DOUBLE the program rating (line 1537, "like Blaster IC"). Cybercombat dice = offensive-utility
+  rating + Hacking Pool (line 2014), not Computer skill. `intent`: dump (Attack) / kill (lethal);
+  escalates dump->kill at high tally ONLY if a lethal program is loaded. Scanner persona-rated so a
+  sleazy PC keeps an evade window. (Hog / Poison / Restrict / Reveal also exist in the rules as
+  decker programs -- not yet auto-loaded; future enhancement.)
 - **Behaviour**: the enemy must LOCATE the PC first (Locate Decker / Scanner -- gives counterplay
   turns); on first contact the PC gets an ALERT (revealed) but progress is GM-only until pinpointed.
   Any forced exit (icon crash) inflicts DUMP SHOCK -- only the PC's own graceful logoff avoids it.
@@ -79,8 +83,9 @@ Never touches the real `:8000` instance.
   (GM: locate then execute intent), `.../enemy-decker/attack` (PC strikes back).
 - **Redaction**: enemy deckers GM-only until `revealed`; players then see name/tier/intent/condition
   only (never raw ratings). **UI**: HOSTILE DECKERS panel + Strike Back + event badges.
-- VERIFIED live: Red-8 located -> icon attack Deadly + Chip burn MPCP-1 -> persona crash -> dumped
-  (no fake "trace-dump"); Black-9 Black Hammer -> killed; PC strike-back crashed a Green-6 enemy.
+- VERIFIED live (faithful rework): Green-6 uses Attack only -> icon crash -> dump, mpcp_dmg stays 0
+  (no deck damage from a plain Attack decker); Black-9 Black Hammer -> lethal biofeedback -> killed;
+  PC strike-back crashed a Green-6 enemy. No fake "trace-dump"; no invented per-hit chip burn.
 
 ## #6 Paydata (discoverable + key) vs Scramble IC -- [DONE end-to-end, verified live]
 - Engine: `scramble_decrypt_test` (Computer Test vs Scramble rating - Decrypt utility, floor 2,
