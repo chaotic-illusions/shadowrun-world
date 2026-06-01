@@ -2059,6 +2059,10 @@ async def enemy_decker_act(
             "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).{mpcp_note}",
         })
 
+    if not state.get("run_ended"):
+        # Reveal (masking) cripples flow into the Detection Factor -- keep it in sync for the UI.
+        state["detection_factor"] = _effective_detection_factor(state, decker)
+
     run.state_json = state
     await db.commit(); await db.refresh(run)
     return _serialize_run(run, auth)
