@@ -236,14 +236,16 @@ No regressions across the combined #6/#7/#9/#11 feature set.
 
 Context-safe resume plan for the current work. Status updated as each lands.
 
-**A. Swap Memory operation [DOING this session]**
+**A. Swap Memory operation [DONE 2026-06-01, verified live]**
 - New run action `swap_memory` (Simple action): reload/restore a program. Clears
   `state["program_damage"][util]` (Hog/Tar Baby/One-Shot/degraded Armor/Shield recovery -> rating
   back to base). Needs a `target_program` (util key). No test (vr2 line 1896). Add to ActionType +
   a UI control. Backend: in perform_action, intercept `swap_memory` -> clear program_damage[target]
   (+ remove any Hog infection on it), emit event, early-return.
 
-**B. Hog persistence + purge [DOING this session]**
+**B. Hog persistence + purge [DONE 2026-06-01, verified live]**
+  (Live: Hog took hold drain 2/turn -> new_turn auto re-drained to next-highest program ->
+   purge_hog Computer test TN 14 -> swap_memory restored the program. All wired + 4 tests.)
 - Make Hog a PERSISTENT infection (vr2: re-drains each Combat Turn until the program crashes, then
   moves to next-highest). Track `state["hog_infections"] = [{id, rating}]`.
   - Enemy act program="Hog": if attack hits, ADD/refresh a hog infection (rating = Hog rating) and
