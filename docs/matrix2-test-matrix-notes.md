@@ -195,9 +195,24 @@ designer/sheaf concern (the run logic is ready).
   U10 operations auto-apply utility). See `docs/matrix2-ui-e2e-findings.md`.
 - `tests/test_vr2_matrix_scenarios.py` -- 41 tests, all green (#1/#7/#8/#10/#11 engine layer).
 
+## Frontend polish (run UI) -- DONE 2026-05-31
+- Event-log badges for the new event types: decrypt (KEY DATA LOST / DATA WIPED / DECRYPT),
+  data_bomb (DATA BOMB / BOMB DEFUSED), worm_resolved (WORM INFECT / REPELLED), ic_detected,
+  ic_suppressed, ic_released.
+- IC cards: `[ID n/3]` detection-progress badge for partially identified reactive IC (the
+  backend already redacts type/rating below the detected level).
+- Key Paydata objective panel: destroyed key files render as `[DESTROYED]` (red, strikethrough),
+  driven by a `file_name` on the decrypt wipe event.
+
+## Live integration smoke -- PASS 2026-05-31 (isolated :8770, all session code)
+persona Masking mode DF=9; decrypt Poison Scramble -> KEY DATA DESTROYED (file_name "Black Files");
+data bomb detonates on download; GM sees Probe IC; suppress endpoint drops DF + emits event.
+No regressions across the combined #6/#7/#9/#11 feature set.
+
 ## >>> RESUME CHECKPOINT (2026-05-31, updated) <<<
 
-User priority: **#11 (account for ALL modifiers), then #9, #7, #6; #5 later.**
+User priority: **#11 (account for ALL modifiers), then #9, #7, #6; #5 later.** -- #6/#7/#9/#11 are
+all DONE (backend + tests + run-UI polish + live-verified). Remaining is #5 + browser passes.
 
 DONE & committed (all on `matrix2`; tests green = 70 in test_vr2_matrix_scenarios.py + 40 in
 test_matrix_engine.py):
@@ -212,11 +227,18 @@ test_matrix_engine.py):
   + target_file), VERIFIED live.
 
 PICK UP HERE, in order:
-1. **#11 remaining modifiers** (DONE: jackpoint Access mod, Console-Access-Rating, suppress/release,
-   persona modes): linked-passcode -2 to Logon (with Deception) -- needs a decker/state
-   `linked_passcode` flag applied at the logon access TN (logon is the `logon_to_host`/logon action
-   path); Shield/Shift +2 to-hit (verify/wire in attack_ic); Console halving of Security Value
-   (Access Rating already halved in `_subsystem_rating`). See the #11 inventory section for line refs.
+1. **#5 enemy-decker injection** (user: low priority but needed): endpoint/state to add an opposing
+   decker to a live run with its own persona stats + a way for it to act against the player (system
+   tests / cybercombat). New: a `POST /matrix-runs2/{id}/enemy-decker` (GM) adding to a state
+   `enemy_deckers` list; an action for the enemy to make a move; surface it in the run UI.
+2. **Browser passes** (Playwright, isolated :8770): #1 forced-IC stacked view, #3 program-purchase
+   permutations, #4 trap-door discover->traverse (check whether traverse is implemented first --
+   host has trap_doors_json + a renderTrapDoorsPanel exists in matrix-run.html), targeted #2/#3
+   size/cost sweep.
+3. **Optional polish left**: click-to-target Analyze IC (backend already defaults to first-unknown,
+   so low value); Exploding-Scramble -> data-bomb detonation hookup (consequence fn returns
+   `detonate_data_bomb`; wire it to call eng.data_bomb_detonate); data-population of Shield/Shift IC
+   flags from the designer/sheaf (run logic is ready).
 2. **#9 / #6 frontend polish**: run UI click-to-target an IC card for Analyze; paydata panel that
    greys out `destroyed` files; surface the new `data_bomb` / `worm_resolved` / `ic_detected` /
    `decrypt` events nicely in the run log.
