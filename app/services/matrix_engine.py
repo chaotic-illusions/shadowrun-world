@@ -846,11 +846,17 @@ def generate_enemy_decker(
     lethal = "Black Hammer" if "Black Hammer" in extra else ("Killjoy" if "Killjoy" in extra else None)
     lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
     # Reaction stats + Response Increase scale the enemy's initiative with host difficulty.
-    # RI is capped at MPCP/4 (vr2). Initiative itself is rolled at inject time using the same
-    # decker-initiative model as the PC (Reaction + 1D6 + RI bonuses + hot DNI).
-    intelligence = tier.get("intelligence", max(3, min(6, skill)))
-    quickness = tier.get("quickness", 3)
-    response_increase = min(tier.get("ri", 0), mpcp // 4)
+    # The app fills these PSEUDO-RANDOMLY within tier bands (no GM input needed): Reaction
+    # stats vary +-1 below the tier top; RI is usually the tier value (30% one lower), capped
+    # at MPCP/4 (vr2); deck mode runs hot more often at higher tiers; a reality filter appears
+    # with a tier-scaled chance. Initiative itself is rolled at inject time (PC model).
+    intelligence = max(3, tier.get("intelligence", min(6, skill)) - random.randint(0, 1))
+    quickness = max(2, tier.get("quickness", 3) - random.randint(0, 1))
+    response_increase = min(mpcp // 4, max(0, tier.get("ri", 0) - (1 if random.random() < 0.3 else 0)))
+    hot_chance = {"Blue": 0.6, "Green": 0.7, "Orange": 0.8, "Red": 0.9, "Black": 1.0}.get(security_code, 0.8)
+    deck_mode = "hot" if random.random() < hot_chance else "cool"
+    rf_chance = {"Blue": 0.0, "Green": 0.1, "Orange": 0.25, "Red": 0.5, "Black": 0.75}.get(security_code, 0.25)
+    reality_filter = random.random() < rf_chance
     return {
         "name": name or f"{security_code}-{security_value} Security Decker",
         "mpcp": mpcp,
@@ -859,7 +865,8 @@ def generate_enemy_decker(
         "intelligence": intelligence,
         "quickness": quickness,
         "response_increase": response_increase,
-        "deck_mode": "hot",   # security deckers run hot for maximum initiative
+        "deck_mode": deck_mode,
+        "reality_filter": reality_filter,
         "utilities": {
             # Scanner is a utility (locate other deckers), rated like the persona programs --
             # not the full Computer skill, so a sleazy PC keeps an evade window.
