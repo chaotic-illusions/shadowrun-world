@@ -309,7 +309,10 @@ Context-safe resume plan for the current work. Status updated as each lands.
   DNI +1D6 reality filter. Reaction = ceil((Quickness+Intelligence)/2) [NOT Willpower]. IC = Rating
   + Nd6 (Blue1/Green2/Orange3/Red4/Black5). Passes = init//10 + 1.
 - ENEMY DECKER INITIATIVE SCALING [DONE 2026-06-01]: enemies use the PC initiative model with
-  tier-scaled RI + Quickness/Intelligence (RI<=MPCP/4): Blue RI0 Q3/I4; Green RI1 Q4/I5; Orange RI1
+  tier-scaled RI + Quickness/Intelligence (RI<=MPCP/4). Stats are PSEUDO-RANDOM within tier bands
+  (the app fills them, no GM input): reaction stats vary +-1 below the tier top; RI = tier value
+  (30% one lower); deck runs hot with a tier chance (Blue 60%..Black 100%); reality filter appears
+  with a tier chance (Blue 0%..Black 75%). Tier tops: Blue RI0 Q3/I4; Green RI1 Q4/I5; Orange RI1
   Q5/I6; Red RI2 Q6/I6; Black RI3 Q6/I8. So a Red/Black security decker keeps pace with a nova-hot
   player. Sample avg passes: player rookie ~1.7 / veteran 3 / nova-hot ~3.9; IC Blue1..Black~3.2;
   enemy decker Blue~1.7 / Green~2.3 / Orange~2.4 / Red~3.0 / Black~3.6.
