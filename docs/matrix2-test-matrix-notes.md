@@ -298,11 +298,13 @@ Context-safe resume plan for the current work. Status updated as each lands.
   Run UI shows "Initiative N -- pass C/P, X AP + Y Free". Throwaway specs updated to New-Turn between
   ops. +6 tests. (Live: init 9/1 pass -> Complex spends 2 AP -> 2nd Complex BLOCKED -> New Turn
   re-rolled 10/2 passes -> Free action used the free slot not AP.)
-- REMAINING NUANCE (refinement, not blocking): IC + enemy deckers still act once per player action
-  (inside perform_action), not strictly on the passes their OWN initiative reaches. True interleaving
-  = extract the IC attack loop + `_enemy_decker_take_turn` into `_resolve_npc_pass` and fire it on
-  pass-advance/new-turn, gating each NPC by its own initiative passes. See the original sequencing
-  notes below. Also optional: an explicit `/next-pass` endpoint + button (auto-advance covers it now).
+- NPC INITIATIVE-PASS INTERLEAVING [DONE 2026-06-01, verified live]: instead of the risky IC-loop
+  extraction, the proactive IC attack loop + the enemy auto-act loop now gate on `current_pass` --
+  each NPC acts at most ONCE per pass and only on passes its OWN initiative reaches (init//10+1),
+  tracked via an `acted_pass` marker; new_turn re-rolls IC initiative and clears the markers. Probe
+  IC still test per System Test (per rules). (Live: a Killer attacked once in pass 2 -- not twice
+  across two Simple actions -- then again after New Turn.) An explicit `/next-pass` endpoint+button
+  is unneeded (auto-advance covers it). GAP D IS NOW FULLY COMPLETE.
 - ORIGINAL SEQUENCING NOTES (for the NPC-interleaving refinement):
   KEY SEQUENCING INSIGHT: today IC + enemy deckers act inside perform_action (once per player
   action). For a faithful pass model that must change, so do it in this order:
