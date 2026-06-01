@@ -132,6 +132,27 @@ SHEAF_CRIPPLER_RIPPER_TARGET_TABLE: list[tuple[tuple[int, int], str]] = [
     ((6, 6), "Sensor"),
 ]
 
+# IC Options Table (roll 2D6) -- Cascading / Expert Offense+ / Expert Defense+ (Expert
+# value = 1D3). Rolled when generating IC for the security sheaf.
+IC_OPTIONS_TABLE: list[tuple[tuple[int, int], str]] = [
+    ((2, 2), "Cascading"),
+    ((3, 5), "Expert Offense"),
+    ((6, 8), "None"),
+    ((9, 11), "Expert Defense"),
+    ((12, 12), "Cascading"),
+]
+
+# IC Defenses Table (roll 2D6) -- Armor / Shifting / Shielding combinations.
+IC_DEFENSE_TABLE: list[tuple[tuple[int, int], str]] = [
+    ((2, 3), "Armor and Shifting"),
+    ((4, 5), "Armor"),
+    ((6, 6), "Shifting"),
+    ((7, 7), "None"),
+    ((8, 8), "Shielding"),
+    ((9, 10), "Armor"),
+    ((11, 12), "Armor and Shielding"),
+]
+
 #  Host design ranges
 # sv_formula / acif_formula are dice expressions used by the frontend designer's
 # Quick-Fill button. Keep formula text aligned with the range so display tips and

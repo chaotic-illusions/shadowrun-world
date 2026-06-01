@@ -17,6 +17,7 @@ from app.services.matrix_rules import (
     SHEAF_ALERT_TABLE, SHEAF_REACTIVE_WHITE_TABLE, SHEAF_PROACTIVE_WHITE_TABLE,
     SHEAF_REACTIVE_GRAY_TABLE, SHEAF_PROACTIVE_GRAY_TABLE, SHEAF_BLACK_TABLE,
     SHEAF_TRAP_IC_TABLE, SHEAF_CRIPPLER_RIPPER_TARGET_TABLE,
+    IC_OPTIONS_TABLE, IC_DEFENSE_TABLE,
     IC_CATALOG,
 )
 
@@ -359,6 +360,28 @@ def _build_construct_or_party_event(security_value: int) -> dict:
     }
 
 
+def _roll_ic_extras() -> dict[str, Any]:
+    """Roll the IC Options + IC Defenses tables (vr2) for a generated combat IC.
+
+    Returns event fields to merge into the IC dict: ``options`` (Armor/Shielding/Shifting),
+    ``cascading``, and/or ``expert`` ({type: offense|defense, value: 1D3}). Shield/Shift
+    flow into the decker's to-hit TN; Armor/Cascading/Expert are carried for the GM/UI.
+    """
+    extras: dict[str, Any] = {}
+    opt = _table_pick(IC_OPTIONS_TABLE, _roll_2d6())
+    if opt == "Cascading":
+        extras["cascading"] = True
+    elif opt == "Expert Offense":
+        extras["expert"] = {"type": "offense", "value": random.randint(1, 3)}
+    elif opt == "Expert Defense":
+        extras["expert"] = {"type": "defense", "value": random.randint(1, 3)}
+    defense = _table_pick(IC_DEFENSE_TABLE, _roll_2d6())
+    opts = [d for d in ("Armor", "Shifting", "Shielding") if d in defense]
+    if opts:
+        extras["options"] = opts
+    return extras
+
+
 def _build_ic_event(family: str, security_value: int) -> dict | None:
     rating = _ic_rating(security_value)
 
@@ -371,9 +394,9 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
         if result == "Crippler":
             attr = _table_pick(SHEAF_CRIPPLER_RIPPER_TARGET_TABLE, _roll_d6())
             ic_type = {"Bod": "Acid", "Evasion": "Binder", "Masking": "Marker", "Sensor": "Jammer"}[attr]
-            return {"type": "ic", "ic_type": ic_type, "rating": rating}
+            return {"type": "ic", "ic_type": ic_type, "rating": rating, **_roll_ic_extras()}
         if result == "Killer":
-            return {"type": "ic", "ic_type": "Killer", "rating": rating}
+            return {"type": "ic", "ic_type": "Killer", "rating": rating, **_roll_ic_extras()}
         if result == "Trap Trace":
             return _build_trap_ic_event("Trace", security_value)
         if result == "Trap Probe":
@@ -397,9 +420,9 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
         if result == "Rippers":
             attr = _table_pick(SHEAF_CRIPPLER_RIPPER_TARGET_TABLE, _roll_d6())
             ic_type = {"Bod": "Acid-rip", "Evasion": "Bind-rip", "Masking": "Mark-rip", "Sensor": "Jam-rip"}[attr]
-            return {"type": "ic", "ic_type": ic_type, "rating": rating}
+            return {"type": "ic", "ic_type": ic_type, "rating": rating, **_roll_ic_extras()}
         if result in {"Blaster", "Sparky"}:
-            return {"type": "ic", "ic_type": result, "rating": rating}
+            return {"type": "ic", "ic_type": result, "rating": rating, **_roll_ic_extras()}
         if result == "Construct/Party IC":
             return _build_construct_or_party_event(security_value)
         return None
@@ -407,9 +430,9 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
     if family == "black_ic":
         result = _table_pick(SHEAF_BLACK_TABLE, _roll_2d6())
         if result == "Lethal":
-            return {"type": "ic", "ic_type": "Black IC", "rating": rating, "mode": "lethal"}
+            return {"type": "ic", "ic_type": "Black IC", "rating": rating, "mode": "lethal", **_roll_ic_extras()}
         if result == "Non-Lethal":
-            return {"type": "ic", "ic_type": "Black IC", "rating": rating, "mode": "non_lethal"}
+            return {"type": "ic", "ic_type": "Black IC", "rating": rating, "mode": "non_lethal", **_roll_ic_extras()}
         if result == "Construct/Party IC":
             return _build_construct_or_party_event(security_value)
         return None

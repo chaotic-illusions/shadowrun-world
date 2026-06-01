@@ -470,6 +470,44 @@ class TestEnemyDeckerGeneration:
         assert d["status"] == "active" and d["located"] is False
 
 
+class TestICOptionsAndDefensesTables:
+    """vr2 IC Options Table + IC Defenses Table -- now rolled when generating combat IC."""
+
+    def test_tables_exist_and_cover_2d6(self):
+        for tbl in (rules.IC_OPTIONS_TABLE, rules.IC_DEFENSE_TABLE):
+            covered = set()
+            for (lo, hi), _ in tbl:
+                covered |= set(range(lo, hi + 1))
+            assert {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} <= covered
+
+    def test_roll_ic_extras_cascading(self, scripted):
+        scripted([1, 1, 5, 2])  # options 2D6=2 -> Cascading; defenses 2D6=7 -> None
+        e = eng._roll_ic_extras()
+        assert e.get("cascading") is True
+        assert "options" not in e
+
+    def test_roll_ic_extras_defense_armor_shifting(self, scripted):
+        scripted([4, 4, 1, 1])  # options 2D6=8 -> None; defenses 2D6=2 -> Armor and Shifting
+        e = eng._roll_ic_extras()
+        assert set(e.get("options", [])) == {"Armor", "Shifting"}
+        assert "cascading" not in e and "expert" not in e
+
+    def test_roll_ic_extras_expert_offense(self, scripted):
+        scripted([2, 1, 2, 4, 3])  # options 2D6=3 -> Expert Offense; value=2; defenses 2D6=7 -> None
+        e = eng._roll_ic_extras()
+        assert e.get("expert", {}).get("type") == "offense"
+        assert 1 <= e["expert"]["value"] <= 3
+
+    def test_generated_killer_can_carry_extras(self, scripted):
+        # proactive_white roll -> Killer (2D6=6); then options/defenses rolls attach extras.
+        # 2D6=6 -> [3,3]; rating roll; options [1,1]=2 Cascading; defenses [1,1]=2 Armor+Shifting
+        scripted([3, 3, 3, 3, 1, 1, 1, 1])
+        ev = eng._build_ic_event("proactive_white", 6)
+        assert ev and ev["ic_type"] == "Killer"
+        # extras present (cascading and/or options from the tables)
+        assert ("cascading" in ev) or ("options" in ev) or ("expert" in ev)
+
+
 class TestInitiativeFoundation:
     """Gap D (foundation) -- Matrix initiative + action passes tracked; action costs surfaced.
     (Full action-economy ENFORCEMENT is the documented next step.)"""
