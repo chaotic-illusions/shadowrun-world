@@ -457,6 +457,17 @@ class TestEnemyLocateAndIntent:
         assert eng.escalate_enemy_intent("dump", security_tally=15) == "kill"
         assert eng.escalate_enemy_intent("kill", security_tally=99) == "kill"
 
+    def test_player_view_redacts_enemy_internals(self):
+        enemy = eng.generate_enemy_decker("Red", 8)
+        enemy["id"] = "ed_1"
+        enemy["condition_monitor"] = {"persona_boxes": 4, "mpcp_damage": 0}
+        red = mr._redact_enemy_decker(enemy)
+        # presence + condition only -- no raw ratings leak to the player
+        assert red["name"] and red["tier"] == "Red" and red["intent"]
+        assert red["condition_monitor"]["persona_boxes"] == 4
+        for secret in ("computer_skill", "mpcp", "utilities", "detection_factor"):
+            assert secret not in red
+
 
 class TestPersonaModes:
     """vr2 Persona Modes -- boosted attribute +50%, others -50%; flows into DF + combat."""
