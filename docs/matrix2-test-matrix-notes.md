@@ -232,6 +232,54 @@ persona Masking mode DF=9; decrypt Poison Scramble -> KEY DATA DESTROYED (file_n
 data bomb detonates on download; GM sees Probe IC; suppress endpoint drops DF + emits event.
 No regressions across the combined #6/#7/#9/#11 feature set.
 
+## >>> GAPS PLAN (2026-06-01) -- Hog/Swap Memory, enemy auto-act, action economy + initiative <<<
+
+Context-safe resume plan for the current work. Status updated as each lands.
+
+**A. Swap Memory operation [DOING this session]**
+- New run action `swap_memory` (Simple action): reload/restore a program. Clears
+  `state["program_damage"][util]` (Hog/Tar Baby/One-Shot/degraded Armor/Shield recovery -> rating
+  back to base). Needs a `target_program` (util key). No test (vr2 line 1896). Add to ActionType +
+  a UI control. Backend: in perform_action, intercept `swap_memory` -> clear program_damage[target]
+  (+ remove any Hog infection on it), emit event, early-return.
+
+**B. Hog persistence + purge [DOING this session]**
+- Make Hog a PERSISTENT infection (vr2: re-drains each Combat Turn until the program crashes, then
+  moves to next-highest). Track `state["hog_infections"] = [{id, rating}]`.
+  - Enemy act program="Hog": if attack hits, ADD/refresh a hog infection (rating = Hog rating) and
+    do the first drain (existing `eng.hog_attack` -> reduce highest running util in program_damage).
+  - On `new_turn`: for each hog infection, re-drain the current highest running util (another
+    MPCP-vs-Hog test); emit event.
+- Hog **purge** action `purge_hog` (Complex action, vr2 line 1548): Computer (Hog rating - hardening)
+  Test, TN += the infected program's ORIGINAL rating. Success: remove the hog infection AND crash
+  (zero) the infected program (program_damage[name] = base rating). Then the decker reloads via Swap
+  Memory. Add to ActionType + UI.
+
+**C. Enemy decker AUTO-ACT (app-as-GM) [NEXT]**
+- Today IC auto-attack each player action (perform_action loop ~line 1077). The enemy decker only
+  acts via manual /enemy-decker/act. Make it automatic: after the IC loop in perform_action (and on
+  new_turn), iterate `state["enemy_deckers"]` (active) and run the same locate->intent logic the
+  /act endpoint does. Refactor the /act body into a helper `_enemy_decker_take_turn(state, decker,
+  enemy, run, ...)` and call it from both the endpoint AND the auto-loop. Optionally auto-INJECT via
+  a sheaf event type `{type:"enemy_decker"}` so authored hosts spawn one at a tally threshold.
+  Keep the manual endpoint for GM control. Single-user model = the app plays the host + enemy.
+
+**D. Action economy + initiative [NEXT, BIG -- own session]**
+- vr2: a Combat Turn has multiple INITIATIVE PASSES in increments of 10. Initiative = Reaction +
+  initiative dice; you act on your score, then -10, -10... (e.g. 22 -> 22,12,2). Each pass you get
+  **2 Simple OR 1 Complex, plus 1 Free** action. Operations already carry an `action` cost
+  (Free/Simple/Complex) in `app/services/matrix_rules.py` (the System Operations table). Currently
+  NONE of this is tracked -- perform_action allows unlimited actions and new_turn just refreshes HP.
+- Plan: add turn/pass state -- `current_turn`, `current_pass`, `decker_initiative`, `actions_left`
+  ({simple:2, complex:1->shared budget, free:1}). On run start + new_turn, roll decker initiative
+  (eng.decker_initiative_roll already exists), compute passes = (init // 10) + 1. perform_action
+  decrements the action budget by the operation's cost (reject if none left); new_turn / "next pass"
+  advances. IC/enemy deckers also get passes per their initiative (act on each pass their init
+  reaches). This is a real turn-structure rework -- do it as its own session; engine fns
+  (decker_initiative_roll, ic_initiative_roll) already exist; rules.SYSTEM_OPERATIONS has costs.
+- Reaction = ceil((Quickness + Intelligence)/2) + response_increase (cap +3); DeckerStats already
+  has quickness/intelligence/response_increase.
+
 ## >>> RESUME CHECKPOINT (2026-05-31, updated) <<<
 
 User priority: **#11 (account for ALL modifiers), then #9, #7, #6; #5 later.** -- #6/#7/#9/#11 are
