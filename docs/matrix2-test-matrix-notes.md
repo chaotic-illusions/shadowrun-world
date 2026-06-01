@@ -298,13 +298,13 @@ Context-safe resume plan for the current work. Status updated as each lands.
   Run UI shows "Initiative N -- pass C/P, X AP + Y Free". Throwaway specs updated to New-Turn between
   ops. +6 tests. (Live: init 9/1 pass -> Complex spends 2 AP -> 2nd Complex BLOCKED -> New Turn
   re-rolled 10/2 passes -> Free action used the free slot not AP.)
-- NPC INITIATIVE-PASS INTERLEAVING [DONE 2026-06-01, verified live]: instead of the risky IC-loop
-  extraction, the proactive IC attack loop + the enemy auto-act loop now gate on `current_pass` --
-  each NPC acts at most ONCE per pass and only on passes its OWN initiative reaches (init//10+1),
-  tracked via an `acted_pass` marker; new_turn re-rolls IC initiative and clears the markers. Probe
-  IC still test per System Test (per rules). (Live: a Killer attacked once in pass 2 -- not twice
-  across two Simple actions -- then again after New Turn.) An explicit `/next-pass` endpoint+button
-  is unneeded (auto-advance covers it). GAP D IS NOW FULLY COMPLETE.
+- NPC INITIATIVE-PASS INTERLEAVING [DONE 2026-06-01]: the proactive IC attack loop + the enemy
+  auto-act loop gate on `current_pass` -- each NPC acts at most ONCE per pass and only on passes its
+  OWN initiative reaches (init//10+1), via an `acted_pass` marker. Probe IC still test per System Test.
+- INITIATIVE [CORRECTED 2026-06-01 per review]: rolled ONCE per cybercombat encounter, NOT per
+  Combat Turn. Decker rolls at run start; IC rolls (Rating + Nd6 by code) on activation; enemy decker
+  rolls (Int + 1D6) on entry. `new_turn` no longer re-rolls -- it refreshes the action budget +
+  clears per-pass markers, so every actor acts again on its FIXED passes. GAP D FULLY COMPLETE.
 - ORIGINAL SEQUENCING NOTES (for the NPC-interleaving refinement):
   KEY SEQUENCING INSIGHT: today IC + enemy deckers act inside perform_action (once per player
   action). For a faithful pass model that must change, so do it in this order:
@@ -343,17 +343,20 @@ Context-safe resume plan for the current work. Status updated as each lands.
 - Generation rolls IC Options (Cascading / Expert Offense+ / Expert Defense+) and IC Defenses
   (Armor / Shielding / Shifting) onto combat IC + party components; constructs roll the Defenses
   Table; `_activate_sheaf_step` carries options/cascading/expert onto active IC (regular + party).
-  - **Armor on IC**: DONE -- in attack_ic, an IC with the Armor defense mitigates the incoming hit
-    one damage level (`_ic_has_armor`, floors at Light).
-  - **Expert**: DONE -- Expert Defense+ adds to the decker's to-hit TN (attack_ic); Expert Offense+
-    adds attack dice to the IC's cybercombat pool (IC attack loop). (`_ic_expert`)
-  - **Cascading**: DONE -- a cascading IC, on crash, immediately triggers the next untriggered sheaf
-    step (`_cascade_next_sheaf_step`), regardless of tally.
+  - **Armor on IC** [CORRECTED 2026-06-01 per review]: Armor reduces the attack POWER (lowers the
+    IC's resist TN by 2 -> the IC resists more easily), NOT the damage level. (Earlier wrong impl
+    staged the level down 6M->6L; now keeps the level, eases the resist.)
+  - **Expert** [CORRECTED]: the trade-off -- Offense +N adds N attack dice AND removes N from the
+    IC's damage-resistance; Defense +N adds N resist dice AND removes N attack dice (value 1-3).
+    Applied in attack_ic (resist pool) + the IC attack loop (attack pool). (`_ic_expert`)
+  - **Cascading** [CORRECTED -- prior sheaf-step-on-crash was plain wrong]: a cascading IC that
+    MISSES gains +1 attack Security Value (cumulative); a HIT the decker fully resists gains +1 to
+    its Rating (cumulative); both capped by the Cascading IC Table (`_cascade_max_increase` by code,
+    `_apply_cascade_outcome`). Applied in the standard cybercombat branch.
   - **Constructs**: DONE -- `_build_construct_or_party_event` rolls the IC Defenses Table (was []).
   - Verified live: generated Red-9 sheaves -> IC carry options/expert (e.g. Marker-10 Expert{defense,3}
-    [Armor,Shielding]); constructs carry defenses. Cascading is rare (2D6=2/12) but unit-tested.
-  - Note: Armor is modeled as a flat one-level mitigation (the IC Defenses Table gives "Armor" with
-    no rating); acceptable abstraction.
+    [Armor,Shielding]); constructs carry defenses.
+  - Note: IC Armor power reduction is a fixed 2 (the IC Defenses Table lists "Armor" with no rating).
 
 ## >>> RESUME CHECKPOINT (2026-05-31, updated) <<<
 
