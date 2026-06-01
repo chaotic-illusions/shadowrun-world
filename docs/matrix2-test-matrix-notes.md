@@ -60,9 +60,24 @@ Never touches the real `:8000` instance.
 - Need: build host A with a trap door to host B, drive the decker to discover (locate) and
   traverse it, assert the run context switches to host B.
 
-## #5 Enemy decker injected into a host mid-run -- [GAP, build]
-- No enemy-decker entity/injection path in `matrix_runs.py`. Build: an endpoint/state to add an
-  opposing decker to a live run, with its own persona stats + a way to act against the player.
+## #5 Enemy decker injected into a host mid-run -- [DONE end-to-end, verified live]
+- **Engine** (`matrix_engine.py`): `generate_enemy_decker(code, value)` -- tier-capped rubric
+  (Blue->Black); skill/MPCP scale with security_value but never exceed the tier (a Blue-5 host
+  yields Computer<=4, not 12). `enemy_locate_test` (opposed: enemy Computer vs PC Detection Factor,
+  PC Evasion resists); `escalate_enemy_intent` (boot->dump->kill as the alarm rises).
+- **Rubric**: Blue/Green=boot (trace-dump), Orange/Red=dump (cybercombat crash), Black=kill
+  (Black Hammer lethal biofeedback). Scanner rated at persona level (not full skill) so a sleazy
+  PC keeps an evade window.
+- **Behaviour**: the enemy must LOCATE the PC first (gives counterplay turns); on first contact the
+  PC gets an ALERT (revealed) but progress is GM-only until pinpointed. All forced exits (trace-dump
+  or icon crash) inflict DUMP SHOCK -- only the PC's own graceful logoff avoids it (per the user's
+  correct VR2 reading). Two-way: the PC can Strike Back and crash the enemy's icon.
+- **Endpoints**: `POST .../enemy-decker` (GM inject, auto-scaled), `.../enemy-decker/act`
+  (GM: locate then execute intent), `.../enemy-decker/attack` (PC strikes back).
+- **Redaction**: enemy deckers GM-only until `revealed`; players then see name/tier/intent/condition
+  only (never raw ratings). **UI**: HOSTILE DECKERS panel + Strike Back + event badges.
+- VERIFIED live: Red-8 dump->persona crash->dumped; Black-9 Black Hammer->killed; PC strike-back
+  crashed a Green-6 enemy. +12 tests.
 
 ## #6 Paydata (discoverable + key) vs Scramble IC -- [DONE end-to-end, verified live]
 - Engine: `scramble_decrypt_test` (Computer Test vs Scramble rating - Decrypt utility, floor 2,
@@ -226,19 +241,17 @@ test_matrix_engine.py):
 - **#6** Scramble decrypt + Poison KEY-DATA-DESTROYED wipe, wired into perform_action (decrypt_file
   + target_file), VERIFIED live.
 
-PICK UP HERE, in order:
-1. **#5 enemy-decker injection** (user: low priority but needed): endpoint/state to add an opposing
-   decker to a live run with its own persona stats + a way for it to act against the player (system
-   tests / cybercombat). New: a `POST /matrix-runs2/{id}/enemy-decker` (GM) adding to a state
-   `enemy_deckers` list; an action for the enemy to make a move; surface it in the run UI.
-2. **Browser passes** (Playwright, isolated :8770): #1 forced-IC stacked view, #3 program-purchase
-   permutations, #4 trap-door discover->traverse (check whether traverse is implemented first --
-   host has trap_doors_json + a renderTrapDoorsPanel exists in matrix-run.html), targeted #2/#3
-   size/cost sweep.
-3. **Optional polish left**: click-to-target Analyze IC (backend already defaults to first-unknown,
-   so low value); Exploding-Scramble -> data-bomb detonation hookup (consequence fn returns
-   `detonate_data_bomb`; wire it to call eng.data_bomb_detonate); data-population of Shield/Shift IC
-   flags from the designer/sheaf (run logic is ready).
+ALL of #1-#11 + #5 are now DONE (backend + tests + run-UI + live-verified). PICK UP HERE:
+1. **Browser passes** (Playwright, isolated :8770) -- the remaining "user-perspective" verification:
+   #1 forced-IC stacked view; #3 program-purchase permutations; #4 trap-door discover->traverse
+   (host has trap_doors_json + renderTrapDoorsPanel + enterTrapDoor in matrix-run.html -- check the
+   traverse endpoint works); targeted #2/#3 size/cost sweep; and a UI pass exercising the new
+   enemy-decker panel + Strike Back, decrypt key-data-wipe, data bomb, suppress.
+2. **Designer data-population** so the new run logic gets exercised from authored hosts: Shield/Shift
+   IC flags (`ic.shield`/`ic.shift`); ensure designer writes paydata.is_key / scrambles.variant /
+   data_bombs as the run expects (the run reads config_json.{paydata,scrambles,data_bombs}).
+3. **Optional**: enemy-decker GM controls in the UI (inject/act buttons) for solo testing; PC-vs-
+   enemy initiative ordering; click-to-target Analyze IC (low value -- backend defaults work).
 2. **#9 / #6 frontend polish**: run UI click-to-target an IC card for Analyze; paydata panel that
    greys out `destroyed` files; surface the new `data_bomb` / `worm_resolved` / `ic_detected` /
    `decrypt` events nicely in the run log.
