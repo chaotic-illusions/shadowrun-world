@@ -39,6 +39,9 @@ class _ScriptedRandom:
     def choice(self, seq):
         return seq[0]
 
+    def random(self):
+        return 0.5   # deterministic probability for tests (e.g. enemy hot/RF/RI rolls)
+
     def seed(self, *a, **k):
         pass
 
@@ -470,19 +473,21 @@ class TestEnemyDeckerGeneration:
         assert d["status"] == "active" and d["located"] is False
 
     def test_initiative_stats_scale_by_tier(self):
-        # Enemy initiative scales with host difficulty (Response Increase + reaction stats).
-        blue = eng.generate_enemy_decker("Blue", 4)
-        black = eng.generate_enemy_decker("Black", 12)
-        assert blue["response_increase"] == 0
-        assert black["response_increase"] == 3
-        assert black["intelligence"] >= 7              # Black: Int 7-10
-        assert black["intelligence"] > blue["intelligence"]
-        assert eng.generate_enemy_decker("Red", 9)["response_increase"] == 2
-        assert eng.generate_enemy_decker("Orange", 7)["response_increase"] == 1
-        # RI never exceeds MPCP/4 (vr2)
-        for code, val in (("Blue", 4), ("Green", 6), ("Orange", 7), ("Red", 9), ("Black", 12)):
-            d = eng.generate_enemy_decker(code, val)
-            assert d["response_increase"] <= d["mpcp"] // 4
+        # Enemy initiative scales with host difficulty -- pseudo-random within tier bands.
+        for _ in range(30):
+            blue = eng.generate_enemy_decker("Blue", 4)
+            green = eng.generate_enemy_decker("Green", 6)
+            red = eng.generate_enemy_decker("Red", 9)
+            black = eng.generate_enemy_decker("Black", 12)
+            assert blue["response_increase"] == 0
+            assert green["response_increase"] in (0, 1)
+            assert red["response_increase"] in (1, 2)
+            assert black["response_increase"] in (2, 3)
+            assert black["intelligence"] >= 7 and black["intelligence"] > blue["intelligence"]
+            for d in (blue, green, red, black):
+                assert d["response_increase"] <= d["mpcp"] // 4   # RI <= MPCP/4 (vr2)
+                assert d["deck_mode"] in ("hot", "cool")
+                assert isinstance(d["reality_filter"], bool)
 
 
 class TestICExtrasRunSide:
