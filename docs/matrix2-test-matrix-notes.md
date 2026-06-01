@@ -290,7 +290,20 @@ Context-safe resume plan for the current work. Status updated as each lands.
   tag every operation with its `action_cost` (Free/Simple/Complex via `_ACTION_COST` from
   rules.SYSTEM_OPERATIONS); new_turn event reports initiative+passes; run UI shows "Initiative N
   (P passes)". (Live: start init 19/2 passes -> new_turn re-roll 14/2 -> analyze_host cost Complex.)
-- STILL TODO -- ENFORCEMENT (breaking; needs frontend pass UI + spec updates; do as a focused step).
+- ENFORCEMENT [DONE 2026-06-01, verified live] -- per-pass action budget with auto-advance:
+  `_spend_pass_action` in perform_action spends each op's cost (Simple=1 AP, Complex=2 AP, Free=the
+  pass's 1 free) from the current initiative pass; when the pass can't afford it, auto-advances to
+  the next pass (refresh 2 AP + 1 Free, emits `new_pass`); when ALL passes are spent -> 400 "start a
+  New Turn" (re-rolls init). Budget in _initial_state + reset in new_turn; legacy runs unenforced.
+  Run UI shows "Initiative N -- pass C/P, X AP + Y Free". Throwaway specs updated to New-Turn between
+  ops. +6 tests. (Live: init 9/1 pass -> Complex spends 2 AP -> 2nd Complex BLOCKED -> New Turn
+  re-rolled 10/2 passes -> Free action used the free slot not AP.)
+- REMAINING NUANCE (refinement, not blocking): IC + enemy deckers still act once per player action
+  (inside perform_action), not strictly on the passes their OWN initiative reaches. True interleaving
+  = extract the IC attack loop + `_enemy_decker_take_turn` into `_resolve_npc_pass` and fire it on
+  pass-advance/new-turn, gating each NPC by its own initiative passes. See the original sequencing
+  notes below. Also optional: an explicit `/next-pass` endpoint + button (auto-advance covers it now).
+- ORIGINAL SEQUENCING NOTES (for the NPC-interleaving refinement):
   KEY SEQUENCING INSIGHT: today IC + enemy deckers act inside perform_action (once per player
   action). For a faithful pass model that must change, so do it in this order:
   1. Add per-pass budget to state: `pass_action_points` (2) + `pass_free` (1), reset each pass.
