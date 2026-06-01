@@ -489,6 +489,24 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
             events.append({"type": "shutdown",
                             "description": "HOST SHUTDOWN -- all sessions terminated."})
 
+        elif ev_type == "enemy_decker":
+            # Authored host dispatches a security decker at this tally threshold. It starts
+            # hidden (GM-only) and then hunts the PC automatically via the app-as-GM loop.
+            enemy = eng.generate_enemy_decker(
+                security_code, state.get("host_security_value", 6),
+                name=ev.get("name") or None)
+            if ev.get("intent"):
+                enemy["intent"] = ev["intent"]
+            enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+            state.setdefault("enemy_deckers", []).append(enemy)
+            events.append({
+                "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
+                "description": (
+                    f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, "
+                    f"Attack-{enemy['utilities']['attack']}) dispatched to hunt the intruder."
+                ),
+            })
+
     return events
 
 
@@ -1528,6 +1546,13 @@ async def perform_action(
             "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
         })
 
+    # Enemy deckers act automatically each player action (app-as-GM), exactly as the IC do.
+    for enemy in list(state.get("enemy_deckers", [])):
+        if state.get("run_ended"):
+            break
+        if enemy.get("status") == "active":
+            _enemy_decker_take_turn(state, decker, run, enemy)
+
     if state.get("run_ended"):
         run.status = state.get("end_reason", "crashed")
 
@@ -1925,60 +1950,16 @@ def _apply_hog_drain(state: dict, decker: dict, drain: int) -> str:
     return f"{name.replace('_', ' ').title()} -{applied}{' (CRASHED)' if crashed else ''}"
 
 
-@router.post("/{run_id}/enemy-decker", response_model=MatrixRunRead)
-async def inject_enemy_decker(
-    run_id: int,
-    body: RunEnemyDeckerInput,
-    auth: dict = Depends(get_any_token),
-    db: AsyncSession = Depends(get_db),
-):
-    """GM: drop a security decker onto the host (vr2 #5). Auto-generated to the host
-    tier (stats capped so a low-security host never fields an elite). It starts hidden
-    and must locate the PC before it can act."""
-    _require_gm(auth)
-    run = await _get_run_or_404(db, run_id)
-    if run.status != "active":
-        raise HTTPException(400, "Run is not active")
-    state = copy.deepcopy(run.state_json)
-    enemy = eng.generate_enemy_decker(
-        state["host_security_code"], state["host_security_value"], name=body.name or None)
-    if body.intent:
-        enemy["intent"] = body.intent
-    enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
-    state.setdefault("enemy_deckers", []).append(enemy)
-    _append_event(state, {
-        "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
-        "description": (
-            f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, MPCP {enemy['mpcp']}, "
-            f"Attack-{enemy['utilities']['attack']}, intent={enemy['intent']}) is now hunting."
-        ),
-    })
-    run.state_json = state
-    await db.commit(); await db.refresh(run)
-    return _serialize_run(run, auth)
+def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict,
+                            *, forced_program: str = "") -> None:
+    """One enemy-decker action against the PC. Mutates ``state`` (and ``run.status`` on a
+    kill/dump). Phase 1 = locate the PC; once located, Phase 2 = execute its program.
 
-
-@router.post("/{run_id}/enemy-decker/act", response_model=MatrixRunRead)
-async def enemy_decker_act(
-    run_id: int,
-    body: RunEnemyActInput,
-    auth: dict = Depends(get_any_token),
-    db: AsyncSession = Depends(get_db),
-):
-    """GM: the enemy decker takes one action -- locate the PC, then execute its intent
-    (boot = trace-dump; dump = cybercombat crash; kill = Black Hammer). Both forced exits
-    inflict dump shock; only the PC's own graceful logoff avoids it."""
-    _require_gm(auth)
-    run = await _get_run_or_404(db, run_id)
-    if run.status != "active":
-        raise HTTPException(400, "Run is not active")
-    state = copy.deepcopy(run.state_json)
-    decker = run.decker_json
-    enemy = next((e for e in state.get("enemy_deckers", [])
-                  if e.get("id") == body.enemy_id and e.get("status") == "active"), None)
-    if enemy is None:
-        raise HTTPException(404, f"Active enemy decker {body.enemy_id} not found")
-
+    Shared by the manual GM ``/enemy-decker/act`` endpoint and the automatic app-as-GM loop
+    (perform_action / new_turn). Does NOT commit -- the caller persists state.
+    """
+    if enemy.get("status") != "active" or state.get("run_ended"):
+        return
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
     eff = _get_decker_effective(decker, state)
@@ -2018,14 +1999,9 @@ async def enemy_decker_act(
                     f"{enemy['locate_progress']}/{eng.ENEMY_LOCATE_THRESHOLD} located."
                 ),
             })
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
+        return
 
-    # -- Phase 2: cybercombat. An enemy decker can't run Trace (host IC). Its offensive
-    # utilities (vr2): Attack (icon damage -> crash/dump shock), Black Hammer/Killjoy
-    # (lethal biofeedback + MPCP burn on crash), Hog (crash running programs), and the
-    # decker cripplers Poison/Restrict/Reveal (reduce Bod/Evasion/Masking until logoff).
+    # -- Phase 2: execute the enemy's offensive program --------------------------
     intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
     if intent == "kill" and not enemy.get("lethal_program"):
         intent = "dump"   # no lethal program loaded -> can only crash the icon
@@ -2034,9 +2010,9 @@ async def enemy_decker_act(
     hacking_pool = max(0, (enemy.get("intelligence", 3) + enemy.get("mpcp", 4)) // 3)
     programs = enemy.get("programs", ["Attack"])
 
-    # Choose the program: GM override (body.program) else the intent default.
-    if body.program and body.program in programs:
-        program = body.program
+    # Choose the program: GM override (forced_program) else the intent default.
+    if forced_program and forced_program in programs:
+        program = forced_program
     elif intent == "kill" and enemy.get("lethal_program"):
         program = enemy["lethal_program"]
     else:
@@ -2057,8 +2033,6 @@ async def enemy_decker_act(
             hog_rating=attack_rating, mpcp_rating=decker.get("mpcp", 4),
             hardening=decker.get("hardening", 0))
         if hog["attack_roll"]["successes"] > 0 and hog["reduction"] > 0:
-            # Register a PERSISTENT Hog infection (re-drains each Combat Turn until purged
-            # via Purge Hog or the program crashes) and apply this turn's drain.
             drain = hog["reduction"]
             state.setdefault("hog_infections", []).append({
                 "id": f"hog_{uuid.uuid4().hex[:8]}", "rating": attack_rating, "drain": drain})
@@ -2138,6 +2112,63 @@ async def enemy_decker_act(
     if not state.get("run_ended"):
         # Reveal (masking) cripples flow into the Detection Factor -- keep it in sync for the UI.
         state["detection_factor"] = _effective_detection_factor(state, decker)
+
+
+@router.post("/{run_id}/enemy-decker", response_model=MatrixRunRead)
+async def inject_enemy_decker(
+    run_id: int,
+    body: RunEnemyDeckerInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """GM: drop a security decker onto the host (vr2 #5). Auto-generated to the host
+    tier (stats capped so a low-security host never fields an elite). It starts hidden
+    and must locate the PC before it can act."""
+    _require_gm(auth)
+    run = await _get_run_or_404(db, run_id)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+    state = copy.deepcopy(run.state_json)
+    enemy = eng.generate_enemy_decker(
+        state["host_security_code"], state["host_security_value"], name=body.name or None)
+    if body.intent:
+        enemy["intent"] = body.intent
+    enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+    state.setdefault("enemy_deckers", []).append(enemy)
+    _append_event(state, {
+        "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
+        "description": (
+            f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, MPCP {enemy['mpcp']}, "
+            f"Attack-{enemy['utilities']['attack']}, intent={enemy['intent']}) is now hunting."
+        ),
+    })
+    run.state_json = state
+    await db.commit(); await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/enemy-decker/act", response_model=MatrixRunRead)
+async def enemy_decker_act(
+    run_id: int,
+    body: RunEnemyActInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """GM: the enemy decker takes one action -- locate the PC, then execute its intent
+    (boot = trace-dump; dump = cybercombat crash; kill = Black Hammer). Both forced exits
+    inflict dump shock; only the PC's own graceful logoff avoids it."""
+    _require_gm(auth)
+    run = await _get_run_or_404(db, run_id)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+    state = copy.deepcopy(run.state_json)
+    decker = run.decker_json
+    enemy = next((e for e in state.get("enemy_deckers", [])
+                  if e.get("id") == body.enemy_id and e.get("status") == "active"), None)
+    if enemy is None:
+        raise HTTPException(404, f"Active enemy decker {body.enemy_id} not found")
+
+    _enemy_decker_take_turn(state, decker, run, enemy, forced_program=body.program)
 
     run.state_json = state
     await db.commit(); await db.refresh(run)
