@@ -232,6 +232,20 @@ persona Masking mode DF=9; decrypt Poison Scramble -> KEY DATA DESTROYED (file_n
 data bomb detonates on download; GM sees Probe IC; suppress endpoint drops DF + emits event.
 No regressions across the combined #6/#7/#9/#11 feature set.
 
+## Table audit (2026-06-01) + enemy-decker-sheaf confirmation
+- **Decker-summon table:** there is NO generation table that auto-rolls an enemy decker. The sheaf
+  tables (Alert -> Reactive/Proactive White, Reactive/Proactive Gray, Black, Trap, Crippler/Ripper)
+  are IC-only. A decker arriving is an AUTHORED sheaf step (book example Host A step 37 "government
+  decker arrives"). The `enemy_decker` sheaf event I added implements exactly that -> NOT redundant,
+  kept.
+- **IC table usage when generating:** Alert, Reactive/Proactive White, Reactive/Proactive Gray,
+  Black, Trap, Crippler/Ripper, IC Ratings = all used. **IC Options + IC Defenses Tables were NOT
+  used -> FIXED 2026-06-01** (added IC_OPTIONS_TABLE + IC_DEFENSE_TABLE; `_roll_ic_extras` merges
+  Cascading/Expert + Armor/Shield/Shift onto generated combat IC; Shield/Shift already wired to the
+  to-hit TN). Remaining nuance: constructs/party still get `defenses: []` (could roll the table too);
+  the run applies Shield/Shift but not yet Armor-on-IC / Cascading / Expert (those are carried for
+  the GM/UI -- run-side application is a later polish).
+
 ## >>> GAPS PLAN (2026-06-01) -- Hog/Swap Memory, enemy auto-act, action economy + initiative <<<
 
 Context-safe resume plan for the current work. Status updated as each lands.
@@ -276,13 +290,24 @@ Context-safe resume plan for the current work. Status updated as each lands.
   tag every operation with its `action_cost` (Free/Simple/Complex via `_ACTION_COST` from
   rules.SYSTEM_OPERATIONS); new_turn event reports initiative+passes; run UI shows "Initiative N
   (P passes)". (Live: start init 19/2 passes -> new_turn re-roll 14/2 -> analyze_host cost Complex.)
-- STILL TODO -- ENFORCEMENT (the breaking part, needs frontend pass UI; do as a focused step):
-  per-pass action budget (2 Simple OR 1 Complex + 1 Free); perform_action decrements/rejects when
-  the budget is spent; a "next pass" advance (current_pass++ down the init-10 ladder) that refreshes
-  the budget; on the last pass -> new combat turn. Then make IC + enemy deckers act on the passes
-  their OWN initiative reaches (interleaved), instead of once per player action. Update the throwaway
-  Playwright specs (they fire many actions back-to-back and would hit the budget). Engine fns +
-  `_ACTION_COST` + initiative state are all in place now -- this step is the turn-loop wiring + UI.
+- STILL TODO -- ENFORCEMENT (breaking; needs frontend pass UI + spec updates; do as a focused step).
+  KEY SEQUENCING INSIGHT: today IC + enemy deckers act inside perform_action (once per player
+  action). For a faithful pass model that must change, so do it in this order:
+  1. Add per-pass budget to state: `pass_action_points` (2) + `pass_free` (1), reset each pass.
+     perform_action looks up `_ACTION_COST[action]`: Free->pass_free, Simple->1 AP, Complex->2 AP;
+     reject 400 ("out of actions this pass -- advance pass / new turn") when insufficient.
+  2. Add `POST /{run_id}/next-pass`: if current_pass < initiative_passes -> current_pass++, refresh
+     budget, and RUN the IC + enemy-decker turn for that pass (move the IC attack loop + the
+     `_enemy_decker_take_turn` loop OUT of perform_action into a shared `_resolve_npc_pass(state,...)`
+     helper called here + on new_turn). If current_pass == initiative_passes -> require new_turn.
+  3. perform_action no longer auto-runs IC/enemy (they act on pass advances). new_turn re-rolls init,
+     resets passes/budget, and resolves the first NPC pass.
+  4. IC/enemy "act on the passes their OWN initiative reaches": store each NPC's initiative + compute
+     its passes; in `_resolve_npc_pass`, only act NPCs whose init reaches the current global count.
+  5. Frontend: show "Pass C/P -- Actions: AP left, Free left" + a "Next Pass" button; handle the
+     400 reject. Update throwaway Playwright specs to advance passes / new turns.
+  Engine fns (`decker_initiative_roll`, `ic_initiative_roll`) + `_ACTION_COST` + initiative state +
+  the `_enemy_decker_take_turn` helper are all in place -- this is turn-loop restructuring + UI.
 - ORIGINAL NOTES (kept for reference):
 - vr2: a Combat Turn has multiple INITIATIVE PASSES in increments of 10. Initiative = Reaction +
   initiative dice; you act on your score, then -10, -10... (e.g. 22 -> 22,12,2). Each pass you get
