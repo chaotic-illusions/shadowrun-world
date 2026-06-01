@@ -794,7 +794,9 @@ def generate_enemy_decker(
         "computer_skill": skill,
         "intelligence": max(3, min(6, skill)),
         "utilities": {
-            "attack": attack, "sleaze": sleaze, "scanner": skill, "deception": persona,
+            # Scanner is a utility (locate other deckers), rated like the persona programs --
+            # not the full Computer skill, so a sleazy PC keeps an evade window.
+            "attack": attack, "sleaze": sleaze, "scanner": persona, "deception": persona,
         },
         "intent": tier["intent"],
         "tier": security_code,
