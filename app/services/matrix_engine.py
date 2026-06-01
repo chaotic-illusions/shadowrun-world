@@ -797,13 +797,23 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
 #     Hog (crash running programs), Poison/Restrict/Reveal (decker cripplers -> Bod/Evasion/
 #     Masking), Black Hammer (lethal Physical) / Killjoy (lethal Stun, deadly-force hosts only).
 _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
-    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "extra": []},
-    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "extra": ["Hog"]},
-    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "extra": ["Hog", "Reveal"]},
+    # ri/quickness/intelligence scale the enemy's Matrix INITIATIVE with host difficulty so a
+    # nova-hot player decker doesn't always out-pace security. Reaction = ceil((Q+I)/2); each RI
+    # adds +1D6 init & +2 Reaction (RI <= MPCP/4). Enemies run hot (+1D6). Black is in a league of
+    # its own (Int 7-10, RI 3). RI respects MPCP/4: Blue MPCP4->1(use 0), Green/Orange MPCP6-7->1,
+    # Red MPCP9->2, Black MPCP12->3.
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "extra": [],
+               "ri": 0, "quickness": 3, "intelligence": 4},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "extra": ["Hog"],
+               "ri": 1, "quickness": 4, "intelligence": 5},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "extra": ["Hog", "Reveal"],
+               "ri": 1, "quickness": 5, "intelligence": 6},
     "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump",
-               "extra": ["Hog", "Poison", "Reveal", "Black Hammer"]},
+               "extra": ["Hog", "Poison", "Reveal", "Black Hammer"],
+               "ri": 2, "quickness": 6, "intelligence": 6},
     "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill",
-               "extra": ["Hog", "Poison", "Restrict", "Reveal", "Black Hammer", "Killjoy"]},
+               "extra": ["Hog", "Poison", "Restrict", "Reveal", "Black Hammer", "Killjoy"],
+               "ri": 3, "quickness": 6, "intelligence": 8},
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
@@ -835,17 +845,21 @@ def generate_enemy_decker(
     # Default lethal program (used by 'kill' intent): Black Hammer if carried, else Killjoy.
     lethal = "Black Hammer" if "Black Hammer" in extra else ("Killjoy" if "Killjoy" in extra else None)
     lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
-    intelligence = max(3, min(6, skill))
-    # The enemy rolls initiative ONCE, when it enters (Reaction ~ Intelligence + 1D6).
-    initiative = intelligence + random.randint(1, 6)
+    # Reaction stats + Response Increase scale the enemy's initiative with host difficulty.
+    # RI is capped at MPCP/4 (vr2). Initiative itself is rolled at inject time using the same
+    # decker-initiative model as the PC (Reaction + 1D6 + RI bonuses + hot DNI).
+    intelligence = tier.get("intelligence", max(3, min(6, skill)))
+    quickness = tier.get("quickness", 3)
+    response_increase = min(tier.get("ri", 0), mpcp // 4)
     return {
         "name": name or f"{security_code}-{security_value} Security Decker",
         "mpcp": mpcp,
         "bod": persona, "evasion": persona, "masking": persona, "sensor": persona,
         "computer_skill": skill,
         "intelligence": intelligence,
-        "initiative": initiative,
-        "initiative_passes": (initiative // 10) + 1,
+        "quickness": quickness,
+        "response_increase": response_increase,
+        "deck_mode": "hot",   # security deckers run hot for maximum initiative
         "utilities": {
             # Scanner is a utility (locate other deckers), rated like the persona programs --
             # not the full Computer skill, so a sleazy PC keeps an evade window.
