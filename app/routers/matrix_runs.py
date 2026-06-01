@@ -389,6 +389,24 @@ def _check_and_activate_sheaf(state: dict, security_code: str) -> None:
             _append_event(state, ev)
 
 
+def _cascade_next_sheaf_step(state: dict, security_code: str) -> bool:
+    """Cascading IC (vr2 IC Options): when a cascading IC crashes it immediately triggers
+    the next untriggered sheaf step, regardless of the security tally. Returns True if a
+    step was activated."""
+    already = set(state.get("sheaf_steps_triggered", []))
+    for i, step in enumerate(state.get("sheaf", [])):
+        if i not in already:
+            state.setdefault("sheaf_steps_triggered", []).append(i)
+            _append_event(state, {
+                "type": "cascade",
+                "description": "CASCADE -- the crashing IC triggers the next security sheaf step.",
+            })
+            for ev in _activate_sheaf_step(state, step, security_code):
+                _append_event(state, ev)
+            return True
+    return False
+
+
 def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[dict]:
     """Process a triggered sheaf step. Returns list of event log entries."""
     events: list[dict] = []
@@ -433,9 +451,13 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                     "initiative": initiative,
                     "status": "active",
                     "hunt_cycle_successes": 0,
-                    # Designer options: Shield/Shift raise the decker's to-hit TN (vr2).
+                    # Designer/generated options: Shield/Shift raise the decker's to-hit TN;
+                    # Armor mitigates, Cascading chains, Expert modifies TNs (all carried for combat).
                     "shield": ("shielding" in _opts or "shield" in _opts),
                     "shift": ("shifting" in _opts or "shift" in _opts),
+                    "options": ev.get("options", []),
+                    "cascading": ev.get("cascading", False),
+                    "expert": ev.get("expert"),
                 })
                 # Reactive IC do not betray themselves -- their activation is GM-only
                 # until a Sensor Test / Analyze detects them (vr2 line 409).
@@ -521,6 +543,7 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                 comp_rating = comp.get("rating", 6)
                 ic_id      = f"ic_{uuid.uuid4().hex[:8]}"
                 initiative = eng.ic_initiative_roll(comp_rating, security_code)
+                _copts = [str(o).lower() for o in (comp.get("options") or [])]
                 state["active_ic"].append({
                     "id": ic_id,
                     "type": comp_type,
@@ -532,6 +555,12 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                     "status": "active",
                     "hunt_cycle_successes": 0,
                     "cluster_id": cluster_id,
+                    # Carry the component's rolled Options/Defenses into combat.
+                    "shield": ("shielding" in _copts or "shield" in _copts),
+                    "shift": ("shifting" in _copts or "shift" in _copts),
+                    "options": comp.get("options", []),
+                    "cascading": comp.get("cascading", False),
+                    "expert": comp.get("expert"),
                 })
             comp_names = ", ".join(
                 f"{c.get('type','?')}-{c.get('rating','?')}" for c in components
@@ -631,6 +660,19 @@ def _shield_shift_tn_modifier(ic: dict, *, penetration: bool, chaser: bool) -> i
             return 0
         return 4 if penetration else 2
     return 0
+
+
+def _ic_has_armor(ic: dict) -> bool:
+    """IC carries the Armor defense (from the IC Defenses Table / designer)."""
+    return "Armor" in (ic.get("options") or [])
+
+
+def _ic_expert(ic: dict, kind: str) -> int:
+    """Expert option value for the given kind ('offense' or 'defense'), else 0.
+    Expert Offense raises the IC's attack effectiveness; Expert Defense raises the TN to
+    hit it (vr2 IC Options Table)."""
+    e = ic.get("expert") or {}
+    return e.get("value", 0) if e.get("type") == kind else 0
 
 
 def _compute_trace_tn(state: dict, decker: dict, ic_rating: int, eff: dict) -> int:
@@ -1407,6 +1449,7 @@ async def perform_action(
         is_non_lethal   = is_black and decker.get("deck_mode") == "cool"
         cluster_penalty = _cluster_size(state, ic.get("cluster_id"))
         ic_attack_pool  = ic["rating"] if ic["type"] == "Construct" else sec_value
+        ic_attack_pool += _ic_expert(ic, "offense")   # Expert Offense+ adds attack dice (vr2)
         hardening       = decker.get("hardening", 0)
 
         if is_black:
@@ -1679,10 +1722,10 @@ async def attack_ic(
     attack_pool     = body.attack_pool + body.hacking_pool_dice
     cluster_penalty = _cluster_size(state, target_ic.get("cluster_id"))
     base_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
-    # Shield/Shift raise only the decker's to-hit TN (not the IC's resist).
+    # Shield/Shift + Expert Defense raise the decker's to-hit TN (not the IC's resist).
     shield_shift = _shield_shift_tn_modifier(
         target_ic, penetration=body.penetration, chaser=body.chaser)
-    tn = base_tn + shield_shift
+    tn = base_tn + shield_shift + _ic_expert(target_ic, "defense")
 
     attack_roll = eng.roll_dice(attack_pool, tn)
     base_dmg = rules.IC_DAMAGE_LEVEL[sec_code]
@@ -1692,6 +1735,9 @@ async def attack_ic(
     resist_roll = eng.roll_dice(sec_value, resist_tn)
     staged = eng.stage_damage(base_dmg, attack_roll["successes"], 1)
     final_dmg = eng.stage_damage(staged, resist_roll["successes"], -1)
+    # IC Armor mitigates the incoming hit by one damage level (floors at Light).
+    if _ic_has_armor(target_ic):
+        final_dmg = eng.stage_damage(final_dmg, 2, -1)
     boxes = rules.DAMAGE_BOXES[final_dmg]
 
     target_ic["boxes"] = target_ic.get("boxes", 0) + boxes
@@ -1741,6 +1787,10 @@ async def attack_ic(
                     f"(initiative {new_init})"
                 ),
             })
+
+        # Cascading IC: crashing it immediately triggers the next sheaf step.
+        if target_ic.get("cascading"):
+            _cascade_next_sheaf_step(state, sec_code)
     else:
         _append_event(state, {
             "type": "decker_attack",

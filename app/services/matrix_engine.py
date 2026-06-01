@@ -343,17 +343,24 @@ def _build_construct_or_party_event(security_value: int) -> dict:
     kind = random.choice(["construct", "party_ic"])
     component_count = 2 if kind == "construct" else random.choice([2, 3])
     rating = _ic_rating(security_value)
-    components = [{"type": ic_type, "rating": rating} for ic_type in _pick_unique_components(components_allowed, component_count)]
 
     if kind == "construct":
+        components = [{"type": ic_type, "rating": rating}
+                      for ic_type in _pick_unique_components(components_allowed, component_count)]
         threat_rating = max(1, min(4, rating // 3))
+        # Roll the IC Defenses Table for the construct's single combined icon (vr2).
+        defense = _table_pick(IC_DEFENSE_TABLE, _roll_2d6())
+        defenses = [d for d in ("Armor", "Shifting", "Shielding") if d in defense]
         return {
             "type": "construct",
             "threat_rating": threat_rating,
             "components": components,
-            "defenses": [],
+            "defenses": defenses,
         }
 
+    # Party IC: each component is its own combat icon -- roll Options + Defenses for each.
+    components = [{"type": ic_type, "rating": rating, **_roll_ic_extras()}
+                  for ic_type in _pick_unique_components(components_allowed, component_count)]
     return {
         "type": "party_ic",
         "components": components,

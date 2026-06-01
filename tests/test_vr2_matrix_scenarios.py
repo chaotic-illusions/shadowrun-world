@@ -470,6 +470,46 @@ class TestEnemyDeckerGeneration:
         assert d["status"] == "active" and d["located"] is False
 
 
+class TestICExtrasRunSide:
+    """Gap E -- run-side application of IC Options/Defenses (Armor / Expert / Cascading)
+    and construct defenses."""
+
+    def test_ic_armor_helper(self):
+        assert mr._ic_has_armor({"options": ["Armor", "Shielding"]}) is True
+        assert mr._ic_has_armor({"options": ["Shielding"]}) is False
+        assert mr._ic_has_armor({}) is False
+
+    def test_ic_expert_helper(self):
+        ic = {"expert": {"type": "offense", "value": 2}}
+        assert mr._ic_expert(ic, "offense") == 2
+        assert mr._ic_expert(ic, "defense") == 0
+        assert mr._ic_expert({}, "offense") == 0
+
+    def test_cascade_activates_next_untriggered_step(self, scripted):
+        scripted([3])  # ic_initiative_roll for the cascaded IC
+        state = _fresh_state(); state["event_log"] = []; state["active_ic"] = []
+        state["sheaf"] = [
+            {"trigger": 5, "events": [{"type": "ic", "ic_type": "Killer", "rating": 6}]},
+            {"trigger": 10, "events": [{"type": "ic", "ic_type": "Blaster", "rating": 6}]},
+        ]
+        state["sheaf_steps_triggered"] = [0]
+        assert mr._cascade_next_sheaf_step(state, "Red") is True
+        assert 1 in state["sheaf_steps_triggered"]
+        assert any(e["type"] == "cascade" for e in state["event_log"])
+        assert any(ic["type"] == "Blaster" for ic in state["active_ic"])
+
+    def test_cascade_noop_when_all_triggered(self):
+        state = _fresh_state(); state["event_log"] = []
+        state["sheaf"] = [{"trigger": 5, "events": []}]; state["sheaf_steps_triggered"] = [0]
+        assert mr._cascade_next_sheaf_step(state, "Red") is False
+
+    def test_construct_gets_defenses_list(self, scripted):
+        scripted([3, 3, 1, 1, 1, 1])  # rating 2D6=6; defense 2D6=2 -> Armor and Shifting
+        ev = eng._build_construct_or_party_event(6)
+        assert ev["type"] == "construct"          # _ScriptedRandom.choice -> first option
+        assert isinstance(ev["defenses"], list) and set(ev["defenses"]) == {"Armor", "Shifting"}
+
+
 class TestICOptionsAndDefensesTables:
     """vr2 IC Options Table + IC Defenses Table -- now rolled when generating combat IC."""
 
