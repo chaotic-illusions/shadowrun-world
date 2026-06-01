@@ -257,7 +257,10 @@ Context-safe resume plan for the current work. Status updated as each lands.
   (zero) the infected program (program_damage[name] = base rating). Then the decker reloads via Swap
   Memory. Add to ActionType + UI.
 
-**C. Enemy decker AUTO-ACT (app-as-GM) [NEXT]**
+**C. Enemy decker AUTO-ACT (app-as-GM) [DONE 2026-06-01, verified live]**
+  (Refactored /act -> `_enemy_decker_take_turn` helper, called automatically after the IC loop in
+   perform_action; added sheaf `enemy_decker` event for auto-inject. Live: host sheaf dispatched the
+   enemy, which auto-located then auto-attacked every player action -> icon crash, no manual calls.)
 - Today IC auto-attack each player action (perform_action loop ~line 1077). The enemy decker only
   acts via manual /enemy-decker/act. Make it automatic: after the IC loop in perform_action (and on
   new_turn), iterate `state["enemy_deckers"]` (active) and run the same locate->intent logic the
