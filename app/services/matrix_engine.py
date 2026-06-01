@@ -747,3 +747,105 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
             "message": "Exploding Scramble triggered -- its linked data bomb detonates.",
         }
     return {"data_destroyed": False, "message": "Decrypt failed; the Scramble holds."}
+
+
+# -- Enemy decker (security decker antagonist) ---------------------------------
+
+# Auto-generation rubric keyed to the host security code. Stats are tier CAPS; the
+# actual values also scale with security_value but never exceed the tier (so a Blue
+# host never fields a Computer-12 decker). intent = default behaviour once it finds
+# the PC (boot = trace-and-dump; dump = cybercombat crash; kill = lethal Black Hammer).
+_ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "boot"},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "boot"},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump"},
+    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump"},
+    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill"},
+}
+
+# Cumulative net successes the enemy must score before it has pinpointed the PC.
+ENEMY_LOCATE_THRESHOLD = 3
+
+
+def generate_enemy_decker(
+    security_code: str,
+    security_value: int,
+    *,
+    name: str | None = None,
+) -> dict[str, Any]:
+    """Auto-generate a security decker scaled to the host (vr2-flavoured rubric).
+
+    Skill/MPCP scale with security_value but are capped to the security-code tier, so
+    enemy deckers stay believable (a Blue host never produces an elite decker). Returns
+    a decker dict ready to drop into run state. The GM decides whether to inject one --
+    on a low-tier host you may simply choose not to.
+    """
+    tier = _ENEMY_DECKER_TIERS.get(security_code, _ENEMY_DECKER_TIERS["Green"])
+    skill = min(tier["skill"], max(3, security_value))
+    mpcp = min(tier["mpcp"], max(3, security_value))
+    persona = tier["persona"]
+    attack = tier["attack"]
+    sleaze = persona
+    df = detection_factor(persona, sleaze)  # the PC must beat this to find THEM
+    return {
+        "name": name or f"{security_code}-{security_value} Security Decker",
+        "mpcp": mpcp,
+        "bod": persona, "evasion": persona, "masking": persona, "sensor": persona,
+        "computer_skill": skill,
+        "intelligence": max(3, min(6, skill)),
+        "utilities": {
+            "attack": attack, "sleaze": sleaze, "scanner": skill, "deception": persona,
+        },
+        "intent": tier["intent"],
+        "tier": security_code,
+        "detection_factor": df,
+        "hardening": 1 if security_code in ("Red", "Black") else 0,
+        "black_hammer": security_code == "Black",
+        "condition_monitor": {"persona_boxes": 0, "mpcp_damage": 0},
+        "locate_progress": 0,
+        "located": False,
+        "revealed": False,
+        "status": "active",
+    }
+
+
+def enemy_locate_test(
+    *,
+    computer_skill: int,
+    scanner_rating: int,
+    sensor_rating: int,
+    pc_detection_factor: int,
+    pc_evasion: int,
+) -> dict[str, Any]:
+    """One enemy attempt to locate the PC (vr2: find the intruder's icon/jackpoint).
+
+    Opposed: the enemy rolls Computer dice vs (PC Detection Factor - Scanner utility);
+    the PC resists with Evasion dice vs the enemy's Sensor. Net enemy successes add to
+    its locate progress; once the cumulative reaches ENEMY_LOCATE_THRESHOLD the PC is
+    pinpointed and the enemy can act on its intent.
+    """
+    enemy_tn = max(2, pc_detection_factor - scanner_rating)
+    enemy_roll = roll_dice(computer_skill, enemy_tn)
+    pc_roll = roll_dice(pc_evasion, sensor_rating)
+    progress_gain = max(0, enemy_roll["successes"] - pc_roll["successes"])
+    return {
+        "enemy_roll": enemy_roll,
+        "pc_roll": pc_roll,
+        "enemy_tn": enemy_tn,
+        "progress_gain": progress_gain,
+    }
+
+
+def escalate_enemy_intent(base_intent: str, *, security_tally: int, threshold: int = 12) -> str:
+    """A cornered/relentless security decker escalates as the alarm mounts (vr2 flavour).
+
+    A 'boot' decker will move to 'dump' once the tally is high; a 'dump' decker on a
+    Red/Black host pushes to 'kill'. Black-tier deckers start at 'kill'.
+    """
+    if security_tally < threshold:
+        return base_intent
+    if base_intent == "boot":
+        return "dump"
+    if base_intent == "dump":
+        return "kill"
+    return base_intent

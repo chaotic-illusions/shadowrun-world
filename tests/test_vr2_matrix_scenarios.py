@@ -402,6 +402,62 @@ class TestDataBombAndWorm:
         assert r["mpcp_infected"] is False
 
 
+class TestEnemyDeckerGeneration:
+    """vr2 #5 -- security decker auto-generation stays in-band with the host tier."""
+
+    def test_blue_host_stays_weak(self):
+        # The user's constraint: a Blue-5 host must NOT field a Computer-12 decker.
+        d = eng.generate_enemy_decker("Blue", 5)
+        assert d["computer_skill"] <= 4
+        assert d["mpcp"] <= 4
+        assert d["intent"] == "boot"
+
+    def test_value_scales_within_tier(self):
+        low = eng.generate_enemy_decker("Blue", 2)
+        high = eng.generate_enemy_decker("Blue", 5)
+        assert high["computer_skill"] >= low["computer_skill"]
+        assert high["computer_skill"] <= 4  # still capped to the Blue tier
+
+    def test_black_host_is_lethal_elite(self):
+        d = eng.generate_enemy_decker("Black", 10)
+        assert d["computer_skill"] >= 8
+        assert d["intent"] == "kill"
+        assert d["black_hammer"] is True
+
+    def test_tiers_are_monotonic(self):
+        skills = [eng.generate_enemy_decker(c, v)["computer_skill"]
+                  for c, v in (("Blue", 4), ("Green", 6), ("Orange", 8), ("Red", 9), ("Black", 12))]
+        assert skills == sorted(skills)
+
+    def test_enemy_has_combat_loadout(self):
+        d = eng.generate_enemy_decker("Red", 8)
+        assert d["utilities"]["attack"] >= 6
+        assert d["detection_factor"] >= 1  # the PC must beat this to find them
+        assert d["status"] == "active" and d["located"] is False
+
+
+class TestEnemyLocateAndIntent:
+    def test_locate_progress_is_net_enemy_successes(self, scripted):
+        # enemy 3 hits (TN low), PC 1 hit -> progress +2
+        scripted([6, 6, 6, 1, 6, 1, 1])
+        r = eng.enemy_locate_test(computer_skill=8, scanner_rating=2,
+                                  sensor_rating=4, pc_detection_factor=6, pc_evasion=4)
+        assert r["progress_gain"] >= 0
+        assert r["enemy_tn"] == 4  # 6 - 2 scanner
+
+    def test_locate_never_negative(self, scripted):
+        scripted([1, 1, 1, 6, 6, 6])  # enemy whiffs, PC resists well
+        r = eng.enemy_locate_test(computer_skill=4, scanner_rating=0,
+                                  sensor_rating=6, pc_detection_factor=8, pc_evasion=6)
+        assert r["progress_gain"] == 0
+
+    def test_intent_escalates_with_tally(self):
+        assert eng.escalate_enemy_intent("boot", security_tally=5) == "boot"
+        assert eng.escalate_enemy_intent("boot", security_tally=15) == "dump"
+        assert eng.escalate_enemy_intent("dump", security_tally=15) == "kill"
+        assert eng.escalate_enemy_intent("kill", security_tally=99) == "kill"
+
+
 class TestPersonaModes:
     """vr2 Persona Modes -- boosted attribute +50%, others -50%; flows into DF + combat."""
 
