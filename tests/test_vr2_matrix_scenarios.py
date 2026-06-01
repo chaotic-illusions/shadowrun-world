@@ -410,7 +410,14 @@ class TestEnemyDeckerGeneration:
         d = eng.generate_enemy_decker("Blue", 5)
         assert d["computer_skill"] <= 4
         assert d["mpcp"] <= 4
-        assert d["intent"] == "boot"
+        assert d["intent"] == "dump"          # crash the icon (no decker-run "trace")
+        assert d["chip_burn"] is False        # low tier can't fry your deck
+
+    def test_higher_tiers_burn_chips(self):
+        assert eng.generate_enemy_decker("Green", 6)["chip_burn"] is False
+        assert eng.generate_enemy_decker("Orange", 7)["chip_burn"] is True
+        assert eng.generate_enemy_decker("Red", 9)["chip_burn"] is True
+        assert eng.generate_enemy_decker("Black", 10)["chip_burn"] is True
 
     def test_value_scales_within_tier(self):
         low = eng.generate_enemy_decker("Blue", 2)
@@ -452,9 +459,10 @@ class TestEnemyLocateAndIntent:
         assert r["progress_gain"] == 0
 
     def test_intent_escalates_with_tally(self):
-        assert eng.escalate_enemy_intent("boot", security_tally=5) == "boot"
-        assert eng.escalate_enemy_intent("boot", security_tally=15) == "dump"
+        # A 'dump' decker turns lethal once the alarm is high; 'kill' stays 'kill'.
+        assert eng.escalate_enemy_intent("dump", security_tally=5) == "dump"
         assert eng.escalate_enemy_intent("dump", security_tally=15) == "kill"
+        assert eng.escalate_enemy_intent("kill", security_tally=2) == "kill"
         assert eng.escalate_enemy_intent("kill", security_tally=99) == "kill"
 
     def test_player_view_redacts_enemy_internals(self):

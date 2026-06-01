@@ -753,14 +753,20 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
 
 # Auto-generation rubric keyed to the host security code. Stats are tier CAPS; the
 # actual values also scale with security_value but never exceed the tier (so a Blue
-# host never fields a Computer-12 decker). intent = default behaviour once it finds
-# the PC (boot = trace-and-dump; dump = cybercombat crash; kill = lethal Black Hammer).
+# host never fields a Computer-12 decker).
+#
+# An enemy decker hunts you the only way a decker can: LOCATE you (Locate Decker /
+# Scanner -- Trace is host IC, not a decker tool), then CRASH YOUR ICON in cybercombat
+# (an icon crash dumps you with dump shock). Better deckers hit harder and carry
+# deck-frying programs that burn chips (permanent MPCP loss); the top tier goes lethal.
+#   intent: dump = crash the icon; kill = Black Hammer lethal biofeedback.
+#   chip_burn: this decker carries programs that permanently damage your deck on a hit.
 _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
-    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "boot"},
-    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "boot"},
-    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump"},
-    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump"},
-    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill"},
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "chip_burn": False},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "chip_burn": False},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "chip_burn": True},
+    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump", "chip_burn": True},
+    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill", "chip_burn": True},
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
@@ -799,6 +805,7 @@ def generate_enemy_decker(
             "attack": attack, "sleaze": sleaze, "scanner": persona, "deception": persona,
         },
         "intent": tier["intent"],
+        "chip_burn": tier["chip_burn"],
         "tier": security_code,
         "detection_factor": df,
         "hardening": 1 if security_code in ("Red", "Black") else 0,
@@ -839,15 +846,11 @@ def enemy_locate_test(
 
 
 def escalate_enemy_intent(base_intent: str, *, security_tally: int, threshold: int = 12) -> str:
-    """A cornered/relentless security decker escalates as the alarm mounts (vr2 flavour).
+    """A relentless security decker turns lethal as the alarm mounts (vr2 flavour).
 
-    A 'boot' decker will move to 'dump' once the tally is high; a 'dump' decker on a
-    Red/Black host pushes to 'kill'. Black-tier deckers start at 'kill'.
+    Once the tally is high a 'dump' decker (out to crash your icon) pushes to 'kill'.
+    Black-tier deckers already start at 'kill'.
     """
-    if security_tally < threshold:
-        return base_intent
-    if base_intent == "boot":
-        return "dump"
-    if base_intent == "dump":
+    if security_tally >= threshold and base_intent == "dump":
         return "kill"
     return base_intent
