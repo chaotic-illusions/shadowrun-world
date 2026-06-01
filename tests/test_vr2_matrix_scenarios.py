@@ -472,6 +472,28 @@ class TestEnemyLocateAndIntent:
         assert eng.escalate_enemy_intent("kill", security_tally=2) == "kill"
         assert eng.escalate_enemy_intent("kill", security_tally=99) == "kill"
 
+    def test_program_loadouts_scale_by_tier(self):
+        assert eng.generate_enemy_decker("Blue", 4)["programs"] == ["Attack"]
+        assert "Hog" in eng.generate_enemy_decker("Green", 6)["programs"]
+        red = eng.generate_enemy_decker("Red", 9)["programs"]
+        assert {"Hog", "Poison", "Reveal", "Black Hammer"} <= set(red)
+        black = eng.generate_enemy_decker("Black", 12)["programs"]
+        assert {"Restrict", "Killjoy"} <= set(black)
+
+    def test_hog_reduction_is_net_over_two(self, scripted):
+        # attack 4 hits (TN low), MPCP resist 0 -> net 4 -> reduction 2
+        scripted([6, 6, 6, 6, 1, 1, 1])
+        r = eng.hog_attack(attacker_pool=8, security_code="Red", target_status="intruding",
+                           hog_rating=8, mpcp_rating=6)
+        assert r["reduction"] == r["net"] // 2 and r["reduction"] >= 1
+
+    def test_decker_crippler_reduction(self, scripted):
+        scripted([6, 6, 6, 1, 1])  # attack 3 hits, attr resist ~0 -> net 3 -> reduction 1
+        r = eng.decker_attribute_attack(attacker_pool=6, security_code="Red",
+                                        target_status="intruding", program_rating=6,
+                                        target_attribute_rating=4)
+        assert r["reduction"] == r["net"] // 2
+
     def test_player_view_redacts_enemy_internals(self):
         enemy = eng.generate_enemy_decker("Red", 8)
         enemy["id"] = "ed_1"
