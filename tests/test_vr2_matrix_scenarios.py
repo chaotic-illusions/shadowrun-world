@@ -508,6 +508,55 @@ class TestICOptionsAndDefensesTables:
         assert ("cascading" in ev) or ("options" in ev) or ("expert" in ev)
 
 
+class TestActionEconomyEnforcement:
+    """Gap D enforcement -- per-pass action budget (2 Simple OR 1 Complex + 1 Free), auto-
+    advancing passes, blocking (New Turn) when all initiative passes are spent."""
+
+    def _state(self, passes=2):
+        return {"event_log": [], "current_pass": 1, "initiative_passes": passes,
+                "pass_action_points": 2, "pass_free": 1}
+
+    def test_complex_spends_two_ap(self):
+        s = self._state()
+        mr._spend_pass_action(s, "analyze_host")   # Complex
+        assert s["pass_action_points"] == 0
+
+    def test_two_simple_then_block_advances_pass(self):
+        s = self._state(passes=1)
+        mr._spend_pass_action(s, "analyze_security")   # Simple -> 1 AP left
+        mr._spend_pass_action(s, "download_data")      # Simple -> 0 AP left
+        assert s["pass_action_points"] == 0
+        # third action, only 1 pass -> no advance possible -> blocks
+        import fastapi
+        with pytest.raises(fastapi.HTTPException):
+            mr._spend_pass_action(s, "analyze_security")
+
+    def test_free_action_uses_free_not_ap(self):
+        s = self._state()
+        mr._spend_pass_action(s, "analyze_ic")   # Free
+        assert s["pass_action_points"] == 2 and s["pass_free"] == 0
+
+    def test_auto_advances_to_next_pass(self):
+        s = self._state(passes=3)
+        mr._spend_pass_action(s, "analyze_host")   # Complex, pass1: 2->0
+        mr._spend_pass_action(s, "analyze_host")   # Complex: pass1 can't afford -> advance to pass2, spend
+        assert s["current_pass"] == 2 and s["pass_action_points"] == 0
+        assert any(e["type"] == "new_pass" for e in s["event_log"])
+
+    def test_block_when_all_passes_spent(self):
+        s = self._state(passes=2)
+        mr._spend_pass_action(s, "analyze_host")  # pass1 2->0
+        mr._spend_pass_action(s, "analyze_host")  # advance pass2, 2->0
+        import fastapi
+        with pytest.raises(fastapi.HTTPException):
+            mr._spend_pass_action(s, "analyze_host")  # no passes left -> New Turn
+
+    def test_legacy_run_not_enforced(self):
+        s = {"event_log": []}  # no pass_action_points
+        mr._spend_pass_action(s, "analyze_host")  # no-op, no raise
+        assert "pass_action_points" not in s
+
+
 class TestInitiativeFoundation:
     """Gap D (foundation) -- Matrix initiative + action passes tracked; action costs surfaced.
     (Full action-economy ENFORCEMENT is the documented next step.)"""
