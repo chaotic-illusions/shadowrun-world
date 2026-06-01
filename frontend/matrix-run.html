@@ -2044,6 +2044,10 @@ function renderActionArea(state, decker, crashed) {
         <label>HP Dice</label>
         <input type="number" id="actionHpDice" min="0" max="50" value="0">
       </div>
+      <div class="mr-field" style="min-width:130px">
+        <label data-tip="File/slave name (or Scramble target key) for Decrypt File, Download/Edit/Upload Data. Needed to trip data bombs / target a Scramble.">Target (file/slave)</label>
+        <input type="text" id="actionTargetFile" placeholder="-- optional --">
+      </div>
       <div class="mr-field" style="min-width:180px">
         <label>Action</label>
         <select id="actionType" onchange="onActionTypeChange()">
@@ -2142,6 +2146,8 @@ async function performAction() {
     utility_rating: utilityRating,
     hacking_pool_dice: hpDice,
   };
+  const tgt = (document.getElementById('actionTargetFile')?.value || '').trim();
+  if (tgt) body.target_file = tgt;
 
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, body);
 }
