@@ -181,6 +181,7 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "defused_bombs": [],
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
+        "linked_passcode": decker.get("linked_passcode", False),
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -493,6 +494,24 @@ def _subsystem_rating(state: dict, subsystem: str) -> int:
         if state.get("console_access"):
             rating = -(-rating // 2)  # round-up halving
     return max(2, rating)
+
+
+def _shield_shift_tn_modifier(ic: dict, *, penetration: bool, chaser: bool) -> int:
+    """+2 TN for the decker to hit an IC running Shield or Shift (vr2).
+
+    - Shield: +2; Penetration negates it entirely; Chaser makes it +4 (extra-effective).
+    - Shift:  +2; Chaser negates it entirely; Penetration makes it +4 (extra-effective).
+    Shield and Shift are mutually exclusive. Returns the net to-hit TN penalty.
+    """
+    if ic.get("shield"):
+        if penetration:
+            return 0
+        return 4 if chaser else 2
+    if ic.get("shift"):
+        if chaser:
+            return 0
+        return 4 if penetration else 2
+    return 0
 
 
 def _compute_trace_tn(state: dict, decker: dict, ic_rating: int, eff: dict) -> int:
@@ -861,10 +880,19 @@ async def perform_action(
             await db.commit(); await db.refresh(run)
             return _serialize_run(run, auth)
 
+    # Console access additionally halves the host Security Value for Access Tests (vr2).
+    test_sec_value = sec_value
+    if body.subsystem == "access" and state.get("console_access"):
+        test_sec_value = -(-sec_value // 2)
+    # Stolen linked passcode + a Deception utility: -2 TN to Logon to Host (vr2).
+    if (body.action_type == "logon_to_host" and body.utility_rating > 0
+            and state.get("linked_passcode")):
+        tn_modifier -= 2
+
     test = eng.system_test(
         decker_pool=pool,
         subsystem_rating=subsystem_rating,
-        security_value=sec_value,
+        security_value=test_sec_value,
         det_factor=det_factor,
         extra_tn_modifier=tn_modifier,
     )
@@ -1454,7 +1482,11 @@ async def attack_ic(
     _spend_hp(state, body.hacking_pool_dice)
     attack_pool     = body.attack_pool + body.hacking_pool_dice
     cluster_penalty = _cluster_size(state, target_ic.get("cluster_id"))
-    tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
+    base_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
+    # Shield/Shift raise only the decker's to-hit TN (not the IC's resist).
+    shield_shift = _shield_shift_tn_modifier(
+        target_ic, penetration=body.penetration, chaser=body.chaser)
+    tn = base_tn + shield_shift
 
     attack_roll = eng.roll_dice(attack_pool, tn)
     base_dmg = rules.IC_DAMAGE_LEVEL[sec_code]
@@ -1567,10 +1599,12 @@ async def graceful_logoff(
 
     _spend_hp(state, body.hacking_pool_dice)
     pool = decker.get("computer_skill", 4) + body.hacking_pool_dice
+    # Console access halves the host Security Value for this Access Test (vr2).
+    logoff_sec_value = -(-sec_value // 2) if state.get("console_access") else sec_value
     test = eng.system_test(
         decker_pool=pool,
         subsystem_rating=access_rating,
-        security_value=sec_value,
+        security_value=logoff_sec_value,
         det_factor=det_factor,
         extra_tn_modifier=(-deception + trace_tn_bonus),
     )

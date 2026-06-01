@@ -62,6 +62,7 @@ class DeckerStats(BaseModel):
     access_modifier:   int = Field(0, ge=-6, le=6)
     console_access:    bool = False
     persona_mode:      Literal["none", "bod", "evasion", "masking", "sensor"] = "none"
+    linked_passcode:   bool = False   # stolen linked passcode: -2 TN to Logon w/ Deception (vr2)
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
 
 
@@ -104,6 +105,8 @@ class RunAttackInput(BaseModel):
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     armor_utility: int = Field(0, ge=0, le=50)
+    penetration: bool = Field(False)  # defeats Shield; extra-effective vs Shift
+    chaser: bool = Field(False)       # defeats Shift; extra-effective vs Shield
 
 
 class RunLogoffInput(BaseModel):
