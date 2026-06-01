@@ -514,6 +514,28 @@ class TestEnemyLocateAndIntent:
                                         target_attribute_rating=4)
         assert r["reduction"] == r["net"] // 2
 
+    def test_hog_purge_tn_and_success(self, scripted):
+        # roll_dice rolls all 10 raw dice first, THEN explodes 6s. raw die0=6, the explosion
+        # reroll (11th value)=3 -> 6+3=9 >= TN 9 -> one success. Other raw dice are 1s.
+        scripted([6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3])
+        r = eng.hog_purge_test(computer_skill=10, hog_rating=6, infected_program_rating=4, hardening=1)
+        assert r["tn"] == (6 - 1) + 4   # (Hog rating - Hardening) + infected program rating = 9
+        assert r["purged"] is True
+
+    def test_apply_hog_drain_hits_highest_running(self):
+        decker = {"utilities": {"deception": 6, "analyze": 4}}
+        state = {"program_damage": {}}
+        frag = mr._apply_hog_drain(state, decker, 2)
+        assert "Deception" in frag and state["program_damage"]["deception"] == 2
+        # next drain still hits Deception (now 4) over analyze (4) on a tie -> first found
+        mr._apply_hog_drain(state, decker, 5)   # 4 left -> capped, crashes
+        assert state["program_damage"]["deception"] == 6  # crashed (>= base)
+
+    def test_apply_hog_drain_noop_when_nothing_running(self):
+        decker = {"utilities": {"deception": 2}}
+        state = {"program_damage": {"deception": 2}}  # already crashed
+        assert mr._apply_hog_drain(state, decker, 3) == ""
+
     def test_player_view_redacts_enemy_internals(self):
         enemy = eng.generate_enemy_decker("Red", 8)
         enemy["id"] = "ed_1"

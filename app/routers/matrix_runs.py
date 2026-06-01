@@ -819,6 +819,50 @@ async def perform_action(
     if body.utility_rating > 0:
         tn_modifier -= body.utility_rating  # utility reduces TN
 
+    # Swap Memory (Simple Action, no test): reload a crashed/degraded program from storage,
+    # restoring its rating (recovery from Hog / Tar Baby / One-Shot / degraded Armor-Shield).
+    if body.action_type == "swap_memory":
+        pd = state.setdefault("program_damage", {})
+        target = body.target_program or next((k for k, v in pd.items() if v > 0), None)
+        if target and pd.get(target, 0) > 0:
+            pd[target] = 0
+            desc = (f"Swap Memory -- reloaded {target.replace('_', ' ').title()} from storage; "
+                    "rating restored.")
+        else:
+            desc = "Swap Memory -- no crashed/degraded program to reload."
+        _append_event(state, {"type": "swap_memory", "description": desc})
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Purge Hog (Complex Action): Computer test to wipe a Hog virus -- success removes the
+    # infection AND crashes the infected program (reload it afterward via Swap Memory).
+    if body.action_type == "purge_hog":
+        infections = state.get("hog_infections") or []
+        if not infections:
+            _append_event(state, {"type": "purge_hog", "description": "No Hog virus to purge."})
+        else:
+            inf = next((i for i in infections if i.get("id") == body.target_program), infections[0])
+            pd = state.setdefault("program_damage", {})
+            name, _eff = _highest_running_utility(decker, pd)
+            base = (decker.get("utilities") or {}).get(name, 0) if name else 0
+            purge = eng.hog_purge_test(
+                computer_skill=decker.get("computer_skill", 4), hog_rating=inf.get("rating", 4),
+                infected_program_rating=base, hardening=decker.get("hardening", 0))
+            if purge["purged"]:
+                state["hog_infections"] = [i for i in infections if i is not inf]
+                if name:
+                    pd[name] = base  # the purge sacrifices the infected program (crashed)
+                desc = (f"Purged Hog-{inf.get('rating')} (TN {purge['tn']}) -- virus removed; the "
+                        f"{name.replace('_', ' ').title() if name else 'infected'} program is wiped "
+                        "(reload via Swap Memory).")
+            else:
+                desc = f"Purge FAILED (TN {purge['tn']}) -- Hog-{inf.get('rating')} persists."
+            _append_event(state, {"type": "purge_hog", "decker_roll": purge["roll"], "description": desc})
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
     # Decrypt File is resolved against a Scramble IC (its rating IS the decrypt TN),
     # not the generic subsystem test. A failed decrypt vs a POISON Scramble destroys the
     # protected data -- key data is a permanent, mission-critical loss shown to the player.
@@ -1720,6 +1764,16 @@ async def new_turn(
         ),
     })
 
+    # Persistent Hog infections re-drain the highest running program each Combat Turn (vr2).
+    decker = run.decker_json
+    for inf in state.get("hog_infections", []):
+        frag = _apply_hog_drain(state, decker, inf.get("drain", 0))
+        if frag:
+            _append_event(state, {
+                "type": "enemy_decker", "outcome": "hog",
+                "description": f"Hog-{inf.get('rating')} virus drains your deck: {frag}.",
+            })
+
     run.state_json = state
     await db.commit()
     await db.refresh(run)
@@ -1854,6 +1908,23 @@ def _highest_running_utility(decker: dict, program_damage: dict) -> tuple[str | 
     return best_name, best_eff
 
 
+def _apply_hog_drain(state: dict, decker: dict, drain: int) -> str:
+    """One Hog drain pass: reduce the decker's highest running utility by ``drain``
+    (vr2: 'reduce the highest-rated running program', repeating until it crashes, then the
+    next-highest). Returns a short description fragment, or '' if nothing was drained."""
+    if drain <= 0:
+        return ""
+    pd = state.setdefault("program_damage", {})
+    name, eff = _highest_running_utility(decker, pd)
+    if not name or eff <= 0:
+        return ""
+    applied = min(drain, eff)
+    pd[name] = pd.get(name, 0) + applied
+    base = (decker.get("utilities") or {}).get(name, 0)
+    crashed = pd[name] >= base
+    return f"{name.replace('_', ' ').title()} -{applied}{' (CRASHED)' if crashed else ''}"
+
+
 @router.post("/{run_id}/enemy-decker", response_model=MatrixRunRead)
 async def inject_enemy_decker(
     run_id: int,
@@ -1985,14 +2056,15 @@ async def enemy_decker_act(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             hog_rating=attack_rating, mpcp_rating=decker.get("mpcp", 4),
             hardening=decker.get("hardening", 0))
-        pd = state.setdefault("program_damage", {})
-        name_hit, eff_rating = _highest_running_utility(decker, pd)
-        if hog["attack_roll"]["successes"] > 0 and hog["reduction"] > 0 and name_hit:
-            applied = min(hog["reduction"], eff_rating)
-            pd[name_hit] = pd.get(name_hit, 0) + applied
-            crashed = pd[name_hit] >= (decker.get("utilities") or {}).get(name_hit, 0)
-            desc = (f"HOG -- {enemy['name']}'s virus drains your {name_hit.replace('_', ' ').title()} "
-                    f"program by {applied}{' (CRASHED -- reload via Swap Memory)' if crashed else ''}.")
+        if hog["attack_roll"]["successes"] > 0 and hog["reduction"] > 0:
+            # Register a PERSISTENT Hog infection (re-drains each Combat Turn until purged
+            # via Purge Hog or the program crashes) and apply this turn's drain.
+            drain = hog["reduction"]
+            state.setdefault("hog_infections", []).append({
+                "id": f"hog_{uuid.uuid4().hex[:8]}", "rating": attack_rating, "drain": drain})
+            frag = _apply_hog_drain(state, decker, drain)
+            desc = (f"HOG -- {enemy['name']}'s virus takes hold (drains {drain}/turn): "
+                    f"{frag or 'no running program left'}. Purge it or reload via Swap Memory.")
         else:
             desc = f"HOG -- {enemy['name']}'s virus fails to take hold this pass."
         _append_event(state, {

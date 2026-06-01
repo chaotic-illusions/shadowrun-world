@@ -889,6 +889,21 @@ def hog_attack(
             "net": net, "reduction": net // 2}
 
 
+def hog_purge_test(
+    *,
+    computer_skill: int,
+    hog_rating: int,
+    infected_program_rating: int,
+    hardening: int = 0,
+) -> dict[str, Any]:
+    """Purge a Hog virus (vr2 line 1548): Computer Test, TN = (Hog rating - Hardening) +
+    the infected program's ORIGINAL rating. A single success wipes both the Hog and the
+    infected program from active memory (reload the program afterward via Swap Memory)."""
+    tn = max(2, (hog_rating - hardening) + infected_program_rating)
+    roll = roll_dice(computer_skill, tn)
+    return {"roll": roll, "tn": tn, "purged": roll["successes"] > 0}
+
+
 def decker_attribute_attack(
     *,
     attacker_pool: int,
