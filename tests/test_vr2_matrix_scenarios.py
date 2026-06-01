@@ -462,6 +462,9 @@ class TestScramblePaydata:
         c = eng.scramble_failure_consequence(variant="exploding", is_key=True)
         assert c["data_destroyed"] is False
         assert c["detonate_data_bomb"] is True
+        # the detonation itself reuses the data-bomb engine (rating)Moderate + tally
+        det = eng.data_bomb_detonate(ic_rating=8, target_bod=6)
+        assert det["tally_increase"] == 8 and det["damage_level"] == "Moderate"
 
     def test_standard_failure_no_destruction(self):
         c = eng.scramble_failure_consequence(variant="standard", is_key=True)

@@ -829,6 +829,25 @@ async def perform_action(
                 "file_name": (protected or {}).get("name"),  # lets the UI grey the destroyed file
                 "description": cons["message"],
             })
+            # Exploding Scramble: a failed decrypt sets off its linked data bomb (vr2).
+            if cons.get("detonate_data_bomb"):
+                det = eng.data_bomb_detonate(
+                    ic_rating=scr.get("rating", 6), target_bod=eff["bod"],
+                    armor_rating=(decker.get("utilities") or {}).get("armor", 0))
+                cm = state.setdefault("condition_monitor", {})
+                cm["persona_boxes"] = cm.get("persona_boxes", 0) + det["resistance"]["boxes"]
+                state["security_tally"] += det["tally_increase"]
+                _append_event(state, {
+                    "type": "data_bomb", "outcome": "detonated",
+                    "damage_level": det["resistance"]["final_damage_level"],
+                    "tally_increase": det["tally_increase"],
+                    "description": (
+                        f"Exploding Scramble's data bomb detonated -- "
+                        f"{det['resistance']['final_damage_level']} damage; tally "
+                        f"+{det['tally_increase']} -> {state['security_tally']}."
+                    ),
+                })
+                _check_and_activate_sheaf(state, sec_code)
         run.state_json = state
         await db.commit()
         await db.refresh(run)
