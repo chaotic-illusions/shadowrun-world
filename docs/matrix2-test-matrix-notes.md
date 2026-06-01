@@ -337,19 +337,21 @@ Context-safe resume plan for the current work. Status updated as each lands.
 - Reaction = ceil((Quickness + Intelligence)/2) + response_increase (cap +3); DeckerStats already
   has quickness/intelligence/response_increase.
 
-**E. IC Options/Defenses -- run-side application + constructs [polish, TODO]**
-- Generation now rolls IC Options (Cascading / Expert Offense+ / Expert Defense+) and IC Defenses
-  (Armor / Shielding / Shifting) onto combat IC, and the run applies Shield/Shift to the decker's
-  to-hit TN. STILL TODO:
-  - **Armor on IC**: a generated IC with the Armor defense should reduce the Power/damage of the
-    PC's attacks against it (attack_enemy_decker / attack_ic resolve cybercombat with armor_rating=0
-    for the IC today). Wire `ic.options` containing "Armor" -> armor_rating in the PC's attack.
-  - **Cascading**: when a cascading IC crashes, it should trigger the next sheaf step / spawn the
-    next IC immediately (vr2 cascade). Currently carried as a flag only.
-  - **Expert Offense/Defense (+1D3)**: should modify the IC's attack TN (offense) or its
-    to-hit/defense TN (defense). Currently carried as `expert: {type, value}` but unused in combat.
-  - **Constructs/Party**: `_build_construct_or_party_event` still sets `defenses: []` -- roll the IC
-    Defenses Table for the construct/party components too.
+**E. IC Options/Defenses -- run-side application + constructs [DONE 2026-06-01, verified]**
+- Generation rolls IC Options (Cascading / Expert Offense+ / Expert Defense+) and IC Defenses
+  (Armor / Shielding / Shifting) onto combat IC + party components; constructs roll the Defenses
+  Table; `_activate_sheaf_step` carries options/cascading/expert onto active IC (regular + party).
+  - **Armor on IC**: DONE -- in attack_ic, an IC with the Armor defense mitigates the incoming hit
+    one damage level (`_ic_has_armor`, floors at Light).
+  - **Expert**: DONE -- Expert Defense+ adds to the decker's to-hit TN (attack_ic); Expert Offense+
+    adds attack dice to the IC's cybercombat pool (IC attack loop). (`_ic_expert`)
+  - **Cascading**: DONE -- a cascading IC, on crash, immediately triggers the next untriggered sheaf
+    step (`_cascade_next_sheaf_step`), regardless of tally.
+  - **Constructs**: DONE -- `_build_construct_or_party_event` rolls the IC Defenses Table (was []).
+  - Verified live: generated Red-9 sheaves -> IC carry options/expert (e.g. Marker-10 Expert{defense,3}
+    [Armor,Shielding]); constructs carry defenses. Cascading is rare (2D6=2/12) but unit-tested.
+  - Note: Armor is modeled as a flat one-level mitigation (the IC Defenses Table gives "Armor" with
+    no rating); acceptable abstraction.
 
 ## >>> RESUME CHECKPOINT (2026-05-31, updated) <<<
 
