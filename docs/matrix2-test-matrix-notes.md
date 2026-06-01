@@ -324,6 +324,20 @@ Context-safe resume plan for the current work. Status updated as each lands.
 - Reaction = ceil((Quickness + Intelligence)/2) + response_increase (cap +3); DeckerStats already
   has quickness/intelligence/response_increase.
 
+**E. IC Options/Defenses -- run-side application + constructs [polish, TODO]**
+- Generation now rolls IC Options (Cascading / Expert Offense+ / Expert Defense+) and IC Defenses
+  (Armor / Shielding / Shifting) onto combat IC, and the run applies Shield/Shift to the decker's
+  to-hit TN. STILL TODO:
+  - **Armor on IC**: a generated IC with the Armor defense should reduce the Power/damage of the
+    PC's attacks against it (attack_enemy_decker / attack_ic resolve cybercombat with armor_rating=0
+    for the IC today). Wire `ic.options` containing "Armor" -> armor_rating in the PC's attack.
+  - **Cascading**: when a cascading IC crashes, it should trigger the next sheaf step / spawn the
+    next IC immediately (vr2 cascade). Currently carried as a flag only.
+  - **Expert Offense/Defense (+1D3)**: should modify the IC's attack TN (offense) or its
+    to-hit/defense TN (defense). Currently carried as `expert: {type, value}` but unused in combat.
+  - **Constructs/Party**: `_build_construct_or_party_event` still sets `defenses: []` -- roll the IC
+    Defenses Table for the construct/party components too.
+
 ## >>> RESUME CHECKPOINT (2026-05-31, updated) <<<
 
 User priority: **#11 (account for ALL modifiers), then #9, #7, #6; #5 later.** -- #6/#7/#9/#11 are
