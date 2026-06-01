@@ -260,6 +260,41 @@ class TestAlertEscalation:
         assert mr._subsystem_rating(st, "control") == 10  # other subsystems unaffected
 
 
+class TestShieldShift:
+    """vr2 Shield/Shift -- +2 to-hit, with Penetration/Chaser negation + extra-effectiveness."""
+
+    def test_shield_plain_plus_two(self):
+        ic = {"shield": True}
+        assert mr._shield_shift_tn_modifier(ic, penetration=False, chaser=False) == 2
+
+    def test_penetration_defeats_shield(self):
+        assert mr._shield_shift_tn_modifier({"shield": True}, penetration=True, chaser=False) == 0
+
+    def test_chaser_makes_shield_extra_effective(self):
+        assert mr._shield_shift_tn_modifier({"shield": True}, penetration=False, chaser=True) == 4
+
+    def test_shift_plain_plus_two_and_chaser_defeats(self):
+        assert mr._shield_shift_tn_modifier({"shift": True}, penetration=False, chaser=False) == 2
+        assert mr._shield_shift_tn_modifier({"shift": True}, penetration=False, chaser=True) == 0
+        assert mr._shield_shift_tn_modifier({"shift": True}, penetration=True, chaser=False) == 4
+
+    def test_no_shield_or_shift_no_penalty(self):
+        assert mr._shield_shift_tn_modifier({"type": "Killer"}, penetration=False, chaser=False) == 0
+
+
+class TestLinkedPasscodeAndConsole:
+    """vr2 -- linked passcode -2 to Logon; Console halves Security Value (loaded into state)."""
+
+    def test_linked_passcode_loaded_into_state(self):
+        class _Host:
+            config_json = {"security_code": "Blue", "security_value": 4}
+        st = mr._initial_state(
+            {"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {},
+             "linked_passcode": True, "console_access": True}, _Host())
+        assert st["linked_passcode"] is True
+        assert st["console_access"] is True
+
+
 # -- #10 Tar Baby / Tar Pit deck-wipe -------------------------------------------
 
 class TestTarBabyTarPit:
