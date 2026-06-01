@@ -363,6 +363,7 @@
               <span class="hp-label">Hacking Pool dice</span>
             </div>
             <div class="df-display">Detection Factor: <span id="run-df">--</span></div>
+            <div class="df-display">Initiative: <span id="run-init">--</span></div>
           </div>
 
           <div style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;padding-top:8px;border-top:1px solid #1a2a1a">Deck Stats</div>
@@ -1583,6 +1584,11 @@ function renderRunState(run) {
   hpEl.textContent = `${hpRemaining}/${hpTotal}`;
   hpEl.style.color = hpRemaining === 0 ? 'var(--red)' : hpRemaining < hpTotal ? 'var(--amber)' : '';
   document.getElementById('run-df').textContent = df;
+  const initEl = document.getElementById('run-init');
+  if (initEl) {
+    const ini = state.decker_initiative, passes = state.initiative_passes;
+    initEl.textContent = (ini != null) ? `${ini} (${passes} pass${passes !== 1 ? 'es' : ''})` : '--';
+  }
 
   // Deck stats
   const mpcpDmg = cm.mpcp_damage || 0;
