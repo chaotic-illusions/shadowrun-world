@@ -348,6 +348,7 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
             else:
                 ic_id = f"ic_{uuid.uuid4().hex[:8]}"
                 initiative = eng.ic_initiative_roll(ic_rating, security_code)
+                _opts = [str(o).lower() for o in (ev.get("options") or [])]
                 state["active_ic"].append({
                     "id": ic_id,
                     "type": ic_type,
@@ -358,6 +359,9 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
                     "initiative": initiative,
                     "status": "active",
                     "hunt_cycle_successes": 0,
+                    # Designer options: Shield/Shift raise the decker's to-hit TN (vr2).
+                    "shield": ("shielding" in _opts or "shield" in _opts),
+                    "shift": ("shifting" in _opts or "shift" in _opts),
                 })
                 # Reactive IC do not betray themselves -- their activation is GM-only
                 # until a Sensor Test / Analyze detects them (vr2 line 409).
