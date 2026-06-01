@@ -171,6 +171,35 @@ def _redact_ic(ic: dict) -> dict | None:
     return out
 
 
+# Action cost (Free/Simple/Complex) per action_type, from the vr2 System Operations table.
+# (Action-economy ENFORCEMENT -- 2 Simple OR 1 Complex + 1 Free per pass -- is the next step;
+# for now this is surfaced on each action for awareness. See docs GAPS PLAN section D.)
+_ACTION_COST = {op["name"].lower().replace(" ", "_"): op["action"] for op in rules.SYSTEM_OPERATIONS}
+_ACTION_COST.update({
+    "swap_memory": "Simple", "purge_hog": "Complex", "decrypt_file": "Complex",
+    "relocate": "Simple", "redirect_datatrail": "Simple", "invalidate_passcode": "Complex",
+    "locate_slave": "Complex", "upload_data": "Simple", "monitor_slave": "Free",
+    "edit_slave": "Simple", "analyze_subsystem": "Complex", "logon_to_ltg": "Complex",
+})
+
+
+def _decker_reaction(decker: dict) -> int:
+    """VR2 Matrix Reaction = round-up average of Quickness and Intelligence."""
+    return -(-(decker.get("quickness", 4) + decker.get("intelligence", 4)) // 2)
+
+
+def _roll_decker_initiative(decker: dict) -> tuple[int, int]:
+    """Roll the decker's Matrix initiative; return (score, passes). Initiative goes in
+    increments of 10 -- a score of 22 acts on counts 22/12/2, i.e. 3 passes this turn."""
+    init = eng.decker_initiative_roll(
+        _decker_reaction(decker),
+        response_increase=decker.get("response_increase", 0),
+        has_hot_dnl=decker.get("deck_mode") == "hot",
+        has_reality_filter=bool(decker.get("reality_filter")),
+    )
+    return init, max(1, (init // 10) + 1)
+
+
 def _initial_state(decker: dict, host: MatrixHost) -> dict:
     """Build the initial run state from decker stats and host config."""
     cfg = host.config_json or {}
@@ -178,10 +207,15 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
     sleaze = (decker.get("utilities") or {}).get("sleaze", 0)
     det_factor = eng.detection_factor(masking, sleaze)
     hackingPool_total = max(0, (decker.get("intelligence", 1) + decker.get("mpcp", 1)) // 3)
+    decker_initiative, initiative_passes = _roll_decker_initiative(decker)
 
     return {
         "security_tally": 0,
         "alert_status": "none",
+        "decker_initiative": decker_initiative,   # Matrix initiative this Combat Turn
+        "initiative_passes": initiative_passes,    # action passes (increments of 10)
+        "current_pass": 1,
+        "actions_this_turn": 0,
         "condition_monitor": {
             "persona_boxes": 0,
             "physical_boxes": 0,
@@ -1025,9 +1059,11 @@ async def perform_action(
         "host_roll": test["host_roll"],
         "tally_increase": test["tally_increase"],
         "tally_total": state["security_tally"],
+        "action_cost": _ACTION_COST.get(body.action_type, "Complex"),  # Free / Simple / Complex
         "note": body.note,
     }
     _append_event(state, log_entry)
+    state["actions_this_turn"] = state.get("actions_this_turn", 0) + 1
 
     # Analyze IC: a successful Analyze reveals an IC's type + rating to the decker (vr2 #9).
     # Until then the player only sees an "Unknown IC" marker (redacted in _serialize_run).
@@ -1780,12 +1816,18 @@ async def new_turn(
     old_hp = state.get("hackingPool_remaining", hackingPool_total)
     state["hackingPool_remaining"] = hackingPool_total
     state["current_turn"] = state.get("current_turn", 1) + 1
+    # Re-roll Matrix initiative each Combat Turn (increments of 10 -> action passes).
+    init, passes = _roll_decker_initiative(run.decker_json)
+    state["decker_initiative"] = init
+    state["initiative_passes"] = passes
+    state["current_pass"] = 1
+    state["actions_this_turn"] = 0
 
     _append_event(state, {
         "type": "new_turn",
         "description": (
-            f"Turn {state['current_turn']} begins. "
-            f"Hacking Pool refreshed ({old_hp} -> {hackingPool_total})."
+            f"Turn {state['current_turn']} begins. Initiative {init} ({passes} "
+            f"pass{'es' if passes != 1 else ''}). Hacking Pool refreshed ({old_hp} -> {hackingPool_total})."
         ),
     })
 

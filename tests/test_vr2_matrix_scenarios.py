@@ -470,6 +470,38 @@ class TestEnemyDeckerGeneration:
         assert d["status"] == "active" and d["located"] is False
 
 
+class TestInitiativeFoundation:
+    """Gap D (foundation) -- Matrix initiative + action passes tracked; action costs surfaced.
+    (Full action-economy ENFORCEMENT is the documented next step.)"""
+
+    def test_reaction_is_roundup_avg_quickness_intelligence(self):
+        assert mr._decker_reaction({"quickness": 3, "intelligence": 5}) == 4   # ceil(8/2)
+        assert mr._decker_reaction({"quickness": 4, "intelligence": 5}) == 5   # ceil(9/2)=5
+
+    def test_initiative_passes_increment_of_ten(self, scripted):
+        scripted([5])  # reaction + 1d6 ~ small -> 1 pass; exact value not asserted
+        init, passes = mr._roll_decker_initiative(
+            {"quickness": 4, "intelligence": 5, "response_increase": 0, "deck_mode": "cool"})
+        assert passes == max(1, (init // 10) + 1)
+
+    def test_action_cost_map_from_rules(self):
+        assert mr._ACTION_COST["analyze_host"] == "Complex"
+        assert mr._ACTION_COST["analyze_ic"] == "Free"
+        assert mr._ACTION_COST["analyze_security"] == "Simple"
+        assert mr._ACTION_COST["swap_memory"] == "Simple"
+        assert mr._ACTION_COST["purge_hog"] == "Complex"
+
+    def test_initial_state_rolls_initiative(self):
+        class _Host:
+            config_json = {"security_code": "Blue", "security_value": 4}
+        st = mr._initial_state(
+            {"quickness": 4, "intelligence": 5, "mpcp": 6, "masking": 4,
+             "deck_mode": "hot", "utilities": {}}, _Host())
+        assert st["decker_initiative"] >= 1
+        assert st["initiative_passes"] == max(1, (st["decker_initiative"] // 10) + 1)
+        assert st["current_pass"] == 1 and st["actions_this_turn"] == 0
+
+
 class _RunStub:
     status = "active"
 
