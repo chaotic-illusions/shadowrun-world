@@ -161,10 +161,13 @@ Masking + suppression count); **suppress/release endpoint** `POST /matrix-runs2/
 (suppress -1 DF/IC no tally; release restores DF + tally += rating); **jackpoint Access modifier**
 (`access_modifier` Legal -2/Satellite +2/Workstation -4/Remote +4 on Access Tests) + **Console**
 halving (round up). Complements existing `trace_factor` (jackpoint Trace side).
-**Also implemented:** **Persona Modes** (`persona_mode` on DeckerStats; `_get_decker_effective`
-applies +-50% multipliers, flowing into DF + combat).
-**Still GAP for #11 (next):** linked-passcode -2 to Logon (with Deception); Shield/Shift +2 to-hit
-(verify in attack_ic); Console halving of Security Value (only Access Rating is halved so far).
+**Also implemented:** **Persona Modes** (`persona_mode`; `_get_decker_effective` +-50% multipliers);
+**linked-passcode -2** to Logon (with Deception); **Console Security-Value halving** for Access Tests
+(perform_action + graceful_logoff); **Shield/Shift +2 to-hit** (`_shield_shift_tn_modifier` with
+Penetration/Chaser negation + extra-effectiveness, wired into attack_ic via RunAttackInput.
+penetration/chaser). **#11 is now COMPLETE** -- every detection/masking/access/test modifier in
+vr2_rules is accounted for. Data-population for Shield/Shift IC flags (`ic.shield`/`ic.shift`) is a
+designer/sheaf concern (the run logic is ready).
 
 ## #11 Satlink + masking / detection-factor modifiers -- [PARTIAL: live DF done; jackpoint/modes gap]
 - `tests/test_vr2_matrix_scenarios.py::TestDetectionAndTrace`: Detection Factor = round-up avg of

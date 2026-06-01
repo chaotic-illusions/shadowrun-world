@@ -512,6 +512,7 @@ let _trapDoorsFound = new Set(); // ids the GM has marked as found
 let _hostKeyPaydata = [];        // key paydata files from host config_json
 let _hostHasTapeworm = false;    // true if host has a Tapeworm worm
 let _retrievedKeyFiles = new Set(); // file names the decker has retrieved
+let _destroyedKeyFiles = new Set();  // file names wiped by a Poison Scramble (vr2 #6)
 let _savedDecks = [];
 let _savedLoadouts = [];
 let _runLoadoutDraft = null;
@@ -1374,11 +1375,16 @@ function renderKeyPaydataPanel() {
     : '';
 
   list.innerHTML = twarnHtml + _hostKeyPaydata.map((p, i) => {
+    const destroyed = _destroyedKeyFiles.has(p.name);
     const retrieved = _retrievedKeyFiles.has(p.name);
+    const nameColor = destroyed ? 'var(--red)' : (retrieved ? 'var(--green)' : 'var(--amber)');
+    const struck = (destroyed || retrieved) ? 'text-decoration:line-through' : '';
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-      <span style="font-size:.72rem;${retrieved ? 'color:var(--green);text-decoration:line-through' : 'color:var(--amber)'}">${esc(p.name)}</span>
+      <span style="font-size:.72rem;color:${nameColor};${struck}">${esc(p.name)}</span>
       <span style="font-size:.58rem;color:var(--text-dim)">${p.density || '?'}Mp</span>
-      ${retrieved
+      ${destroyed
+        ? `<span style="font-size:.58rem;letter-spacing:1px;color:var(--red)">[DESTROYED]</span>`
+        : retrieved
         ? `<span style="font-size:.58rem;letter-spacing:1px;color:var(--green)">[RETRIEVED]</span>`
         : `<button class="btn btn-amber btn-sm" onclick="markKeyFileRetrieved(${i})" style="padding:2px 8px;font-size:.62rem">&gt;&gt; Retrieved</button>`
       }
@@ -1498,6 +1504,7 @@ function showSetupView() {
   _hostKeyPaydata  = [];
   _hostHasTapeworm = false;
   _retrievedKeyFiles.clear();
+  _destroyedKeyFiles.clear();
   sessionStorage.removeItem('active_run_id');
 }
 
@@ -1584,6 +1591,14 @@ function renderRunState(run) {
   // Event log
   renderEventLog(state.event_log || [], state);
 
+  // Key paydata wiped by a Poison Scramble (vr2 #6) -- grey it out in the objective panel
+  (state.event_log || []).forEach(ev => {
+    if (ev && ev.type === 'decrypt' && ev.key_data_lost && ev.file_name) {
+      _destroyedKeyFiles.add(ev.file_name);
+    }
+  });
+  renderKeyPaydataPanel();
+
   // Turn badge
   const lastEvent = (state.event_log || []).slice(-1)[0];
   if (lastEvent) {
@@ -1661,6 +1676,13 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
         : `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[TRAP]</span>`;
     }
 
+    // Detection-level indicator (vr2): reactive IC partially identified by the decker.
+    // Backend already redacts type/rating below the detected level; show progress 1/3 - 2/3.
+    let detBadge = '';
+    if (!gm && ic.detection_level && ic.detection_level < 3) {
+      detBadge = `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[ID ${ic.detection_level}/3]</span>`;
+    }
+
     // Party IC cluster penalty indicator
     let partyBadge = '';
     if (isParty) {
@@ -1680,7 +1702,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     return `
     <div class="ic-card ic-${esc(cardCat)}${isCrashed ? ' ic-crashed' : ''}">
       <div class="ic-head">
-        <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span>${trapBadge}${partyBadge}</span>
+        <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span>${detBadge}${trapBadge}${partyBadge}</span>
         <span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>
       </div>
       <div class="ic-meta">
@@ -1865,6 +1887,36 @@ function renderEventEntry(ev) {
       cls = 'ev-neutral';
       badgeColor = 'var(--cyan)';
       badgeText = 'REDIRECT';
+      break;
+    case 'decrypt':
+      cls = ev.success ? 'ev-action-ok' : 'ev-crash';
+      badgeColor = ev.success ? 'var(--green)' : 'var(--red)';
+      badgeText = ev.success ? 'DECRYPT' : (ev.key_data_lost ? 'KEY DATA LOST' : 'DATA WIPED');
+      break;
+    case 'data_bomb':
+      cls = ev.outcome === 'defused' ? 'ev-action-ok' : 'ev-crash';
+      badgeColor = ev.outcome === 'defused' ? 'var(--green)' : 'var(--red)';
+      badgeText = ev.outcome === 'defused' ? 'BOMB DEFUSED' : 'DATA BOMB';
+      break;
+    case 'worm_resolved':
+      cls = ev.outcome === 'mpcp_infected' ? 'ev-crash' : 'ev-ic-crashed';
+      badgeColor = ev.outcome === 'mpcp_infected' ? 'var(--red)' : 'var(--green)';
+      badgeText = ev.outcome === 'mpcp_infected' ? 'WORM INFECT' : 'WORM REPELLED';
+      break;
+    case 'ic_detected':
+      cls = 'ev-reactive';
+      badgeColor = 'var(--amber)';
+      badgeText = 'IC DETECTED';
+      break;
+    case 'ic_suppressed':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--green-dim)';
+      badgeText = 'SUPPRESSED';
+      break;
+    case 'ic_released':
+      cls = 'ev-alert';
+      badgeColor = 'var(--amber)';
+      badgeText = 'IC RELEASED';
       break;
   }
 
