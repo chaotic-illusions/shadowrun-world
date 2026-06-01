@@ -216,6 +216,8 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "initiative_passes": initiative_passes,    # action passes (increments of 10)
         "current_pass": 1,
         "actions_this_turn": 0,
+        "pass_action_points": 2,   # per-pass: 2 Simple OR 1 Complex
+        "pass_free": 1,            # per-pass: 1 Free action
         "condition_monitor": {
             "persona_boxes": 0,
             "physical_boxes": 0,
@@ -269,6 +271,44 @@ def _append_event(state: dict, event: dict) -> None:
     event["turn"] = state.get("current_turn", 1)
     event["ts"] = datetime.now(UTC).isoformat()
     state["event_log"].append(event)
+
+
+def _reset_pass_budget(state: dict) -> None:
+    """Refresh the current initiative pass's action budget: 2 action points (2 Simple OR
+    1 Complex) + 1 Free action (vr2 action economy)."""
+    state["pass_action_points"] = 2
+    state["pass_free"] = 1
+
+
+def _spend_pass_action(state: dict, action_type: str) -> None:
+    """Enforce the per-pass action economy (vr2). Each initiative pass grants 2 action
+    points (Simple=1, Complex=2) plus 1 Free action. When the current pass can't afford the
+    action, auto-advance to the next initiative pass (refreshing the budget); when ALL passes
+    this Combat Turn are spent, raise 400 -- the decker must start a New Turn (re-rolls init).
+    Legacy runs without a budget are not enforced."""
+    if "pass_action_points" not in state:
+        return
+    cost = _ACTION_COST.get(action_type, "Complex")
+    need_ap = 0 if cost == "Free" else (2 if cost == "Complex" else 1)
+    while True:
+        if cost == "Free":
+            if state.get("pass_free", 0) >= 1:
+                state["pass_free"] -= 1
+                return
+        elif state.get("pass_action_points", 0) >= need_ap:
+            state["pass_action_points"] -= need_ap
+            return
+        cur, total = state.get("current_pass", 1), state.get("initiative_passes", 1)
+        if cur >= total:
+            raise HTTPException(
+                400, f"All {total} initiative pass(es) spent this Combat Turn -- start a "
+                     "New Turn (refreshes initiative + actions).")
+        state["current_pass"] = cur + 1
+        _reset_pass_budget(state)
+        _append_event(state, {
+            "type": "new_pass",
+            "description": f"Initiative pass {cur + 1}/{total} begins -- actions refreshed (2 AP + 1 Free).",
+        })
 
 
 def _roll_mpcp_damage(
@@ -856,6 +896,10 @@ async def perform_action(
         raise HTTPException(400, "Run has already ended")
     if state.get("icon_crashed"):
         raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+
+    # Action economy: spend this action's cost from the current initiative pass (auto-advances
+    # passes; blocks when all passes are spent -> New Turn). vr2: 2 Simple OR 1 Complex + 1 Free.
+    _spend_pass_action(state, body.action_type)
 
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
@@ -1822,6 +1866,7 @@ async def new_turn(
     state["initiative_passes"] = passes
     state["current_pass"] = 1
     state["actions_this_turn"] = 0
+    _reset_pass_budget(state)
 
     _append_event(state, {
         "type": "new_turn",
