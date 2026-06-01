@@ -1272,6 +1272,15 @@ async def perform_action(
         if ic["type"] == "Probe":
             continue  # already handled above
 
+        # NPC initiative passes (vr2): a proactive IC acts on each pass its OWN initiative
+        # reaches (init in increments of 10), at most ONCE per pass -- not once per player
+        # action. (Probe IC, above, test per System Test instead.)
+        cur_pass = state.get("current_pass", 1)
+        ic_passes = (ic.get("initiative", 0) // 10) + 1
+        if cur_pass > ic_passes or ic.get("acted_pass") == cur_pass:
+            continue
+        ic["acted_pass"] = cur_pass
+
         # -- Trace IC: hunt/location cycle -- does NOT do cybercombat ---------
         if ic_subtype == "trace":
             phase = ic.get("trace_phase", "hunt")
@@ -1669,11 +1678,13 @@ async def perform_action(
             "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
         })
 
-    # Enemy deckers act automatically each player action (app-as-GM), exactly as the IC do.
+    # Enemy deckers act automatically (app-as-GM), once per initiative pass like the IC.
+    cur_pass = state.get("current_pass", 1)
     for enemy in list(state.get("enemy_deckers", [])):
         if state.get("run_ended"):
             break
-        if enemy.get("status") == "active":
+        if enemy.get("status") == "active" and enemy.get("acted_pass") != cur_pass:
+            enemy["acted_pass"] = cur_pass
             _enemy_decker_take_turn(state, decker, run, enemy)
 
     if state.get("run_ended"):
@@ -1917,6 +1928,14 @@ async def new_turn(
     state["current_pass"] = 1
     state["actions_this_turn"] = 0
     _reset_pass_budget(state)
+    # Everyone re-rolls initiative each Combat Turn; clear per-pass "acted" markers so NPCs
+    # act again on their passes this turn (vr2).
+    for ic in state.get("active_ic", []):
+        if ic.get("status") == "active":
+            ic["initiative"] = eng.ic_initiative_roll(ic.get("rating", 6), state["host_security_code"])
+        ic.pop("acted_pass", None)
+    for enemy in state.get("enemy_deckers", []):
+        enemy.pop("acted_pass", None)
 
     _append_event(state, {
         "type": "new_turn",
