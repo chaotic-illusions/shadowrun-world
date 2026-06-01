@@ -303,8 +303,17 @@ Context-safe resume plan for the current work. Status updated as each lands.
   OWN initiative reaches (init//10+1), via an `acted_pass` marker. Probe IC still test per System Test.
 - INITIATIVE [CORRECTED 2026-06-01 per review]: rolled ONCE per cybercombat encounter, NOT per
   Combat Turn. Decker rolls at run start; IC rolls (Rating + Nd6 by code) on activation; enemy decker
-  rolls (Int + 1D6) on entry. `new_turn` no longer re-rolls -- it refreshes the action budget +
-  clears per-pass markers, so every actor acts again on its FIXED passes. GAP D FULLY COMPLETE.
+  rolls on entry using the SAME model as the PC. `new_turn` no longer re-rolls -- it refreshes the
+  action budget + clears per-pass markers, so every actor acts again on its FIXED passes.
+- DECKER INITIATIVE (vr2): Reaction + 1D6 + (RI: +1D6 & +2 Reaction per level, max +3D6/+6) +1D6 hot
+  DNI +1D6 reality filter. Reaction = ceil((Quickness+Intelligence)/2) [NOT Willpower]. IC = Rating
+  + Nd6 (Blue1/Green2/Orange3/Red4/Black5). Passes = init//10 + 1.
+- ENEMY DECKER INITIATIVE SCALING [DONE 2026-06-01]: enemies use the PC initiative model with
+  tier-scaled RI + Quickness/Intelligence (RI<=MPCP/4): Blue RI0 Q3/I4; Green RI1 Q4/I5; Orange RI1
+  Q5/I6; Red RI2 Q6/I6; Black RI3 Q6/I8. So a Red/Black security decker keeps pace with a nova-hot
+  player. Sample avg passes: player rookie ~1.7 / veteran 3 / nova-hot ~3.9; IC Blue1..Black~3.2;
+  enemy decker Blue~1.7 / Green~2.3 / Orange~2.4 / Red~3.0 / Black~3.6.
+- GAP D FULLY COMPLETE.
 - ORIGINAL SEQUENCING NOTES (for the NPC-interleaving refinement):
   KEY SEQUENCING INSIGHT: today IC + enemy deckers act inside perform_action (once per player
   action). For a faithful pass model that must change, so do it in this order:
