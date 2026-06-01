@@ -84,6 +84,7 @@ ActionType = Literal[
     "null_operation", "graceful_logoff", "crash_host",
     "validate_passcode", "invalidate_passcode", "decoy",
     "redirect_datatrail", "relocate", "decrypt_file",
+    "swap_memory", "purge_hog",
 ]
 
 SubsystemType = Literal["access", "control", "index", "files", "slave"]
@@ -98,6 +99,7 @@ class RunActionInput(BaseModel):
     note: str = Field("", max_length=500)
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
+    target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key (blank = first relevant)
 
 
 class RunAttackInput(BaseModel):
