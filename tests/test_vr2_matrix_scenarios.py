@@ -485,23 +485,35 @@ class TestICExtrasRunSide:
         assert mr._ic_expert(ic, "defense") == 0
         assert mr._ic_expert({}, "offense") == 0
 
-    def test_cascade_activates_next_untriggered_step(self, scripted):
-        scripted([3])  # ic_initiative_roll for the cascaded IC
-        state = _fresh_state(); state["event_log"] = []; state["active_ic"] = []
-        state["sheaf"] = [
-            {"trigger": 5, "events": [{"type": "ic", "ic_type": "Killer", "rating": 6}]},
-            {"trigger": 10, "events": [{"type": "ic", "ic_type": "Blaster", "rating": 6}]},
-        ]
-        state["sheaf_steps_triggered"] = [0]
-        assert mr._cascade_next_sheaf_step(state, "Red") is True
-        assert 1 in state["sheaf_steps_triggered"]
-        assert any(e["type"] == "cascade" for e in state["event_log"])
-        assert any(ic["type"] == "Blaster" for ic in state["active_ic"])
+    def test_cascade_miss_raises_sv_bonus_capped(self):
+        # vr2: a cascading IC that MISSES gains +1 attack Security Value per miss, cumulative,
+        # capped by the Cascading IC Table. Blue cap = 1.
+        ic = {"cascading": True, "rating": 6}
+        mr._apply_cascade_outcome(ic, "Blue", hit=False, damage_dealt=False)
+        assert ic["cascade_sv_bonus"] == 1
+        mr._apply_cascade_outcome(ic, "Blue", hit=False, damage_dealt=False)
+        assert ic["cascade_sv_bonus"] == 1   # Blue cap is 1
 
-    def test_cascade_noop_when_all_triggered(self):
-        state = _fresh_state(); state["event_log"] = []
-        state["sheaf"] = [{"trigger": 5, "events": []}]; state["sheaf_steps_triggered"] = [0]
-        assert mr._cascade_next_sheaf_step(state, "Red") is False
+    def test_cascade_resisted_hit_raises_rating(self):
+        # Hit but the decker resisted ALL damage -> +1 to the IC's rating (cumulative).
+        ic = {"cascading": True, "rating": 8}
+        mr._apply_cascade_outcome(ic, "Red", hit=True, damage_dealt=False)
+        assert ic["cascade_rating_bonus"] == 1
+        # a damaging hit does not change the bonuses
+        mr._apply_cascade_outcome(ic, "Red", hit=True, damage_dealt=True)
+        assert ic["cascade_rating_bonus"] == 1
+
+    def test_cascade_noop_for_non_cascading(self):
+        ic = {"rating": 6}
+        mr._apply_cascade_outcome(ic, "Black", hit=False, damage_dealt=False)
+        assert "cascade_sv_bonus" not in ic
+
+    def test_cascade_cap_table(self):
+        assert mr._cascade_max_increase("Blue", 8) == 1
+        assert mr._cascade_max_increase("Green", 8) == 2     # min(25% of 8 = 2, +2) = 2
+        assert mr._cascade_max_increase("Orange", 4) == 2    # min(50% of 4 = 2, +3) = 2
+        assert mr._cascade_max_increase("Red", 12) == 4      # min(75% of 12 = 9, +4) = 4
+        assert mr._cascade_max_increase("Black", 5) == 5     # min(100% of 5 = 5, +6) = 5
 
     def test_construct_gets_defenses_list(self, scripted):
         scripted([3, 3, 1, 1, 1, 1])  # rating 2D6=6; defense 2D6=2 -> Armor and Shifting

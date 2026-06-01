@@ -389,22 +389,27 @@ def _check_and_activate_sheaf(state: dict, security_code: str) -> None:
             _append_event(state, ev)
 
 
-def _cascade_next_sheaf_step(state: dict, security_code: str) -> bool:
-    """Cascading IC (vr2 IC Options): when a cascading IC crashes it immediately triggers
-    the next untriggered sheaf step, regardless of the security tally. Returns True if a
-    step was activated."""
-    already = set(state.get("sheaf_steps_triggered", []))
-    for i, step in enumerate(state.get("sheaf", [])):
-        if i not in already:
-            state.setdefault("sheaf_steps_triggered", []).append(i)
-            _append_event(state, {
-                "type": "cascade",
-                "description": "CASCADE -- the crashing IC triggers the next security sheaf step.",
-            })
-            for ev in _activate_sheaf_step(state, step, security_code):
-                _append_event(state, ev)
-            return True
-    return False
+def _cascade_max_increase(security_code: str, base_rating: int) -> int:
+    """Cascading IC maximum cumulative increase, by host Security Code (vr2 Cascading IC Table)."""
+    if security_code == "Blue":
+        return 1
+    pct = {"Green": 0.25, "Orange": 0.50, "Red": 0.75, "Black": 1.0}.get(security_code, 0.25)
+    flat = {"Green": 2, "Orange": 3, "Red": 4, "Black": 6}.get(security_code, 2)
+    return min(int(base_rating * pct), flat)
+
+
+def _apply_cascade_outcome(ic: dict, security_code: str, *, hit: bool, damage_dealt: bool) -> None:
+    """Update a cascading IC's bonuses after one of its attacks (vr2 Cascading IC):
+    - MISS (attack didn't connect): +1 to its attack Security Value for subsequent attacks.
+    - HIT but the decker resisted ALL damage: +1 to its Rating for subsequent attacks.
+    Both are cumulative and capped by the Cascading IC Table (by Security Code)."""
+    if not ic.get("cascading"):
+        return
+    cap = _cascade_max_increase(security_code, ic.get("rating", 6))
+    if not hit:
+        ic["cascade_sv_bonus"] = min(cap, ic.get("cascade_sv_bonus", 0) + 1)
+    elif not damage_dealt:
+        ic["cascade_rating_bonus"] = min(cap, ic.get("cascade_rating_bonus", 0) + 1)
 
 
 def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[dict]:
@@ -1458,7 +1463,11 @@ async def perform_action(
         is_non_lethal   = is_black and decker.get("deck_mode") == "cool"
         cluster_penalty = _cluster_size(state, ic.get("cluster_id"))
         ic_attack_pool  = ic["rating"] if ic["type"] == "Construct" else sec_value
-        ic_attack_pool += _ic_expert(ic, "offense")   # Expert Offense+ adds attack dice (vr2)
+        # Expert trade-off (vr2): Offense +N adds attack dice (and -N to its resistance, applied
+        # in attack_ic); Defense +N removes attack dice (and +N to resistance).
+        ic_attack_pool += _ic_expert(ic, "offense") - _ic_expert(ic, "defense")
+        # Cascading IC: misses raise its attack Security Value; neutralized hits raise its rating.
+        ic_attack_pool += ic.get("cascade_sv_bonus", 0)
         hardening       = decker.get("hardening", 0)
 
         if is_black:
@@ -1559,18 +1568,22 @@ async def perform_action(
 
         # -- Killer / Blaster / Sparky / Construct (non-black) ----------------
         armor          = (decker.get("utilities") or {}).get("armor", 0)
+        cascade_power  = ic["rating"] + ic.get("cascade_rating_bonus", 0)
         attack = eng.cybercombat_attack(
             attacker_pool=ic_attack_pool,
             security_code=sec_code,
             target_status=ic_target_status,
             target_bod=eff["bod"],
             armor_rating=armor,
-            ic_rating=ic["rating"],
+            ic_rating=cascade_power,
             attacker_is_ic=True,
             tn_modifier=cluster_penalty,
         )
         final_dmg = attack["resistance"]["final_damage_level"]
         boxes = attack["resistance"]["boxes"]
+        # Cascading IC: a miss raises its attack SV; a hit the decker fully resists raises its rating.
+        _apply_cascade_outcome(ic, sec_code,
+                               hit=attack["attack_roll"]["successes"] > 0, damage_dealt=boxes > 0)
 
         state["condition_monitor"]["persona_boxes"] += boxes
         _append_event(state, {
@@ -1678,12 +1691,15 @@ async def perform_action(
             "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
         })
 
-    # Enemy deckers act automatically (app-as-GM), once per initiative pass like the IC.
+    # Enemy deckers act automatically (app-as-GM), once per pass on the passes their OWN
+    # initiative reaches (init//10+1) -- they rolled initiative once when they entered.
     cur_pass = state.get("current_pass", 1)
     for enemy in list(state.get("enemy_deckers", [])):
         if state.get("run_ended"):
             break
-        if enemy.get("status") == "active" and enemy.get("acted_pass") != cur_pass:
+        if (enemy.get("status") == "active"
+                and cur_pass <= enemy.get("initiative_passes", 1)
+                and enemy.get("acted_pass") != cur_pass):
             enemy["acted_pass"] = cur_pass
             _enemy_decker_take_turn(state, decker, run, enemy)
 
@@ -1733,22 +1749,24 @@ async def attack_ic(
     attack_pool     = body.attack_pool + body.hacking_pool_dice
     cluster_penalty = _cluster_size(state, target_ic.get("cluster_id"))
     base_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
-    # Shield/Shift + Expert Defense raise the decker's to-hit TN (not the IC's resist).
+    # Shield/Shift raise the decker's to-hit TN.
     shield_shift = _shield_shift_tn_modifier(
         target_ic, penetration=body.penetration, chaser=body.chaser)
-    tn = base_tn + shield_shift + _ic_expert(target_ic, "defense")
+    tn = base_tn + shield_shift
 
     attack_roll = eng.roll_dice(attack_pool, tn)
     base_dmg = rules.IC_DAMAGE_LEVEL[sec_code]
 
-    # IC resists with Security Value dice; TN = same as attacker's TN (code-based, not IC rating)
+    # IC resists with Security Value dice vs the combat TN (the attack Power here).
+    # Armor reduces that POWER (lower TN -> the IC resists more easily) -- it does NOT lower
+    # the damage level. Expert adds/removes resist dice (Defense +N, Offense -N -- the trade-off).
     resist_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
-    resist_roll = eng.roll_dice(sec_value, resist_tn)
+    if _ic_has_armor(target_ic):
+        resist_tn = max(2, resist_tn - 2)   # Armor lowers the attack Power, not the damage level
+    resist_pool = max(1, sec_value + _ic_expert(target_ic, "defense") - _ic_expert(target_ic, "offense"))
+    resist_roll = eng.roll_dice(resist_pool, resist_tn)
     staged = eng.stage_damage(base_dmg, attack_roll["successes"], 1)
     final_dmg = eng.stage_damage(staged, resist_roll["successes"], -1)
-    # IC Armor mitigates the incoming hit by one damage level (floors at Light).
-    if _ic_has_armor(target_ic):
-        final_dmg = eng.stage_damage(final_dmg, 2, -1)
     boxes = rules.DAMAGE_BOXES[final_dmg]
 
     target_ic["boxes"] = target_ic.get("boxes", 0) + boxes
@@ -1798,10 +1816,6 @@ async def attack_ic(
                     f"(initiative {new_init})"
                 ),
             })
-
-        # Cascading IC: crashing it immediately triggers the next sheaf step.
-        if target_ic.get("cascading"):
-            _cascade_next_sheaf_step(state, sec_code)
     else:
         _append_event(state, {
             "type": "decker_attack",
@@ -1921,18 +1935,15 @@ async def new_turn(
     old_hp = state.get("hackingPool_remaining", hackingPool_total)
     state["hackingPool_remaining"] = hackingPool_total
     state["current_turn"] = state.get("current_turn", 1) + 1
-    # Re-roll Matrix initiative each Combat Turn (increments of 10 -> action passes).
-    init, passes = _roll_decker_initiative(run.decker_json)
-    state["decker_initiative"] = init
-    state["initiative_passes"] = passes
+    # Initiative is rolled ONCE per cybercombat encounter (not per Combat Turn). A new turn
+    # just refreshes the action budget and lets every actor act again on its FIXED passes;
+    # clear the per-pass "acted" markers so NPCs act again this turn.
+    init = state.get("decker_initiative")
+    passes = state.get("initiative_passes", 1)
     state["current_pass"] = 1
     state["actions_this_turn"] = 0
     _reset_pass_budget(state)
-    # Everyone re-rolls initiative each Combat Turn; clear per-pass "acted" markers so NPCs
-    # act again on their passes this turn (vr2).
     for ic in state.get("active_ic", []):
-        if ic.get("status") == "active":
-            ic["initiative"] = eng.ic_initiative_roll(ic.get("rating", 6), state["host_security_code"])
         ic.pop("acted_pass", None)
     for enemy in state.get("enemy_deckers", []):
         enemy.pop("acted_pass", None)
@@ -1940,8 +1951,8 @@ async def new_turn(
     _append_event(state, {
         "type": "new_turn",
         "description": (
-            f"Turn {state['current_turn']} begins. Initiative {init} ({passes} "
-            f"pass{'es' if passes != 1 else ''}). Hacking Pool refreshed ({old_hp} -> {hackingPool_total})."
+            f"Turn {state['current_turn']} begins. Actions refreshed (initiative {init}, "
+            f"{passes} pass{'es' if passes != 1 else ''}). Hacking Pool ({old_hp} -> {hackingPool_total})."
         ),
     })
 

@@ -835,12 +835,17 @@ def generate_enemy_decker(
     # Default lethal program (used by 'kill' intent): Black Hammer if carried, else Killjoy.
     lethal = "Black Hammer" if "Black Hammer" in extra else ("Killjoy" if "Killjoy" in extra else None)
     lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
+    intelligence = max(3, min(6, skill))
+    # The enemy rolls initiative ONCE, when it enters (Reaction ~ Intelligence + 1D6).
+    initiative = intelligence + random.randint(1, 6)
     return {
         "name": name or f"{security_code}-{security_value} Security Decker",
         "mpcp": mpcp,
         "bod": persona, "evasion": persona, "masking": persona, "sensor": persona,
         "computer_skill": skill,
-        "intelligence": max(3, min(6, skill)),
+        "intelligence": intelligence,
+        "initiative": initiative,
+        "initiative_passes": (initiative // 10) + 1,
         "utilities": {
             # Scanner is a utility (locate other deckers), rated like the persona programs --
             # not the full Computer skill, so a sleazy PC keeps an evade window.
