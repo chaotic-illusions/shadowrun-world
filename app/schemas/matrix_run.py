@@ -132,6 +132,7 @@ class RunEnemyDeckerInput(BaseModel):
 
 class RunEnemyActInput(BaseModel):
     enemy_id: str = Field(..., max_length=64)
+    program: str = Field("", max_length=32)  # force a program (Attack/Hog/Poison/Restrict/Reveal/Black Hammer/Killjoy); blank = intent default
 
 
 class RunEnemyAttackInput(BaseModel):

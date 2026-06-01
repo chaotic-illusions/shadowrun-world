@@ -1838,6 +1838,18 @@ def _require_gm(auth: dict) -> None:
         raise HTTPException(403, "Admin token required")
 
 
+def _highest_running_utility(decker: dict, program_damage: dict) -> tuple[str | None, int]:
+    """Return (name, effective_rating) of the decker's highest-rated still-running utility
+    (for Hog to target). Excludes already-crashed programs."""
+    utils = decker.get("utilities") or {}
+    best_name, best_eff = None, 0
+    for name, rating in utils.items():
+        eff = (rating or 0) - program_damage.get(name, 0)
+        if eff > best_eff:
+            best_name, best_eff = name, eff
+    return best_name, best_eff
+
+
 @router.post("/{run_id}/enemy-decker", response_model=MatrixRunRead)
 async def inject_enemy_decker(
     run_id: int,
@@ -1935,57 +1947,102 @@ async def enemy_decker_act(
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
 
-    # -- Phase 2: cybercombat. An enemy decker can't run Trace (host IC) -- it removes
-    # you by CRASHING YOUR ICON (-> dump shock). vr2 Offensive Utilities: a plain Attack
-    # does icon-only damage; the lethal programs (Black Hammer = Physical / Killjoy = Stun)
-    # add biofeedback AND burn MPCP on an icon crash, at DOUBLE the program rating.
+    # -- Phase 2: cybercombat. An enemy decker can't run Trace (host IC). Its offensive
+    # utilities (vr2): Attack (icon damage -> crash/dump shock), Black Hammer/Killjoy
+    # (lethal biofeedback + MPCP burn on crash), Hog (crash running programs), and the
+    # decker cripplers Poison/Restrict/Reveal (reduce Bod/Evasion/Masking until logoff).
     intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
     if intent == "kill" and not enemy.get("lethal_program"):
         intent = "dump"   # no lethal program loaded -> can only crash the icon
-    enemy["intent"] = intent
     cm = state.setdefault("condition_monitor", {})
-
-    # Cybercombat dice = the offensive utility's rating + the enemy's Hacking Pool (vr2).
+    cm.setdefault("persona_damage", {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0})
     hacking_pool = max(0, (enemy.get("intelligence", 3) + enemy.get("mpcp", 4)) // 3)
-    is_kill = intent == "kill" and bool(enemy.get("lethal_program"))
-    program = enemy["lethal_program"] if is_kill else "Attack"
-    power = enemy.get("lethal_rating", 0) if is_kill else (enemy.get("utilities") or {}).get("attack", 4)
+    programs = enemy.get("programs", ["Attack"])
 
-    atk = eng.cybercombat_attack(
-        attacker_pool=power + hacking_pool,
-        security_code=sec_code, target_status="intruding",
-        target_bod=eff["bod"],
-        armor_rating=(decker.get("utilities") or {}).get("armor", 0),
-        ic_rating=power, attacker_is_ic=True,
-    )
-    boxes = atk["resistance"]["boxes"]
-    cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
-    desc = (f"{enemy['name']} hits your icon with {program} -- "
-            f"{atk['resistance']['final_damage_level']} ({boxes} boxes). "
-            f"Persona {cm['persona_boxes']}/10.")
+    # Choose the program: GM override (body.program) else the intent default.
+    if body.program and body.program in programs:
+        program = body.program
+    elif intent == "kill" and enemy.get("lethal_program"):
+        program = enemy["lethal_program"]
+    else:
+        program = "Attack"
+    if program in ("Black Hammer", "Killjoy"):
+        intent = "kill"
+    enemy["intent"] = intent
 
-    if is_kill:  # Black Hammer / Killjoy: lethal biofeedback (Body resists) alongside icon damage
-        bio = eng.damage_resistance(
-            bod=decker.get("body", 4), power=power,
-            base_damage_level="Serious", attacker_successes=atk["attack_roll"]["successes"],
-        )
-        cm["physical_boxes"] = cm.get("physical_boxes", 0) + bio["boxes"]
-        dmg_kind = "Stun" if program == "Killjoy" else "Physical"
-        desc = (f"{program.upper()} -- {enemy['name']} drives lethal biofeedback into you: "
-                f"icon {atk['resistance']['final_damage_level']} ({boxes}), {dmg_kind} "
-                f"{bio['final_damage_level']} ({bio['boxes']}). "
-                f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
-        if cm["physical_boxes"] >= 10:
-            state["run_ended"] = True
-            state["end_reason"] = "killed_by_" + ("killjoy" if program == "Killjoy" else "black_hammer")
-            run.status = "killed"
-    _append_event(state, {
-        "type": "enemy_decker", "outcome": intent, "enemy_id": enemy["id"],
-        "program": program, "attack_roll": atk["attack_roll"], "description": desc,
-    })
-    # Icon crash -> dump shock + run ends. A lethal program additionally burns MPCP at
-    # double its rating (vr2: "test like blaster IC at double the program rating").
-    if not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
+    attack_rating = (enemy.get("utilities") or {}).get("attack", 4)
+    is_lethal = program in ("Black Hammer", "Killjoy")
+    power = enemy.get("lethal_rating", 0) if is_lethal else attack_rating
+    pool = power + hacking_pool
+    did_icon_damage = False
+
+    if program == "Hog":
+        hog = eng.hog_attack(
+            attacker_pool=pool, security_code=sec_code, target_status="intruding",
+            hog_rating=attack_rating, mpcp_rating=decker.get("mpcp", 4),
+            hardening=decker.get("hardening", 0))
+        pd = state.setdefault("program_damage", {})
+        name_hit, eff_rating = _highest_running_utility(decker, pd)
+        if hog["attack_roll"]["successes"] > 0 and hog["reduction"] > 0 and name_hit:
+            applied = min(hog["reduction"], eff_rating)
+            pd[name_hit] = pd.get(name_hit, 0) + applied
+            crashed = pd[name_hit] >= (decker.get("utilities") or {}).get(name_hit, 0)
+            desc = (f"HOG -- {enemy['name']}'s virus drains your {name_hit.replace('_', ' ').title()} "
+                    f"program by {applied}{' (CRASHED -- reload via Swap Memory)' if crashed else ''}.")
+        else:
+            desc = f"HOG -- {enemy['name']}'s virus fails to take hold this pass."
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "hog", "enemy_id": enemy["id"],
+            "program": "Hog", "attack_roll": hog["attack_roll"], "description": desc})
+
+    elif program in ("Poison", "Restrict", "Reveal"):
+        attr = {"Poison": "bod", "Restrict": "evasion", "Reveal": "masking"}[program]
+        cr = eng.decker_attribute_attack(
+            attacker_pool=pool, security_code=sec_code, target_status="intruding",
+            program_rating=attack_rating, target_attribute_rating=eff[attr])
+        if cr["reduction"] > 0:
+            cm["persona_damage"][attr] = cm["persona_damage"].get(attr, 0) + cr["reduction"]
+            now = max(1, decker.get(attr, 4) - cm["persona_damage"][attr])
+            desc = (f"{program.upper()} -- {enemy['name']} cripples your {attr.title()} by "
+                    f"{cr['reduction']} (now {now}, until logoff).")
+        else:
+            desc = f"{program.upper()} -- {enemy['name']}'s crippler attack is resisted."
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": program.lower(), "enemy_id": enemy["id"],
+            "program": program, "attack_roll": cr["attack_roll"], "description": desc})
+
+    else:  # Attack / Black Hammer / Killjoy -> icon damage (+ biofeedback if lethal)
+        atk = eng.cybercombat_attack(
+            attacker_pool=pool, security_code=sec_code, target_status="intruding",
+            target_bod=eff["bod"], armor_rating=(decker.get("utilities") or {}).get("armor", 0),
+            ic_rating=power, attacker_is_ic=True)
+        boxes = atk["resistance"]["boxes"]
+        cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
+        did_icon_damage = True
+        desc = (f"{enemy['name']} hits your icon with {program} -- "
+                f"{atk['resistance']['final_damage_level']} ({boxes} boxes). "
+                f"Persona {cm['persona_boxes']}/10.")
+        if is_lethal:
+            bio = eng.damage_resistance(
+                bod=decker.get("body", 4), power=power, base_damage_level="Serious",
+                attacker_successes=atk["attack_roll"]["successes"])
+            cm["physical_boxes"] = cm.get("physical_boxes", 0) + bio["boxes"]
+            dmg_kind = "Stun" if program == "Killjoy" else "Physical"
+            desc = (f"{program.upper()} -- {enemy['name']} drives lethal biofeedback into you: "
+                    f"icon {atk['resistance']['final_damage_level']} ({boxes}), {dmg_kind} "
+                    f"{bio['final_damage_level']} ({bio['boxes']}). "
+                    f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
+            if cm["physical_boxes"] >= 10:
+                state["run_ended"] = True
+                state["end_reason"] = "killed_by_" + ("killjoy" if program == "Killjoy" else "black_hammer")
+                run.status = "killed"
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "kill" if is_lethal else "dump",
+            "enemy_id": enemy["id"], "program": program,
+            "attack_roll": atk["attack_roll"], "description": desc})
+
+    # Icon crash -> dump shock (+ lethal MPCP burn) -- only when the program hit the icon.
+    if did_icon_damage and not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
         ds = _apply_dump_shock(state, decker, sec_code, sec_value)
         state["icon_crashed"] = True
         state["run_ended"] = True
@@ -1993,7 +2050,7 @@ async def enemy_decker_act(
         run.status = "dumped"
         shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
         mpcp_note = ""
-        if is_kill:
+        if is_lethal:
             mpcp_hit, _b = _roll_mpcp_damage(state, decker, power, pool_multiplier=2)
             if mpcp_hit > 0:
                 mpcp_note = f" {program} fried the MPCP on the way out: -{mpcp_hit} (permanent)."

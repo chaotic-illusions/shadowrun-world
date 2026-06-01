@@ -2119,8 +2119,10 @@ function onActionTypeChange() {
   const utilField = document.getElementById('actionUtilRating');
   const utilKey = ACTION_UTILITY[actionSel.value];
   if (utilField && utilKey) {
-    const r = (_run && _run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities[utilKey]) || 0;
-    utilField.value = String(r);
+    const base = (_run && _run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities[utilKey]) || 0;
+    // Hog (enemy decker) degrades running programs -- subtract any accrued program damage.
+    const dmg = (_run && _run.state_json && _run.state_json.program_damage && _run.state_json.program_damage[utilKey]) || 0;
+    utilField.value = String(Math.max(0, base - dmg));
   }
 }
 

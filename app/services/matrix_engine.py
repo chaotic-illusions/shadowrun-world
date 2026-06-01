@@ -763,13 +763,17 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
 # Black IC but from a decker" and reduce MPCP on an icon crash at DOUBLE the program
 # rating. Per the rules those are carried only on deadly-force systems (Red/Black).
 #   intent: dump = crash the icon (Attack); kill = lethal biofeedback (Black Hammer/Killjoy).
-#   lethal: the lethal program this decker carries (None on non-deadly hosts).
+#   extra: the non-Attack offensive programs this decker carries (every decker has Attack).
+#     Hog (crash running programs), Poison/Restrict/Reveal (decker cripplers -> Bod/Evasion/
+#     Masking), Black Hammer (lethal Physical) / Killjoy (lethal Stun, deadly-force hosts only).
 _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
-    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "lethal": None},
-    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "lethal": None},
-    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "lethal": None},
-    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump", "lethal": "Black Hammer"},
-    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill", "lethal": "Black Hammer"},
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "extra": []},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "extra": ["Hog"]},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "extra": ["Hog", "Reveal"]},
+    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump",
+               "extra": ["Hog", "Poison", "Reveal", "Black Hammer"]},
+    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill",
+               "extra": ["Hog", "Poison", "Restrict", "Reveal", "Black Hammer", "Killjoy"]},
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
@@ -796,7 +800,10 @@ def generate_enemy_decker(
     attack = tier["attack"]
     sleaze = persona
     df = detection_factor(persona, sleaze)  # the PC must beat this to find THEM
-    lethal = tier["lethal"]                  # "Black Hammer" / "Killjoy" / None
+    extra = list(tier["extra"])
+    programs = ["Attack"] + extra
+    # Default lethal program (used by 'kill' intent): Black Hammer if carried, else Killjoy.
+    lethal = "Black Hammer" if "Black Hammer" in extra else ("Killjoy" if "Killjoy" in extra else None)
     lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
     return {
         "name": name or f"{security_code}-{security_value} Security Decker",
@@ -809,7 +816,7 @@ def generate_enemy_decker(
             # not the full Computer skill, so a sleazy PC keeps an evade window.
             "attack": attack, "sleaze": sleaze, "scanner": persona, "deception": persona,
         },
-        "programs": ["Attack"] + ([lethal] if lethal else []),
+        "programs": programs,
         "intent": tier["intent"],
         "lethal_program": lethal,
         "lethal_rating": lethal_rating,
@@ -860,3 +867,43 @@ def escalate_enemy_intent(base_intent: str, *, security_tally: int, threshold: i
     if security_tally >= threshold and base_intent == "dump":
         return "kill"
     return base_intent
+
+
+def hog_attack(
+    *,
+    attacker_pool: int,
+    security_code: str,
+    target_status: str,
+    hog_rating: int,
+    mpcp_rating: int,
+    hardening: int = 0,
+) -> dict[str, Any]:
+    """Hog virus weapon (vr2): a cybercombat attack that, on a hit, makes the target roll
+    MPCP vs the Hog rating; the attacker's net successes // 2 reduce the target's highest
+    running program (repeats each turn until that program crashes)."""
+    attack_tn = COMBAT_TN[security_code][target_status]
+    attack_roll = roll_dice(attacker_pool, attack_tn)
+    resist_roll = roll_dice(mpcp_rating, max(2, hog_rating - hardening))
+    net = max(0, attack_roll["successes"] - resist_roll["successes"])
+    return {"attack_roll": attack_roll, "resist_roll": resist_roll,
+            "net": net, "reduction": net // 2}
+
+
+def decker_attribute_attack(
+    *,
+    attacker_pool: int,
+    security_code: str,
+    target_status: str,
+    program_rating: int,
+    target_attribute_rating: int,
+) -> dict[str, Any]:
+    """Poison / Restrict / Reveal (vr2): the decker versions of the Acid / Binder / Marker
+    cripplers. Attack to hit, then the target resists with the targeted attribute (dice)
+    vs the program rating; the attacker's net successes // 2 reduce that attribute (until
+    logoff). Poison->Bod, Restrict->Evasion, Reveal->Masking."""
+    attack_tn = COMBAT_TN[security_code][target_status]
+    attack_roll = roll_dice(attacker_pool, attack_tn)
+    resist_roll = roll_dice(target_attribute_rating, program_rating)
+    net = max(0, attack_roll["successes"] - resist_roll["successes"])
+    return {"attack_roll": attack_roll, "resist_roll": resist_roll,
+            "net": net, "reduction": net // 2}
