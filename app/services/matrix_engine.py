@@ -756,17 +756,20 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
 # host never fields a Computer-12 decker).
 #
 # An enemy decker hunts you the only way a decker can: LOCATE you (Locate Decker /
-# Scanner -- Trace is host IC, not a decker tool), then CRASH YOUR ICON in cybercombat
-# (an icon crash dumps you with dump shock). Better deckers hit harder and carry
-# deck-frying programs that burn chips (permanent MPCP loss); the top tier goes lethal.
-#   intent: dump = crash the icon; kill = Black Hammer lethal biofeedback.
-#   chip_burn: this decker carries programs that permanently damage your deck on a hit.
+# Scanner -- Trace is host IC, not a decker tool), then CRASH YOUR ICON in cybercombat.
+# Faithful to vr2_rules "Offensive Utilities": a plain Attack does icon-only damage
+# (crash -> dump shock). Permanent deck damage / lethality come ONLY from the lethal
+# decker programs -- Black Hammer (Physical) / Killjoy (Stun) -- which "function like
+# Black IC but from a decker" and reduce MPCP on an icon crash at DOUBLE the program
+# rating. Per the rules those are carried only on deadly-force systems (Red/Black).
+#   intent: dump = crash the icon (Attack); kill = lethal biofeedback (Black Hammer/Killjoy).
+#   lethal: the lethal program this decker carries (None on non-deadly hosts).
 _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
-    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "chip_burn": False},
-    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "chip_burn": False},
-    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "chip_burn": True},
-    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump", "chip_burn": True},
-    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill", "chip_burn": True},
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "lethal": None},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "lethal": None},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "lethal": None},
+    "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump", "lethal": "Black Hammer"},
+    "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill", "lethal": "Black Hammer"},
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
@@ -793,6 +796,8 @@ def generate_enemy_decker(
     attack = tier["attack"]
     sleaze = persona
     df = detection_factor(persona, sleaze)  # the PC must beat this to find THEM
+    lethal = tier["lethal"]                  # "Black Hammer" / "Killjoy" / None
+    lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
     return {
         "name": name or f"{security_code}-{security_value} Security Decker",
         "mpcp": mpcp,
@@ -804,12 +809,13 @@ def generate_enemy_decker(
             # not the full Computer skill, so a sleazy PC keeps an evade window.
             "attack": attack, "sleaze": sleaze, "scanner": persona, "deception": persona,
         },
+        "programs": ["Attack"] + ([lethal] if lethal else []),
         "intent": tier["intent"],
-        "chip_burn": tier["chip_burn"],
+        "lethal_program": lethal,
+        "lethal_rating": lethal_rating,
         "tier": security_code,
         "detection_factor": df,
         "hardening": 1 if security_code in ("Red", "Black") else 0,
-        "black_hammer": security_code == "Black",
         "condition_monitor": {"persona_boxes": 0, "mpcp_damage": 0},
         "locate_progress": 0,
         "located": False,
