@@ -281,6 +281,26 @@ class TestShieldShift:
     def test_no_shield_or_shift_no_penalty(self):
         assert mr._shield_shift_tn_modifier({"type": "Killer"}, penetration=False, chaser=False) == 0
 
+    def test_designer_options_set_shield_on_active_ic(self, scripted):
+        # The designer writes options=['Shielding'/'Shifting'] on the IC sheaf event;
+        # _activate_sheaf_step must copy those onto the placed active IC.
+        scripted([3])
+        state = _fresh_state()
+        step = {"trigger": 10, "events": [
+            {"type": "ic", "ic_type": "Killer", "rating": 6, "options": ["Shielding"]}]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        ic = state["active_ic"][0]
+        assert ic["shield"] is True and ic["shift"] is False
+        assert mr._shield_shift_tn_modifier(ic, penetration=False, chaser=False) == 2
+
+    def test_designer_shift_option_on_active_ic(self, scripted):
+        scripted([3])
+        state = _fresh_state()
+        step = {"trigger": 10, "events": [
+            {"type": "ic", "ic_type": "Killer", "rating": 6, "options": ["Shifting"]}]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        assert state["active_ic"][0]["shift"] is True
+
 
 class TestLinkedPasscodeAndConsole:
     """vr2 -- linked passcode -2 to Logon; Console halves Security Value (loaded into state)."""
