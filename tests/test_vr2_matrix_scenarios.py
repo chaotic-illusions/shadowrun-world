@@ -411,13 +411,19 @@ class TestEnemyDeckerGeneration:
         assert d["computer_skill"] <= 4
         assert d["mpcp"] <= 4
         assert d["intent"] == "dump"          # crash the icon (no decker-run "trace")
-        assert d["chip_burn"] is False        # low tier can't fry your deck
+        assert d["lethal_program"] is None    # non-deadly host: Attack only, no deck-frying
+        assert d["programs"] == ["Attack"]
 
-    def test_higher_tiers_burn_chips(self):
-        assert eng.generate_enemy_decker("Green", 6)["chip_burn"] is False
-        assert eng.generate_enemy_decker("Orange", 7)["chip_burn"] is True
-        assert eng.generate_enemy_decker("Red", 9)["chip_burn"] is True
-        assert eng.generate_enemy_decker("Black", 10)["chip_burn"] is True
+    def test_lethal_programs_only_on_deadly_force_hosts(self):
+        # vr2 line 2310: NPC deckers carry Black Hammer/Killjoy only where deadly force is
+        # expected -- Red/Black. Lower tiers do icon-only damage with Attack.
+        assert eng.generate_enemy_decker("Green", 6)["lethal_program"] is None
+        assert eng.generate_enemy_decker("Orange", 7)["lethal_program"] is None
+        assert eng.generate_enemy_decker("Red", 9)["lethal_program"] == "Black Hammer"
+        assert eng.generate_enemy_decker("Black", 10)["lethal_program"] == "Black Hammer"
+        # Black Hammer rating is capped at half the Computer skill
+        d = eng.generate_enemy_decker("Black", 12)
+        assert d["lethal_rating"] == (d["computer_skill"] + 1) // 2
 
     def test_value_scales_within_tier(self):
         low = eng.generate_enemy_decker("Blue", 2)
@@ -429,7 +435,8 @@ class TestEnemyDeckerGeneration:
         d = eng.generate_enemy_decker("Black", 10)
         assert d["computer_skill"] >= 8
         assert d["intent"] == "kill"
-        assert d["black_hammer"] is True
+        assert d["lethal_program"] == "Black Hammer"
+        assert "Black Hammer" in d["programs"]
 
     def test_tiers_are_monotonic(self):
         skills = [eng.generate_enemy_decker(c, v)["computer_skill"]

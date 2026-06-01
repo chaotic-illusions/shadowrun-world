@@ -1935,51 +1935,56 @@ async def enemy_decker_act(
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
 
-    # -- Phase 2: hunt you in cybercombat. An enemy decker can't run Trace (that is host
-    # IC) -- the only way it removes you is by CRASHING YOUR ICON (which dumps you with
-    # dump shock). Deck-frying programs burn chips along the way; the top tier goes lethal.
+    # -- Phase 2: cybercombat. An enemy decker can't run Trace (host IC) -- it removes
+    # you by CRASHING YOUR ICON (-> dump shock). vr2 Offensive Utilities: a plain Attack
+    # does icon-only damage; the lethal programs (Black Hammer = Physical / Killjoy = Stun)
+    # add biofeedback AND burn MPCP on an icon crash, at DOUBLE the program rating.
     intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
+    if intent == "kill" and not enemy.get("lethal_program"):
+        intent = "dump"   # no lethal program loaded -> can only crash the icon
     enemy["intent"] = intent
     cm = state.setdefault("condition_monitor", {})
-    enemy_attack = (enemy.get("utilities") or {}).get("attack", 4)
+
+    # Cybercombat dice = the offensive utility's rating + the enemy's Hacking Pool (vr2).
+    hacking_pool = max(0, (enemy.get("intelligence", 3) + enemy.get("mpcp", 4)) // 3)
+    is_kill = intent == "kill" and bool(enemy.get("lethal_program"))
+    program = enemy["lethal_program"] if is_kill else "Attack"
+    power = enemy.get("lethal_rating", 0) if is_kill else (enemy.get("utilities") or {}).get("attack", 4)
 
     atk = eng.cybercombat_attack(
-        attacker_pool=enemy["computer_skill"] + enemy_attack,
+        attacker_pool=power + hacking_pool,
         security_code=sec_code, target_status="intruding",
         target_bod=eff["bod"],
         armor_rating=(decker.get("utilities") or {}).get("armor", 0),
-        ic_rating=enemy_attack, attacker_is_ic=True,
+        ic_rating=power, attacker_is_ic=True,
     )
     boxes = atk["resistance"]["boxes"]
     cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
-    desc = (f"{enemy['name']} attacks your icon -- {atk['resistance']['final_damage_level']} "
-            f"({boxes} boxes). Persona {cm['persona_boxes']}/10.")
+    desc = (f"{enemy['name']} hits your icon with {program} -- "
+            f"{atk['resistance']['final_damage_level']} ({boxes} boxes). "
+            f"Persona {cm['persona_boxes']}/10.")
 
-    # Deck-frying programs: a solid hit burns a chip (permanent MPCP loss).
-    if enemy.get("chip_burn") and boxes > 0:
-        mpcp_hit, _burn = _roll_mpcp_damage(state, decker, enemy_attack)
-        if mpcp_hit > 0:
-            desc += f" Chip burn: MPCP -{mpcp_hit} (permanent)."
-
-    if intent == "kill":  # Black Hammer: lethal physical biofeedback on top of icon damage
-        phys = eng.damage_resistance(
-            bod=decker.get("body", 4), power=enemy_attack,
+    if is_kill:  # Black Hammer / Killjoy: lethal biofeedback (Body resists) alongside icon damage
+        bio = eng.damage_resistance(
+            bod=decker.get("body", 4), power=power,
             base_damage_level="Serious", attacker_successes=atk["attack_roll"]["successes"],
         )
-        cm["physical_boxes"] = cm.get("physical_boxes", 0) + phys["boxes"]
-        desc = (f"BLACK HAMMER -- {enemy['name']} drives lethal biofeedback into you: icon "
-                f"{atk['resistance']['final_damage_level']} ({boxes}), physical "
-                f"{phys['final_damage_level']} ({phys['boxes']}). "
+        cm["physical_boxes"] = cm.get("physical_boxes", 0) + bio["boxes"]
+        dmg_kind = "Stun" if program == "Killjoy" else "Physical"
+        desc = (f"{program.upper()} -- {enemy['name']} drives lethal biofeedback into you: "
+                f"icon {atk['resistance']['final_damage_level']} ({boxes}), {dmg_kind} "
+                f"{bio['final_damage_level']} ({bio['boxes']}). "
                 f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
         if cm["physical_boxes"] >= 10:
             state["run_ended"] = True
-            state["end_reason"] = "killed_by_black_hammer"
+            state["end_reason"] = "killed_by_" + ("killjoy" if program == "Killjoy" else "black_hammer")
             run.status = "killed"
     _append_event(state, {
         "type": "enemy_decker", "outcome": intent, "enemy_id": enemy["id"],
-        "attack_roll": atk["attack_roll"], "description": desc,
+        "program": program, "attack_roll": atk["attack_roll"], "description": desc,
     })
-    # Icon crash -> dump shock + run ends
+    # Icon crash -> dump shock + run ends. A lethal program additionally burns MPCP at
+    # double its rating (vr2: "test like blaster IC at double the program rating").
     if not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
         ds = _apply_dump_shock(state, decker, sec_code, sec_value)
         state["icon_crashed"] = True
@@ -1987,9 +1992,14 @@ async def enemy_decker_act(
         state["end_reason"] = "icon_crashed_by_decker"
         run.status = "dumped"
         shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
+        mpcp_note = ""
+        if is_kill:
+            mpcp_hit, _b = _roll_mpcp_damage(state, decker, power, pool_multiplier=2)
+            if mpcp_hit > 0:
+                mpcp_note = f" {program} fried the MPCP on the way out: -{mpcp_hit} (permanent)."
         _append_event(state, {
             "type": "persona_crash", "enemy_id": enemy["id"],
-            "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).",
+            "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).{mpcp_note}",
         })
 
     run.state_json = state
