@@ -1,5 +1,10 @@
 # Matrix 2.0 -- Interactive UI E2E Findings (Session 2)
 
+> **STATUS: COMPLETE / HISTORICAL (2026-06-01).** Every finding below (U1-U10) is fixed,
+> verified, closed, or downgraded -- nothing here is outstanding. This is a historical record of
+> the original UI E2E bug pass. Active/ongoing Matrix work lives in
+> **`docs/matrix2-test-matrix-notes.md`** (the #1-#11 matrix + the GAPS PLAN).
+
 Date: 2026-05-31. Playwright (real Chromium) drive-through of the **full user journey** on
 an isolated server (`:8770`, throwaway DB), using a baseline decker **Nightlife**
 (Body 3, Quickness 3, Int 5, Willpower 4, Computer 10, Software 11, Computer B/R 5, no
