@@ -161,9 +161,10 @@ Masking + suppression count); **suppress/release endpoint** `POST /matrix-runs2/
 (suppress -1 DF/IC no tally; release restores DF + tally += rating); **jackpoint Access modifier**
 (`access_modifier` Legal -2/Satellite +2/Workstation -4/Remote +4 on Access Tests) + **Console**
 halving (round up). Complements existing `trace_factor` (jackpoint Trace side).
+**Also implemented:** **Persona Modes** (`persona_mode` on DeckerStats; `_get_decker_effective`
+applies +-50% multipliers, flowing into DF + combat).
 **Still GAP for #11 (next):** linked-passcode -2 to Logon (with Deception); Shield/Shift +2 to-hit
-(verify in attack_ic); persona modes (Bod/Evasion/Masking/Sensor +-50%); Console halving of
-Security Value (only Access Rating is halved so far).
+(verify in attack_ic); Console halving of Security Value (only Access Rating is halved so far).
 
 ## #11 Satlink + masking / detection-factor modifiers -- [PARTIAL: live DF done; jackpoint/modes gap]
 - `tests/test_vr2_matrix_scenarios.py::TestDetectionAndTrace`: Detection Factor = round-up avg of
@@ -208,11 +209,11 @@ test_matrix_engine.py):
   + target_file), VERIFIED live.
 
 PICK UP HERE, in order:
-1. **#11 remaining modifiers** (jackpoint Access mod + Console-Access-Rating + suppress/release are
-   DONE): linked-passcode -2 to Logon (with Deception) -- needs a decker/state `linked_passcode`
-   flag applied at logon TN; Shield/Shift +2 to-hit (verify/wire in attack_ic); persona modes
-   (Bod/Evasion/Masking/Sensor +-50%); Console halving of Security Value (Access Rating done).
-   See the #11 inventory section above for line refs.
+1. **#11 remaining modifiers** (DONE: jackpoint Access mod, Console-Access-Rating, suppress/release,
+   persona modes): linked-passcode -2 to Logon (with Deception) -- needs a decker/state
+   `linked_passcode` flag applied at the logon access TN (logon is the `logon_to_host`/logon action
+   path); Shield/Shift +2 to-hit (verify/wire in attack_ic); Console halving of Security Value
+   (Access Rating already halved in `_subsystem_rating`). See the #11 inventory section for line refs.
 2. **#9 / #6 frontend polish**: run UI click-to-target an IC card for Analyze; paydata panel that
    greys out `destroyed` files; surface the new `data_bomb` / `worm_resolved` / `ic_detected` /
    `decrypt` events nicely in the run log.
