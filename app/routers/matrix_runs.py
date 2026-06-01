@@ -23,7 +23,8 @@ from app.models.matrix_host import MatrixHost
 from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary,
     RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
-    RunSuppressInput, SheaveSaveInput, SheafGenerateInput,
+    RunSuppressInput, RunEnemyDeckerInput, RunEnemyActInput, RunEnemyAttackInput,
+    SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
 from app.services import matrix_rules as rules
@@ -103,8 +104,29 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
                 e for e in state["event_log"]
                 if not (isinstance(e, dict) and e.get("gm_only"))
             ]
+        if isinstance(state.get("enemy_deckers"), list):
+            # Enemy deckers stay hidden until they reveal themselves (located the PC /
+            # attacked). Even then the PC sees only name/tier/intent/condition, not raw stats.
+            state["enemy_deckers"] = [
+                _redact_enemy_decker(e) for e in state["enemy_deckers"]
+                if isinstance(e, dict) and e.get("revealed")
+            ]
         data["state_json"] = state
     return data
+
+
+def _redact_enemy_decker(e: dict) -> dict:
+    """Player view of a revealed enemy decker -- presence + condition, not raw ratings."""
+    cm = e.get("condition_monitor", {}) or {}
+    return {
+        "id": e.get("id"),
+        "name": e.get("name"),
+        "tier": e.get("tier"),
+        "intent": e.get("intent"),
+        "status": e.get("status"),
+        "located_pc": e.get("located", False),
+        "condition_monitor": {"persona_boxes": cm.get("persona_boxes", 0)},
+    }
 
 
 def _ic_detection_level(ic: dict) -> int:
@@ -182,6 +204,7 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
         "linked_passcode": decker.get("linked_passcode", False),
+        "enemy_deckers": [],   # security deckers injected by the GM (vr2 #5)
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -1807,6 +1830,223 @@ async def resolve_reactive_ic(
     run.state_json = state
     await db.commit()
     await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+def _require_gm(auth: dict) -> None:
+    if not auth.get("is_admin"):
+        raise HTTPException(403, "Admin token required")
+
+
+@router.post("/{run_id}/enemy-decker", response_model=MatrixRunRead)
+async def inject_enemy_decker(
+    run_id: int,
+    body: RunEnemyDeckerInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """GM: drop a security decker onto the host (vr2 #5). Auto-generated to the host
+    tier (stats capped so a low-security host never fields an elite). It starts hidden
+    and must locate the PC before it can act."""
+    _require_gm(auth)
+    run = await _get_run_or_404(db, run_id)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+    state = copy.deepcopy(run.state_json)
+    enemy = eng.generate_enemy_decker(
+        state["host_security_code"], state["host_security_value"], name=body.name or None)
+    if body.intent:
+        enemy["intent"] = body.intent
+    enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+    state.setdefault("enemy_deckers", []).append(enemy)
+    _append_event(state, {
+        "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
+        "description": (
+            f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, MPCP {enemy['mpcp']}, "
+            f"Attack-{enemy['utilities']['attack']}, intent={enemy['intent']}) is now hunting."
+        ),
+    })
+    run.state_json = state
+    await db.commit(); await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/enemy-decker/act", response_model=MatrixRunRead)
+async def enemy_decker_act(
+    run_id: int,
+    body: RunEnemyActInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """GM: the enemy decker takes one action -- locate the PC, then execute its intent
+    (boot = trace-dump; dump = cybercombat crash; kill = Black Hammer). Both forced exits
+    inflict dump shock; only the PC's own graceful logoff avoids it."""
+    _require_gm(auth)
+    run = await _get_run_or_404(db, run_id)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+    state = copy.deepcopy(run.state_json)
+    decker = run.decker_json
+    enemy = next((e for e in state.get("enemy_deckers", [])
+                  if e.get("id") == body.enemy_id and e.get("status") == "active"), None)
+    if enemy is None:
+        raise HTTPException(404, f"Active enemy decker {body.enemy_id} not found")
+
+    sec_code = state["host_security_code"]
+    sec_value = state["host_security_value"]
+    eff = _get_decker_effective(decker, state)
+
+    # -- Phase 1: locate the PC --------------------------------------------------
+    if not enemy.get("located"):
+        first_contact = not enemy.get("revealed")
+        enemy["revealed"] = True   # the PC realises a hostile decker is hunting them
+        loc = eng.enemy_locate_test(
+            computer_skill=enemy["computer_skill"],
+            scanner_rating=(enemy.get("utilities") or {}).get("scanner", 0),
+            sensor_rating=enemy["sensor"],
+            pc_detection_factor=_effective_detection_factor(state, decker),
+            pc_evasion=eff["evasion"],
+        )
+        enemy["locate_progress"] = enemy.get("locate_progress", 0) + loc["progress_gain"]
+        if first_contact:
+            _append_event(state, {
+                "type": "enemy_decker", "outcome": "hunting", "enemy_id": enemy["id"],
+                "description": (
+                    f"ALERT -- a hostile decker ({enemy['name']}) is hunting your icon. "
+                    "Evade (Relocate/Redirect), log off, or strike first."
+                ),
+            })
+        if enemy["locate_progress"] >= eng.ENEMY_LOCATE_THRESHOLD:
+            enemy["located"] = True
+            _append_event(state, {
+                "type": "enemy_decker", "outcome": "located", "enemy_id": enemy["id"],
+                "description": f"{enemy['name']} has PINPOINTED your icon and jackpoint.",
+            })
+        else:
+            _append_event(state, {
+                "type": "enemy_decker", "outcome": "probing", "enemy_id": enemy["id"],
+                "gm_only": True,
+                "description": (
+                    f"{enemy['name']} probing: +{loc['progress_gain']} -> "
+                    f"{enemy['locate_progress']}/{eng.ENEMY_LOCATE_THRESHOLD} located."
+                ),
+            })
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # -- Phase 2: execute intent (escalates with the alarm) ----------------------
+    intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
+    enemy["intent"] = intent
+    cm = state.setdefault("condition_monitor", {})
+
+    if intent == "boot":
+        ds = _apply_dump_shock(state, decker, sec_code, sec_value)
+        state["run_ended"] = True
+        state["end_reason"] = "traced_and_dumped"
+        run.status = "dumped"
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "boot", "enemy_id": enemy["id"],
+            "description": (
+                f"{enemy['name']} completed the trace and FORCE-DISCONNECTED you -- "
+                f"dump shock: {'immune' if ds.get('immune') else str(ds['boxes']) + ' physical boxes'}."
+            ),
+        })
+    else:  # dump or kill: cybercombat against the PC's icon
+        atk = eng.cybercombat_attack(
+            attacker_pool=enemy["computer_skill"] + (enemy.get("utilities") or {}).get("attack", 4),
+            security_code=sec_code, target_status="intruding",
+            target_bod=eff["bod"],
+            armor_rating=(decker.get("utilities") or {}).get("armor", 0),
+            ic_rating=(enemy.get("utilities") or {}).get("attack", 4), attacker_is_ic=True,
+        )
+        boxes = atk["resistance"]["boxes"]
+        cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
+        desc = (f"{enemy['name']} attacks your icon -- {atk['resistance']['final_damage_level']} "
+                f"({boxes} boxes). Persona {cm['persona_boxes']}/10.")
+        if intent == "kill":  # Black Hammer: lethal physical biofeedback
+            phys = eng.damage_resistance(
+                bod=decker.get("body", 4),
+                power=(enemy.get("utilities") or {}).get("attack", 4),
+                base_damage_level="Serious",
+                attacker_successes=atk["attack_roll"]["successes"],
+            )
+            cm["physical_boxes"] = cm.get("physical_boxes", 0) + phys["boxes"]
+            desc = (f"BLACK HAMMER -- {enemy['name']} drives lethal biofeedback into you: icon "
+                    f"{atk['resistance']['final_damage_level']} ({boxes}), physical "
+                    f"{phys['final_damage_level']} ({phys['boxes']}). "
+                    f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
+            if cm["physical_boxes"] >= 10:
+                state["run_ended"] = True
+                state["end_reason"] = "killed_by_black_hammer"
+                run.status = "killed"
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": intent, "enemy_id": enemy["id"],
+            "attack_roll": atk["attack_roll"], "description": desc,
+        })
+        # Icon crash -> dump shock + run ends
+        if not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
+            ds = _apply_dump_shock(state, decker, sec_code, sec_value)
+            state["icon_crashed"] = True
+            state["run_ended"] = True
+            state["end_reason"] = "icon_crashed_by_decker"
+            run.status = "dumped"
+            shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
+            _append_event(state, {
+                "type": "persona_crash", "enemy_id": enemy["id"],
+                "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).",
+            })
+
+    run.state_json = state
+    await db.commit(); await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/enemy-decker/attack", response_model=MatrixRunRead)
+async def attack_enemy_decker(
+    run_id: int,
+    body: RunEnemyAttackInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """The PC strikes back at a revealed enemy decker (two-way cybercombat). Crashing
+    its icon (10 boxes) defeats it."""
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+    state = copy.deepcopy(run.state_json)
+    decker = run.decker_json
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed -- you can only jack out")
+    enemy = next((e for e in state.get("enemy_deckers", [])
+                  if e.get("id") == body.enemy_id and e.get("status") == "active"
+                  and e.get("revealed")), None)
+    if enemy is None:
+        raise HTTPException(404, "No such revealed enemy decker to attack")
+
+    sec_code = state["host_security_code"]
+    _spend_hp(state, body.hacking_pool_dice)
+    pool = body.attack_pool + body.hacking_pool_dice
+    atk = eng.cybercombat_attack(
+        attacker_pool=pool, security_code=sec_code, target_status="intruding",
+        target_bod=enemy["bod"], armor_rating=0,
+        ic_rating=(decker.get("utilities") or {}).get("attack", 4), attacker_is_ic=False,
+    )
+    boxes = atk["resistance"]["boxes"]
+    ecm = enemy.setdefault("condition_monitor", {})
+    ecm["persona_boxes"] = ecm.get("persona_boxes", 0) + boxes
+    desc = (f"You strike {enemy['name']} -- {atk['resistance']['final_damage_level']} "
+            f"({boxes} boxes). Enemy persona {ecm['persona_boxes']}/10.")
+    if ecm["persona_boxes"] >= 10:
+        enemy["status"] = "crashed"
+        desc += f" {enemy['name']}'s icon CRASHED -- dumped from the host."
+    _append_event(state, {
+        "type": "decker_attack", "success": True, "enemy_id": enemy["id"],
+        "decker_roll": atk["attack_roll"], "description": desc,
+    })
+    run.state_json = state
+    await db.commit(); await db.refresh(run)
     return _serialize_run(run, auth)
 
 

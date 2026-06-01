@@ -125,6 +125,21 @@ class RunSuppressInput(BaseModel):
     release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
 
 
+class RunEnemyDeckerInput(BaseModel):
+    name: str = Field("", max_length=80)
+    intent: Literal["", "boot", "dump", "kill"] = ""  # blank = use the tier default
+
+
+class RunEnemyActInput(BaseModel):
+    enemy_id: str = Field(..., max_length=64)
+
+
+class RunEnemyAttackInput(BaseModel):
+    enemy_id: str = Field(..., max_length=64)
+    attack_pool: int = Field(..., ge=1, le=40)
+    hacking_pool_dice: int = Field(0, ge=0, le=40)
+
+
 # -- Sheaf + Host designer -----------------------------------------------------
 
 class SheafEvent(BaseModel):
