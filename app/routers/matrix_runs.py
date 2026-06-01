@@ -826,6 +826,7 @@ async def perform_action(
                 "type": "decrypt", "success": False, "decker_roll": dt["roll"],
                 "key_data_lost": cons.get("key_data_lost", False),
                 "data_destroyed": cons.get("data_destroyed", False),
+                "file_name": (protected or {}).get("name"),  # lets the UI grey the destroyed file
                 "description": cons["message"],
             })
         run.state_json = state
