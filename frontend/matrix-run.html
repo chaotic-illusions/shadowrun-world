@@ -1587,7 +1587,12 @@ function renderRunState(run) {
   const initEl = document.getElementById('run-init');
   if (initEl) {
     const ini = state.decker_initiative, passes = state.initiative_passes;
-    initEl.textContent = (ini != null) ? `${ini} (${passes} pass${passes !== 1 ? 'es' : ''})` : '--';
+    if (ini == null) { initEl.textContent = '--'; }
+    else {
+      const ap = state.pass_action_points, fr = state.pass_free, cp = state.current_pass;
+      const budget = (ap != null) ? ` -- pass ${cp}/${passes}, ${ap} AP + ${fr} Free` : ` (${passes} passes)`;
+      initEl.textContent = `${ini}${budget}`;
+    }
   }
 
   // Deck stats
