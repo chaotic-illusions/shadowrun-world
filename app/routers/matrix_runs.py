@@ -1935,67 +1935,62 @@ async def enemy_decker_act(
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
 
-    # -- Phase 2: execute intent (escalates with the alarm) ----------------------
+    # -- Phase 2: hunt you in cybercombat. An enemy decker can't run Trace (that is host
+    # IC) -- the only way it removes you is by CRASHING YOUR ICON (which dumps you with
+    # dump shock). Deck-frying programs burn chips along the way; the top tier goes lethal.
     intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
     enemy["intent"] = intent
     cm = state.setdefault("condition_monitor", {})
+    enemy_attack = (enemy.get("utilities") or {}).get("attack", 4)
 
-    if intent == "boot":
-        ds = _apply_dump_shock(state, decker, sec_code, sec_value)
-        state["run_ended"] = True
-        state["end_reason"] = "traced_and_dumped"
-        run.status = "dumped"
-        _append_event(state, {
-            "type": "enemy_decker", "outcome": "boot", "enemy_id": enemy["id"],
-            "description": (
-                f"{enemy['name']} completed the trace and FORCE-DISCONNECTED you -- "
-                f"dump shock: {'immune' if ds.get('immune') else str(ds['boxes']) + ' physical boxes'}."
-            ),
-        })
-    else:  # dump or kill: cybercombat against the PC's icon
-        atk = eng.cybercombat_attack(
-            attacker_pool=enemy["computer_skill"] + (enemy.get("utilities") or {}).get("attack", 4),
-            security_code=sec_code, target_status="intruding",
-            target_bod=eff["bod"],
-            armor_rating=(decker.get("utilities") or {}).get("armor", 0),
-            ic_rating=(enemy.get("utilities") or {}).get("attack", 4), attacker_is_ic=True,
+    atk = eng.cybercombat_attack(
+        attacker_pool=enemy["computer_skill"] + enemy_attack,
+        security_code=sec_code, target_status="intruding",
+        target_bod=eff["bod"],
+        armor_rating=(decker.get("utilities") or {}).get("armor", 0),
+        ic_rating=enemy_attack, attacker_is_ic=True,
+    )
+    boxes = atk["resistance"]["boxes"]
+    cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
+    desc = (f"{enemy['name']} attacks your icon -- {atk['resistance']['final_damage_level']} "
+            f"({boxes} boxes). Persona {cm['persona_boxes']}/10.")
+
+    # Deck-frying programs: a solid hit burns a chip (permanent MPCP loss).
+    if enemy.get("chip_burn") and boxes > 0:
+        mpcp_hit, _burn = _roll_mpcp_damage(state, decker, enemy_attack)
+        if mpcp_hit > 0:
+            desc += f" Chip burn: MPCP -{mpcp_hit} (permanent)."
+
+    if intent == "kill":  # Black Hammer: lethal physical biofeedback on top of icon damage
+        phys = eng.damage_resistance(
+            bod=decker.get("body", 4), power=enemy_attack,
+            base_damage_level="Serious", attacker_successes=atk["attack_roll"]["successes"],
         )
-        boxes = atk["resistance"]["boxes"]
-        cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
-        desc = (f"{enemy['name']} attacks your icon -- {atk['resistance']['final_damage_level']} "
-                f"({boxes} boxes). Persona {cm['persona_boxes']}/10.")
-        if intent == "kill":  # Black Hammer: lethal physical biofeedback
-            phys = eng.damage_resistance(
-                bod=decker.get("body", 4),
-                power=(enemy.get("utilities") or {}).get("attack", 4),
-                base_damage_level="Serious",
-                attacker_successes=atk["attack_roll"]["successes"],
-            )
-            cm["physical_boxes"] = cm.get("physical_boxes", 0) + phys["boxes"]
-            desc = (f"BLACK HAMMER -- {enemy['name']} drives lethal biofeedback into you: icon "
-                    f"{atk['resistance']['final_damage_level']} ({boxes}), physical "
-                    f"{phys['final_damage_level']} ({phys['boxes']}). "
-                    f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
-            if cm["physical_boxes"] >= 10:
-                state["run_ended"] = True
-                state["end_reason"] = "killed_by_black_hammer"
-                run.status = "killed"
-        _append_event(state, {
-            "type": "enemy_decker", "outcome": intent, "enemy_id": enemy["id"],
-            "attack_roll": atk["attack_roll"], "description": desc,
-        })
-        # Icon crash -> dump shock + run ends
-        if not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
-            ds = _apply_dump_shock(state, decker, sec_code, sec_value)
-            state["icon_crashed"] = True
+        cm["physical_boxes"] = cm.get("physical_boxes", 0) + phys["boxes"]
+        desc = (f"BLACK HAMMER -- {enemy['name']} drives lethal biofeedback into you: icon "
+                f"{atk['resistance']['final_damage_level']} ({boxes}), physical "
+                f"{phys['final_damage_level']} ({phys['boxes']}). "
+                f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
+        if cm["physical_boxes"] >= 10:
             state["run_ended"] = True
-            state["end_reason"] = "icon_crashed_by_decker"
-            run.status = "dumped"
-            shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
-            _append_event(state, {
-                "type": "persona_crash", "enemy_id": enemy["id"],
-                "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).",
-            })
+            state["end_reason"] = "killed_by_black_hammer"
+            run.status = "killed"
+    _append_event(state, {
+        "type": "enemy_decker", "outcome": intent, "enemy_id": enemy["id"],
+        "attack_roll": atk["attack_roll"], "description": desc,
+    })
+    # Icon crash -> dump shock + run ends
+    if not state.get("run_ended") and cm.get("persona_boxes", 0) >= 10:
+        ds = _apply_dump_shock(state, decker, sec_code, sec_value)
+        state["icon_crashed"] = True
+        state["run_ended"] = True
+        state["end_reason"] = "icon_crashed_by_decker"
+        run.status = "dumped"
+        shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
+        _append_event(state, {
+            "type": "persona_crash", "enemy_id": enemy["id"],
+            "description": f"PERSONA CRASHED by {enemy['name']} -- dumped (dump shock: {shock}).",
+        })
 
     run.state_json = state
     await db.commit(); await db.refresh(run)
