@@ -402,6 +402,12 @@
           <div id="run-key-paydata-list"></div>
         </div>
 
+        <!-- Enemy deckers -->
+        <div class="mr-panel" id="run-enemy-decker-panel" style="display:none">
+          <div class="panel-title" style="color:var(--red)">&gt;&gt; HOSTILE DECKERS <em style="float:right;font-size:0.58rem;color:var(--red)">THREAT</em></div>
+          <div id="run-enemy-decker-list"></div>
+        </div>
+
         <!-- Event log -->
         <div class="mr-panel">
           <div class="panel-title panel-title-green">&gt;&gt; EVENT LOG <em style="float:right;font-size:0.58rem;color:var(--text-dim)" id="run-turn-badge"></em></div>
@@ -1362,6 +1368,45 @@ function markTrapDoorFound(id) {
   renderTrapDoorsPanel();
 }
 
+// -- Enemy deckers (vr2 #5) --------------------------------------------------
+function renderEnemyDeckers(enemies, runEnded, crashed) {
+  const panel = document.getElementById('run-enemy-decker-panel');
+  const list  = document.getElementById('run-enemy-decker-list');
+  if (!panel || !list) return;
+  const visible = (enemies || []).filter(e => e && (e.revealed === undefined || e.revealed));
+  if (!visible.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  list.innerHTML = visible.map(e => {
+    const cm = (e.condition_monitor || {});
+    const boxes = cm.persona_boxes || 0;
+    const dead  = e.status === 'crashed';
+    const intent = (e.intent || '?').toUpperCase();
+    const intentColor = e.intent === 'kill' ? 'var(--red)' : e.intent === 'dump' ? '#ff7700' : 'var(--amber)';
+    const located = e.located_pc ? `<span style="font-size:.55rem;color:var(--red);letter-spacing:1px">[HAS YOU LOCATED]</span>` : `<span style="font-size:.55rem;color:var(--amber)">[hunting]</span>`;
+    const canHit = !runEnded && !crashed && !dead;
+    return `
+    <div class="ic-card ic-black${dead ? ' ic-crashed' : ''}">
+      <div class="ic-head">
+        <span class="ic-type-name">${esc(e.name || 'Hostile Decker')} <span style="font-size:.55rem;color:${intentColor}">[${esc(intent)}]</span></span>
+        <span class="ic-badge" style="color:var(--red);border-color:#440000">${esc((e.tier || '?').toUpperCase())}</span>
+      </div>
+      <div class="ic-meta"><span>${located}</span><span>Status: <span style="color:${dead ? 'var(--text-dim)' : 'var(--red)'}">${dead ? 'CRASHED' : 'ACTIVE'}</span></span></div>
+      <div class="cond-row" style="margin:6px 0"><div class="cond-label">Icon</div>
+        <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(boxes, 10, 'ic')}</div>
+        <div class="cond-count">${boxes}/10</div></div>
+      ${canHit ? `<button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')">&gt;&gt; Strike Back</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function strikeEnemyDecker(eid) {
+  if (!_run) return;
+  const pool = parseInt(prompt('Attack dice pool (Attack utility + Hacking Pool):', '12')) || 0;
+  if (pool < 1) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`, { enemy_id: eid, attack_pool: pool, hacking_pool_dice: 0 });
+}
+
 // -- Key Paydata panel -------------------------------------------------------
 function renderKeyPaydataPanel() {
   const panel = document.getElementById('run-key-paydata-panel');
@@ -1586,6 +1631,7 @@ function renderRunState(run) {
 
   // Active IC (including lurking reactive IC)
   renderActiveIC(state.active_ic || [], state.lurking_ic || [], state.run_ended, crashed);
+  renderEnemyDeckers(state.enemy_deckers || [], state.run_ended, crashed);
   renderTrapDoorsPanel();
 
   // Event log
@@ -1918,6 +1964,15 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--amber)';
       badgeText = 'IC RELEASED';
       break;
+    case 'enemy_decker': {
+      const oc = ev.outcome || '';
+      if (oc === 'hunting') { cls = 'ev-alert'; badgeColor = 'var(--amber)'; badgeText = 'DECKER HUNT'; }
+      else if (oc === 'located') { cls = 'ev-ic-activate'; badgeColor = 'var(--red)'; badgeText = 'PC LOCATED'; }
+      else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'BLACK HAMMER'; }
+      else if (oc === 'boot') { cls = 'ev-dump-shock'; badgeColor = 'var(--red)'; badgeText = 'TRACE-DUMP'; }
+      else { cls = 'ev-ic-attack'; badgeColor = '#ff7700'; badgeText = 'ENEMY DECKER'; }
+      break;
+    }
   }
 
   // Dice summary
