@@ -1968,7 +1968,7 @@ function renderEventEntry(ev) {
       const oc = ev.outcome || '';
       if (oc === 'hunting') { cls = 'ev-alert'; badgeColor = 'var(--amber)'; badgeText = 'DECKER HUNT'; }
       else if (oc === 'located') { cls = 'ev-ic-activate'; badgeColor = 'var(--red)'; badgeText = 'PC LOCATED'; }
-      else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'BLACK HAMMER'; }
+      else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = (ev.program || 'BLACK HAMMER').toUpperCase(); }
       else { cls = 'ev-ic-attack'; badgeColor = '#ff7700'; badgeText = 'ENEMY DECKER'; }
       break;
     }
