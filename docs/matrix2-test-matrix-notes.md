@@ -269,7 +269,21 @@ Context-safe resume plan for the current work. Status updated as each lands.
   a sheaf event type `{type:"enemy_decker"}` so authored hosts spawn one at a tally threshold.
   Keep the manual endpoint for GM control. Single-user model = the app plays the host + enemy.
 
-**D. Action economy + initiative [NEXT, BIG -- own session]**
+**D. Action economy + initiative [FOUNDATION DONE 2026-06-01; ENFORCEMENT still pending]**
+- DONE (non-breaking, verified live): roll decker Matrix initiative on run start + each new_turn
+  (`_roll_decker_initiative`; Reaction = `_decker_reaction` = ceil((Q+I)/2)); store
+  `decker_initiative`, `initiative_passes` (= init//10 + 1), `current_pass`, `actions_this_turn`;
+  tag every operation with its `action_cost` (Free/Simple/Complex via `_ACTION_COST` from
+  rules.SYSTEM_OPERATIONS); new_turn event reports initiative+passes; run UI shows "Initiative N
+  (P passes)". (Live: start init 19/2 passes -> new_turn re-roll 14/2 -> analyze_host cost Complex.)
+- STILL TODO -- ENFORCEMENT (the breaking part, needs frontend pass UI; do as a focused step):
+  per-pass action budget (2 Simple OR 1 Complex + 1 Free); perform_action decrements/rejects when
+  the budget is spent; a "next pass" advance (current_pass++ down the init-10 ladder) that refreshes
+  the budget; on the last pass -> new combat turn. Then make IC + enemy deckers act on the passes
+  their OWN initiative reaches (interleaved), instead of once per player action. Update the throwaway
+  Playwright specs (they fire many actions back-to-back and would hit the budget). Engine fns +
+  `_ACTION_COST` + initiative state are all in place now -- this step is the turn-loop wiring + UI.
+- ORIGINAL NOTES (kept for reference):
 - vr2: a Combat Turn has multiple INITIATIVE PASSES in increments of 10. Initiative = Reaction +
   initiative dice; you act on your score, then -10, -10... (e.g. 22 -> 22,12,2). Each pass you get
   **2 Simple OR 1 Complex, plus 1 Free** action. Operations already carry an `action` cost
