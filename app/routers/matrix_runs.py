@@ -606,6 +606,8 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
             if ev.get("intent"):
                 enemy["intent"] = ev["intent"]
             enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+            _ed_init, _ed_passes = _roll_decker_initiative(enemy)  # rolled once on entry
+            enemy["initiative"], enemy["initiative_passes"] = _ed_init, _ed_passes
             state.setdefault("enemy_deckers", []).append(enemy)
             events.append({
                 "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
@@ -2301,6 +2303,8 @@ async def inject_enemy_decker(
     if body.intent:
         enemy["intent"] = body.intent
     enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+    _ed_init, _ed_passes = _roll_decker_initiative(enemy)  # rolled once on entry
+    enemy["initiative"], enemy["initiative_passes"] = _ed_init, _ed_passes
     state.setdefault("enemy_deckers", []).append(enemy)
     _append_event(state, {
         "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],

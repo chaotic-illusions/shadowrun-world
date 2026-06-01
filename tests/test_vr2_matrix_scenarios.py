@@ -469,6 +469,21 @@ class TestEnemyDeckerGeneration:
         assert d["detection_factor"] >= 1  # the PC must beat this to find them
         assert d["status"] == "active" and d["located"] is False
 
+    def test_initiative_stats_scale_by_tier(self):
+        # Enemy initiative scales with host difficulty (Response Increase + reaction stats).
+        blue = eng.generate_enemy_decker("Blue", 4)
+        black = eng.generate_enemy_decker("Black", 12)
+        assert blue["response_increase"] == 0
+        assert black["response_increase"] == 3
+        assert black["intelligence"] >= 7              # Black: Int 7-10
+        assert black["intelligence"] > blue["intelligence"]
+        assert eng.generate_enemy_decker("Red", 9)["response_increase"] == 2
+        assert eng.generate_enemy_decker("Orange", 7)["response_increase"] == 1
+        # RI never exceeds MPCP/4 (vr2)
+        for code, val in (("Blue", 4), ("Green", 6), ("Orange", 7), ("Red", 9), ("Black", 12)):
+            d = eng.generate_enemy_decker(code, val)
+            assert d["response_increase"] <= d["mpcp"] // 4
+
 
 class TestICExtrasRunSide:
     """Gap E -- run-side application of IC Options/Defenses (Armor / Expert / Cascading)
