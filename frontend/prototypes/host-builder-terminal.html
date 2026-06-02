@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROTOTYPE // Host Builder -- Terminal (v5)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+/* ===========================================================================
+   PROTOTYPE -- Host Builder, TERMINAL, v5. Standalone, fake data.
+   v5 (per review): in-field number steppers (vertical ^/v at the field's right
+   edge, matching shared.js initNumSteppers); composites show each component IC
+   in its category color + dot; [R]/[P] sits after the dot, before the name;
+   edit affordance on every sheaf event + editable composite components; paydata
+   sized from the REAL Red table (2D6x5 Mp); trap-door inspector shows the
+   destination host with a Follow action.
+   =========================================================================== */
+
+:root{
+  --font:'Share Tech Mono','Courier New',monospace;
+  --bg:#070707; --bg-pane:#0d0d0d; --bg-inset:#060d06; --bg-chip:#0b110b;
+  --border:#1c2c1c; --border-soft:#151515; --border-strong:#00cc33;
+  --accent:#00ff41; --accent-2:#00ccff; --accent-soft:rgba(0,255,65,.08);
+  --label:#5aa8d0; --data:#c8c8c8; --data-strong:#f2f2f2; --muted:#9a9a9a;
+  --sec-blue:#4488ff; --sec-green:#00ff41; --sec-orange:#ff9900; --sec-red:#ff3333; --sec-black:#bb44ff;
+  --al-passive:#ff9900; --al-active:#ff3333; --al-shutdown:#bb44ff;
+  --ic-white:#f5f5f5; --ic-gray:#9c9c9c; --ic-black:#cc66ff;
+  --good:#00ff41; --warn:#ff9900; --bad:#ff5555;
+  --glow:0 0 7px;
+  --fs-xxs:.55rem; --fs-xs:.64rem; --fs-sm:.72rem; --fs-md:.8rem; --fs-lg:.92rem; --fs-xl:1.08rem; --fs-2xl:1.32rem;
+  --pad:16px; --gap:13px; --row-pad:8px; --step-gap:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg); color:var(--data); font-family:var(--font); font-size:var(--fs-md); line-height:1.45;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,65,.012) 3px,rgba(0,255,65,.012) 4px)}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border)} ::-webkit-scrollbar-thumb:hover{background:var(--border-strong)}
+
+.label{color:var(--label); font-size:var(--fs-xs); letter-spacing:2px; text-transform:uppercase}
+.muted{color:var(--muted)} .accent{color:var(--accent)}
+.sec-blue{color:var(--sec-blue)} .sec-green{color:var(--sec-green)} .sec-orange{color:var(--sec-orange)} .sec-red{color:var(--sec-red)} .sec-black{color:var(--sec-black)}
+
+/* TOP BAR */
+.topbar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 22px; background:#000; border-bottom:1px solid var(--border)}
+.topbar .brand{color:var(--accent); letter-spacing:3px; text-transform:uppercase; text-shadow:var(--glow) var(--accent); font-size:var(--fs-md)}
+.topbar .tag{color:var(--muted); font-size:var(--fs-xs); letter-spacing:1px}
+.labelsw{display:flex; align-items:center; gap:8px; margin-left:auto}
+.labelsw .cap{color:var(--muted); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase}
+.labelsw button{font-family:var(--font); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; padding:5px 11px; background:transparent; color:var(--muted); border:1px solid var(--border); cursor:pointer}
+.labelsw button.on{color:var(--label); border-color:var(--label)}
+
+/* SHELL/PANES */
+.shell{max-width:1800px; margin:0 auto; padding:18px 22px 70px}
+.page-head{margin-bottom:14px}
+.page-title{font-size:var(--fs-2xl); letter-spacing:4px; text-transform:uppercase; color:var(--accent); text-shadow:var(--glow) var(--accent)}
+.page-sub{color:var(--muted); letter-spacing:3px; font-size:var(--fs-sm); margin-top:3px}
+.panes{display:grid; grid-template-columns:248px minmax(0,1fr) 340px; gap:14px; align-items:start}
+.pane{background:var(--bg-pane); border:1px solid var(--border)}
+.pane.side{position:sticky; top:62px}
+.pane-hd{display:flex; align-items:center; justify-content:space-between; padding:11px 14px; border-bottom:1px solid var(--border); color:var(--accent); letter-spacing:2px; text-transform:uppercase; font-size:var(--fs-sm)}
+.pane-hd::before{content:'>> '; color:var(--muted)}
+.pane-bd{padding:var(--pad)}
+.pane.side .pane-bd{max-height:calc(100vh - 130px); overflow:auto}
+
+/* LEFT NAV */
+.nav-list{display:flex; flex-direction:column; gap:2px; margin-bottom:16px}
+.nav-item{display:flex; align-items:center; gap:9px; padding:var(--row-pad) 10px; cursor:pointer; border-left:2px solid transparent; color:var(--muted); font-size:var(--fs-sm); letter-spacing:1px; transition:all .12s}
+.nav-item:hover{background:var(--accent-soft); color:var(--data)}
+.nav-item.done{color:var(--data)}
+.nav-item.active{border-left-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.nav-tick{width:14px; height:14px; border:1px solid var(--border); display:inline-flex; align-items:center; justify-content:center; font-size:9px; color:var(--good); flex-shrink:0}
+.nav-item.done .nav-tick{border-color:var(--border-strong); background:var(--accent-soft)}
+.nav-item.active .nav-tick{border-color:var(--accent)}
+.nav-item .n-no{color:var(--muted); font-size:var(--fs-xs); min-width:13px}
+.summary-card{border-top:1px solid var(--border); padding-top:14px}
+.run-ready{display:flex; align-items:center; gap:8px; padding:8px 10px; margin-bottom:12px; border:1px solid var(--good); color:var(--good); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; background:var(--accent-soft)}
+.run-ready .pulse{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:var(--glow) var(--good)}
+.sum-row{display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid var(--border-soft)}
+.sum-row .k{color:var(--label); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase}
+.sum-row .v{color:var(--data-strong); font-size:var(--fs-sm); text-align:right}
+.thresholds{display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 4px}
+.thr{font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; padding:2px 7px; border:1px solid var(--border)}
+.thr.passive{color:var(--al-passive); border-color:var(--al-passive)}
+.thr.active{color:var(--al-active); border-color:var(--al-active)}
+.thr.shutdown{color:var(--al-shutdown); border-color:var(--al-shutdown)}
+
+/* CENTER */
+.block{margin-bottom:22px}
+.block-hd{display:flex; align-items:center; justify-content:space-between; font-size:var(--fs-md); letter-spacing:2px; text-transform:uppercase; color:var(--accent-2); border-bottom:1px solid var(--border); padding-bottom:7px; margin-bottom:13px}
+.block-hd .ttl::before{content:'// '; color:var(--muted)}
+.field-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--gap)}
+.field{display:flex; flex-direction:column; gap:5px}
+input,select{font-family:var(--font); font-size:var(--fs-md); color:var(--data-strong); background:var(--bg-inset); border:1px solid var(--border); padding:8px 10px; width:100%; outline:none; transition:border-color .15s, box-shadow .15s}
+input:focus,select:focus{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft)}
+select{appearance:none; cursor:pointer; padding-right:26px; background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%); background-position:calc(100% - 14px) 55%,calc(100% - 9px) 55%; background-size:5px 5px,5px 5px; background-repeat:no-repeat}
+
+/* IN-FIELD NUMBER STEPPER (mirrors shared.js initNumSteppers / style.css .infield-num-*) */
+.infield-num-wrap{position:relative; display:inline-block; width:100%}
+.infield-num-wrap input[type=number]{padding-right:24px; -moz-appearance:textfield; appearance:textfield}
+.infield-num-wrap input[type=number]::-webkit-outer-spin-button,
+.infield-num-wrap input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.infield-num-ctrls{position:absolute; top:1px; right:1px; bottom:1px; width:20px; display:grid; grid-template-rows:1fr 1fr; border-left:1px solid var(--border); pointer-events:none}
+.infield-num-btn{pointer-events:auto; border:0; margin:0; padding:0; background:var(--bg-chip); color:var(--accent); font-family:var(--font); font-size:7px; line-height:1; cursor:pointer; user-select:none}
+.infield-num-btn:first-child{border-bottom:1px solid var(--border)}
+.infield-num-btn:hover{background:var(--accent-soft)}
+.infield-num-btn:active{background:var(--border-strong); color:#000}
+
+.acifs{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+.acifs-cell{background:var(--bg-inset); border:1px solid var(--border); padding:10px; text-align:center}
+.acifs-cell .label{display:block; margin-bottom:7px}
+.acifs-cell .val{font-size:var(--fs-2xl); color:var(--data-strong); font-weight:bold; line-height:1}
+
+.tagrow{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px}
+.tag-pc{display:inline-flex; align-items:center; gap:7px; padding:4px 9px; background:var(--bg-inset); border:1px solid var(--border); font-size:var(--fs-sm); color:var(--data)}
+.tag-pc.trap{border-color:var(--warn); cursor:pointer}
+.tag-pc.trap:hover{box-shadow:0 0 0 1px var(--warn)}
+.tag-pc.trap.sel{box-shadow:0 0 0 2px var(--warn)}
+.tag-pc .trapflag{color:var(--warn); font-size:var(--fs-xxs); letter-spacing:1px}
+.tag-pc .x{color:var(--muted); cursor:pointer} .tag-pc .x:hover{color:var(--bad)}
+.addline{display:flex; gap:7px; align-items:center; max-width:420px}
+
+.pd{display:flex; flex-direction:column; gap:6px}
+.pd-row{display:flex; align-items:center; gap:9px; padding:var(--row-pad) 10px; background:var(--bg-inset); border:1px solid var(--border); cursor:pointer; transition:border-color .12s}
+.pd-row:hover{border-color:var(--border-strong)}
+.pd-row.sel{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft)}
+.pd-row .star{color:var(--warn); font-size:var(--fs-sm)}
+.pd-row .nm{color:var(--data-strong); flex:1; min-width:0; font-size:var(--fs-sm); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pd-row .mp{color:var(--label); font-size:var(--fs-xs); letter-spacing:1px; white-space:nowrap}
+.pd-row .lock{font-size:var(--fs-xxs); letter-spacing:1px; padding:1px 6px; border:1px solid var(--bad); color:var(--bad); white-space:nowrap}
+.counters{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+.counter{background:var(--bg-inset); border:1px solid var(--border); padding:10px 12px}
+.counter .n{font-size:var(--fs-xl); color:var(--data-strong); font-weight:bold}
+.counter .l{color:var(--label); font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase}
+
+/* Alert-Triggers panel */
+.alertpanel{background:var(--bg-inset); border:1px solid var(--border); padding:11px 13px; margin-bottom:14px}
+.alertpanel .ap-hd{color:var(--label); font-size:var(--fs-xs); letter-spacing:2px; text-transform:uppercase; margin-bottom:9px}
+.ap-row{display:flex; align-items:center; gap:10px; margin-bottom:7px}
+.ap-row:last-child{margin-bottom:0}
+.ap-name{min-width:110px; font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase}
+.ap-row.passive .ap-name{color:var(--al-passive)} .ap-row.active .ap-name{color:var(--al-active)} .ap-row.shutdown .ap-name{color:var(--al-shutdown)}
+.ap-row select{max-width:230px}
+
+/* sheaf timeline */
+.sheaf{position:relative; padding-left:26px}
+.sheaf::before{content:''; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--border)}
+.step{position:relative; margin-bottom:var(--step-gap)}
+.step::before{content:''; position:absolute; left:-21px; top:15px; width:11px; height:11px; border-radius:50%; background:var(--bg); border:2px solid var(--accent-2)}
+.step-card{background:var(--bg-inset); border:1px solid var(--border); border-top-width:3px; padding:9px 12px 10px}
+.step-card.s-passive{border-top-color:var(--al-passive)}
+.step-card.s-active{border-top-color:var(--al-active)}
+.step-card.s-shutdown{border-top-color:var(--al-shutdown)}
+.step-top{display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap}
+.step-top:last-child{margin-bottom:0}
+.trigger-badge{display:inline-flex; align-items:baseline; gap:6px; cursor:pointer; background:var(--bg-chip); border:1px solid var(--border); padding:3px 11px; white-space:nowrap; transition:border-color .12s}
+.trigger-badge:hover{border-color:var(--border-strong)}
+.trigger-badge.sel{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft)}
+.trigger-badge .t-lbl{color:var(--label); font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase}
+.trigger-badge b{color:var(--accent); font-size:var(--fs-lg); line-height:1}
+.step-tools{margin-left:auto; display:flex; gap:5px; opacity:0; transition:opacity .12s}
+.step-card:hover .step-tools{opacity:1}
+.chips{display:flex; gap:7px; flex-wrap:wrap}
+
+/* IC chip -- category by COLOR; border matches text color (white vs gray distinct) */
+.chip{display:inline-flex; align-items:center; gap:7px; padding:5px 10px; cursor:pointer; background:var(--bg-chip); border:1px solid var(--border); font-size:var(--fs-sm); transition:all .12s}
+.chip .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.chip .nm{white-space:nowrap}
+.chip .pr{font-size:var(--fs-xxs); letter-spacing:1px; color:var(--muted)}
+.chip.cat-white{color:var(--ic-white); border-color:var(--ic-white)}
+.chip.cat-white .dot{background:var(--ic-white)}
+.chip.cat-gray{color:var(--ic-gray); border-color:var(--ic-gray)}
+.chip.cat-gray .dot{background:var(--ic-gray)}
+.chip.cat-black{color:var(--ic-black); border-color:var(--ic-black)}
+.chip.cat-black .dot{background:var(--ic-black)} .chip.cat-black .pr{color:#9a6bc0}
+.chip.sel{box-shadow:0 0 0 2px var(--accent); border-color:var(--accent)}
+/* composite events: neutral cyan-bordered, components carry their own IC color+dot */
+.chip.composite{color:var(--data); border-color:var(--accent-2); flex-wrap:wrap}
+.chip.composite .ctag{font-size:var(--fs-xxs); letter-spacing:1px; color:var(--accent-2); text-transform:uppercase}
+.chip.composite .arr{color:var(--muted)}
+.chip.composite .thr{color:var(--muted); font-size:var(--fs-xs)}
+.chip.composite .gdef{font-size:var(--fs-xxs); letter-spacing:1px; padding:1px 5px; border:1px dashed var(--accent-2); color:var(--accent-2); text-transform:uppercase}
+.cmp{display:inline-flex; align-items:center; gap:5px}
+.cmp .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cmp .pr{font-size:var(--fs-xxs); letter-spacing:1px; opacity:.8}
+.cmp.cat-white{color:var(--ic-white)} .cmp.cat-white .dot{background:var(--ic-white)}
+.cmp.cat-gray{color:var(--ic-gray)} .cmp.cat-gray .dot{background:var(--ic-gray)}
+.cmp.cat-black{color:var(--ic-black)} .cmp.cat-black .dot{background:var(--ic-black)}
+/* option badges */
+.optb{font-size:var(--fs-xxs); letter-spacing:1px; padding:1px 5px; border:1px solid var(--warn); color:var(--warn); text-transform:uppercase}
+.optb.casc{border-color:var(--accent-2); color:var(--accent-2)}
+.optb.exp{border-color:var(--label); color:var(--label)}
+
+/* alert pills */
+.alert-pill{font-size:var(--fs-xs); letter-spacing:2px; text-transform:uppercase; padding:5px 12px; cursor:pointer}
+.alert-pill.passive_alert{border:1px dashed var(--al-passive); color:var(--al-passive)}
+.alert-pill.active_alert{border:1px dashed var(--al-active); color:var(--al-active)}
+.alert-pill.shutdown{border:1px solid var(--al-shutdown); color:var(--al-shutdown)}
+.alert-pill.sel{box-shadow:0 0 0 1px var(--accent-soft)}
+
+/* INSPECTOR */
+.insp-empty{color:var(--muted); font-size:var(--fs-sm); text-align:center; padding:30px 10px; letter-spacing:1px}
+.insp-title{display:flex; align-items:center; gap:8px; font-size:var(--fs-lg); color:var(--data-strong); margin-bottom:3px; flex-wrap:wrap}
+.insp-sub{color:var(--label); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; margin-bottom:14px}
+.insp-cat{font-size:var(--fs-xxs); letter-spacing:2px; text-transform:uppercase; padding:2px 8px; border:1px solid var(--border)}
+.insp-cat.white{color:var(--ic-white); border-color:var(--ic-white)}.insp-cat.gray{color:var(--ic-gray); border-color:var(--ic-gray)}.insp-cat.black{color:var(--ic-black); border-color:var(--ic-black)}
+.insp-section{margin:14px 0; padding-top:12px; border-top:1px solid var(--border-soft)}
+.insp-section > .label{display:block; margin-bottom:9px}
+.opt-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.optbox{display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border:1px solid var(--border); background:var(--bg-inset); color:var(--data); font-size:var(--fs-sm); transition:all .12s; user-select:none}
+.optbox:hover{border-color:var(--border-strong)}
+.optbox.on{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.optbox.dis{opacity:.38; pointer-events:none}
+.optbox .box{width:13px;height:13px;border:1px solid var(--border-strong); display:inline-flex;align-items:center;justify-content:center; font-size:10px}
+.optbox.on .box{background:var(--accent); color:var(--bg)}
+.insp-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+.insp-num{width:88px; flex-shrink:0}
+.insp-flavor{color:var(--muted); font-size:var(--fs-sm); line-height:1.55; font-style:italic; border-left:2px solid var(--border); padding-left:10px; margin-top:6px}
+.evt-list{display:flex; flex-direction:column; gap:6px}
+.evt{display:flex; align-items:center; gap:8px; padding:6px 9px; background:var(--bg-inset); border:1px solid var(--border); font-size:var(--fs-sm); color:var(--data)}
+.evt .e-nm{flex:1; min-width:0}
+.evt .rm{margin-left:auto}
+.cmprow{display:flex; align-items:center; gap:8px; padding:6px 9px; background:var(--bg-inset); border:1px solid var(--border)}
+.cmprow .cmp{flex:1}
+.pal-cap{color:var(--muted); font-size:var(--fs-xxs); letter-spacing:1px; margin-bottom:8px}
+.pal-cap b{color:var(--label)}
+.pal-group{margin-bottom:9px}
+.pal-group .g-lbl{font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:5px}
+.palette{display:flex; flex-wrap:wrap; gap:6px}
+.pal-chip{font-size:var(--fs-xs); padding:5px 9px; border:1px solid var(--border); background:var(--bg-inset); color:var(--data); cursor:pointer; transition:all .12s}
+.pal-chip:hover{border-color:var(--accent); color:var(--accent)}
+.pal-chip.w{color:var(--ic-white)} .pal-chip.g{color:var(--ic-gray)} .pal-chip.b{color:var(--ic-black)} .pal-chip.c{color:var(--accent-2)}
+.follow-card{border:1px solid var(--accent-2); padding:10px 12px; margin-top:4px}
+.follow-card .dest{color:var(--data-strong); font-size:var(--fs-sm); margin:4px 0 10px}
+.follow-card .dest b{color:var(--accent-2)}
+
+/* BUTTONS */
+.btn{font-family:var(--font); font-size:var(--fs-sm); letter-spacing:1.5px; text-transform:uppercase; padding:8px 14px; border:1px solid; background:transparent; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:all .15s; white-space:nowrap}
+.btn-sm{padding:5px 10px; font-size:var(--fs-xs)}
+.btn-primary{color:var(--accent); border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-soft); box-shadow:var(--glow) var(--accent); text-shadow:var(--glow) var(--accent)}
+.btn-secondary{color:var(--data); border-color:var(--border)}
+.btn-secondary:hover{color:var(--data-strong); border-color:var(--border-strong)}
+.btn-add{color:var(--accent); border-color:var(--border)}
+.btn-add:hover{border-color:var(--accent); background:var(--accent-soft)}
+.btn-cyan{color:var(--accent-2); border-color:var(--accent-2)}
+.btn-cyan:hover{background:rgba(0,204,255,.10)}
+.btn-danger{color:var(--bad); border-color:var(--bad)}
+.btn-danger:hover{background:rgba(255,80,80,.10)}
+.btn-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.icon-btn{width:24px;height:24px;border:1px solid var(--border);background:var(--bg-inset);color:var(--muted); cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;justify-content:center;transition:all .12s; font-size:var(--fs-xs)}
+.icon-btn:hover{border-color:var(--border-strong);color:var(--data-strong)}
+.icon-btn.danger:hover{border-color:var(--bad);color:var(--bad)}
+.note{font-size:var(--fs-xs); color:var(--muted); line-height:1.55; margin-top:9px; border-left:2px solid var(--border); padding-left:10px}
+
+/* host tabs (trap-door "follow" opens a new in-app tab) */
+.hosttabs{display:flex; gap:2px; max-width:1800px; margin:0 auto; padding:8px 22px 0; align-items:flex-end}
+.htab{display:flex; align-items:center; gap:9px; padding:7px 14px; font-size:var(--fs-xs); letter-spacing:1px; color:var(--muted); border:1px solid var(--border); border-bottom:0; cursor:pointer; background:var(--bg-pane)}
+.htab.on{color:var(--accent); background:var(--bg-inset)}
+.htab .src{color:var(--accent-2); font-size:var(--fs-xxs)}
+.htab .hx{color:var(--muted)} .htab .hx:hover{color:var(--bad)}
+.followmsg{max-width:1800px; margin:6px auto 0; padding:0 22px; color:var(--accent-2); font-size:var(--fs-xs); letter-spacing:1px}
+
+/* identity + review */
+.idrow{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap}
+.idrow .field{min-width:200px}
+.review-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px}
+.rev-cell{background:var(--bg-inset); border:1px solid var(--border); padding:9px 11px}
+.rev-cell .k{color:var(--label); font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:3px}
+.rev-cell .v{color:var(--data-strong); font-size:var(--fs-sm)}
+
+/* trace branch */
+.trace-branch{margin-top:9px; border-left:2px solid var(--accent-2); padding-left:11px; display:flex; flex-direction:column; gap:7px}
+.tb-hd{font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; color:var(--accent-2)}
+.tb-lane{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.tb-tag{font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; padding:2px 8px; border:1px solid var(--border); white-space:nowrap}
+.tb-tag.yes{color:var(--good); border-color:var(--good)}
+.tb-tag.no{color:var(--muted)}
+
+@media(max-width:1180px){
+  .panes{grid-template-columns:1fr}
+  .pane.side{position:static} .pane.side .pane-bd{max-height:none}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">PROTOTYPE</span>
+  <span class="tag">Host Builder // Terminal v5 // in-field steppers, composite detail, trap-door follow</span>
+  <div class="labelsw">
+    <span class="cap">Label color:</span>
+    <button class="on" data-lab="#5aa8d0">Steel</button>
+    <button data-lab="#4f9a5f">Dim Green</button>
+    <button data-lab="#c79a4a">Copper</button>
+    <button data-lab="#8298a8">Slate</button>
+  </div>
+</div>
+
+<div class="hosttabs" id="hosttabs">
+  <div class="htab on" data-tab="A">Ares Sub-Basement</div>
+  <div class="htab" data-tab="B" id="tabB" style="display:none">Ares Black IC Vault <span class="src">(via Camera 1)</span> <span class="hx" id="tabBclose">&times;</span></div>
+</div>
+<div class="followmsg" id="followMsg" style="display:none">&#8627; Followed the Camera 1 trap door -- now editing <b>Ares Black IC Vault</b> in a new tab. The source host stays open in tab 1.</div>
+
+<div class="shell">
+  <div class="page-head">
+    <div class="page-title">Matrix Host Designer</div>
+    <div class="page-sub">HOST SECURITY &amp; IC DESIGNER // SR2</div>
+  </div>
+
+  <div class="panes">
+
+    <!-- ===== LEFT ===== -->
+    <div class="pane side">
+      <div class="pane-hd">Build Steps</div>
+      <div class="pane-bd">
+        <div class="nav-list">
+          <div class="nav-item done"><span class="nav-tick">&check;</span><span class="n-no">1</span> Identity</div>
+          <div class="nav-item done"><span class="nav-tick">&check;</span><span class="n-no">2</span> Security</div>
+          <div class="nav-item done"><span class="nav-tick">&check;</span><span class="n-no">3</span> Subsystems</div>
+          <div class="nav-item done"><span class="nav-tick">&check;</span><span class="n-no">4</span> Files &amp; IC</div>
+          <div class="nav-item done"><span class="nav-tick">&check;</span><span class="n-no">5</span> Trap Doors</div>
+          <div class="nav-item active"><span class="nav-tick">&gt;</span><span class="n-no">6</span> Sheaf</div>
+          <div class="nav-item"><span class="nav-tick"></span><span class="n-no">7</span> Review</div>
+        </div>
+        <div class="summary-card">
+          <div class="run-ready"><span class="pulse"></span> Host is run-ready</div>
+          <div class="sum-row"><span class="k">Name</span><span class="v" id="sumName">Ares Sub-Basement</span></div>
+          <div class="sum-row"><span class="k">Security</span><span class="v" id="sumSec"><span class="sec-red">Red</span> &middot; 8</span></div>
+          <div class="sum-row"><span class="k">Owner</span><span class="v">Corp / Military</span></div>
+          <div class="sum-row"><span class="k">ACIFS</span><span class="v">10/9/9/11/8</span></div>
+          <div class="sum-row"><span class="k">Paydata</span><span class="v">3 files &middot; 105Mp</span></div>
+          <div class="sum-row"><span class="k">Passive IC</span><span class="v">4</span></div>
+          <div class="sum-row"><span class="k">Sheaf Steps</span><span class="v">12</span></div>
+          <div class="label" style="margin-top:12px;display:block">Alert Thresholds</div>
+          <div class="thresholds">
+            <span class="thr passive">Passive @9</span>
+            <span class="thr active">Active @19</span>
+            <span class="thr shutdown">Shutdown @36</span>
+          </div>
+          <div style="margin-top:14px"><button class="btn btn-danger btn-sm">&times; Delete Host</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CENTER ===== -->
+    <div class="pane">
+      <div class="pane-hd">Security &amp; Structure</div>
+      <div class="pane-bd">
+
+        <div id="tabBView" style="display:none">
+          <div class="block">
+            <div class="block-hd"><span class="ttl">Ares Black IC Vault</span>
+              <button class="btn btn-secondary btn-sm" id="backToA">&#8592; Back to source host</button></div>
+            <div class="review-grid">
+              <div class="rev-cell"><span class="k">Reached via</span><span class="v">Camera 1 trap door (bypasses Access)</span></div>
+              <div class="rev-cell"><span class="k">Security</span><span class="v"><span class="sec-red">Red</span> &middot; 10</span></div>
+              <div class="rev-cell"><span class="k">ACIFS</span><span class="v">12 / 11 / 11 / 13 / 10</span></div>
+              <div class="rev-cell"><span class="k">Sheaf</span><span class="v">8 steps &middot; Black IC at 24</span></div>
+            </div>
+            <div class="note">This is a SEPARATE host, opened in its own designer tab by following the Camera 1 trap door. Its full builder (subsystems, files, sheaf) loads here, independent of the source host in tab 1 -- editing it does not affect Ares Sub-Basement. (Mock: only the header is shown for the destination.)</div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">Identity</span></div>
+          <div class="idrow">
+            <div class="field"><span class="label">Host Selection</span>
+              <select><option selected>Ares Sub-Basement Black Node</option><option>-- Federal Records (LTG) --</option><option>-- Shiawase Commlink (LTG) --</option></select></div>
+            <button class="btn btn-add btn-sm">+ Create Custom Host</button>
+          </div>
+          <div class="idrow" style="margin-top:11px">
+            <div class="field" style="flex:1"><span class="label">LTG Address <span class="muted">(optional linkage)</span></span>
+              <select><option selected>-- None / Custom --</option><option>NA/UCAS-SEA-1024 (Ares)</option></select></div>
+          </div>
+          <div class="note">Select an existing/LTG host or create a custom off-grid host (trap-door sub-hosts, hidden nodes). Selecting an LTG entry auto-creates its host record and can prefill security context.</div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">Security Profile</span></div>
+          <div class="field-grid">
+            <div class="field"><span class="label">Host Name</span><input type="text" value="Ares Sub-Basement Black Node"></div>
+            <div class="field"><span class="label">Security Code</span>
+              <select><option>Blue</option><option>Green</option><option>Orange</option><option selected>Red</option><option>Black</option></select></div>
+            <div class="field"><span class="label">Security Value</span>
+              <input type="number" value="8" min="2" max="14" step="1"></div>
+            <div class="field"><span class="label">Owner Type</span>
+              <select><option>Public</option><option>Commercial</option><option selected>Corp</option><option>Military</option></select></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">ACIFS Subsystems</span>
+            <button class="btn btn-secondary btn-sm">&gt;&gt; Quick-Fill</button></div>
+          <div class="acifs">
+            <div class="acifs-cell"><span class="label">Access</span><div class="val">10</div></div>
+            <div class="acifs-cell"><span class="label">Control</span><div class="val">9</div></div>
+            <div class="acifs-cell"><span class="label">Index</span><div class="val">9</div></div>
+            <div class="acifs-cell"><span class="label">Files</span><div class="val">11</div></div>
+            <div class="acifs-cell"><span class="label">Slave</span><div class="val">8</div></div>
+          </div>
+          <div style="margin-top:14px">
+            <span class="label" style="display:block;margin-bottom:7px">Access -- Named Pieces</span>
+            <div class="tagrow">
+              <span class="tag-pc">SAN Port <span class="x">&times;</span></span>
+              <span class="tag-pc">Terminal 1 <span class="x">&times;</span></span>
+            </div>
+            <div class="addline"><input type="text" placeholder="e.g. SAN Port, Terminal 2"><button class="btn btn-add btn-sm">+ Add</button></div>
+            <span class="label" style="display:block;margin:14px 0 7px">Slave -- Named Devices</span>
+            <div class="tagrow">
+              <span class="tag-pc trap" data-trap="cam1">Security Camera 1 <span class="trapflag">[TRAP DOOR]</span></span>
+              <span class="tag-pc">Maglock 3 <span class="x">&times;</span></span>
+              <span class="tag-pc">Sensor Array <span class="x">&times;</span></span>
+            </div>
+            <div class="addline"><input type="text" placeholder="e.g. Door Lock, Camera 2"><button class="btn btn-add btn-sm">+ Add</button></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">Hosted Files &amp; Passive IC</span>
+            <button class="btn btn-secondary btn-sm">Generate Paydata</button></div>
+          <div class="pd">
+            <div class="pd-row" data-pd="R&amp;D Prototype Specs"><span class="star">&#9733;</span><span class="nm">R&amp;D Prototype Specs</span>
+              <span class="lock">POISON SCRAMBLE-6</span><span class="mp">50Mp</span></div>
+            <div class="pd-row" data-pd="Personnel Dossiers"><span class="nm" style="margin-left:18px">Personnel Dossiers</span>
+              <span class="mp">35Mp</span></div>
+            <div class="pd-row" data-pd="Black Budget Ledger"><span class="star">&#9733;</span><span class="nm">Black Budget Ledger</span>
+              <span class="lock">DATA BOMB-7</span><span class="mp">20Mp</span></div>
+          </div>
+          <div class="addline" style="margin-top:8px"><input type="text" placeholder="file name / description"><button class="btn btn-add btn-sm">+ Add</button></div>
+          <div class="counters" style="margin-top:13px">
+            <div class="counter"><div class="n">2</div><div class="l">Data Bombs</div></div>
+            <div class="counter"><div class="n">1</div><div class="l">Scramble IC</div></div>
+            <div class="counter"><div class="n">1</div><div class="l">Worm IC</div></div>
+          </div>
+          <div class="note">Passive IC -- Data Bombs, Scramble, Worms -- attach to files / slave devices / subsystems here; they are NOT sheaf events. Paydata size is rolled per the Red table (2D6x5 Mp, range 10-60); value is rules-fixed and GM-assigned (no price stored).</div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">Security Sheaf</span>
+            <span class="btn-row"><button class="btn btn-add btn-sm">+ Add Step</button>
+            <button class="btn btn-primary btn-sm">&gt;&gt; Generate</button></span></div>
+
+          <div class="alertpanel">
+            <div class="ap-hd">Alert Triggers</div>
+            <div class="ap-row passive"><span class="ap-name">Passive Alert</span>
+              <select><option>-- None --</option><option selected>Step 3 (&ge;9)</option></select></div>
+            <div class="ap-row active"><span class="ap-name">Active Alert</span>
+              <select><option>-- None --</option><option selected>Step 7 (&ge;19)</option></select></div>
+            <div class="ap-row shutdown"><span class="ap-name">Shutdown</span>
+              <select><option>-- None --</option><option selected>Step 12 (&ge;36)</option></select></div>
+          </div>
+
+          <div class="sheaf" id="sheaf"></div>
+        </div>
+
+        <div class="block">
+          <div class="block-hd"><span class="ttl">Review &amp; Save</span></div>
+          <div class="review-grid">
+            <div class="rev-cell"><span class="k">Host</span><span class="v">Ares Sub-Basement Black Node</span></div>
+            <div class="rev-cell"><span class="k">Security</span><span class="v"><span class="sec-red">Red</span> &middot; 8</span></div>
+            <div class="rev-cell"><span class="k">ACIFS</span><span class="v">10 / 9 / 9 / 11 / 8</span></div>
+            <div class="rev-cell"><span class="k">Paydata</span><span class="v">3 files &middot; 105 Mp</span></div>
+            <div class="rev-cell"><span class="k">Passive IC</span><span class="v">2 Bomb &middot; 1 Scramble &middot; 1 Worm</span></div>
+            <div class="rev-cell"><span class="k">Trap Doors</span><span class="v">1 (Camera 1 &rarr; Vault)</span></div>
+            <div class="rev-cell"><span class="k">Sheaf</span><span class="v">12 steps &middot; P@9 A@19 S@36</span></div>
+            <div class="rev-cell"><span class="k">Status</span><span class="v" style="color:var(--good)">RUN-READY</span></div>
+          </div>
+          <div class="note">Final check before saving. The host is run-ready when it has a security code/value and at least one valid sheaf step.</div>
+          <div class="btn-row" style="margin-top:14px"><button class="btn btn-primary">&gt;&gt; Save &amp; Finish</button></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== RIGHT ===== -->
+    <div class="pane side">
+      <div class="pane-hd">Inspector</div>
+      <div class="pane-bd" id="inspector"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ---- in-field number stepper (mirrors shared.js initNumSteppers) ---- */
+function initNumSteppers(root){
+  (root||document).querySelectorAll('input[type=number]:not(.ns-init)').forEach(inp=>{
+    inp.classList.add('ns-init');
+    const wrap=document.createElement('div'); wrap.className='infield-num-wrap';
+    const w=(inp.style.width||'').trim(); if(w){ wrap.style.width=w; inp.style.width='100%'; }
+    inp.parentNode.insertBefore(wrap,inp); wrap.appendChild(inp);
+    const ctr=document.createElement('div'); ctr.className='infield-num-ctrls';
+    function mk(dir,glyph){
+      const b=document.createElement('button'); b.type='button'; b.className='infield-num-btn'; b.innerHTML=glyph;
+      function step(){
+        const s=parseFloat(inp.step)||1, mn=inp.min!==''?parseFloat(inp.min):-Infinity, mx=inp.max!==''?parseFloat(inp.max):Infinity;
+        let v=parseFloat(inp.value); if(Number.isNaN(v)) v=Number.isFinite(mn)?mn:0;
+        const n=v+dir*s; if(n<mn||n>mx) return; inp.value=n;
+      }
+      let t=null, iv=null;
+      const stop=()=>{ clearTimeout(t); clearInterval(iv); t=iv=null; };
+      b.addEventListener('mousedown',e=>{ e.preventDefault(); step(); t=setTimeout(()=>{ iv=setInterval(step,80); },350); });
+      ['mouseup','mouseleave'].forEach(ev=>b.addEventListener(ev,stop));
+      return b;
+    }
+    ctr.appendChild(mk(1,'&#9650;'));   /* up */
+    ctr.appendChild(mk(-1,'&#9660;'));  /* down */
+    wrap.appendChild(ctr);
+  });
+}
+
+/* label-color switcher */
+document.querySelectorAll('.labelsw button').forEach(b=>b.addEventListener('click',()=>{
+  document.body.style.setProperty('--label',b.dataset.lab);
+  document.querySelectorAll('.labelsw button').forEach(x=>x.classList.toggle('on',x===b));
+}));
+
+/* ============== REAL IC MODEL (mirrors matrix-designer.html) ============== */
+const IC_WHITE=['Crippler (Acid)','Crippler (Binder)','Crippler (Jammer)','Crippler (Marker)','Killer','Probe','Tar Baby'];
+const IC_GRAY_REACTIVE=['Trace','Tar Pit'];
+const IC_GRAY_PROACTIVE=['Blaster','Ripper (Acid-rip)','Ripper (Bind-rip)','Ripper (Jam-rip)','Ripper (Mark-rip)','Sparky'];
+const IC_GRAY=[...IC_GRAY_REACTIVE,...IC_GRAY_PROACTIVE];
+const IC_BLACK=['Black IC (Lethal)','Black IC (Non-Lethal)'];
+const REACTIVE=new Set(['Probe','Tar Baby','Tar Pit','Trace']);
+const COMPOSITE=['Trap IC','Construct','Party IC','Bouncer'];
+
+function icCat(t){ if(IC_WHITE.includes(t))return 'white'; if(IC_BLACK.includes(t))return 'black'; return 'gray'; }
+function isProactive(t){ if(IC_BLACK.includes(t))return true; return !REACTIVE.has(t); }
+function modeTag(t){ return isProactive(t)?'P':'R'; }
+function allowedByAlert(t,ctx){
+  if(IC_BLACK.includes(t)) return ctx==='active'||ctx==='shutdown';
+  if(IC_GRAY_PROACTIVE.includes(t)) return ctx!=='none';
+  return true;
+}
+function canCascade(t){ return isProactive(t); }
+function canExpert(t){ return isProactive(t); }
+function icName(t){ if(t==='Black IC (Lethal)')return 'Lethal'; if(t==='Black IC (Non-Lethal)')return 'Non-Lethal'; return t; }
+const IC_FLAVOR={
+  'Trace':'Reactive Gray IC. Pins your datatrail; on success the host learns your physical jackpoint.',
+  'Tar Pit':'Reactive Gray IC. Locks and crashes the offending utility; can wipe it from the deck.',
+  'Probe':'Reactive White IC. Scans for an intruder and feeds detection back to the host.',
+  'Tar Baby':'Reactive White IC. Locks the offending utility, jamming it until you break free.',
+  'Killer':'Proactive White IC. Attacks your icon in cybercombat. Armor lowers the Power of attacks against it.',
+  'Sparky':'Proactive Gray IC. Damages deck components on a hit.',
+  'Blaster':'Proactive Gray IC. A hit can crash a running utility -- permanent until reloaded.',
+  'Crippler (Acid)':'Proactive White IC. Degrades a deck attribute (Bod) until repaired.',
+  'Ripper (Bind-rip)':'Proactive Gray IC. Permanently chews down a deck attribute chip (Evasion).',
+  'Black IC (Lethal)':'Black IC. Biofeedback that can injure or kill. Cascade ramps its rating as combat drags on; Expert Offense trades resistance dice for attack dice.'
+};
+function flavor(t){ return IC_FLAVOR[t]||(isProactive(t)?'Proactive IC. Attacks in cybercombat.':'Reactive IC. Fires when its trigger is met.'); }
+
+/* host-specific cap: a single IC inside a Construct/Party cannot exceed ceil(SV x 2/3)
+   (vr2_rules.md line 735); combined IC <= construct capacity. Standalone sheaf IC is 1-20. */
+const HOST_SV=8;
+const HOST_IC_CAP=Math.ceil(HOST_SV*2/3);   /* SV 8 -> 6 */
+
+/* ============== SHEAF DATA ============== */
+const SHEAF=[
+  {trigger:3, events:[{type:'ic',ic:'Trace',rating:4}],
+    trace_branch:{yes:[{type:'ic',ic:'Sparky',rating:6}], no:[{type:'ic',ic:'Tar Baby',rating:4}]}},
+  {trigger:6, events:[{type:'trap_ic',surface:'Probe',surfaceRtg:5,hidden:'Killer',hiddenRtg:7,hidden_options:['Armor']}]},
+  {trigger:9, events:[{type:'passive_alert'}]},
+  {trigger:11,events:[{type:'ic',ic:'Killer',rating:7,options:['Armor']}]},
+  {trigger:14,events:[{type:'ic',ic:'Sparky',rating:7}]},
+  {trigger:16,events:[{type:'construct',threat:3,components:[{ic:'Killer',rating:6},{ic:'Blaster',rating:5}],defenses:['Armor']}]},
+  {trigger:19,events:[{type:'active_alert'},{type:'ic',ic:'Killer',rating:8,options:['Armor']}]},
+  {trigger:21,events:[{type:'ic',ic:'Blaster',rating:8}]},
+  {trigger:24,events:[{type:'party_ic',components:[{ic:'Ripper (Bind-rip)',rating:6},{ic:'Sparky',rating:5}]}]},
+  {trigger:27,events:[{type:'ic',ic:'Killer',rating:9,options:['Armor']}]},
+  {trigger:30,events:[{type:'ic',ic:'Black IC (Lethal)',rating:9,cascading:true,expert:{type:'offense',value:2}}]},
+  {trigger:36,events:[{type:'shutdown'}]}
+];
+
+function computeStates(){
+  const order=SHEAF.map((s,si)=>({si,trigger:s.trigger,events:s.events})).sort((a,b)=>a.trigger-b.trigger||a.si-b.si);
+  const states=new Array(SHEAF.length).fill('none'); let cur='none';
+  for(const{si,events} of order){
+    let next=cur;
+    for(const ev of events){
+      if(ev.type==='shutdown'){next='shutdown';break;}
+      if(ev.type==='active_alert'&&next!=='shutdown')next='active';
+      if(ev.type==='passive_alert'&&next==='none')next='passive';
+    }
+    cur=next; states[si]=cur;
+  }
+  return states;
+}
+function ctxAtStep(si){ return computeStates()[si]; }
+
+/* ============== RENDER ============== */
+function optBadges(ev){
+  let b='';
+  (ev.options||[]).forEach(o=>{ b+=`<span class="optb">${o}</span>`; });
+  if(ev.cascading) b+=`<span class="optb casc">CASCADE</span>`;
+  if(ev.expert) b+=`<span class="optb exp">EXP ${ev.expert.type==='offense'?'+':'-'}${ev.expert.value}</span>`;
+  return b;
+}
+/* component IC inside a composite: dot + [P/R] + Name-Rating, in its category color */
+function compIC(ic,rating){
+  const c=icCat(ic);
+  return `<span class="cmp cat-${c}"><span class="dot"></span><span class="pr">[${modeTag(ic)}]</span> ${icName(ic)}-${rating}</span>`;
+}
+function eventChip(ev,si,ei){
+  if(ev.type==='ic'){
+    const cat=icCat(ev.ic);
+    /* order: dot, [R/P], name, options */
+    return `<span class="chip cat-${cat}" data-si="${si}" data-ei="${ei}"><span class="dot"></span><span class="pr">[${modeTag(ev.ic)}]</span><span class="nm">${icName(ev.ic)}-${ev.rating}</span>${optBadges(ev)}</span>`;
+  }
+  if(ev.type==='trap_ic'){
+    const hopt=(ev.hidden_options||[]).map(o=>`<span class="optb">${o}</span>`).join('')+(ev.hidden_cascading?`<span class="optb casc">CASCADE</span>`:'');
+    return `<span class="chip composite" data-si="${si}" data-ei="${ei}"><span class="ctag">Trap</span>${compIC(ev.surface,ev.surfaceRtg)}<span class="arr">-&gt;</span>${compIC(ev.hidden,ev.hiddenRtg)}${hopt}</span>`;
+  }
+  if(ev.type==='construct'){
+    const comps=ev.components.map(c=>compIC(c.ic,c.rating)).join('<span class="arr">,</span>');
+    const defs=ev.defenses&&ev.defenses.length?`<span class="gdef">Group: ${ev.defenses.join(' ')}</span>`:'';
+    const exp=ev.expert?`<span class="optb exp">EXP ${ev.expert.type==='offense'?'+':'-'}${ev.expert.value}</span>`:'';
+    return `<span class="chip composite" data-si="${si}" data-ei="${ei}"><span class="ctag">Construct</span><span class="thr">Threat-${ev.threat}</span>${comps}${defs}${exp}</span>`;
+  }
+  if(ev.type==='party_ic'){
+    const comps=ev.components.map(c=>compIC(c.ic,c.rating)).join('<span class="arr">,</span>');
+    const defs=ev.defenses&&ev.defenses.length?`<span class="gdef">Group: ${ev.defenses.join(' ')}</span>`:'';
+    return `<span class="chip composite" data-si="${si}" data-ei="${ei}"><span class="ctag">Party</span>${comps}${defs}</span>`;
+  }
+  if(ev.type==='bouncer'){
+    return `<span class="chip composite" data-si="${si}" data-ei="${ei}"><span class="ctag">Bouncer</span><span class="nm">-&gt; ${ev.code}-${ev.sv}</span></span>`;
+  }
+  if(['passive_alert','active_alert','shutdown'].includes(ev.type)){
+    const lbl=ev.type==='passive_alert'?'Passive Alert':ev.type==='active_alert'?'Active Alert':'Shutdown';
+    return `<span class="alert-pill ${ev.type}" data-si="${si}" data-ei="${ei}" data-alert="${ev.type}">${lbl}</span>`;
+  }
+  return '';
+}
+function branchChip(ev,si,lane,bi){
+  const cat=icCat(ev.ic);
+  return `<span class="chip cat-${cat}" data-branch="${si}" data-lane="${lane}" data-bi="${bi}"><span class="dot"></span><span class="pr">[${modeTag(ev.ic)}]</span><span class="nm">${icName(ev.ic)}-${ev.rating}</span></span>`;
+}
+function traceBranchHTML(tb,si){
+  const lane=(name,arr,cls,lbl)=>`<div class="tb-lane"><span class="tb-tag ${cls}">${lbl}</span>${arr.map((ev,bi)=>branchChip(ev,si,name,bi)).join('')}<button class="icon-btn">+</button></div>`;
+  return `<div class="trace-branch"><div class="tb-hd">Trace Branch -- events diverge on whether the jackpoint was located</div>
+    ${lane('yes',tb.yes,'yes','Located')}${lane('no',tb.no,'no','Not located')}</div>`;
+}
+function stepHTML(s,si,state){
+  const cls=state!=='none'?` s-${state}`:'';
+  const alertOnly=s.events.length===1 && ['passive_alert','active_alert','shutdown'].includes(s.events[0].type);
+  const tools=alertOnly?'':`<span class="step-tools"><button class="icon-btn">+</button><button class="icon-btn danger">&times;</button></span>`;
+  const branch=s.trace_branch?traceBranchHTML(s.trace_branch,si):'';
+  return `<div class="step"><div class="step-card${cls}">
+    <div class="step-top"><span class="trigger-badge" data-step="${si}"><span class="t-lbl">Trigger</span><b>${s.trigger}</b></span>
+      <div class="chips">${s.events.map((ev,ei)=>eventChip(ev,si,ei)).join('')}</div>${tools}</div>
+    ${branch}
+  </div></div>`;
+}
+function renderSheaf(){
+  const states=computeStates();
+  document.getElementById('sheaf').innerHTML=SHEAF.map((s,si)=>stepHTML(s,si,states[si])).join('');
+}
+
+/* ============== INSPECTOR ============== */
+const CTX_LABEL={none:'No alert',passive:'Passive alert',active:'Active alert',shutdown:'Shutdown'};
+function eventPaletteHTML(ctx){
+  const white=IC_WHITE;
+  const gray=IC_GRAY.filter(t=>allowedByAlert(t,ctx));
+  const black=(ctx==='active'||ctx==='shutdown')?IC_BLACK:[];
+  const grp=(lbl,arr,cls)=> arr.length?`<div class="pal-group"><div class="g-lbl">${lbl}</div><div class="palette">${arr.map(t=>`<span class="pal-chip ${cls}">${icName(t)}</span>`).join('')}</div></div>`:'';
+  return `<div class="insp-section" data-ctx="${ctx}"><span class="label">Add event to this step</span>
+    <div class="pal-cap">Available at this step: <b>${CTX_LABEL[ctx]||'No alert'}</b> (IC gated by Alert Table)</div>
+    ${grp('White IC',white,'w')}${grp('Gray IC',gray,'g')}${grp('Black IC',black,'b')}${grp('Composite',COMPOSITE,'c')}</div>`;
+}
+function box(on,lbl,dis){return `<div class="optbox ${on?'on':''} ${dis?'dis':''}"><span class="box">${on?'&check;':''}</span>${lbl}</div>`;}
+function numField(val,min,max,w){ return `<input type="number" class="insp-num" value="${val}" min="${min}" max="${max}" step="1"${w?` style="width:${w}px"`:''}>`; }
+function render(html){ const el=document.getElementById('inspector'); el.innerHTML=html; initNumSteppers(el); }
+
+function inspectIC(ev,ctx){
+  const t=ev.ic, cat=icCat(t), opts=ev.options||[];
+  const cascAllowed=canCascade(t), expAllowed=canExpert(t);
+  render(`
+    <div class="insp-title">${icName(t)}-${ev.rating} <span class="insp-cat ${cat}">${cat} [${modeTag(t)}]</span></div>
+    <div class="insp-sub">IC Event &middot; Cybercombat</div>
+    <div class="insp-row"><span class="label">Rating</span>${numField(ev.rating,1,20)}</div>
+    <div class="insp-section"><span class="label">Defenses</span>
+      <div class="opt-grid">${box(opts.includes('Armor'),'Armor')}${box(opts.includes('Shielding'),'Shielding',opts.includes('Shifting'))}${box(opts.includes('Shifting'),'Shifting',opts.includes('Shielding'))}${box(!!ev.cascading,'Cascade',!cascAllowed)}</div>
+      ${cascAllowed?'':'<div class="note">Cascade is only available on Proactive and Black IC.</div>'}</div>
+    <div class="insp-section"><span class="label">Expert System</span>
+      <div class="btn-row"><select style="flex:1" ${expAllowed?'':'disabled'}>
+        <option ${!ev.expert?'selected':''}>No Expert</option>
+        <option ${ev.expert&&ev.expert.type==='offense'?'selected':''}>Expert Offense</option>
+        <option ${ev.expert&&ev.expert.type==='defense'?'selected':''}>Expert Defense</option></select>
+        <input type="number" class="insp-num" style="width:56px" value="${ev.expert?ev.expert.value:1}" min="1" max="3"></div>
+      ${expAllowed?'':'<div class="note">Expert is only available on Proactive and Black IC.</div>'}
+      <div class="insp-flavor">${flavor(t)}</div></div>
+    ${eventPaletteHTML(ctx)}
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm">Save</button>
+      <button class="btn btn-danger btn-sm">Remove IC</button></div>`);
+}
+
+/* a component = the individual IC underneath a composite: shows its detail
+   (category color, mode, flavor) AND lets you edit its rating */
+function compDetail(c){
+  const cc=icCat(c.ic);
+  return `<div class="cmprow"><span class="cmp cat-${cc}"><span class="dot"></span><span class="pr">[${modeTag(c.ic)}]</span> ${icName(c.ic)}</span>
+    ${numField(c.rating,1,HOST_IC_CAP,64)}<button class="icon-btn danger">&times;</button></div>
+    <div class="insp-flavor" style="margin:2px 0 10px">${flavor(c.ic)}</div>`;
+}
+function inspectComposite(ev,ctx){
+  let title='',sub='',body='';
+  if(ev.type==='trap_ic'){ title='Trap IC'; sub='Surface -> Hidden payload';
+    const ho=ev.hidden_options||[], hcasc=canCascade(ev.hidden);
+    body=`<div class="insp-section"><span class="label">Surface IC (visible, reactive)</span>
+        <div class="cmprow"><span class="cmp cat-${icCat(ev.surface)}"><span class="dot"></span><span class="pr">[${modeTag(ev.surface)}]</span> ${ev.surface}</span>${numField(ev.surfaceRtg,1,20,64)}<button class="icon-btn danger">&times;</button></div>
+        <div class="insp-flavor" style="margin-top:6px">Surface IC is reactive (Probe/Trace) -- rating only; it carries no offensive options.</div></div>
+      <div class="insp-section"><span class="label">Hidden IC (payload)</span>
+        <div class="cmprow"><span class="cmp cat-${icCat(ev.hidden)}"><span class="dot"></span><span class="pr">[${modeTag(ev.hidden)}]</span> ${icName(ev.hidden)}</span>${numField(ev.hiddenRtg,1,20,64)}<button class="icon-btn danger">&times;</button></div>
+        <div class="insp-flavor" style="margin:6px 0 10px">${flavor(ev.hidden)}</div>
+        <span class="label" style="display:block;margin-bottom:8px">Hidden IC Options</span>
+        <div class="opt-grid">${box(ho.includes('Armor'),'Armor')}${box(ho.includes('Shielding'),'Shielding',ho.includes('Shifting'))}${box(ho.includes('Shifting'),'Shifting',ho.includes('Shielding'))}${box(!!ev.hidden_cascading,'Cascade',!hcasc)}</div></div>
+      <div class="note">Only the hidden payload takes defenses (Armor/Shielding/Shifting) and Cascade -- the surface IC does not.</div>`;
+  } else if(ev.type==='construct'){ title='Construct'; sub='Grouped IC, single icon';
+    const d=ev.defenses||[];
+    body=`<div class="insp-row"><span class="label">Max IC rating</span><span class="muted">${HOST_IC_CAP} -- ceil(SV x 2/3)</span></div>
+      <div class="insp-row"><span class="label">Capacity</span><span class="muted">11 used / 30 (SV + Threat)</span></div>
+      <div class="insp-row"><span class="label">Threat Rating</span>${numField(ev.threat,0,4,64)}</div>
+      <div class="note">Threat maps to security code -- 0 Blue, 1 Green, 2 Orange, 3 Red, 4 Black -- and cannot exceed the host code. It drives the construct's capacity and max IC rating; it is not flavor.</div>
+      <div class="insp-section"><span class="label">Component IC</span>${ev.components.map(compDetail).join('')}
+        <div class="btn-row"><button class="btn btn-add btn-sm">+ IC</button></div></div>
+      <div class="insp-section"><span class="label">Group Defenses &middot; apply to the whole construct (2 cap each)</span>
+        <div class="opt-grid">${box(d.includes('Armor'),'Armor')}${box(d.includes('Shielding'),'Shielding',d.includes('Shifting'))}${box(d.includes('Shifting'),'Shifting',d.includes('Shielding'))}</div>
+        <div class="note">Construct defenses are a property of the whole icon -- not of any single component IC.</div></div>
+      <div class="insp-section"><span class="label">Group Expert</span>
+        <div class="btn-row"><select style="flex:1"><option ${!ev.expert?'selected':''}>No Expert</option>
+          <option ${ev.expert&&ev.expert.type==='offense'?'selected':''}>Expert Offense</option>
+          <option ${ev.expert&&ev.expert.type==='defense'?'selected':''}>Expert Defense</option></select>
+          ${numField(ev.expert?ev.expert.value:1,1,3,56)}</div></div>`;
+  } else if(ev.type==='party_ic'){ title='Party IC'; sub='IC cluster acting together';
+    const d=ev.defenses||[];
+    body=`<div class="insp-row"><span class="label">Capacity</span><span class="muted">14 used / 24 (SV)</span></div>
+      <div class="insp-section"><span class="label">Component IC</span>${ev.components.map(compDetail).join('')}
+        <div class="btn-row"><button class="btn btn-add btn-sm">+ IC</button></div></div>
+      <div class="insp-section"><span class="label">Group Defenses &middot; apply to each member (1 cap each)</span>
+        <div class="opt-grid">${box(d.includes('Armor'),'Armor')}${box(d.includes('Shielding'),'Shielding',d.includes('Shifting'))}${box(d.includes('Shifting'),'Shifting',d.includes('Shielding'))}</div></div>`;
+  } else if(ev.type==='bouncer'){ title='Bouncer'; sub='Upgrade host security';
+    body=`<div class="insp-row"><span class="label">New Code</span><select style="width:120px"><option>Red</option><option>Black</option></select></div>
+      <div class="insp-row"><span class="label">New SV</span>${numField(ev.sv,1,30,64)}</div>`;
+  }
+  render(`<div class="insp-title">${title}</div><div class="insp-sub">${sub}</div>${body}
+    ${eventPaletteHTML(ctx)}
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm">Save</button>
+      <button class="btn btn-danger btn-sm">Remove Event</button></div>`);
+}
+
+function inspectAlert(kind,si){
+  const map={passive_alert:['Passive Alert','Host grows suspicious: +2 to all subsystem ratings and the host begins watching for the intruder.'],
+    active_alert:['Active Alert','Host is fully alerted: Proactive IC deploys and aggression escalates each step.'],
+    shutdown:['Shutdown','Host dumps all personas and powers down the node. Anyone still jacked in eats dump shock.']};
+  const m=map[kind];
+  const s=SHEAF[si]||{events:[]};
+  const others=s.events.filter(e=>e.type!==kind);
+  const otherList=others.length?`<div class="insp-section"><span class="label">Also on this step</span><div class="evt-list">${others.map(e=>{
+      const lbl=e.type==='ic'?`${icName(e.ic)}-${e.rating} [${modeTag(e.ic)}]`:(e.type==='trap_ic'?'Trap IC':e.type==='construct'?'Construct':e.type==='party_ic'?'Party IC':e.type.replace('_',' '));
+      return `<div class="evt"><span class="e-nm">${lbl}</span><span class="rm"><button class="icon-btn danger">&times;</button></span></div>`;
+    }).join('')}</div></div>`:'';
+  render(`<div class="insp-title">${m[0]}</div><div class="insp-sub">Alert Trigger &middot; Step ${si+1}</div>
+    <div class="insp-flavor" style="margin-top:8px">${m[1]}</div>
+    <div class="note">Assigned via the Alert Triggers panel (Passive -&gt; Active -&gt; Shutdown). A step can hold an alert AND IC together -- add IC below.</div>
+    ${otherList}
+    ${kind==='shutdown'?'<div class="note">Shutdown ends the run on this node, so IC is not scheduled after it.</div>':eventPaletteHTML(ctxAtStep(si))}
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm">Save</button></div>`);
+}
+
+function inspectStep(si){
+  const s=SHEAF[si], ctx=ctxAtStep(si);
+  /* trigger is bounded by its neighbours: min = prev+1, max = next-1 (ordered sheaf) */
+  const _prev=si>0?SHEAF[si-1].trigger:0, _next=si<SHEAF.length-1?SHEAF[si+1].trigger:null;
+  const _minT=si===0?0:_prev+1, _maxT=_next!=null?_next-1:99;
+  const evs=s.events.map(ev=>{
+    let lbl;
+    if(ev.type==='ic')lbl=`${icName(ev.ic)}-${ev.rating} [${modeTag(ev.ic)}]`;
+    else if(ev.type==='trap_ic')lbl=`Trap: ${ev.surface}-${ev.surfaceRtg} -&gt; ${icName(ev.hidden)}-${ev.hiddenRtg}`;
+    else if(ev.type==='construct')lbl=`Construct Threat-${ev.threat}`;
+    else if(ev.type==='party_ic')lbl='Party IC';
+    else if(ev.type==='bouncer')lbl=`Bouncer -&gt; ${ev.code}-${ev.sv}`;
+    else lbl=ev.type.replace('_',' ');
+    return `<div class="evt"><span class="e-nm">${lbl}</span><span class="rm"><button class="icon-btn danger">&times;</button></span></div>`;
+  }).join('');
+  render(`<div class="insp-title">Sheaf Step ${si+1}</div><div class="insp-sub">Trigger &amp; Events</div>
+    <div class="insp-row"><span class="label">Trigger Step</span>${numField(s.trigger,_minT,_maxT)}</div>
+    <div class="note">Trigger range for this step: ${_minT} to ${_maxT===99?'(open)':_maxT}, ordered by the neighbouring steps.</div>
+    <div class="insp-section"><span class="label">Events on this step</span><div class="evt-list">${evs}</div></div>
+    ${eventPaletteHTML(ctx)}
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm">Save</button>
+      <button class="btn btn-danger btn-sm">Delete Step</button></div>`);
+}
+
+function inspectTrapDoor(){
+  render(`<div class="insp-title">Security Camera 1</div><div class="insp-sub">Slave Device &middot; Trap Door</div>
+    <div class="insp-row"><span class="label">Hidden</span><span class="warn" style="color:var(--warn)">Yes -- until Analyzed</span></div>
+    <div class="follow-card">
+      <span class="label">Destination</span>
+      <div class="dest">&#8627; <b>Ares Black IC Vault</b> <span class="muted">(Red-10 sub-host)</span></div>
+      <button class="btn btn-cyan btn-sm" id="followBtn">Follow Trap Door &#8594;</button>
+    </div>
+    <div class="note">A concealed comm port that bypasses Access and drops the decker into another host. "Follow" loads that host into the designer so you can edit the system on the other side of the door.</div>
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-secondary btn-sm">Edit Link</button>
+      <button class="btn btn-danger btn-sm">Remove Trap Door</button></div>`);
+}
+
+function inspectPaydata(name){
+  render(`<div class="insp-title">${name}</div><div class="insp-sub">Paydata File</div>
+    <div class="insp-row"><span class="label">Size (Mp)</span>${numField(50,1,300)}</div>
+    <div class="insp-row"><span class="label">Key File</span>
+      <div class="optbox on" style="width:auto"><span class="box">&check;</span>Key</div></div>
+    <div class="insp-section"><span class="label">File-Level Protection</span>
+      <div class="opt-grid">${box(true,'Scramble')}${box(false,'Data Bomb')}</div>
+      <div class="insp-row" style="margin-top:10px"><span class="label">Variant</span>
+        <select style="width:130px"><option selected>Poison</option><option>Exploding</option></select></div>
+      <div class="insp-row"><span class="label">Rating</span>${numField(6,1,20)}</div>
+      <div class="insp-flavor">Poison Scramble repeats its data-destruction attempt once it detects the decker, until decrypted or crashed.</div></div>
+    <div class="note">Passive IC attaches to files/devices here -- not part of the sheaf. Size rolled per the Red table (2D6x5 Mp); value rules-fixed and GM-assigned.</div>
+    <div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm">Save</button>
+      <button class="btn btn-danger btn-sm">Delete File</button></div>`);
+}
+
+function clearSel(){document.querySelectorAll('.chip.sel,.alert-pill.sel,.trigger-badge.sel,.pd-row.sel,.tag-pc.sel').forEach(x=>x.classList.remove('sel'));}
+document.addEventListener('click',e=>{
+  const chip=e.target.closest('.chip[data-si]');
+  const pill=e.target.closest('.alert-pill[data-si]');
+  const tb=e.target.closest('.trigger-badge[data-step]');
+  const pd=e.target.closest('.pd-row[data-pd]');
+  const trap=e.target.closest('.tag-pc.trap[data-trap]');
+  const br=e.target.closest('.chip[data-branch]');
+  const follow=e.target.closest('#followBtn');
+  const htab=e.target.closest('.htab[data-tab]');
+  const tabClose=e.target.closest('#tabBclose');
+  if(follow){ document.getElementById('tabB').style.display=''; showTab('B'); return; }
+  if(tabClose){ document.getElementById('tabB').style.display='none'; showTab('A'); return; }
+  if(e.target.closest('#backToA')){ showTab('A'); return; }
+  if(htab){ showTab(htab.dataset.tab); return; }
+  const pc=e.target.closest('.pal-chip.c');
+  if(pc){ const w=pc.closest('[data-ctx]'); buildComposite(pc.textContent.trim(), w?w.dataset.ctx:'none'); return; }
+  if(br){ clearSel(); br.classList.add('sel'); const si=+br.dataset.branch; inspectIC(SHEAF[si].trace_branch[br.dataset.lane][+br.dataset.bi],ctxAtStep(si)); return; }
+  if(chip){
+    clearSel(); chip.classList.add('sel');
+    const ev=SHEAF[+chip.dataset.si].events[+chip.dataset.ei];
+    if(ev.type==='ic') inspectIC(ev,ctxAtStep(+chip.dataset.si));
+    else inspectComposite(ev,ctxAtStep(+chip.dataset.si));
+  } else if(pill){ clearSel(); pill.classList.add('sel'); inspectAlert(pill.dataset.alert,+pill.dataset.si); }
+  else if(tb){ clearSel(); tb.classList.add('sel'); inspectStep(+tb.dataset.step); }
+  else if(pd){ clearSel(); pd.classList.add('sel'); inspectPaydata(pd.dataset.pd); }
+  else if(trap){ clearSel(); trap.classList.add('sel'); inspectTrapDoor(); }
+});
+
+/* ============== COMPOSITE / TRAP BUILDER (create-from-scratch) ============== */
+let BUILD=null;
+const TRAP_HIDDEN=['Blaster','Killer','Sparky','Black IC (Non-Lethal)','Black IC (Lethal)']; /* Trap IC Table */
+function buildIcOptions(ctx){
+  const list=[...IC_WHITE, ...IC_GRAY.filter(t=>allowedByAlert(t,ctx)), ...((ctx==='active'||ctx==='shutdown')?IC_BLACK:[])];
+  return list.map(t=>`<option value="${t}">${icName(t)} [${modeTag(t)}]</option>`).join('');
+}
+function buildComposite(kind,ctx){
+  BUILD={kind,ctx,components:[],defenses:[],threat:0,
+    surface:'Probe',surfaceRtg:5,hidden:'Killer',hiddenRtg:HOST_IC_CAP,hiddenOpts:[],hiddenCasc:false,
+    code:'Red',sv:HOST_SV+1};
+  renderBuilder();
+}
+function _ob(on,lbl,dis){return `<div class="optbox ${on?'on':''} ${dis?'dis':''}" data-opt="${lbl}"><span class="box">${on?'&check;':''}</span>${lbl}</div>`;}
+function capMeter(){
+  const B=BUILD, defCost=B.kind==='Construct'?2:1;
+  const used=B.components.reduce((a,c)=>a+c.rating,0)+B.defenses.length*defCost;
+  const max=B.kind==='Construct'?(HOST_SV*2+B.threat):(HOST_SV*2);
+  const over=used>max;
+  return `<div class="insp-row"><span class="label">Capacity</span><span class="${over?'bad':'muted'}">${used} / ${max}${over?' -- OVER':''}</span></div>
+    <div class="insp-row"><span class="label">Max IC rating</span><span class="muted">${HOST_IC_CAP} (ceil SV x 2/3)</span></div>`;
+}
+function builderFooter(){return `<div class="btn-row" style="margin-top:16px"><button class="btn btn-primary btn-sm" id="bSubmit">&gt;&gt; Add to step</button><button class="btn btn-secondary btn-sm" id="bCancel">Cancel</button></div>`;}
+function renderBuilder(){
+  const el=document.getElementById('inspector'), B=BUILD;
+  if(B.kind==='Trap IC'){
+    const hc=canCascade(B.hidden);
+    el.innerHTML=`<div class="insp-title">New Trap IC</div><div class="insp-sub">Surface -> Hidden payload</div>
+      <div class="insp-section"><span class="label">Surface IC (reactive)</span>
+        <div class="btn-row"><select id="bSurf" style="flex:1"><option ${B.surface==='Probe'?'selected':''}>Probe</option><option ${B.surface==='Trace'?'selected':''}>Trace</option></select>
+        <input type="number" id="bSurfR" class="insp-num" style="width:62px" value="${B.surfaceRtg}" min="1" max="20"></div></div>
+      <div class="insp-section"><span class="label">Hidden IC (Trap IC Table)</span>
+        <div class="btn-row"><select id="bHid" style="flex:1">${TRAP_HIDDEN.map(t=>`<option ${B.hidden===t?'selected':''} value="${t}">${icName(t)} [${modeTag(t)}]</option>`).join('')}</select>
+        <input type="number" id="bHidR" class="insp-num" style="width:62px" value="${B.hiddenRtg}" min="1" max="20"></div>
+        <span class="label" style="display:block;margin:11px 0 8px">Hidden IC Options</span>
+        <div class="opt-grid">${_ob(B.hiddenOpts.includes('Armor'),'Armor')}${_ob(B.hiddenOpts.includes('Shielding'),'Shielding',B.hiddenOpts.includes('Shifting'))}${_ob(B.hiddenOpts.includes('Shifting'),'Shifting',B.hiddenOpts.includes('Shielding'))}${_ob(B.hiddenCasc,'Cascade',!hc)}</div></div>
+      <div class="note">Surface IC is reactive (rating only); only the hidden payload takes options.</div>${builderFooter()}`;
+  } else if(B.kind==='Bouncer'){
+    el.innerHTML=`<div class="insp-title">New Bouncer</div><div class="insp-sub">Upgrade host security</div>
+      <div class="insp-row"><span class="label">New Code (>= host)</span><select id="bCode" style="width:120px"><option ${B.code==='Red'?'selected':''}>Red</option><option ${B.code==='Black'?'selected':''}>Black</option></select></div>
+      <div class="insp-row"><span class="label">New SV</span><input type="number" id="bSv" class="insp-num" style="width:62px" value="${B.sv}" min="${HOST_SV}" max="30"></div>
+      <div class="note">Bouncer code cannot drop below the host code (Red); SV must be at least the host SV.</div>${builderFooter()}`;
+  } else {
+    const isC=B.kind==='Construct';
+    el.innerHTML=`<div class="insp-title">New ${isC?'Construct':'Party IC'}</div><div class="insp-sub">${isC?'Grouped IC, single icon':'IC cluster'}</div>
+      ${capMeter()}
+      ${isC?`<div class="insp-row"><span class="label">Threat (0-3 Red)</span><input type="number" id="bThreat" class="insp-num" style="width:62px" value="${B.threat}" min="0" max="3"></div>`:''}
+      <div class="insp-section"><span class="label">Add component IC (max rating ${HOST_IC_CAP})</span>
+        <div class="btn-row"><select id="bIc" style="flex:1">${buildIcOptions(B.ctx)}</select>
+          <input type="number" id="bIcR" class="insp-num" style="width:54px" value="${HOST_IC_CAP}" min="1" max="${HOST_IC_CAP}">
+          <button class="btn btn-add btn-sm" id="bAdd">+ IC</button></div>
+        <div class="evt-list" style="margin-top:8px">${B.components.length?B.components.map((c,i)=>`<div class="cmprow"><span class="cmp cat-${icCat(c.ic)}"><span class="dot"></span><span class="pr">[${modeTag(c.ic)}]</span> ${icName(c.ic)}-${c.rating}</span><button class="icon-btn danger" data-rm="${i}">&times;</button></div>`).join(''):'<div class="muted" style="font-size:var(--fs-sm)">No components yet.</div>'}</div></div>
+      <div class="insp-section"><span class="label">Group Defenses (${isC?'2':'1'} cap each)</span>
+        <div class="opt-grid">${_ob(B.defenses.includes('Armor'),'Armor')}${_ob(B.defenses.includes('Shielding'),'Shielding',B.defenses.includes('Shifting'))}${_ob(B.defenses.includes('Shifting'),'Shifting',B.defenses.includes('Shielding'))}</div></div>
+      ${builderFooter()}`;
+  }
+  wireBuilder(); initNumSteppers(el);
+}
+function _readBuild(){
+  const el=document.getElementById('inspector'), g=s=>el.querySelector(s);
+  if(g('#bSurfR'))BUILD.surfaceRtg=parseInt(g('#bSurfR').value,10)||BUILD.surfaceRtg;
+  if(g('#bHidR'))BUILD.hiddenRtg=parseInt(g('#bHidR').value,10)||BUILD.hiddenRtg;
+  if(g('#bSurf'))BUILD.surface=g('#bSurf').value;
+  if(g('#bHid'))BUILD.hidden=g('#bHid').value;
+  if(g('#bThreat'))BUILD.threat=Math.max(0,Math.min(3,parseInt(g('#bThreat').value,10)||0));
+  if(g('#bSv'))BUILD.sv=parseInt(g('#bSv').value,10)||BUILD.sv;
+  if(g('#bCode'))BUILD.code=g('#bCode').value;
+}
+function wireBuilder(){
+  const el=document.getElementById('inspector'), B=BUILD, g=s=>el.querySelector(s);
+  el.querySelectorAll('.optbox[data-opt]').forEach(ob=>ob.addEventListener('click',()=>{
+    if(ob.classList.contains('dis'))return; _readBuild();
+    const o=ob.dataset.opt;
+    if(B.kind==='Trap IC'&&o==='Cascade'){ B.hiddenCasc=!B.hiddenCasc; renderBuilder(); return; }
+    const arr=(B.kind==='Trap IC')?B.hiddenOpts:B.defenses;
+    const i=arr.indexOf(o); if(i>=0)arr.splice(i,1); else arr.push(o); renderBuilder();
+  }));
+  if(g('#bAdd'))g('#bAdd').addEventListener('click',()=>{ _readBuild(); const ic=g('#bIc').value, r=parseInt(g('#bIcR').value,10);
+    if(ic&&r>=1&&r<=HOST_IC_CAP){ B.components.push({ic,rating:r}); renderBuilder(); } });
+  el.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{ _readBuild(); B.components.splice(+b.dataset.rm,1); renderBuilder(); }));
+  if(g('#bThreat'))g('#bThreat').addEventListener('change',()=>{ _readBuild(); renderBuilder(); });
+  if(g('#bHid'))g('#bHid').addEventListener('change',()=>{ _readBuild(); if(!canCascade(B.hidden))B.hiddenCasc=false; renderBuilder(); });
+  if(g('#bSubmit'))g('#bSubmit').addEventListener('click',()=>{ _readBuild();
+    el.innerHTML=`<div class="insp-title">${B.kind} configured</div><div class="insp-sub">Mock</div>
+      <div class="note">In the live app this appends the configured ${B.kind} to the current step and re-renders the sheaf.</div>
+      <div class="btn-row" style="margin-top:14px"><button class="btn btn-secondary btn-sm" onclick="document.getElementById('inspector').innerHTML='&lt;div class=insp-empty&gt;Select a sheaf event to edit it here.&lt;/div&gt;'">OK</button></div>`; });
+  if(g('#bCancel'))g('#bCancel').addEventListener('click',()=>{ el.innerHTML='<div class="insp-empty">Select a sheaf event to edit it here.</div>'; BUILD=null; });
+}
+
+/* tab switch: swap the centre builder for the destination-host view + update summary */
+function showTab(t){
+  const onB=t==='B';
+  document.getElementById('tabBView').style.display=onB?'':'none';
+  document.querySelectorAll('.pane:not(.side) > .pane-bd > .block').forEach(b=>{ b.style.display=onB?'none':''; });
+  document.getElementById('followMsg').style.display=onB?'':'none';
+  document.querySelectorAll('.htab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));
+  const nm=document.getElementById('sumName'), sec=document.getElementById('sumSec');
+  if(nm) nm.textContent=onB?'Ares Black IC Vault':'Ares Sub-Basement';
+  if(sec) sec.innerHTML=onB?'<span class="sec-red">Red</span> &middot; 10':'<span class="sec-red">Red</span> &middot; 8';
+}
+
+/* boot */
+renderSheaf();
+initNumSteppers(document);             /* wraps the static center number fields */
+(function(){
+  const chips=[...document.querySelectorAll('.chip[data-si]')];
+  const k=chips.find(c=>{const ev=SHEAF[+c.dataset.si].events[+c.dataset.ei];return ev.type==='ic'&&ev.ic==='Killer'&&ev.rating===9;});
+  if(k){k.classList.add('sel'); inspectIC(SHEAF[+k.dataset.si].events[+k.dataset.ei],ctxAtStep(+k.dataset.si));}
+})();
+</script>
+</body>
+</html>
