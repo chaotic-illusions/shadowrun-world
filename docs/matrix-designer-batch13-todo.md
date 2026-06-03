@@ -64,7 +64,20 @@ via `md3.config.js` (server on :8771, page at `/ui/matrix-designer.html`). Updat
   sync, grouped rows render, current marked, pick sets value + fires change + closes. Playwright **ISSUES 0**;
   screenshot `_sr_e2e/md3-host-dropdown.png`.
 
-## Custom in-DOM dropdown -- (BUILT in task 10; original estimate kept for reference)
+- [x] **11. Custom dropdown applied to ALL designer selects** (user: "can that be a style for all
+  dropdowns?"). Not pure CSS -- a native `<select>` popup can't be reskinned -- so the task-10 component was
+  generalized into a reusable enhancer: `enhanceSelect(sel)` hides the native select (kept as data model),
+  copies its layout-only inline styles (width/flex/margin/font-size) to a `.md3-cdd` wrapper, and builds the
+  button + listbox; `initCustomDropdowns()` enhances all current `.md3 select`s and a MutationObserver
+  auto-upgrades any injected later (inspector/editor selects rebuilt via innerHTML). State keyed on the
+  element (`sel._cdd = {wrap,btn,label,panel,placeholder}`); generic `cddOpen/Close/Toggle/Sync/_cddPick/
+  _cddKey`. `refreshHostSelect` is now a 1-line shim to `cddSync($('hostSelect'))` (host integration sites
+  unchanged). Opt-out hook: `data-native` on a select. Scope: designer only (`.md3`); coverage: every select.
+  CSS font-size inherits so compact rows stay compact; disabled selects render a disabled button. Spec 3b
+  asserts hostSelect + a 2nd static select (secCode) are both enhanced; verified 10/10 selects on the
+  Security step + both Trap-editor selects enhanced (screenshots md3-dd-security/-trap.png). Playwright **ISSUES 0**.
+
+## Custom in-DOM dropdown -- (BUILT in task 10, generalized to all selects in task 11)
 Moderate, self-contained -- ~1 focused session. Lowest-risk path: keep the existing hidden
 `<select id="hostSelect">` as the data model (so `renderHostDropdown`, all `hostSelect.value` reads/writes,
 and `onHostChange` keep working untouched) and build a custom visual layer over it: a button showing the
