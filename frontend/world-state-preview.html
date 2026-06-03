@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>World State | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style id="ws-2pane">
+  /* World State 2-pane: a PERSISTENT right-hand detail pane (rounded holder, under the nav).
+     The five dossier/edit overlays dock onto its box; an idle animation shows when nothing is
+     selected. Space is reserved permanently so the main content never shifts when a dossier
+     opens. Utility dialogs (#srConfirm/#srAlert/#standingEditor/#srPrompt) stay centered. */
+  :root{ --dock-w:660px; --dock-gap:18px; --page-w:1200px; --ws-hdr-h:64px; }
+
+  /* permanently center the [content + pane] pair: shift main left by half (pane+gap) ALWAYS,
+     so opening a dossier never moves the page. */
+  main{ transform:translateX(calc(-1 * (var(--dock-w) + var(--dock-gap)) / 2)); }
+
+  /* the persistent holder: under the header, full height minus a gap, rounded */
+  #wsPane{
+    position:fixed; z-index:90;
+    top:calc(var(--ws-hdr-h) + var(--dock-gap)); bottom:var(--dock-gap);
+    left:calc(50% + (var(--page-w) + var(--dock-gap) - var(--dock-w)) / 2);
+    width:var(--dock-w);
+    background:var(--bg-card); border:1px solid #1a3a1a; border-radius:14px;
+    box-shadow:0 0 0 1px rgba(0,255,65,.04), -8px 0 40px rgba(0,0,0,.55);
+    overflow:hidden; display:flex; flex-direction:column;
+  }
+
+  /* idle state -- hidden when one of the five dossiers is open (explicit list, so the utility
+     dialogs above don't blank it) */
+  #wsIdle{ flex:1; display:flex; align-items:center; justify-content:center; padding:28px; }
+  body:has(#npcOverlay.open) #wsIdle, body:has(#editOverlay.open) #wsIdle,
+  body:has(#orgEditOverlay.open) #wsIdle, body:has(#locEditOverlay.open) #wsIdle,
+  body:has(#charEditOverlay.open) #wsIdle{ display:none; }
+  .ws-idle-box{ text-align:center; font-family:var(--font); }
+  .ws-idle-tag{ font-size:0.6rem; letter-spacing:4px; color:var(--text-dim); text-transform:uppercase; margin-bottom:14px; }
+  .ws-idle-line{ font-size:0.92rem; letter-spacing:2px; color:var(--green-dim); text-shadow:var(--glow-green); min-height:1.4em; }
+  #wsIdleText{ transition:opacity .25s; }
+  .ws-idle-line::after{ content:'_'; margin-left:2px; animation:wsBlink 1s step-end infinite; }
+  @keyframes wsBlink{ 0%,100%{opacity:1} 50%{opacity:0} }
+  .ws-idle-dots{ margin-top:16px; font-size:0.62rem; letter-spacing:3px; color:var(--text-dim); }
+  .ws-idle-dots::after{ content:'...'; animation:wsScan 1.6s steps(4,end) infinite; }
+  @keyframes wsScan{ 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%,100%{content:'...'} }
+
+  /* dock the five dossier/edit overlays onto the pane box */
+  #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{
+    inset:calc(var(--ws-hdr-h) + var(--dock-gap)) auto var(--dock-gap)
+          calc(50% + (var(--page-w) + var(--dock-gap) - var(--dock-w)) / 2);
+    width:var(--dock-w); background:transparent; backdrop-filter:none;
+    align-items:stretch; justify-content:flex-start;
+  }
+  #npcOverlay .ltg-modal, #editOverlay .ltg-modal,
+  #orgEditOverlay .edit-modal, #locEditOverlay .ltg-modal, #charEditOverlay .ltg-modal{
+    width:var(--dock-w); max-width:var(--dock-w); height:100%; max-height:100%;
+    border-radius:14px; box-shadow:-8px 0 40px rgba(0,0,0,.6);
+    transform:translateX(20px);
+  }
+  #npcOverlay.open .ltg-modal, #editOverlay.open .ltg-modal,
+  #orgEditOverlay.open .edit-modal, #locEditOverlay.open .ltg-modal, #charEditOverlay.open .ltg-modal{
+    transform:translateX(0);
+  }
+
+  /* not enough room to center the pair -> right-dock the pane, squeeze the content, no shift */
+  @media (max-width:1940px){
+    main{ transform:none; padding-right:calc(var(--dock-w) + var(--dock-gap) + 12px); }
+    #wsPane{ left:auto; right:var(--dock-gap); }
+    #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{
+      inset:calc(var(--ws-hdr-h) + var(--dock-gap)) var(--dock-gap) var(--dock-gap) auto;
+    }
+  }
+  /* too narrow for any side pane -> hide the holder, let modals center (original behavior) */
+  @media (max-width:1200px){
+    main{ transform:none; padding-right:0; }
+    #wsPane{ display:none; }
+    #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{ inset:0; width:auto; }
+    #npcOverlay .ltg-modal, #editOverlay .ltg-modal, #orgEditOverlay .edit-modal,
+    #locEditOverlay .ltg-modal, #charEditOverlay .ltg-modal{ border-radius:0; transform:translateY(14px); }
+    #npcOverlay.open .ltg-modal, #editOverlay.open .ltg-modal, #orgEditOverlay.open .edit-modal,
+    #locEditOverlay.open .ltg-modal, #charEditOverlay.open .ltg-modal{ transform:translateY(0); }
+  }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html" class="active">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em class="sep">//</em> Seattle Metroplex <em class="sep">//</em> <span id="srDate"></span> <em class="sep">//</em> <span id="liveClock"></span></div>
+  <div style="font-family:var(--font);font-size:0.78rem;letter-spacing:2px;color:#aa2a2a;margin-bottom:20px;text-align:right">... do you know where your meat-body is?</div>
+  <div class="page-sub" style="margin-top:-14px; color:var(--cyan)">INTELLIGENCE DATASTORE // PROCESSING... // READY</div>
+
+  <div class="status-bar">
+    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>DIRECT // [CYBER-4]</span></div>
+    <div class="status-item">TEAM HEAT: <span id="sb-heat">--</span></div>
+    <div class="status-item">TEAM REPUTATION: <span id="sb-rep">--</span></div>
+  </div>
+
+  <div class="stat-bar" id="statBar">
+    <div class="stat-card stat-card-nav flex-col-center" onclick="toggleSection('pcs')" data-tip="Jump to Runner Team">
+      <div class="flex-row-16">
+        <div class="text-center">
+          <div class="stat-num stat-num-sm" id="sc-chars">--</div>
+          <div class="stat-sub">Active</div>
+        </div>
+        <div class="vr"></div>
+        <div class="text-center">
+          <div class="stat-num stat-num-sm stat-num-red" id="sc-chars-inactive">--</div>
+          <div class="stat-sub">Inactive</div>
+        </div>
+      </div>
+      <div class="stat-lbl">Shadowrunners</div>
+    </div>
+    <div class="stat-card stat-card-nav" onclick="toggleContactSections()" data-tip="Jump to Contacts &amp; Known Persons"><span class="stat-num" id="sc-contacts">--</span><div class="stat-lbl">Active Contacts</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleAllOrgs()" data-tip="Jump to Organizations"><span class="stat-num" id="sc-orgs">--</span><div class="stat-lbl">Organizations</div></div>
+    <div class="stat-card stat-card-nav" onclick="toggleSection('locs')" data-tip="Jump to Locations"><span class="stat-num" id="sc-locs">--</span><div class="stat-lbl">Locations</div></div>
+  </div>
+
+  <div id="worldContent"><div class="loading">Loading world data</div></div>
+</main>
+
+<!-- Persistent detail pane (always visible; dossiers dock here, idle animation when empty) -->
+<aside id="wsPane">
+  <div id="wsIdle">
+    <div class="ws-idle-box">
+      <div class="ws-idle-tag">// Intelligence Datastore</div>
+      <div class="ws-idle-line">&gt;&gt; <span id="wsIdleText">awaiting input</span></div>
+      <div class="ws-idle-dots">standby</div>
+    </div>
+  </div>
+</aside>
+
+<!-- -- NPC DOSSIER MODAL ------------------------------------------ -->
+<div id="npcOverlay" class="ltg-overlay" onclick="npcOverlayClick(event)">
+  <div class="ltg-modal" id="npcModal">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="npcModalName"></div>
+        <div id="npcModalBadge" class="mt-4"></div>
+      </div>
+      <button class="btn btn-red self-center" onclick="closeNpcModal()">x Close</button>
+    </div>
+    <div class="ltg-modal-body" id="npcModalBody"></div>
+    <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none">
+      <button class="btn btn-green flex-1 flex-center" id="npcNotesSaveBtn">>> Save Notes</button>
+      <button class="btn btn-ghost" onclick="closeNpcModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- LTG MODAL ----------------------------------------------- -->
+<!-- -- EDIT MODAL ------------------------------------------------ -->
+<div id="editOverlay" class="ltg-overlay" onclick="editOverlayClick(event)">
+  <div class="edit-modal-mini">
+    <div class="edit-modal-title" id="editModalTitle"></div>
+    <div class="arch-opt-list" id="archOptList"></div>
+    <input type="text" id="archCustomInput" class="edit-modal-input" placeholder="Enter archetype..." style="display:none"
+      oninput="selectedArch=this.value"
+      onkeydown="if(event.key==='Enter')saveEditModal();if(event.key==='Escape')closeEditModal();">
+    <div class="edit-modal-btns">
+      <button class="btn btn-green" onclick="saveEditModal()">Save</button>
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- ORG EDIT MODAL --------------------------------------- -->
+<div id="orgEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeOrgEditModal()">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div>
+        <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
+        <div id="oeDossierBadge" class="mt-4"></div>
+      </div>
+      <button class="btn btn-red" onclick="closeOrgEditModal()">x</button>
+    </div>
+    <div class="edit-modal-body" id="orgEditBody">
+      <div id="oeAlert" class="alert"></div>
+      <div id="orgDossierView" style="display:none"></div>
+      <div id="orgFormContent">
+      <!-- -- CORE IDENTITY -- -->
+      <div class="section-head mb-12">Core Identity</div>
+      <div class="grid2 mb-14">
+        <div class="field">
+          <label>Designation *</label>
+          <input type="text" id="oe-name" placeholder="Organization name...">
+        </div>
+        <div class="field">
+          <label>Classification</label>
+          <select id="oe-org_type" onchange="onOeOrgTypeChange()">
+            <optgroup label="-- Corporate --">
+              <option value="megacorp">Megacorp</option>
+              <option value="corporation">Corporation</option>
+              <option value="security contractor">Security Contractor</option>
+            </optgroup>
+            <optgroup label="-- Government &amp; Authority --">
+              <option value="government">Government</option>
+              <option value="nation-state">Nation-State</option>
+            </optgroup>
+            <optgroup label="-- Criminal --">
+              <option value="crime syndicate">Crime Syndicate</option>
+              <option value="gang">Gang</option>
+            </optgroup>
+            <optgroup label="-- Fringe &amp; Other --">
+              <option value="fixer_network">Fixer Network</option>
+              <option value="political organization">Political Organization</option>
+              <option value="cult">Cult</option>
+            </optgroup>
+            <optgroup label="------------------">
+              <option value="Custom">Custom...</option>
+            </optgroup>
+          </select>
+          <div id="oe-org_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="oe-org_type-custom" placeholder="Enter classification...">
+          </div>
+        </div>
+      </div>
+      <div class="grid3 mb-14">
+        <div class="field">
+          <label>Threat Tier</label>
+          <div class="tier-row">
+            <button type="button" class="t-dot" data-oe-tier="1" onclick="oeSetTier(1)">1</button>
+            <button type="button" class="t-dot" data-oe-tier="2" onclick="oeSetTier(2)">2</button>
+            <button type="button" class="t-dot" data-oe-tier="3" onclick="oeSetTier(3)">3</button>
+            <button type="button" class="t-dot" data-oe-tier="4" onclick="oeSetTier(4)">4</button>
+            <button type="button" class="t-dot" data-oe-tier="5" onclick="oeSetTier(5)">5</button>
+            <button type="button" class="t-dot" data-oe-tier="6" onclick="oeSetTier(6)">6</button>
+            <span class="tier-name" id="oeTierName"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Headquarters</label>
+          <input type="text" id="oe-headquarters" placeholder="City, Region...">
+        </div>
+        <div class="field">
+          <label>Operational Status</label>
+          <div class="toggle-wrap">
+            <label class="toggle gm-only">
+              <input type="checkbox" id="oe-is_active" checked onchange="document.getElementById('oeStatusLbl').textContent=this.checked?'ACTIVE':'INACTIVE';document.getElementById('oeStatusLbl').style.color=this.checked?'var(--green)':'var(--text-dim)'">
+              <span class="tog-sl"></span>
+            </label>
+            <span class="tog-label text-green" id="oeStatusLbl">ACTIVE</span>
+          </div>
+        </div>
+      </div>
+      <hr class="rule my-14">
+      <!-- // PROFILE -->
+      <div class="section-head" style="margin-bottom:10px">Profile</div>
+      <div class="field mb-14"><label>Description / Known Intel</label><textarea id="oe-description" rows="4" placeholder="Public face, known operations..."></textarea></div>
+      <div class="field gm-only mb-14"><label>Field Notes (GM Only)</label><textarea id="oe-notes" rows="3" placeholder="Hidden agendas, plot hooks..."></textarea></div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">Command Structure</div>
+      <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddLeader()">+ Add Executive</button></div>
+      <div class="lead-wrap">
+        <table class="lead-table">
+          <thead><tr><th>Name</th><th>Title / Role</th><th>Notes</th><th class="gm-only"></th></tr></thead>
+          <tbody id="oeLeadBody"><tr id="oeEmptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr></tbody>
+        </table>
+      </div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">Political Relationships</div>
+      <div class="grid2 mb-14">
+        <div class="field"><label class="flex-between"><span>Allied Organizations</span><span class="dim-label-sm">REVEAL</span></label><div class="chk-list" id="oeAllyList"></div></div>
+        <div class="field"><label class="flex-between"><span>Hostile Organizations</span><span class="dim-label-sm">REVEAL</span></label><div class="chk-list" id="oeEnemyList"></div></div>
+      </div>
+      <hr class="rule my-14">
+      <div class="section-head mb-12">RTG/LTG Network Directory</div>
+      <div class="mb-16">
+        <div class="sub-head">Telecom Numbers</div>
+        <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddTelecom()">+ Add Telecom</button></div>
+        <div class="lead-wrap">
+          <table class="lead-table">
+            <thead><tr><th>Number</th><th>Description</th><th>Visibility</th><th class="gm-only text-center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <tbody id="oeTelecomBody"><tr id="oeEmptyTelecom"><td colspan="5" class="empty-msg">No telecom numbers</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="sub-head">Matrix Hosts</div>
+        <div class="gm-only mb-8"><button type="button" class="btn btn-amber" onclick="oeAddHost()">+ Add Matrix Host</button></div>
+        <div class="lead-wrap">
+          <table class="lead-table">
+            <thead><tr><th>RTG</th><th>LTG</th><th>ID Code</th><th>Description</th><th>Security</th><th>Visibility</th><th class="gm-only text-center">Reveal</th><th class="gm-only"></th></tr></thead>
+            <tbody id="oeHostBody"><tr id="oeEmptyHost"><td colspan="8" class="empty-msg">No matrix hosts</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      </div><!-- /orgFormContent -->
+    </div>
+    <div class="edit-modal-foot" id="orgEditFoot">
+      <button class="btn btn-green flex-1 flex-center" onclick="saveOrgEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeOrgEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- LOCATION EDIT MODAL ---------------------------------- -->
+<div id="locEditOverlay" class="ltg-overlay loc-overlay" onclick="if(event.target===this)closeLocEditModal()">
+  <div class="ltg-modal loc-modal">
+    <div class="ltg-modal-head loc-modal-head">
+      <div>
+        <div class="ltg-modal-title loc-modal-title" id="leTitle">Site Report // Location</div>
+        <div id="leBadge" class="mt-4"></div>
+      </div>
+      <button class="btn btn-red self-center" onclick="closeLocEditModal()">x Close</button>
+    </div>
+    <!-- Runner dossier view -->
+    <div id="locDossierView" class="ltg-modal-body" style="display:none"></div>
+    <!-- Admin edit form -->
+    <div id="locFormContent">
+    <div class="ltg-modal-body">
+      <div id="leAlert" class="alert"></div>
+      <div class="grid2 mb-14">
+        <div class="field"><label>Name *</label><input type="text" id="le-name" placeholder="Location name..."></div>
+        <div class="field"><label>Type</label>
+          <select id="le-location_type" onchange="onLeLocTypeChange()">
+            <option value="">-- Unknown --</option>
+            <optgroup label="-- Entertainment --">
+              <option value="nightclub">Nightclub</option>
+              <option value="bar">Bar / Tavern</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="casino">Casino</option>
+              <option value="btl den">BTL Den</option>
+              <option value="brothel">Brothel</option>
+            </optgroup>
+            <optgroup label="-- Corporate --">
+              <option value="corporate facility">Corporate Facility</option>
+              <option value="corporate headquarters">Corporate Headquarters</option>
+              <option value="corporate megastructure">Corporate Megastructure</option>
+              <option value="research lab">Research Lab</option>
+              <option value="data center">Data Center</option>
+              <option value="corporate arcology">Corporate Arcology</option>
+            </optgroup>
+            <optgroup label="-- Retail &amp; Commercial --">
+              <option value="commercial district">Commercial District</option>
+              <option value="convenience store">Convenience Store</option>
+              <option value="mall">Mall</option>
+              <option value="street market">Street Market</option>
+              <option value="pawn shop">Pawn Shop / Fence</option>
+              <option value="black market">Black Market</option>
+            </optgroup>
+            <optgroup label="-- Residential --">
+              <option value="residential community">Residential Community</option>
+              <option value="apartment complex">Apartment Complex</option>
+              <option value="squatter camp">Squatter Camp</option>
+              <option value="subterranean community">Subterranean Community</option>
+              <option value="penthouse">Penthouse / High-Rise</option>
+            </optgroup>
+            <optgroup label="-- Government &amp; Infrastructure --">
+              <option value="government building">Government Building</option>
+              <option value="military installation">Military Installation</option>
+              <option value="police station">Police Station</option>
+              <option value="hospital">Hospital / Clinic</option>
+              <option value="transportation hub">Transportation Hub</option>
+              <option value="power plant">Power Plant / Utility</option>
+            </optgroup>
+            <optgroup label="-- Underground &amp; Criminal --">
+              <option value="gang territory">Gang Territory</option>
+              <option value="safehouse">Safehouse</option>
+              <option value="smugglers den">Smuggler's Den</option>
+              <option value="underground bunker">Underground Bunker</option>
+              <option value="chop shop">Chop Shop</option>
+            </optgroup>
+            <optgroup label="-- Matrix --">
+              <option value="matrix host">Matrix Host / Node</option>
+              <option value="virtual space">Virtual Space</option>
+              <option value="pirate node">Pirate Node</option>
+            </optgroup>
+            <optgroup label="-- Landmark --">
+              <option value="landmark / restaurant">Landmark / Restaurant</option>
+              <option value="landmark / monument">Landmark / Monument</option>
+              <option value="ruins">Ruins</option>
+            </optgroup>
+            <optgroup label="-- Other --">
+              <option value="Custom">Custom...</option>
+            </optgroup>
+          </select>
+          <div id="le-location_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="le-location_type-custom" placeholder="Enter location type...">
+          </div>
+        </div>
+      </div>
+      <div class="grid2 mb-14">
+        <div class="field"><label>City</label><input type="text" id="le-city" placeholder="Seattle..."></div>
+        <div class="field"><label>District</label><input type="text" id="le-district" placeholder="Redmond Barrens..."></div>
+      </div>
+      <div class="grid2 mb-14">
+        <div class="field"><label>Security Level</label>
+          <select id="le-security_level">
+            <option value="">-- Unknown --</option>
+            <option value="No Security / Barrens">No Security / Barrens</option>
+            <option value="Low / Street">Low / Street</option>
+            <option value="Moderate / Commercial">Moderate / Commercial</option>
+            <option value="High / Corporate">High / Corporate</option>
+            <option value="Corporate Extraterritorial">Corporate Extraterritorial</option>
+            <option value="Government / Military">Government / Military</option>
+            <option value="Black Site">Black Site</option>
+          </select>
+        </div>
+        <div class="field"><label>Controlling Organization</label>
+          <select id="le-controlling_org_id"><option value="">-- Independent / Unknown --</option></select>
+        </div>
+      </div>
+      <div class="field mb-14"><label>Description</label><textarea id="le-description" rows="4" placeholder="What do the runners know about this place?"></textarea></div>
+      <div class="field"><label>Notes (GM Only)</label><textarea id="le-notes" rows="3" placeholder="Secret details, plot hooks..."></textarea></div>
+    </div>
+    </div><!-- /locFormContent -->
+    <div class="edit-modal-foot" id="locEditFoot">
+      <button class="btn btn-green flex-1 flex-center" onclick="saveLocEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeLocEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- CHARACTER EDIT MODAL --------------------------------- -->
+<div id="charEditOverlay" class="ltg-overlay" onclick="if(event.target===this)closeCharEditModal()">
+  <div class="ltg-modal">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="ceTitle">Edit Character</div>
+        <div id="ceBadge" class="mt-4"></div>
+      </div>
+      <button class="btn btn-red self-center" onclick="closeCharEditModal()">x Close</button>
+    </div>
+    <div class="ltg-modal-body" id="charEditBody">
+      <div id="ceAlert" class="alert"></div>
+      <div id="pcDossierBody" style="display:none"></div>
+      <div id="ceFormBody">
+        <div class="grid2 mb-14">
+          <div class="field"><label>Name *</label><input type="text" id="ce-name" placeholder="Street name..."></div>
+          <div class="field" id="ce-title-field"><label>Title *</label><input type="text" id="ce-title" placeholder="Yakuza Underboss, Corporate Decker..."></div>
+        </div>
+        <div class="grid2 mb-14">
+          <div class="field"><label>Archetype</label>
+            <select id="ce-archetype" onchange="onCeArchChange()">
+              <optgroup label="-- Runners --">
+                <option value="Street Samurai">Street Samurai</option>
+                <option value="Decker">Decker</option>
+                <option value="Mage">Mage</option>
+                <option value="Shaman">Shaman</option>
+                <option value="Rigger">Rigger</option>
+                <option value="Face">Face</option>
+                <option value="Adept">Adept</option>
+                <option value="Weapons Specialist">Weapons Specialist</option>
+                <option value="Infiltrator">Infiltrator</option>
+                <option value="Combat Mage">Combat Mage</option>
+              </optgroup>
+              <optgroup label="-- Street / Underworld --">
+                <option value="Fixer">Fixer</option>
+                <option value="Ganger">Ganger</option>
+                <option value="Gang Boss">Gang Boss</option>
+                <option value="Mercenary">Mercenary</option>
+                <option value="Bodyguard">Bodyguard</option>
+                <option value="Assassin">Assassin</option>
+                <option value="Smuggler">Smuggler</option>
+                <option value="Bounty Hunter">Bounty Hunter</option>
+                <option value="Street Doc">Street Doc</option>
+              </optgroup>
+              <optgroup label="-- Corporate / Authority --">
+                <option value="Corporate Security">Corporate Security</option>
+                <option value="Corporate Executive">Corporate Executive</option>
+                <option value="Mr. Johnson">Mr. Johnson</option>
+                <option value="Detective">Detective</option>
+                <option value="Beat Cop">Beat Cop</option>
+              </optgroup>
+              <optgroup label="-- Other --"><option value="Custom">Custom...</option></optgroup>
+            </select>
+            <div id="ce-arch-custom-wrap" style="display:none;margin-top:6px">
+              <input type="text" id="ce-arch-custom" placeholder="Enter archetype...">
+            </div>
+            <span class="ce-sel-val" id="ce-archetype-val"></span>
+          </div>
+        </div>
+        <div class="grid3 mb-14">
+          <div class="field"><label>Race / Metatype</label>
+            <select id="ce-race">
+              <option value="Human">Human</option><option value="Elf">Elf</option>
+              <option value="Dwarf">Dwarf</option><option value="Ork">Ork</option><option value="Troll">Troll</option>
+            </select>
+            <span class="ce-sel-val" id="ce-race-val"></span>
+          </div>
+          <div class="field"><label>Gender</label><input type="text" id="ce-gender" placeholder="Male, Female..."></div>
+          <div class="field"><label>Age</label><input type="number" id="ce-age" placeholder="28" min="1" max="200"></div>
+        </div>
+        <div class="grid2 mb-14">
+          <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
+          <div class="field"><label>Affiliation</label>
+            <select id="ce-org_id"><option value="">-- Independent / Unknown --</option></select>
+            <span class="ce-sel-val" id="ce-org_id-val"></span>
+          </div>
+        </div>
+        <div class="grid2 mb-14" id="ceTypeActiveRow">
+          <div class="field"><label>Type</label>
+            <div class="toggle-wrap pt-6">
+              <label class="toggle"><input type="checkbox" id="ce-is_pc" onchange="cePcToggle()"><span class="tog-sl"></span></label>
+              <span class="tog-label" id="cePcLbl">NPC</span>
+            </div>
+          </div>
+          <div class="field"><label>Active</label>
+            <div class="toggle-wrap pt-6">
+              <label class="toggle"><input type="checkbox" id="ce-is_active" checked><span class="tog-sl"></span></label>
+              <span class="tog-label">Active</span>
+            </div>
+          </div>
+        </div>
+        <div id="ceNpcSection">
+          <hr class="rule my-14">
+          <div class="section-head mb-12">Contact Profile <span style="font-size:0.6rem;color:var(--text-dim)">// NPC ONLY</span></div>
+          <div class="field mb-14"><label>Connection Rating (1-6)</label><input type="number" id="ce-connection" min="1" max="6" value="1" style="width:80px"></div>
+          <div class="field mb-14">
+            <label>Contact Skills / Services</label>
+            <textarea id="ce-contact_skills" rows="3" placeholder="One service per line"></textarea>
+            <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line.</div>
+          </div>
+        </div>
+        <hr class="rule my-14">
+        <div class="section-head mb-12">Profile</div>
+        <div class="field mb-14"><label>Description</label><textarea id="ce-description" rows="4" placeholder="Physical appearance, street rep..."></textarea></div>
+        <div class="field mb-14"><label>Background</label><textarea id="ce-background" rows="3" placeholder="History, motivations..."></textarea></div>
+        <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
+      </div><!-- /ceFormBody -->
+    </div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green gm-only flex-1 flex-center" id="ceSaveBtn" onclick="saveCharEdit()">&gt;&gt; Save Changes</button>
+      <button class="btn btn-ghost gm-only" onclick="closeCharEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="world-state.js"></script>
+<script>
+/* 2-pane preview glue: keep the pane top under the (sticky) nav, and animate the idle pane. */
+(function () {
+  function syncHeader() {
+    const h = document.querySelector('header');
+    if (h) document.documentElement.style.setProperty('--ws-hdr-h', Math.round(h.getBoundingClientRect().height) + 'px');
+  }
+  window.addEventListener('resize', syncHeader);
+  window.addEventListener('load', syncHeader);                 // after layout settles
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeader);  // after the webfont grows the nav
+
+  const PHRASES = [
+    'awaiting input', 'scanning the Matrix', 'no target acquired', 'datastore idle // standby',
+    'decrypting traffic...', 'select a node to open its dossier', 'listening on the LTG',
+    'tracing ghosts in the grid', 'sifting paydata', 'no jackpoint selected',
+  ];
+  function start() {
+    syncHeader();
+    const el = document.getElementById('wsIdleText');
+    if (!el) return;
+    let i = Math.floor(Math.random() * PHRASES.length);
+    el.textContent = PHRASES[i];
+    setInterval(() => {
+      el.style.opacity = '0';
+      setTimeout(() => { i = (i + 1) % PHRASES.length; el.textContent = PHRASES[i]; el.style.opacity = '1'; }, 250);
+    }, 3400);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+</script>
+<!-- -- CONFIRM DIALOG ------------------------------------ -->
+<div id="srConfirmOverlay" class="ltg-overlay" style="z-index:3000">
+  <div class="ltg-modal modal-sm">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srConfirmMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-red" id="srConfirmOkBtn" style="min-width:110px">>> Confirm</button>
+        <button class="btn btn-ghost" id="srConfirmCancelBtn" style="min-width:90px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- -- ALERT DIALOG -------------------------------------- -->
+<div id="srAlertOverlay" class="ltg-overlay" style="z-index:3000" onclick="if(event.target===this)closeAlert()">
+  <div class="ltg-modal modal-xs">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srAlertMsg" style="color:var(--text-bright);margin-bottom:22px;font-size:0.88rem;line-height:1.6;letter-spacing:0.5px"></div>
+      <button class="btn btn-green" onclick="closeAlert()" style="min-width:90px">>> OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- -- PROMPT DIALOG -------------------------------------- -->
+<!-- -- STANDING EDITOR MODAL ------------------------------------------ -->
+<div id="standingEditorOverlay" class="ltg-overlay" style="z-index:2500" onclick="if(event.target===this)closeStandingEditor()">
+  <div class="ltg-modal" style="max-width:540px">
+    <div class="ltg-modal-head">
+      <div>
+        <div class="ltg-modal-title" id="seTitle">Faction Standings</div>
+        <div id="sePcBadge" class="mt-4"></div>
+      </div>
+      <button class="btn btn-red self-center" onclick="closeStandingEditor()">x Close</button>
+    </div>
+    <div class="ltg-modal-body" id="seBody" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-green flex-1 flex-center" onclick="saveStandingEditor()">>> Save Changes</button>
+      <button class="btn btn-ghost" onclick="closeStandingEditor()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="srPromptOverlay" class="ltg-overlay" style="z-index:3000">
+  <div class="ltg-modal modal-xs">
+    <div class="ltg-modal-body" style="padding:28px 24px;text-align:center">
+      <div id="srPromptMsg" style="color:var(--text-bright);margin-bottom:14px;font-size:0.88rem;letter-spacing:0.5px"></div>
+      <input type="number" id="srPromptInput" min="1" max="6"
+        style="width:100%;margin-bottom:18px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);padding:7px 12px;font-family:inherit;font-size:0.9rem;text-align:center;outline:none">
+      <div style="display:flex;gap:12px;justify-content:center">
+        <button class="btn btn-green" id="srPromptOkBtn" style="min-width:90px">>> OK</button>
+        <button class="btn btn-ghost" id="srPromptCancelBtn" style="min-width:90px">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
