@@ -76,7 +76,7 @@
             </div>
             <div class="mx-field">
               <label>Notes <span style="color:var(--text-dim)">(optional)</span></label>
-              <textarea id="newHostNotes" rows="2" placeholder="GM notes..." style="background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font);font-size:.78rem;padding:6px 10px;resize:vertical;width:100%"></textarea>
+              <textarea id="newHostNotes" rows="2" placeholder="GM notes..." style="background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font);resize:vertical;width:100%"></textarea>
             </div>
             <button class="btn btn-green" style="width:100%;justify-content:center;margin-top:4px" onclick="createHost()">&gt;&gt; Create Custom Host</button>
           </div>
@@ -185,7 +185,7 @@
             <div style="display:flex;gap:6px;align-items:center">
               <input type="text" id="newAccessPiece" placeholder="e.g., SAN Port, Terminal 1"
                 data-tip="Add a named Access entry point such as a SAN port or terminal."
-                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
               <button class="btn btn-ghost btn-sm" onclick="addSubPiece('access')" style="padding:3px 9px" data-tip="Add this Access piece.">+ Add</button>
             </div>
             <div class="tip">Physical ports, terminals, or nodes outside of the normal LTG access point. Required to target a specific piece with Exploding Scramble IC.</div>
@@ -197,7 +197,7 @@
             <div style="display:flex;gap:6px;align-items:center">
               <input type="text" id="newSlavePiece" placeholder="e.g., Security Camera 1, Door Lock"
                 data-tip="Add a named Slave device such as a camera, lock, or sensor."
-                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
               <button class="btn btn-ghost btn-sm" onclick="addSubPiece('slave')" style="padding:3px 9px" data-tip="Add this Slave device.">+ Add</button>
             </div>
             <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Click a device to rename it, flag it as a <strong>Trap Door</strong>, and set its destination + Follow in the Inspector. Required to target a specific device with Exploding Scramble IC.</div>
@@ -216,7 +216,7 @@
             <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
               <input type="text" id="pdName" placeholder="file name / description"
                 data-tip="Name or describe the paydata file."
-                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
               <button class="btn btn-ghost btn-sm" onclick="addPaydata()" style="padding:3px 9px" data-tip="Add a paydata file.">+ Add</button>
               <button class="btn btn-ghost btn-sm" onclick="generatePaydata()" style="padding:3px 9px;color:var(--cyan)" data-tip="Auto-generate paydata from the current host profile.">Generate</button>
             </div>
