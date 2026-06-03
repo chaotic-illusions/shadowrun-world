@@ -88,6 +88,24 @@ via `md3.config.js` (server on :8771, page at `/ui/matrix-designer.html`). Updat
   reference) and the **inline-rename micro-inputs** (`inlineRenameSubPiece`, contextual in-row edits). After:
   named pieces 23->30px == difficulty dropdown (30), ACIFS 27. Playwright **ISSUES 0**.
 
+- [x] **13. Step 4/5 control-height consistency + caret + Review-clear** (user pass):
+  - Buttons that sit on an input row now match the 30px control height via a new `.md3 .md3-ctrl-btn
+    { min-height: 30px; box-sizing: border-box; }` class, added to the paydata Add/Generate, the Data
+    Bomb/Scramble/Worm card `+ Add` buttons, and the sheaf `+ Add Step` (removed the inline `padding:3px 9px`
+    from the paydata pair). Were 19-23px.
+  - Card "Rtg" number inputs were 23px (`.md3 .ic-card-add input` forced `.7rem/4px 6px`) -> dropped that
+    font-size/padding; new `.md3 input[type=number] { font-size: var(--fs-md); padding-top/bottom: 7px; }`
+    (vertical-only, so `.infield-num-wrap`'s reserved `padding-right:28px` for the +/- stepper is preserved)
+    -> 30px. Same rule normalizes secValue/ACIFS; inspector compact numbers keep their higher-specificity
+    `#mdInspector input` rule. stepCountOverride: removed its inline `padding:5px 6px;font-size:.78rem` (kept
+    width:92px + center) -> 30px.
+  - Caret: every dropdown already carried the `.md3-cdd-caret` (v) -- verified `_cdd` on all selects, vis=true
+    on active steps (the apparent "missing" ones were just inactive/hidden steps). Bumped the caret to .82rem
+    for clarity on wide controls.
+  - Review-only flavor: `_showReviewFlavor` sets `_inspReviewFlavor=true`; `gotoStep` clears the inspector
+    (`inspectorReset()`) when leaving the Review step so Sable's note shows only there. Spec asserts it.
+  Playwright **ISSUES 0**; all step-4/5 controls measure 30px.
+
 ## Custom in-DOM dropdown -- (BUILT in task 10, generalized to all selects in task 11)
 Moderate, self-contained -- ~1 focused session. Lowest-risk path: keep the existing hidden
 `<select id="hostSelect">` as the data model (so `renderHostDropdown`, all `hostSelect.value` reads/writes,

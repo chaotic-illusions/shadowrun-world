@@ -217,8 +217,8 @@
               <input type="text" id="pdName" placeholder="file name / description"
                 data-tip="Name or describe the paydata file."
                 style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-              <button class="btn btn-ghost btn-sm" onclick="addPaydata()" style="padding:3px 9px" data-tip="Add a paydata file.">+ Add</button>
-              <button class="btn btn-ghost btn-sm" onclick="generatePaydata()" style="padding:3px 9px;color:var(--cyan)" data-tip="Auto-generate paydata from the current host profile.">Generate</button>
+              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addPaydata()" data-tip="Add a paydata file.">+ Add</button>
+              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="generatePaydata()" style="color:var(--cyan)" data-tip="Auto-generate paydata from the current host profile.">Generate</button>
             </div>
             <div class="tip">Data density auto-calculated per Paydata Points Table. Click a file name to rename it inline; click anywhere else on a row to edit its size, Key flag, and file-level Data Bomb / Scramble in the Inspector.</div>
           </div>
@@ -237,7 +237,7 @@
                   <select id="dbTarget" class="ic-target-select" data-tip="Slave device target for this Data Bomb."><option value="">-- target --</option></select>
                   <div class="ic-add-row">
                     <input type="number" id="dbRating" min="1" max="20" placeholder="Rtg" data-tip="Data Bomb rating (1-20).">
-                    <button class="btn btn-ghost btn-sm" onclick="addDataBomb()" data-tip="Add this Data Bomb.">+ Add</button>
+                    <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addDataBomb()" data-tip="Add this Data Bomb.">+ Add</button>
                   </div>
                 </div>
                 <div class="ic-card-tip">Device-level, one per device. File-level bombs live on each paydata row above.</div>
@@ -251,7 +251,7 @@
                   <select id="scrVariant" onchange="this.dataset.tip = ({exploding:'Exploding Scramble: destroys the file if the crack fails.',poison:'Poison Scramble: repeats destruction until decrypted or crashed.'})[this.value]||''" data-tip="Scramble behavior. Poison is only offered when the target is Files - entire."><option value="exploding">Exploding</option></select>
                   <div class="ic-add-row">
                     <input type="number" id="scrRating" min="1" max="20" placeholder="Rtg" data-tip="Scramble rating (1-20, decrypt TN).">
-                    <button class="btn btn-ghost btn-sm" onclick="addScramble()" data-tip="Add this Scramble.">+ Add</button>
+                    <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addScramble()" data-tip="Add this Scramble.">+ Add</button>
                   </div>
                 </div>
                 <div class="ic-card-tip">Subsystem / piece-level. File-level Scramble lives on each paydata row above.</div>
@@ -277,7 +277,7 @@
                   </select>
                   <div class="ic-add-row">
                     <input type="number" id="wrmRating" min="1" max="20" placeholder="Rtg" data-tip="Worm rating (1-20).">
-                    <button class="btn btn-ghost btn-sm" onclick="addWorm()" data-tip="Add this Worm.">+ Add</button>
+                    <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addWorm()" data-tip="Add this Worm.">+ Add</button>
                   </div>
                 </div>
                 <div class="ic-card-tip">Infects an entire subsystem (A/C/I/F/S).</div>
@@ -300,7 +300,7 @@
               <input type="number" id="stepCountOverride" min="1" max="50" placeholder="auto"
                 data-auto-at-min="true"
                 data-tip="Optional manual step count. Leave blank for auto."
-                style="width:92px;padding:5px 6px;font-size:.78rem;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                style="width:92px;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
             </div>
             <button class="btn btn-green" onclick="generateSheaf()" id="generateBtn" style="align-self:flex-end" data-tip="Generate a sheaf using the current security profile.">&gt;&gt; Generate Sheaf</button>
             <div id="genSpinner" style="display:none;align-self:flex-end;font-size:.7rem;letter-spacing:2px;color:var(--text-dim)">GENERATING...</div>
@@ -316,7 +316,7 @@
           <div class="sub-section">
             <div class="flex-between mb-8">
               <div class="sub-section-title" style="margin:0">&gt;&gt; Current Sheaf Steps</div>
-              <button class="btn btn-ghost btn-sm" onclick="addStep()" data-tip="Add a blank sheaf step.">+ Add Step</button>
+              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addStep()" data-tip="Add a blank sheaf step.">+ Add Step</button>
             </div>
             <div id="sheafStepList"></div>
             <div id="sheafEmpty" class="empty-msg" style="padding:16px 0;font-size:.62rem">No steps defined -- generate or add manually</div>
@@ -4240,17 +4240,25 @@ function gotoStep(n) {
   renderReview();
 
   // Entering Review: replace whatever was in the Inspector with a colleague's flavor message.
-  if (n === WIZARD_STEP_COUNT) _showReviewFlavor();
+  // Leaving Review: clear it again so Sable's note is only visible on the Review step.
+  if (n === WIZARD_STEP_COUNT) {
+    _showReviewFlavor();
+  } else if (_inspReviewFlavor) {
+    _inspReviewFlavor = false;
+    inspectorReset();
+  }
 
   // one-step-at-a-time: only the active block shows, so reset to the top of it
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+let _inspReviewFlavor = false;   // true while the Inspector shows the Review-step flavor note
 function _showReviewFlavor() {
   const insp = $('mdInspector');
   if (!insp) return;
   _inspCtx = null;
   _clearSelectedEvent();
+  _inspReviewFlavor = true;
   insp.innerHTML = `
     <div class="md3-insp-title">Final Walkthrough</div>
     <div class="md3-insp-sub">&gt;&gt; incoming message</div>
