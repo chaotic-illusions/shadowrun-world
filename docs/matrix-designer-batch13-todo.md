@@ -77,6 +77,17 @@ via `md3.config.js` (server on :8771, page at `/ui/matrix-designer.html`). Updat
   asserts hostSelect + a 2nd static select (secCode) are both enhanced; verified 10/10 selects on the
   Security step + both Trap-editor selects enhanced (screenshots md3-dd-security/-trap.png). Playwright **ISSUES 0**.
 
+- [x] **12. Consistent text-input height across the designer** (user: named-piece text fields were shorter
+  than the Intrusion Difficulty dropdown / ACIFS). Root cause: the Access/Slave/paydata add inputs +
+  notes textarea had inline `font-size:.7rem;padding:4px 6px` (~23px) while the dropdown is ~30px. Fix:
+  new `.md3 input[type=text]/[type=date]/textarea { font-size: var(--fs-md); padding: 7px 10px; }` (==
+  the custom-dropdown button height) + `.md3 #mdInspector input[type=text]` override (beats the compact
+  `#mdInspector input` rule); removed the inline font-size/padding from newAccessPiece/newSlavePiece/pdName/
+  newHostNotes. Left untouched ON PURPOSE: **number inputs** (`.infield-num-wrap` reserves `padding-right:28px`
+  for the +/- stepper -- a `padding` shorthand would overlap them; ACIFS/secValue are the user's "nice"
+  reference) and the **inline-rename micro-inputs** (`inlineRenameSubPiece`, contextual in-row edits). After:
+  named pieces 23->30px == difficulty dropdown (30), ACIFS 27. Playwright **ISSUES 0**.
+
 ## Custom in-DOM dropdown -- (BUILT in task 10, generalized to all selects in task 11)
 Moderate, self-contained -- ~1 focused session. Lowest-risk path: keep the existing hidden
 `<select id="hostSelect">` as the data model (so `renderHostDropdown`, all `hostSelect.value` reads/writes,

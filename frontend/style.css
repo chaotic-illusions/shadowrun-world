@@ -2718,6 +2718,14 @@ main:has(.md3) { max-width: 1800px; }
 .md3 .md3-cdd-opt.sel        { color: var(--cyan); }
 .md3 .md3-cdd-opt.placeholder { color: var(--text-dim); }
 
+/* Consistent text-input + textarea height across the designer -- matches the custom-dropdown
+   button (var(--fs-md) + 7px/10px) and the ACIFS row. Number inputs are intentionally left to
+   their stepper sizing (.infield-num-wrap reserves padding-right for the +/- controls), and
+   inline-rename micro-inputs keep their own inline size. */
+.md3 input[type=text],
+.md3 input[type=date],
+.md3 textarea { font-size: var(--fs-md); padding: 7px 10px; }
+
 .md3-panes {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr) 360px;
@@ -2965,6 +2973,8 @@ main:has(.md3) { max-width: 1800px; }
   background: var(--bg-input); border: 1px solid #1a2a1a; color: var(--text-bright);
   font-family: var(--font); font-size: var(--fs-sm); padding: 5px 7px; outline: none;
 }
+/* inspector text fields (rename / notes) follow the designer-wide text-input height */
+.md3 #mdInspector input[type=text] { font-size: var(--fs-md); padding: 7px 10px; }
 .md3 #mdInspector input:focus, .md3 #mdInspector select:focus { border-color: var(--green-dim); }
 .md3 #mdInspector .md3-num { width: 72px; text-align: center; }
 /* attach the in-field up/down controls to compact .md3-num fields: their width comes from a
