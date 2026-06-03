@@ -26,29 +26,61 @@
 </header>
 
 <main>
+ <div class="md3">
   <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em class="sep">//</em> HOST SECURITY AND IC DESIGNER</div>
   <div class="page-sub" style="color:var(--cyan)">LOADING PROGRAMS... // LOADING IC... // READY</div>
 
   <div id="pageAlert" class="alert" style="margin-bottom:12px"></div>
 
-  <!-- -- Wizard step indicator -- -->
-  <div class="wizard-steps-bar" id="wizardStepsBar"></div>
+  <!-- In-app host tabs: the current host is always tab 1; a trap-door Follow opens its
+       destination as a new tab. The bar grid-aligns the strip to the center pane column. -->
+  <div class="md3-tabbar">
+    <div class="hosttabs" id="hostTabs" style="display:none"></div>
+    <div class="followmsg" id="followMsg" style="display:none"></div>
+  </div>
 
-  <div class="wizard-layout">
+  <div class="md3-panes">
 
-    <!-- ------------------- WIZARD MAIN CONTENT ------------------ -->
-    <div>
+    <!-- ===== LEFT (sticky): build steps + host summary (single pane, like the mockup) ===== -->
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Build Steps</div>
+        <div class="pane-bd">
+          <div class="wizard-steps-bar" id="wizardStepsBar"></div>
+          <div id="md3SummaryMount"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== CENTER (scrolls): all build blocks ===== -->
+    <section class="md3-center">
 
       <!-- -- STEP 1: Identity -- -->
       <div id="wStep1" class="wstep active">
-        <div class="mx-panel mb-16">
-          <div class="panel-title panel-title-cyan flex-between">
-            <span>&gt;&gt; Create Custom Host</span>
-            <button class="btn btn-ghost btn-sm" onclick="toggleCreateForm()" id="createToggleBtn" style="font-size:.6rem;padding:2px 8px">v Expand</button>
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Host Selection</div>
+          <div class="tip" style="margin-bottom:8px">Select an existing configured host or a canon LTG entry to begin, or create a custom off-grid host. Selecting an LTG entry auto-creates its host record.</div>
+          <div class="mx-field">
+            <label>Target Host</label>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <div id="hostSelectWrap" class="md3-cdd" style="flex:1 1 auto;min-width:0">
+                <!-- native select stays the data model (hidden); the custom listbox below renders
+                     option rows in-DOM so they paint eagerly (the native popup left blank rows). -->
+                <select id="hostSelect" onchange="onHostChange()" class="md3-cdd-native" tabindex="-1" aria-hidden="true"></select>
+                <button type="button" id="hostSelectBtn" class="md3-cdd-btn" data-tip="Select an existing host/LTG entry point."
+                        onclick="toggleHostDropdown(event)" aria-haspopup="listbox" aria-expanded="false">
+                  <span id="hostSelectLabel" class="md3-cdd-label">-- Select a host --</span>
+                  <span class="md3-cdd-caret" aria-hidden="true">&#9662;</span>
+                </button>
+                <div id="hostSelectPanel" class="md3-cdd-panel" role="listbox" aria-label="Target host" style="display:none"></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="toggleCreateForm()" id="createToggleBtn" data-tip="Create a custom off-grid host">+ Create Custom Host</button>
+            </div>
           </div>
-          <div id="createForm" style="display:none">
-            <div class="tip" style="margin-top:6px;margin-bottom:8px">For off-grid systems: trap door sub-hosts, hidden research nodes, and any host without a public LTG. Canon hosts can be selected directly from the Host Selection panel below.</div>
-            <div class="mx-field" style="margin-top:8px">
+
+          <div id="createForm" style="display:none;border-top:1px solid #1a2a1a;margin-top:12px;padding-top:12px">
+            <div class="tip" style="margin-bottom:8px">For off-grid systems: trap door sub-hosts, hidden research nodes, and any host without a public LTG.</div>
+            <div class="mx-field">
               <label>Host Name *</label>
               <input type="text" id="newHostName" placeholder="e.g. Ares Sub-Basement Black Node" maxlength="200">
             </div>
@@ -58,17 +90,15 @@
             </div>
             <button class="btn btn-green" style="width:100%;justify-content:center;margin-top:4px" onclick="createHost()">&gt;&gt; Create Custom Host</button>
           </div>
-        </div>
 
-        <div class="mx-panel">
-          <div class="panel-title panel-title-cyan">&gt;&gt; Host Selection</div>
-          <div class="tip" style="margin-bottom:8px">Select an existing configured host or a canon LTG entry to begin. Selecting an LTG entry auto-creates its host record.</div>
-          <div class="mx-field">
-            <label>Target Host</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <select id="hostSelect" onchange="onHostChange()" data-tip="Select an existing host/LTG entry point." style="flex:1 1 auto;min-width:0;width:auto"></select>
-            </div>
-            <div class="host-meta" id="hostMeta"></div>
+          <div class="mx-field" style="border-top:1px solid #1a2a1a;margin-top:12px;padding-top:12px">
+            <label>LTG Address <span style="color:var(--text-dim)">(optional linkage)</span></label>
+            <select id="ltgAddressSelect" onchange="onLtgAddressChange()"
+              data-tip="Optional LTG linkage. Choosing an entry can prefill security profile context."
+              style="font-size:.75rem;padding:5px 8px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--cyan);font-family:var(--font)">
+              <option value="">-- None / Custom --</option>
+            </select>
+            <div id="ltgAddressInfo" style="margin-top:4px;font-size:.62rem;color:var(--text-dim);letter-spacing:1px;min-height:14px"></div>
           </div>
         </div>
       </div>
@@ -77,16 +107,6 @@
       <div id="wStep2" class="wstep">
         <div class="mx-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Security Profile</div>
-
-          <div class="mx-field">
-            <label>LTG Address <span style="color:var(--text-dim)"></span></label>
-            <select id="ltgAddressSelect" onchange="onLtgAddressChange()"
-              data-tip="Optional LTG linkage. Choosing an entry can prefill security profile context."
-              style="font-size:.75rem;padding:5px 8px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--cyan);font-family:var(--font)">
-              <option value="">-- None / Custom --</option>
-            </select>
-            <div id="ltgAddressInfo" style="margin-top:4px;font-size:.62rem;color:var(--text-dim);letter-spacing:1px;min-height:14px"></div>
-          </div>
 
           <div style="display:flex;gap:12px;align-items:flex-start">
             <div class="mx-field" style="flex:2;min-width:0">
@@ -190,7 +210,7 @@
                 style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
               <button class="btn btn-ghost btn-sm" onclick="addSubPiece('slave')" style="padding:3px 9px" data-tip="Add this Slave device.">+ Add</button>
             </div>
-            <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Can host Trap Doors to other systems.  Required to target a specific device with Exploding Scramble IC.</div>
+            <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Click a device to rename it, flag it as a <strong>Trap Door</strong>, and set its destination + Follow in the Inspector. Required to target a specific device with Exploding Scramble IC.</div>
           </div>
         </div>
       </div>
@@ -198,7 +218,7 @@
       <!-- -- STEP 4: Files & Passive IC -- -->
       <div id="wStep4" class="wstep">
         <div class="mx-panel">
-          <div class="panel-title panel-title-cyan">&gt;&gt; Hosted Files &amp; Passive IC</div>
+          <div class="panel-title panel-title-cyan">&gt;&gt; Host Files, Devices &amp; Passive IC</div>
 
           <div class="mx-field">
             <label>Paydata Files</label>
@@ -210,146 +230,83 @@
               <button class="btn btn-ghost btn-sm" onclick="addPaydata()" style="padding:3px 9px" data-tip="Add a paydata file.">+ Add</button>
               <button class="btn btn-ghost btn-sm" onclick="generatePaydata()" style="padding:3px 9px;color:var(--cyan)" data-tip="Auto-generate paydata from the current host profile.">Generate</button>
             </div>
-            <div class="tip">Data density auto-calculated per Paydata Points Table. Click a file name to rename it inline. Each file has a base value of Y5,000.</div>
+            <div class="tip">Data density auto-calculated per Paydata Points Table. Click a file name to rename it inline; click anywhere else on a row to edit its size, Key flag, and file-level Data Bomb / Scramble in the Inspector.</div>
           </div>
 
+          <div id="pdCounters" class="pd-counters"></div>
+
           <div class="mx-field">
-            <label>Passive IC / Traps</label>
+            <label>Passive IC &mdash; Subsystem &amp; Device Protection</label>
+            <div class="tip" style="margin-bottom:9px">These attach to <strong>subsystems and slave devices</strong> &mdash; not the paydata files above. Data Bombs guard slave devices; Scramble guards Access/Slave pieces or the Files subsystem; Worms infect a whole subsystem.</div>
+            <div class="ic-cards">
 
-            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Data Bombs</div>
-            <div id="dataBombList" style="margin-bottom:5px"></div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
-              <select id="dbTarget" class="ic-target-select"
-                data-tip="Choose the slave device target for this Data Bomb."
-                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);appearance:none;-webkit-appearance:none;-moz-appearance:none;min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
-                <option value="">-- select target --</option>
-              </select>
-              <input type="number" id="dbRating" min="1" max="50" placeholder="Rtg"
-                data-tip="Data Bomb rating. Higher rating increases damage and resistance."
-                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
-            </div>
-            <div style="margin-bottom:3px">
-              <button class="btn btn-ghost btn-sm" onclick="addDataBomb()" style="padding:3px 9px" data-tip="Add this Data Bomb.">+ Add</button>
-            </div>
-            <div class="tip" style="margin-bottom:10px"><strong>Target:</strong> Individual slave devices in this selector. File-level bombs are assigned in each Paydata row.
-              <br><strong>Trigger:</strong> Successfully accessing file/device without defusing the data bomb.  Deals (Rating)M damage to the Persona.
-              <br><strong>Detection:</strong> Successful Analyze Icon against protected file/device.
-              <br><strong>Removal:</strong> Successful subsystem test (Files or Slave). 
-            </div>
+              <div class="ic-card">
+                <div class="ic-card-hd" data-tip="Trigger: accessing the device without defusing -> (Rating)M to the persona. Detection: Analyze Icon. Removal: Files or Slave subsystem test.">Data Bombs</div>
+                <div id="dataBombList" class="ic-card-list"></div>
+                <div class="ic-card-add">
+                  <select id="dbTarget" class="ic-target-select" data-tip="Slave device target for this Data Bomb."><option value="">-- target --</option></select>
+                  <div class="ic-add-row">
+                    <input type="number" id="dbRating" min="1" max="20" placeholder="Rtg" data-tip="Data Bomb rating (1-20).">
+                    <button class="btn btn-ghost btn-sm" onclick="addDataBomb()" data-tip="Add this Data Bomb.">+ Add</button>
+                  </div>
+                </div>
+                <div class="ic-card-tip">Device-level, one per device. File-level bombs live on each paydata row above.</div>
+              </div>
 
-            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Scramble IC</div>
-            <div id="scrambleList" style="margin-bottom:5px"></div>
+              <div class="ic-card">
+                <div class="ic-card-hd" data-tip="Trigger (Exploding): removal attempt without defusing -> Rating(M). Trigger (Poison): repeats data destruction until decrypted/crashed. Detection: Analyze Icon. Removal: decrypt or attack the IC.">Scramble IC</div>
+                <div id="scrambleList" class="ic-card-list"></div>
+                <div class="ic-card-add">
+                  <select id="scrTarget" class="ic-target-select" onchange="onScrTargetChange()" data-tip="Access, Slave, or Files target."><option value="">-- target --</option></select>
+                  <select id="scrVariant" onchange="this.dataset.tip = ({exploding:'Exploding Scramble: destroys the file if the crack fails.',poison:'Poison Scramble: repeats destruction until decrypted or crashed.'})[this.value]||''" data-tip="Scramble behavior. Poison is only offered when the target is Files - entire."><option value="exploding">Exploding</option></select>
+                  <div class="ic-add-row">
+                    <input type="number" id="scrRating" min="1" max="20" placeholder="Rtg" data-tip="Scramble rating (1-20, decrypt TN).">
+                    <button class="btn btn-ghost btn-sm" onclick="addScramble()" data-tip="Add this Scramble.">+ Add</button>
+                  </div>
+                </div>
+                <div class="ic-card-tip">Subsystem / piece-level. File-level Scramble lives on each paydata row above.</div>
+              </div>
 
-            <!-- Row 1: Variant only -->
-            <div style="margin-bottom:3px">
-              <select id="scrVariant" onchange="onScrambleVariantChange()"
-                data-tip="Choose Scramble behavior: Exploding or Poison."
-                style="font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:180px;width:180px;max-width:100%;">
-                <option value="exploding">Exploding</option>
-                <option value="poison">Poison</option>
-              </select>
-            </div>
-            <!-- Row 2: Target + Rating -->
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
-              <select id="scrTarget" class="ic-target-select"
-                data-tip="Choose the Access, Slave, or Files target for this Scramble."
-                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
-                <option value="">-- select target --</option>
-              </select>
-              <input type="number" id="scrRating" min="1" max="50" placeholder="Rtg"
-                data-tip="Scramble rating. This is the decrypt target number."
-                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
-            </div>
-            <!-- Row 3: Add button -->
-            <div style="margin-bottom:3px">
-              <button class="btn btn-ghost btn-sm" onclick="addScramble()" style="padding:3px 9px" data-tip="Add this Scramble.">+ Add</button>
-            </div>
-            <div class="tip" style="margin-bottom:10px"><strong>Target:</strong> Access/Slave elements and subsystem-wide Files here. File-level Scramble is assigned in each Paydata row.
-              <br><strong>Trigger (Exploding):</strong> Successful removal attempt without defusing. Rating(M) damage to the Persona.
-              <br><strong>Trigger (Poison):</strong> IC detects Decker.  Repeats data destruction attempt until decrypted or crashed.
-              <br><strong>Detection:</strong> Successful Analyze Icon against protected item.
-              <br><strong>Removal:</strong> Sucessful decrypt or attack against the IC.
-            </div>
+              <div class="ic-card">
+                <div class="ic-card-hd" data-tip="Trigger: any system test against the infected subsystem. Detection: Analyze Subsystem. Removal: disinfect or attack the IC.">Worm IC</div>
+                <div id="wormList" class="ic-card-list"></div>
+                <div class="ic-card-add">
+                  <select id="wrmTarget" class="ic-target-select" data-tip="Subsystem infected by this Worm.">
+                    <option value="">-- target --</option>
+                    <option value="Access">Access</option>
+                    <option value="Control">Control</option>
+                    <option value="Index">Index</option>
+                    <option value="Files">Files</option>
+                    <option value="Slave">Slave</option>
+                  </select>
+                  <select id="wrmVariant" onchange="this.dataset.tip=this.options[this.selectedIndex].dataset.tip"
+                    data-tip="Logs and sends incriminating information about the decker to a delivery address.">
+                    <option value="dataworm" data-tip="Logs and sends incriminating information about the decker to a delivery address.">Dataworm</option>
+                    <option value="deathworm" data-tip="+2 TN to all Attack/Resistance tests in cybercombat.  +1 for each additional worm.">Deathworm</option>
+                    <option value="tapeworm" data-tip="At run end, reduce Paydata Points downloaded by 1D6-1.  Roll 1D6 for key files; 5-6 erases it.">Tapeworm</option>
+                  </select>
+                  <div class="ic-add-row">
+                    <input type="number" id="wrmRating" min="1" max="20" placeholder="Rtg" data-tip="Worm rating (1-20).">
+                    <button class="btn btn-ghost btn-sm" onclick="addWorm()" data-tip="Add this Worm.">+ Add</button>
+                  </div>
+                </div>
+                <div class="ic-card-tip">Infects an entire subsystem (A/C/I/F/S).</div>
+              </div>
 
-            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Worm IC</div>
-            <div id="wormList" style="margin-bottom:5px"></div>
-            <!-- Row 1: Variant only -->
-            <div style="margin-bottom:3px">
-              <select id="wrmVariant" onchange="this.dataset.tip=this.options[this.selectedIndex].dataset.tip"
-                style="font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:180px;width:180px;max-width:100%;"
-                data-tip="Logs and sends incriminating information about the decker to a delivery address.">
-                <option value="dataworm" data-tip="Logs and sends incriminating information about the decker to a delivery address.">Dataworm</option>
-                <option value="deathworm" data-tip="+2 TN to all Attack/Resistance tests in cybercombat.  +1 for each additional worm.">Deathworm</option>
-                <option value="tapeworm" data-tip="At run end, reduce Paydata Points downloaded by 1D6-1.  Roll 1D6 for key files; 5-6 erases it.">Tapeworm</option>
-              </select>
-            </div>
-            <!-- Row 2: Target + Rating -->
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
-              <select id="wrmTarget" class="ic-target-select"
-                data-tip="Choose the subsystem infected by this Worm."
-                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
-                <option value="">-- select target --</option>
-                <option value="Access">Access</option>
-                <option value="Control">Control</option>
-                <option value="Index">Index</option>
-                <option value="Files">Files</option>
-                <option value="Slave">Slave</option>
-              </select>
-              <input type="number" id="wrmRating" min="1" max="50" placeholder="Rtg"
-                data-tip="Worm rating. Higher rating increases the threat."
-                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
-            </div>
-            <!-- Row 3: Add button -->
-            <div style="margin-bottom:3px">
-              <button class="btn btn-ghost btn-sm" onclick="addWorm()" style="padding:3px 9px" data-tip="Add this Worm.">+ Add</button>
-            </div>
-            <div class="tip"><strong>Target:</strong> Any subsystem.
-              <br><strong>Trigger:</strong> Any system test against the infected subsystem.
-              <br><strong>Detection:</strong> Successful Analyze Subsystem test.
-              <br><strong>Removal:</strong> Successful disinfect or attack against the IC.
             </div>
           </div>
         </div>
       </div>
 
-      <!-- -- STEP 5: Access Control -- Trap Doors -- -->
+      <!-- -- STEP 5: Security Sheaf -- -->
       <div id="wStep5" class="wstep">
-        <div class="mx-panel">
-          <div class="panel-title panel-title-cyan">&gt;&gt; Access Control -- Trap Doors</div>
-
-          <div class="mx-field">
-            <label>Trap Doors</label>
-            <div id="trapDoorList" style="margin-bottom:5px"></div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
-              <select id="tdSource"
-                data-tip="Select the source slave device flagged as a trap door."
-                style="flex:1;min-width:140px;font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font)">
-                <option value="">-- source device --</option>
-              </select>
-              <select id="tdDest"
-                data-tip="Select the destination host or subsystem reached by the trap door."
-                style="flex:1;min-width:140px;font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-                <option value="">-- destination --</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" onclick="addTrapDoor()" style="padding:3px 9px" data-tip="Add this trap door link.">+ Add</button>
-            </div>
-            <div class="tip">A concealed comm port connecting this host to another without going through the Access subsystem.
-              <br>Source devices are defined in Step 3 by toggling TRAP DOOR on a Slave named device.
-              <br>Trap doors are hidden by default until discovered via a successful Analyze Subsystem test on the Slave Subsystem.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- -- STEP 6: Security Sheaf -- -->
-      <div id="wStep6" class="wstep">
         <div class="mx-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Security Sheaf Builder</div>
 
           <div class="sub-section-title">&gt;&gt; Auto-Generate</div>
           <div class="flex-gap8 mb-12">
             <div style="display:flex;flex-direction:column;gap:3px">
-              <label style="font-size:.58rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase">Step Count</label>
+              <label class="md3-field-lbl">Step Count</label>
               <input type="number" id="stepCountOverride" min="1" max="50" placeholder="auto"
                 data-auto-at-min="true"
                 data-tip="Optional manual step count. Leave blank for auto."
@@ -360,10 +317,10 @@
           </div>
           <div class="tip mb-12">Requires security code and value to be set. Seed is randomized each generation for variety.</div>
 
-          <div id="alertPlacementPanel" style="display:none;margin-bottom:14px">
-            <div class="sub-section-title">&gt;&gt; Alert Triggers</div>
-            <div class="tip" style="margin-bottom:8px">Assign each alert to a specific trigger step. Passive must precede Active; Active must precede Shutdown. All three may share the same step.</div>
-            <div id="alertPlacementRows" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div id="alertPlacementPanel" class="alertpanel" style="display:none">
+            <div class="ap-hd">Alert Triggers</div>
+            <div class="tip" style="margin-bottom:9px">Assign each alert to a specific trigger step. Passive must precede Active; Active must precede Shutdown. All three may share the same step.</div>
+            <div id="alertPlacementRows"></div>
           </div>
 
           <div class="sub-section">
@@ -377,77 +334,58 @@
         </div>
       </div>
 
-      <!-- -- STEP 7: Review & Save -- -->
-      <div id="wStep7" class="wstep">
+      <!-- -- STEP 6: Review & Save -- -->
+      <div id="wStep6" class="wstep">
         <div class="mx-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Review Configuration</div>
           <div id="reviewDetails"></div>
         </div>
       </div>
 
-      <!-- -- Wizard Navigation -- -->
+      <!-- -- Status bar (auto-save runs silently; no Save buttons, no status text) -- -->
       <div class="wizard-nav" id="wizardNav" style="display:none">
-        <button class="btn btn-green" id="btnWizBack" onclick="wizardBack()">&#9664; Back</button>
         <span class="wizard-step-label" id="wizardStepLabel"></span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-green" id="btnWizNext" onclick="wizardNext()">Next &#9654;</button>
-          <button class="btn btn-amber" id="btnSaveProgress" onclick="saveConfig()">&gt;&gt; Save Progress</button>
-          <button class="btn btn-amber" id="btnSaveFinish" onclick="saveConfig()"
-            style="display:none">&gt;&gt; Save &amp; Finish</button>
+      </div>
+
+    </section><!-- /md3-center -->
+
+    <!-- ===== RIGHT (sticky): context inspector ===== -->
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Inspector</div>
+        <div class="pane-bd" id="mdInspector"><div class="md3-insp-empty">Select a sheaf event, paydata file, or trap door to edit it here.</div></div>
+      </div>
+    </aside>
+
+  </div><!-- /md3-panes -->
+
+  <!-- legacy summary markup -- relocated into the left Host Summary pane on boot -->
+  <div id="md3OldSidebar" style="display:none">
+      <div class="md3-summary">
+        <div class="md3-summary-hd">Host Summary</div>
+        <div class="run-ready-banner" id="runReadyBanner">
+          <span class="rr-pulse"></span> HOST IS RUN-READY // SR2 CONFIG + SHEAF ACTIVE
         </div>
-      </div>
-
-    </div>
-
-    <!-- ------------------- SIDEBAR ---------------------- -->
-    <div>
-      <div class="run-ready-banner" id="runReadyBanner">
-        &#9654; HOST IS RUN-READY // SR2 CONFIG + SHEAF ACTIVE
-      </div>
-
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Host Summary</div>
         <div id="summaryNoHost" class="empty-msg" style="padding:20px 0;font-size:.62rem">No host selected</div>
         <div id="summaryPanel" style="display:none">
-          <div class="summary-grid">
-            <div class="summary-item">
-              <div class="summary-label">Host Name</div>
-              <div class="summary-value" id="sumName">--</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Security Code</div>
-              <div class="summary-value" id="sumCode">--</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Security Value</div>
-              <div class="summary-value" id="sumValue">--</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Owner Type</div>
-              <div class="summary-value" id="sumOwner">--</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">Sheaf Steps</div>
-              <div class="summary-value" id="sumSteps">--</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">ACIFS</div>
-              <div class="summary-value" id="sumAcifs" style="font-size:.72rem">--</div>
-            </div>
-          </div>
-          <div class="summary-label mb-8">Alert Thresholds</div>
-          <div class="threshold-list" id="sumThresholds">
-            <span class="threshold-tag" style="color:var(--text-dim);border-color:#222">No steps defined</span>
-          </div>
-          <div style="border-top:1px solid #1a3a1a;margin-top:14px;padding-top:10px">
+          <div class="sum-row"><span class="k">Name</span><span class="v" id="sumName">--</span></div>
+          <div class="sum-row"><span class="k">Security</span><span class="v" id="sumSecurity">--</span></div>
+          <div class="sum-row"><span class="k">Owner</span><span class="v" id="sumOwner">--</span></div>
+          <div class="sum-row"><span class="k">ACIFS</span><span class="v" id="sumAcifs">--</span></div>
+          <div class="sum-row"><span class="k">Paydata</span><span class="v" id="sumPaydata">--</span></div>
+          <div class="sum-row"><span class="k">Passive IC</span><span class="v" id="sumPassiveIc">--</span></div>
+          <div class="sum-row"><span class="k">Sheaf Steps</span><span class="v" id="sumSteps">--</span></div>
+          <div class="sum-thr-label">Alert Thresholds</div>
+          <div class="thresholds" id="sumThresholds"></div>
+          <div class="sum-delete-row">
             <button id="deleteHostBtn" class="btn btn-red btn-sm" onclick="deleteCurrentHost()"
               style="padding:3px 10px;font-size:.7rem" data-tip="Delete this host">x Delete Host</button>
           </div>
         </div>
       </div>
-    </div>
+  </div><!-- /md3OldSidebar -->
 
-  </div>
+ </div><!-- /md3 -->
 </main>
 
 <div class="edit-overlay" id="icEditOverlay">
@@ -455,14 +393,17 @@
     <div id="icEditHeader" style="font-size:.72rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase">Edit IC Event: IC</div>
     <div style="display:flex;align-items:center;gap:6px">
       <label for="icEditRating" style="font-size:.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;min-width:52px">Rating</label>
-      <input type="number" id="icEditRating" min="1" max="50" placeholder="1-50"
-        class="edit-modal-input" style="max-width:110px" data-tip="IC rating 1-50">
+      <input type="number" id="icEditRating" min="1" max="20" placeholder="1-20"
+        class="edit-modal-input" style="width:96px" data-tip="IC rating 1-20">
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.68rem;color:var(--text-bright)">
-      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Armor: increases resistance against attacks."><input type="checkbox" class="chk-reveal" id="icEditArmor"> Armor</label>
-      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Shifting: morphs profile to resist targeting; cannot combine with Shielding."><input type="checkbox" class="chk-reveal" id="icEditShift"> Shifting</label>
-      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Shielding: reinforced defense layer; cannot combine with Shifting."><input type="checkbox" class="chk-reveal" id="icEditShield"> Shielding</label>
-      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Cascade: expands effects through connected structures. Only valid for Proactive IC and Black IC."><input type="checkbox" class="chk-reveal" id="icEditCasc"> Cascade</label>
+    <div class="ic-def-block">
+      <span class="ic-def-hd">Defenses</span>
+      <div class="ic-def-grid">
+        <label class="ic-def-opt" data-tip="Armor: increases resistance against attacks."><input type="checkbox" class="chk-reveal" id="icEditArmor"> Armor</label>
+        <label class="ic-def-opt" data-tip="Shifting: morphs profile to resist targeting; cannot combine with Shielding."><input type="checkbox" class="chk-reveal" id="icEditShift"> Shifting</label>
+        <label class="ic-def-opt" data-tip="Shielding: reinforced defense layer; cannot combine with Shifting."><input type="checkbox" class="chk-reveal" id="icEditShield"> Shielding</label>
+        <label class="ic-def-opt" data-tip="Cascade: expands effects through connected structures. Only valid for Proactive IC and Black IC."><input type="checkbox" class="chk-reveal" id="icEditCasc"> Cascade</label>
+      </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <select id="icEditExpertType" class="edit-modal-input" style="max-width:170px" data-tip="${_expertTip('')}">
@@ -471,12 +412,11 @@
         <option value="defense">Expert Defense</option>
       </select>
       <input type="number" id="icEditExpertVal" min="1" max="3" value="1"
-        class="edit-modal-input" style="max-width:70px" data-tip="Expert modifier value 1-3">
+        class="edit-modal-input" style="width:64px" data-tip="Expert modifier value 1-3">
     </div>
     <div id="icEditTip" class="tip" style="margin-top:0;color:var(--straw);font-size:.74rem;line-height:1.45;max-width:360px;white-space:normal"></div>
     <div class="edit-modal-btns">
-      <button class="btn btn-ghost btn-sm" onclick="closeIcEditModal()">Cancel</button>
-      <button class="btn btn-amber btn-sm" onclick="saveIcEditModal()">Save</button>
+      <button class="btn btn-ghost btn-sm" onclick="removeIcEvent()" style="color:var(--red)" data-tip="Remove this IC from the step">Remove IC</button>
     </div>
   </div>
 </div>
@@ -496,6 +436,8 @@
 
 // --- State ------------------------------------------------------------------
 
+let _hostTabs    = [];     // open host tabs: [{ id, label, via }] -- driven by trap-door Follow
+let _followPending = null; // set to {via} right before a follow-triggered onHostChange
 let hosts       = [];   // [{id, name, config_json, ...}]
 let icInfo      = {};   // {ic_type: {category, summary, ...}}
 let currentHost = null; // selected host object
@@ -599,9 +541,6 @@ function renderAlertPanel() {
   const activeSi   = _findAlertStepIndex('active_alert');
   const shutdownSi = _findAlertStepIndex('shutdown');
 
-  const selBase  = 'background:var(--bg-input);border:1px solid #1a2a1a;font-family:var(--font);font-size:.72rem;padding:3px 8px';
-  const lblStyle = 'font-size:.62rem;letter-spacing:1.5px;text-transform:uppercase;min-width:102px';
-
   function buildOpts(currentSi, minSi) {
     let html = `<option value="">-- None --</option>`;
     for (let i = minSi; i < sheafSteps.length; i++) {
@@ -611,21 +550,21 @@ function renderAlertPanel() {
   }
 
   rows.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
-      <span style="${lblStyle};color:var(--amber)">Passive Alert</span>
-      <select style="${selBase};color:var(--amber)" data-tip="Choose which step begins Passive Alert escalation." onchange="setAlertStep('passive_alert',this.value)">
+    <div class="ap-row passive">
+      <span class="ap-name">Passive Alert</span>
+      <select data-tip="Choose which step begins Passive Alert escalation." onchange="setAlertStep('passive_alert',this.value)">
         ${buildOpts(passiveSi, 0)}
       </select>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span style="${lblStyle};color:var(--red)">Active Alert</span>
-      <select style="${selBase};color:var(--red)" data-tip="Choose which step upgrades to Active Alert." ${passiveSi < 0 ? 'disabled' : ''} onchange="setAlertStep('active_alert',this.value)">
+    <div class="ap-row active">
+      <span class="ap-name">Active Alert</span>
+      <select data-tip="Choose which step upgrades to Active Alert." ${passiveSi < 0 ? 'disabled' : ''} onchange="setAlertStep('active_alert',this.value)">
         ${passiveSi >= 0 ? buildOpts(activeSi, passiveSi) : '<option value="">-- set passive first --</option>'}
       </select>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span style="${lblStyle};color:var(--purple)">Shutdown</span>
-      <select style="${selBase};color:var(--purple)" data-tip="Choose which step triggers Shutdown." ${activeSi < 0 ? 'disabled' : ''} onchange="setAlertStep('shutdown',this.value)">
+    <div class="ap-row shutdown">
+      <span class="ap-name">Shutdown</span>
+      <select data-tip="Choose which step triggers Shutdown." ${activeSi < 0 ? 'disabled' : ''} onchange="setAlertStep('shutdown',this.value)">
         ${activeSi >= 0 ? buildOpts(shutdownSi, activeSi) : '<option value="">-- set active first --</option>'}
       </select>
     </div>
@@ -839,12 +778,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // 3-pane shell: relocate the legacy summary markup into the left Host Summary pane.
+  (function mountSummaryPane() {
+    const holder = $('md3OldSidebar'), mount = $('md3SummaryMount');
+    if (holder && mount) { while (holder.firstChild) mount.appendChild(holder.firstChild); holder.remove(); }
+  })();
+
   await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog(), loadHostRules()]);
   renderWizardStepsBar();
   wireIcEditModal();
   wireSaveStateModal();
+  wireHostDropdown();
+  refreshHostSelect();
   startPolling(refreshCurrentHost, 2500);
 });
+
+// 3-pane shell: highlight the left build-step nav for whichever block is in view.
+function setupStepScrollSpy() {
+  const steps = [];
+  for (let i = 1; i <= WIZARD_STEP_COUNT; i++) { const el = $(`wStep${i}`); if (el) steps.push({ n: i, el }); }
+  if (!('IntersectionObserver' in window) || !steps.length) return;
+  const ratios = new Map();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) ratios.set(e.target, e.intersectionRatio);
+    let bestN = wizardStep, best = -1;
+    for (const { n, el } of steps) { const r = ratios.get(el) || 0; if (r > best) { best = r; bestN = n; } }
+    if (best > 0 && bestN !== wizardStep) { wizardStep = bestN; renderWizardStepsBar(); }
+  }, { rootMargin: '-15% 0px -65% 0px', threshold: [0, 0.25, 0.5, 1] });
+  steps.forEach(s => io.observe(s.el));
+}
 
 // --- API calls ---------------------------------------------------------------
 
@@ -937,6 +899,111 @@ async function refreshCurrentHost() {
   } catch (_) {}
 }
 
+// --- Custom in-DOM host dropdown ---------------------------------------------
+// The native <select id="hostSelect"> remains the data model (renderHostDropdown + every
+// .value read/write + onHostChange are untouched). This renders an in-DOM listbox over it so
+// option rows paint eagerly -- the native popup left blank rows until scrolled (Chromium bug).
+let _hostDdOpen = false;
+
+// Update the button label from the native select's current selection.
+function refreshHostSelect() {
+  const sel = $('hostSelect'), lbl = $('hostSelectLabel');
+  if (!sel || !lbl) return;
+  const opt = sel.options[sel.selectedIndex];
+  lbl.textContent = (opt && opt.value) ? opt.textContent : '-- Select a host --';
+}
+
+// Build the panel rows fresh from the select's optgroup/option tree (so any
+// renderHostDropdown/.value change is reflected the next time it opens).
+function _buildHostPanel() {
+  const sel = $('hostSelect'), panel = $('hostSelectPanel');
+  if (!sel || !panel) return;
+  const cur = sel.value;
+  const optRow = o => `<div class="md3-cdd-opt${o.value === cur ? ' sel' : ''}${o.value === '' ? ' placeholder' : ''}" role="option" data-value="${esc(o.value)}"${o.value === cur ? ' aria-selected="true"' : ''}>${esc(o.textContent)}</div>`;
+  let html = '';
+  for (const node of sel.children) {
+    if (node.tagName === 'OPTGROUP') {
+      html += `<div class="md3-cdd-group">${esc(node.label)}</div>`;
+      for (const o of node.children) html += optRow(o);
+    } else if (node.tagName === 'OPTION') {
+      html += optRow(node);
+    }
+  }
+  panel.innerHTML = html;
+}
+
+function toggleHostDropdown(e) {
+  if (e) e.stopPropagation();
+  if (_hostDdOpen) closeHostDropdown(); else openHostDropdown();
+}
+function openHostDropdown() {
+  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
+  if (!panel || !btn) return;
+  _buildHostPanel();
+  panel.style.display = 'block';
+  btn.setAttribute('aria-expanded', 'true');
+  _hostDdOpen = true;
+  const selRow = panel.querySelector('.md3-cdd-opt.sel') || panel.querySelector('.md3-cdd-opt');
+  _setHostActiveRow(selRow);
+  if (selRow) selRow.scrollIntoView({ block: 'nearest' });
+}
+function closeHostDropdown() {
+  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
+  if (panel) panel.style.display = 'none';
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  _hostDdOpen = false;
+}
+function _setHostActiveRow(row) {
+  const panel = $('hostSelectPanel'); if (!panel) return;
+  panel.querySelectorAll('.md3-cdd-opt.active').forEach(r => r.classList.remove('active'));
+  if (row) row.classList.add('active');
+}
+function _pickHostOption(value) {
+  const sel = $('hostSelect'); if (!sel) return;
+  sel.value = value;
+  refreshHostSelect();
+  closeHostDropdown();
+  sel.dispatchEvent(new Event('change', { bubbles: true }));   // -> onHostChange()
+  const btn = $('hostSelectBtn'); if (btn) btn.focus();
+}
+// Wire the dropdown once (static markup, available at DOMContentLoaded).
+function wireHostDropdown() {
+  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
+  if (!panel || !btn) return;
+  panel.addEventListener('click', e => {
+    const row = e.target.closest('.md3-cdd-opt');
+    if (row) _pickHostOption(row.dataset.value);
+  });
+  panel.addEventListener('mousemove', e => {
+    const row = e.target.closest('.md3-cdd-opt');
+    if (row) _setHostActiveRow(row);
+  });
+  document.addEventListener('click', e => {
+    if (_hostDdOpen && !e.target.closest('#hostSelectWrap')) closeHostDropdown();
+  });
+  btn.addEventListener('keydown', e => {
+    if (!_hostDdOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHostDropdown(); }
+      return;
+    }
+    const rows = [...panel.querySelectorAll('.md3-cdd-opt')];
+    let idx = rows.findIndex(r => r.classList.contains('active'));
+    if (e.key === 'ArrowDown')      { e.preventDefault(); idx = Math.min(rows.length - 1, idx + 1); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); idx = Math.max(0, idx - 1); }
+    else if (e.key === 'Home')      { e.preventDefault(); idx = 0; }
+    else if (e.key === 'End')       { e.preventDefault(); idx = rows.length - 1; }
+    else if (e.key === 'Enter')     { e.preventDefault(); if (rows[idx]) _pickHostOption(rows[idx].dataset.value); return; }
+    else if (e.key === 'Escape' || e.key === 'Tab') { closeHostDropdown(); return; }
+    else if (/^[a-z0-9]$/i.test(e.key)) {
+      const k = e.key.toLowerCase(), from = idx + 1;
+      let m = rows.findIndex((r, i) => i >= from && r.dataset.value && r.textContent.trim().toLowerCase().startsWith(k));
+      if (m < 0) m = rows.findIndex(r => r.dataset.value && r.textContent.trim().toLowerCase().startsWith(k));
+      if (m >= 0) idx = m;
+    } else return;
+    if (rows[idx]) { _setHostActiveRow(rows[idx]); rows[idx].scrollIntoView({ block: 'nearest' }); }
+  });
+}
+
 // --- Host dropdown -----------------------------------------------------------
 
 function renderHostDropdown() {
@@ -982,6 +1049,7 @@ function renderHostDropdown() {
   }
 
   if (prev) sel.value = prev;
+  refreshHostSelect();   // keep the custom-dropdown button label in sync
 }
 
 function safeConfig(host) {
@@ -992,6 +1060,8 @@ function safeConfig(host) {
 
 async function onHostChange() {
   const sel = $('hostSelect');
+  _designerReady = false;   // suppress auto-save while we (re)load + populate the form
+  const _wasFollow = _followPending; _followPending = null;   // consume the trap-door-follow flag
 
   // Auto-create a host when an unconfigured LTG catalog entry is selected
   if (sel.value.startsWith('ltg:')) {
@@ -1031,7 +1101,7 @@ async function onHostChange() {
 
   if (!id) {
     currentHost = null;
-    $('hostMeta').textContent        = '';
+    _hostTabs = []; _setFollowMsg(null); renderHostTabs();
     $('runReadyBanner').classList.remove('show');
     $('summaryNoHost').style.display = '';
     $('summaryPanel').style.display  = 'none';
@@ -1052,11 +1122,10 @@ async function onHostChange() {
   }
 
   const cfg = safeConfig(currentHost);
-  $('hostMeta').textContent = `ID ${currentHost.id}${cfg.security_code ? ' // ' + cfg.security_code + '-' + (cfg.security_value || '?') : ''}`;
 
   $('summaryNoHost').style.display = 'none';
   $('summaryPanel').style.display  = '';
-  gotoStep(2);
+  gotoStep(1);   // stay on Identity after selecting a host (no auto-forward); refresh nav + sheaf
 
   // Populate form from existing config; fall back to san_rating then LTG catalog for unset fields
   let secCode = cfg.security_code  || '';
@@ -1156,6 +1225,13 @@ async function onHostChange() {
   renderSheaf();
   updateSummary();
   checkRunReady();
+  // Host-tab sync: a Follow keeps the existing chain (the dest tab was already pushed); a
+  // plain dropdown pick to an open host re-activates its tab, any other pick starts a fresh
+  // root tab. The current host is always represented (>=1 tab) via _syncCurrentHostTab.
+  if (_wasFollow) { renderHostTabs(); }
+  else { _setFollowMsg(null); _syncCurrentHostTab(); }
+  // Enable auto-save only after this load+populate settles (ignore populate-time events).
+  setTimeout(() => { _designerReady = true; _setSaveStatus('saved'); }, 0);
 }
 
 async function deleteCurrentHost() {
@@ -1170,6 +1246,7 @@ async function deleteCurrentHost() {
     currentHost = null;
     renderHostDropdown();
     $('hostSelect').value = '';
+    refreshHostSelect();
     await onHostChange();
   } catch (e) {
     showAlert(alertEl(), 'Failed to delete host: ' + e.message, true);
@@ -1186,7 +1263,7 @@ function onSecCodeChange() {
   const v = $('secCode').value;
   $('secCodeTip').textContent = v ? SEC_CODE_TIPS[v] || '' : '';
   updateSummary();
-  if (wizardStep === 6) renderSheaf();
+  renderSheaf();
 }
 
 function onSecValueChange() {
@@ -1290,6 +1367,8 @@ function _dataBombTargetLabel(target) {
 }
 
 function renderDataBombs() {
+  _scheduleAutoSave();
+  renderPaydataCounters();
   const list = $('dataBombList');
   if (!list) return;
   const visible = dataBombs
@@ -1315,15 +1394,18 @@ function addDataBomb() {
   const rating = parseInt($('dbRating').value, 10);
   if (!target) { showAlert(alertEl(), 'Select a target.', true); return; }
   if (isNaN(rating) || rating < 1 || rating > 20) { showAlert(alertEl(), 'Rating must be 1-20.', true); return; }
+  if (dataBombs.some(db => db.target === target)) return;   // one per device (also excluded from the dropdown)
   dataBombs.push({ target, rating });
   $('dbTarget').value = '';
   $('dbRating').value = '';
   renderDataBombs();
+  _rebuildTargetDropdowns();   // drop the now-used target from the selector
 }
 
 function removeDataBomb(i) {
   dataBombs.splice(i, 1);
   renderDataBombs();
+  _rebuildTargetDropdowns();   // the freed device becomes selectable again
 }
 
 // --- Paydata management -------------------------------------------------------
@@ -1335,58 +1417,47 @@ function _rollPaydataDensity() {
 }
 
 function renderPaydata() {
+  _scheduleAutoSave();
   const el = $('paydataList');
-  if (!el) return;
-  if (!paydata.length) {
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:.65rem;padding:2px 0">No paydata files defined.</div>';
-    return;
+  if (el) {
+    if (!paydata.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);font-size:.65rem;padding:2px 0">No paydata files defined.</div>';
+    } else {
+      // Prototype .pd-row: key=star, name (inline rename), file-defense lock badge(s), size.
+      // Size / Key / Data Bomb / Scramble / Delete are all edited by clicking the row -> Inspector.
+      el.innerHTML = paydata.map((p, i) => {
+        const d = _ensurePaydataDefenseShape(p);
+        const badges = [];
+        if (d.data_bomb_rating != null) badges.push(`<span class="lock">DATA BOMB-${d.data_bomb_rating}</span>`);
+        if (d.scramble_rating != null) {
+          const v = d.scramble_variant === 'poison' ? 'POISON' : 'EXPLODING';
+          badges.push(`<span class="lock">${v} SCRAMBLE-${d.scramble_rating}</span>`);
+        }
+        const star = p.is_key
+          ? '<span class="star" data-tip="Key file -- must be retrieved; Tapeworm corrupts it on a 5-6">&#9733;</span>'
+          : '';
+        const nmStyle = p.is_key ? '' : ' style="margin-left:18px"';
+        return `<div class="pd-row" data-pd="${i}" data-tip="Click to edit this file in the Inspector">
+          ${star}
+          <span class="nm"${nmStyle}>${esc(p.name)}</span>
+          ${badges.join('')}
+          <span class="mp">${p.density}Mp</span>
+        </div>`;
+      }).join('');
+    }
   }
-  const header = `<div style="display:flex;align-items:center;gap:8px;padding:2px 0 4px 0;border-bottom:1px solid #173017;margin-bottom:2px;font-size:.53rem;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase">
-      <span style="flex:1">File</span>
-      <span style="width:58px;text-align:right">Size</span>
-      <span style="width:48px;text-align:center">Key</span>
-      <span style="width:78px;text-align:center">File Defense</span>
-      <span style="width:24px;text-align:center">Del</span>
-    </div>`;
-  el.innerHTML = header + paydata.map((p, i) => {
-    const d = _ensurePaydataDefenseShape(p);
-    const defRows = [];
-    if (d.data_bomb_rating != null) {
-      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
-        <span style="font-size:.66rem;color:var(--amber)">Data Bomb-${d.data_bomb_rating}</span>
-        <button class="event-edit-btn" onclick="editPaydataDefense(${i},'data_bomb')" data-tip="Edit Data Bomb rating">&#9998;</button>
-        <button class="event-remove-btn" onclick="clearPaydataDefense(${i},'data_bomb')" data-tip="Remove">[x]</button>
-      </div>`);
-    }
-    if (d.scramble_rating != null) {
-      const vLabel = d.scramble_variant === 'poison' ? 'Poison' : 'Exploding';
-      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
-        <span style="font-size:.66rem;color:var(--amber)">${vLabel} Scramble-${d.scramble_rating}</span>
-        <button class="event-edit-btn" onclick="editPaydataDefense(${i},'scramble')" data-tip="Edit Scramble variant/rating">&#9998;</button>
-        <button class="event-remove-btn" onclick="clearPaydataDefense(${i},'scramble')" data-tip="Remove">[x]</button>
-      </div>`);
-    }
-    if (defRows.length === 0) {
-      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
-        <span style="font-size:.66rem;color:var(--text-dim)">No Defense</span>
-      </div>`);
-    }
-    return `
-    <div style="padding:4px 0;border-bottom:1px solid #0a1a0a">
-      <div style="display:flex;align-items:center;gap:8px">
-      <span id="pdNameSpan-${i}" style="flex:1;font-size:.7rem;color:var(--text-bright);cursor:text;border-bottom:1px dashed transparent"
-            data-tip="Click to rename"
-            onclick="inlineRenamePaydata(${i})">${esc(p.name)}</span>
-      <span style="width:58px;text-align:right;font-size:.6rem;color:var(--text-dim);padding:0 2px">${p.density}Mp</span>
-      <span onclick="paydata[${i}].is_key=!paydata[${i}].is_key;renderPaydata()"
-        style="width:48px;text-align:center;font-size:.58rem;letter-spacing:2px;cursor:pointer;padding:2px 0;border:1px solid ${p.is_key?'var(--amber)':'#1a2a1a'};color:${p.is_key?'var(--amber)':'var(--text-dim)'};user-select:none;background:${p.is_key?'rgba(255,153,0,.08)':'transparent'}"
-            data-tip="Mark as Key data -- must be retrieved; if Tapeworm IC exists, this data is corrupted on a roll of 5-6">KEY</span>
-      <button class="btn btn-ghost btn-sm" onclick="rollPaydataDefense(${i})" style="width:78px;padding:2px 0;text-align:center;justify-content:center" data-tip="Assign or re-roll paydata defense from the rules table">ROLL IC</button>
-      <button class="event-remove-btn" onclick="removePaydata(${i})" style="width:24px;text-align:center;margin-left:0" data-tip="Remove">[x]</button>
-      </div>
-      ${defRows.join('')}
-    </div>`;
-  }).join('');
+  renderPaydataCounters();
+}
+
+// Aggregate passive-IC counters (prototype .counters) -- counts every Data Bomb /
+// Scramble / Worm currently defined (file-level + subsystem/device-level).
+function renderPaydataCounters() {
+  const el = $('pdCounters');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="pd-counter"><div class="n">${dataBombs.length}</div><div class="l">Data Bombs</div></div>
+    <div class="pd-counter"><div class="n">${scrambles.length}</div><div class="l">Scramble IC</div></div>
+    <div class="pd-counter"><div class="n">${worms.length}</div><div class="l">Worm IC</div></div>`;
 }
 
 function addPaydata() {
@@ -1399,47 +1470,27 @@ function addPaydata() {
   _rebuildTargetDropdowns();
 }
 
-function inlineRenamePaydata(i) {
-  const span = document.getElementById(`pdNameSpan-${i}`);
-  if (!span || span.querySelector('input')) return;
-  const old = paydata[i].name;
-  const inp = document.createElement('input');
-  inp.type = 'text';
-  inp.value = old;
-  inp.style.cssText = 'flex:1;font-size:.7rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);font-family:var(--font);width:100%';
-  let committed = false;
-  function commit() {
-    if (committed) return;
-    committed = true;
-    const v = inp.value.trim();
-    if (!v) { showAlert(alertEl(), 'Name cannot be empty.', true); renderPaydata(); return; }
-    if (v !== old) {
-      paydata[i].name = v;
-      // Cascade rename to any IC that references this file by name
-      for (const db of dataBombs) {
-        if (db.target === old) db.target = v; // legacy plain-name target
-        else if (db.target === `${DB_TARGET_FILE_PREFIX}${old}`) db.target = `${DB_TARGET_FILE_PREFIX}${v}`;
-      }
-      for (const sc of scrambles) {
-        if (sc.target_key === _encodeScrambleTargetKey('Files', 'file', old)) {
-          sc.target_key = _encodeScrambleTargetKey('Files', 'file', v);
-        }
-      }
-      _syncPassiveIcFromPaydataDefenses();
-      renderDataBombs();
-      renderScrambles();
-      _rebuildTargetDropdowns();
-    }
-    renderPaydata();
+// Rename a paydata file (from the Inspector), cascading the new name to any IC
+// that references it by name. Renaming now lives in the Inspector, not inline.
+function _renamePaydata(i, v) {
+  const p = paydata[i];
+  if (!p) return;
+  const old = p.name;
+  if (v === old) return;
+  p.name = v;
+  for (const db of dataBombs) {
+    if (db.target === old) db.target = v; // legacy plain-name target
+    else if (db.target === `${DB_TARGET_FILE_PREFIX}${old}`) db.target = `${DB_TARGET_FILE_PREFIX}${v}`;
   }
-  inp.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { committed = true; renderPaydata(); }
-  };
-  inp.onblur = commit;
-  span.replaceWith(inp);
-  inp.focus();
-  inp.select();
+  for (const sc of scrambles) {
+    if (sc.target_key === _encodeScrambleTargetKey('Files', 'file', old)) {
+      sc.target_key = _encodeScrambleTargetKey('Files', 'file', v);
+    }
+  }
+  _syncPassiveIcFromPaydataDefenses();
+  renderDataBombs();
+  renderScrambles();
+  _rebuildTargetDropdowns();
 }
 
 function removePaydata(i) {
@@ -1583,40 +1634,11 @@ function rollPaydataDefense(i) {
   renderScrambles();
 }
 
-function editPaydataDefense(i, kind) {
-  const p = paydata[i];
-  if (!p) return;
-  const d = _ensurePaydataDefenseShape(p);
-
-  if (kind === 'data_bomb') {
-    const cur = d.data_bomb_rating != null ? String(d.data_bomb_rating) : String(_defaultDefenseRating());
-    const raw = prompt('Data Bomb rating (1-20):', cur);
-    if (raw === null) return;
-    const n = parseInt(raw, 10);
-    if (Number.isNaN(n) || n < 1 || n > 20) { showAlert(alertEl(), 'Data Bomb rating must be 1-20.', true); return; }
-    d.data_bomb_rating = n;
-    d.mode = d.scramble_rating != null ? 'combo' : 'data_bomb';
-  }
-
-  if (kind === 'scramble') {
-    const vRaw = prompt('Scramble type (poison/exploding):', d.scramble_variant || _randomScrambleVariant());
-    if (vRaw === null) return;
-    const v = String(vRaw).trim().toLowerCase();
-    if (v !== 'poison' && v !== 'exploding') { showAlert(alertEl(), 'Scramble type must be poison or exploding.', true); return; }
-    const cur = d.scramble_rating != null ? String(d.scramble_rating) : String(_defaultDefenseRating());
-    const rRaw = prompt('Scramble rating (1-20):', cur);
-    if (rRaw === null) return;
-    const n = parseInt(rRaw, 10);
-    if (Number.isNaN(n) || n < 1 || n > 20) { showAlert(alertEl(), 'Scramble rating must be 1-20.', true); return; }
-    d.scramble_variant = v;
-    d.scramble_rating = n;
-    d.mode = d.data_bomb_rating != null ? 'combo' : 'scramble';
-  }
-
-  _syncPassiveIcFromPaydataDefenses();
-  renderPaydata();
-  renderDataBombs();
-  renderScrambles();
+// Retired the prompt() dialogs: the file pencil now opens the paydata Inspector,
+// which edits Data Bomb + Scramble (and size / Key) on a draft and commits on Save.
+function editPaydataDefense(i) {
+  if (!paydata[i]) return;
+  inspectPaydata(i);
 }
 
 function clearPaydataDefense(i, kind) {
@@ -1686,7 +1708,35 @@ function toggleSlaveTrapPiece(i) {
   _rebuildTrapDoorSourceOpts();
 }
 
+// Cascade a piece rename across scrambles / trap doors / data bombs (shared by the
+// inline list rename and the slave-device Inspector). Assumes v is non-empty.
+function _renameSubPiece(type, i, v) {
+  const arr = type === 'access' ? accessPieces : slavePieces;
+  const old = arr[i];
+  if (old == null || v === old) return;
+  arr[i] = v;
+  const keyPrefix = type === 'access' ? 'access::piece::' : 'slave::piece::';
+  for (const sc of scrambles) {
+    if (sc.target_key === `${keyPrefix}${old}`) sc.target_key = `${keyPrefix}${v}`;
+  }
+  if (type === 'slave') {
+    if (slaveTrapPieces.includes(old)) slaveTrapPieces = slaveTrapPieces.map(n => n === old ? v : n);
+    for (const td of trapDoors) { if (td.source_piece === old) td.source_piece = v; }
+    _rebuildTrapDoorSourceOpts();
+    renderTrapDoors();
+    for (const db of dataBombs) {
+      if (db.target === `${DB_TARGET_SLAVE_PREFIX}${old}`) db.target = `${DB_TARGET_SLAVE_PREFIX}${v}`;
+    }
+  }
+  renderDataBombs();
+  renderScrambles();
+}
+
+// Named pieces rendered as prototype .tag-pc pills. Access pills inline-rename + remove;
+// Slave pills open the device Inspector (rename / Trap Door / destination / Follow / remove),
+// and show the [TRAP DOOR] flag when flagged.
 function renderSubPieces(type) {
+  _scheduleAutoSave();
   const arr    = type === 'access' ? accessPieces : slavePieces;
   const listId = type === 'access' ? 'accessPieceList' : 'slavePieceList';
   const list   = $(listId);
@@ -1695,17 +1745,20 @@ function renderSubPieces(type) {
     list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None defined.</div>';
     return;
   }
-  list.innerHTML = arr.map((name, i) => `
-    <div style="display:flex;align-items:center;gap:6px;padding:2px 0;border-bottom:1px solid #0a1a0a">
-      <span id="subpiece-${type}-${i}" style="flex:1;font-size:.7rem;color:var(--text-bright);cursor:text;border-bottom:1px dashed transparent"
-          data-tip="Click to rename" onclick="inlineRenameSubPiece('${type}',${i})">${esc(name)}</span>
-      ${type === 'slave'
-        ? `<span onclick="toggleSlaveTrapPiece(${i})"
-            style="font-size:.58rem;letter-spacing:2px;cursor:pointer;padding:2px 7px;border:1px solid ${slaveTrapPieces.includes(name)?'var(--amber)':'#1a2a1a'};color:${slaveTrapPieces.includes(name)?'var(--amber)':'var(--text-dim)'};user-select:none;background:${slaveTrapPieces.includes(name)?'rgba(255,153,0,.08)':'transparent'}"
-            data-tip="Marks this Slave device as a trap-door endpoint used in Step 5">TRAP DOOR</span>`
-        : ''}
-      <button class="event-remove-btn" onclick="removeSubPiece('${type}',${i})" data-tip="Remove">[x]</button>
-    </div>`).join('');
+  const pills = arr.map((name, i) => {
+    if (type === 'access') {
+      return `<span class="tag-pc">
+        <span class="nm editable" id="subpiece-access-${i}" data-tip="Click to rename" onclick="inlineRenameSubPiece('access',${i})">${esc(name)}</span>
+        <span class="x" onclick="removeSubPiece('access',${i})" data-tip="Remove">&times;</span>
+      </span>`;
+    }
+    const isTrap = slaveTrapPieces.includes(name);
+    const flag = isTrap ? '<span class="trapflag">[TRAP DOOR]</span>' : '';
+    return `<span class="tag-pc clickable${isTrap ? ' trap' : ''}" data-slave="${i}" data-tip="Edit device: rename, Trap Door, destination">
+      <span class="nm">${esc(name)}</span>${flag}
+    </span>`;
+  }).join('');
+  list.innerHTML = `<div class="tagrow">${pills}</div>`;
 }
 
 function inlineRenameSubPiece(type, i) {
@@ -1723,29 +1776,7 @@ function inlineRenameSubPiece(type, i) {
     committed = true;
     const v = inp.value.trim();
     if (!v) { showAlert(alertEl(), 'Name cannot be empty.', true); renderSubPieces(type); return; }
-    if (v !== old) {
-      arr[i] = v;
-      // Cascade rename to any scramble referencing this piece
-      const keyPrefix = type === 'access' ? 'access::piece::' : 'slave::piece::';
-      for (const sc of scrambles) {
-        if (sc.target_key === `${keyPrefix}${old}`) sc.target_key = `${keyPrefix}${v}`;
-      }
-      if (type === 'slave') {
-        if (slaveTrapPieces.includes(old)) {
-          slaveTrapPieces = slaveTrapPieces.map(n => n === old ? v : n);
-        }
-        for (const td of trapDoors) {
-          if (td.source_piece === old) td.source_piece = v;
-        }
-        _rebuildTrapDoorSourceOpts();
-        renderTrapDoors();
-        for (const db of dataBombs) {
-          if (db.target === `${DB_TARGET_SLAVE_PREFIX}${old}`) db.target = `${DB_TARGET_SLAVE_PREFIX}${v}`;
-        }
-      }
-      renderDataBombs();
-      renderScrambles();
-    }
+    if (v !== old) _renameSubPiece(type, i, v);
     renderSubPieces(type);
     _rebuildTargetDropdowns();
     onScrambleVariantChange();
@@ -1801,11 +1832,11 @@ async function generatePaydata() {
 }
 
 function _rebuildTargetDropdowns() {
-  const slaveTargets = slavePieces.map(name => ({
-    value: `${DB_TARGET_SLAVE_PREFIX}${name}`,
-    label: `Slave - ${name}`,
-  }));
-  const dbTargets = [...slaveTargets];
+  // A device that already carries a Data Bomb is excluded (one bomb per device).
+  const usedDbTargets = new Set(dataBombs.map(db => db.target));
+  const dbTargets = slavePieces
+    .map(name => ({ value: `${DB_TARGET_SLAVE_PREFIX}${name}`, label: `Slave - ${name}` }))
+    .filter(t => !usedDbTargets.has(t.value));
 
   // Data Bomb: paydata files + individual slave devices (no subsystem-level target)
   const dbSel = $('dbTarget');
@@ -1881,22 +1912,33 @@ function _buildScrambleTargetOptions(variant) {
   return opts;
 }
 
+// Rebuild the scramble TARGET dropdown (variant-independent: the full exploding
+// superset) and then sync the variant options to the chosen target. Kept under the
+// old name because many callers (piece add/remove/rename) invoke it to refresh.
 function onScrambleVariantChange() {
-  const variantSel = $('scrVariant');
-  const targetSel  = $('scrTarget');
-  const tipEl      = $('scrVariantTip');
-  if (!variantSel || !targetSel) return;
-
-  const variant = variantSel.value || 'exploding';
-  const tip = SCR_VARIANT_TIPS[variant] || '';
-  variantSel.dataset.tip = tip;
-  if (tipEl) tipEl.dataset.tip = tip;
-
+  const targetSel = $('scrTarget');
+  if (!targetSel) return;
   const prev = targetSel.value;
-  const opts = _buildScrambleTargetOptions(variant);
+  const opts = _buildScrambleTargetOptions('exploding');   // full set incl. Files - entire
   targetSel.innerHTML = '<option value="">-- select target --</option>'
     + opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
   if (prev && opts.some(o => o.value === prev)) targetSel.value = prev;
+  onScrTargetChange();
+}
+
+// Poison is only valid for destroyable data, so it is offered ONLY when the target is
+// "Files - entire"; every other target collapses the variant choice to Exploding.
+function onScrTargetChange() {
+  const targetSel  = $('scrTarget');
+  const variantSel = $('scrVariant');
+  if (!targetSel || !variantSel) return;
+  const isFiles = targetSel.value === _encodeScrambleTargetKey('Files', 'entire');
+  const prev = variantSel.value;
+  variantSel.innerHTML = isFiles
+    ? '<option value="exploding">Exploding</option><option value="poison">Poison</option>'
+    : '<option value="exploding">Exploding</option>';
+  variantSel.value = (isFiles && prev === 'poison') ? 'poison' : 'exploding';
+  variantSel.dataset.tip = SCR_VARIANT_TIPS[variantSel.value] || '';
 }
 
 function _scrambleTargetLabel(sc) {
@@ -1905,6 +1947,8 @@ function _scrambleTargetLabel(sc) {
 }
 
 function renderScrambles() {
+  _scheduleAutoSave();
+  renderPaydataCounters();
   const list = $('scrambleList');
   if (!list) return;
   const visible = scrambles
@@ -1956,6 +2000,8 @@ function removeScramble(i) {
 // --- Worm IC management ------------------------------------------------------
 
 function renderWorms() {
+  _scheduleAutoSave();
+  renderPaydataCounters();
   const list = $('wormList');
   if (!list) return;
   if (worms.length === 0) {
@@ -1990,16 +2036,17 @@ function removeWorm(i) {
 
 // --- Trap Doors ---------------------------------------------------------------
 
-function _rebuildTrapDoorDestOpts() {
-  const sel = $('tdDest');
-  if (!sel) return;
-
+// Option markup for a trap-door destination select (designed hosts + LTG catalog),
+// with `selected` pre-chosen. Shared by the legacy Step-5 select and the slave-device Inspector.
+function _trapDoorDestOptionsHTML(selected) {
+  selected = selected || '';
   // Designed hosts (exclude current)
   const designedOpts = hosts
     .filter(h => currentHost ? h.id !== currentHost.id : true)
     .map(h => {
       const label = h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '');
-      return `<option value="host:${h.id}">${esc(label)}</option>`;
+      const val = `host:${h.id}`;
+      return `<option value="${val}"${val === selected ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
 
   // LTG catalog (exclude current host's own LTG address)
@@ -2012,14 +2059,39 @@ function _rebuildTrapDoorDestOpts() {
   const ltgGroups = Object.entries(byOrg).map(([org, entries]) => {
     const opts = entries.map(e => {
       const label = `${e.full_address}${e.id_code ? ' [' + e.id_code + ']' : ''} -- ${e.description}`;
-      return `<option value="ltg:${esc(e.full_address)}">${esc(label)}</option>`;
+      const val = `ltg:${e.full_address}`;
+      return `<option value="${esc(val)}"${val === selected ? ' selected' : ''}>${esc(label)}</option>`;
     }).join('');
     return `<optgroup label="${esc(org)}">${opts}</optgroup>`;
   }).join('');
 
-  sel.innerHTML = `<option value="">-- destination --</option>`
+  return `<option value="">-- destination --</option>`
     + (designedOpts ? `<optgroup label="Designed Hosts">${designedOpts}</optgroup>` : '')
     + ltgGroups;
+}
+
+function _rebuildTrapDoorDestOpts() {
+  const sel = $('tdDest');
+  if (!sel) return;
+  sel.innerHTML = _trapDoorDestOptionsHTML(sel.value);
+}
+
+// Create / update / clear the trap-door link for a slave device by destination value.
+function _setTrapDoorDestination(name, destVal) {
+  if (!destVal) { trapDoors = trapDoors.filter(t => t.source_piece !== name); return; }
+  let destHostId = null, destLtg = null, destLabel = '';
+  if (destVal.startsWith('host:')) {
+    destHostId = parseInt(destVal.slice(5), 10);
+    const h = hosts.find(x => x.id === destHostId);
+    destLabel = h ? (h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '')) : `Host #${destHostId}`;
+  } else if (destVal.startsWith('ltg:')) {
+    destLtg = destVal.slice(4);
+    const e = ltgCatalog.find(x => x.full_address === destLtg);
+    destLabel = e ? `${e.full_address} -- ${e.description}` : destLtg;
+  }
+  const td = trapDoors.find(t => t.source_piece === name);
+  if (td) { td.destination_host_id = destHostId; td.destination_ltg = destLtg; td.destination_label = destLabel; }
+  else trapDoors.push({ id: Date.now(), source_piece: name, destination_host_id: destHostId, destination_ltg: destLtg, destination_label: destLabel, hidden: true });
 }
 
 function _rebuildTrapDoorSourceOpts() {
@@ -2043,13 +2115,14 @@ function _rebuildTrapDoorSourceOpts() {
 }
 
 function renderTrapDoors() {
+  _scheduleAutoSave();
   const el = $('trapDoorList');
   if (!el) return;
   if (trapDoors.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = trapDoors.map((td, i) => {
     const destLabel = td.destination_label || td.destination_ltg || `Host #${td.destination_host_id}` || '?';
     const srcLabel = td.source_piece || 'Unknown device';
-    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+    return `<div class="td-row" data-td="${i}" style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
       <span style="font-size:.72rem;color:var(--amber)">${esc(srcLabel)}</span>
       <span style="font-size:.6rem;color:var(--text-dim)">-></span>
       <span style="font-size:.72rem;color:var(--cyan)">${esc(destLabel)}</span>
@@ -2189,13 +2262,10 @@ async function saveConfig() {
     currentHost = updated;
     renderHostDropdown();
     $('hostSelect').value = currentHost.id;
+    refreshHostSelect();
     _rebuildTrapDoorDestOpts();
     updateSummary();
     checkRunReady();
-
-    // Refresh hostMeta line with new security value
-    const savedCfg = safeConfig(currentHost);
-    $('hostMeta').textContent = `ID ${currentHost.id}${savedCfg.security_code ? ' // ' + savedCfg.security_code + '-' + (savedCfg.security_value || '?') : ''}`;
 
     // Update the LTG dropdown cache and info line immediately.
     const newSanRating = `${code}-${sv}`;
@@ -2243,6 +2313,100 @@ async function saveConfig() {
     showAlert(alertEl(), 'Save failed: ' + e.message, true);
   }
 }
+
+/* ===========================================================================
+   AUTO-SAVE -- debounced (~1s), silent, partial-safe. Replaces the Save buttons.
+   =========================================================================== */
+let _autoSaveTimer = null;
+let _autoSaveInFlight = false;
+let _autoSavePending = false;
+let _designerReady = false;   // suppress auto-save during initial host load
+
+function _setSaveStatus(state) {
+  const el = $('saveStatus');
+  if (!el) return;
+  el.classList.remove('saving', 'saved', 'error');
+  if (state === 'saving') { el.classList.add('saving'); el.textContent = 'Saving\u2026'; }
+  else if (state === 'error') { el.classList.add('error'); el.textContent = 'Save failed \u2014 retrying\u2026'; }
+  else { el.classList.add('saved'); el.textContent = 'All changes saved \u2713'; }
+}
+
+function _collectAcifsSilent() {
+  const ids = ['acifA', 'acifC', 'acifI', 'acifF', 'acifS'];
+  const arr = [];
+  for (const id of ids) { const v = parseInt($(id)?.value, 10); if (isNaN(v) || v < 1 || v > 20) return null; arr.push(v); }
+  return arr;
+}
+
+// Build the config_json payload from current state without any validation gating.
+function _buildConfigPayload() {
+  const code  = $('secCode')?.value || '';
+  const svRaw = parseInt($('secValue')?.value, 10);
+  const sv    = (!isNaN(svRaw) && svRaw > 0) ? svRaw : null;
+  const diff  = $('intrusionDifficulty')?.value || null;
+  const owner = $('ownerType')?.value || '';
+  const existingCfg = safeConfig(currentHost);
+  const acifs = _collectAcifsSilent() || existingCfg.acifs || null;
+  const validDataBombs = dataBombs.filter(db => _decodeDataBombTarget(db.target).scope !== 'legacy_slave_subsystem');
+  return {
+    ...existingCfg,
+    security_code:        code || null,
+    security_value:       sv,
+    san_rating:           (code && sv) ? `${code}-${sv}` : (existingCfg.san_rating || null),
+    intrusion_difficulty: diff,
+    owner_type:           owner || existingCfg.owner_type || null,
+    acifs,
+    sheaf:                sheafSteps,
+    paydata:              paydata.length       > 0 ? paydata        : null,
+    data_bombs:           validDataBombs.length > 0 ? validDataBombs : null,
+    scrambles:            scrambles.length     > 0 ? scrambles      : null,
+    worms:                worms.length         > 0 ? worms          : null,
+    access_pieces:        accessPieces.length  > 0 ? accessPieces   : null,
+    slave_pieces:         slavePieces.length   > 0 ? slavePieces    : null,
+    slave_trap_pieces:    slaveTrapPieces.length > 0 ? slaveTrapPieces : null,
+  };
+}
+
+function _scheduleAutoSave() {
+  if (!_designerReady || !currentHost) return;
+  _setSaveStatus('saving');
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(_autoSaveNow, 1000);
+}
+
+async function _autoSaveNow() {
+  if (!currentHost) return;
+  if (_autoSaveInFlight) { _autoSavePending = true; return; }   // coalesce overlapping saves
+  _autoSaveInFlight = true;
+  try {
+    const cfg = _buildConfigPayload();
+    const ltgAddress = ($('ltgAddressSelect')?.value || '').trim() || currentHost.ltg_address || null;
+    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        config_json:     cfg,
+        ltg_address:     ltgAddress,
+        trap_doors_json: trapDoors.length > 0 ? trapDoors : null,
+      }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    const idx = hosts.findIndex(h => h.id === currentHost.id);
+    if (idx >= 0) hosts[idx] = updated;
+    currentHost = updated;
+    _setSaveStatus('saved');
+    checkRunReady();
+  } catch (e) {
+    _setSaveStatus('error');
+  } finally {
+    _autoSaveInFlight = false;
+    if (_autoSavePending) { _autoSavePending = false; _scheduleAutoSave(); }
+  }
+}
+
+// Field-level auto-save: any input/select/textarea change inside the designer schedules a save.
+document.addEventListener('input',  e => { if (e.target.closest('.md3')) _scheduleAutoSave(); });
+document.addEventListener('change', e => { if (e.target.closest('.md3')) _scheduleAutoSave(); });
 
 function collectAcifs() {
   const fields = [
@@ -2293,6 +2457,7 @@ async function generateSheaf() {
     if (!res.ok) await apiThrow(res);
     const data = await res.json();
     sheafSteps = deepCloneSheaf(data.sheaf || []);
+    sheafSteps.forEach(s => { if (s) delete s.trace_branch; });   // retired feature: drop any legacy branch data
     renderSheaf();
     updateSummary();
     showAlert(alertEl(), `Generated ${sheafSteps.length} step sheaf for ${code}-${sv} ${owner}.`, false);
@@ -2433,36 +2598,17 @@ function renderStepHTML(step, si, alertState) {
   alertState = alertState || 'none';
   const stepClass  = alertState !== 'none' ? ` step-${alertState}` : '';
   const events     = (step.events || []).map((ev, ei) => renderEventHTML(ev, si, ei)).join('');
-  const traceBr    = step.trace_branch ? renderTraceBranchHTML(step.trace_branch, si) : '';
-  const branchSect = traceBr ? `<div style="margin-top:6px">${traceBr}</div>` : '';
-  const prevTrig   = si > 0 ? (sheafSteps[si - 1].trigger ?? 0) : 0;
-  const nextTrig   = si < sheafSteps.length - 1 ? (sheafSteps[si + 1].trigger ?? 9999) : 9999;
-  const minTrig    = si === 0 ? 0 : prevTrig + 1;
-  const maxTrig    = si < sheafSteps.length - 1 ? nextTrig - 1 : 9999;
-  const canBranch  = _hasPriorTrace(si) && !step.trace_branch;
-  const brBtn      = canBranch ? `onclick="addTraceBranch(${si})"` : 'disabled';
-  const brStyle    = canBranch ? 'color:var(--cyan)' : 'color:var(--text-dim);opacity:.45';
-  const brTip      = canBranch ? 'Add Trace IC branch: different events when jackpoint located vs not' : 'Requires Trace IC in a prior step';
+  const emptyHint  = (step.events || []).length ? '' : '<span class="sheaf-empty-hint">no events &mdash; click the trigger to add IC</span>';
   return `
-    <div class="sheaf-step${stepClass}" id="step-${si}">
+    <div class="sheaf-step${stepClass}" id="step-${si}" data-stepidx="${si}">
       <button class="step-remove-btn" onclick="removeStep(${si})" data-tip="Remove step">[x]</button>
       <div class="sheaf-step-header" style="padding-right:34px">
-        <span class="sheaf-trigger-label">Step ${si+1} &mdash; Trigger &ge;</span>
-        <input class="sheaf-trigger-input" type="number" min="${minTrig}" max="${maxTrig}"
-          value="${esc(String(step.trigger ?? 0))}"
-          onchange="updateTrigger(${si}, this.value)"
-          style="width:92px;padding:3px 4px;text-align:center"
-          data-tip="Trigger threshold: min ${minTrig}${maxTrig < 9999 ? ', max ' + maxTrig : ''} (ordered by prior/next step)">
+        <span class="trigger-badge" data-step="${si}" data-tip="Edit this step (trigger + events) in the Inspector">
+          <span class="t-lbl">Trigger</span><b>${esc(String(step.trigger ?? 0))}</b>
+        </span>
       </div>
       <div class="sheaf-events" id="events-${si}">
-        ${events}
-      </div>
-      ${renderAddEventRow(si)}
-      ${branchSect}
-      <div style="margin-top:5px">
-        <button class="btn btn-ghost btn-sm" ${brBtn}
-          style="padding:2px 8px;font-size:.58rem;letter-spacing:1.5px;${brStyle}"
-          data-tip="${brTip}">+ Trace Branch</button>
+        ${events}${emptyHint}
       </div>
     </div>
   `;
@@ -2480,11 +2626,9 @@ function renderEventHTML(ev, si, ei) {
     const modeTip = isProactiveIc(icType) ? 'Proactive IC' : 'Reactive IC';
     const modeTag = `<span style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-right:4px" data-tip="${modeTip}">${icModeLabel(icType)}</span>`;
     return `
-      <div class="sheaf-event" style="position:relative">
-        ${modeTag}<span class="ic-badge ${icBadgeClass(cat, icType)}">${esc(cat)}</span>
+      <div class="sheaf-event" style="position:relative;border-color:${icColor(cat, icType)}" data-si="${si}" data-ei="${ei}">
+        ${modeTag}<span class="ic-dot" style="background:${icColor(cat, icType)}" data-tip="${esc(cat)} IC"></span>
         <span class="sheaf-event-type ev-ic" style="color:${icColor(cat, icType)}" data-tip="${esc(_icTypeTip(icType || 'IC'))}">${esc(label || '?')}</span>${opts}
-        <button class="event-edit-btn" onclick="editIcEvent(${si},${ei})" data-tip="Edit">&#9998;</button>
-        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
       </div>`;
   }
 
@@ -2493,22 +2637,26 @@ function renderEventHTML(ev, si, ei) {
     const surfRtg  = ev.surface_ic_rating != null ? ev.surface_ic_rating : '';
     const hidType  = ev.hidden_ic_type || '';
     const hidRtg   = ev.hidden_ic_rating != null ? ev.hidden_ic_rating : '';
-    const hidDefBadges = (ev.hidden_ic_options || []).map(o => `<span class="ic-opt-badge">${esc(o)}</span>`).join('');
-    const hidCascBadge = ev.hidden_ic_cascading ? '<span class="ic-opt-badge ic-opt-cascade">CASCADE</span>' : '';
-    const hidOpts  = hidDefBadges + hidCascBadge;
     const surfCat  = 'white'; // Probe and Trace surface IC
     const hidCat   = icCategory(hidType);
     const surfLabel = esc(surfType) + (surfRtg !== '' ? `-${surfRtg}` : '');
-    const hidLabel  = esc(icDisplayName(hidType)) + (hidRtg !== '' ? `-${hidRtg}` : '');
+    // Options belong to the HIDDEN IC -> render them slash-joined onto the hidden label (like a
+    // Party's per-component defenses), so it's clear the surface IC carries none.
+    const hidExtras = [...(ev.hidden_ic_options || [])];
+    if (ev.hidden_ic_cascading) hidExtras.push('Cascade');
+    const hidLabel  = esc(icDisplayName(hidType)) + (hidRtg !== '' ? `-${hidRtg}` : '')
+      + (hidExtras.length ? '/' + hidExtras.map(esc).join('/') : '');
+    // Trap IC reads as one unit: both pieces wear the magenta trap colour (like a Party's
+    // components all share the party cyan), not their individual IC-category colours.
+    const trapColor = '#ff5599';
     return `
-      <div class="sheaf-event" style="position:relative">
-        <span class="ic-badge ic-white-badge">white</span>
-        <span class="sheaf-event-type ev-ic" style="color:${icColor(surfCat, surfType)}">${surfLabel}</span>
+      <div class="sheaf-event" style="position:relative" data-si="${si}" data-ei="${ei}">
+        <span class="ic-trap-badge" data-tip="Trap IC: a reactive surface IC hiding a payload IC">trap</span>
+        <span class="ic-dot" style="background:${trapColor}" data-tip="${esc(surfCat)} IC (surface)"></span>
+        <span class="sheaf-event-type ev-ic" style="color:${trapColor}">${surfLabel}</span>
         <span style="color:var(--text-dim);font-size:.7rem;margin:0 2px">-></span>
-        <span class="ic-badge ${icBadgeClass(hidCat, hidType)}">${esc(hidCat)}</span>
-        <span class="sheaf-event-type ev-ic" style="color:${icColor(hidCat, hidType)}">${hidLabel}</span>${hidOpts}
-        <button class="event-edit-btn" onclick="editTrapIcRatings(${si},${ei})" data-tip="Edit ratings">&#9998;</button>
-        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+        <span class="ic-dot" style="background:${trapColor}" data-tip="${esc(hidCat)} IC (hidden)"></span>
+        <span class="sheaf-event-type ev-ic" style="color:${trapColor}">${hidLabel}</span>
       </div>`;
   }
 
@@ -2517,11 +2665,9 @@ function renderEventHTML(ev, si, ei) {
     const newSv   = ev.new_security_value != null ? ev.new_security_value : '?';
     const notes   = ev.sculpting_notes ? ` -- ${ev.sculpting_notes}` : '';
     return `
-      <div class="sheaf-event" style="position:relative">
+      <div class="sheaf-event" style="position:relative" data-si="${si}" data-ei="${ei}">
         <span class="ic-bouncer-badge">bouncer</span>
         <span class="sheaf-event-type" style="color:#ff8800">-> <span class="sc-badge sc-${newCode.toLowerCase()}">${esc(newCode)}</span>-${newSv}${esc(notes)}</span>
-        <button class="event-edit-btn" onclick="editBouncerEvent(${si},${ei})" data-tip="Edit">&#9998;</button>
-        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
       </div>`;
   }
 
@@ -2533,10 +2679,9 @@ function renderEventHTML(ev, si, ei) {
       ? ` | <span class="ic-opt-badge ic-opt-expert">EXP ${ev.expert.type === 'offense' ? '+' : '-'}${ev.expert.value}</span>`
       : '';
     return `
-      <div class="sheaf-event" style="position:relative">
+      <div class="sheaf-event" style="position:relative" data-si="${si}" data-ei="${ei}">
         <span class="ic-construct-badge">construct</span>
         <span class="sheaf-event-type ev-ic" style="color:#cc9900">Threat-${threat}${expStr} | ${comps || '--'}${defs ? ' | ' + defs : ''}</span>
-        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
       </div>`;
   }
 
@@ -2546,27 +2691,22 @@ function renderEventHTML(ev, si, ei) {
       return `${esc(c.ic_type)}-${c.rating}${defs ? '/' + defs : ''}`;
     }).join(', ');
     return `
-      <div class="sheaf-event" style="position:relative">
+      <div class="sheaf-event" style="position:relative" data-si="${si}" data-ei="${ei}">
         <span class="ic-party-badge">party</span>
         <span class="sheaf-event-type ev-ic" style="color:var(--cyan)">${comps || '--'}</span>
-        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
       </div>`;
   }
 
   if (type === 'passive_alert') {
-    return `<div class="sheaf-event"><span class="sheaf-event-type ev-passive-alert">&#9654; Passive Alert</span>
-      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+    return `<div class="sheaf-event" data-si="${si}" data-ei="${ei}" data-alert="passive_alert"><span class="sheaf-event-type ev-passive-alert">&#9654; Passive Alert</span></div>`;
   }
   if (type === 'active_alert') {
-    return `<div class="sheaf-event"><span class="sheaf-event-type ev-active-alert">&#9658; Active Alert</span>
-      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+    return `<div class="sheaf-event" data-si="${si}" data-ei="${ei}" data-alert="active_alert"><span class="sheaf-event-type ev-active-alert">&#9658; Active Alert</span></div>`;
   }
   if (type === 'shutdown') {
-    return `<div class="sheaf-event"><span class="sheaf-event-type ev-shutdown">&#9632; Shutdown</span>
-      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+    return `<div class="sheaf-event" data-si="${si}" data-ei="${ei}" data-alert="shutdown"><span class="sheaf-event-type ev-shutdown">&#9632; Shutdown</span></div>`;
   }
-  return `<div class="sheaf-event"><span class="sheaf-event-type" style="color:var(--text-dim)">${esc(type)}</span>
-    <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+  return `<div class="sheaf-event"><span class="sheaf-event-type" style="color:var(--text-dim)">${esc(type)}</span></div>`;
 }
 
 function renderAddEventRow(si) {
@@ -2626,103 +2766,6 @@ function renderAddEventRow(si) {
           <option value="bouncer">Bouncer (upgrade security code)</option>
         </optgroup>
       </select>
-      <span id="ratingFieldWrap-${si}" style="display:none;align-items:center;gap:4px">
-        <input type="number" id="addEvRating-${si}" min="1" max="50" placeholder="?" value="${guessRating()}"
-          style="width:52px;padding:3px 6px;font-size:.72rem;${inputStyle}" data-tip="Set the rating for the selected IC or event.">
-      </span>
-      <div id="icOptsRow-${si}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;width:100%;padding-left:2px">
-        <span style="font-size:.53rem;letter-spacing:1.5px;color:var(--text-dim);text-transform:uppercase">Mods:</span>
-        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
-          <input type="checkbox" class="chk-reveal" id="addEvArmor-${si}" data-tip="Armor reduces Power of attacks against this IC by 2. In constructs, Armor costs 2 capacity points."> Armor
-        </label>
-        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
-          <input type="checkbox" class="chk-reveal" id="addEvShift-${si}" data-tip="Shift adds +2 TN to hit this IC. +4 TN against Penetration augmented programs. Shift and Shield are mutually exclusive."> Shifting
-        </label>
-        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
-          <input type="checkbox" class="chk-reveal" id="addEvShield-${si}" data-tip="Shield adds +2 TN to hit this IC. +4 TN against Chaser augmented programs. Shield and Shift are mutually exclusive."> Shielding
-        </label>
-        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--cyan);cursor:pointer">
-          <input type="checkbox" class="chk-reveal" id="addEvCasc-${si}" data-tip="Cascade gains +1 dice on subsequent attacks after each miss, or after all damage is resisted. Growth is capped by security code. Can apply to any Proactive and Black IC."> Cascade
-        </label>
-        <select id="addEvExpert-${si}" style="${inputStyle};color:var(--amber);padding:2px 5px" data-tip="${_expertTip('')}">
-          <option value="">No Expert</option>
-          <option value="offense">Expert Offense</option>
-          <option value="defense">Expert Defense</option>
-        </select>
-        <input type="number" id="addEvExpertVal-${si}" min="1" max="3" value="1"
-          style="width:36px;padding:2px 4px;font-size:.7rem;${inputStyle};color:var(--amber)"
-          data-tip="Expert value 1-3">
-      </div>
-      <div id="bouncerBuilder-${si}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
-        <select id="bouncerCode-${si}" onchange="syncBouncerSvBounds(${si})" style="${selectStyle};color:var(--amber)" data-tip="Choose a security code at or above the host's current code.">
-          ${bouncerCodeOptions()}
-        </select>
-        <input type="number" id="bouncerSv-${si}" min="1" max="30" placeholder="New SV"
-          style="width:60px;padding:3px 6px;font-size:.72rem;${inputStyle};color:var(--amber)" data-tip="Security Value after this bouncer triggers.">
-        <input type="text" id="bouncerNotes-${si}" placeholder="sculpting notes (optional)"
-          style="flex:1;min-width:140px;padding:3px 6px;font-size:.68rem;${inputStyle};color:var(--text-bright)" data-tip="Optional notes for this bouncer event.">
-      </div>
-      <div id="trapIcBuilder-${si}" style="display:none;gap:4px;align-items:center;flex-wrap:wrap">
-        <select id="trapSurface-${si}" style="padding:3px 6px;font-size:.72rem;${selectStyle}" data-tip="Choose the visible surface IC.">
-          <option value="Probe">Surface: Probe</option>
-          <option value="Trace">Surface: Trace</option>
-        </select>
-        <input type="number" id="trapSurfaceRtg-${si}" min="1" max="50" placeholder="Rtg"
-          style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Surface IC rating.">
-        <span style="color:var(--text-dim);font-size:.8rem">-></span>
-        <select id="trapHidden-${si}" style="padding:3px 6px;font-size:.72rem;${selectStyle}" data-tip="Choose the hidden payload IC.">
-          ${hiddenIcOptions}
-        </select>
-        <input type="number" id="trapHiddenRtg-${si}" min="1" max="50" placeholder="Rtg"
-          style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Hidden payload rating.">
-      </div>
-      <div id="groupIcBuilder-${si}" style="display:none;flex-direction:column;gap:6px;width:100%;margin-top:4px">
-        <div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px">
-          Capacity: <span id="groupCapUsed-${si}" style="color:var(--amber)">0</span>
-          / <span id="groupCapMax-${si}" class="text-bright">0</span>
-          &nbsp;| Max IC rating: <span id="groupMaxRtg-${si}" class="text-bright">--</span>
-        </div>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-          <select id="groupIcType-${si}" style="flex:1;min-width:120px;padding:3px 6px;font-size:.72rem;${selectStyle}">
-            ${groupIcOptions}
-          </select>
-          <input type="number" id="groupIcRating-${si}" min="1" max="50" placeholder="Rtg"
-            style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}">
-          <button class="btn btn-ghost btn-sm" onclick="addGroupComponent(${si})" style="padding:3px 8px">+ IC</button>
-        </div>
-        <div id="groupCompList-${si}" style="font-size:.7rem;color:var(--amber);min-height:14px"></div>
-        <div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;margin-top:2px">Defenses (2 cap each for Construct, 1 for Party):</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.7rem">
-          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
-            <input type="checkbox" class="chk-reveal" id="groupDefArmor-${si}" onchange="updateGroupCapacity(${si})"> Armor
-          </label>
-          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
-            <input type="checkbox" class="chk-reveal" id="groupDefShielding-${si}" onchange="updateGroupCapacity(${si})"> Shielding
-          </label>
-          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
-            <input type="checkbox" class="chk-reveal" id="groupDefShifting-${si}" onchange="updateGroupCapacity(${si})"> Shifting
-          </label>
-        </div>
-        <div id="groupThreatRow-${si}" style="display:none;font-size:.7rem;gap:6px;align-items:center">
-          <span style="color:var(--text-dim);letter-spacing:1px">Threat Rating:</span>
-          <input type="number" id="groupThreat-${si}" min="0" max="4" placeholder="0-4"
-            style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Threat rating for the group. Higher values unlock stronger group profiles.">
-          <span class="tip" style="margin:0">0=Blue 1=Green 2=Orange 3=Red 4=Black</span>
-        </div>
-        <div id="groupExpertRow-${si}" style="display:none;font-size:.7rem;gap:6px;align-items:center;margin-top:2px">
-          <span style="color:var(--text-dim);letter-spacing:1px">Expert:</span>
-          <select id="groupExpert-${si}" style="${selectStyle};color:var(--amber);padding:2px 5px" data-tip="Choose expert stance for the group.">
-            <option value="">None</option>
-            <option value="offense">Offense</option>
-            <option value="defense">Defense</option>
-          </select>
-          <input type="number" id="groupExpertVal-${si}" min="1" max="3" value="1"
-            style="width:40px;padding:2px 4px;font-size:.7rem;${inputStyle};color:var(--amber)" data-tip="Expert modifier value 1-3.">
-          <span class="tip" style="margin:0">+Offense reduces Defense by same amount</span>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="commitGroupIc(${si})" style="padding:4px 10px;align-self:flex-start" data-tip="Commit the grouped IC as a single event.">&gt;&gt; Submit Group IC</button>
-      </div>
-      <button class="btn btn-ghost btn-sm" id="addEvBtn-${si}" onclick="commitAddEvent(${si})" style="padding:3px 9px" data-tip="Add this configured event to the step.">+ Add</button>
     </div>`;
 }
 
@@ -2736,55 +2779,9 @@ function guessRating() {
 function onAddEvTypeChange(si) {
   const sel = $(`addEvType-${si}`);
   const v = sel?.value || '';
-  const wrap = $(`ratingFieldWrap-${si}`);
-  const trapBldr = $(`trapIcBuilder-${si}`);
-  const groupBldr = $(`groupIcBuilder-${si}`);
-  const addBtn = $(`addEvBtn-${si}`);
-  const icOpts = $(`icOptsRow-${si}`);
-  const bouncerBldr = $(`bouncerBuilder-${si}`);
-
-  if (wrap) wrap.style.display = 'none';
-  if (trapBldr) trapBldr.style.display = 'none';
-  if (groupBldr) groupBldr.style.display = 'none';
-  if (icOpts) icOpts.style.display = 'none';
-  if (bouncerBldr) bouncerBldr.style.display = 'none';
-
-  if (sel) {
-    const tip = _eventTypeTip(v);
-    if (tip) sel.dataset.tip = tip; else sel.removeAttribute('data-tip');
-  }
-
-  if (v === 'trap_ic') {
-    if (trapBldr) trapBldr.style.display = 'flex';
-    if (addBtn) addBtn.style.display = '';
-    return;
-  }
-
-  if (v === 'bouncer') {
-    if (bouncerBldr) bouncerBldr.style.display = 'flex';
-    syncBouncerSvBounds(si);
-    if (addBtn) addBtn.style.display = '';
-    return;
-  }
-
-  if (v === 'construct' || v === 'party_ic') {
-    if (groupBldr) {
-      groupBldr.style.display = 'flex';
-      const threatRow = $(`groupThreatRow-${si}`);
-      const expertRow = $(`groupExpertRow-${si}`);
-      if (threatRow) threatRow.style.display = (v === 'construct') ? 'flex' : 'none';
-      if (expertRow) expertRow.style.display = (v === 'construct') ? 'flex' : 'none';
-    }
-    if (addBtn) addBtn.style.display = 'none';
-    updateGroupCapacity(si);
-    return;
-  }
-
-  const isIc = v.startsWith('ic__');
-  if (wrap) wrap.style.display = isIc ? 'flex' : 'none';
-  if (icOpts) icOpts.style.display = isIc ? 'flex' : 'none';
-  if (addBtn) addBtn.style.display = '';
-  if (isIc) syncAddIcOptionRules(si);
+  if (!v) return;          // placeholder / reset -> nothing to do
+  // Selecting an event auto-adds it (no "+ Add" click) and opens its Inspector to edit.
+  commitAddEvent(si);
 }
 
 function syncAddIcOptionRules(si) {
@@ -2830,69 +2827,30 @@ function commitAddEvent(si) {
   if (!sel || !sel.value) return;
   const raw = sel.value;
 
-  let ev;
   if (raw.startsWith('ic__')) {
     const icType = raw.slice(4);
-    const ratingEl = $(`addEvRating-${si}`);
-    const rating = ratingEl ? parseInt(ratingEl.value, 10) : null;
-
-    const options = [];
-    if ($(`addEvArmor-${si}`)?.checked) options.push('Armor');
-    if ($(`addEvShift-${si}`)?.checked) options.push('Shifting');
-    if ($(`addEvShield-${si}`)?.checked) options.push('Shielding');
-
-    const cascading = !!$(`addEvCasc-${si}`)?.checked && canUseCascade(icType);
-    const expertType = $(`addEvExpert-${si}`)?.value || '';
-    const expertVal = parseInt($(`addEvExpertVal-${si}`)?.value, 10);
-    const expert = (canUseExpert(icType) && expertType && !isNaN(expertVal) && expertVal >= 1 && expertVal <= 3)
-      ? { type: expertType, value: expertVal }
-      : null;
-
-    ev = {
-      type: 'ic', ic_type: icType,
-      rating: (!isNaN(rating) && rating > 0) ? rating : null,
-      ...(options.length ? { options } : {}),
-      ...(cascading ? { cascading: true } : {}),
-      ...(expert ? { expert } : {}),
-    };
-  } else if (raw === 'bouncer') {
-    const code = $(`bouncerCode-${si}`)?.value || 'Red';
-    if (!isAllowedBouncerCode(code)) {
-      showAlert(alertEl(), 'Bouncer security code cannot be below the host security code.', true);
-      return;
-    }
-    const sv = parseInt($(`bouncerSv-${si}`)?.value, 10);
-    const notes = ($(`bouncerNotes-${si}`)?.value || '').trim();
-    const minSv = bouncerMinSvForCode(code);
-    if (isNaN(sv) || sv < minSv) {
-      showAlert(alertEl(), `Enter a new Security Value of at least ${minSv}.`, true);
-      return;
-    }
-    ev = {
-      type: 'bouncer',
-      new_security_code: code,
-      new_security_value: sv,
-      ...(notes ? { sculpting_notes: notes } : {}),
-    };
-  } else if (raw === 'trap_ic') {
-    const surfType = $(`trapSurface-${si}`)?.value || 'Probe';
-    const hidType = $(`trapHidden-${si}`)?.value || 'Blaster';
-    const surfRtg = parseInt($(`trapSurfaceRtg-${si}`)?.value, 10);
-    const hidRtg = parseInt($(`trapHiddenRtg-${si}`)?.value, 10);
-    if (isNaN(surfRtg) || surfRtg < 1 || surfRtg > 20) { showAlert(alertEl(), 'Surface IC rating must be 1-20.', true); return; }
-    if (isNaN(hidRtg) || hidRtg < 1 || hidRtg > 20) { showAlert(alertEl(), 'Hidden IC rating must be 1-20.', true); return; }
-    ev = { type: 'trap_ic', surface_ic_type: surfType, surface_ic_rating: surfRtg, hidden_ic_type: hidType, hidden_ic_rating: hidRtg };
-  } else if (raw === 'construct' || raw === 'party_ic') {
-    commitGroupIc(si);
+    let rating = parseInt(guessRating(), 10);
+    if (isNaN(rating) || rating < 1) rating = 6;
+    rating = Math.min(rating, 20);
+    // Auto-add with a sensible default rating, then open the real-time IC Inspector.
+    _addAndInspect(si, { type: 'ic', ic_type: icType, rating }, (s, e) => openIcEditModal(s, e));
     return;
-  } else {
+  } else if (raw === 'bouncer') {
+    const allowed = bouncerAllowedCodes(currentSecurityCode());
+    const code = allowed[0] || 'Red';
+    _addAndInspect(si, { type: 'bouncer', new_security_code: code, new_security_value: bouncerMinSvForCode(code) }, inspectBouncer);
+    return;
+  } else if (raw === 'trap_ic') {
+    _addAndInspect(si, { type: 'trap_ic', surface_ic_type: 'Probe', surface_ic_rating: 5, hidden_ic_type: 'Killer', hidden_ic_rating: Math.min(_groupMaxRating() || 6, 20) }, inspectTrap);
+    return;
+  } else if (raw === 'construct') {
+    _addAndInspect(si, { type: 'construct', threat_rating: 0, components: [], defenses: [] }, inspectConstruct);
+    return;
+  } else if (raw === 'party_ic') {
+    _addAndInspect(si, { type: 'party_ic', components: [] }, inspectParty);
     return;
   }
-
-  if (!sheafSteps[si].events) sheafSteps[si].events = [];
-  sheafSteps[si].events.push(ev);
-  renderSheaf();
-  updateSummary();
+  // Special events (alerts etc.) and anything else are not added from this control.
 }
 
 function removeEvent(si, ei) {
@@ -2922,6 +2880,31 @@ let _icEditStepIndex = -1;
 let _icEditEventIndex = -1;
 let _icEditCascadeAllowed = true;
 let _icEditExpertAllowed = true;
+let _icEditHome = null;   // original parent of the edit form (for return on close)
+
+// 3-pane shell: show/clear the right Inspector pane.
+function inspectorReset() {
+  const insp = $('mdInspector');
+  if (insp) insp.innerHTML = '<div class="md3-insp-empty">Select a sheaf event, paydata file, or trap door to edit it here.</div>';
+}
+// Move the IC edit form into the Inspector pane (replaces the centred modal).
+// Returns true if relocated; false if the pane isn't present (fall back to overlay).
+function inspectorMountIcEditor() {
+  // the form may currently live in the overlay (first open) or already in the pane
+  const modal = document.querySelector('#mdInspector .edit-modal-mini, #icEditOverlay .edit-modal-mini');
+  const insp  = $('mdInspector');
+  if (!modal || !insp) return false;
+  if (!_icEditHome) _icEditHome = modal.parentNode;
+  insp.innerHTML = '<div class="md3-insp-title">Edit Sheaf Event</div>';
+  insp.appendChild(modal);
+  modal.classList.add('md3-insp-form');
+  insp.closest('.md3-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return true;
+}
+function inspectorUnmountIcEditor() {
+  const modal = document.querySelector('#mdInspector .edit-modal-mini');
+  if (modal && _icEditHome) { modal.classList.remove('md3-insp-form'); _icEditHome.appendChild(modal); }
+}
 
 function syncIcEditExpertUI() {
   const mode = $('icEditExpertType')?.value || '';
@@ -2981,12 +2964,48 @@ function wireIcEditModal() {
     });
   }
   if (expert) expert.addEventListener('change', syncIcEditExpertUI);
+  // Real-time: every field change applies straight to the event (no Save button).
+  ['icEditRating', 'icEditExpertVal'].forEach(id => {
+    const el = $(id); if (el) el.addEventListener('input', _applyIcEditLive);
+  });
+  ['icEditArmor', 'icEditShift', 'icEditShield', 'icEditCasc', 'icEditExpertType'].forEach(id => {
+    const el = $(id); if (el) el.addEventListener('change', _applyIcEditLive);
+  });
   syncIcEditExpertUI();
+}
+
+// Apply the IC edit form to its event live; only commits in-range values (no alert spam).
+function _applyIcEditLive() {
+  const ev = sheafSteps?.[_icEditStepIndex]?.events?.[_icEditEventIndex];
+  if (!ev || ev.type !== 'ic') return;
+  const n = parseInt($('icEditRating').value, 10);
+  if (!isNaN(n) && n >= 1 && n <= 20) ev.rating = n;
+  const opts = [];
+  if ($('icEditArmor').checked)  opts.push('Armor');
+  if ($('icEditShift').checked)  opts.push('Shifting');
+  if ($('icEditShield').checked) opts.push('Shielding');
+  if (opts.length) ev.options = opts; else delete ev.options;
+  if (_icEditCascadeAllowed && $('icEditCasc').checked) ev.cascading = true; else delete ev.cascading;
+  const eType = $('icEditExpertType').value || '';
+  const eVal  = parseInt($('icEditExpertVal').value, 10);
+  if (_icEditExpertAllowed && eType && !isNaN(eVal) && eVal >= 1 && eVal <= 3) ev.expert = { type: eType, value: eVal };
+  else delete ev.expert;
+  renderSheaf();
+  updateSummary();
+  _markSelectedEvent(_icEditStepIndex, _icEditEventIndex);  // renderSheaf rebuilt the chips
+}
+
+// Remove the IC event currently open in the Inspector.
+function removeIcEvent() {
+  const si = _icEditStepIndex, ei = _icEditEventIndex;
+  closeIcEditModal();
+  if (si >= 0 && ei >= 0) removeEvent(si, ei);
 }
 
 function openIcEditModal(si, ei) {
   const ev = sheafSteps?.[si]?.events?.[ei];
   if (!ev || ev.type !== 'ic') return;
+  _inspCtx = null;   // clear any in-progress composite editor
   _icEditStepIndex = si;
   _icEditEventIndex = ei;
   $('icEditHeader').textContent = `Edit IC Event: ${icDisplayName(ev.ic_type || 'IC')}`;
@@ -3002,13 +3021,889 @@ function openIcEditModal(si, ei) {
   _icEditExpertAllowed = canUseExpert(ev.ic_type || '');
   syncIcEditExpertUI();
   $('icEditTip').textContent = _icTypeTip(ev.ic_type || 'IC');
-  $('icEditOverlay').classList.add('open');
+  // Prefer the right-pane Inspector; fall back to the centred overlay if absent.
+  if (!inspectorMountIcEditor()) $('icEditOverlay').classList.add('open');
+  _markSelectedEvent(si, ei);
 }
 
 function closeIcEditModal() {
+  inspectorUnmountIcEditor();
+  inspectorReset();
   $('icEditOverlay').classList.remove('open');
+  _clearSelectedEvent();
   _icEditStepIndex = -1;
   _icEditEventIndex = -1;
+}
+
+// highlight the sheaf chip currently open in the Inspector
+function _markSelectedEvent(si, ei) {
+  _clearSelectedEvent();
+  const wrap = $(`events-${si}`);
+  const chip = wrap?.querySelectorAll('.sheaf-event')[ei];
+  if (chip) chip.classList.add('md3-sel');
+}
+function _clearSelectedEvent() {
+  document.querySelectorAll('.md3 .md3-sel').forEach(c => c.classList.remove('md3-sel'));
+}
+
+// Route a click on a sheaf event chip to the right Inspector editor.
+function inspectEvent(si, ei) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev) return;
+  switch (ev.type || 'ic') {
+    case 'ic':            editIcEvent(si, ei); break;
+    case 'trap_ic':       inspectTrap(si, ei); break;
+    case 'bouncer':       inspectBouncer(si, ei); break;
+    case 'construct':     inspectConstruct(si, ei); break;
+    case 'party_ic':      inspectParty(si, ei); break;
+    case 'passive_alert':
+    case 'active_alert':
+    case 'shutdown':      inspectAlert(ev.type, si); break;
+  }
+}
+
+/* ===========================================================================
+   SHEAF-STEP INSPECTOR -- edit a step's trigger + its events, and add IC from an
+   alert-gated palette (prototype inspectStep + eventPaletteHTML). All real-time.
+   =========================================================================== */
+function _stepEvtLabel(ev) {
+  const t = ev.type || 'ic';
+  if (t === 'ic') {
+    const cat = icCategory(ev.ic_type || '');
+    return `<span class="ic-dot" style="background:${icColor(cat, ev.ic_type || '')}"></span><span style="color:${icColor(cat, ev.ic_type || '')}">${esc(icModeLabel(ev.ic_type || ''))} ${esc(icDisplayName(ev.ic_type || '?'))}-${ev.rating ?? '?'}</span>`;
+  }
+  return esc(_eventShortLabel(ev));
+}
+function _stepPaletteHTML(si, ctx) {
+  const gray  = IC_GRAY.filter(t => _icAllowedByAlert(t, ctx));
+  const black = ctx === 'active' ? IC_BLACK : [];
+  const chip  = (t, cls) => `<span class="md3-pal-chip ${cls}" onclick="_stepAddIc(${si},'${esc(t)}')" data-tip="${esc(_icTypeTip(t))}">${esc(icModeLabel(t))} ${esc(icDisplayName(t))}</span>`;
+  const grp   = (lbl, arr, cls) => arr.length ? `<div class="md3-pal-group"><div class="md3-pal-lbl">${lbl}</div><div class="md3-pal">${arr.map(t => chip(t, cls)).join('')}</div></div>` : '';
+  const comp  = `<div class="md3-pal-group"><div class="md3-pal-lbl">Composite</div><div class="md3-pal">
+    <span class="md3-pal-chip c" onclick="_stepAddComposite(${si},'trap_ic')" data-tip="Surface IC hiding a payload IC">Trap IC</span>
+    <span class="md3-pal-chip c" onclick="_stepAddComposite(${si},'construct')" data-tip="Grouped IC, single icon">Construct</span>
+    <span class="md3-pal-chip c" onclick="_stepAddComposite(${si},'party_ic')" data-tip="IC cluster acting together">Party IC</span>
+    <span class="md3-pal-chip c" onclick="_stepAddComposite(${si},'bouncer')" data-tip="Upgrade host security code/value">Bouncer</span></div></div>`;
+  const ctxLabel = ctx === 'active' ? 'Active Alert' : ctx === 'passive' ? 'Passive Alert' : 'No Alert';
+  return `<div class="md3-insp-sec"><span class="md3-insp-label">Add event</span>
+    <div class="md3-pal-cap">Available at this step: <b>${ctxLabel}</b> &middot; IC gated by the Alert Table</div>
+    ${grp('White IC', IC_WHITE, 'w')}${grp('Gray IC', gray, 'g')}${grp('Black IC', black, 'b')}${comp}</div>`;
+}
+function inspectStep(si) {
+  const step = sheafSteps[si];
+  if (!step) return;
+  _inspCtx = null;
+  const ctx = _alertContextForSelectionAtStep(si);
+  const prevTrig = si > 0 ? (sheafSteps[si - 1].trigger ?? 0) : 0;
+  const nextTrig = si < sheafSteps.length - 1 ? (sheafSteps[si + 1].trigger ?? 9999) : 9999;
+  const minTrig  = si === 0 ? 0 : prevTrig + 1;
+  const maxTrig  = si < sheafSteps.length - 1 ? nextTrig - 1 : 9999;
+  const events   = step.events || [];
+  const evList = events.length
+    ? events.map((ev, ei) => `<div class="md3-insp-otherevt md3-step-evt" data-tip="Click to edit" onclick="inspectEvent(${si},${ei})">
+        <span class="se-lbl">${_stepEvtLabel(ev)}</span>
+        <button class="event-remove-btn" onclick="event.stopPropagation();_stepRemoveEvent(${si},${ei})" data-tip="Remove">[x]</button></div>`).join('')
+    : '<div class="md3-insp-note">No events on this step yet.</div>';
+  _inspRender(`
+    <div class="md3-insp-title">Sheaf Step ${si + 1}</div>
+    <div class="md3-insp-sub">Trigger &amp; Events</div>
+    <div class="md3-insp-row"><span class="md3-trigger-lbl">Trigger</span><input type="number" id="stepTrigger" class="md3-num" min="${minTrig}" max="${maxTrig === 9999 ? 99 : maxTrig}" value="${step.trigger ?? 0}" oninput="_stepSetTrigger(${si},this.value)"></div>
+    <div class="md3-insp-note">Trigger range ${minTrig} to ${maxTrig === 9999 ? '(open)' : maxTrig}, ordered by the neighbouring steps.</div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Events on this step</span>${evList}</div>
+    ${_stepPaletteHTML(si, ctx)}
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_stepDelete(${si})" style="color:var(--red)">Delete Step</button></div>`);
+  _markStepSelected(si);
+}
+function _markStepSelected(si) {
+  _clearSelectedEvent();
+  const badge = document.querySelector(`#sheafStepList .trigger-badge[data-step="${si}"]`);
+  if (badge) badge.classList.add('md3-sel');
+}
+function _stepSetTrigger(si, val) {
+  updateTrigger(si, val);   // clamps to neighbour bounds + updateSummary
+  renderSheaf();            // reflect the new trigger on the sheaf (inspector form is untouched)
+  _markStepSelected(si);
+  _scheduleAutoSave();
+}
+function _stepAddIc(si, icType) {
+  if (!sheafSteps[si]) return;
+  if (!sheafSteps[si].events) sheafSteps[si].events = [];
+  let rating = parseInt(guessRating(), 10);
+  if (isNaN(rating) || rating < 1) rating = 6;
+  sheafSteps[si].events.push({ type: 'ic', ic_type: icType, rating: Math.min(rating, 20) });
+  const ei = sheafSteps[si].events.length - 1;
+  renderSheaf(); updateSummary(); _scheduleAutoSave();
+  inspectEvent(si, ei);   // focus the newly-added IC in the inspector for editing
+}
+function _stepAddComposite(si, type) {
+  if (!sheafSteps[si]) return;
+  if (!sheafSteps[si].events) sheafSteps[si].events = [];
+  let ev;
+  if (type === 'bouncer') {
+    const allowed = bouncerAllowedCodes(currentSecurityCode());
+    const code = allowed[0] || 'Red';
+    ev = { type: 'bouncer', new_security_code: code, new_security_value: bouncerMinSvForCode(code) };
+  } else if (type === 'trap_ic') {
+    ev = { type: 'trap_ic', surface_ic_type: 'Probe', surface_ic_rating: 5, hidden_ic_type: 'Killer', hidden_ic_rating: Math.min(_groupMaxRating() || 6, 20) };
+  } else if (type === 'construct') {
+    ev = { type: 'construct', threat_rating: 0, components: [], defenses: [] };
+  } else if (type === 'party_ic') {
+    ev = { type: 'party_ic', components: [] };
+  } else return;
+  sheafSteps[si].events.push(ev);
+  const ei = sheafSteps[si].events.length - 1;
+  renderSheaf(); updateSummary(); _scheduleAutoSave();
+  inspectEvent(si, ei);   // focus the newly-added composite in the inspector for editing
+}
+function _stepRemoveEvent(si, ei) {
+  removeEvent(si, ei);   // renders sheaf + updateSummary
+  _scheduleAutoSave();
+  inspectStep(si);
+}
+function _stepDelete(si) {
+  _clearSelectedEvent(); inspectorReset();
+  removeStep(si);
+  _scheduleAutoSave();
+}
+
+// Delegated click-to-inspect: clicking the body of a sheaf event chip, the step card,
+// a paydata row, or a trap-door entry (anywhere except its own buttons / inline
+// controls) opens it in the right Inspector pane.
+document.addEventListener('click', (e) => {
+  if (e.target.closest('button, input, select, textarea, a, [onclick]')) return;
+  // 1) an IC chip overrides everything -> that event's inspector
+  const chip = e.target.closest('#sheafStepList .sheaf-event[data-si]');
+  if (chip) {
+    const si = parseInt(chip.dataset.si, 10);
+    if (isNaN(si)) return;
+    if (chip.dataset.alert) { inspectAlert(chip.dataset.alert, si); return; }
+    const ei = parseInt(chip.dataset.ei, 10);
+    if (!isNaN(ei)) inspectEvent(si, ei);
+    return;
+  }
+  // 2) anywhere else on the step card -> the step inspector
+  const stepEl = e.target.closest('#sheafStepList .sheaf-step[data-stepidx]');
+  if (stepEl) {
+    const si = parseInt(stepEl.dataset.stepidx, 10);
+    if (!isNaN(si)) inspectStep(si);
+    return;
+  }
+  // paydata file rows
+  const pd = e.target.closest('#paydataList .pd-row[data-pd]');
+  if (pd) { inspectPaydata(parseInt(pd.dataset.pd, 10)); return; }
+  // trap-door entries
+  const td = e.target.closest('#trapDoorList .td-row[data-td]');
+  if (td) { inspectTrapDoor(parseInt(td.dataset.td, 10)); return; }
+  // slave named devices (trap-door source + destination + Follow live here)
+  const slave = e.target.closest('#slavePieceList .tag-pc[data-slave]');
+  if (slave) { inspectSlaveDevice(parseInt(slave.dataset.slave, 10)); return; }
+});
+
+// Short one-line label for an event, used in the alert inspector's "also on this step" list.
+function _eventShortLabel(ev) {
+  const t = ev.type || 'ic';
+  if (t === 'ic')        return esc(`${icDisplayName(ev.ic_type || '?')}-${ev.rating ?? '?'}`);
+  if (t === 'trap_ic')   return esc(`Trap: ${ev.surface_ic_type || '?'} \u2192 ${icDisplayName(ev.hidden_ic_type || '?')}`);
+  if (t === 'construct') return esc(`Construct Threat-${ev.threat_rating ?? '?'}`);
+  if (t === 'party_ic')  return 'Party IC';
+  if (t === 'bouncer')   return esc(`Bouncer \u2192 ${ev.new_security_code || '?'}-${ev.new_security_value ?? '?'}`);
+  if (t === 'passive_alert') return 'Passive Alert';
+  if (t === 'active_alert')  return 'Active Alert';
+  if (t === 'shutdown')      return 'Shutdown';
+  return esc(t);
+}
+
+// Inspector for an alert chip. Alerts in the live page are placed via the Alert
+// Triggers panel; this pane shows the alert's effect + what else is on the step.
+const _ALERT_INFO = {
+  passive_alert: ['Passive Alert', 'Host grows suspicious: +2 to all subsystem ratings and the host begins actively watching for the intruder.'],
+  active_alert:  ['Active Alert', 'Host is fully alerted: Proactive and Black IC may deploy and aggression escalates each step.'],
+  shutdown:      ['Shutdown', 'Host dumps all personas and powers down the node. Anyone still jacked in suffers dump shock.'],
+};
+function inspectAlert(kind, si) {
+  const info = _ALERT_INFO[kind];
+  if (!info) return;
+  _inspCtx = null;
+  const step = sheafSteps[si] || { events: [] };
+  const others = (step.events || []).filter(e => (e.type || 'ic') !== kind);
+  const otherList = others.length
+    ? `<div class="md3-insp-sec"><span class="md3-insp-label">Also on this step</span>${others.map(e => `<div class="md3-insp-otherevt">${_eventShortLabel(e)}</div>`).join('')}</div>`
+    : '';
+  const tail = kind === 'shutdown'
+    ? '<div class="md3-insp-note">Shutdown ends the run on this node, so IC is not scheduled after it.</div>'
+    : '';
+  _inspRender(`
+    <div class="md3-insp-title">${esc(info[0])}</div>
+    <div class="md3-insp-sub">Alert Trigger &middot; Step ${si + 1}</div>
+    <div class="md3-insp-flavor">${esc(info[1])}</div>
+    <div class="md3-insp-note">Alerts are placed via the Alert Triggers panel (Passive &rarr; Active &rarr; Shutdown). A step can hold an alert and IC together.</div>
+    ${otherList}${tail}`);
+  _clearSelectedEvent();
+  const chip = $(`events-${si}`)?.querySelector(`.sheaf-event[data-alert="${kind}"]`);
+  if (chip) chip.classList.add('md3-sel');
+}
+
+/* ===========================================================================
+   PAYDATA FILE INSPECTOR (replaces the prompt() Data Bomb / Scramble editors)
+   Edits a working draft of one paydata file -- size, Key flag, and file-level
+   passive IC (Data Bomb + Scramble) -- then commits via the same sync path the
+   inline editors used. Inline rename / KEY toggle / ROLL IC in the list still work.
+   =========================================================================== */
+let _pdInspIdx = -1;
+function inspectPaydata(idx) {
+  if (!paydata[idx]) return;
+  _inspCtx = null;
+  _pdInspIdx = idx;
+  _renderPaydataInspector();
+}
+// Human-readable summary of a file's current protection (Roll-Protection result label).
+function _pdProtectionLabel(p) {
+  const d = _ensurePaydataDefenseShape(p);
+  const parts = [];
+  if (d.data_bomb_rating != null) parts.push(`Data Bomb-${d.data_bomb_rating}`);
+  if (d.scramble_rating != null) parts.push(`${d.scramble_variant === 'poison' ? 'Poison' : 'Exploding'} Scramble-${d.scramble_rating}`);
+  return parts.length ? parts.join(' \u00b7 ') : 'No countermeasure';
+}
+function _recalcPaydataMode(d) {
+  d.mode = (d.data_bomb_rating != null && d.scramble_rating != null) ? 'combo'
+    : d.data_bomb_rating != null ? 'data_bomb'
+    : d.scramble_rating != null ? 'scramble' : 'none';
+}
+// Push file-level defense changes into the passive-IC arrays + redraw the list/counters.
+function _pdApply() {
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata(); renderDataBombs(); renderScrambles(); updateSummary();
+}
+function _renderPaydataInspector() {
+  const idx = _pdInspIdx;
+  const p = paydata[idx];
+  if (!p) { _pdInspIdx = -1; inspectorReset(); return; }
+  const d = _ensurePaydataDefenseShape(p);
+  const scFlavor = d.scramble_variant === 'poison'
+    ? 'Poison Scramble repeats its data-destruction attempt once it detects the decker, until decrypted or crashed.'
+    : 'Exploding Scramble destroys the file outright if the crack attempt fails.';
+  // All edits apply in real time -- no Save/Cancel.
+  _inspRender(`
+    <div class="md3-insp-title">Paydata File</div>
+    <div class="md3-insp-sub">Hosted Data File</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">File Name</span><input type="text" id="pdInspName" value="${esc(p.name)}" style="flex:1;min-width:0" data-tip="Rename this file" onchange="_pdSetName(this.value)"></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Size (Mp)</span><span class="md3-cap" data-tip="Auto-rolled per the security table">${p.density} Mp</span></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Key File</span>${_optBox(!!p.is_key, 'Key', false, '_pdToggleKey()')}</div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">File-Level Protection</span>
+      <div class="md3-insp-row" style="margin:0 0 10px;justify-content:flex-start;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="_pdRollProtection()" data-tip="Roll this file's protection from the rules table">Roll Protection</button>
+        <span class="md3-cap" id="pdProtResult">${esc(_pdProtectionLabel(p))}</span>
+      </div>
+      <div class="md3-opt-grid">
+        ${_optBox(d.data_bomb_rating != null, 'Data Bomb', false, "_pdToggleDef('data_bomb')")}
+        ${_optBox(d.scramble_rating != null, 'Scramble', false, "_pdToggleDef('scramble')")}
+      </div>
+      ${d.data_bomb_rating != null ? `<div class="md3-insp-row" style="margin-top:11px"><span class="md3-insp-label" style="margin:0">Data Bomb Rating</span><input type="number" id="pdInspDbRtg" class="md3-num" min="1" max="20" value="${d.data_bomb_rating}" oninput="_pdSetRating('data_bomb',this.value)"></div>` : ''}
+      ${d.scramble_rating != null ? `
+        <div class="md3-insp-row" style="margin-top:11px"><span class="md3-insp-label" style="margin:0">Scramble Variant</span>
+          <select id="pdInspScVar" onchange="_pdSetVariant(this.value)" style="width:130px">
+            <option value="poison"${d.scramble_variant === 'poison' ? ' selected' : ''}>Poison</option>
+            <option value="exploding"${d.scramble_variant === 'exploding' ? ' selected' : ''}>Exploding</option>
+          </select></div>
+        <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Scramble Rating</span><input type="number" id="pdInspScRtg" class="md3-num" min="1" max="20" value="${d.scramble_rating}" oninput="_pdSetRating('scramble',this.value)"></div>
+        <div class="md3-insp-flavor">${scFlavor}</div>` : ''}
+    </div>
+    <div class="md3-insp-note">Passive IC attaches to this file &mdash; it is not part of the sheaf. Size is auto-rolled per the security table; value is GM-assigned.</div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_pdDelete()" style="color:var(--red)">Delete File</button></div>`);
+  _clearSelectedEvent();
+  const row = document.querySelector(`#paydataList .pd-row[data-pd="${idx}"]`);
+  if (row) row.classList.add('md3-sel');
+}
+function _pdSetName(v) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  v = (v || '').trim();
+  if (!v) { showAlert(alertEl(), 'File name cannot be empty.', true); _renderPaydataInspector(); return; }
+  _renamePaydata(_pdInspIdx, v);
+  renderPaydata(); updateSummary();
+}
+function _pdToggleKey() {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  p.is_key = !p.is_key;
+  renderPaydata(); updateSummary(); _renderPaydataInspector();
+}
+function _pdToggleDef(kind) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  const d = _ensurePaydataDefenseShape(p);
+  if (kind === 'data_bomb') {
+    d.data_bomb_rating = d.data_bomb_rating != null ? null : _defaultDefenseRating();
+  } else {
+    if (d.scramble_rating != null) { d.scramble_rating = null; d.scramble_variant = null; }
+    else { d.scramble_rating = _defaultDefenseRating(); d.scramble_variant = d.scramble_variant || 'poison'; }
+  }
+  _recalcPaydataMode(d); _pdApply(); _renderPaydataInspector();
+}
+function _pdSetRating(kind, val) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  const d = _ensurePaydataDefenseShape(p);
+  let n = parseInt(val, 10);
+  if (Number.isNaN(n)) return;
+  n = Math.max(1, Math.min(20, n));
+  if (kind === 'data_bomb') d.data_bomb_rating = n; else d.scramble_rating = n;
+  _recalcPaydataMode(d); _pdApply();
+  const lbl = $('pdProtResult'); if (lbl) lbl.textContent = _pdProtectionLabel(p);  // update without rebuild (keep input focus)
+}
+function _pdSetVariant(v) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  _ensurePaydataDefenseShape(p).scramble_variant = v === 'exploding' ? 'exploding' : 'poison';
+  _pdApply(); _renderPaydataInspector();
+}
+function _pdRollProtection() {
+  const code = $('secCode')?.value || '';
+  if (!['Green', 'Orange', 'Red', 'Black'].includes(code)) {
+    showAlert(alertEl(), 'Set security code to Green/Orange/Red/Black to roll paydata protection.', true); return;
+  }
+  if (!paydata[_pdInspIdx]) return;
+  _applyPaydataDefenseMode(_pdInspIdx, _rollPaydataDefenseMode(code));
+  _pdApply(); _renderPaydataInspector();
+  // visual cue that a roll happened (even if the result is unchanged)
+  const lbl = $('pdProtResult');
+  if (lbl) { void lbl.offsetWidth; lbl.classList.add('flash'); }
+}
+function _pdDelete() {
+  const idx = _pdInspIdx; if (!paydata[idx]) return;
+  _pdInspIdx = -1; _clearSelectedEvent(); inspectorReset();
+  removePaydata(idx); updateSummary();
+}
+
+/* ===========================================================================
+   TRAP-DOOR INSPECTOR -- destination + Follow (loads the destination host into
+   the designer). Replaces nothing; previously trap doors were list-only.
+   =========================================================================== */
+function inspectTrapDoor(i) {
+  const td = trapDoors[i]; if (!td) return;
+  _inspCtx = null;
+  const destLabel = td.destination_label || td.destination_ltg
+    || (td.destination_host_id != null ? `Host #${td.destination_host_id}` : '?');
+  const isHost = td.destination_host_id != null;
+  _inspRender(`
+    <div class="md3-insp-title">${esc(td.source_piece || 'Trap Door')}</div>
+    <div class="md3-insp-sub">Slave Device &middot; Trap Door</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Hidden</span><span class="md3-cap" style="color:var(--amber)">Yes &mdash; until Analyzed</span></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Destination</span>
+      <div class="md3-insp-otherevt">&#8627; ${esc(destLabel)}</div>
+      ${isHost
+        ? `<div class="md3-insp-row" style="margin-top:11px;justify-content:flex-start"><button class="btn btn-sm btn-follow" onclick="_inspFollowTrapDoor(${i})" data-tip="Open the destination host in the designer">Follow Trap Door &rarr;</button></div>`
+        : '<div class="md3-insp-note">Destination is an LTG address &mdash; no in-app host to follow.</div>'}
+    </div>
+    <div class="md3-insp-note">A concealed comm port that bypasses Access and drops the decker into another host. "Follow" loads that host into the designer so you can edit the system on the other side of the door.</div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspDeleteTrapDoor(${i})" style="color:var(--red)">Remove Trap Door</button></div>`);
+  _clearSelectedEvent();
+  const row = document.querySelector(`#trapDoorList .td-row[data-td="${i}"]`);
+  if (row) row.classList.add('md3-sel');
+}
+async function _inspFollowTrapDoor(i) {
+  const td = trapDoors[i]; if (!td || td.destination_host_id == null) return;
+  // no confirm needed -- edits auto-save, so following is non-destructive
+  const destId = td.destination_host_id;
+  const via    = td.source_piece || 'trap door';
+  _saveCurrentTabStep();   // remember where we were on the source host so returning restores it
+  // The source host becomes (or stays) the root tab; the destination opens beside it.
+  if (currentHost && !_hostTabs.some(t => t.id === currentHost.id)) {
+    _hostTabs = [{ id: currentHost.id, label: _hostTabLabel(currentHost), step: wizardStep }];
+  }
+  const destLabel = td.destination_label || `Host #${destId}`;
+  let destTab = _hostTabs.find(t => t.id === destId);
+  if (!destTab) { destTab = { id: destId, label: destLabel, via }; _hostTabs.push(destTab); }
+  destTab._new = true;   // flag so renderHostTabs flashes the freshly-created tab
+  _followPending = { via };
+  _setFollowMsg(`&#8627; Followed the <b>${esc(via)}</b> trap door &mdash; now editing <b>${esc(destLabel)}</b> in a new tab. The source host stays open in tab 1.`);
+  _switchToHost(destId, destLabel);
+  inspectorReset();
+  await onHostChange();
+  _restoreTabStep(destId);
+}
+
+/* ===========================================================================
+   IN-APP HOST TABS -- a trap-door Follow opens its destination host as a tab
+   (prototype hosttabs/followMsg). Tabs switch currentHost; auto-save makes the
+   switch non-destructive; closing a tab returns to the tab before it.
+   =========================================================================== */
+function _hostTabLabel(h) {
+  const n = (h && h.name) || `Host #${h && h.id}`;
+  return n.length > 34 ? n.slice(0, 32) + '\u2026' : n;
+}
+function _setFollowMsg(html) {
+  const el = $('followMsg'); if (!el) return;
+  if (html) { el.innerHTML = html; el.style.display = ''; }
+  else { el.innerHTML = ''; el.style.display = 'none'; }
+}
+function _ensureHostOption(id, label) {
+  const sel = $('hostSelect'); if (!sel) return;
+  if (![...sel.options].some(o => o.value === String(id))) {
+    const opt = document.createElement('option');
+    opt.value = String(id);
+    opt.textContent = label || `Host #${id}`;
+    sel.appendChild(opt);
+  }
+}
+function _switchToHost(id, label) {
+  const sel = $('hostSelect'); if (!sel) return;
+  _ensureHostOption(id, label);
+  sel.value = String(id);
+  refreshHostSelect();
+}
+// Remember the wizard step on the currently-open tab so returning to it restores the view
+// (a host switch otherwise drops you back on Step 2). Paired with _restoreTabStep.
+function _saveCurrentTabStep() {
+  if (!currentHost) return;
+  const t = _hostTabs.find(x => x.id === currentHost.id);
+  if (t) t.step = wizardStep;
+}
+function _restoreTabStep(id) {
+  const t = _hostTabs.find(x => x.id === id);
+  if (t && t.step) gotoStep(t.step);
+}
+// The current host is always represented as tab 1; following a trap door adds more.
+function _syncCurrentHostTab() {
+  if (!currentHost) { _hostTabs = []; renderHostTabs(); return; }
+  if (!_hostTabs.some(t => t.id === currentHost.id)) {
+    _hostTabs = [{ id: currentHost.id, label: _hostTabLabel(currentHost) }];
+  }
+  renderHostTabs();
+}
+function renderHostTabs() {
+  const strip = $('hostTabs'); if (!strip) return;
+  if (_hostTabs.length < 1) { strip.style.display = 'none'; strip.innerHTML = ''; return; }
+  strip.style.display = 'flex';
+  const multi = _hostTabs.length > 1;
+  strip.innerHTML = _hostTabs.map(t => {
+    const on    = !!(currentHost && currentHost.id === t.id);
+    const flash = t._new ? ' justadded' : '';
+    delete t._new;   // one-shot: the flash only plays the first time the tab is drawn
+    const via = t.via ? ` <span class="src">(via ${esc(t.via)})</span>` : '';
+    // the lone root tab (the machine you're on) has no close button
+    const close = multi ? ` <span class="hx" onclick="event.stopPropagation();closeHostTab(${t.id})" data-tip="Close tab">&times;</span>` : '';
+    return `<div class="htab${on ? ' on' : ''}${flash}" data-tab="${t.id}" onclick="switchHostTab(${t.id})" data-tip="Switch to this host">`
+      + `${esc(t.label)}${via}${close}</div>`;
+  }).join('');
+}
+async function switchHostTab(id) {
+  if (currentHost && currentHost.id === id) return;
+  _saveCurrentTabStep();                      // stash the step we're leaving
+  const tab = _hostTabs.find(t => t.id === id);
+  _setFollowMsg(null);
+  _switchToHost(id, tab && tab.label);
+  inspectorReset();
+  await onHostChange();
+  _restoreTabStep(id);                         // land on the step we last had on that host
+}
+async function closeHostTab(id) {
+  const i = _hostTabs.findIndex(t => t.id === id); if (i < 0) return;
+  const wasActive = !!(currentHost && currentHost.id === id);
+  _hostTabs.splice(i, 1);
+  _setFollowMsg(null);
+  if (!wasActive) { renderHostTabs(); return; }
+  const next = _hostTabs[i - 1] || _hostTabs[0];   // return to the tab before it (the source)
+  if (next) { await switchHostTab(next.id); }
+  else { renderHostTabs(); }
+}
+function _inspDeleteTrapDoor(i) {
+  _inspCtx = null; _clearSelectedEvent(); inspectorReset();
+  removeTrapDoor(i);
+}
+
+/* ===========================================================================
+   SLAVE-DEVICE INSPECTOR -- a Slave named device's Trap Door lives here (prototype):
+   rename, toggle Trap Door, set destination, Follow, remove the device.
+   =========================================================================== */
+function inspectSlaveDevice(i) {
+  const name = slavePieces[i];
+  if (name == null) return;
+  _inspCtx = null;
+  const isTrap = slaveTrapPieces.includes(name);
+  const td     = trapDoors.find(t => t.source_piece === name);
+  const curVal = td ? (td.destination_host_id != null ? `host:${td.destination_host_id}`
+    : td.destination_ltg ? `ltg:${td.destination_ltg}` : '') : '';
+  const canFollow = !!(td && td.destination_host_id != null);
+  const destLabel = td ? (td.destination_label || td.destination_ltg || (td.destination_host_id != null ? `Host #${td.destination_host_id}` : '')) : '';
+  const followCard = (td && destLabel) ? `
+      <div class="follow-card">
+        <span class="md3-insp-label" style="margin-bottom:6px">Destination</span>
+        <div class="fc-dest">&#8627; <b>${esc(destLabel)}</b></div>
+        ${canFollow
+          ? `<button class="btn btn-sm btn-follow" onclick="_inspFollowSlaveTrap(${i})" data-tip="Open the destination host in the designer">Follow Trap Door &rarr;</button>`
+          : '<div class="md3-insp-note" style="margin:0">LTG address &mdash; no in-app host to follow.</div>'}
+      </div>` : '';
+  const trapSection = isTrap ? `
+    <div class="md3-insp-sec">
+      <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Hidden</span><span class="md3-cap" style="color:var(--amber)">Yes &mdash; until Analyzed</span></div>
+      <span class="md3-insp-label" style="margin-top:11px">Set Destination</span>
+      <select id="slvDest" style="width:100%" onchange="_slvSetDest(${i},this.value)">${_trapDoorDestOptionsHTML(curVal)}</select>
+      ${followCard}
+      <div class="md3-insp-note">A concealed comm port that bypasses the Access subsystem and drops the decker into the destination host. Hidden until a successful Analyze Subsystem (Slave) test.</div>
+    </div>` : '';
+  _inspRender(`
+    <div class="md3-insp-title">${esc(name)}</div>
+    <div class="md3-insp-sub">Slave Device</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Name</span><input type="text" id="slvName" value="${esc(name)}" style="flex:1;min-width:0" onchange="_slvSetName(${i},this.value)"></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Trap Door</span>${_optBox(isTrap, 'Trap Door', false, `_inspToggleSlaveTrap(${i})`)}</div>
+    ${trapSection}
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveSlave(${i})" style="color:var(--red)">Remove Device</button></div>`);
+  _clearSelectedEvent();
+  const pill = document.querySelector(`#slavePieceList .tag-pc[data-slave="${i}"]`);
+  if (pill) pill.classList.add('md3-sel');
+}
+// Toggle Trap Door immediately (mirrors toggleSlaveTrapPiece) and re-open the inspector.
+function _inspToggleSlaveTrap(i) {
+  const name = slavePieces[i]; if (name == null) return;
+  if (slaveTrapPieces.includes(name)) {
+    slaveTrapPieces = slaveTrapPieces.filter(n => n !== name);
+    trapDoors = trapDoors.filter(t => t.source_piece !== name);
+  } else {
+    slaveTrapPieces.push(name);
+  }
+  _rebuildTrapDoorSourceOpts();
+  renderSubPieces('slave'); renderTrapDoors();
+  inspectSlaveDevice(i);
+}
+// Real-time slave-device edits (no Save button).
+function _slvSetName(i, val) {
+  const old = slavePieces[i]; if (old == null) return;
+  val = (val || '').trim();
+  if (!val) { showAlert(alertEl(), 'Device name cannot be empty.', true); inspectSlaveDevice(i); return; }
+  if (val !== old && slavePieces.includes(val)) { showAlert(alertEl(), 'A device with that name already exists.', true); inspectSlaveDevice(i); return; }
+  if (val !== old) {
+    _renameSubPiece('slave', i, val);
+    renderSubPieces('slave'); _rebuildTargetDropdowns(); onScrambleVariantChange(); updateSummary();
+    inspectSlaveDevice(i);
+  }
+}
+function _slvSetDest(i, val) {
+  const name = slavePieces[i]; if (name == null) return;
+  _setTrapDoorDestination(name, val);
+  renderTrapDoors(); updateSummary();
+  inspectSlaveDevice(i);   // refresh so the Follow button shows/hides for the new destination
+}
+function _inspRemoveSlave(i) {
+  _inspCtx = null; _clearSelectedEvent(); inspectorReset();
+  removeSubPiece('slave', i);
+}
+async function _inspFollowSlaveTrap(i) {
+  const name = slavePieces[i];
+  const idx = trapDoors.findIndex(t => t.source_piece === name);
+  if (idx >= 0) _inspFollowTrapDoor(idx);
+}
+
+/* ===========================================================================
+   COMPOSITE INSPECTOR EDITORS (Trap IC / Bouncer / Construct / Party IC)
+   These render an edit form directly into the right Inspector pane, replacing
+   the old prompt() dialogs. They edit a working draft and commit on Save,
+   reusing the same rules as the create-time builders.
+   =========================================================================== */
+let _inspCtx = null;   // { kind, si, ei, draft }
+
+function _inspRender(html) {
+  inspectorUnmountIcEditor();           // return the IC modal to its overlay home if mounted
+  const insp = $('mdInspector');
+  if (!insp) return;
+  insp.innerHTML = html;
+  initNumSteppers(insp);
+}
+// Append a default composite event, then open its inspector editor to configure it.
+function _addAndInspect(si, ev, inspectFn) {
+  if (!sheafSteps[si].events) sheafSteps[si].events = [];
+  sheafSteps[si].events.push(ev);
+  const ei = sheafSteps[si].events.length - 1;
+  renderSheaf(); updateSummary();
+  const sel = $(`addEvType-${si}`);
+  if (sel) { sel.value = ''; onAddEvTypeChange(si); }
+  inspectFn(si, ei);
+}
+// Commit the open composite's draft straight onto its sheaf event. Soft: only in-range
+// numbers are written and there is no blocking alert (cap/threat warnings stay visible in
+// the form), mirroring _applyIcEditLive. Auto-save persists it like every other .md3 edit,
+// so the composite editors carry no Save/Cancel buttons.
+function _inspCommitComposite() {
+  const c = _inspCtx; if (!c) return;
+  const ev = sheafSteps?.[c.si]?.events?.[c.ei]; if (!ev) return;
+  const d = c.draft;
+  if (c.kind === 'construct') {
+    const MAX_THREAT = { Blue: 0, Green: 1, Orange: 2, Red: 3, Black: 4 };
+    const code = $('secCode').value, maxThreat = code ? (MAX_THREAT[code] ?? 4) : 4;
+    ev.threat_rating = Math.min(Math.max(0, d.threat_rating || 0), maxThreat);
+    ev.components = d.components.map(x => ({ ic_type: x.ic_type, rating: x.rating }));
+    ev.defenses = [...d.defenses];
+    if (d.expert) ev.expert = { ...d.expert }; else delete ev.expert;
+  } else if (c.kind === 'party') {
+    ev.components = d.components.map(x => ({ ic_type: x.ic_type, rating: x.rating, ...(d.defenses.length ? { defenses: [...d.defenses] } : {}) }));
+  } else if (c.kind === 'trap') {
+    ev.surface_ic_type = d.surface_ic_type;
+    ev.hidden_ic_type  = d.hidden_ic_type;
+    if (d.surface_ic_rating >= 1 && d.surface_ic_rating <= 20) ev.surface_ic_rating = d.surface_ic_rating;
+    if (d.hidden_ic_rating  >= 1 && d.hidden_ic_rating  <= 20) ev.hidden_ic_rating  = d.hidden_ic_rating;
+    if (d.hidden_ic_options.length) ev.hidden_ic_options = [...d.hidden_ic_options]; else delete ev.hidden_ic_options;
+    if (canUseCascade(d.hidden_ic_type) && d.hidden_ic_cascading) ev.hidden_ic_cascading = true; else delete ev.hidden_ic_cascading;
+  } else if (c.kind === 'bouncer') {
+    ev.new_security_code = d.new_security_code;
+    const minSv = bouncerMinSvForCode(d.new_security_code);
+    if (!isNaN(d.new_security_value) && d.new_security_value >= minSv && d.new_security_value <= 30) ev.new_security_value = d.new_security_value;
+    if (d.sculpting_notes && d.sculpting_notes.trim()) ev.sculpting_notes = d.sculpting_notes.trim(); else delete ev.sculpting_notes;
+  }
+}
+// Live apply from a numeric/text field: commit WITHOUT re-rendering the inspector so the
+// input keeps focus while typing (mirrors _applyIcEditLive for a plain IC).
+function _inspApplyComposite() {
+  _inspCapture();
+  _inspCommitComposite();
+  const c = _inspCtx; if (!c) return;
+  renderSheaf(); updateSummary(); _scheduleAutoSave();
+  _markSelectedEvent(c.si, c.ei);
+}
+// Remove the composite event currently open in the Inspector (parity with Remove IC).
+function _inspRemoveComposite() {
+  const c = _inspCtx; if (!c) return;
+  const { si, ei } = c;
+  _inspCtx = null; _clearSelectedEvent(); inspectorReset();
+  removeEvent(si, ei);
+  _scheduleAutoSave();
+}
+// A structural change (toggle / select / add / remove component) -> live-commit + auto-save,
+// then redraw the form from the draft.
+function _inspReRender() {
+  const c = _inspCtx; if (!c) return;
+  _inspCommitComposite();
+  renderSheaf(); updateSummary(); _scheduleAutoSave();
+  if (c.kind === 'construct') inspectConstruct(c.si, c.ei, true);
+  else if (c.kind === 'party') inspectParty(c.si, c.ei, true);
+  else if (c.kind === 'trap')  inspectTrap(c.si, c.ei, true);
+  else if (c.kind === 'bouncer') inspectBouncer(c.si, c.ei, true);
+}
+function _optBox(on, label, dis, onclickExpr) {
+  return `<div class="md3-opt ${on ? 'on' : ''} ${dis ? 'dis' : ''}"${dis ? '' : ` onclick="${onclickExpr}"`}><span class="bx">${on ? '&check;' : ''}</span>${label}</div>`;
+}
+function _inspReadExpert(d) {
+  const t = $('inspExpType'), v = $('inspExpVal');
+  if (!t) return;
+  const val = parseInt(v ? v.value : '', 10);
+  d.expert = (t.value && !isNaN(val) && val >= 1 && val <= 3) ? { type: t.value, value: val } : null;
+}
+function _inspCapture() {
+  const c = _inspCtx; if (!c) return; const d = c.draft;
+  if ($('inspThreat'))  d.threat_rating      = Math.max(0, parseInt($('inspThreat').value, 10) || 0);
+  if ($('inspExpType')) _inspReadExpert(d);
+  if ($('inspSurfRtg')) d.surface_ic_rating  = parseInt($('inspSurfRtg').value, 10) || d.surface_ic_rating;
+  if ($('inspHidRtg'))  d.hidden_ic_rating   = parseInt($('inspHidRtg').value, 10) || d.hidden_ic_rating;
+  if ($('inspSv'))      d.new_security_value = parseInt($('inspSv').value, 10) || d.new_security_value;
+  if ($('inspNotes'))   d.sculpting_notes    = $('inspNotes').value;
+}
+function _inspGroupIcOptions(si, selected) {
+  const ctx = _alertContextForSelectionAtStep(si);
+  const list = [
+    ...IC_WHITE,
+    ...IC_GRAY.filter(t => _icAllowedByAlert(t, ctx)),
+    ...(ctx === 'active' ? IC_BLACK : []),
+  ];
+  return list.map(t => `<option value="${esc(t)}"${t === selected ? ' selected' : ''}>${icModeLabel(t)} ${esc(t)}</option>`).join('');
+}
+function _inspGroupUsed(d, isConstruct) {
+  const defCost = isConstruct ? 2 : 1;
+  let used = 0;
+  for (const c of d.components) used += c.rating + _groupIcCost(c.ic_type);
+  return used + d.defenses.length * defCost;
+}
+function _inspCompList() {
+  const d = _inspCtx.draft;
+  if (!d.components.length) return '<div class="md3-cap" style="color:var(--text-dim)">No components yet.</div>';
+  return d.components.map((c, idx) => {
+    const cost = c.rating + _groupIcCost(c.ic_type);
+    return `<div class="md3-comp"><span class="cn" style="color:${icColor(icCategory(c.ic_type), c.ic_type)}">${icModeLabel(c.ic_type)} ${esc(icDisplayName(c.ic_type))}-${c.rating} <span style="color:var(--text-dim)">(${cost} cap)</span></span>
+      <button class="event-remove-btn" onclick="_inspDelComp(${idx})" data-tip="Remove">[x]</button></div>`;
+  }).join('');
+}
+function _inspAddComp() {
+  _inspCapture(); const c = _inspCtx; if (!c) return;
+  const t = $('inspCompType') ? $('inspCompType').value : '';
+  const r = parseInt($('inspCompRtg') ? $('inspCompRtg').value : '', 10);
+  if (!t) return;
+  const maxRtg = _groupMaxRating();
+  if (isNaN(r) || r < 1 || r > 20) { showAlert(alertEl(), 'IC rating must be 1-20.', true); return; }
+  if (maxRtg > 0 && r > maxRtg) { showAlert(alertEl(), `Max IC rating for this host is ${maxRtg} (SV x 2/3).`, true); return; }
+  c.draft.components.push({ ic_type: t, rating: r });
+  _inspReRender();
+}
+function _inspDelComp(idx) { _inspCapture(); if (_inspCtx) _inspCtx.draft.components.splice(idx, 1); _inspReRender(); }
+function _inspToggleDef(o) {
+  _inspCapture(); if (!_inspCtx) return;
+  const arr = _inspCtx.draft.defenses, i = arr.indexOf(o);
+  if (i >= 0) arr.splice(i, 1);
+  else {
+    if (o === 'Shielding') { const j = arr.indexOf('Shifting');  if (j >= 0) arr.splice(j, 1); }
+    if (o === 'Shifting')  { const j = arr.indexOf('Shielding'); if (j >= 0) arr.splice(j, 1); }
+    arr.push(o);
+  }
+  _inspReRender();
+}
+
+// ---- Construct ----
+function inspectConstruct(si, ei, keep) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev || ev.type !== 'construct') return;
+  if (!keep || !_inspCtx || _inspCtx.kind !== 'construct' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
+    _inspCtx = { kind: 'construct', si, ei, draft: {
+      threat_rating: ev.threat_rating ?? 0,
+      components: (ev.components || []).map(c => ({ ic_type: c.ic_type, rating: c.rating })),
+      defenses: [...(ev.defenses || [])],
+      expert: ev.expert ? { ...ev.expert } : null,
+    }};
+  }
+  const d = _inspCtx.draft;
+  const used = _inspGroupUsed(d, true), cap = _groupCapacity(), maxRtg = _groupMaxRating();
+  const over = cap > 0 && used > cap;
+  const MAX_THREAT = { Blue: 0, Green: 1, Orange: 2, Red: 3, Black: 4 };
+  const code = $('secCode').value, maxThreat = code ? (MAX_THREAT[code] ?? 4) : 4;
+  _inspRender(`
+    <div class="md3-insp-title">Construct</div><div class="md3-insp-sub">Grouped IC, single icon</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Capacity</span><span class="md3-cap ${over ? 'over' : ''}">${used} / ${cap || '--'}${over ? ' OVER' : ''}</span></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Max IC rating</span><span class="md3-cap">${maxRtg || '--'}</span></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Threat (0-${maxThreat})</span><input type="number" id="inspThreat" class="md3-num" min="0" max="${maxThreat}" value="${d.threat_rating}" oninput="_inspApplyComposite()"></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Component IC (max rating ${maxRtg || '--'})</span>
+      <div class="md3-insp-row" style="gap:6px;margin-bottom:7px">
+        <select id="inspCompType" style="flex:1">${_inspGroupIcOptions(si)}</select>
+        <input type="number" id="inspCompRtg" class="md3-num" min="1" max="${maxRtg || 20}" value="${maxRtg || 1}" style="width:56px">
+        <button class="btn btn-ghost btn-sm" onclick="_inspAddComp()" data-tip="Add component IC">+ IC</button>
+      </div>${_inspCompList()}</div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Group Defenses (2 cap each)</span>
+      <div class="md3-opt-grid">
+        ${_optBox(d.defenses.includes('Armor'), 'Armor', false, "_inspToggleDef('Armor')")}
+        ${_optBox(d.defenses.includes('Shielding'), 'Shielding', d.defenses.includes('Shifting'), "_inspToggleDef('Shielding')")}
+        ${_optBox(d.defenses.includes('Shifting'), 'Shifting', d.defenses.includes('Shielding'), "_inspToggleDef('Shifting')")}
+      </div></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Group Expert</span>
+      <div class="md3-insp-row" style="gap:6px;margin:0">
+        <select id="inspExpType" style="flex:1" onchange="_inspApplyComposite()">
+          <option value=""${!d.expert ? ' selected' : ''}>No Expert</option>
+          <option value="offense"${d.expert && d.expert.type === 'offense' ? ' selected' : ''}>Expert Offense</option>
+          <option value="defense"${d.expert && d.expert.type === 'defense' ? ' selected' : ''}>Expert Defense</option>
+        </select>
+        <input type="number" id="inspExpVal" class="md3-num" min="1" max="3" value="${d.expert ? d.expert.value : 1}" style="width:52px" oninput="_inspApplyComposite()">
+      </div></div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveComposite()" style="color:var(--red)">Remove Construct</button></div>`);
+  _markSelectedEvent(si, ei);
+}
+
+// ---- Party IC ----
+function inspectParty(si, ei, keep) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev || ev.type !== 'party_ic') return;
+  if (!keep || !_inspCtx || _inspCtx.kind !== 'party' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
+    _inspCtx = { kind: 'party', si, ei, draft: {
+      components: (ev.components || []).map(c => ({ ic_type: c.ic_type, rating: c.rating })),
+      defenses: [...((ev.components && ev.components[0] && ev.components[0].defenses) || [])],
+    }};
+  }
+  const d = _inspCtx.draft;
+  const used = _inspGroupUsed(d, false), cap = _groupCapacity(), maxRtg = _groupMaxRating();
+  const over = cap > 0 && used > cap;
+  _inspRender(`
+    <div class="md3-insp-title">Party IC</div><div class="md3-insp-sub">IC cluster acting together</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Capacity</span><span class="md3-cap ${over ? 'over' : ''}">${used} / ${cap || '--'}${over ? ' OVER' : ''}</span></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Max IC rating</span><span class="md3-cap">${maxRtg || '--'}</span></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Component IC (max rating ${maxRtg || '--'})</span>
+      <div class="md3-insp-row" style="gap:6px;margin-bottom:7px">
+        <select id="inspCompType" style="flex:1">${_inspGroupIcOptions(si)}</select>
+        <input type="number" id="inspCompRtg" class="md3-num" min="1" max="${maxRtg || 20}" value="${maxRtg || 1}" style="width:56px">
+        <button class="btn btn-ghost btn-sm" onclick="_inspAddComp()" data-tip="Add component IC">+ IC</button>
+      </div>${_inspCompList()}</div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Group Defenses (1 cap each, apply to each member)</span>
+      <div class="md3-opt-grid">
+        ${_optBox(d.defenses.includes('Armor'), 'Armor', false, "_inspToggleDef('Armor')")}
+        ${_optBox(d.defenses.includes('Shielding'), 'Shielding', d.defenses.includes('Shifting'), "_inspToggleDef('Shielding')")}
+        ${_optBox(d.defenses.includes('Shifting'), 'Shifting', d.defenses.includes('Shielding'), "_inspToggleDef('Shifting')")}
+      </div></div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveComposite()" style="color:var(--red)">Remove Party IC</button></div>`);
+  _markSelectedEvent(si, ei);
+}
+
+// ---- Trap IC ----
+function inspectTrap(si, ei, keep) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev || ev.type !== 'trap_ic') return;
+  if (!keep || !_inspCtx || _inspCtx.kind !== 'trap' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
+    _inspCtx = { kind: 'trap', si, ei, draft: {
+      surface_ic_type: ev.surface_ic_type || 'Probe',
+      surface_ic_rating: ev.surface_ic_rating ?? 5,
+      hidden_ic_type: ev.hidden_ic_type || 'Killer',
+      hidden_ic_rating: ev.hidden_ic_rating ?? 5,
+      hidden_ic_options: [...(ev.hidden_ic_options || [])],
+      hidden_ic_cascading: !!ev.hidden_ic_cascading,
+    }};
+  }
+  const d = _inspCtx.draft, casc = canUseCascade(d.hidden_ic_type);
+  const surfOpts = ['Probe', 'Trace'].map(t => `<option${d.surface_ic_type === t ? ' selected' : ''}>${t}</option>`).join('');
+  const hidList = ['Blaster', 'Killer', 'Sparky', 'Black IC (Non-Lethal)', 'Black IC (Lethal)'];
+  const hidOpts = hidList.map(t => `<option value="${esc(t)}"${d.hidden_ic_type === t ? ' selected' : ''}>${esc(icDisplayName(t))} ${icModeLabel(t)}</option>`).join('');
+  _inspRender(`
+    <div class="md3-insp-title">Trap IC</div><div class="md3-insp-sub">Surface -&gt; hidden payload</div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Surface IC (reactive)</span>
+      <div class="md3-insp-row" style="gap:6px;margin:0">
+        <select id="inspSurf" style="flex:1" onchange="if(_inspCtx){_inspCtx.draft.surface_ic_type=this.value;_inspApplyComposite();}">${surfOpts}</select>
+        <input type="number" id="inspSurfRtg" class="md3-num" min="1" max="20" value="${d.surface_ic_rating}" style="width:56px" oninput="_inspApplyComposite()">
+      </div>
+      <div class="tip">Surface IC is reactive -- rating only; no offensive options.</div></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Hidden IC (Trap IC Table)</span>
+      <div class="md3-insp-row" style="gap:6px;margin-bottom:8px">
+        <select id="inspHid" style="flex:1" onchange="_inspTrapHid(this.value)">${hidOpts}</select>
+        <input type="number" id="inspHidRtg" class="md3-num" min="1" max="20" value="${d.hidden_ic_rating}" style="width:56px" oninput="_inspApplyComposite()">
+      </div>
+      <span class="md3-insp-label">Hidden IC Defenses</span>
+      <div class="md3-opt-grid">
+        ${_optBox(d.hidden_ic_options.includes('Armor'), 'Armor', false, "_inspTrapToggle('Armor')")}
+        ${_optBox(d.hidden_ic_options.includes('Shielding'), 'Shielding', d.hidden_ic_options.includes('Shifting'), "_inspTrapToggle('Shielding')")}
+        ${_optBox(d.hidden_ic_options.includes('Shifting'), 'Shifting', d.hidden_ic_options.includes('Shielding'), "_inspTrapToggle('Shifting')")}
+        ${_optBox(d.hidden_ic_cascading, 'Cascade', !casc, "_inspTrapCasc()")}
+      </div>
+      ${casc ? '' : '<div class="tip">Cascade is only for Proactive / Black hidden IC.</div>'}</div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveComposite()" style="color:var(--red)">Remove Trap IC</button></div>`);
+  _markSelectedEvent(si, ei);
+}
+function _inspTrapHid(v) { _inspCapture(); if (!_inspCtx) return; _inspCtx.draft.hidden_ic_type = v; if (!canUseCascade(v)) _inspCtx.draft.hidden_ic_cascading = false; _inspReRender(); }
+function _inspTrapToggle(o) {
+  _inspCapture(); if (!_inspCtx) return;
+  const arr = _inspCtx.draft.hidden_ic_options, i = arr.indexOf(o);
+  if (i >= 0) arr.splice(i, 1);
+  else {
+    if (o === 'Shielding') { const j = arr.indexOf('Shifting');  if (j >= 0) arr.splice(j, 1); }
+    if (o === 'Shifting')  { const j = arr.indexOf('Shielding'); if (j >= 0) arr.splice(j, 1); }
+    arr.push(o);
+  }
+  _inspReRender();
+}
+function _inspTrapCasc() { _inspCapture(); if (_inspCtx) _inspCtx.draft.hidden_ic_cascading = !_inspCtx.draft.hidden_ic_cascading; _inspReRender(); }
+
+// ---- Bouncer ----
+function inspectBouncer(si, ei, keep) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev || ev.type !== 'bouncer') return;
+  const allowed = bouncerAllowedCodes(currentSecurityCode());
+  if (!keep || !_inspCtx || _inspCtx.kind !== 'bouncer' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
+    const startCode = ev.new_security_code || allowed[0] || 'Red';
+    _inspCtx = { kind: 'bouncer', si, ei, draft: {
+      new_security_code: startCode,
+      new_security_value: ev.new_security_value ?? bouncerMinSvForCode(startCode),
+      sculpting_notes: ev.sculpting_notes || '',
+    }};
+  }
+  const d = _inspCtx.draft, minSv = bouncerMinSvForCode(d.new_security_code);
+  const codeOpts = allowed.map(co => `<option${d.new_security_code === co ? ' selected' : ''}>${co}</option>`).join('');
+  _inspRender(`
+    <div class="md3-insp-title">Bouncer</div><div class="md3-insp-sub">Upgrade host security code</div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">New Code (&ge; host)</span><select id="inspCode" style="width:130px" onchange="_inspBouncerCode(this.value)">${codeOpts}</select></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">New SV (${minSv}-30)</span><input type="number" id="inspSv" class="md3-num" min="${minSv}" max="30" value="${d.new_security_value}" oninput="_inspApplyComposite()"></div>
+    <div class="md3-insp-sec"><span class="md3-insp-label">Sculpting Notes</span><input type="text" id="inspNotes" style="width:100%" value="${esc(d.sculpting_notes)}" placeholder="optional" oninput="_inspApplyComposite()"></div>
+    <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveComposite()" style="color:var(--red)">Remove Bouncer</button></div>`);
+  _markSelectedEvent(si, ei);
+}
+function _inspBouncerCode(v) {
+  _inspCapture(); if (!_inspCtx) return;
+  _inspCtx.draft.new_security_code = v;
+  const minSv = bouncerMinSvForCode(v);
+  if (_inspCtx.draft.new_security_value < minSv) _inspCtx.draft.new_security_value = minSv;
+  _inspReRender();
 }
 
 function saveIcEditModal() {
@@ -3047,74 +3942,13 @@ function saveIcEditModal() {
   updateSummary();
 }
 
-function editBouncerEvent(si, ei) {
-  const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
-  if (!ev || ev.type !== 'bouncer') return;
-
-  const allowedCodes = bouncerAllowedCodes(currentSecurityCode());
-  const cVal  = prompt(`New security code (${allowedCodes.join('/')})`, ev.new_security_code || allowedCodes[0]);
-  if (cVal === null) return;
-  if (!allowedCodes.includes(cVal)) { showAlert(alertEl(), 'Bouncer security code cannot be below the host security code.', true); return; }
-
-  const minSv = bouncerMinSvForCode(cVal);
-  const sVal = prompt(`New security value (${minSv}-30):`, ev.new_security_value != null ? String(ev.new_security_value) : '');
-  if (sVal === null) return;
-  const sv = parseInt(sVal, 10);
-  if (isNaN(sv) || sv < minSv || sv > 30) { showAlert(alertEl(), `Security value must be between ${minSv} and 30.`, true); return; }
-
-  const nVal = prompt('Sculpting notes (optional):', ev.sculpting_notes || '');
-  if (nVal !== null) {
-    if (nVal.trim()) ev.sculpting_notes = nVal.trim(); else delete ev.sculpting_notes;
-  }
-
-  ev.new_security_code  = cVal;
-  ev.new_security_value = sv;
-  renderSheaf();
-  updateSummary();
-}
+// Legacy entry points -- now route to the right-pane Inspector (prompts retired).
+function editBouncerEvent(si, ei) { inspectBouncer(si, ei); }
 
 // Keep the old name as a shim so any stored onclick="editEventRating" still works
 function editEventRating(si, ei) { editIcEvent(si, ei); }
 
-function editTrapIcRatings(si, ei) {
-  const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
-  if (!ev || ev.type !== 'trap_ic') return;
-
-  const surfVal = prompt(
-    `Surface IC (${ev.surface_ic_type}) rating (1-20):`,
-    ev.surface_ic_rating != null ? String(ev.surface_ic_rating) : ''
-  );
-  if (surfVal === null) return;
-  const surfN = parseInt(surfVal, 10);
-  if (isNaN(surfN) || surfN < 1 || surfN > 20) { showAlert(alertEl(), 'Surface IC rating must be 1-20.', true); return; }
-
-  const hidVal = prompt(
-    `Hidden IC (${ev.hidden_ic_type}) rating (1-20):`,
-    ev.hidden_ic_rating != null ? String(ev.hidden_ic_rating) : ''
-  );
-  if (hidVal === null) return;
-  const hidN = parseInt(hidVal, 10);
-  if (isNaN(hidN) || hidN < 1 || hidN > 20) { showAlert(alertEl(), 'Hidden IC rating must be 1-20.', true); return; }
-
-  const oVal = prompt(
-    'Hidden IC defenses (comma-separated -- Armor, Shifting, Shielding -- or blank):',
-    (ev.hidden_ic_options || []).join(', ')
-  );
-  if (oVal !== null) {
-    const opts = oVal.split(',').map(s => s.trim()).filter(s => ['Armor','Shifting','Shielding'].includes(s));
-    if (opts.length) ev.hidden_ic_options = opts; else delete ev.hidden_ic_options;
-  }
-
-  const cVal = prompt('Hidden IC cascading? (yes / no):', ev.hidden_ic_cascading ? 'yes' : 'no');
-  if (cVal !== null) {
-    if (cVal.trim().toLowerCase() === 'yes') ev.hidden_ic_cascading = true; else delete ev.hidden_ic_cascading;
-  }
-
-  ev.surface_ic_rating = surfN;
-  ev.hidden_ic_rating  = hidN;
-  renderSheaf();
-  updateSummary();
-}
+function editTrapIcRatings(si, ei) { inspectTrap(si, ei); }
 
 // --- Group IC (Construct / Party) helpers ------------------------------------
 
@@ -3271,141 +4105,6 @@ function commitGroupIc(si) {
   updateSummary();
 }
 
-// --- Trace-IC branch management ---------------------------------------------
-
-function _hasPriorTrace(si) {
-  for (let i = 0; i < si; i++) {
-    const step = sheafSteps[i];
-    if (!step?.events) continue;
-    for (const ev of step.events) {
-      if (ev.type === 'ic' && ev.ic_type === 'Trace') return true;
-      if (ev.type === 'trap_ic' && ev.surface_ic_type === 'Trace') return true;
-    }
-  }
-  return false;
-}
-
-function addTraceBranch(si) {
-  if (!_hasPriorTrace(si)) return;
-  sheafSteps[si].trace_branch = { yes_events: [], no_events: [] };
-  renderSheaf();
-}
-
-function removeTraceBranch(si) {
-  if (sheafSteps[si]) delete sheafSteps[si].trace_branch;
-  renderSheaf();
-}
-
-function removeTraceBranchEvent(si, side, ei) {
-  const branch = sheafSteps[si]?.trace_branch;
-  if (!branch) return;
-  const arr = side === 'yes' ? branch.yes_events : branch.no_events;
-  if (arr) arr.splice(ei, 1);
-  renderSheaf();
-}
-
-function commitTraceBranchEvent(si, side) {
-  const branch = sheafSteps[si]?.trace_branch;
-  if (!branch) return;
-  const selId  = `brTrEvType-${si}-${side}`;
-  const rtgId  = `brTrEvRating-${si}-${side}`;
-  const val    = $(selId)?.value || '';
-  if (!val) return;
-  const rating = parseInt($(rtgId)?.value, 10);
-  let ev;
-  if (val.startsWith('ic__')) {
-    const icType = val.slice(4);
-    ev = { type: 'ic', ic_type: icType, rating: (!isNaN(rating) && rating > 0) ? rating : null };
-  } else if (val === 'trap_ic') {
-    ev = { type: 'trap_ic',
-      surface_ic_type: 'Probe', surface_ic_rating: (!isNaN(rating) && rating > 0) ? rating : 8,
-      hidden_ic_type: 'Killer', hidden_ic_rating: (!isNaN(rating) && rating > 0) ? rating : 8 };
-  } else if (['passive_alert', 'active_alert', 'shutdown'].includes(val)) {
-    ev = { type: val };
-  } else return;
-  const arr = side === 'yes' ? branch.yes_events : branch.no_events;
-  arr.push(ev);
-  renderSheaf();
-}
-
-function renderTraceBranchHTML(branch, si) {
-  const selStyle = 'background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);padding:2px 5px;font-size:.68rem';
-  const inStyle  = 'background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font)';
-
-  function evList(events, side) {
-    if (!events || events.length === 0) {
-      return `<span style="font-size:.6rem;color:var(--red);letter-spacing:1px">&#x26A0; Required</span>`;
-    }
-    return events.map((ev, ei) => {
-      const type = ev.type || 'ic';
-      let label;
-      if (type === 'ic') {
-        const cat  = icCategory(ev.ic_type || '');
-        const opts = _icOptsSuffix(ev);
-        label = `<span class="ic-badge ${icBadgeClass(cat, ev.ic_type || '')}">${esc(cat)}</span>
-          <span class="sheaf-event-type ev-ic" style="color:${icColor(cat, ev.ic_type || '')}">${esc(icDisplayName(ev.ic_type || '?'))}-${ev.rating || '?'}</span>${opts}`;
-      } else if (type === 'trap_ic') {
-        label = `<span class="ic-badge ic-white-badge">trap</span>
-          <span class="sheaf-event-type ev-ic">${esc(ev.surface_ic_type || '?')}&rarr;${esc(ev.hidden_ic_type || '?')}</span>`;
-      } else if (type === 'passive_alert') {
-        label = `<span class="sheaf-event-type ev-passive-alert">&#9654; Passive Alert</span>`;
-      } else if (type === 'active_alert') {
-        label = `<span class="sheaf-event-type ev-active-alert">&#9658; Active Alert</span>`;
-      } else if (type === 'shutdown') {
-        label = `<span class="sheaf-event-type ev-shutdown">&#9632; Shutdown</span>`;
-      } else {
-        label = `<span class="sheaf-event-type">${esc(type)}</span>`;
-      }
-      return `<div class="sheaf-event">${label}
-        <button class="event-remove-btn" onclick="removeTraceBranchEvent(${si},'${side}',${ei})" data-tip="Remove">[x]</button>
-      </div>`;
-    }).join('');
-  }
-
-  function addRow(side) {
-    const alertCtx = _alertContextForSelectionAtStep(si);
-    const filtGray = IC_GRAY.filter(t => _icAllowedByAlert(t, alertCtx));
-    const showBlack = alertCtx === 'active';
-    return `
-      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:4px">
-        <select id="brTrEvType-${si}-${side}" style="${selStyle}">
-          <option value="">+ Add event</option>
-          <optgroup label="White IC">${IC_WHITE.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>
-          ${filtGray.length ? `<optgroup label="Gray IC">${filtGray.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>` : ''}
-          ${showBlack ? `<optgroup label="Black IC">${IC_BLACK.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>` : ''}
-          <optgroup label="Alerts">
-            <option value="passive_alert">Passive Alert</option>
-            <option value="active_alert">Active Alert</option>
-            <option value="shutdown">Shutdown</option>
-          </optgroup>
-        </select>
-        <input type="number" id="brTrEvRating-${si}-${side}" min="1" max="50" placeholder="Rtg"
-          style="width:44px;padding:2px 4px;font-size:.7rem;${inStyle}">
-        <button class="btn btn-ghost btn-sm" onclick="commitTraceBranchEvent(${si},'${side}')" style="padding:2px 7px;font-size:.6rem">+ Add</button>
-      </div>`;
-  }
-
-  return `
-    <div class="trace-branch-block">
-      <div class="trace-branch-header">
-        <span>&#x2513; Trace IC Branch &mdash; Jackpoint Located?</span>
-        <button class="event-remove-btn" onclick="removeTraceBranch(${si})" data-tip="Remove branch" style="margin-left:auto">[x]</button>
-      </div>
-      <div class="trace-branch-cols">
-        <div class="trace-branch-col">
-          <div class="trace-branch-col-hdr" style="color:var(--red)">YES &mdash; Located</div>
-          <div class="trace-branch-events">${evList(branch.yes_events, 'yes')}</div>
-          ${addRow('yes')}
-        </div>
-        <div class="trace-branch-col">
-          <div class="trace-branch-col-hdr" style="color:var(--cyan)">NO &mdash; Not Located</div>
-          <div class="trace-branch-events">${evList(branch.no_events, 'no')}</div>
-          ${addRow('no')}
-        </div>
-      </div>
-    </div>`;
-}
-
 function addStep() {
   const base = sheafSteps.length > 0 ? Math.max(...sheafSteps.map(s => s.trigger || 0)) : 0;
   const override = parseInt($('stepCountOverride')?.value, 10);
@@ -3445,51 +4144,42 @@ function updateSummary() {
 
   $('sumName').textContent  = currentHost.name || '--';
   $('sumOwner').textContent = owner !== '--' ? owner.charAt(0).toUpperCase() + owner.slice(1) : '--';
-  $('sumSteps').textContent = sheafSteps.length ? `${sheafSteps.length} step${sheafSteps.length !== 1 ? 's' : ''}` : '0 steps';
+  $('sumSteps').textContent = String(sheafSteps.length);
 
-  // Code with badge
-  const codeEl = $('sumCode');
+  // Security: code badge + value, combined (template style)
+  const secEl = $('sumSecurity');
   if (code && code !== '--') {
-    codeEl.innerHTML = `<span class="sc-badge sc-${code.toLowerCase()}">${esc(code)}</span>`;
+    secEl.innerHTML = `<span class="sec-${code.toLowerCase()}">${esc(code)}</span>${sv !== '--' ? ' &middot; ' + esc(String(sv)) : ''}`;
   } else {
-    codeEl.textContent = '--';
+    secEl.textContent = '--';
   }
 
-  // Value
-  const svEl = $('sumValue');
-  svEl.textContent = sv !== '--' ? sv : '--';
-
-  // ACIFS compact
+  // ACIFS: numbers only, A/C/I/F/S order (template style)
   const acifsEl = $('sumAcifs');
-  const vals = acifsArr.map((v, i) => v ? `${ACIF_NAMES[i]}:${v}` : null).filter(Boolean);
-  acifsEl.textContent = vals.length ? vals.join(' / ') : '--';
+  acifsEl.textContent = acifsArr.some(v => v) ? acifsArr.map(v => v || '-').join('/') : '--';
 
-  // Thresholds from current sheafSteps
+  // Paydata: N files + total megapulses
+  const totalMp = paydata.reduce((s, p) => s + (parseInt(p.density, 10) || 0), 0);
+  $('sumPaydata').textContent = paydata.length ? `${paydata.length} file${paydata.length !== 1 ? 's' : ''} \u00b7 ${totalMp}Mp` : '0 files';
+
+  // Passive IC: data bombs + scramble + worm count
+  $('sumPassiveIc').textContent = String(dataBombs.length + scrambles.length + worms.length);
+
+  // Alert thresholds: three pills with the trigger tally each alert fires at
   const thrEl = $('sumThresholds');
-  if (sheafSteps.length === 0) {
-    thrEl.innerHTML = '<span class="threshold-tag" style="color:var(--text-dim);border-color:#222">No steps defined</span>';
-  } else {
-    const sorted = [...sheafSteps].sort((a, b) => a.trigger - b.trigger);
-    thrEl.innerHTML = sorted.map(s => {
-      const evLabels = (s.events || []).map(ev => {
-        if (ev.type === 'ic') return `<span style="color:${icColor(icCategory(ev.ic_type || ''))};">${esc(ev.ic_type || '?')}</span>`;
-        if (ev.type === 'trap_ic') return `<span style="color:var(--text-dim)">Trap(${esc(ev.surface_ic_type||'?')}->${esc(ev.hidden_ic_type||'?')})</span>`;
-        if (ev.type === 'construct') return `<span style="color:#cc9900">Construct</span>`;
-        if (ev.type === 'party_ic') return `<span style="color:var(--cyan)">Party</span>`;
-        if (ev.type === 'passive_alert') return `<span style="color:var(--amber)">Alert</span>`;
-        if (ev.type === 'active_alert')  return `<span style="color:var(--red)">ACTIVE</span>`;
-        if (ev.type === 'shutdown')      return `<span style="color:var(--purple)">SHUTDOWN</span>`;
-        if (ev.type === 'bouncer')       return `<span style="color:#ff8800">BOUNCER->${esc(ev.new_security_code||'?')}</span>`;
-        return `<span>${esc(ev.type)}</span>`;
-      }).join(', ');
-      return `<span class="threshold-tag" data-tip="Trigger at tally ${s.trigger}">&#9654;${s.trigger}: ${evLabels || '<span style=\'color:#444\'>empty</span>'}</span>`;
-    }).join('');
-  }
+  const pSi = _findAlertStepIndex('passive_alert');
+  const aSi = _findAlertStepIndex('active_alert');
+  const sSi = _findAlertStepIndex('shutdown');
+  const pill = (cls, label, si) => si >= 0
+    ? `<span class="thr ${cls}" data-tip="${label} alert fires at tally ${sheafSteps[si].trigger}">${label} @${sheafSteps[si].trigger}</span>`
+    : `<span class="thr ${cls} off">${label} --</span>`;
+  thrEl.innerHTML = pill('passive', 'Passive', pSi) + pill('active', 'Active', aSi) + pill('shutdown', 'Shutdown', sSi);
 
   const delBtn = $('deleteHostBtn');
   if (delBtn) delBtn.style.display = currentHost._autoCreated ? 'none' : '';
 
   checkRunReady();
+  _scheduleAutoSave();   // catch-all: most mutations call updateSummary (self-guarded by _designerReady)
 }
 
 // --- Create Host -------------------------------------------------------------
@@ -3499,14 +4189,14 @@ function toggleCreateForm() {
   const btn  = $('createToggleBtn');
   const visible = form.style.display !== 'none';
   form.style.display = visible ? 'none' : '';
-  btn.textContent = visible ? 'v Expand' : '^ Collapse';
+  btn.textContent = visible ? '+ Create Custom Host' : 'x Cancel';
 }
 
 // --- Wizard ------------------------------------------------------------------
 
 let wizardStep = 1;
-const WIZARD_STEP_COUNT  = 7;
-const WIZARD_STEP_LABELS = ['Identity', 'Security', 'Subsystems', 'Files & IC', 'Access', 'Sheaf', 'Review'];
+const WIZARD_STEP_COUNT  = 6;
+const WIZARD_STEP_LABELS = ['Identity', 'Security', 'Subsystems', 'Files & IC', 'Sheaf', 'Review'];
 
 function gotoStep(n) {
   n = Math.max(1, Math.min(WIZARD_STEP_COUNT, n));
@@ -3519,22 +4209,35 @@ function gotoStep(n) {
 
   renderWizardStepsBar();
 
-  const nav     = $('wizardNav');
-  const btnBack = $('btnWizBack');
-  const btnNext = $('btnWizNext');
-  const btnFin  = $('btnSaveFinish');
-  const btnSave = $('btnSaveProgress');
-  const lbl     = $('wizardStepLabel');
+  const nav = $('wizardNav');
+  const lbl = $('wizardStepLabel');
+  // 3-pane shell: the bottom bar is just an auto-save status line now.
+  if (nav) nav.style.display = currentHost ? '' : 'none';
+  if (lbl) lbl.textContent   = currentHost ? `Editing: ${currentHost.name}` : '';
 
-  if (nav)     nav.style.display     = (n > 1 || !!currentHost) ? '' : 'none';
-  if (btnBack) btnBack.disabled      = n <= 1;
-  if (btnNext) btnNext.style.display = n < WIZARD_STEP_COUNT ? '' : 'none';
-  if (btnFin)  btnFin.style.display  = n === WIZARD_STEP_COUNT ? '' : 'none';
-  if (btnSave) btnSave.style.display = (n > 1 && n < WIZARD_STEP_COUNT) ? '' : 'none';
-  if (lbl)     lbl.textContent       = `Step ${n} of ${WIZARD_STEP_COUNT} -- ${WIZARD_STEP_LABELS[n - 1]}`;
+  renderSheaf();
+  renderReview();
 
-  if (n === 6) { renderSheaf(); _rebuildTrapDoorDestOpts(); }
-  if (n === 7) renderReview();
+  // Entering Review: replace whatever was in the Inspector with a colleague's flavor message.
+  if (n === WIZARD_STEP_COUNT) _showReviewFlavor();
+
+  // one-step-at-a-time: only the active block shows, so reset to the top of it
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function _showReviewFlavor() {
+  const insp = $('mdInspector');
+  if (!insp) return;
+  _inspCtx = null;
+  _clearSelectedEvent();
+  insp.innerHTML = `
+    <div class="md3-insp-title">Final Walkthrough</div>
+    <div class="md3-insp-sub">&gt;&gt; incoming message</div>
+    <div class="md3-insp-flavor">Hoi, chummer. Before you flip this node live, walk the sheaf one more time &mdash; cold.
+      Make sure the alerts escalate in order, the Black IC actually has teeth, and you didn't leave a trap door
+      wired to nowhere. A host that looks scary but folds on the first probe just burns your cred. Run it like
+      you're the intruder. &mdash; <span style="color:var(--cyan)">Sable</span></div>
+    <div class="md3-insp-note">Review the configuration at left. It goes RUN-READY once it has a host, a security code + value, ACIFS ratings, and at least one sheaf step.</div>`;
 }
 
 function wizardNext() {
@@ -3577,7 +4280,8 @@ function renderWizardStepsBar() {
     const clickable = n !== wizardStep && (n === 1 || !!currentHost);
     const nav       = clickable ? ` onclick="gotoStep(${n})" data-tip="Jump to ${label}" style="cursor:pointer"` : '';
     const sep       = n < WIZARD_STEP_COUNT ? '<span class="wstep-sep">/</span>' : '';
-    return `<span class="wstep-dot ${cls}"${nav}><span class="wdot"></span>${n}. ${label}</span>${sep}`;
+    const glyph = cls === 'done' ? '&check;' : cls === 'active' ? '&gt;' : '';
+    return `<span class="wstep-dot ${cls}"${nav}><span class="wstep-tick">${glyph}</span><span class="n-no">${n}</span><span class="wstep-name">${label}</span></span>${sep}`;
   }).join('');
 }
 
@@ -3599,44 +4303,59 @@ function renderReview() {
 
   const ownerLabel = owner !== '--' ? owner.charAt(0).toUpperCase() + owner.slice(1) : '--';
   const codeHtml   = code !== '--'
-    ? `<span class="sc-badge sc-${code.toLowerCase()}">${esc(code)}</span>` : '--';
+    ? `<span class="sec-${code.toLowerCase()}">${esc(code)}</span>` : '--';
+
+  // ACIFS as the prototype's "10 / 9 / 9 / 11 / 8"
+  const acifsLine = acifIds.map(id => {
+    const v = parseInt($(id).value, 10);
+    return !isNaN(v) && v > 0 ? v : '--';
+  }).join(' / ');
+
+  const totalMp = paydata.reduce((s, p) => s + (parseInt(p.density, 10) || 0), 0);
+
+  // Passive IC summary "X Bomb / Y Scramble / Z Worm" (only non-zero kinds; else None)
+  const passiveBits = [];
+  if (dataBombs.length) passiveBits.push(`${dataBombs.length} Bomb`);
+  if (scrambles.length) passiveBits.push(`${scrambles.length} Scramble`);
+  if (worms.length)     passiveBits.push(`${worms.length} Worm`);
+  const passiveLine = passiveBits.length ? passiveBits.join(' &middot; ') : 'None';
+
+  // Trap doors "N (src -> dest)"
+  const trapLine = trapDoors.length
+    ? `${trapDoors.length} (${trapDoors.map(td => `${esc(td.source_piece || '?')} &rarr; ${esc(td.destination_label || td.destination_ltg || '?')}`).join(', ')})`
+    : 'None';
+
+  // Sheaf "N steps -- P@x A@y S@z" using the alert trigger steps
+  const alertTrigger = (kind) => {
+    for (const s of sheafSteps) if ((s.events || []).some(e => (e.type || '') === kind)) return s.trigger;
+    return null;
+  };
+  const thrParts = [];
+  const pT = alertTrigger('passive_alert'); if (pT != null) thrParts.push(`P@${pT}`);
+  const aT = alertTrigger('active_alert');  if (aT != null) thrParts.push(`A@${aT}`);
+  const sT = alertTrigger('shutdown');      if (sT != null) thrParts.push(`S@${sT}`);
+  const sheafLine = sheafSteps.length
+    ? `${sheafSteps.length} step${sheafSteps.length !== 1 ? 's' : ''}${thrParts.length ? ' &middot; ' + thrParts.join(' ') : ''}`
+    : 'No sheaf defined';
+
+  const runReady = code !== '--' && sv !== '--' && sheafSteps.length > 0;
+  const ltgCell  = ltg ? esc(ltg) : '<span style="color:var(--text-dim)">None</span>';
 
   el.innerHTML = `
-    <div class="summary-grid" style="margin-bottom:14px">
-      <div class="summary-item"><div class="summary-label">Host</div>
-        <div class="summary-value" style="font-size:.78rem">${esc(currentHost.name)}</div></div>
-      <div class="summary-item"><div class="summary-label">LTG Address</div>
-        <div class="summary-value" style="font-size:.7rem;color:var(--cyan)">${ltg ? esc(ltg) : '<span style="color:var(--text-dim)">None</span>'}</div></div>
-      <div class="summary-item"><div class="summary-label">Security Code</div>
-        <div class="summary-value">${codeHtml}</div></div>
-      <div class="summary-item"><div class="summary-label">Security Value</div>
-        <div class="summary-value">${esc(String(sv))}</div></div>
-      <div class="summary-item"><div class="summary-label">Owner Type</div>
-        <div class="summary-value">${esc(ownerLabel)}</div></div>
-      <div class="summary-item"><div class="summary-label">Intrusion Difficulty</div>
-        <div class="summary-value" style="font-size:.78rem">${esc(diff)}</div></div>
+    <div class="review-grid">
+      <div class="rev-cell"><span class="k">Host</span><span class="v">${esc(currentHost.name)}</span></div>
+      <div class="rev-cell"><span class="k">Security</span><span class="v">${codeHtml} &middot; ${esc(String(sv))}</span></div>
+      <div class="rev-cell"><span class="k">Owner</span><span class="v">${esc(ownerLabel)}</span></div>
+      <div class="rev-cell"><span class="k">LTG Address</span><span class="v">${ltgCell}</span></div>
+      <div class="rev-cell"><span class="k">Intrusion</span><span class="v">${esc(diff)}</span></div>
+      <div class="rev-cell"><span class="k">ACIFS</span><span class="v">${acifsLine}</span></div>
+      <div class="rev-cell"><span class="k">Paydata</span><span class="v">${paydata.length} file${paydata.length !== 1 ? 's' : ''} &middot; ${totalMp} Mp</span></div>
+      <div class="rev-cell"><span class="k">Passive IC</span><span class="v">${passiveLine}</span></div>
+      <div class="rev-cell"><span class="k">Trap Doors</span><span class="v">${trapLine}</span></div>
+      <div class="rev-cell"><span class="k">Sheaf</span><span class="v ${sheafSteps.length ? '' : 'bad'}">${sheafLine}</span></div>
+      <div class="rev-cell"><span class="k">Status</span><span class="v ${runReady ? 'good' : 'bad'}">${runReady ? 'RUN-READY' : 'NOT RUN-READY'}</span></div>
     </div>
-    <div class="summary-label" style="margin-bottom:5px">ACIFS Subsystems</div>
-    <div style="font-size:.7rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">${acifVals}</div>
-    <div class="summary-label" style="margin-bottom:5px">Files &amp; Passive IC</div>
-    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">
-      Paydata: <span class="text-bright">${paydata.length}</span>
-      &nbsp;&nbsp; Data Bombs: <span class="text-bright">${dataBombs.length}</span>
-      &nbsp;&nbsp; Scramble IC: <span class="text-bright">${scrambles.length}</span>
-      &nbsp;&nbsp; Worm IC: <span class="text-bright">${worms.length}</span>
-    </div>
-    <div class="summary-label" style="margin-bottom:5px">Trap Doors</div>
-    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">
-      ${trapDoors.length
-        ? trapDoors.map(td => `-> ${esc(td.destination_label || td.destination_ltg || '?')}`).join('<br>')
-        : 'None configured.'}
-    </div>
-    <div class="summary-label" style="margin-bottom:5px">Security Sheaf</div>
-    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px">
-      ${sheafSteps.length
-        ? `${sheafSteps.length} step${sheafSteps.length !== 1 ? 's' : ''} configured.`
-        : '<span style="color:var(--red);letter-spacing:1px">No sheaf defined -- host will not be run-ready.</span>'}
-    </div>
+    <div class="tip">Final check before saving. The host is run-ready when it has a security code/value and at least one valid sheaf step.</div>
   `;
 }
 
@@ -3663,19 +4382,22 @@ async function createHost() {
     hosts.unshift(created);
     renderHostDropdown();
     $('hostSelect').value = created.id;
+    refreshHostSelect();
     currentHost = created;
     sheafSteps = [];
     $('summaryNoHost').style.display = 'none';
     $('summaryPanel').style.display  = '';
+    _syncCurrentHostTab();   // show the new host as tab 1
     updateSummary();
     checkRunReady();
     // Collapse the create form and reset it
     $('createForm').style.display = 'none';
-    $('createToggleBtn').textContent = 'v Expand';
+    $('createToggleBtn').textContent = '+ Create Custom Host';
     $('newHostName').value  = '';
     $('newHostNotes').value = '';
     showAlert(alertEl(), `Host "${name}" created. Configure SR2 settings on the next steps.`, false);
     gotoStep(2);
+    setTimeout(() => { _designerReady = true; _setSaveStatus('saved'); }, 0);   // enable auto-save
   } catch (e) {
     showAlert(alertEl(), 'Create failed: ' + e.message, true);
   }

@@ -2599,7 +2599,8 @@ body.deck-interrupt-active main {
 .ic-black-lethal-badge    { color: #cc55ff;          border: 2px solid #8800cc;      background: rgba(204,0,255,.10); }
 .ic-black-nonlethal-badge { color: #7733aa;          border: 1px dashed #441166;     background: rgba(119,51,170,.06); }
 
-/* Construct / Party IC badges */
+/* Trap / Construct / Party IC badges -- each a distinct colour so the composite type reads at a glance */
+.ic-trap-badge      { color: #ff5599;     border: 1px dashed #66143a; background: rgba(255,85,153,.09); font-size: var(--fs-xxs); letter-spacing: 1px; padding: 1px 6px; display: inline-block; text-transform: uppercase; }
 .ic-construct-badge { color: #cc9900;     border: 1px solid #664400; background: rgba(204,153,0,.08); font-size: var(--fs-xxs); letter-spacing: 1px; padding: 1px 6px; display: inline-block; text-transform: uppercase; }
 .ic-party-badge     { color: var(--cyan); border: 1px solid #004455; background: rgba(0,204,255,.06); font-size: var(--fs-xxs); letter-spacing: 1px; padding: 1px 6px; display: inline-block; text-transform: uppercase; }
 
@@ -2629,14 +2630,6 @@ body.deck-interrupt-active main {
   color: var(--cyan); font-family: var(--font); letter-spacing: .5px;
 }
 .branch-events        { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 5px; min-height: 20px; }
-
-/* Trace-IC conditional branch (jackpoint located yes/no) */
-.trace-branch-block   { border: 1px dashed #003838; padding: 8px 10px; margin-top: 8px; background: #020d0d; }
-.trace-branch-header  { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: .58rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cyan); }
-.trace-branch-cols    { display: flex; gap: 10px; }
-.trace-branch-col     { flex: 1; min-width: 0; border: 1px solid #0a2020; padding: 6px 8px; background: #050e0e; }
-.trace-branch-col-hdr { font-size: .58rem; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
-.trace-branch-events  { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 5px; min-height: 18px; }
 
 /* Matrix-designer flex utility */
 .flex-gap8 { display: flex; gap: 8px; align-items: center; }
@@ -2679,6 +2672,404 @@ body.deck-interrupt-active main {
   margin-top: 20px; padding-top: 12px; border-top: 1px solid #1a2a1a;
 }
 .wizard-step-label { font-size: var(--fs-xs); letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; }
+
+/* ---------------------------------------------------------------------------
+   SECTION 25b -- MATRIX DESIGNER // 3-PANE TERMINAL SHELL (matrix-designer.html)
+   Scoped under .md3 so nothing here leaks into other pages. Ports the
+   host-builder Terminal prototype: sticky LEFT (build steps + host summary) /
+   scrolling CENTER (all build blocks) / sticky RIGHT (context Inspector).
+   --------------------------------------------------------------------------- */
+main:has(.md3) { max-width: 1800px; }
+
+/* Custom in-DOM dropdown (host selector) -- replaces the native <select> popup, whose rows
+   rendered blank until scrolled (Chromium native-popup bug). The native <select> is kept as
+   the hidden data model; this is the visible listbox. */
+.md3 .md3-cdd            { position: relative; }
+.md3 .md3-cdd-native     { display: none; }
+.md3 .md3-cdd-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer;
+  background: var(--bg-input); border: 1px solid #1a3a1a; color: var(--text-bright);
+  font-family: var(--font); font-size: var(--fs-md); padding: 8px 12px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.md3 .md3-cdd-btn:hover                    { border-color: var(--green-dim); }
+.md3 .md3-cdd-btn[aria-expanded="true"]    { border-color: var(--green-dim); box-shadow: 0 0 0 1px rgba(0,255,65,.15); }
+.md3 .md3-cdd-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md3 .md3-cdd-caret { flex-shrink: 0; color: var(--green); font-size: .7rem; }
+.md3 .md3-cdd-panel {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 60;
+  background: #090909; border: 1px solid var(--green-dim); max-height: 320px; overflow-y: auto;
+  box-shadow: 0 10px 28px rgba(0,0,0,.65);
+}
+.md3 .md3-cdd-group {
+  padding: 7px 10px 3px; font-size: var(--fs-xxs); letter-spacing: 2px; text-transform: uppercase;
+  color: var(--md3-label); border-top: 1px solid #1a2a1a; position: sticky; top: 0; background: #090909;
+}
+.md3 .md3-cdd-group:first-child { border-top: none; }
+.md3 .md3-cdd-opt {
+  padding: 6px 12px; font-size: var(--fs-sm); color: var(--text-bright); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.md3 .md3-cdd-opt:hover,
+.md3 .md3-cdd-opt.active     { background: rgba(0,255,65,.08); color: var(--green); }
+.md3 .md3-cdd-opt.sel        { color: var(--cyan); }
+.md3 .md3-cdd-opt.placeholder { color: var(--text-dim); }
+
+.md3-panes {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 360px;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .md3-panes                   { grid-template-columns: 1fr; }
+  .md3-side > .pane            { position: static !important; max-height: none !important; }
+  .md3-side > .pane > .pane-bd { max-height: none !important; overflow: visible; }
+}
+
+/* panes */
+.md3 .pane            { background: var(--bg-card); border: 1px solid #1a2a1a; margin-bottom: 14px; }
+.md3 .pane:last-child { margin-bottom: 0; }
+/* each side pane is individually sticky so its header stays pinned and the body
+   scrolls internally (matches the prototype; avoids tall asides scrolling away) */
+.md3-side > .pane            { position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+.md3-side > .pane > .pane-bd { flex: 1 1 auto; overflow: auto; }
+.md3 .pane-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; border-bottom: 1px solid #1a2a1a;
+  color: var(--cyan); letter-spacing: 2px; text-transform: uppercase; font-size: var(--fs-sm);
+}
+.md3 .pane-hd::before { content: '>> '; color: var(--text-dim); }
+.md3 .pane-bd         { padding: 14px 16px; }
+
+/* LEFT -- vertical build-step nav (reuses the #wizardStepsBar markup) */
+.md3 .wizard-steps-bar { flex-direction: column; align-items: stretch; gap: 2px; margin-bottom: 0; }
+.md3 .wstep-sep        { display: none; }
+.md3 .wstep-dot {
+  padding: 8px 10px; gap: 9px; border-left: 2px solid transparent;
+  font-size: var(--fs-sm); letter-spacing: 1px; transition: background .12s, color .12s;
+  color: var(--text-dim);
+}
+.md3 .wstep-dot:hover      { background: rgba(0,255,65,.04); color: var(--text-bright); }
+.md3 .wstep-dot.active     { color: var(--green); border-left-color: var(--green); background: rgba(0,255,65,.06); }
+.md3 .wstep-dot.done       { color: var(--text-bright); }
+.md3 .wstep-tick {
+  width: 16px; height: 16px; flex-shrink: 0; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 10px;
+  border: 1px solid #1a2a1a; background: var(--bg-input); color: var(--green); line-height: 1;
+}
+.md3 .wstep-dot.done   .wstep-tick { border-color: var(--green-dim); background: rgba(0,255,65,.08); }
+.md3 .wstep-dot.active .wstep-tick { border-color: var(--green); color: var(--green); }
+.md3 .wstep-dot .n-no       { color: var(--text-dim); font-size: var(--fs-xs); min-width: 12px; }
+.md3 .wstep-dot.active .n-no { color: var(--green); }
+.md3 .wstep-dot .wstep-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* LEFT -- host summary lives under the build-steps nav in the same pane (mockup) */
+.md3 #md3SummaryMount .md3-summary    { border-top: 1px solid #1a2a1a; margin-top: 14px; padding-top: 12px; }
+.md3 #md3SummaryMount .md3-summary-hd { color: var(--cyan); letter-spacing: 2px; text-transform: uppercase; font-size: var(--fs-sm); margin-bottom: 10px; }
+.md3 #md3SummaryMount .md3-summary-hd::before { content: '>> '; color: var(--text-dim); }
+.md3 #md3SummaryMount .run-ready-banner {
+  display: none; align-items: center; gap: 8px; margin: 0 0 12px;
+  padding: 8px 10px; border: 1px solid var(--green-dim); background: rgba(0,255,65,.05);
+  color: var(--green); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase;
+}
+.md3 #md3SummaryMount .run-ready-banner.show { display: flex; }
+.md3 #md3SummaryMount .rr-pulse {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+}
+.md3 #md3SummaryMount .sum-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid #141414;
+}
+.md3 #md3SummaryMount .sum-row .k { color: var(--md3-label); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; }
+.md3 #md3SummaryMount .sum-row .v { color: var(--text-bright); font-size: var(--fs-md); text-align: right; }
+.md3 #md3SummaryMount .sum-thr-label { color: var(--md3-label); font-size: var(--fs-xs); letter-spacing: 1.5px; text-transform: uppercase; margin: 12px 0 7px; }
+.md3 #md3SummaryMount .thresholds { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.md3 #md3SummaryMount .thr { font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border: 1px solid #2a2a2a; color: var(--text-dim); }
+.md3 #md3SummaryMount .thr.passive  { color: var(--amber);  border-color: var(--amber); }
+.md3 #md3SummaryMount .thr.active   { color: var(--red);    border-color: var(--red); }
+.md3 #md3SummaryMount .thr.shutdown { color: var(--purple); border-color: var(--purple); }
+.md3 #md3SummaryMount .thr.off      { color: var(--text-dim); border-color: #2a2a2a; opacity: .55; }
+.md3 #md3SummaryMount .sum-delete-row { border-top: 1px solid #1a2a1a; margin-top: 14px; padding-top: 10px; }
+
+/* CENTER -- one build block at a time (driven by the left build-steps nav) */
+.md3 .wstep           { display: none; }
+.md3 .wstep.active    { display: block; }
+.md3 .wstep .mx-panel { margin-bottom: 0; }
+
+/* CENTER -- sticky bottom action bar (save controls) */
+.md3 .wizard-nav {
+  position: sticky; bottom: 0; z-index: 5; margin-top: 16px;
+  background: linear-gradient(to top, var(--bg) 72%, rgba(8,8,8,0));
+}
+
+/* RIGHT -- inspector placeholder + relocated edit form */
+.md3-insp-empty {
+  color: var(--text-dim); font-size: var(--fs-sm); text-align: center;
+  padding: 30px 10px; letter-spacing: 1px; line-height: 1.6;
+}
+/* the IC edit form is moved out of its centred overlay into this pane on edit */
+.md3 #mdInspector .edit-modal-mini.md3-insp-form {
+  min-width: 0 !important; max-width: 100% !important; width: 100%;
+  border: 0 !important; background: transparent !important; padding: 0;
+}
+.md3-insp-title {
+  color: var(--cyan); font-size: var(--fs-sm); letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+
+/* CENTER -- security sheaf rendered as a vertical timeline */
+.md3 #sheafStepList { position: relative; padding-left: 22px; }
+.md3 #sheafStepList::before {
+  content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px;
+  width: 2px; background: #1a2a1a;
+}
+/* sheaf step rendered as the prototype .step-card -- a bordered box with a colored
+   top edge by alert state; the whole card is clickable to open the step Inspector */
+.md3 .sheaf-step {
+  position: relative; overflow: visible; margin-bottom: 12px;
+  background: #0d0d0d; border: 1px solid #1a2a1a; border-top: 3px solid #24341f;
+  padding: 9px 12px; cursor: pointer; transition: border-color .12s, box-shadow .12s;
+}
+.md3 .sheaf-step:hover    { border-color: var(--green-dim); }
+.md3 .sheaf-step.md3-sel  { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(0,204,255,.25); }
+/* the trigger badge and the step card open the SAME (step) inspector -> highlight them
+   together on hover, but NOT when the hover is really on a chip (chips open their own
+   inspector and light themselves). */
+.md3 .sheaf-step:hover:not(:has(.sheaf-event:hover)) .trigger-badge { border-color: var(--green-dim); }
+/* when the step is the open one (its trigger badge carries .md3-sel), light the card too */
+.md3 .sheaf-step:has(.trigger-badge.md3-sel) { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(0,204,255,.25); }
+.md3 .sheaf-step::after {
+  content: ''; position: absolute; left: -19px; top: 13px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--cyan);
+}
+.md3 .step-passive             { border-top-color: var(--amber); }
+.md3 .step-active              { border-top-color: var(--red); }
+.md3 .step-shutdown            { border-top-color: var(--purple); }
+.md3 .step-passive::after  { border-color: var(--amber); }
+.md3 .step-active::after   { border-color: var(--red); }
+.md3 .step-shutdown::after { border-color: var(--purple); }
+/* align-items:stretch makes every chip in a step match the tallest one (e.g. a chip
+   carrying EXP/option badges), so badge-less chips aren't smaller pills. */
+.md3 .sheaf-events            { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.md3 .sheaf-event             { transition: border-color .12s; cursor: pointer; }
+.md3 .sheaf-event:hover       { border-color: var(--green-dim) !important; }
+.md3 .sheaf-event.md3-sel     { border-color: var(--cyan) !important; box-shadow: 0 0 0 1px rgba(0,204,255,.25); }
+/* IC category shown as a colored dot (prototype .chip .dot) instead of a category word */
+.md3 .sheaf-event .ic-dot     { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+                                flex-shrink: 0; vertical-align: middle; margin-right: 3px; }
+/* paydata rows -- ported from the prototype .pd-row (star / name / lock badge / Mp);
+   the whole row opens the Inspector, the name still inline-renames */
+.md3 #paydataList { display: flex; flex-direction: column; gap: 6px; }
+.md3 .pd-row {
+  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  background: #0d0d0d; border: 1px solid #1a2a1a; cursor: pointer; transition: border-color .12s;
+}
+.md3 .pd-row:hover    { border-color: var(--green-dim); }
+.md3 .pd-row.md3-sel  { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(0,204,255,.25); }
+.md3 .pd-row .star    { color: var(--amber); font-size: var(--fs-sm); flex-shrink: 0; }
+.md3 .pd-row .nm      { flex: 1; min-width: 0; color: var(--text-bright); font-size: var(--fs-sm);
+                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md3 .pd-row .mp      { color: var(--text-dim); font-size: var(--fs-xs); letter-spacing: 1px; white-space: nowrap; }
+.md3 .pd-row .lock    { font-size: var(--fs-xxs); letter-spacing: 1px; padding: 1px 6px;
+                        border: 1px solid var(--red); color: var(--red); white-space: nowrap; }
+/* passive-IC counters -- ported from the prototype .counters */
+.md3 .pd-counters     { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 13px 0; }
+.md3 .pd-counter      { background: #0d0d0d; border: 1px solid #1a2a1a; padding: 10px 12px; }
+.md3 .pd-counter .n   { font-size: var(--fs-xl); color: var(--text-bright); font-weight: bold; line-height: 1.1; }
+.md3 .pd-counter .l   { color: var(--cyan); font-size: var(--fs-xxs); letter-spacing: 1px; text-transform: uppercase; }
+/* Roll Protection result -- flashes so a re-roll is visible even if the result is unchanged */
+@keyframes md3-roll-flash { 0% { background: rgba(0,204,255,.45); color: var(--text-bright); } 100% { background: transparent; } }
+.md3 #pdProtResult        { padding: 2px 6px; border-radius: 2px; }
+.md3 #pdProtResult.flash  { animation: md3-roll-flash .55s ease-out; }
+/* Passive IC -- 3-column subsystem/device cards (Data Bombs / Scramble / Worms) */
+.md3 .ic-cards     { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.md3 .ic-card      { background: #0d0d0d; border: 1px solid #1a2a1a; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.md3 .ic-card-hd   { color: var(--cyan); font-size: var(--fs-xs); letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid #1a2a1a; padding-bottom: 6px; cursor: help; }
+.md3 .ic-card-list { display: flex; flex-direction: column; gap: 4px; min-height: 16px; }
+.md3 .ic-card-list span { overflow-wrap: anywhere; }
+.md3 .ic-card-add  { display: flex; flex-direction: column; gap: 5px; }
+.md3 .ic-card-add select,
+.md3 .ic-card-add input { width: 100%; box-sizing: border-box; background: var(--bg-input);
+  border: 1px solid #1a2a1a; color: var(--text-bright); font-family: var(--font); font-size: .7rem; padding: 4px 6px; }
+.md3 .ic-add-row   { display: flex; gap: 5px; }
+.md3 .ic-add-row input  { flex: 1; min-width: 0; color: var(--amber); }
+.md3 .ic-add-row button { white-space: nowrap; }
+.md3 .ic-card-tip  { font-size: var(--fs-xxs); color: var(--text-dim); line-height: 1.4; letter-spacing: .3px; }
+@media (max-width: 900px) { .md3 .ic-cards { grid-template-columns: 1fr; } }
+/* prototype steel-blue label color (host summary keys + inspector labels) */
+/* Scoped baseline for this page: steel-blue label colour + a readability floor on the two
+   smallest type tokens (tiny badges/labels/tips were hard to read). Other pages are unaffected. */
+.md3 { --md3-label: #5aa8d0; --fs-xxs: 0.7rem; --fs-xs: 0.76rem; }
+/* security code as a COLORED WORD (prototype .sec-*), not a boxed badge */
+.md3 .sec-blue   { color: #6699ff; }
+.md3 .sec-green  { color: var(--green); }
+.md3 .sec-orange { color: var(--amber); }
+.md3 .sec-red    { color: var(--red); }
+.md3 .sec-black  { color: var(--purple); }
+/* named pieces -- ported from the prototype .tagrow / .tag-pc pills */
+.md3 .tagrow      { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 4px; }
+.md3 .tag-pc      { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px;
+                    background: #0d0d0d; border: 1px solid #1a2a1a; font-size: var(--fs-sm); color: var(--text-bright); }
+.md3 .tag-pc.clickable        { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.md3 .tag-pc.clickable:hover  { border-color: var(--green-dim); }
+.md3 .tag-pc.trap             { border-color: var(--amber); }
+.md3 .tag-pc.trap:hover       { box-shadow: 0 0 0 1px var(--amber); }
+.md3 .tag-pc.md3-sel          { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan); }
+.md3 .tag-pc.trap.md3-sel     { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+.md3 .tag-pc .trapflag        { color: var(--amber); font-size: var(--fs-xxs); letter-spacing: 1px; }
+.md3 .tag-pc .nm.editable     { cursor: text; border-bottom: 1px dashed transparent; }
+.md3 .tag-pc .nm.editable:hover { border-bottom-color: #1a2a1a; }
+.md3 .tag-pc .x   { color: var(--text-dim); cursor: pointer; } .md3 .tag-pc .x:hover { color: var(--red); }
+/* Review & Save -- ported from the prototype .review-grid / .rev-cell */
+.md3 .review-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 1100px) { .md3 .review-grid { grid-template-columns: repeat(2, 1fr); } }
+.md3 .rev-cell    { background: #0d0d0d; border: 1px solid #1a2a1a; padding: 9px 11px; }
+.md3 .rev-cell .k { color: var(--cyan); font-size: var(--fs-xxs); letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+.md3 .rev-cell .v { color: var(--text-bright); font-size: var(--fs-sm); }
+.md3 .rev-cell .v.good { color: var(--green); animation: md3-runready-pulse 2s ease-in-out infinite; }
+.md3 .rev-cell .v.bad  { color: var(--red); }
+@keyframes md3-runready-pulse { 0%, 100% { opacity: 1; text-shadow: 0 0 4px rgba(0,255,65,.25); } 50% { opacity: .55; text-shadow: none; } }
+/* Alert-Triggers panel -- ported from the prototype .alertpanel / .ap-row */
+.md3 .alertpanel        { background: #0d0d0d; border: 1px solid #1a2a1a; padding: 11px 13px; margin-bottom: 14px; }
+.md3 .alertpanel .ap-hd { color: var(--cyan); font-size: var(--fs-xs); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 9px; }
+.md3 .ap-row            { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.md3 .ap-row:last-child { margin-bottom: 0; }
+.md3 .ap-name           { min-width: 110px; font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; }
+.md3 .ap-row.passive  .ap-name { color: var(--amber); }
+.md3 .ap-row.active   .ap-name { color: var(--red); }
+.md3 .ap-row.shutdown .ap-name { color: var(--purple); }
+.md3 .ap-row select     { max-width: 230px; background: var(--bg-input); border: 1px solid #1a2a1a;
+                          color: var(--text-bright); font-family: var(--font); font-size: .72rem; padding: 3px 8px; }
+.md3 .ap-row select:disabled { opacity: .5; }
+/* trap-door entries: click the row body to open the Inspector */
+.md3 #trapDoorList .td-row { cursor: pointer; transition: background .12s; }
+.md3 #trapDoorList .td-row:hover  { background: rgba(0,204,255,.04); }
+.md3 #trapDoorList .td-row.md3-sel { background: rgba(0,204,255,.07); box-shadow: inset 2px 0 0 var(--cyan); }
+
+/* RIGHT -- inspector form controls (trap / bouncer / construct / party editors) */
+.md3 #mdInspector .md3-insp-sub   { color: var(--text-dim); font-size: var(--fs-xxs); letter-spacing: 1px; text-transform: uppercase; margin: -6px 0 12px; }
+.md3 #mdInspector .md3-insp-sec   { border-top: 1px solid #1a2a1a; margin-top: 12px; padding-top: 11px; }
+.md3 #mdInspector .md3-insp-label { display: block; color: var(--md3-label); font-size: var(--fs-xs); font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
+.md3 #mdInspector .md3-insp-row   { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+/* the step-inspector Trigger label sits inline before its input -> match the input's text size
+   (not the tiny uppercase section-label treatment) so the row reads consistently */
+.md3 #mdInspector .md3-trigger-lbl { color: var(--md3-label); font-size: var(--fs-sm); letter-spacing: .5px; margin: 0; white-space: nowrap; }
+.md3 #mdInspector input,
+.md3 #mdInspector select {
+  background: var(--bg-input); border: 1px solid #1a2a1a; color: var(--text-bright);
+  font-family: var(--font); font-size: var(--fs-sm); padding: 5px 7px; outline: none;
+}
+.md3 #mdInspector input:focus, .md3 #mdInspector select:focus { border-color: var(--green-dim); }
+.md3 #mdInspector .md3-num { width: 72px; text-align: center; }
+/* attach the in-field up/down controls to compact .md3-num fields: their width comes from a
+   CSS class (not an inline style), so initNumSteppers can't size the wrap -- pin it here. */
+.md3 #mdInspector .infield-num-wrap:has(.md3-num) { width: 72px; }
+.md3-opt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.md3-opt {
+  display: flex; align-items: center; gap: 7px; padding: 6px 9px; cursor: pointer; user-select: none;
+  border: 1px solid #1a2a1a; background: var(--bg-input); color: var(--text-bright); font-size: var(--fs-sm);
+}
+.md3-opt:hover  { border-color: var(--green-dim); }
+.md3-opt.on     { border-color: var(--green); color: var(--green); background: rgba(0,255,65,.06); }
+.md3-opt.dis    { opacity: .4; pointer-events: none; }
+.md3-opt .bx    { width: 12px; height: 12px; border: 1px solid var(--green-dim); display: inline-flex; align-items: center; justify-content: center; font-size: 9px; }
+.md3-opt.on .bx { background: var(--green); color: #000; }
+.md3-cap        { font-size: var(--fs-sm); color: var(--amber); }
+.md3-cap.over   { color: var(--red); }
+.md3-comp       { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid #1a2a1a; background: #0d0d0d; margin-bottom: 5px; font-size: var(--fs-sm); }
+.md3-comp .cn   { flex: 1; min-width: 0; }
+.md3-insp-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+/* bright, readable Follow button (the old btn-cyan was undefined -> unreadable) */
+/* outlined cyan, matching the prototype .btn-cyan (transparent bg, cyan border + text) */
+.md3 .btn-follow      { background: transparent; color: var(--cyan); border: 1px solid var(--cyan); }
+.md3 .btn-follow:hover { background: rgba(0,204,255,.10); border-color: var(--cyan); }
+/* ghost buttons (Create Custom Host / Cancel / + Add / + Add Step) read too dim in --text-dim;
+   give them bright text + a visible green-ish outline so they clearly look actionable. */
+.md3 .btn-ghost       { color: var(--text-bright); border-color: #2f4a2f; }
+.md3 .btn-ghost:hover { color: var(--green); background: rgba(0,255,65,.08); border-color: var(--green-dim); }
+/* reusable readable form-field label (steel-blue, not the dim micro-label many inline styles use).
+   Reuse this in place of inline label styling as the page is de-inlined toward a style.css baseline. */
+.md3 .md3-field-lbl   { display: block; font-size: var(--fs-sm); letter-spacing: 1px; text-transform: uppercase; color: var(--md3-label); }
+/* trap-door destination card (prototype .follow-card) */
+.md3 #mdInspector .follow-card        { border: 1px solid var(--cyan); padding: 10px 12px; margin-top: 10px; }
+.md3 #mdInspector .follow-card .fc-dest { color: var(--text-bright); font-size: var(--fs-sm); margin: 4px 0 10px; }
+.md3 #mdInspector .follow-card .fc-dest b { color: var(--cyan); }
+/* the tab bar grid-mirrors .md3-panes so the strip lines up under the CENTER column */
+.md3 .md3-tabbar { display: grid; grid-template-columns: 248px minmax(0, 1fr) 360px; gap: 14px; }
+.md3 .md3-tabbar > * { grid-column: 2; }
+@media (max-width: 1180px) {
+  .md3 .md3-tabbar { grid-template-columns: 1fr; }
+  .md3 .md3-tabbar > * { grid-column: 1; }
+}
+/* in-app host tabs (prototype .hosttabs / .htab / .followmsg) -- trap-door Follow */
+.md3 .hosttabs    { display: flex; gap: 3px; align-items: flex-end; margin: 4px 0 0; }
+.md3 .htab        { display: flex; align-items: center; gap: 9px; padding: 8px 15px; font-size: var(--fs-xs); letter-spacing: 1px; color: var(--text-dim); border: 1px solid #1a2a1a; border-top: 2px solid #24341f; border-bottom: 0; cursor: pointer; background: #0a0a0a; transition: color .12s, background .12s, border-color .12s; }
+.md3 .htab:hover  { color: var(--text-bright); background: #0d0d0d; }
+/* the active (current) host tab clearly pops: cyan text, cyan top accent + soft glow */
+.md3 .htab.on     { color: var(--cyan); background: #0d1416; border-top-color: var(--cyan); box-shadow: 0 -2px 8px rgba(0,204,255,.25); }
+.md3 .htab .src   { color: var(--green-dim); font-size: var(--fs-xxs); }
+.md3 .htab .hx    { color: var(--text-dim); font-size: var(--fs-sm); }
+.md3 .htab .hx:hover { color: var(--red); }
+/* a freshly-followed tab flashes so you can't miss it being created */
+.md3 .htab.justadded { animation: md3-tab-flash 1.4s ease-out 2; }
+@keyframes md3-tab-flash {
+  0%, 100% { box-shadow: 0 -2px 8px rgba(0,204,255,.25); border-top-color: var(--cyan); }
+  50%      { box-shadow: 0 -2px 16px rgba(0,204,255,.85); border-top-color: #66e0ff; background: #10242a; }
+}
+/* the follow banner is now a clear cyan-railed callout */
+.md3 .followmsg   { color: var(--text-bright); font-size: var(--fs-xs); letter-spacing: .5px; margin: 0; padding: 7px 12px; background: rgba(0,204,255,.06); border: 1px solid #0a3a44; border-left: 3px solid var(--cyan); }
+.md3 .followmsg b { color: var(--cyan); }
+/* auto-save status (replaces the Save buttons) */
+.md3 .save-status         { margin-left: auto; font-size: var(--fs-xs); letter-spacing: 1px; color: var(--green); transition: color .2s; }
+.md3 .save-status.saving  { color: var(--amber); }
+.md3 .save-status.error   { color: var(--red); }
+/* sheaf-step trigger badge (prototype .trigger-badge) -- click to edit the step in the Inspector */
+.md3 .trigger-badge        { display: inline-flex; align-items: baseline; gap: 7px; cursor: pointer;
+                             background: #0d0d0d; border: 1px solid #1a2a1a; padding: 4px 11px; transition: border-color .12s; }
+.md3 .trigger-badge:hover  { border-color: var(--green-dim); }
+.md3 .trigger-badge.md3-sel { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(0,204,255,.25); }
+.md3 .trigger-badge .t-lbl { color: var(--md3-label); font-size: var(--fs-xxs); letter-spacing: 1px; text-transform: uppercase; }
+.md3 .trigger-badge b      { color: var(--green); font-size: var(--fs-2xl); line-height: 1; font-weight: bold; }
+.md3 .sheaf-empty-hint     { color: var(--text-dim); font-size: var(--fs-xxs); font-style: italic; letter-spacing: .5px; }
+/* step-inspector event rows (clickable to edit) */
+.md3 #mdInspector .md3-step-evt        { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.md3 #mdInspector .md3-step-evt:hover  { border-color: var(--cyan); }
+.md3 #mdInspector .md3-step-evt .se-lbl { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md3 #mdInspector .md3-step-evt .ic-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+/* add-IC palette (prototype .palette / .pal-chip) */
+.md3 #mdInspector .md3-pal-cap   { color: var(--text-dim); font-size: var(--fs-xxs); letter-spacing: .5px; margin-bottom: 9px; }
+.md3 #mdInspector .md3-pal-cap b  { color: var(--cyan); }
+.md3 #mdInspector .md3-pal-group { margin-bottom: 9px; }
+.md3 #mdInspector .md3-pal-lbl   { font-size: var(--fs-sm); font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: var(--md3-label); margin-bottom: 6px; }
+.md3 #mdInspector .md3-pal       { display: flex; flex-wrap: wrap; gap: 6px; }
+.md3 #mdInspector .md3-pal-chip  { font-size: var(--fs-xs); padding: 5px 9px; border: 1px solid #1a2a1a; background: var(--bg-input); cursor: pointer; transition: border-color .12s, color .12s; white-space: nowrap; }
+.md3 #mdInspector .md3-pal-chip:hover { border-color: var(--cyan); }
+.md3 #mdInspector .md3-pal-chip.w { color: #dfe6e9; }
+.md3 #mdInspector .md3-pal-chip.g { color: #9aa3af; }
+.md3 #mdInspector .md3-pal-chip.b { color: var(--purple); }
+.md3 #mdInspector .md3-pal-chip.c { color: var(--cyan); }
+/* IC editor defenses as a bordered optbox block (prototype .opt-grid/.optbox) */
+.md3 #mdInspector .ic-def-block { border-top: 1px solid #1a2a1a; margin-top: 12px; padding-top: 11px; }
+.md3 #mdInspector .ic-def-hd    { display: block; color: var(--cyan); font-size: var(--fs-xxs); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
+.md3 #mdInspector .ic-def-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.md3 #mdInspector .ic-def-opt   { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid #1a2a1a; background: var(--bg-input); color: var(--text-bright); cursor: pointer; user-select: none; font-size: var(--fs-sm); }
+.md3 #mdInspector .ic-def-opt:hover { border-color: var(--green-dim); }
+.md3 #mdInspector .ic-def-opt:has(input:checked) { border-color: var(--green); color: var(--green); background: rgba(0,255,65,.06); }
+.md3 #mdInspector .ic-def-opt input { accent-color: var(--green); margin: 0; }
+.md3 #mdInspector .md3-insp-flavor {
+  color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.55; margin: 8px 0 10px;
+}
+.md3 #mdInspector .md3-insp-note {
+  color: var(--text-dim); font-size: var(--fs-xxs); line-height: 1.5; letter-spacing: .3px;
+  border-left: 2px solid #1a2a1a; padding: 4px 0 4px 9px; margin: 8px 0;
+}
+.md3 #mdInspector .md3-insp-otherevt {
+  font-size: var(--fs-sm); color: var(--text-bright); padding: 5px 8px;
+  border: 1px solid #1a2a1a; background: #0d0d0d; margin-bottom: 5px;
+}
 
 /* ---------------------------------------------------------------------------
    SECTION 26 -- MATRIX RUN (matrix-run.html)
