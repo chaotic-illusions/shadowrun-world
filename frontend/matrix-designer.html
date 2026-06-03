@@ -63,17 +63,7 @@
           <div class="mx-field">
             <label>Target Host</label>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <div id="hostSelectWrap" class="md3-cdd" style="flex:1 1 auto;min-width:0">
-                <!-- native select stays the data model (hidden); the custom listbox below renders
-                     option rows in-DOM so they paint eagerly (the native popup left blank rows). -->
-                <select id="hostSelect" onchange="onHostChange()" class="md3-cdd-native" tabindex="-1" aria-hidden="true"></select>
-                <button type="button" id="hostSelectBtn" class="md3-cdd-btn" data-tip="Select an existing host/LTG entry point."
-                        onclick="toggleHostDropdown(event)" aria-haspopup="listbox" aria-expanded="false">
-                  <span id="hostSelectLabel" class="md3-cdd-label">-- Select a host --</span>
-                  <span class="md3-cdd-caret" aria-hidden="true">&#9662;</span>
-                </button>
-                <div id="hostSelectPanel" class="md3-cdd-panel" role="listbox" aria-label="Target host" style="display:none"></div>
-              </div>
+              <select id="hostSelect" onchange="onHostChange()" data-tip="Select an existing host/LTG entry point." style="flex:1 1 auto;min-width:0"></select>
               <button class="btn btn-ghost btn-sm" onclick="toggleCreateForm()" id="createToggleBtn" data-tip="Create a custom off-grid host">+ Create Custom Host</button>
             </div>
           </div>
@@ -788,8 +778,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderWizardStepsBar();
   wireIcEditModal();
   wireSaveStateModal();
-  wireHostDropdown();
-  refreshHostSelect();
+  initCustomDropdowns();
   startPolling(refreshCurrentHost, 2500);
 });
 
@@ -899,110 +888,142 @@ async function refreshCurrentHost() {
   } catch (_) {}
 }
 
-// --- Custom in-DOM host dropdown ---------------------------------------------
-// The native <select id="hostSelect"> remains the data model (renderHostDropdown + every
-// .value read/write + onHostChange are untouched). This renders an in-DOM listbox over it so
-// option rows paint eagerly -- the native popup left blank rows until scrolled (Chromium bug).
-let _hostDdOpen = false;
+// --- Custom in-DOM dropdowns -------------------------------------------------
+// Native <select> popups can't be styled and (on Chromium/Windows) render blank rows until
+// scrolled. We hide each native select -- it stays the data model, so .value, the change event,
+// and any inline onchange keep working -- and render an in-DOM listbox over it. Every <select>
+// inside .md3 is auto-upgraded (incl. ones injected later by inspectors/editors) via a
+// MutationObserver. Opt a select out with `data-native`.
+let _cddOpenEl = null;   // the native <select> whose panel is currently open
 
-// Update the button label from the native select's current selection.
-function refreshHostSelect() {
-  const sel = $('hostSelect'), lbl = $('hostSelectLabel');
-  if (!sel || !lbl) return;
-  const opt = sel.options[sel.selectedIndex];
-  lbl.textContent = (opt && opt.value) ? opt.textContent : '-- Select a host --';
+function _cddLabel(sel) {
+  const o = sel.options[sel.selectedIndex];
+  if (!o) return sel._cdd.placeholder;
+  return (o.value !== '' ? o.textContent : (sel._cdd.placeholder || o.textContent));
 }
-
-// Build the panel rows fresh from the select's optgroup/option tree (so any
-// renderHostDropdown/.value change is reflected the next time it opens).
-function _buildHostPanel() {
-  const sel = $('hostSelect'), panel = $('hostSelectPanel');
-  if (!sel || !panel) return;
-  const cur = sel.value;
+// Refresh the closed-button label from the native select (call after a programmatic .value=).
+function cddSync(sel) {
+  const c = sel && sel._cdd; if (!c) return;
+  c.label.textContent = _cddLabel(sel);
+  c.btn.disabled = sel.disabled;
+}
+function _cddBuildPanel(sel) {
+  const c = sel._cdd, cur = sel.value;
   const optRow = o => `<div class="md3-cdd-opt${o.value === cur ? ' sel' : ''}${o.value === '' ? ' placeholder' : ''}" role="option" data-value="${esc(o.value)}"${o.value === cur ? ' aria-selected="true"' : ''}>${esc(o.textContent)}</div>`;
   let html = '';
   for (const node of sel.children) {
     if (node.tagName === 'OPTGROUP') {
       html += `<div class="md3-cdd-group">${esc(node.label)}</div>`;
-      for (const o of node.children) html += optRow(o);
+      for (const o of node.children) if (o.tagName === 'OPTION') html += optRow(o);
     } else if (node.tagName === 'OPTION') {
       html += optRow(node);
     }
   }
-  panel.innerHTML = html;
+  c.panel.innerHTML = html;
 }
-
-function toggleHostDropdown(e) {
-  if (e) e.stopPropagation();
-  if (_hostDdOpen) closeHostDropdown(); else openHostDropdown();
-}
-function openHostDropdown() {
-  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
-  if (!panel || !btn) return;
-  _buildHostPanel();
-  panel.style.display = 'block';
-  btn.setAttribute('aria-expanded', 'true');
-  _hostDdOpen = true;
-  const selRow = panel.querySelector('.md3-cdd-opt.sel') || panel.querySelector('.md3-cdd-opt');
-  _setHostActiveRow(selRow);
+function cddOpen(sel) {
+  const c = sel && sel._cdd; if (!c || sel.disabled) return;
+  if (_cddOpenEl && _cddOpenEl !== sel) cddClose(_cddOpenEl);
+  _cddBuildPanel(sel);
+  c.panel.style.display = 'block';
+  c.btn.setAttribute('aria-expanded', 'true');
+  _cddOpenEl = sel;
+  const selRow = c.panel.querySelector('.md3-cdd-opt.sel') || c.panel.querySelector('.md3-cdd-opt');
+  _cddActivate(c.panel, selRow);
   if (selRow) selRow.scrollIntoView({ block: 'nearest' });
 }
-function closeHostDropdown() {
-  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
-  if (panel) panel.style.display = 'none';
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-  _hostDdOpen = false;
+function cddClose(sel) {
+  const c = sel && sel._cdd; if (!c) return;
+  c.panel.style.display = 'none';
+  c.btn.setAttribute('aria-expanded', 'false');
+  if (_cddOpenEl === sel) _cddOpenEl = null;
 }
-function _setHostActiveRow(row) {
-  const panel = $('hostSelectPanel'); if (!panel) return;
+function cddToggle(sel, e) {
+  if (e) e.stopPropagation();
+  if (_cddOpenEl === sel) cddClose(sel); else cddOpen(sel);
+}
+function _cddActivate(panel, row) {
   panel.querySelectorAll('.md3-cdd-opt.active').forEach(r => r.classList.remove('active'));
   if (row) row.classList.add('active');
 }
-function _pickHostOption(value) {
-  const sel = $('hostSelect'); if (!sel) return;
+function _cddPick(sel, value) {
   sel.value = value;
-  refreshHostSelect();
-  closeHostDropdown();
-  sel.dispatchEvent(new Event('change', { bubbles: true }));   // -> onHostChange()
-  const btn = $('hostSelectBtn'); if (btn) btn.focus();
+  cddSync(sel);
+  cddClose(sel);
+  sel.dispatchEvent(new Event('change', { bubbles: true }));   // drives any onchange (e.g. onHostChange)
+  if (sel._cdd) sel._cdd.btn.focus();
 }
-// Wire the dropdown once (static markup, available at DOMContentLoaded).
-function wireHostDropdown() {
-  const panel = $('hostSelectPanel'), btn = $('hostSelectBtn');
-  if (!panel || !btn) return;
-  panel.addEventListener('click', e => {
-    const row = e.target.closest('.md3-cdd-opt');
-    if (row) _pickHostOption(row.dataset.value);
-  });
-  panel.addEventListener('mousemove', e => {
-    const row = e.target.closest('.md3-cdd-opt');
-    if (row) _setHostActiveRow(row);
-  });
-  document.addEventListener('click', e => {
-    if (_hostDdOpen && !e.target.closest('#hostSelectWrap')) closeHostDropdown();
-  });
-  btn.addEventListener('keydown', e => {
-    if (!_hostDdOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHostDropdown(); }
-      return;
+function _cddKey(sel, e) {
+  const panel = sel._cdd.panel;
+  if (_cddOpenEl !== sel) {
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cddOpen(sel); }
+    return;
+  }
+  const rows = [...panel.querySelectorAll('.md3-cdd-opt')];
+  let idx = rows.findIndex(r => r.classList.contains('active'));
+  if (e.key === 'ArrowDown')      { e.preventDefault(); idx = Math.min(rows.length - 1, idx + 1); }
+  else if (e.key === 'ArrowUp')   { e.preventDefault(); idx = Math.max(0, idx - 1); }
+  else if (e.key === 'Home')      { e.preventDefault(); idx = 0; }
+  else if (e.key === 'End')       { e.preventDefault(); idx = rows.length - 1; }
+  else if (e.key === 'Enter')     { e.preventDefault(); if (rows[idx]) _cddPick(sel, rows[idx].dataset.value); return; }
+  else if (e.key === 'Escape' || e.key === 'Tab') { cddClose(sel); return; }
+  else if (/^[a-z0-9]$/i.test(e.key)) {
+    const k = e.key.toLowerCase(), from = idx + 1;
+    let m = rows.findIndex((r, i) => i >= from && r.textContent.trim().toLowerCase().startsWith(k));
+    if (m < 0) m = rows.findIndex(r => r.textContent.trim().toLowerCase().startsWith(k));
+    if (m >= 0) idx = m;
+  } else return;
+  if (rows[idx]) { _cddActivate(panel, rows[idx]); rows[idx].scrollIntoView({ block: 'nearest' }); }
+}
+// Layout-only inline styles copied to the wrapper so the control keeps the select's footprint.
+const _CDD_LAYOUT = ['width', 'min-width', 'max-width', 'flex', 'flex-grow', 'flex-shrink', 'flex-basis', 'margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right', 'align-self', 'font-size'];
+function enhanceSelect(sel) {
+  if (!sel || sel._cdd || sel.multiple || sel.size > 1 || sel.hasAttribute('data-native')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'md3-cdd';
+  for (const p of _CDD_LAYOUT) { const v = sel.style.getPropertyValue(p); if (v) wrap.style.setProperty(p, v); }
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'md3-cdd-btn';
+  btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+  if (sel.dataset.tip) btn.dataset.tip = sel.dataset.tip;
+  const label = document.createElement('span'); label.className = 'md3-cdd-label';
+  const caret = document.createElement('span'); caret.className = 'md3-cdd-caret'; caret.setAttribute('aria-hidden', 'true'); caret.innerHTML = '&#9662;';
+  btn.append(label, caret);
+  const panel = document.createElement('div');
+  panel.className = 'md3-cdd-panel'; panel.setAttribute('role', 'listbox'); panel.style.display = 'none';
+
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);                       // move the (now hidden) native select inside
+  wrap.append(btn, panel);
+  sel.classList.add('md3-cdd-native');
+  const ph = (sel.options[0] && sel.options[0].value === '') ? sel.options[0].textContent : '';
+  sel._cdd = { wrap, btn, label, panel, placeholder: ph };
+  cddSync(sel);
+
+  btn.addEventListener('click', e => cddToggle(sel, e));
+  btn.addEventListener('keydown', e => _cddKey(sel, e));
+  panel.addEventListener('click', e => { const r = e.target.closest('.md3-cdd-opt'); if (r) _cddPick(sel, r.dataset.value); });
+  panel.addEventListener('mousemove', e => { const r = e.target.closest('.md3-cdd-opt'); if (r) _cddActivate(panel, r); });
+  sel.addEventListener('change', () => cddSync(sel));                 // label tracks code-driven changes
+  new MutationObserver(() => cddSync(sel)).observe(sel, { childList: true });  // ...and option rebuilds
+}
+// Enhance all current .md3 selects + auto-enhance any injected later (inspectors rebuild via innerHTML).
+function initCustomDropdowns() {
+  const root = document.querySelector('.md3') || document.body;
+  root.querySelectorAll('select').forEach(enhanceSelect);
+  new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.tagName === 'SELECT') enhanceSelect(n);
+      else if (n.querySelectorAll) n.querySelectorAll('select').forEach(enhanceSelect);
     }
-    const rows = [...panel.querySelectorAll('.md3-cdd-opt')];
-    let idx = rows.findIndex(r => r.classList.contains('active'));
-    if (e.key === 'ArrowDown')      { e.preventDefault(); idx = Math.min(rows.length - 1, idx + 1); }
-    else if (e.key === 'ArrowUp')   { e.preventDefault(); idx = Math.max(0, idx - 1); }
-    else if (e.key === 'Home')      { e.preventDefault(); idx = 0; }
-    else if (e.key === 'End')       { e.preventDefault(); idx = rows.length - 1; }
-    else if (e.key === 'Enter')     { e.preventDefault(); if (rows[idx]) _pickHostOption(rows[idx].dataset.value); return; }
-    else if (e.key === 'Escape' || e.key === 'Tab') { closeHostDropdown(); return; }
-    else if (/^[a-z0-9]$/i.test(e.key)) {
-      const k = e.key.toLowerCase(), from = idx + 1;
-      let m = rows.findIndex((r, i) => i >= from && r.dataset.value && r.textContent.trim().toLowerCase().startsWith(k));
-      if (m < 0) m = rows.findIndex(r => r.dataset.value && r.textContent.trim().toLowerCase().startsWith(k));
-      if (m >= 0) idx = m;
-    } else return;
-    if (rows[idx]) { _setHostActiveRow(rows[idx]); rows[idx].scrollIntoView({ block: 'nearest' }); }
+  }).observe(root, { childList: true, subtree: true });
+  document.addEventListener('click', e => {
+    if (_cddOpenEl && !e.target.closest('.md3-cdd')) cddClose(_cddOpenEl);
   });
 }
+// Back-compat shim: host code still calls refreshHostSelect() after a programmatic .value= .
+function refreshHostSelect() { cddSync($('hostSelect')); }
 
 // --- Host dropdown -----------------------------------------------------------
 
