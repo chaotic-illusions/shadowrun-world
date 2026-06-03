@@ -186,7 +186,7 @@
               <input type="text" id="newAccessPiece" placeholder="e.g., SAN Port, Terminal 1"
                 data-tip="Add a named Access entry point such as a SAN port or terminal."
                 style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-              <button class="btn btn-ghost btn-sm" onclick="addSubPiece('access')" style="padding:3px 9px" data-tip="Add this Access piece.">+ Add</button>
+              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addSubPiece('access')" data-tip="Add this Access piece.">+ Add</button>
             </div>
             <div class="tip">Physical ports, terminals, or nodes outside of the normal LTG access point. Required to target a specific piece with Exploding Scramble IC.</div>
           </div>
@@ -198,7 +198,7 @@
               <input type="text" id="newSlavePiece" placeholder="e.g., Security Camera 1, Door Lock"
                 data-tip="Add a named Slave device such as a camera, lock, or sensor."
                 style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-              <button class="btn btn-ghost btn-sm" onclick="addSubPiece('slave')" style="padding:3px 9px" data-tip="Add this Slave device.">+ Add</button>
+              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addSubPiece('slave')" data-tip="Add this Slave device.">+ Add</button>
             </div>
             <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Click a device to rename it, flag it as a <strong>Trap Door</strong>, and set its destination + Follow in the Inspector. Required to target a specific device with Exploding Scramble IC.</div>
           </div>
@@ -294,16 +294,9 @@
           <div class="panel-title panel-title-cyan">&gt;&gt; Security Sheaf Builder</div>
 
           <div class="sub-section-title">&gt;&gt; Auto-Generate</div>
-          <div class="flex-gap8 mb-12">
-            <div style="display:flex;flex-direction:column;gap:3px">
-              <label class="md3-field-lbl">Step Count</label>
-              <input type="number" id="stepCountOverride" min="1" max="50" placeholder="auto"
-                data-auto-at-min="true"
-                data-tip="Optional manual step count. Leave blank for auto."
-                style="width:92px;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-            </div>
-            <button class="btn btn-green" onclick="generateSheaf()" id="generateBtn" style="align-self:flex-end" data-tip="Generate a sheaf using the current security profile.">&gt;&gt; Generate Sheaf</button>
-            <div id="genSpinner" style="display:none;align-self:flex-end;font-size:.7rem;letter-spacing:2px;color:var(--text-dim)">GENERATING...</div>
+          <div class="flex-gap8 mb-12" style="align-items:center">
+            <button class="btn btn-green" onclick="generateSheaf()" id="generateBtn" data-tip="Generate a sheaf using the current security profile.">&gt;&gt; Generate Sheaf</button>
+            <div id="genSpinner" style="display:none;font-size:.7rem;letter-spacing:2px;color:var(--text-dim)">GENERATING...</div>
           </div>
           <div class="tip mb-12">Requires security code and value to be set. Seed is randomized each generation for variety.</div>
 
@@ -2458,13 +2451,11 @@ async function generateSheaf() {
   if (!code)           { showAlert(alertEl(), 'Set a security code before generating.', true); return; }
   if (isNaN(sv) || sv < 1) { showAlert(alertEl(), 'Set a security value before generating.', true); return; }
 
-  const stepCount = parseInt($('stepCountOverride').value, 10);
   const body = {
     security_code:  code,
     security_value: sv,
   };
   if (owner) body.owner_type = owner;
-  if (!isNaN(stepCount) && stepCount >= 1) body.step_count = stepCount;
 
   $('genSpinner').style.display  = '';
   $('generateBtn').style.display = 'none';
@@ -4128,10 +4119,7 @@ function commitGroupIc(si) {
 
 function addStep() {
   const base = sheafSteps.length > 0 ? Math.max(...sheafSteps.map(s => s.trigger || 0)) : 0;
-  const override = parseInt($('stepCountOverride')?.value, 10);
-  const increment = (!isNaN(override) && override >= 1)
-    ? override
-    : (Math.floor(Math.random() * 6) + 1); // auto mode: roll 1d6
+  const increment = Math.floor(Math.random() * 6) + 1;   // next step triggers 1d6 after the last
   const maxTrigger = base + increment;
   sheafSteps.push({ trigger: maxTrigger, events: [] });
   renderSheaf();

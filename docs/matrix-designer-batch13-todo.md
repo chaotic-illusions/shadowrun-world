@@ -106,6 +106,15 @@ via `md3.config.js` (server on :8771, page at `/ui/matrix-designer.html`). Updat
     (`inspectorReset()`) when leaving the Review step so Sable's note shows only there. Spec asserts it.
   Playwright **ISSUES 0**; all step-4/5 controls measure 30px.
 
+- [x] **14. Access/Slave add buttons + remove Step Count field** (final pass for this page):
+  - The two `addSubPiece('access'/'slave')` `+ Add` buttons still had inline `padding:3px 9px` and lacked
+    `md3-ctrl-btn` (missed in task 13) -> added the class + removed the inline padding. Now 30px, matching
+    their inputs.
+  - Removed the Step Count (`#stepCountOverride`) field entirely (user: Generate auto-generates, manual
+    add-step covers the rest). Dropped its markup; `generateSheaf` no longer sends `step_count` (API
+    auto-determines); `addStep` now always rolls 1d6 for the next trigger increment. No spec references it.
+  Page is DONE. Playwright **ISSUES 0**.
+
 ## Custom in-DOM dropdown -- (BUILT in task 10, generalized to all selects in task 11)
 Moderate, self-contained -- ~1 focused session. Lowest-risk path: keep the existing hidden
 `<select id="hostSelect">` as the data model (so `renderHostDropdown`, all `hostSelect.value` reads/writes,
