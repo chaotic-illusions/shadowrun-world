@@ -2698,7 +2698,7 @@ main:has(.md3) { max-width: 1800px; }
 .md3 .md3-cdd-btn[aria-expanded="true"]    { border-color: var(--green-dim); box-shadow: 0 0 0 1px rgba(0,255,65,.15); }
 .md3 .md3-cdd-btn:disabled                 { opacity: .5; cursor: not-allowed; }
 .md3 .md3-cdd-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md3 .md3-cdd-caret { flex-shrink: 0; color: var(--green); font-size: .7rem; }
+.md3 .md3-cdd-caret { flex-shrink: 0; color: var(--green); font-size: .82rem; line-height: 1; }
 .md3 .md3-cdd-panel {
   position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 60; font-size: inherit;
   background: #090909; border: 1px solid var(--green-dim); max-height: 320px; overflow-y: auto;
@@ -2725,6 +2725,12 @@ main:has(.md3) { max-width: 1800px; }
 .md3 input[type=text],
 .md3 input[type=date],
 .md3 textarea { font-size: var(--fs-md); padding: 7px 10px; }
+/* Number inputs share the same height. Vertical padding only, so the in-field stepper's
+   reserved padding-right (.infield-num-wrap) is preserved (a shorthand would overlap it).
+   Inspector number fields keep their own compact rule (higher-specificity #mdInspector input). */
+.md3 input[type=number] { font-size: var(--fs-md); padding-top: 7px; padding-bottom: 7px; }
+/* Action buttons sitting on an input row match the control height. */
+.md3 .md3-ctrl-btn { min-height: 30px; box-sizing: border-box; }
 
 .md3-panes {
   display: grid;
@@ -2904,7 +2910,7 @@ main:has(.md3) { max-width: 1800px; }
 .md3 .ic-card-add  { display: flex; flex-direction: column; gap: 5px; }
 .md3 .ic-card-add select,
 .md3 .ic-card-add input { width: 100%; box-sizing: border-box; background: var(--bg-input);
-  border: 1px solid #1a2a1a; color: var(--text-bright); font-family: var(--font); font-size: .7rem; padding: 4px 6px; }
+  border: 1px solid #1a2a1a; color: var(--text-bright); font-family: var(--font); }
 .md3 .ic-add-row   { display: flex; gap: 5px; }
 .md3 .ic-add-row input  { flex: 1; min-width: 0; color: var(--amber); }
 .md3 .ic-add-row button { white-space: nowrap; }
