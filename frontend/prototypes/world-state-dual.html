@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROTOTYPE // World State -- Dual Pane (keep the page, dock the detail)</title>
+<!-- Imports the REAL style.css so header / stat cards / org-location-contact cards keep
+     their exact character. The ONLY change: a wider shell + a right-docked detail pane that
+     opens on card click, replacing the modal. Static mock, fake data, real files untouched. -->
+<link rel="stylesheet" href="../style.css">
+<style>
+/* widen the page to use the horizontal space; dock a detail rail on the right */
+main.ws{ max-width:1720px; }
+.ws-layout{ display:grid; grid-template-columns:minmax(0,1fr) 0; gap:0; transition:grid-template-columns .22s ease; }
+.ws-layout.open{ grid-template-columns:minmax(0,1fr) 372px; gap:20px; }
+.ws-main{ min-width:0; }
+/* the docked detail pane (replaces the modal) */
+.ws-detail{ position:sticky; top:84px; align-self:start; height:0; overflow:hidden; opacity:0; transition:opacity .2s; }
+.ws-layout.open .ws-detail{ height:auto; opacity:1; }
+.wd-card{ background:var(--bg-card); border:1px solid #1a2a1a; border-top:3px solid var(--text-dim); }
+.wd-head{ display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px; border-bottom:1px solid #141414; }
+.wd-name{ font-family:var(--font-display); font-size:var(--fs-2xl); letter-spacing:1px; color:var(--text-bright); }
+.wd-type{ font-size:var(--fs-xxs); letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); margin-top:3px; }
+.wd-close{ background:none; border:1px solid #222; color:var(--text-dim); cursor:pointer; font-family:var(--font); padding:2px 9px; }
+.wd-close:hover{ color:var(--red); border-color:#330000; }
+.wd-body{ padding:14px 16px; }
+.wd-row{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid #141414; font-size:var(--fs-sm); }
+.wd-row .k{ color:var(--text-dim); text-transform:uppercase; font-size:var(--fs-xs); letter-spacing:1px; }
+.wd-row .v{ color:var(--text-bright); text-align:right; }
+.wd-sec{ margin-top:14px; }
+.wd-sec .h{ font-size:var(--fs-xs); letter-spacing:2px; text-transform:uppercase; color:var(--cyan); margin-bottom:6px; }
+.wd-rel{ font-size:var(--fs-sm); padding:3px 0; }
+.wd-rel .a{ color:var(--green); } .wd-rel .e{ color:var(--red); }
+.wd-notes{ font-size:var(--fs-md); color:var(--text-dim); line-height:1.55; }
+.wd-foot{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid #141414; }
+/* faction top-border colours on the detail card (match the org-card left borders) */
+.wd-megacorp{ border-top-color:var(--amber); } .wd-megacorp .wd-name{ color:var(--amber); }
+.wd-law{ border-top-color:#5566aa; } .wd-law .wd-name{ color:#8a9ad8; }
+.wd-syndicate{ border-top-color:#8855cc; } .wd-syndicate .wd-name{ color:#b488ee; }
+.wd-gang{ border-top-color:#ff4444; } .wd-gang .wd-name{ color:#ff6666; }
+.wd-fringe{ border-top-color:#66aa44; } .wd-fringe .wd-name{ color:#88cc66; }
+.wd-contact{ border-top-color:#2a2a4a; } .wd-contact .wd-name{ color:#b6a6f0; }
+.wd-location{ border-top-color:var(--cyan); } .wd-location .wd-name{ color:var(--cyan); }
+.proto-tag{ font-size:var(--fs-xs); color:var(--text-dim); letter-spacing:1px; margin-left:10px; }
+.click-hint{ font-size:var(--fs-xs); color:var(--text-dim); letter-spacing:1px; margin-bottom:10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SHADOW<em>NET</em> <span class="proto-tag">// PROTOTYPE -- dual-pane world state</span></div>
+  <nav>
+    <a class="active">WORLD</a><a>ORGS</a><a>CHARACTERS</a><a>LOCATIONS</a><a>MATRIX</a>
+  </nav>
+</header>
+
+<main class="ws">
+  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em class="sep">//</em> Seattle Metroplex <em class="sep">//</em> 2057-09-14 <em class="sep">//</em> 21:47</div>
+
+  <div class="stat-bar">
+    <div class="stat-card stat-card-nav"><span class="stat-num">18</span><span class="stat-lbl">Orgs</span></div>
+    <div class="stat-card stat-card-nav"><span class="stat-num">24</span><span class="stat-lbl">Contacts</span></div>
+    <div class="stat-card stat-card-nav"><span class="stat-num">11</span><span class="stat-lbl">Locations</span></div>
+    <div class="stat-card stat-card-nav"><span class="stat-num">6</span><span class="stat-lbl">Runners</span></div>
+    <div class="stat-card"><span class="stat-num stat-num-red">FLAGGED</span><span class="stat-lbl">Heat</span></div>
+  </div>
+
+  <div class="ws-layout" id="layout">
+    <div class="ws-main">
+      <div class="click-hint">// Click any card to open its dossier in the side pane (no modal)</div>
+
+      <div class="section-head">Organizations</div>
+      <div class="org-grid" style="margin-bottom:24px">
+        <div class="org-card oc-megacorp" data-f="megacorp" data-nm="Ares Macrotechnology" data-ty="Megacorp / Rating AA" data-hq="Detroit (Seattle div)" data-rel="enemy">
+          <div class="oc-head"><span class="oc-name">Ares Macrotechnology</span><span class="oc-tier">AA</span></div>
+          <div class="oc-type">Megacorp</div><div class="oc-hq">Detroit (Seattle div)</div>
+          <div class="oc-foot"><span class="rel-enemy">HOSTILE</span></div>
+        </div>
+        <div class="org-card oc-government" data-f="law" data-nm="Lone Star Security" data-ty="Law Enforcement" data-hq="Seattle Metroplex" data-rel="enemy">
+          <div class="oc-head"><span class="oc-name">Lone Star Security</span><span class="oc-tier">Contracted</span></div>
+          <div class="oc-type">Law Enforcement</div><div class="oc-hq">Seattle Metroplex</div>
+          <div class="oc-foot"><span class="rel-enemy">HOSTILE</span></div>
+        </div>
+        <div class="org-card oc-syndicate" data-f="syndicate" data-nm="Yakuza -- Shotozumi-rengo" data-ty="Organized Crime" data-hq="Seattle" data-rel="enemy">
+          <div class="oc-head"><span class="oc-name">Shotozumi-rengo</span><span class="oc-tier">Regional</span></div>
+          <div class="oc-type">Organized Crime</div><div class="oc-hq">Seattle</div>
+          <div class="oc-foot"><span class="rel-enemy">HOSTILE</span></div>
+        </div>
+        <div class="org-card oc-gang" data-f="gang" data-nm="Halloweeners" data-ty="Street Gang" data-hq="Puyallup" data-rel="enemy">
+          <div class="oc-head"><span class="oc-name">Halloweeners</span><span class="oc-tier">Local</span></div>
+          <div class="oc-type">Street Gang</div><div class="oc-hq">Puyallup</div>
+          <div class="oc-foot"><span class="rel-enemy">HOSTILE</span></div>
+        </div>
+        <div class="org-card oc-cult" data-f="fringe" data-nm="Mothers of Metahumans" data-ty="Fringe / Policlub" data-hq="Redmond" data-rel="ally">
+          <div class="oc-head"><span class="oc-name">Mothers of Metahumans</span><span class="oc-tier">Grassroots</span></div>
+          <div class="oc-type">Fringe Group</div><div class="oc-hq">Redmond</div>
+          <div class="oc-foot"><span class="rel-ally">ALLY</span></div>
+        </div>
+      </div>
+
+      <div class="section-head">Locations</div>
+      <div class="loc-grid" style="margin-bottom:24px">
+        <div class="loc-card" data-f="location" data-nm="Dante's Inferno" data-ty="Location / Nightclub" data-hq="Downtown" data-rel="neutral">
+          <div class="lc-name">Dante's Inferno</div><div class="lc-type">Nightclub</div><div class="lc-ctrl">Neutral ground</div>
+        </div>
+        <div class="loc-card" data-f="location" data-nm="The Stuffer Shack" data-ty="Location / Store" data-hq="Redmond Barrens" data-rel="neutral">
+          <div class="lc-name">Stuffer Shack 42</div><div class="lc-type">Convenience</div><div class="lc-ctrl">Public</div>
+        </div>
+      </div>
+
+      <div class="section-head">Contacts / Persons of Interest</div>
+      <div class="contact-grid">
+        <div class="contact-card" data-f="contact" data-nm="The Wandering Jackal" data-ty="Contact / Fixer" data-hq="Downtown" data-rel="ally">
+          <div class="cc-head"><span class="cc-name">The Wandering Jackal</span></div>
+          <div class="cc-org">Fixer &middot; Connection 4 &middot; Loyalty 3</div>
+        </div>
+        <div class="contact-card" data-f="contact" data-nm="Laughing Man" data-ty="Contact / Decker" data-hq="Matrix" data-rel="ally">
+          <div class="cc-head"><span class="cc-name">Laughing Man</span></div>
+          <div class="cc-org">Decker &middot; Connection 5 &middot; Loyalty 2</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOCKED DETAIL PANE (replaces the modal) -->
+    <aside class="ws-detail" id="detail"></aside>
+  </div>
+</main>
+
+<script>
+'use strict';
+const layout=document.getElementById('layout'), detail=document.getElementById('detail');
+function open(el){
+  const f=el.dataset.f, rel=el.dataset.rel;
+  const stance = rel==='ally'?'<span class="rel-ally">ALLY</span>':rel==='enemy'?'<span class="rel-enemy">HOSTILE</span>':'<span style="color:var(--text-dim)">NEUTRAL</span>';
+  detail.innerHTML=`
+    <div class="wd-card wd-${f}">
+      <div class="wd-head">
+        <div><div class="wd-name">${el.dataset.nm}</div><div class="wd-type">${el.dataset.ty}</div></div>
+        <button class="wd-close" id="wdClose">x</button>
+      </div>
+      <div class="wd-body">
+        <div class="wd-row"><span class="k">HQ / Locale</span><span class="v">${el.dataset.hq}</span></div>
+        <div class="wd-row"><span class="k">Stance</span><span class="v">${stance}</span></div>
+        <div class="wd-sec"><div class="h">Relationships</div>
+          <div class="wd-rel"><span class="e">x</span> Ares Macrotechnology</div>
+          <div class="wd-rel"><span class="a">+</span> The Wandering Jackal</div></div>
+        <div class="wd-sec"><div class="h">GM Notes</div>
+          <div class="wd-notes">Dossier opens here in the side pane instead of a modal -- the page behind it stays visible, and the reclaimed horizontal space holds the full record.</div></div>
+      </div>
+      <div class="wd-foot"><button class="btn btn-amber btn-sm">Edit</button><button class="btn btn-ghost btn-sm">Reveal to players</button></div>
+    </div>`;
+  layout.classList.add('open');
+  document.querySelectorAll('.org-card,.loc-card,.contact-card').forEach(c=>c.style.outline='');
+  el.style.outline='1px solid var(--green-dim)';
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('#wdClose')){ layout.classList.remove('open'); document.querySelectorAll('.org-card,.loc-card,.contact-card').forEach(c=>c.style.outline=''); return; }
+  const card=e.target.closest('.org-card,.loc-card,.contact-card'); if(card) open(card);
+});
+</script>
+</body>
+</html>

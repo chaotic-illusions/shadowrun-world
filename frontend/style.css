@@ -365,6 +365,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 .grid1 { display: grid; grid-template-columns: 1fr;             gap: var(--gap-form); margin-bottom: var(--gap-form); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr;         gap: var(--gap-form); margin-bottom: var(--gap-form); }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr;     gap: var(--gap-form); margin-bottom: var(--gap-form); }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--gap-form); margin-bottom: var(--gap-form); }
 .span2 { grid-column: span 2; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -766,6 +767,19 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   gap: 10px;
   flex-shrink: 0;
 }
+
+/* Auto-save status line -- replaces a modal's Save/Cancel buttons. */
+.ws-save-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-sm);
+  letter-spacing: 1px;
+  color: var(--green-dim);
+  transition: color .2s;
+}
+.ws-save-status.saving { color: var(--amber); }
+.ws-save-status.error  { color: var(--red); }
+.ws-save-status.idle   { color: var(--text-dim); }
 
 /* Edit modal mini -- small archetype-picker / quick-edit dialog (sits inside .ltg-overlay) */
 .edit-modal-mini {
@@ -1229,6 +1243,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .oc-other      .edit-modal-head  { border-bottom-color: #2a1e00; }
 .oc-other      .edit-modal-title { color: var(--gold); }
 .oc-other      .edit-modal-body::-webkit-scrollbar-thumb { background: #2a1e00; }
+/* fixer networks read green (matching their card's left-border); only the title needed an override */
+.oc-fixer_network .edit-modal-title { color: var(--green); }
+.oc-fixer_network .edit-modal       { border-color: var(--green-dim); box-shadow: 0 0 60px rgba(0,255,65,.10), 0 0 120px rgba(0,0,0,.9); }
+.oc-fixer_network .edit-modal-head  { border-bottom-color: #003300; }
 /* megacorp keeps the default amber edit-modal -- no override needed */
 
 /* Location dossier-field variant -- narrower label column, cyan border */
@@ -1386,6 +1404,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   padding: 8px 10px;
   font-size: var(--tbl-th-fs);
   letter-spacing: var(--tbl-th-ls);
+  font-weight: normal;
   color: var(--text-dim);
   text-transform: uppercase;
   border-bottom: 1px solid #1a2a1a;
@@ -1407,6 +1426,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   padding: 7px 8px;
   font-size: var(--tbl-th-fs);
   letter-spacing: var(--tbl-th-ls);
+  font-weight: normal;
   color: var(--text-dim);
   text-transform: uppercase;
   border-bottom: 1px solid #1a2a1a;
@@ -1414,6 +1434,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .lead-table td                 { padding: 5px 4px; border-bottom: 1px solid #111; }
 .lead-table td input           { padding: 6px 8px; font-size: var(--fs-md); }
 .lead-table td input[type=number] { width: 80px; }
+/* Selects default to the taller base padding (9px); match them to the table's
+   inputs so number spinners and selects line up at the same height. */
+.lead-table td select { padding: 6px 22px 6px 8px; font-size: var(--fs-md); background-position: right 7px center; }
 
 /* ---------------------------------------------------------------------------
    SECTION 18 -- HEAT / REP / FACTION standing colors

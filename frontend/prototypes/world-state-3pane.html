@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROTOTYPE // World State 3-Pane</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+/* PROTOTYPE -- World State, Terminal direction (matches host-builder prototype).
+   Static mock, fake data, no wiring. Reclaims the 1200px gutter with a 3-pane
+   layout (stats+filters | full-width card grid | detail inspector) and keeps the
+   per-faction colour coding that identifies each section. */
+:root{
+  --font:'Share Tech Mono','Courier New',monospace;
+  --bg:#070707; --bg-pane:#0d0d0d; --bg-inset:#060d06; --bg-chip:#0b110b;
+  --border:#1c2c1c; --border-soft:#151515; --border-strong:#00cc33;
+  --accent:#00ff41; --accent-2:#00ccff; --accent-soft:rgba(0,255,65,.08);
+  --label:#5aa8d0; --data:#c8c8c8; --data-strong:#f2f2f2; --muted:#9a9a9a;
+  /* faction / section colours */
+  --f-corp:#ff9900; --f-law:#4a7a8a; --f-crime:#bb44ff; --f-gang:#ff3333;
+  --f-fringe:#66cc55; --f-fixer:#00ff41; --f-contact:#9a86e0; --f-loc:#00ccff; --f-runner:#00ff41;
+  --warn:#ff9900; --bad:#ff5555; --glow:0 0 7px;
+  --fs-xxs:.55rem; --fs-xs:.64rem; --fs-sm:.72rem; --fs-md:.8rem; --fs-lg:.92rem; --fs-xl:1.08rem; --fs-2xl:1.32rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg); color:var(--data); font-family:var(--font); font-size:var(--fs-md); line-height:1.45;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,65,.012) 3px,rgba(0,255,65,.012) 4px)}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:var(--border)}::-webkit-scrollbar-track{background:transparent}
+.label{color:var(--label); font-size:var(--fs-xs); letter-spacing:2px; text-transform:uppercase}
+.muted{color:var(--muted)}
+
+/* status bar across the reclaimed header space */
+.statusbar{display:flex; gap:26px; align-items:center; flex-wrap:wrap; max-width:1800px; margin:0 auto; padding:10px 22px;
+  border-bottom:1px solid var(--border); background:#000}
+.statusbar .brand{color:var(--accent); letter-spacing:3px; text-transform:uppercase; text-shadow:var(--glow) var(--accent); font-size:var(--fs-md)}
+.statusbar .si{color:var(--muted); font-size:var(--fs-xs); letter-spacing:1px}
+.statusbar .si b{color:var(--data-strong); font-weight:normal}
+.statusbar .heat{color:var(--warn)}
+
+.shell{max-width:1800px; margin:0 auto; padding:16px 22px 60px}
+.page-title{font-size:var(--fs-2xl); letter-spacing:4px; text-transform:uppercase; color:var(--accent); text-shadow:var(--glow) var(--accent); margin-bottom:14px}
+.panes{display:grid; grid-template-columns:240px minmax(0,1fr) 340px; gap:14px; align-items:start}
+.pane{background:var(--bg-pane); border:1px solid var(--border)}
+.pane.side{position:sticky; top:14px}
+.pane-hd{padding:11px 14px; border-bottom:1px solid var(--border); color:var(--accent); letter-spacing:2px; text-transform:uppercase; font-size:var(--fs-sm)}
+.pane-hd::before{content:'>> '; color:var(--muted)}
+.pane-bd{padding:14px}
+.pane.side .pane-bd{max-height:calc(100vh - 90px); overflow:auto}
+
+/* LEFT: stats + nav + filters */
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px}
+.statcard{background:var(--bg-inset); border:1px solid var(--border); padding:9px 10px; text-align:center}
+.statcard .n{font-size:var(--fs-2xl); color:var(--accent); line-height:1; text-shadow:var(--glow) var(--accent)}
+.statcard .l{font-size:var(--fs-xxs); letter-spacing:1px; color:var(--label); text-transform:uppercase; margin-top:3px}
+.nav-list{display:flex; flex-direction:column; gap:2px; margin-bottom:14px}
+.nav-item{display:flex; justify-content:space-between; padding:7px 10px; cursor:pointer; border-left:2px solid transparent; color:var(--muted); font-size:var(--fs-sm); letter-spacing:1px}
+.nav-item:hover{background:var(--accent-soft); color:var(--data)}
+.nav-item.on{border-left-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.nav-item .c{color:var(--muted); font-size:var(--fs-xs)}
+.filters{border-top:1px solid var(--border); padding-top:12px}
+.fchips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.fchip{display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; padding:3px 8px; border:1px solid var(--border); color:var(--muted); cursor:pointer}
+.fchip .dot{width:8px;height:8px;border-radius:50%}
+.fchip.on{color:var(--data-strong); border-color:var(--data)}
+
+/* CENTER: full-width card grid */
+.cardgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:11px}
+.ecard{background:var(--bg-inset); border:1px solid var(--border); border-left:3px solid var(--muted); padding:12px 13px; cursor:pointer; transition:border-color .12s}
+.ecard:hover{border-color:var(--border-strong)}
+.ecard.sel{box-shadow:0 0 0 1px var(--accent-soft); border-color:var(--accent)}
+.ecard .nm{font-size:var(--fs-lg); color:var(--data-strong); margin-bottom:3px}
+.ecard .ty{font-size:var(--fs-xxs); letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:7px}
+.ecard .meta{font-size:var(--fs-sm); color:var(--muted); line-height:1.6}
+.ecard .badge{display:inline-block; font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; padding:1px 7px; border:1px solid; margin-top:7px}
+/* faction colours */
+.f-corp{border-left-color:var(--f-corp)} .f-corp .nm{color:var(--f-corp)} .f-corp.sel{border-color:var(--f-corp)}
+.f-law{border-left-color:var(--f-law)} .f-law .nm{color:#7faec0}
+.f-crime{border-left-color:var(--f-crime)} .f-crime .nm{color:var(--f-crime)}
+.f-gang{border-left-color:var(--f-gang)} .f-gang .nm{color:var(--f-gang)}
+.f-fringe{border-left-color:var(--f-fringe)} .f-fringe .nm{color:var(--f-fringe)}
+.f-fixer{border-left-color:var(--f-fixer)} .f-fixer .nm{color:var(--f-fixer)}
+.f-contact{border-left-color:var(--f-contact)} .f-contact .nm{color:#b6a6f0}
+.f-loc{border-left-color:var(--f-loc)} .f-loc .nm{color:var(--f-loc)}
+.dot-corp{background:var(--f-corp)}.dot-law{background:var(--f-law)}.dot-crime{background:var(--f-crime)}
+.dot-gang{background:var(--f-gang)}.dot-fringe{background:var(--f-fringe)}.dot-contact{background:var(--f-contact)}.dot-loc{background:var(--f-loc)}
+
+/* RIGHT: inspector */
+.insp-empty{color:var(--muted); text-align:center; padding:30px 10px; font-size:var(--fs-sm); letter-spacing:1px}
+.insp-title{font-size:var(--fs-xl); color:var(--data-strong); margin-bottom:2px}
+.insp-sub{font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; margin-bottom:13px}
+.irow{display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:var(--fs-sm)}
+.irow .k{color:var(--label); text-transform:uppercase; font-size:var(--fs-xs); letter-spacing:1px}
+.irow .v{color:var(--data-strong); text-align:right}
+.isec{margin-top:13px; padding-top:11px; border-top:1px solid var(--border)}
+.isec .label{display:block; margin-bottom:7px}
+.rel{display:flex; align-items:center; gap:7px; font-size:var(--fs-sm); padding:3px 0}
+.rel .ally{color:var(--accent)} .rel .enemy{color:var(--bad)}
+.iflavor{color:var(--muted); font-size:var(--fs-sm); line-height:1.55; margin-top:8px}
+.btn{font-family:var(--font); font-size:var(--fs-xs); letter-spacing:1.5px; text-transform:uppercase; padding:6px 11px; border:1px solid var(--border); background:transparent; color:var(--data); cursor:pointer}
+.btn:hover{border-color:var(--border-strong); color:var(--data-strong)}
+.btn.acc{color:var(--accent); border-color:var(--accent)}
+.btn-row{display:flex; gap:8px; margin-top:14px}
+
+@media(max-width:1180px){.panes{grid-template-columns:1fr}.pane.side{position:static}.pane.side .pane-bd{max-height:none}}
+</style>
+</head>
+<body>
+
+<div class="statusbar">
+  <span class="brand">PROTOTYPE</span>
+  <span class="si">Metroplex: <b>Seattle</b></span>
+  <span class="si">Date: <b>2057-09-14</b></span>
+  <span class="si">Clock: <b>21:47</b></span>
+  <span class="si">Nuyen Flow: <b style="color:var(--warn)">&yen;1.2M</b> tracked</span>
+  <span class="si">Heat: <b class="heat">FLAGGED</b></span>
+  <span class="si" style="margin-left:auto">Active Run: <b>Ares Sub-Basement</b></span>
+</div>
+
+<div class="shell">
+  <div class="page-title">Runner Debrief // World State</div>
+
+  <div class="panes">
+
+    <!-- LEFT -->
+    <div class="pane side">
+      <div class="pane-hd">Overview</div>
+      <div class="pane-bd">
+        <div class="statgrid">
+          <div class="statcard"><div class="n">18</div><div class="l">Orgs</div></div>
+          <div class="statcard"><div class="n">24</div><div class="l">Contacts</div></div>
+          <div class="statcard"><div class="n">11</div><div class="l">Locations</div></div>
+          <div class="statcard"><div class="n">6</div><div class="l">Runners</div></div>
+        </div>
+        <div class="nav-list">
+          <div class="nav-item on" data-sec="orgs">Organizations <span class="c">18</span></div>
+          <div class="nav-item" data-sec="contacts">Contacts / POI <span class="c">24</span></div>
+          <div class="nav-item" data-sec="locations">Locations <span class="c">11</span></div>
+          <div class="nav-item" data-sec="runners">Runners <span class="c">6</span></div>
+        </div>
+        <div class="filters">
+          <span class="label">Filter by faction</span>
+          <div class="fchips">
+            <span class="fchip on"><span class="dot dot-corp"></span>Corp</span>
+            <span class="fchip on"><span class="dot dot-law"></span>Law</span>
+            <span class="fchip on"><span class="dot dot-crime"></span>Org Crime</span>
+            <span class="fchip on"><span class="dot dot-gang"></span>Gang</span>
+            <span class="fchip on"><span class="dot dot-fringe"></span>Fringe</span>
+            <span class="fchip on"><span class="dot dot-contact"></span>Contact</span>
+            <span class="fchip on"><span class="dot dot-loc"></span>Location</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="pane">
+      <div class="pane-hd">Organizations</div>
+      <div class="pane-bd">
+        <div class="cardgrid" id="grid"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="pane side">
+      <div class="pane-hd">Detail</div>
+      <div class="pane-bd" id="inspector"><div class="insp-empty">Select an entity to view its dossier here.</div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+const E=[
+  {id:0,nm:'Ares Macrotechnology',f:'corp',ty:'Megacorp / AA',hq:'Detroit (Seattle div)',tier:'AA',rel:'enemy',note:'Weapons + security megacorp. Active opposition on the current run.'},
+  {id:1,nm:'Lone Star Security',f:'law',ty:'Law Enforcement',hq:'Seattle Metroplex',tier:'Contracted',rel:'enemy',note:'Privatized metroplex police. Watch for patrols in Downtown.'},
+  {id:2,nm:'Mafia -- Finnigan Family',f:'crime',ty:'Organized Crime',hq:'Tacoma',tier:'Regional',rel:'neutral',note:'Old-school syndicate. Smuggling + protection rackets.'},
+  {id:3,nm:'Halloweeners',f:'gang',ty:'Street Gang',hq:'Puyallup',tier:'Local',rel:'enemy',note:'Pyromaniac go-gang. Volatile, territorial.'},
+  {id:4,nm:'Mothers of Metahumans',f:'fringe',ty:'Fringe / Policlub',hq:'Redmond',tier:'Grassroots',rel:'ally',note:'Metahuman-rights policlub. Useful for legwork + safehouses.'},
+  {id:5,nm:'The Wandering Jackal',f:'contact',ty:'Contact / Fixer',hq:'Downtown',tier:'Connection 4',rel:'ally',note:'Mr. Johnson go-between. Loyalty 3, Connection 4.'},
+  {id:6,nm:'Dante\'s Inferno',f:'loc',ty:'Location / Club',hq:'Downtown',tier:'Neutral ground',rel:'neutral',note:'Elite nightclub. Common meet spot for Johnsons.'},
+  {id:7,nm:'Shiawase Corporation',f:'corp',ty:'Megacorp / AAA',hq:'Osaka (Seattle div)',tier:'AAA',rel:'neutral',note:'Energy + biotech. First extraterritorial corp.'},
+  {id:8,nm:'Knight Errant',f:'law',ty:'Law Enforcement',hq:'Seattle',tier:'Corporate',rel:'neutral',note:'Ares security subsidiary. Rapid-response contracts.'},
+  {id:9,nm:'Yakuza -- Shotozumi-rengo',f:'crime',ty:'Organized Crime',hq:'Seattle',tier:'Regional',rel:'enemy',note:'Dominant yak syndicate in the metroplex.'},
+  {id:10,nm:'Ancients',f:'gang',ty:'Street Gang (elf)',hq:'Puyallup/Redmond',tier:'Regional',rel:'neutral',note:'Elven go-gang, well-armed and disciplined.'},
+  {id:11,nm:'Laughing Man',f:'contact',ty:'Contact / Decker',hq:'Matrix',tier:'Connection 5',rel:'ally',note:'Elite decker contact. Connection 5, Loyalty 2.'}
+];
+const FN={corp:'Megacorp',law:'Law Enforcement',crime:'Organized Crime',gang:'Street Gang',fringe:'Fringe Group',contact:'Contact / POI',loc:'Location'};
+function card(e){
+  return `<div class="ecard f-${e.f}" data-id="${e.id}">
+    <div class="nm">${e.nm}</div><div class="ty">${e.ty}</div>
+    <div class="meta">HQ &gt; ${e.hq}<br>${e.tier}</div>
+    <div class="badge" style="border-color:currentColor">${e.rel==='ally'?'ALLY':e.rel==='enemy'?'HOSTILE':'NEUTRAL'}</div>
+  </div>`;
+}
+function render(){ document.getElementById('grid').innerHTML=E.map(card).join(''); }
+function inspect(e){
+  document.getElementById('inspector').innerHTML=`
+    <div class="insp-title" style="color:var(--f-${e.f})">${e.nm}</div>
+    <div class="insp-sub" style="color:var(--f-${e.f})">${FN[e.f]}</div>
+    <div class="irow"><span class="k">Type</span><span class="v">${e.ty}</span></div>
+    <div class="irow"><span class="k">HQ</span><span class="v">${e.hq}</span></div>
+    <div class="irow"><span class="k">Tier</span><span class="v">${e.tier}</span></div>
+    <div class="irow"><span class="k">Stance</span><span class="v ${e.rel==='ally'?'ally':e.rel==='enemy'?'enemy':''}" style="${e.rel==='ally'?'color:var(--accent)':e.rel==='enemy'?'color:var(--bad)':''}">${e.rel.toUpperCase()}</span></div>
+    <div class="isec"><span class="label">Relationships</span>
+      <div class="rel"><span class="enemy">x</span> Ares Macrotechnology (rival)</div>
+      <div class="rel"><span class="ally">+</span> The Wandering Jackal (contact)</div></div>
+    <div class="isec"><span class="label">GM Notes</span><div class="iflavor">${e.note}</div></div>
+    <div class="btn-row"><button class="btn acc">Edit</button><button class="btn">Reveal to players</button></div>`;
+}
+document.addEventListener('click',ev=>{
+  const c=ev.target.closest('.ecard[data-id]');
+  if(c){ document.querySelectorAll('.ecard').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); inspect(E[+c.dataset.id]); return; }
+  const f=ev.target.closest('.fchip'); if(f){ f.classList.toggle('on'); return; }
+  const n=ev.target.closest('.nav-item[data-sec]'); if(n){ document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('on')); n.classList.add('on'); return; }
+});
+render(); inspect(E[0]); document.querySelector('.ecard').classList.add('sel');
+</script>
+</body>
+</html>

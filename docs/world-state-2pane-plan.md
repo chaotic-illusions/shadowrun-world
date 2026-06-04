@@ -47,6 +47,24 @@ Upgrade the preview's CSS-only docked-modal into a real **persistent 2-pane**:
       rounded, idle centered, dossier docks aligned, no JS errors, main not shifted. STILL TODO:
       open each REAL dossier (org/location/contact/npc) with data (test DB had 0 records) + a
       close->idle-returns check + narrow-screen screenshot. Screenshots: _sr_e2e/ws-idle.png, ws-docked.png.
+- [x] 7b. Round-2 user feedback addressed + verified (Playwright _sr_e2e/ws2pane.spec.js, real
+      populated org via stubbed /auth/verify + /organizations/ since the :8770/:8771 DBs are empty
+      AND token.txt is stale/401):
+      (a) WIDER: --dock-w 660->780; org editor (8-col matrix-host table) now fits with NO horizontal
+          scroll -- forced overflow-x:hidden on docked bodies + table-layout:fixed + width:100%
+          min-width:0 inputs so the tables reflow/squish instead of scrolling. Measured body
+          scrollWidth==clientWidth (overflow 0) at both 2200px (centered) and 1700px (right-dock).
+          Centering breakpoint moved 1940->2040 for the wider pane.
+      (b) ROUNDED: docked .ltg-modal/.edit-modal/.edit-modal-mini got `overflow:hidden` so the
+          head/body backgrounds no longer clip the holder's 14px radius. Confirmed radius 14px +
+          overflow hidden; screenshots ws2-org-wide.png / ws2-org-narrow.png show clean corners.
+      (c) SWAP: inline glue now wraps openNpc/openOrg/openLoc/openCharEditModal to close the other
+          four docked overlays first, so clicking a different card updates the pane in place (no
+          close needed). Verified: open 901 then 902 -> title swaps to Halloweeners, exactly 1
+          docked overlay open. Also fixed editOverlay selector (.edit-modal-mini, not .ltg-modal)
+          in the dock + narrow media query.
+      NOTE re-test setup: served file is correct on BOTH :8770 and :8771; use Playwright baseURL
+      (:8770) and STUB /auth/verify + the 6 loadAll endpoints -- token.txt no longer authenticates.
 - [ ] 8. (LATER, after approval) Port the approved 2-pane into the live world-state.html.
 
 ## Status / notes

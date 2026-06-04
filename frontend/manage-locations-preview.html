@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Locations | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html" class="active">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Location Registry <em class="sep">//</em> Known Sites &amp; Territories</div>
+  <div class="page-sub" style="color:var(--cyan)">GEOGRAPHICAL INTEL -- SEATTLE METROPLEX &amp; SURROUNDING REGIONS</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="flex-bar mb-16">
+    <div class="flex-row-10">
+      <input type="text" id="filterInput" placeholder="Filter by name, description, or district..." style="width:340px" oninput="applyFilter()">
+      <select id="filterType" onchange="applyFilter()" style="width:160px">
+        <option value="">All Types</option>
+      </select>
+    </div>
+    <button class="btn btn-green gm-only" onclick="openModal()">+ New Location</button>
+  </div>
+
+  <div id="tableWrap">
+    <div class="loading">Loading locations</div>
+  </div>
+</main>
+
+<!-- -- EDIT MODAL --------------------------------------- -->
+<div id="editOverlay" class="edit-overlay" onclick="overlayClick(event)">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">New Location</div>
+      <button class="btn btn-red" onclick="closeModal()">x</button>
+    </div>
+    <div class="edit-modal-body">
+      <div id="modalAlert" class="alert"></div>
+
+      <div class="grid2 mb-14">
+        <div class="field">
+          <label>Name *</label>
+          <input type="text" id="f-name" placeholder="Aztechnology Pyramid..." maxlength="200">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="f-location_type" onchange="onLocTypeChange()">
+            <optgroup label="-- Entertainment --">
+              <option value="nightclub">Nightclub</option>
+              <option value="bar">Bar / Tavern</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="casino">Casino</option>
+              <option value="btl den">BTL Den</option>
+              <option value="brothel">Brothel</option>
+            </optgroup>
+            <optgroup label="-- Corporate --">
+              <option value="corporate facility">Corporate Facility</option>
+              <option value="corporate headquarters">Corporate Headquarters</option>
+              <option value="corporate megastructure">Corporate Megastructure</option>
+              <option value="research lab">Research Lab</option>
+              <option value="data center">Data Center</option>
+              <option value="corporate arcology">Corporate Arcology</option>
+            </optgroup>
+            <optgroup label="-- Retail &amp; Commercial --">
+              <option value="commercial district">Commercial District</option>
+              <option value="convenience store">Convenience Store</option>
+              <option value="mall">Mall</option>
+              <option value="street market">Street Market</option>
+              <option value="pawn shop">Pawn Shop / Fence</option>
+              <option value="black market">Black Market</option>
+            </optgroup>
+            <optgroup label="-- Residential --">
+              <option value="residential community">Residential Community</option>
+              <option value="apartment complex">Apartment Complex</option>
+              <option value="squatter camp">Squatter Camp</option>
+              <option value="subterranean community">Subterranean Community</option>
+              <option value="penthouse">Penthouse / High-Rise</option>
+            </optgroup>
+            <optgroup label="-- Government &amp; Infrastructure --">
+              <option value="government building">Government Building</option>
+              <option value="military installation">Military Installation</option>
+              <option value="police station">Police Station</option>
+              <option value="hospital">Hospital / Clinic</option>
+              <option value="transportation hub">Transportation Hub</option>
+              <option value="power plant">Power Plant / Utility</option>
+            </optgroup>
+            <optgroup label="-- Underground &amp; Criminal --">
+              <option value="gang territory">Gang Territory</option>
+              <option value="safehouse">Safehouse</option>
+              <option value="smugglers den">Smuggler's Den</option>
+              <option value="underground bunker">Underground Bunker</option>
+              <option value="chop shop">Chop Shop</option>
+            </optgroup>
+            <optgroup label="-- Matrix --">
+              <option value="matrix host">Matrix Host / Node</option>
+              <option value="virtual space">Virtual Space</option>
+              <option value="pirate node">Pirate Node</option>
+            </optgroup>
+            <optgroup label="-- Landmark --">
+              <option value="landmark / restaurant">Landmark / Restaurant</option>
+              <option value="landmark / monument">Landmark / Monument</option>
+              <option value="ruins">Ruins</option>
+            </optgroup>
+            <optgroup label="-- Other --">
+              <option value="Custom">Custom...</option>
+            </optgroup>
+          </select>
+          <div id="f-location_type-custom-wrap" style="display:none;margin-top:6px">
+            <input type="text" id="f-location_type-custom" placeholder="Enter location type..." maxlength="100">
+          </div>
+        </div>
+      </div>
+      <div class="grid2 mb-14">
+        <div class="field">
+          <label>City</label>
+          <input type="text" id="f-city" placeholder="Seattle" maxlength="100">
+        </div>
+        <div class="field">
+          <label>District</label>
+          <input type="text" id="f-district" placeholder="Bellevue, Redmond..." maxlength="100">
+        </div>
+      </div>
+      <div class="grid2 mb-14">
+        <div class="field">
+          <label>Security Level</label>
+          <select id="f-security_level">
+            <option value="">-- Unknown --</option>
+            <option value="Corporate Extraterritorial">Corporate Extraterritorial</option>
+            <option value="Corporate High Security">Corporate High Security</option>
+            <option value="Corporate Standard">Corporate Standard</option>
+            <option value="Patrolled / Commercial">Patrolled / Commercial</option>
+            <option value="Low Security">Low Security</option>
+            <option value="No Security / Barrens">No Security / Barrens</option>
+            <option value="Zero Zone -- Lethal Response">Zero Zone -- Lethal Response</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Controlling Organization</label>
+          <select id="f-controlling_org_id">
+            <option value="">-- None --</option>
+          </select>
+        </div>
+      </div>
+      <div class="field mb-14">
+        <label>Description / Known Intel</label>
+        <textarea id="f-description" rows="4" placeholder="What the runners know..."></textarea>
+      </div>
+      <div class="field">
+        <label>GM Notes</label>
+        <textarea id="f-notes" rows="2" placeholder="Hidden details, plot hooks..."></textarea>
+      </div>
+    </div>
+    <div class="edit-modal-foot">
+      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let allLocs = [];
+let allOrgs = [];
+let editingId = null;
+
+const PREDEFINED_LOC_TYPES = [
+  'nightclub','bar','restaurant','casino','btl den','brothel',
+  'corporate facility','corporate headquarters','corporate megastructure','research lab','data center','corporate arcology',
+  'commercial district','convenience store','mall','street market','pawn shop','black market',
+  'residential community','apartment complex','squatter camp','subterranean community','penthouse',
+  'government building','military installation','police station','hospital','transportation hub','power plant',
+  'gang territory','safehouse','smugglers den','underground bunker','chop shop',
+  'matrix host','virtual space','pirate node',
+  'landmark / restaurant','landmark / monument','ruins',
+];
+
+function onLocTypeChange() {
+  const val = document.getElementById('f-location_type').value;
+  document.getElementById('f-location_type-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
+}
+
+function fmtType(s) {
+  return String(s || '').replace(/_/g, ' ').replace(/(?:^|[\s\-])./g, c => c.toUpperCase());
+}
+
+// -- Render table ----------------------------------------------
+let _lastLocsHtml = null;
+function renderTable(data) {
+  const orgMap = Object.fromEntries(allOrgs.map(o => [o.id, o.name]));
+  const wrap = document.getElementById('tableWrap');
+  let newHtml;
+  if (!data.length) {
+    newHtml = '<div class="loading">No locations found</div>';
+  } else {
+  newHtml = `
+    <table class="manage-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>City / District</th>
+          <th>Security</th>
+          <th>Controlling Org</th>
+          <th class="td-act"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(l => `
+          <tr>
+            <td style="color:var(--cyan)">${esc(l.name)}</td>
+            <td style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;text-transform:uppercase">${esc(l.location_type||'--')}</td>
+            <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '--'}</td>
+            <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'--')}</td>
+            <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'--')}</td>
+            <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber btn-sm" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }
+  if (newHtml === _lastLocsHtml) return;
+  _lastLocsHtml = newHtml;
+  wrap.innerHTML = newHtml;
+}
+
+function applyFilter() {
+  const q = document.getElementById('filterInput').value.toLowerCase();
+  const t = document.getElementById('filterType').value;
+  const filtered = allLocs.filter(l =>
+    (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q) || (l.district||'').toLowerCase().includes(q)) &&
+    (!t || l.location_type === t)
+  );
+  renderTable(filtered);
+}
+
+// -- Modal -----------------------------------------------------
+function openModal(id) {
+  editingId = id || null;
+  const loc = id ? allLocs.find(l => l.id === id) : null;
+  document.getElementById('modalTitle').textContent = loc ? `Edit: ${loc.name}` : 'New Location';
+  document.getElementById('deleteBtn').style.display = loc ? '' : 'none';
+  document.getElementById('modalAlert').className = 'alert';
+
+  document.getElementById('f-name').value               = loc?.name || '';
+  document.getElementById('f-city').value               = loc?.city || '';
+  document.getElementById('f-district').value           = loc?.district || '';
+  document.getElementById('f-security_level').value     = loc?.security_level || '';
+  document.getElementById('f-controlling_org_id').value = loc?.controlling_org_id || '';
+  document.getElementById('f-description').value        = loc?.description || '';
+  document.getElementById('f-notes').value              = loc?.notes || '';
+
+  const locTypeVal = loc?.location_type || '';
+  if (!locTypeVal || PREDEFINED_LOC_TYPES.includes(locTypeVal)) {
+    document.getElementById('f-location_type').value = locTypeVal;
+    document.getElementById('f-location_type-custom').value = '';
+    document.getElementById('f-location_type-custom-wrap').style.display = 'none';
+  } else {
+    document.getElementById('f-location_type').value = 'Custom';
+    document.getElementById('f-location_type-custom').value = locTypeVal;
+    document.getElementById('f-location_type-custom-wrap').style.display = '';
+  }
+
+  pausePoll();
+  document.getElementById('editOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  locAutoSave.arm();
+}
+
+function closeModal() {
+  locAutoSave.disarm();
+  resumePoll();
+  document.getElementById('editOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('editOverlay')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// -- Auto-save: create-on-first-valid-field, then silent PATCH on each edit. -----
+function locPayload() {
+  const orgId = parseInt(document.getElementById('f-controlling_org_id').value) || null;
+  let locType = document.getElementById('f-location_type').value;
+  if (locType === 'Custom') {
+    locType = document.getElementById('f-location_type-custom').value.trim() || null;
+  } else {
+    locType = locType || null;
+  }
+  return {
+    name:               document.getElementById('f-name').value.trim(),
+    location_type:      locType,
+    city:               document.getElementById('f-city').value.trim() || null,
+    district:           document.getElementById('f-district').value.trim() || null,
+    security_level:     document.getElementById('f-security_level').value || null,
+    controlling_org_id: orgId,
+    description:        document.getElementById('f-description').value.trim() || null,
+    notes:              document.getElementById('f-notes').value.trim() || null,
+  };
+}
+
+async function commitLoc(isCreate) {
+  const url    = isCreate ? `${API}/locations/` : `${API}/locations/${editingId}`;
+  const method = isCreate ? 'POST' : 'PATCH';
+  const res = await apiFetch(url, { method, body: JSON.stringify(locPayload()) });
+  if (!res.ok) await apiThrow(res);
+  const saved = await res.json();
+
+  if (isCreate) {
+    editingId = saved.id;
+    document.getElementById('deleteBtn').style.display = '';
+  }
+  document.getElementById('modalTitle').textContent = `Edit: ${saved.name}`;
+
+  // Silent local update -- no modal close, no full reload (poll is paused while open).
+  const i = allLocs.findIndex(l => l.id === saved.id);
+  if (i >= 0) allLocs[i] = saved; else allLocs.push(saved);
+  applyFilter();
+}
+
+const locAutoSave = makeManageAutoSave({
+  overlayId: 'editOverlay',
+  statusId:  'locSaveStatus',
+  foot:      () => document.querySelector('#editOverlay .edit-modal-foot'),
+  idleMsg:   'Name required to auto-save',
+  active:    () => isAdminMode(),
+  valid:     () => !!document.getElementById('f-name').value.trim(),
+  editingId: () => editingId,
+  commit:    commitLoc,
+});
+
+async function deleteLoc() {
+  if (!editingId) return;
+  const name = document.getElementById('f-name').value;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
+  try {
+    const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) await apiThrow(res);
+    closeModal();
+    showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
+    await loadAll();
+  } catch(e) {
+    showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
+  }
+}
+
+// -- Load data -------------------------------------------------
+async function loadAll() {
+  try {
+    const [locRes, orgRes] = await Promise.all([
+      apiFetch(`${API}/locations/`),
+      apiFetch(`${API}/organizations/`),
+    ]);
+    allLocs = await locRes.json();
+    allOrgs = await orgRes.json();
+
+    // Populate org dropdown in modal
+    const orgSel = document.getElementById('f-controlling_org_id');
+    orgSel.innerHTML = '<option value="">-- None --</option>' +
+      allOrgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+
+    // Build type filter
+    const types = [...new Set(allLocs.map(l => l.location_type).filter(Boolean))].sort();
+    const typeSel = document.getElementById('filterType');
+    const cur = typeSel.value;
+    typeSel.innerHTML = '<option value="">All Types</option>' +
+      types.map(t => `<option value="${esc(t)}">${esc(fmtType(t))}</option>`).join('');
+    if (cur) typeSel.value = cur;
+
+    applyFilter();
+  } catch(e) {
+    document.getElementById('tableWrap').innerHTML =
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+  }
+}
+
+bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
+</script>
+</body>
+</html>

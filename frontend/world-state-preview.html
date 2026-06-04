@@ -11,29 +11,53 @@
      The five dossier/edit overlays dock onto its box; an idle animation shows when nothing is
      selected. Space is reserved permanently so the main content never shifts when a dossier
      opens. Utility dialogs (#srConfirm/#srAlert/#standingEditor/#srPrompt) stay centered. */
-  :root{ --dock-w:660px; --dock-gap:18px; --page-w:1200px; --ws-hdr-h:64px; }
+  :root{ --dock-w:780px; --dock-gap:18px; --page-w:1200px; --ws-hdr-h:64px;
+         /* tallest the pane may grow before it caps + scrolls (under nav, gap top & bottom) */
+         --ws-avail:calc(100vh - var(--ws-hdr-h) - var(--dock-gap) * 2);
+         /* single knob for the morph speed (keep JS MORPH_MS in sync) -- slowed down for now */
+         --ws-morph:1.4s; }
 
   /* permanently center the [content + pane] pair: shift main left by half (pane+gap) ALWAYS,
      so opening a dossier never moves the page. */
   main{ transform:translateX(calc(-1 * (var(--dock-w) + var(--dock-gap)) / 2)); }
 
-  /* the persistent holder: under the header, full height minus a gap, rounded */
+  /* the persistent holder: rounded, compact (sizes to its idle text). When nothing is selected it
+     floats VERTICALLY CENTERED in the band below the nav; when a dossier opens it glides up to the
+     top anchor (top = hdr+gap) while the docked modal expands into the data. Height tracks content,
+     capped at --ws-avail (then the body scrolls). */
   #wsPane{
     position:fixed; z-index:90;
-    top:calc(var(--ws-hdr-h) + var(--dock-gap)); bottom:var(--dock-gap);
+    top:calc(var(--ws-hdr-h) + (100vh - var(--ws-hdr-h)) / 2);
+    transform:translateY(-50%);
     left:calc(50% + (var(--page-w) + var(--dock-gap) - var(--dock-w)) / 2);
-    width:var(--dock-w);
-    background:var(--bg-card); border:1px solid #1a3a1a; border-radius:14px;
-    box-shadow:0 0 0 1px rgba(0,255,65,.04), -8px 0 40px rgba(0,0,0,.55);
+    width:var(--dock-w); height:auto; max-height:var(--ws-avail);
+    /* the SOLE frame -- a soft rounded card. The dossier modals dock on top of it frameless, so the
+       single frame morphs (glides + resizes) while its contents cross-fade. The 1px ring is an
+       outset box-shadow (not a border) so the frameless modal can't occlude it. */
+    background:#070707; border:none; border-radius:14px;
+    /* ring + glow are driven (via JS) by --ws-ring/--ws-glow so the frame TINTS to the active
+       dossier's exact colour (incl. per-org-type) as it morphs. box-shadow is transitioned. A bold
+       2px ring + glow makes the SINGLE persistent frame clearly visible while it resizes. */
+    --ws-ring:rgba(0,255,65,.45); --ws-glow:rgba(0,255,65,.12);
+    box-shadow:0 0 0 2px var(--ws-ring), 0 0 30px var(--ws-glow), -8px 0 40px rgba(0,0,0,.55);
     overflow:hidden; display:flex; flex-direction:column;
+    transition:top var(--ws-morph) cubic-bezier(.4,0,.2,1), transform var(--ws-morph) cubic-bezier(.4,0,.2,1),
+               height var(--ws-morph) cubic-bezier(.4,0,.2,1), box-shadow var(--ws-morph) ease;
+  }
+  /* a dossier is open -> dock the holder to the top anchor (the glide-to-top half of the animation) */
+  body:has(#npcOverlay.open) #wsPane, body:has(#editOverlay.open) #wsPane,
+  body:has(#orgEditOverlay.open) #wsPane, body:has(#locEditOverlay.open) #wsPane,
+  body:has(#charEditOverlay.open) #wsPane{
+    top:calc(var(--ws-hdr-h) + var(--dock-gap)); transform:translateY(0);
   }
 
-  /* idle state -- hidden when one of the five dossiers is open (explicit list, so the utility
-     dialogs above don't blank it) */
-  #wsIdle{ flex:1; display:flex; align-items:center; justify-content:center; padding:28px; }
+  /* idle state -- compact (sizes to its text); FADES (not display:none) when one of the five
+     dossiers is open, so it appears to ride up with the holder as the data takes over. Explicit
+     list, so the utility dialogs above don't blank it. */
+  #wsIdle{ display:flex; align-items:center; justify-content:center; padding:22px 24px; transition:opacity var(--ws-morph); }
   body:has(#npcOverlay.open) #wsIdle, body:has(#editOverlay.open) #wsIdle,
   body:has(#orgEditOverlay.open) #wsIdle, body:has(#locEditOverlay.open) #wsIdle,
-  body:has(#charEditOverlay.open) #wsIdle{ display:none; }
+  body:has(#charEditOverlay.open) #wsIdle{ opacity:0; pointer-events:none; }
   .ws-idle-box{ text-align:center; font-family:var(--font); }
   .ws-idle-tag{ font-size:0.6rem; letter-spacing:4px; color:var(--text-dim); text-transform:uppercase; margin-bottom:14px; }
   .ws-idle-line{ font-size:0.92rem; letter-spacing:2px; color:var(--green-dim); text-shadow:var(--glow-green); min-height:1.4em; }
@@ -44,41 +68,183 @@
   .ws-idle-dots::after{ content:'...'; animation:wsScan 1.6s steps(4,end) infinite; }
   @keyframes wsScan{ 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%,100%{content:'...'} }
 
-  /* dock the five dossier/edit overlays onto the pane box */
+  /* Dock the five dossier/edit overlays so they overlap #wsPane EXACTLY -- same centered-when-idle /
+     top-when-open position + the same easing -- so they glide in lockstep with the frame. The
+     position keys on "is ANY dossier open" (not just this one) so switching dossiers never sends the
+     outgoing one drifting back to center; the frame stays put and only resizes. */
   #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{
-    inset:calc(var(--ws-hdr-h) + var(--dock-gap)) auto var(--dock-gap)
-          calc(50% + (var(--page-w) + var(--dock-gap) - var(--dock-w)) / 2);
-    width:var(--dock-w); background:transparent; backdrop-filter:none;
+    top:calc(var(--ws-hdr-h) + (100vh - var(--ws-hdr-h)) / 2);
+    left:calc(50% + (var(--page-w) + var(--dock-gap) - var(--dock-w)) / 2);
+    right:auto; bottom:auto; transform:translateY(-50%);
+    width:var(--dock-w); height:auto; background:transparent; backdrop-filter:none;
     align-items:stretch; justify-content:flex-start;
+    transition:opacity var(--ws-morph), top var(--ws-morph) cubic-bezier(.4,0,.2,1), transform var(--ws-morph) cubic-bezier(.4,0,.2,1);
   }
-  #npcOverlay .ltg-modal, #editOverlay .ltg-modal,
+  body:has(:is(#npcOverlay,#editOverlay,#orgEditOverlay,#locEditOverlay,#charEditOverlay).open)
+    :is(#npcOverlay,#editOverlay,#orgEditOverlay,#locEditOverlay,#charEditOverlay){
+    top:calc(var(--ws-hdr-h) + var(--dock-gap)); transform:translateY(0);
+  }
+  /* Docked modal = FRAMELESS content layer (no border/bg/shadow of its own -- #wsPane is the frame).
+     Its height is JS-driven in lockstep with #wsPane so the content is always clipped to the frame;
+     when the data exceeds the cap the modal body scrolls. */
+  #npcOverlay .ltg-modal, #editOverlay .edit-modal-mini,
   #orgEditOverlay .edit-modal, #locEditOverlay .ltg-modal, #charEditOverlay .ltg-modal{
-    width:var(--dock-w); max-width:var(--dock-w); height:100%; max-height:100%;
-    border-radius:14px; box-shadow:-8px 0 40px rgba(0,0,0,.6);
-    transform:translateX(20px);
+    width:var(--dock-w); max-width:var(--dock-w); height:0; max-height:none;
+    background:transparent; border:none; box-shadow:none; transform:none;
+    border-radius:14px; overflow:hidden;   /* clip head/body bg to the same rounded corners */
+    transition:height var(--ws-morph) cubic-bezier(.4,0,.2,1), opacity var(--ws-morph) ease;
   }
-  #npcOverlay.open .ltg-modal, #editOverlay.open .ltg-modal,
-  #orgEditOverlay.open .edit-modal, #locEditOverlay.open .ltg-modal, #charEditOverlay.open .ltg-modal{
-    transform:translateX(0);
+  /* ghost = a frozen snapshot of the OUTGOING content during a same-overlay swap; it cross-fades out
+     (and resizes with the frame) on top of the incoming content. Visual only. */
+  .ws-ghost{
+    position:absolute; top:0; left:0; width:var(--dock-w); max-width:var(--dock-w);
+    z-index:2; pointer-events:none; overflow:hidden;
+    transition:opacity var(--ws-morph) ease, height var(--ws-morph) cubic-bezier(.4,0,.2,1);
   }
 
-  /* not enough room to center the pair -> right-dock the pane, squeeze the content, no shift */
-  @media (max-width:1940px){
+  /* never let a docked dossier produce a horizontal scrollbar in the pane: clip overflow-x and
+     reflow the wide org editor tables to fit the width (no horizontal scroll, per request). */
+  #npcOverlay .ltg-modal-body, #orgEditOverlay .edit-modal-body,
+  #locEditOverlay .ltg-modal-body, #charEditOverlay .ltg-modal-body,
+  #orgEditOverlay #orgDossierView, #locEditOverlay #locDossierView{ overflow-x:hidden; }
+  #orgEditOverlay .lead-table{ table-layout:fixed; width:100%; }
+  #orgEditOverlay .lead-table th, #orgEditOverlay .lead-table td{
+    padding-left:3px; padding-right:3px; overflow-wrap:anywhere; word-break:break-word;
+  }
+  /* fields fill their cell -- but a checkbox is NOT an input field; keep it natural width */
+  #orgEditOverlay .lead-table td input:not([type=checkbox]),
+  #orgEditOverlay .lead-table td select{ width:100% !important; min-width:0; box-sizing:border-box; }
+  #orgEditOverlay .lead-table td input[type=checkbox]{ width:auto !important; }
+
+  /* -- Auto-grown textareas (JS sizes them to fit content): no inner scrollbar, no resize grip;
+        the pane's own scrollbar shows the overflow. Applies to every right-pane modal. -- */
+  #npcOverlay textarea, #orgEditOverlay textarea,
+  #locEditOverlay textarea, #charEditOverlay textarea{ resize:none; overflow:hidden; min-height:38px; }
+  /* Political Relationships (and any chk-list): grow to the length of the data, no inner scroll. */
+  #orgEditOverlay .chk-list, #charEditOverlay .chk-list, #locEditOverlay .chk-list{
+    max-height:none; overflow:visible;
+  }
+
+  /* -- Command Structure: Title/Role widest, then Notes, then Name (Name +20px, -10 Title/-10 Notes);
+        delete column stays narrow (button keeps its natural size). -- */
+  #orgEditOverlay .lead-table:has(#oeLeadBody) th:nth-child(1){ width:23%; }   /* Name (+20px) */
+  #orgEditOverlay .lead-table:has(#oeLeadBody) th:nth-child(3){ width:32%; }   /* Notes (-10px) */
+  #orgEditOverlay .lead-table:has(#oeLeadBody) th:nth-child(4){ width:42px; }  /* delete (col2 Title/Role = rest, widest) */
+
+  /* -- Telecom: Number set, Description wide (auto), Visibility fits "Unlisted"+caret, Reveal slim.
+        Number + Description match the Visibility dropdown's height & text size. -- */
+  #orgEditOverlay .lead-table:has(#oeTelecomBody) th:nth-child(1){ width:148px; }                   /* Number */
+  #orgEditOverlay .lead-table:has(#oeTelecomBody) th:nth-child(3){ width:112px; }                   /* Visibility */
+  #orgEditOverlay .lead-table:has(#oeTelecomBody) th:nth-child(4){ width:56px; text-align:center; } /* Reveal */
+  #orgEditOverlay .lead-table:has(#oeTelecomBody) th:nth-child(5){ width:42px; }                    /* delete (col2 Description = rest) */
+  #orgEditOverlay #oeTelecomBody td:nth-child(4){ text-align:center; vertical-align:middle; }
+  /* Number/Description/Visibility match heights -- but NOT the checkbox (keep it square + centered) */
+  #orgEditOverlay #oeTelecomBody td input:not([type=checkbox]), #orgEditOverlay #oeTelecomBody td select{
+    height:38px; font-size:var(--fs-lg); box-sizing:border-box;
+  }
+  #orgEditOverlay #oeTelecomBody td input[type=checkbox]{ height:auto !important; width:auto !important; vertical-align:middle; }
+  /* crisp, larger header labels (no bold / no glow) across the whole org editor (Command Structure
+     + Telecom) so every column label renders the same -- shares the host field-label treatment. */
+  #orgEditOverlay .lead-table th{
+    font-size:var(--fs-sm); font-weight:400; letter-spacing:1px; text-shadow:none; font-family:var(--font);
+  }
+
+  /* -- Matrix Hosts: each entry is a BOX with two field-lines; Reveal+Delete sit OUTSIDE the box,
+        on the right, vertically centered against it.  (Row DOM is restructured in the oeAddHost
+        wrapper -- the 6 field cells move into `.host-box`; cells tagged data-cell=...)
+        line 1: RTG | LTG | ID Code | Description     line 2: Visibility | Security (code + value) -- */
+  #orgEditOverlay .lead-table:has(#oeHostBody) thead{ display:none; }
+  #orgEditOverlay #oeHostBody tr:not(#oeEmptyHost){
+    display:flex; align-items:center; gap:10px; padding:6px 0; border:none;
+  }
+  /* the box holding both field-lines */
+  #orgEditOverlay .host-box{
+    flex:1; min-width:0;
+    display:grid; gap:8px 10px; align-items:start;
+    grid-template-columns: 134px 60px 96px 1fr;
+    grid-template-areas:
+      "rtg ltg idc desc"
+      "vis sec sec sec";
+    padding:10px 12px;
+    /* matrix hosts are Matrix data -> steel / muted-cyan box to match the matrix-designer theme */
+    border:1px solid #2b5b66; border-radius:8px; background:rgba(0,200,255,.04);
+  }
+  #orgEditOverlay .host-box > td{ display:block; padding:0; border:none; min-width:0; }
+  #orgEditOverlay #oeHostBody td[data-cell=rtg]{ grid-area:rtg; }
+  #orgEditOverlay #oeHostBody td[data-cell=ltg]{ grid-area:ltg; }
+  #orgEditOverlay #oeHostBody td[data-cell=idc]{ grid-area:idc; }
+  #orgEditOverlay #oeHostBody td[data-cell=desc]{ grid-area:desc; }
+  #orgEditOverlay #oeHostBody td[data-cell=vis]{ grid-area:vis; }
+  #orgEditOverlay #oeHostBody td[data-cell=sec]{ grid-area:sec; }
+  /* uniform control height across both lines (#1, #4) */
+  #orgEditOverlay .host-box input:not([type=checkbox]){
+    height:36px; padding:6px 8px; font-size:var(--fs-md); box-sizing:border-box;
+  }
+  #orgEditOverlay .host-box select{
+    height:36px; padding:6px 24px 6px 8px; font-size:var(--fs-md); box-sizing:border-box; background-position:right 8px center;
+  }
+  /* security: code dropdown + value number-spinner, compact and left-aligned (not stretched) */
+  #orgEditOverlay #oeHostBody td[data-cell=sec] > div{ display:inline-flex; gap:5px; }
+  #orgEditOverlay #oeHostBody select[data-field="san_access_code"]{ width:94px !important; flex:none; }
+  #orgEditOverlay #oeHostBody td[data-cell=sec] .infield-num-wrap input[type=number]{
+    height:36px; padding:6px 24px 6px 8px; font-size:var(--fs-md); box-sizing:border-box;
+  }
+  /* reveal + delete stacked OUTSIDE the box, the group centered vertically against it (#6) */
+  #orgEditOverlay #oeHostBody .host-ctrls{
+    flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  }
+  #orgEditOverlay #oeHostBody .host-ctrls td{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:0; border:none; }
+  /* field labels: larger + crisp (#8/#9) */
+  #orgEditOverlay #oeHostBody .host-box td::before,
+  #orgEditOverlay #oeHostBody td[data-cell=rev]::before{
+    display:block; font-size:var(--fs-sm); letter-spacing:1px; line-height:1; white-space:nowrap;
+    font-weight:400; color:var(--text-dim); text-transform:uppercase; margin-bottom:5px; text-shadow:none;
+  }
+  #orgEditOverlay #oeHostBody td[data-cell=rtg]::before{ content:'RTG'; }
+  #orgEditOverlay #oeHostBody td[data-cell=ltg]::before{ content:'LTG'; }
+  #orgEditOverlay #oeHostBody td[data-cell=idc]::before{ content:'ID Code'; }
+  #orgEditOverlay #oeHostBody td[data-cell=desc]::before{ content:'Description'; }
+  #orgEditOverlay #oeHostBody td[data-cell=vis]::before{ content:'Visibility'; }
+  #orgEditOverlay #oeHostBody td[data-cell=sec]::before{ content:'Security'; }
+  #orgEditOverlay #oeHostBody td[data-cell=rev]::before{ content:'Reveal'; margin-bottom:4px; }
+
+  /* -- Auto-save (org edit): the footer Save/Cancel buttons are replaced by a debounced auto-save
+        (1s) + a quiet status line, matching the matrix-designer pattern (app-wide direction). -- */
+  #orgEditOverlay #orgEditFoot .btn{ display:none; }
+  #orgEditOverlay #orgEditFoot{ justify-content:flex-end; align-items:center; }
+  /* same auto-save treatment for the location, character and NPC dossiers: drop the Save/Cancel
+     buttons (close via the header "x"), leave a quiet status line. */
+  #locEditFoot .btn, #charEditOverlay .edit-modal-foot .btn, #npcModalFoot .btn{ display:none; }
+  #locEditFoot, #charEditOverlay .edit-modal-foot, #npcModalFoot{ justify-content:flex-end; align-items:center; }
+  .ws-save-status{ font-size:var(--fs-sm); letter-spacing:1px; color:var(--green-dim); transition:color .2s; }
+  .ws-save-status.saving{ color:var(--amber); }
+  .ws-save-status.error { color:var(--red); }
+  .ws-save-status.idle  { color:var(--text-dim); }
+
+  /* not enough room to center the pair -> right-dock the frame, squeeze the content, no shift.
+     Only the HORIZONTAL anchor changes; the centered-idle -> top morph is preserved. */
+  @media (max-width:2040px){
     main{ transform:none; padding-right:calc(var(--dock-w) + var(--dock-gap) + 12px); }
     #wsPane{ left:auto; right:var(--dock-gap); }
     #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{
-      inset:calc(var(--ws-hdr-h) + var(--dock-gap)) var(--dock-gap) var(--dock-gap) auto;
+      left:auto; right:var(--dock-gap);
     }
   }
-  /* too narrow for any side pane -> hide the holder, let modals center (original behavior) */
+  /* too narrow for any side pane -> hide the frame, restore full-screen centered modals (the JS
+     morph bails below 1200px, so the modal must paint its own frame and natural height again). */
   @media (max-width:1200px){
     main{ transform:none; padding-right:0; }
     #wsPane{ display:none; }
-    #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{ inset:0; width:auto; }
-    #npcOverlay .ltg-modal, #editOverlay .ltg-modal, #orgEditOverlay .edit-modal,
-    #locEditOverlay .ltg-modal, #charEditOverlay .ltg-modal{ border-radius:0; transform:translateY(14px); }
-    #npcOverlay.open .ltg-modal, #editOverlay.open .ltg-modal, #orgEditOverlay.open .edit-modal,
-    #locEditOverlay.open .ltg-modal, #charEditOverlay.open .ltg-modal{ transform:translateY(0); }
+    #npcOverlay, #editOverlay, #orgEditOverlay, #locEditOverlay, #charEditOverlay{
+      inset:0; left:0; right:0; top:0; bottom:0; transform:none; width:auto; height:auto;
+      align-items:center; justify-content:center;
+    }
+    #npcOverlay .ltg-modal, #editOverlay .edit-modal-mini, #orgEditOverlay .edit-modal,
+    #locEditOverlay .ltg-modal, #charEditOverlay .ltg-modal{
+      height:auto !important; max-height:88vh !important; border-radius:0;
+      background:#060606; border:1px solid var(--green-dim); box-shadow:0 0 60px rgba(0,255,65,.12);
+    }
+    #orgEditOverlay .edit-modal{ border-color:var(--amber); box-shadow:0 0 60px rgba(255,153,0,.1); }
   }
   </style>
 </head>
@@ -555,23 +721,495 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeader);  // after the webfont grows the nav
 
   const PHRASES = [
-    'awaiting input', 'scanning the Matrix', 'no target acquired', 'datastore idle // standby',
-    'decrypting traffic...', 'select a node to open its dossier', 'listening on the LTG',
-    'tracing ghosts in the grid', 'sifting paydata', 'no jackpoint selected',
+'scanning newsnet feed', 'translating Ares News Net propaganda', 'aggregating Shadowland threads', 
+'updating contact data', 'tracking paydata', 'tracing ghosts in the grid', 'scanning LTG access', 
+'hostile decker intrusion, deploying IC', 'connection attempt authorized, decrypting', 
+'connection attempt unauthorized, REJECT', 'refreshing internal files', 'accepting payment', 
+'notifying SysOp',
   ];
   function start() {
     syncHeader();
     const el = document.getElementById('wsIdleText');
     if (!el) return;
-    let i = Math.floor(Math.random() * PHRASES.length);
+    // pick a fresh random phrase each cycle (never repeat the one just shown)
+    const pick = prev => {
+      if (PHRASES.length < 2) return 0;
+      let n; do { n = Math.floor(Math.random() * PHRASES.length); } while (n === prev);
+      return n;
+    };
+    let i = pick(-1);
     el.textContent = PHRASES[i];
     setInterval(() => {
       el.style.opacity = '0';
-      setTimeout(() => { i = (i + 1) % PHRASES.length; el.textContent = PHRASES[i]; el.style.opacity = '1'; }, 250);
+      setTimeout(() => { i = pick(i); el.textContent = PHRASES[i]; el.style.opacity = '1'; }, 250);
     }, 3400);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
+
+  /* Single docked dossier at a time: when a card is clicked while another dossier is open, swap
+     the pane content instead of stacking. Wrap each opener so it first dismisses the other four. */
+  const DOCKED = {
+    openNpcModal:       'npcOverlay',
+    openOrgEditModal:   'orgEditOverlay',
+    openLocEditModal:   'locEditOverlay',
+    openCharEditModal:  'charEditOverlay',
+  };
+  function closeOtherDocked(keep) {
+    Object.values(DOCKED).forEach(id => {
+      if (id === keep) return;
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
+  }
+  // -- Auto-grow textareas so they show all their content (the pane scrolls, the field doesn't) --
+  const DOCK_SEL = '#npcOverlay,#orgEditOverlay,#locEditOverlay,#charEditOverlay';
+  function autoGrow(ta) {
+    if (!ta || ta.offsetParent === null) return;   // skip hidden (e.g. runner-vs-admin toggled) fields
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  function growAll() {
+    document.querySelectorAll(DOCK_SEL.split(',').map(s => s + ' textarea').join(',')).forEach(autoGrow);
+  }
+  document.addEventListener('input', e => { if (e.target && e.target.tagName === 'TEXTAREA') autoGrow(e.target); });
+
+  // -- Pane scale-to-content: the docked modal starts collapsed (max-height:0) and grows to exactly
+  //    its content, capped at the available height (then the modal body scrolls). After the grow we
+  //    release the cap to var(--ws-avail) so later edits (typing, adding rows) keep resizing it. --
+  function availPx() {
+    const cs = getComputedStyle(document.documentElement);
+    const hdr = parseFloat(cs.getPropertyValue('--ws-hdr-h')) || 64;
+    const gap = parseFloat(cs.getPropertyValue('--dock-gap')) || 18;
+    return window.innerHeight - hdr - gap * 2;
+  }
+  function paneModal(overlayId) {
+    const ov = document.getElementById(overlayId);
+    return ov && ov.querySelector('.ltg-modal, .edit-modal, .edit-modal-mini');
+  }
+  const MORPH_MS = 1400;                                   // keep in sync with --ws-morph
+
+  // -- Tint the single frame to the active dossier's colour. We read the dossier's *themed title*
+  //    colour (already set by the existing CSS, incl. the per-org-type oc-* classes), so e.g. a Cult
+  //    org rings green and a Megacorp rings amber -- no hardcoded per-overlay guesses. --
+  const TITLE_OF = {
+    npcOverlay: 'npcModalName', orgEditOverlay: 'oeTitle',
+    locEditOverlay: 'leTitle', charEditOverlay: 'ceTitle',
+  };
+  function setRing(overlayId) {
+    const pane = document.getElementById('wsPane');
+    if (!pane) return;
+    let rgb = [0, 255, 65];                                // idle / character / archetype -> green
+    const titleId = overlayId && TITLE_OF[overlayId];
+    if (titleId) {
+      const el = document.getElementById(titleId);
+      const m = el && getComputedStyle(el).color.match(/\d+/g);
+      if (m && m.length >= 3) rgb = [m[0], m[1], m[2]];
+    }
+    pane.style.setProperty('--ws-ring', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.70)`);
+    pane.style.setProperty('--ws-glow', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.18)`);
+  }
+
+  // -- Single-frame morph: #wsPane is the only frame. On open/switch/close we resize #wsPane (and the
+  //    docked modal, kept in lockstep so its content clips to the frame) from its current height to
+  //    the new content's height. Content cross-fades via the overlays' opacity + the idle fade, so it
+  //    reads as ONE frame dynamically resizing -- never a second pane rendering from the top. --
+  // transition that drives everything the morph animates EXCEPT height -- used during the freeze so a
+  // forced reflow can hard-set height without snapping the position glide / colour fade.
+  const _EASE = 'cubic-bezier(.4,0,.2,1)';
+  const _NOH = `top var(--ws-morph) ${_EASE}, transform var(--ws-morph) ${_EASE}, box-shadow var(--ws-morph) ease`;
+
+  let activeModalEl = null;
+  function morph(overlayId) {
+    const pane = document.getElementById('wsPane');
+    if (!pane) return;
+    if (window.innerWidth <= 1200) { setRing(overlayId); activeModalEl = overlayId ? paneModal(overlayId) : null; return; }
+    const modal = overlayId ? paneModal(overlayId) : null;
+    const outgoing = (activeModalEl && activeModalEl !== modal) ? activeModalEl : null;
+    const fromH = pane.getBoundingClientRect().height;     // where the frame is right now
+
+    // measure the target height (true content height, capped) without snapping the frame: keep the
+    // position/colour transitions live (_NOH) so the forced layout reads don't commit a jump.
+    let target;
+    if (modal) {
+      modal.style.transition = 'none';
+      modal.style.height = 'auto';
+      target = Math.min(modal.scrollHeight, availPx());
+    } else {
+      pane.style.transition = _NOH;
+      const savedH = pane.style.height;
+      pane.style.height = 'auto';
+      target = pane.scrollHeight;                            // idle content height
+      pane.style.height = savedH;
+    }
+
+    // freeze HEIGHT ONLY at the current value, commit it, then animate height to the target. Position
+    // (top/transform) and colour keep their live transitions, so the frame GLIDES + recolours while
+    // it resizes -- on open as well as close.
+    pane.style.transition = _NOH; pane.style.height = fromH + 'px';
+    if (modal)    { modal.style.transition    = 'none'; modal.style.height    = fromH + 'px'; }
+    if (outgoing) { outgoing.style.transition = 'none'; outgoing.style.height = fromH + 'px'; }
+    void pane.offsetHeight;
+    pane.style.transition = ''; pane.style.height = target + 'px';
+    if (modal)    { modal.style.transition    = ''; modal.style.height    = target + 'px'; }
+    if (outgoing) { outgoing.style.transition = ''; outgoing.style.height = target + 'px'; }
+    setRing(overlayId);            // set AFTER transitions are restored so box-shadow colour animates
+
+    activeModalEl = modal;
+    clearTimeout(pane._mhTimer);
+    pane._mhTimer = setTimeout(() => {
+      if (!modal) { pane.style.transition = 'none'; pane.style.height = 'auto'; void pane.offsetHeight; pane.style.transition = ''; }
+      if (outgoing) outgoing.style.height = '0px';           // collapse the now-hidden outgoing modal
+    }, MORPH_MS + 80);                                       // fire just after the morph settles
+  }
+
+  // -- Reusable debounced auto-save (mirrors the org editor): replaces a modal's Save/Cancel with a
+  //    silent 1s PATCH + a quiet status line. cfg supplies the mode-aware payload/validity/target. --
+  function makeAutoSave(cfg) {
+    let timer = null, inFlight = false, pending = false, ready = false;
+    function status(state) {
+      const el = document.getElementById(cfg.statusId);
+      if (!el) return;
+      el.className = 'ws-save-status ' + state;
+      el.textContent = state === 'saving' ? 'Saving...'
+        : state === 'error' ? 'Save failed -- retrying...'
+        : state === 'idle'  ? (cfg.idleMsg || 'Waiting for input...')
+        : 'All changes saved OK';
+    }
+    function arm() {
+      const foot = cfg.foot();
+      if (!foot || !cfg.active()) { ready = false; return; }
+      if (!document.getElementById(cfg.statusId)) {
+        const s = document.createElement('span');
+        s.id = cfg.statusId; s.className = 'ws-save-status saved';
+        foot.appendChild(s);
+      }
+      ready = true;
+      status(cfg.valid() ? 'saved' : 'idle');
+    }
+    function disarm() { ready = false; clearTimeout(timer); }
+    function schedule() {
+      if (!ready) return;
+      const ov = document.getElementById(cfg.overlayId);
+      if (!ov || !ov.classList.contains('open')) return;
+      if (!cfg.valid()) { clearTimeout(timer); status('idle'); return; }
+      status('saving');
+      clearTimeout(timer);
+      timer = setTimeout(saveNow, 1000);
+    }
+    async function saveNow() {
+      const id = cfg.editingId();
+      if (id == null) return;
+      if (inFlight) { pending = true; return; }
+      inFlight = true;
+      try {
+        const res = await apiFetch(cfg.url(id), {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg.payload()),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        try { const u = await res.json(); if (cfg.apply) cfg.apply(u); } catch (e) {}
+        status('saved');
+      } catch (e) {
+        status('error');
+      } finally {
+        inFlight = false;
+        if (pending) { pending = false; schedule(); }
+      }
+    }
+    document.addEventListener('input',  e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
+    document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
+    return { arm, disarm };
+  }
+
+  const g = id => document.getElementById(id);
+  // Location editor (admin edit form only -- runner view is a read-only dossier).
+  const locAutoSave = makeAutoSave({
+    overlayId: 'locEditOverlay', statusId: 'leSaveStatus', idleMsg: 'Name required to save',
+    foot: () => g('locEditFoot'),
+    active: () => { const fc = g('locFormContent'); return (typeof isAdminMode === 'function' && isAdminMode()) && fc && fc.style.display !== 'none'; },
+    editingId: () => (typeof leEditingId !== 'undefined' ? leEditingId : null),
+    valid: () => !!g('le-name').value.trim(),
+    url: id => '/locations/' + id,
+    apply: u => { if (u && u.id != null) locStore[u.id] = u; },
+    payload: () => {
+      let t = g('le-location_type').value;
+      if (t === 'Custom') t = g('le-location_type-custom').value.trim() || null;
+      const ctrl = g('le-controlling_org_id').value;
+      return {
+        name: g('le-name').value.trim(), location_type: t,
+        city: g('le-city').value.trim() || null, district: g('le-district').value.trim() || null,
+        security_level: g('le-security_level').value || null,
+        controlling_org_id: ctrl ? parseInt(ctrl) : null,
+        description: g('le-description').value.trim() || null, notes: g('le-notes').value.trim() || null,
+      };
+    },
+  });
+  // Character editor: NPC edit form (full payload) OR PC dossier (GM notes only) -- branch by mode.
+  const charIsPcMode = () => g('ceFormBody').style.display === 'none';
+  const charAutoSave = makeAutoSave({
+    overlayId: 'charEditOverlay', statusId: 'ceSaveStatus', idleMsg: 'Name & Title required to save',
+    foot: () => document.querySelector('#charEditOverlay .edit-modal-foot'),
+    active: () => (typeof isAdminMode === 'function' && isAdminMode()),
+    editingId: () => (typeof ceEditingId !== 'undefined' ? ceEditingId : null),
+    valid: () => charIsPcMode() ? true : !!(g('ce-name').value.trim() && g('ce-title').value.trim()),
+    url: id => '/characters/' + id,
+    apply: u => { if (u && u.id != null) charMapStore[u.id] = u; },
+    payload: () => {
+      if (charIsPcMode()) return { notes: (g('pcNotesInput') ? g('pcNotesInput').value.trim() : '') || null };
+      const archSel = g('ce-archetype');
+      const arch = archSel.value === 'Custom' ? g('ce-arch-custom').value.trim() : archSel.value;
+      const org = g('ce-org_id').value;
+      return {
+        name: g('ce-name').value.trim(), title: g('ce-title').value.trim() || null,
+        archetype: arch || null, race: g('ce-race').value || null,
+        gender: g('ce-gender').value.trim() || null, age: parseInt(g('ce-age').value) || null,
+        nationality: g('ce-nationality').value.trim() || null,
+        is_pc: g('ce-is_pc').checked, is_active: g('ce-is_active').checked,
+        organization_id: org ? parseInt(org) : null,
+        description: g('ce-description').value.trim() || null, background: g('ce-background').value.trim() || null,
+        notes: g('ce-notes').value.trim() || null,
+        connection: parseInt(g('ce-connection').value) || 1,
+        contact_skills: g('ce-contact_skills').value.split('\n').map(s => s.trim()).filter(Boolean),
+      };
+    },
+  });
+  // NPC / Person-of-Interest dossier: GM notes only (footer is GM-visible).
+  const npcAutoSave = makeAutoSave({
+    overlayId: 'npcOverlay', statusId: 'npcSaveStatus',
+    foot: () => g('npcModalFoot'),
+    active: () => { const f = g('npcModalFoot'); return (typeof isAdmin === 'function' && isAdmin()) && f && f.style.display !== 'none'; },
+    editingId: () => (typeof npcModalCharId !== 'undefined' ? npcModalCharId : null),
+    valid: () => true,
+    url: id => '/characters/' + id,
+    apply: u => { if (u && u.id != null) charMapStore[u.id] = u; },
+    payload: () => ({ notes: (g('npcNotesInput') ? g('npcNotesInput').value.trim() : '') || null }),
+  });
+  // Registry keyed by overlay; org keeps its bespoke implementation, adapted to the same interface.
+  const AUTOSAVERS = {
+    locEditOverlay: locAutoSave,
+    charEditOverlay: charAutoSave,
+    npcOverlay: npcAutoSave,
+    orgEditOverlay: { arm: () => oeArmAutoSave(), disarm: () => { _oeReady = false; clearTimeout(_oeSaveTimer); } },
+  };
+  function disarmAll() { Object.values(AUTOSAVERS).forEach(a => a.disarm()); }
+
+  // Copy live field values (which cloneNode does NOT capture) from a modal into its ghost clone, so
+  // the fading-out snapshot shows the real outgoing data, not an empty form.
+  function snapshotForm(src, dst) {
+    const a = src.querySelectorAll('input, textarea, select');
+    const b = dst.querySelectorAll('input, textarea, select');
+    for (let i = 0; i < a.length && i < b.length; i++) {
+      if (a[i].type === 'checkbox' || a[i].type === 'radio') b[i].checked = a[i].checked;
+      else b[i].value = a[i].value;
+    }
+  }
+
+  Object.keys(DOCKED).forEach(fn => {
+    const orig = window[fn];
+    if (typeof orig !== 'function') return;
+    window[fn] = function (...args) {
+      const overlayId = DOCKED[fn];
+      const overlayEl = document.getElementById(overlayId);
+      // Same-overlay swap (e.g. org -> org): the overlay stays open and its content is rebuilt in
+      // place, so there's no overlay-opacity cross-fade like a cross-type switch gets. Snapshot the
+      // outgoing content into a ghost layer and cross-fade it out while the new content fades in.
+      let ghost = null;
+      const modalBefore = overlayEl && overlayEl.classList.contains('open') && paneModal(overlayId);
+      if (modalBefore && window.innerWidth > 1200) {
+        overlayEl.querySelectorAll('.ws-ghost').forEach(g => g.remove());   // no pile-up on rapid clicks
+        ghost = modalBefore.cloneNode(true);
+        snapshotForm(modalBefore, ghost);
+        ghost.removeAttribute('id');
+        ghost.classList.add('ws-ghost');
+        ghost.style.height = modalBefore.getBoundingClientRect().height + 'px';
+        ghost.style.opacity = '1';
+        overlayEl.appendChild(ghost);                                       // sits after the real modal
+      }
+
+      closeOtherDocked(overlayId);
+      disarmAll();                       // cancel any pending save from the dossier we're replacing
+      const r = orig.apply(this, args);
+      // The openers lock body scroll (`overflow:hidden`) for a fullscreen modal; the docked pane
+      // must NOT do that -- the main page has to stay vertically scrollable beside it.
+      document.body.style.overflow = '';
+      const auto = AUTOSAVERS[overlayId];
+      if (auto) auto.arm();
+      growAll();                          // size textareas first so the measured height is accurate...
+      morph(overlayId);                   // ...then resize the single frame to the new content
+
+      if (ghost) {
+        const modal = paneModal(overlayId);                 // the real (new) modal -- first in the DOM
+        const targetH = modal && modal.style.height;        // morph just set this to the new height
+        if (modal) { modal.style.opacity = '0'; requestAnimationFrame(() => { modal.style.opacity = '1'; }); }
+        requestAnimationFrame(() => {                        // fade the ghost out + glide it to the new size
+          ghost.style.opacity = '0';
+          if (targetH) ghost.style.height = targetH;
+        });
+        clearTimeout(overlayEl._ghostTimer);                // a fresh swap supersedes the previous one
+        overlayEl._ghostTimer = setTimeout(() => { ghost.remove(); if (modal) modal.style.opacity = ''; }, MORPH_MS + 80);
+      }
+      return r;
+    };
+  });
+  // The archetype picker docks too (no auto-save -- it keeps its own Save/Cancel); morph the frame.
+  ['openArchModal'].forEach(fn => {
+    const orig = window[fn];
+    if (typeof orig !== 'function') return;
+    window[fn] = function (...args) {
+      const r = orig.apply(this, args);
+      document.body.style.overflow = '';
+      morph('editOverlay');
+      return r;
+    };
+  });
+  // On close, disarm auto-save and morph the frame back down to the idle state.
+  ['closeLocEditModal', 'closeCharEditModal', 'closeNpcModal', 'closeEditModal'].forEach((fn, i) => {
+    const overlay = ['locEditOverlay', 'charEditOverlay', 'npcOverlay', 'editOverlay'][i];
+    const orig = window[fn];
+    if (typeof orig !== 'function') return;
+    window[fn] = function (...args) {
+      if (AUTOSAVERS[overlay]) AUTOSAVERS[overlay].disarm();
+      const r = orig.apply(this, args);
+      morph(null);
+      return r;
+    };
+  });
+
+  // -- Auto-save for the org editor: debounced 1s silent PATCH replaces the Save/Cancel buttons.
+  //    Mirrors the matrix-designer pattern; reuses world-state's payload getters (shared globals).
+  let _oeSaveTimer = null, _oeSaveInFlight = false, _oeSavePending = false, _oeReady = false;
+  function oeSetStatus(state) {
+    const el = document.getElementById('oeSaveStatus');
+    if (!el) return;
+    el.className = 'ws-save-status ' + state;
+    el.textContent = state === 'saving' ? 'Saving...'
+      : state === 'error' ? 'Save failed -- retrying...'
+      : state === 'idle'  ? 'Designation required to save'
+      : 'All changes saved OK';
+  }
+  function oeArmAutoSave() {
+    const foot = document.getElementById('orgEditFoot');
+    // only when the admin edit form is actually showing (runner view is a read-only dossier)
+    if (!foot || foot.style.display === 'none' || !(typeof isAdminMode === 'function' && isAdminMode())) return;
+    if (!document.getElementById('oeSaveStatus')) {
+      const s = document.createElement('span');
+      s.id = 'oeSaveStatus'; s.className = 'ws-save-status saved';
+      foot.appendChild(s);
+    }
+    _oeReady = true;
+    oeSetStatus(document.getElementById('oe-name').value.trim() ? 'saved' : 'idle');
+  }
+  function oeScheduleSave() {
+    if (!_oeReady) return;
+    const ov = document.getElementById('orgEditOverlay');
+    if (!ov || !ov.classList.contains('open')) return;
+    if (!document.getElementById('oe-name').value.trim()) { clearTimeout(_oeSaveTimer); oeSetStatus('idle'); return; }
+    oeSetStatus('saving');
+    clearTimeout(_oeSaveTimer);
+    _oeSaveTimer = setTimeout(oeSaveNow, 1000);
+  }
+  async function oeSaveNow() {
+    if (typeof oeEditingId === 'undefined' || oeEditingId == null) return;
+    if (_oeSaveInFlight) { _oeSavePending = true; return; }
+    _oeSaveInFlight = true;
+    try {
+      const g = id => document.getElementById(id);
+      const payload = {
+        name: g('oe-name').value.trim(),
+        org_type: (() => { const v = g('oe-org_type').value; return v === 'Custom' ? (g('oe-org_type-custom').value.trim() || null) : (v || null); })(),
+        tier: (typeof oeTierVal !== 'undefined') ? oeTierVal : 1,
+        headquarters: g('oe-headquarters').value.trim() || null,
+        description: g('oe-description').value.trim() || null,
+        notes: g('oe-notes').value.trim() || null,
+        is_active: g('oe-is_active').checked,
+        leadership: oeGetLeadership(),
+        ally_ids: oeGetChecked('oeAllyList'),
+        enemy_ids: oeGetChecked('oeEnemyList'),
+        revealed_ally_ids: oeGetRevealed('oeAllyList'),
+        revealed_enemy_ids: oeGetRevealed('oeEnemyList'),
+        ltgs: oeGetLTGs(),
+      };
+      const res = await apiFetch('/organizations/' + oeEditingId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      try { const u = await res.json(); if (u && u.id != null) orgStore[u.id] = u; } catch (e) {}
+      oeSetStatus('saved');
+    } catch (e) {
+      oeSetStatus('error');
+    } finally {
+      _oeSaveInFlight = false;
+      if (_oeSavePending) { _oeSavePending = false; oeScheduleSave(); }
+    }
+  }
+  document.addEventListener('input',  e => { if (e.target.closest && e.target.closest('#orgEditOverlay')) oeScheduleSave(); });
+  document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#orgEditOverlay')) oeScheduleSave(); });
+  const _origCloseOrg = window.closeOrgEditModal;
+  if (typeof _origCloseOrg === 'function') {
+    window.closeOrgEditModal = function (...a) {
+      _oeReady = false; clearTimeout(_oeSaveTimer);
+      const r = _origCloseOrg.apply(this, a);
+      morph(null);
+      return r;
+    };
+  }
+
+  // -- Matrix-host row restructure: wrap the two field-lines in a box, move Reveal/Delete outside,
+  //    show RTG code-only when closed, swap the security-value dropdown for a number spinner, and
+  //    use "-" as the ID-code placeholder. Done by wrapping oeAddHost so world-state.js is untouched.
+  function setupRtgDisplay(sel) {
+    if (!sel || sel.dataset.rtgDisp) return;
+    sel.dataset.rtgDisp = '1';
+    const opts = [...sel.options];
+    opts.forEach(o => { o.dataset.full = o.textContent; if (o.value) o.textContent = o.value; });   // collapsed = code
+    const expand   = () => opts.forEach(o => { if (o.value) o.textContent = o.dataset.full; });
+    const collapse = () => opts.forEach(o => { if (o.value) o.textContent = o.value; });
+    sel.addEventListener('mousedown', expand);   // about to open the list -> show full descriptors
+    sel.addEventListener('focus', expand);
+    sel.addEventListener('change', collapse);
+    sel.addEventListener('blur', collapse);
+  }
+  function swapSecValue(secTd) {
+    const old = secTd.querySelector('[data-field="san_access_value"]');
+    if (!old || old.tagName === 'INPUT') return;
+    const num = document.createElement('input');
+    num.type = 'number'; num.min = '2'; num.max = '14'; num.step = '1';
+    num.setAttribute('data-field', 'san_access_value');
+    num.value = old.value || '';
+    num.placeholder = '--';
+    num.style.width = '62px';                       // initNumSteppers honors this on the wrap
+    old.replaceWith(num);
+    if (typeof initNumSteppers === 'function') initNumSteppers(secTd);
+  }
+  function enhanceHostRow(row) {
+    if (!row || row.id === 'oeEmptyHost' || row.dataset.enh) return;
+    const tds = [...row.children];
+    if (tds.length < 8) return;
+    row.dataset.enh = '1';
+    const [rtg, ltg, idc, desc, sec, vis, rev, del] = tds;
+    rtg.dataset.cell = 'rtg'; ltg.dataset.cell = 'ltg'; idc.dataset.cell = 'idc';
+    desc.dataset.cell = 'desc'; sec.dataset.cell = 'sec'; vis.dataset.cell = 'vis';
+    rev.dataset.cell = 'rev'; del.dataset.cell = 'del';
+    const box = document.createElement('div');
+    box.className = 'host-box';
+    [rtg, ltg, idc, desc, vis, sec].forEach(td => box.appendChild(td));   // line1: rtg/ltg/idc/desc, line2: vis/sec
+    const ctrls = document.createElement('div');                          // reveal + delete, centered beside the box
+    ctrls.className = 'host-ctrls';
+    ctrls.appendChild(rev); ctrls.appendChild(del);
+    row.append(box, ctrls);                                               // row = [ box ][ ctrls ]
+    const idInput = idc.querySelector('[data-field="id_code"]');
+    if (idInput) idInput.placeholder = '-';
+    swapSecValue(sec);
+    setupRtgDisplay(rtg.querySelector('[data-field="rtg"]'));
+  }
+  const origAddHost = window.oeAddHost;
+  if (typeof origAddHost === 'function') {
+    window.oeAddHost = function (...args) {
+      const r = origAddHost.apply(this, args);
+      enhanceHostRow(document.getElementById('oeHostBody')?.lastElementChild);
+      return r;
+    };
+  }
 })();
 </script>
 <!-- -- CONFIRM DIALOG ------------------------------------ -->
