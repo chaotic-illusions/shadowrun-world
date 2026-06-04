@@ -1,0 +1,3686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matrix Designer | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html" class="active">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em class="sep">//</em> HOST SECURITY AND IC DESIGNER</div>
+  <div class="page-sub" style="color:var(--cyan)">LOADING PROGRAMS... // LOADING IC... // READY</div>
+
+  <div id="pageAlert" class="alert" style="margin-bottom:12px"></div>
+
+  <!-- -- Wizard step indicator -- -->
+  <div class="wizard-steps-bar" id="wizardStepsBar"></div>
+
+  <div class="wizard-layout">
+
+    <!-- ------------------- WIZARD MAIN CONTENT ------------------ -->
+    <div>
+
+      <!-- -- STEP 1: Identity -- -->
+      <div id="wStep1" class="wstep active">
+        <div class="mx-panel mb-16">
+          <div class="panel-title panel-title-cyan flex-between">
+            <span>&gt;&gt; Create Custom Host</span>
+            <button class="btn btn-ghost btn-sm" onclick="toggleCreateForm()" id="createToggleBtn" style="font-size:.6rem;padding:2px 8px">v Expand</button>
+          </div>
+          <div id="createForm" style="display:none">
+            <div class="tip" style="margin-top:6px;margin-bottom:8px">For off-grid systems: trap door sub-hosts, hidden research nodes, and any host without a public LTG. Canon hosts can be selected directly from the Host Selection panel below.</div>
+            <div class="mx-field" style="margin-top:8px">
+              <label>Host Name *</label>
+              <input type="text" id="newHostName" placeholder="e.g. Ares Sub-Basement Black Node" maxlength="200">
+            </div>
+            <div class="mx-field">
+              <label>Notes <span style="color:var(--text-dim)">(optional)</span></label>
+              <textarea id="newHostNotes" rows="2" placeholder="GM notes..." style="background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font);font-size:.78rem;padding:6px 10px;resize:vertical;width:100%"></textarea>
+            </div>
+            <button class="btn btn-green" style="width:100%;justify-content:center;margin-top:4px" onclick="createHost()">&gt;&gt; Create Custom Host</button>
+          </div>
+        </div>
+
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Host Selection</div>
+          <div class="tip" style="margin-bottom:8px">Select an existing configured host or a canon LTG entry to begin. Selecting an LTG entry auto-creates its host record.</div>
+          <div class="mx-field">
+            <label>Target Host</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="hostSelect" onchange="onHostChange()" data-tip="Select an existing host/LTG entry point." style="flex:1 1 auto;min-width:0;width:auto"></select>
+            </div>
+            <div class="host-meta" id="hostMeta"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 2: Security Profile -- -->
+      <div id="wStep2" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Security Profile</div>
+
+          <div class="mx-field">
+            <label>LTG Address <span style="color:var(--text-dim)"></span></label>
+            <select id="ltgAddressSelect" onchange="onLtgAddressChange()"
+              data-tip="Optional LTG linkage. Choosing an entry can prefill security profile context."
+              style="font-size:.75rem;padding:5px 8px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--cyan);font-family:var(--font)">
+              <option value="">-- None / Custom --</option>
+            </select>
+            <div id="ltgAddressInfo" style="margin-top:4px;font-size:.62rem;color:var(--text-dim);letter-spacing:1px;min-height:14px"></div>
+          </div>
+
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div class="mx-field" style="flex:2;min-width:0">
+              <label>Security Code</label>
+              <select id="secCode" onchange="onSecCodeChange()" data-tip="Set host security tier; affects general threat level and sheaf pacing.">
+                <option value="">-- Select --</option>
+                <option value="Blue">Blue</option>
+                <option value="Green">Green</option>
+                <option value="Orange">Orange</option>
+                <option value="Red">Red</option>
+                <option value="Black">Black</option>
+              </select>
+              <div class="tip" id="secCodeTip"></div>
+            </div>
+            <div class="mx-field" style="flex:1;min-width:0">
+              <label>Security Value <span style="color:var(--text-dim)">(2-14)</span></label>
+              <input type="number" id="secValue" min="2" max="14" step="1" value="9" oninput="onSecValueChange()" data-tip="Host dice pool. High value means more difficult host.">
+              <div class="tip" id="secValueTip">Dice the host rolls on all opposed tests. Range: 2-14.</div>
+            </div>
+          </div>
+
+          <div class="mx-field">
+            <label>Owner Type</label>
+            <select id="ownerType" onchange="onOwnerTypeChange()" data-tip="Owning Organization. Cosmetic only used for flavor and sculpted design descriptions.">
+              <option value="">-- Select --</option>
+              <option value="public">Public</option>
+              <option value="commercial">Commercial</option>
+              <option value="corp">Corp</option>
+              <option value="military">Military</option>
+              <option value="police">Police</option>
+              <option value="criminal">Criminal</option>
+              <option value="utility">Utility</option>
+            </select>
+            <div class="tip" id="ownerTypeTip"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 3: Intrusion Profile & Subsystems -- -->
+      <div id="wStep3" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Intrusion Profile &amp; Subsystems</div>
+
+          <div class="mx-field">
+            <label>Intrusion Difficulty</label>
+            <select id="intrusionDifficulty" onchange="onDifficultyChange()" data-tip="Choose an intrusion difficulty preset for random generation.">
+              <option value="">-- Select --</option>
+              <option value="Easy">Easy</option>
+              <option value="Average">Average</option>
+              <option value="Hard">Hard</option>
+            </select>
+            <div class="tip" id="difficultyTip">Determines typical Security and ACIFS ranges for random generation.</div>
+          </div>
+
+          <div class="mx-field">
+            <label>ACIFS Subsystem Ratings</label>
+            <button class="btn btn-amber btn-sm" id="quickFillBtn" style="margin-bottom:6px" onclick="quickFillAcifs()" data-tip="Fill A/C/I/F/S using the selected difficulty preset.">&gt;&gt; Quick-Fill ACIFS</button>
+            <div class="acifs-grid">
+              <div class="acifs-cell">
+                <label data-tip="Host's resistance to unauthorized access">Access</label>
+                <input type="number" id="acifA" min="1" max="50" placeholder="--" data-tip="Host's resistance to unauthorized access">
+              </div>
+              <div class="acifs-cell">
+                <label data-tip="Governs manipulation of hardware and slave devices attached to the host.">Control</label>
+                <input type="number" id="acifC" min="1" max="50" placeholder="--" data-tip="Governs manipulation of hardware and slave devices attached to the host.">
+              </div>
+              <div class="acifs-cell">
+                <label data-tip="Governs searching for files, data stores, and hidden subsystems.">Index</label>
+                <input type="number" id="acifI" min="1" max="50" placeholder="--" data-tip="Governs searching for files, data stores, and hidden subsystems.">
+              </div>
+              <div class="acifs-cell">
+                <label data-tip="Governs reading, copying, editing, and erasing data files.">Files</label>
+                <input type="number" id="acifF" min="1" max="50" placeholder="--" data-tip="Governs reading, copying, editing, and erasing data files.">
+              </div>
+              <div class="acifs-cell">
+                <label data-tip="Governs direct control of slaved peripherals and remote sensors.">Slave</label>
+                <input type="number" id="acifS" min="1" max="50" placeholder="--" data-tip="Governs direct control of slaved peripherals and remote sensors.">
+              </div>
+            </div>
+            <div class="tip" id="acifsTip">Deckers must beat each rating to perform that operation type. Select an Intrusion Difficulty to see typical ranges.</div>
+          </div>
+
+          <div class="mx-field" style="margin-top:10px">
+            <label>Access -- Named Pieces</label>
+            <div id="accessPieceList" style="margin-bottom:5px"></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="text" id="newAccessPiece" placeholder="e.g., SAN Port, Terminal 1"
+                data-tip="Add a named Access entry point such as a SAN port or terminal."
+                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <button class="btn btn-ghost btn-sm" onclick="addSubPiece('access')" style="padding:3px 9px" data-tip="Add this Access piece.">+ Add</button>
+            </div>
+            <div class="tip">Physical ports, terminals, or nodes outside of the normal LTG access point. Required to target a specific piece with Exploding Scramble IC.</div>
+          </div>
+
+          <div class="mx-field" style="margin-top:6px">
+            <label>Slave -- Named Devices</label>
+            <div id="slavePieceList" style="margin-bottom:5px"></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="text" id="newSlavePiece" placeholder="e.g., Security Camera 1, Door Lock"
+                data-tip="Add a named Slave device such as a camera, lock, or sensor."
+                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <button class="btn btn-ghost btn-sm" onclick="addSubPiece('slave')" style="padding:3px 9px" data-tip="Add this Slave device.">+ Add</button>
+            </div>
+            <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Can host Trap Doors to other systems.  Required to target a specific device with Exploding Scramble IC.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 4: Files & Passive IC -- -->
+      <div id="wStep4" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Hosted Files &amp; Passive IC</div>
+
+          <div class="mx-field">
+            <label>Paydata Files</label>
+            <div id="paydataList" style="margin-bottom:5px"></div>
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">
+              <input type="text" id="pdName" placeholder="file name / description"
+                data-tip="Name or describe the paydata file."
+                style="flex:1;font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <button class="btn btn-ghost btn-sm" onclick="addPaydata()" style="padding:3px 9px" data-tip="Add a paydata file.">+ Add</button>
+              <button class="btn btn-ghost btn-sm" onclick="generatePaydata()" style="padding:3px 9px;color:var(--cyan)" data-tip="Auto-generate paydata from the current host profile.">Generate</button>
+            </div>
+            <div class="tip">Data density auto-calculated per Paydata Points Table. Click a file name to rename it inline. Each file has a base value of Y5,000.</div>
+          </div>
+
+          <div class="mx-field">
+            <label>Passive IC / Traps</label>
+
+            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Data Bombs</div>
+            <div id="dataBombList" style="margin-bottom:5px"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
+              <select id="dbTarget" class="ic-target-select"
+                data-tip="Choose the slave device target for this Data Bomb."
+                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);appearance:none;-webkit-appearance:none;-moz-appearance:none;min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
+                <option value="">-- select target --</option>
+              </select>
+              <input type="number" id="dbRating" min="1" max="50" placeholder="Rtg"
+                data-tip="Data Bomb rating. Higher rating increases damage and resistance."
+                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
+            </div>
+            <div style="margin-bottom:3px">
+              <button class="btn btn-ghost btn-sm" onclick="addDataBomb()" style="padding:3px 9px" data-tip="Add this Data Bomb.">+ Add</button>
+            </div>
+            <div class="tip" style="margin-bottom:10px"><strong>Target:</strong> Individual slave devices in this selector. File-level bombs are assigned in each Paydata row.
+              <br><strong>Trigger:</strong> Successfully accessing file/device without defusing the data bomb.  Deals (Rating)M damage to the Persona.
+              <br><strong>Detection:</strong> Successful Analyze Icon against protected file/device.
+              <br><strong>Removal:</strong> Successful subsystem test (Files or Slave). 
+            </div>
+
+            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Scramble IC</div>
+            <div id="scrambleList" style="margin-bottom:5px"></div>
+
+            <!-- Row 1: Variant only -->
+            <div style="margin-bottom:3px">
+              <select id="scrVariant" onchange="onScrambleVariantChange()"
+                data-tip="Choose Scramble behavior: Exploding or Poison."
+                style="font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:180px;width:180px;max-width:100%;">
+                <option value="exploding">Exploding</option>
+                <option value="poison">Poison</option>
+              </select>
+            </div>
+            <!-- Row 2: Target + Rating -->
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
+              <select id="scrTarget" class="ic-target-select"
+                data-tip="Choose the Access, Slave, or Files target for this Scramble."
+                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
+                <option value="">-- select target --</option>
+              </select>
+              <input type="number" id="scrRating" min="1" max="50" placeholder="Rtg"
+                data-tip="Scramble rating. This is the decrypt target number."
+                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
+            </div>
+            <!-- Row 3: Add button -->
+            <div style="margin-bottom:3px">
+              <button class="btn btn-ghost btn-sm" onclick="addScramble()" style="padding:3px 9px" data-tip="Add this Scramble.">+ Add</button>
+            </div>
+            <div class="tip" style="margin-bottom:10px"><strong>Target:</strong> Access/Slave elements and subsystem-wide Files here. File-level Scramble is assigned in each Paydata row.
+              <br><strong>Trigger (Exploding):</strong> Successful removal attempt without defusing. Rating(M) damage to the Persona.
+              <br><strong>Trigger (Poison):</strong> IC detects Decker.  Repeats data destruction attempt until decrypted or crashed.
+              <br><strong>Detection:</strong> Successful Analyze Icon against protected item.
+              <br><strong>Removal:</strong> Sucessful decrypt or attack against the IC.
+            </div>
+
+            <div style="font-size:.58rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:5px">Worm IC</div>
+            <div id="wormList" style="margin-bottom:5px"></div>
+            <!-- Row 1: Variant only -->
+            <div style="margin-bottom:3px">
+              <select id="wrmVariant" onchange="this.dataset.tip=this.options[this.selectedIndex].dataset.tip"
+                style="font-size:.7rem;padding:4px 6px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:180px;width:180px;max-width:100%;"
+                data-tip="Logs and sends incriminating information about the decker to a delivery address.">
+                <option value="dataworm" data-tip="Logs and sends incriminating information about the decker to a delivery address.">Dataworm</option>
+                <option value="deathworm" data-tip="+2 TN to all Attack/Resistance tests in cybercombat.  +1 for each additional worm.">Deathworm</option>
+                <option value="tapeworm" data-tip="At run end, reduce Paydata Points downloaded by 1D6-1.  Roll 1D6 for key files; 5-6 erases it.">Tapeworm</option>
+              </select>
+            </div>
+            <!-- Row 2: Target + Rating -->
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:3px;">
+              <select id="wrmTarget" class="ic-target-select"
+                data-tip="Choose the subsystem infected by this Worm."
+                style="font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font);min-width:0;flex:1 1 auto;width:calc(100% - 60px);box-sizing:border-box;">
+                <option value="">-- select target --</option>
+                <option value="Access">Access</option>
+                <option value="Control">Control</option>
+                <option value="Index">Index</option>
+                <option value="Files">Files</option>
+                <option value="Slave">Slave</option>
+              </select>
+              <input type="number" id="wrmRating" min="1" max="50" placeholder="Rtg"
+                data-tip="Worm rating. Higher rating increases the threat."
+                style="width:52px;min-width:52px;font-size:.7rem;padding:4px 5px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);vertical-align:middle;">
+            </div>
+            <!-- Row 3: Add button -->
+            <div style="margin-bottom:3px">
+              <button class="btn btn-ghost btn-sm" onclick="addWorm()" style="padding:3px 9px" data-tip="Add this Worm.">+ Add</button>
+            </div>
+            <div class="tip"><strong>Target:</strong> Any subsystem.
+              <br><strong>Trigger:</strong> Any system test against the infected subsystem.
+              <br><strong>Detection:</strong> Successful Analyze Subsystem test.
+              <br><strong>Removal:</strong> Successful disinfect or attack against the IC.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 5: Access Control -- Trap Doors -- -->
+      <div id="wStep5" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Access Control -- Trap Doors</div>
+
+          <div class="mx-field">
+            <label>Trap Doors</label>
+            <div id="trapDoorList" style="margin-bottom:5px"></div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+              <select id="tdSource"
+                data-tip="Select the source slave device flagged as a trap door."
+                style="flex:1;min-width:140px;font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font)">
+                <option value="">-- source device --</option>
+              </select>
+              <select id="tdDest"
+                data-tip="Select the destination host or subsystem reached by the trap door."
+                style="flex:1;min-width:140px;font-size:.7rem;padding:4px 30px 4px 6px;background-color:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                <option value="">-- destination --</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="addTrapDoor()" style="padding:3px 9px" data-tip="Add this trap door link.">+ Add</button>
+            </div>
+            <div class="tip">A concealed comm port connecting this host to another without going through the Access subsystem.
+              <br>Source devices are defined in Step 3 by toggling TRAP DOOR on a Slave named device.
+              <br>Trap doors are hidden by default until discovered via a successful Analyze Subsystem test on the Slave Subsystem.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 6: Security Sheaf -- -->
+      <div id="wStep6" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Security Sheaf Builder</div>
+
+          <div class="sub-section-title">&gt;&gt; Auto-Generate</div>
+          <div class="flex-gap8 mb-12">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <label style="font-size:.58rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase">Step Count</label>
+              <input type="number" id="stepCountOverride" min="1" max="50" placeholder="auto"
+                data-auto-at-min="true"
+                data-tip="Optional manual step count. Leave blank for auto."
+                style="width:92px;padding:5px 6px;font-size:.78rem;text-align:center;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+            </div>
+            <button class="btn btn-green" onclick="generateSheaf()" id="generateBtn" style="align-self:flex-end" data-tip="Generate a sheaf using the current security profile.">&gt;&gt; Generate Sheaf</button>
+            <div id="genSpinner" style="display:none;align-self:flex-end;font-size:.7rem;letter-spacing:2px;color:var(--text-dim)">GENERATING...</div>
+          </div>
+          <div class="tip mb-12">Requires security code and value to be set. Seed is randomized each generation for variety.</div>
+
+          <div id="alertPlacementPanel" style="display:none;margin-bottom:14px">
+            <div class="sub-section-title">&gt;&gt; Alert Triggers</div>
+            <div class="tip" style="margin-bottom:8px">Assign each alert to a specific trigger step. Passive must precede Active; Active must precede Shutdown. All three may share the same step.</div>
+            <div id="alertPlacementRows" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+
+          <div class="sub-section">
+            <div class="flex-between mb-8">
+              <div class="sub-section-title" style="margin:0">&gt;&gt; Current Sheaf Steps</div>
+              <button class="btn btn-ghost btn-sm" onclick="addStep()" data-tip="Add a blank sheaf step.">+ Add Step</button>
+            </div>
+            <div id="sheafStepList"></div>
+            <div id="sheafEmpty" class="empty-msg" style="padding:16px 0;font-size:.62rem">No steps defined -- generate or add manually</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- -- STEP 7: Review & Save -- -->
+      <div id="wStep7" class="wstep">
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Review Configuration</div>
+          <div id="reviewDetails"></div>
+        </div>
+      </div>
+
+      <!-- -- Wizard Navigation -- -->
+      <div class="wizard-nav" id="wizardNav" style="display:none">
+        <button class="btn btn-green" id="btnWizBack" onclick="wizardBack()">&#9664; Back</button>
+        <span class="wizard-step-label" id="wizardStepLabel"></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-green" id="btnWizNext" onclick="wizardNext()">Next &#9654;</button>
+          <button class="btn btn-amber" id="btnSaveProgress" onclick="saveConfig()">&gt;&gt; Save Progress</button>
+          <button class="btn btn-amber" id="btnSaveFinish" onclick="saveConfig()"
+            style="display:none">&gt;&gt; Save &amp; Finish</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ------------------- SIDEBAR ---------------------- -->
+    <div>
+      <div class="run-ready-banner" id="runReadyBanner">
+        &#9654; HOST IS RUN-READY // SR2 CONFIG + SHEAF ACTIVE
+      </div>
+
+      <div class="mx-panel">
+        <div class="panel-title panel-title-cyan">&gt;&gt; Host Summary</div>
+        <div id="summaryNoHost" class="empty-msg" style="padding:20px 0;font-size:.62rem">No host selected</div>
+        <div id="summaryPanel" style="display:none">
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Host Name</div>
+              <div class="summary-value" id="sumName">--</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Security Code</div>
+              <div class="summary-value" id="sumCode">--</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Security Value</div>
+              <div class="summary-value" id="sumValue">--</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Owner Type</div>
+              <div class="summary-value" id="sumOwner">--</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Sheaf Steps</div>
+              <div class="summary-value" id="sumSteps">--</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">ACIFS</div>
+              <div class="summary-value" id="sumAcifs" style="font-size:.72rem">--</div>
+            </div>
+          </div>
+          <div class="summary-label mb-8">Alert Thresholds</div>
+          <div class="threshold-list" id="sumThresholds">
+            <span class="threshold-tag" style="color:var(--text-dim);border-color:#222">No steps defined</span>
+          </div>
+          <div style="border-top:1px solid #1a3a1a;margin-top:14px;padding-top:10px">
+            <button id="deleteHostBtn" class="btn btn-red btn-sm" onclick="deleteCurrentHost()"
+              style="padding:3px 10px;font-size:.7rem" data-tip="Delete this host">x Delete Host</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="edit-overlay" id="icEditOverlay">
+  <div class="edit-modal-mini" style="min-width:340px;max-width:420px;border-color:#1a2a1a;background:#060606;gap:10px">
+    <div id="icEditHeader" style="font-size:.72rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase">Edit IC Event: IC</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <label for="icEditRating" style="font-size:.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;min-width:52px">Rating</label>
+      <input type="number" id="icEditRating" min="1" max="50" placeholder="1-50"
+        class="edit-modal-input" style="max-width:110px" data-tip="IC rating 1-50">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.68rem;color:var(--text-bright)">
+      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Armor: increases resistance against attacks."><input type="checkbox" class="chk-reveal" id="icEditArmor"> Armor</label>
+      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Shifting: morphs profile to resist targeting; cannot combine with Shielding."><input type="checkbox" class="chk-reveal" id="icEditShift"> Shifting</label>
+      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Shielding: reinforced defense layer; cannot combine with Shifting."><input type="checkbox" class="chk-reveal" id="icEditShield"> Shielding</label>
+      <label style="display:flex;gap:4px;align-items:center;cursor:pointer" data-tip="Cascade: expands effects through connected structures. Only valid for Proactive IC and Black IC."><input type="checkbox" class="chk-reveal" id="icEditCasc"> Cascade</label>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select id="icEditExpertType" class="edit-modal-input" style="max-width:170px" data-tip="${_expertTip('')}">
+        <option value="">No Expert</option>
+        <option value="offense">Expert Offense</option>
+        <option value="defense">Expert Defense</option>
+      </select>
+      <input type="number" id="icEditExpertVal" min="1" max="3" value="1"
+        class="edit-modal-input" style="max-width:70px" data-tip="Expert modifier value 1-3">
+    </div>
+    <div id="icEditTip" class="tip" style="margin-top:0;color:var(--straw);font-size:.74rem;line-height:1.45;max-width:360px;white-space:normal"></div>
+    <div class="edit-modal-btns">
+      <button class="btn btn-ghost btn-sm" onclick="closeIcEditModal()">Cancel</button>
+      <button class="btn btn-amber btn-sm" onclick="saveIcEditModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="edit-overlay" id="saveStateOverlay">
+  <div class="edit-modal-mini" style="min-width:320px;max-width:460px;border-color:#1a2a1a;background:#060606;gap:10px">
+    <div style="font-size:.75rem;letter-spacing:2px;color:var(--green);text-transform:uppercase">&gt;&gt; Save Complete</div>
+    <div id="saveStateMsg" style="font-size:.8rem;color:var(--text-bright);line-height:1.55"></div>
+    <div class="edit-modal-btns" style="justify-content:flex-end">
+      <button class="btn btn-green btn-sm" id="saveStateOkBtn" onclick="closeSaveStateModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// --- State ------------------------------------------------------------------
+
+let hosts       = [];   // [{id, name, config_json, ...}]
+let icInfo      = {};   // {ic_type: {category, summary, ...}}
+let currentHost = null; // selected host object
+let ltgCatalog  = [];   // [{org_name, rtg, ltg, full_address, id_code, description, san_access_rating, org_id}]
+let sheafSteps  = [];   // [{trigger: number, events: [{type, ic_type?, rating?}]}]
+let paydata      = [];   // [{name: string, points: number, density: number}]  (defined on host; referenced by data bombs / scrambles)
+let dataBombs    = [];   // [{target: string, rating: number}]
+let scrambles    = [];   // [{target_key: string, rating: number, variant: 'exploding'|'poison'}]
+let worms        = [];   // [{target: string, rating: number, variant: 'dataworm'|'deathworm'|'tapeworm'}]
+let accessPieces = [];   // string[] -- named Access subsystem pieces (for Scramble IC specific-piece targeting)
+let slavePieces  = [];   // string[] -- named Slave subsystem devices
+let slaveTrapPieces = []; // string[] -- slave device names flagged as trap-door endpoints
+let trapDoors   = [];   // [{id, source_piece, destination_host_id, destination_ltg, destination_label, hidden}]
+
+// --- IC definitions ---------------------------------------------------------
+
+// VR2.0 IC classifications (vr2_rules.md lines 427-651)
+// White: no permanent damage to deck/utilities
+// Gray: permanent damage to deck ratings/utilities
+// Black: biofeedback -- injures or kills decker physically
+const IC_WHITE = [
+  'Crippler (Acid)',    // attacks Bod
+  'Crippler (Binder)',  // attacks Evasion
+  'Crippler (Jammer)',  // attacks Sensor
+  'Crippler (Marker)',  // attacks Masking
+  'Killer', 'Probe', 'Tar Baby',
+];
+const IC_GRAY = [
+  'Blaster',
+  'Ripper (Acid-rip)',  // damages Bod chip
+  'Ripper (Bind-rip)',  // damages Evasion chip
+  'Ripper (Jam-rip)',   // damages Sensor chip
+  'Ripper (Mark-rip)',  // damages Masking chip
+  'Sparky', 'Tar Pit', 'Trace',
+];
+const IC_BLACK = ['Black IC (Lethal)', 'Black IC (Non-Lethal)'];
+const IC_REACTIVE = new Set(['Data Bomb', 'Probe', 'Scramble IC', 'Tar Baby', 'Tar Pit', 'Trace']);
+
+// Proactive Gray IC -- only appear after Passive Alert per the Alert Table (Proactive Gray IC column)
+// Trace is Reactive White IC per Alert Table rows 1-3 and fires at any security level
+const IC_PROACTIVE_GRAY = [
+  'Blaster', 'Ripper (Acid-rip)', 'Ripper (Bind-rip)', 'Ripper (Jam-rip)', 'Ripper (Mark-rip)', 'Sparky',
+];
+
+function _alertContextAtStep(si) {
+  let status = 'none';
+  for (let i = 0; i < si; i++) {
+    const step = sheafSteps[i];
+    if (!step || !step.events) continue;
+    for (const ev of step.events) {
+      if (ev.type === 'active_alert')  { status = 'active'; break; }
+      if (ev.type === 'passive_alert' && status === 'none') status = 'passive';
+    }
+    if (status === 'active') break;
+  }
+  return status;
+}
+
+function _alertContextForSelectionAtStep(si) {
+  let status = _alertContextAtStep(si);
+  const step = sheafSteps[si];
+  if (!step || !Array.isArray(step.events)) return status;
+  // Selection context includes alerts present on this same step.
+  for (const ev of step.events) {
+    if (ev.type === 'active_alert') return 'active';
+    if (ev.type === 'passive_alert' && status === 'none') status = 'passive';
+  }
+  return status;
+}
+
+function _icAllowedByAlert(icType, alertCtx) {
+  if (IC_BLACK.includes(icType))          return alertCtx === 'active';
+  if (IC_PROACTIVE_GRAY.includes(icType)) return alertCtx !== 'none';
+  return true;
+}
+
+// Alerts are managed via the dedicated panel; no special events in per-step dropdowns.
+function _specialEventsForStep(_si) { return []; }
+
+function _removeSheafEventType(eventType) {
+  for (const step of sheafSteps) {
+    if (step?.events) step.events = step.events.filter(e => e.type !== eventType);
+  }
+}
+
+function _findAlertStepIndex(type) {
+  for (let i = 0; i < sheafSteps.length; i++) {
+    if (sheafSteps[i]?.events?.some(e => e.type === type)) return i;
+  }
+  return -1;
+}
+
+function renderAlertPanel() {
+  const panel = $('alertPlacementPanel');
+  const rows  = $('alertPlacementRows');
+  if (!panel || !rows) return;
+  if (sheafSteps.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const passiveSi  = _findAlertStepIndex('passive_alert');
+  const activeSi   = _findAlertStepIndex('active_alert');
+  const shutdownSi = _findAlertStepIndex('shutdown');
+
+  const selBase  = 'background:var(--bg-input);border:1px solid #1a2a1a;font-family:var(--font);font-size:.72rem;padding:3px 8px';
+  const lblStyle = 'font-size:.62rem;letter-spacing:1.5px;text-transform:uppercase;min-width:102px';
+
+  function buildOpts(currentSi, minSi) {
+    let html = `<option value="">-- None --</option>`;
+    for (let i = minSi; i < sheafSteps.length; i++) {
+      html += `<option value="${i}"${currentSi === i ? ' selected' : ''}>Step ${i + 1} (>=${sheafSteps[i].trigger ?? 0})</option>`;
+    }
+    return html;
+  }
+
+  rows.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="${lblStyle};color:var(--amber)">Passive Alert</span>
+      <select style="${selBase};color:var(--amber)" data-tip="Choose which step begins Passive Alert escalation." onchange="setAlertStep('passive_alert',this.value)">
+        ${buildOpts(passiveSi, 0)}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="${lblStyle};color:var(--red)">Active Alert</span>
+      <select style="${selBase};color:var(--red)" data-tip="Choose which step upgrades to Active Alert." ${passiveSi < 0 ? 'disabled' : ''} onchange="setAlertStep('active_alert',this.value)">
+        ${passiveSi >= 0 ? buildOpts(activeSi, passiveSi) : '<option value="">-- set passive first --</option>'}
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="${lblStyle};color:var(--purple)">Shutdown</span>
+      <select style="${selBase};color:var(--purple)" data-tip="Choose which step triggers Shutdown." ${activeSi < 0 ? 'disabled' : ''} onchange="setAlertStep('shutdown',this.value)">
+        ${activeSi >= 0 ? buildOpts(shutdownSi, activeSi) : '<option value="">-- set active first --</option>'}
+      </select>
+    </div>
+  `;
+}
+
+function setAlertStep(type, rawVal) {
+  const newSi      = rawVal === '' ? -1 : parseInt(rawVal, 10);
+  const activeSi   = _findAlertStepIndex('active_alert');
+  const shutdownSi = _findAlertStepIndex('shutdown');
+
+  _removeSheafEventType(type);
+
+  if (type === 'passive_alert') {
+    if (newSi < 0 || (activeSi >= 0 && newSi > activeSi)) {
+      _removeSheafEventType('active_alert');
+      _removeSheafEventType('shutdown');
+    }
+  } else if (type === 'active_alert') {
+    if (newSi < 0 || (shutdownSi >= 0 && newSi > shutdownSi)) {
+      _removeSheafEventType('shutdown');
+    }
+  }
+
+  if (newSi >= 0 && newSi < sheafSteps.length) {
+    if (!sheafSteps[newSi].events) sheafSteps[newSi].events = [];
+    sheafSteps[newSi].events.push({ type });
+    const alertOrder = { passive_alert: 0, active_alert: 1, shutdown: 2 };
+    sheafSteps[newSi].events.sort((a, b) => (alertOrder[a.type] ?? 3) - (alertOrder[b.type] ?? 3));
+  }
+
+  renderAlertPanel();
+  renderSheaf();
+  updateSummary();
+}
+
+// Backend (matrix_rules.py) uses shorter canonical names; map them to the right category
+const IC_BACKEND_ALIASES = {
+  'Acid': 'white', 'Binder': 'white', 'Jammer': 'white', 'Marker': 'white',
+  'Acid-rip': 'gray', 'Bind-rip': 'gray', 'Jam-rip': 'gray', 'Mark-rip': 'gray',
+  'Trace-Report': 'gray', 'Trace-Dump': 'gray', 'Trace-Burn': 'gray',
+  'Black IC': 'black',
+};
+
+function icCategory(icType) {
+  if (IC_WHITE.includes(icType)) return 'white';
+  if (IC_GRAY.includes(icType))  return 'gray';
+  if (IC_BLACK.includes(icType)) return 'black';
+  if (IC_BACKEND_ALIASES[icType]) return IC_BACKEND_ALIASES[icType];
+  return 'gray';
+}
+
+function isReactiveIc(icType) {
+  return IC_REACTIVE.has(icType);
+}
+
+function isProactiveIc(icType) {
+  if (IC_BLACK.includes(icType)) return true;
+  return !isReactiveIc(icType);
+}
+
+function icModeLabel(icType) {
+  return isProactiveIc(icType) ? '[P]' : '[R]';
+}
+
+function canUseCascade(icType) {
+  return isProactiveIc(icType) || IC_BLACK.includes(icType);
+}
+
+function canUseExpert(icType) {
+  return isProactiveIc(icType) || IC_BLACK.includes(icType);
+}
+
+function icDisplayName(icType) {
+  if (icType === 'Black IC (Lethal)')     return 'Lethal';
+  if (icType === 'Black IC (Non-Lethal)') return 'Non-Lethal';
+  return icType;
+}
+
+function icBadgeClass(cat, icType) {
+  if (cat === 'white') return 'ic-white-badge';
+  if (cat === 'black') {
+    return (icType || '').includes('Non-Lethal') ? 'ic-black-nonlethal-badge' : 'ic-black-lethal-badge';
+  }
+  return 'ic-gray-badge';
+}
+
+function icColor(cat, icType) {
+  if (cat === 'white') return 'var(--ic-white)';
+  if (cat === 'black') {
+    return (icType || '').includes('Non-Lethal') ? '#7733aa' : '#cc55ff';
+  }
+  return 'var(--ic-gray)';
+}
+
+// --- Rule tips ---------------------------------------------------------------
+
+const SEC_CODE_TIPS = {
+  Blue:   'Public databases, small businesses. Minimal IC.',
+  Green:  'Moderate protection. May include IC.',
+  Orange: 'Lower Classification Corporate/Government data. Can boast significant security and IC loadouts.',
+  Red:    'Maximum security. Killer defenses. Top-secret data.',
+  Black:  'Extremely rare. Qualitatively different cyberspace. Hot decks required. Not for the faint of heart.',
+};
+
+// VR2.0 host design tables -- fetched from /matrix-runs2/rules/host-difficulty
+// and /matrix-runs2/rules/paydata-table. Single source of truth lives in
+// app/services/matrix_rules.py. Populated by loadHostRules() during init.
+let DIFFICULTY_INFO = {};   // { Easy: {sv_range:[4,6], sv_formula:'1D3+3', subsystem_range:[8,10], acif_formula:'1D3+7', codes:[...], description:''}, ... }
+let PAYDATA_INFO   = {};    // { Blue: {points_roll:'1D6-1', density_roll:'2D6x20 Mp', base_value:5000}, ... }
+
+function _difficultyRangeStr(diff, key) {
+  const r = DIFFICULTY_INFO[diff]?.[key];
+  return Array.isArray(r) && r.length === 2 ? `${r[0]}-${r[1]}` : '--';
+}
+function svRangeStr(diff)   { return _difficultyRangeStr(diff, 'sv_range'); }
+function acifRangeStr(diff) { return _difficultyRangeStr(diff, 'subsystem_range'); }
+function acifFormulaStr(diff) { return DIFFICULTY_INFO[diff]?.acif_formula || ''; }
+
+function difficultyTip(diff) {
+  const info = DIFFICULTY_INFO[diff];
+  if (!info) return '';
+  return `${info.description || ''} SV: ${info.sv_formula} (${svRangeStr(diff)}). ACIFS: ${info.acif_formula} each (${acifRangeStr(diff)}).`.trim();
+}
+
+// Parse a dice expression like "1D3+7", "2D6-1", "2D6x20", "3D6x5 Mp".
+// Trailing units (e.g. " Mp") are ignored. Returns 0 if unparseable.
+function rollFormula(s) {
+  const m = String(s || '').match(/(\d+)D(\d+)(?:([+-])(\d+))?(?:x(\d+))?/i);
+  if (!m) return 0;
+  const n = +m[1], sides = +m[2];
+  const mod = m[4] ? +m[4] * (m[3] === '-' ? -1 : 1) : 0;
+  const mult = m[5] ? +m[5] : 1;
+  let total = mod;
+  for (let i = 0; i < n; i++) total += Math.floor(Math.random() * sides) + 1;
+  return total * mult;
+}
+
+const OWNER_TYPE_TIPS = {
+  public:     'Public access -- open municipal or civic node. Minimal IC, very low SV. Entry is trivial; the risk is exposure and logging, not resistance.',
+  commercial: 'Commercial -- retail storefronts and public-facing SAN nodes. Minimal to Light IC loadout. Rarely hardened but often monitored under corp or police service contracts.',
+  corp:       'Corporate -- from chains all the way up to megacorps.  They have data, and they will protect it. Aggressive counter-intrusion.',
+  military:   'Military -- favors Black IC, heavy killers, trace-and-burn. No mercy.',
+  police:     'Police/law enforcement -- favors trace, access restriction, evidence-gathering IC.  They do not need to kill you, only find you.',
+  criminal:   'Criminal -- mixed profile. Paranoid but budget-conscious. IC loadouts unpredictable.',
+  utility:    'Utility company -- lighter security, due to lack of funding and staffing.  IC loadout depends on who is paying their bills.',
+};
+
+const SECURITY_CODE_ORDER = ['Blue', 'Green', 'Orange', 'Red', 'Black'];
+
+function currentSecurityCode() {
+  return $('secCode')?.value || safeConfig(currentHost)?.security_code || 'Green';
+}
+
+function currentSecurityValue() {
+  const sv = parseInt($('secValue')?.value || safeConfig(currentHost)?.security_value || '0', 10);
+  return (!isNaN(sv) && sv > 0) ? sv : 1;
+}
+
+function securityCodeIndex(code) {
+  const idx = SECURITY_CODE_ORDER.indexOf(code);
+  return idx >= 0 ? idx : SECURITY_CODE_ORDER.indexOf('Green');
+}
+
+function bouncerMinSvForCode(targetCode) {
+  const baseCode = currentSecurityCode();
+  const baseSv = currentSecurityValue();
+  return securityCodeIndex(targetCode) > securityCodeIndex(baseCode) ? baseSv : baseSv + 1;
+}
+
+function syncBouncerSvBounds(si) {
+  const codeEl = $(`bouncerCode-${si}`);
+  const svEl = $(`bouncerSv-${si}`);
+  if (!codeEl || !svEl) return;
+  const code = codeEl.value || currentSecurityCode();
+  const minSv = bouncerMinSvForCode(code);
+  svEl.min = String(minSv);
+  // Snap to the current minimum so code changes always show the lowest valid SV.
+  svEl.value = String(minSv);
+}
+
+function bouncerAllowedCodes(baseCode) {
+  const idx = SECURITY_CODE_ORDER.indexOf(baseCode);
+  const start = idx >= 0 ? idx : 1;
+  return SECURITY_CODE_ORDER.slice(start);
+}
+
+function bouncerCodeOptions(selectedCode = '') {
+  const allowed = bouncerAllowedCodes(currentSecurityCode());
+  return allowed.map(code => `<option value="${esc(code)}"${code === selectedCode ? ' selected' : ''}>${esc(code)}</option>`).join('');
+}
+
+function isAllowedBouncerCode(code) {
+  return bouncerAllowedCodes(currentSecurityCode()).includes(code);
+}
+
+// --- DOM helpers -------------------------------------------------------------
+
+const $ = id => document.getElementById(id);
+
+function alertEl() { return $('pageAlert'); }
+
+// --- Init --------------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await bootstrapAuth();
+  if (!isAdmin()) {
+    document.body.innerHTML =
+      '<div style="padding:60px;text-align:center;color:var(--red);font-family:var(--font);' +
+      'letter-spacing:3px;font-size:.9rem">&gt;&gt; ACCESS DENIED // ADMIN CREDENTIALS REQUIRED</div>';
+    return;
+  }
+
+  await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog(), loadHostRules()]);
+  renderWizardStepsBar();
+  wireIcEditModal();
+  wireSaveStateModal();
+  startPolling(refreshCurrentHost, 2500);
+});
+
+// --- API calls ---------------------------------------------------------------
+
+async function loadIcInfo() {
+  try {
+    const res = await apiFetch('/matrix-runs2/rules/ic-info');
+    if (!res.ok) return;
+    icInfo = await res.json();
+  } catch (_) {}
+}
+
+async function loadHostRules() {
+  try {
+    const [diffRes, payRes] = await Promise.all([
+      apiFetch('/matrix-runs2/rules/host-difficulty'),
+      apiFetch('/matrix-runs2/rules/paydata-table'),
+    ]);
+    if (diffRes.ok) DIFFICULTY_INFO = await diffRes.json();
+    if (payRes.ok)  PAYDATA_INFO   = await payRes.json();
+  } catch (_) {}
+}
+
+async function loadHosts() {
+  try {
+    const res = await apiFetch('/matrix-hosts/');
+    if (!res.ok) return;
+    hosts = await res.json();
+    renderHostDropdown();
+    _rebuildTrapDoorDestOpts();
+  } catch (_) {}
+}
+
+async function loadLtgCatalog() {
+  try {
+    const res = await apiFetch('/matrix-hosts/ltg-catalog');
+    if (!res.ok) return;
+    ltgCatalog = await res.json();
+    _populateLtgSelect();
+    renderHostDropdown();  // merge LTG optgroups into host selector
+  } catch (_) {}
+}
+
+function _populateLtgSelect() {
+  const sel = $('ltgAddressSelect');
+  if (!sel) return;
+  // Group by org
+  const byOrg = {};
+  for (const e of ltgCatalog) {
+    (byOrg[e.org_name] = byOrg[e.org_name] || []).push(e);
+  }
+  const none = `<option value="">-- None / Custom --</option>`;
+  const groups = Object.entries(byOrg).map(([org, entries]) => {
+    const opts = entries.map(e => {
+      const label = `${e.full_address}${e.id_code ? ' [' + e.id_code + ']' : ''} -- ${e.description}`;
+      return `<option value="${esc(e.full_address)}" data-org="${esc(e.org_name)}"
+        data-org-id="${e.org_id || ''}" data-desc="${esc(e.description)}"
+        data-vis="${esc(e.visibility)}" data-san="${esc(e.san_access_rating)}">${esc(label)}</option>`;
+    }).join('');
+    return `<optgroup label="${esc(org)}">${opts}</optgroup>`;
+  }).join('');
+  sel.innerHTML = none + groups;
+}
+
+function onLtgAddressChange() {
+  const sel  = $('ltgAddressSelect');
+  const info = $('ltgAddressInfo');
+  if (!sel || !info) return;
+  const opt = sel.options[sel.selectedIndex];
+  if (!sel.value || !opt) { info.textContent = ''; return; }
+  const vis = opt.dataset.vis || '';
+  const san = opt.dataset.san || '';
+  const org = opt.dataset.org || '';
+  const visColor = vis === 'black' ? 'var(--purple)' : vis === 'unlisted' ? 'var(--red)' : 'var(--text-dim)';
+  info.innerHTML = `<span style="color:${visColor}">${esc(vis.toUpperCase())}</span>`
+    + (san ? ` &nbsp;|&nbsp; Security: <span style="color:var(--amber)">${esc(san)}</span>` : '')
+    + (org ? ` &nbsp;|&nbsp; ${esc(org)}` : '');
+}
+
+async function refreshCurrentHost() {
+  if (!currentHost) return;
+  try {
+    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`);
+    if (!res.ok) return;
+    const updated = await res.json();
+    // update hosts array
+    const idx = hosts.findIndex(h => h.id === currentHost.id);
+    if (idx >= 0) hosts[idx] = updated;
+    // don't disturb local edits -- only update summary passively
+    updateSummary();
+  } catch (_) {}
+}
+
+// --- Host dropdown -----------------------------------------------------------
+
+function renderHostDropdown() {
+  const sel  = $('hostSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- Select a host --</option>';
+
+  // -- Configured Hosts ------------------------------------------------------
+  if (hosts.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = 'Configured Hosts';
+    hosts.forEach(h => {
+      const cfg  = safeConfig(h);
+      const code = cfg.security_code ? ` [${cfg.security_code}]` : '';
+      const ltg  = h.ltg_address     ? ` - ${h.ltg_address}`     : '';
+      const opt  = document.createElement('option');
+      opt.value       = h.id;
+      opt.textContent = h.name + code + ltg;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  }
+
+  // -- LTG Catalog -- only LTGs not yet linked to a configured host -----------
+  const configuredLtgs = new Set(hosts.map(h => h.ltg_address).filter(Boolean));
+  const byOrg = {};
+  for (const e of ltgCatalog) {
+    if (configuredLtgs.has(e.full_address)) continue;
+    (byOrg[e.org_name] = byOrg[e.org_name] || []).push(e);
+  }
+  for (const [org, entries] of Object.entries(byOrg)) {
+    const grp = document.createElement('optgroup');
+    grp.label = org;
+    entries.forEach(e => {
+      const opt  = document.createElement('option');
+      opt.value  = `ltg:${e.full_address}`;
+      const vis  = e.visibility !== 'listed' ? ` [${e.visibility}]` : '';
+      const id   = e.id_code ? ` - ${e.id_code}` : '';
+      opt.textContent = `${e.full_address}${id} -- ${e.description}${vis}`;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  }
+
+  if (prev) sel.value = prev;
+}
+
+function safeConfig(host) {
+  if (!host) return {};
+  try { return (typeof host.config_json === 'string') ? JSON.parse(host.config_json) : (host.config_json || {}); }
+  catch (_) { return {}; }
+}
+
+async function onHostChange() {
+  const sel = $('hostSelect');
+
+  // Auto-create a host when an unconfigured LTG catalog entry is selected
+  if (sel.value.startsWith('ltg:')) {
+    const fullAddress = sel.value.slice(4);
+    const entry    = ltgCatalog.find(e => e.full_address === fullAddress);
+    const autoName = entry ? `${entry.org_name} -- ${entry.description}` : fullAddress;
+
+    // Pre-seed security code/value from san_access_rating (e.g. "Red-8")
+    let initialCfg = null;
+    if (entry?.san_access_rating) {
+      const [code, sv] = entry.san_access_rating.split('-');
+      const n = parseInt(sv, 10);
+      if (['Blue','Green','Orange','Red','Black'].includes(code) && !isNaN(n)) {
+        initialCfg = { security_code: code, security_value: n };
+      }
+    }
+
+    try {
+      const res = await apiFetch('/matrix-hosts/', {
+        method: 'POST',
+        body: JSON.stringify({ name: autoName, ltg_address: fullAddress, config_json: initialCfg }),
+      });
+      if (!res.ok) await apiThrow(res);
+      const created = await res.json();
+      created._autoCreated = true;
+      hosts.unshift(created);
+      renderHostDropdown();
+      sel.value = created.id;
+    } catch (e) {
+      showAlert(alertEl(), 'Failed to create host: ' + e.message, true);
+      sel.value = '';
+      return;
+    }
+  }
+
+  const id = parseInt(sel.value, 10);
+
+  if (!id) {
+    currentHost = null;
+    $('hostMeta').textContent        = '';
+    $('runReadyBanner').classList.remove('show');
+    $('summaryNoHost').style.display = '';
+    $('summaryPanel').style.display  = 'none';
+    gotoStep(1);
+    return;
+  }
+
+  // Always fetch the full host (config_json is absent from the list endpoint)
+  try {
+    const res = await apiFetch(`/matrix-hosts/${id}`);
+    if (!res.ok) { showAlert(alertEl(), 'Failed to load host config.', true); return; }
+    currentHost = await res.json();
+    const idx = hosts.findIndex(h => h.id === id);
+    if (idx >= 0) hosts[idx] = currentHost;
+  } catch (e) {
+    showAlert(alertEl(), 'Failed to load host: ' + e.message, true);
+    return;
+  }
+
+  const cfg = safeConfig(currentHost);
+  $('hostMeta').textContent = `ID ${currentHost.id}${cfg.security_code ? ' // ' + cfg.security_code + '-' + (cfg.security_value || '?') : ''}`;
+
+  $('summaryNoHost').style.display = 'none';
+  $('summaryPanel').style.display  = '';
+  gotoStep(2);
+
+  // Populate form from existing config; fall back to san_rating then LTG catalog for unset fields
+  let secCode = cfg.security_code  || '';
+  let secValue = cfg.security_value || '';
+  // Fallback: parse legacy "Red-8" san_rating from SR1 hosts
+  if ((!secCode || !secValue) && cfg.san_rating) {
+    const m = /^([A-Za-z]+)-(\d+)$/.exec(cfg.san_rating);
+    if (m && ['Blue','Green','Orange','Red','Black'].includes(m[1])) {
+      if (!secCode)  secCode  = m[1];
+      if (!secValue) secValue = parseInt(m[2], 10);
+    }
+  }
+  if ((!secCode || !secValue) && currentHost.ltg_address) {
+    const ltgEntry = ltgCatalog.find(e => e.full_address === currentHost.ltg_address);
+    if (ltgEntry?.san_access_rating) {
+      const [ltgCode, ltgSv] = ltgEntry.san_access_rating.split('-');
+      const ltgN = parseInt(ltgSv, 10);
+      if (['Blue','Green','Orange','Red','Black'].includes(ltgCode) && !isNaN(ltgN)) {
+        if (!secCode)  secCode  = ltgCode;
+        if (!secValue) secValue = ltgN;
+      }
+    }
+  }
+  $('secCode').value            = secCode;
+  $('secValue').value           = secValue || 9;
+  $('intrusionDifficulty').value = cfg.intrusion_difficulty || '';
+  $('ownerType').value          = cfg.owner_type           || '';
+  const acifs = Array.isArray(cfg.acifs) ? cfg.acifs : [];
+  $('acifA').value = acifs[0] || '';
+  $('acifC').value = acifs[1] || '';
+  $('acifI').value = acifs[2] || '';
+  $('acifF').value = acifs[3] || '';
+  $('acifS').value = acifs[4] || '';
+
+  // Load existing sheaf, paydata, passive IC / traps
+  sheafSteps   = deepCloneSheaf(cfg.sheaf || []);
+  paydata      = Array.isArray(cfg.paydata)        ? JSON.parse(JSON.stringify(cfg.paydata))        : [];
+  dataBombs    = Array.isArray(cfg.data_bombs)     ? JSON.parse(JSON.stringify(cfg.data_bombs))     : [];
+  scrambles    = Array.isArray(cfg.scrambles)
+    ? cfg.scrambles
+      .filter(sc => sc && typeof sc.target_key === 'string' && sc.target_key)
+      .map(sc => ({
+        target_key: sc.target_key,
+        rating: parseInt(sc.rating, 10) || 1,
+        variant: sc.variant === 'poison' ? 'poison' : 'exploding',
+      }))
+    : [];
+  worms        = Array.isArray(cfg.worms)          ? JSON.parse(JSON.stringify(cfg.worms))          : [];
+  accessPieces = Array.isArray(cfg.access_pieces)  ? [...cfg.access_pieces]                         : [];
+  slavePieces  = Array.isArray(cfg.slave_pieces)   ? [...cfg.slave_pieces]                          : [];
+  slaveTrapPieces = Array.isArray(cfg.slave_trap_pieces)
+    ? cfg.slave_trap_pieces.filter(name => slavePieces.includes(name))
+    : [];
+
+  // LTG address + trap doors (top-level host fields)
+  const ltgSel = $('ltgAddressSelect');
+  if (ltgSel) {
+    const existingAddr = currentHost.ltg_address || '';
+    // If the host has an LTG address that isn't in the catalog dropdown
+    // (e.g., it was set externally or the catalog changed), add a fallback option
+    // so saving doesn't accidentally null it out.
+    if (existingAddr && !Array.from(ltgSel.options).some(o => o.value === existingAddr)) {
+      const fallback = document.createElement('option');
+      fallback.value = existingAddr;
+      fallback.textContent = existingAddr;
+      const cfg = safeConfig(currentHost);
+      const sanVal = (cfg.security_code && cfg.security_value)
+        ? `${cfg.security_code}-${cfg.security_value}`
+        : (cfg.san_rating || '');
+      fallback.dataset.san = sanVal;
+      ltgSel.insertBefore(fallback, ltgSel.options[1] || null);
+    }
+    ltgSel.value = existingAddr;
+    onLtgAddressChange();
+  }
+  trapDoors = Array.isArray(currentHost.trap_doors_json)
+    ? JSON.parse(JSON.stringify(currentHost.trap_doors_json)) : [];
+  if (slaveTrapPieces.length === 0) {
+    slaveTrapPieces = [...new Set(trapDoors.map(td => td?.source_piece).filter(name => typeof name === 'string' && name && slavePieces.includes(name)))];
+  }
+  _rebuildTrapDoorDestOpts();
+  _rebuildTrapDoorSourceOpts();
+  renderTrapDoors();
+  renderSubPieces('access');
+  renderSubPieces('slave');
+  _hydratePaydataDefensesFromPassiveIc();
+  renderPaydata();
+  _rebuildTargetDropdowns();
+  renderDataBombs();
+  renderScrambles();
+  renderWorms();
+
+  onSecCodeChange();
+  onSecValueChange();
+  onDifficultyChange();
+  onOwnerTypeChange();
+  renderSheaf();
+  updateSummary();
+  checkRunReady();
+}
+
+async function deleteCurrentHost() {
+  if (!currentHost || currentHost._autoCreated) return;
+  const name = currentHost.name || `Host #${currentHost.id}`;
+  const ok = await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete');
+  if (!ok) return;
+  try {
+    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, { method: 'DELETE' });
+    if (!res.ok) await apiThrow(res);
+    hosts = hosts.filter(h => h.id !== currentHost.id);
+    currentHost = null;
+    renderHostDropdown();
+    $('hostSelect').value = '';
+    await onHostChange();
+  } catch (e) {
+    showAlert(alertEl(), 'Failed to delete host: ' + e.message, true);
+  }
+}
+
+function deepCloneSheaf(sheaf) {
+  return JSON.parse(JSON.stringify(sheaf));
+}
+
+// --- Tip updaters ------------------------------------------------------------
+
+function onSecCodeChange() {
+  const v = $('secCode').value;
+  $('secCodeTip').textContent = v ? SEC_CODE_TIPS[v] || '' : '';
+  updateSummary();
+  if (wizardStep === 6) renderSheaf();
+}
+
+function onSecValueChange() {
+  const sv   = parseInt($('secValue').value, 10);
+  const diff = $('intrusionDifficulty').value;
+  if (!isNaN(sv) && sv > 0) {
+    const guide = diff && DIFFICULTY_INFO[diff] ? ` Typical for ${diff}: ${svRangeStr(diff)}.` : '';
+    $('secValueTip').textContent = `Host rolls ${sv} dice on all opposed tests.${guide}`;
+  } else {
+    $('secValueTip').textContent = 'Dice the host rolls on all opposed tests. Range: 2-14, independent of security code.';
+  }
+  updateSummary();
+}
+
+function onDifficultyChange() {
+  const d      = $('intrusionDifficulty').value;
+  const range  = d ? DIFFICULTY_INFO[d]?.subsystem_range : null;
+  for (const id of ['acifA', 'acifC', 'acifI', 'acifF', 'acifS']) {
+    const el = $(id);
+    if (!el) continue;
+    if (Array.isArray(range) && range.length === 2) {
+      el.min = range[0];
+      el.max = range[1];
+      el.placeholder = `${range[0]}-${range[1]}`;
+    } else {
+      el.min = 1;
+      el.max = 20;
+      el.placeholder = '--';
+    }
+  }
+  if (d && DIFFICULTY_INFO[d]) {
+    const formula = acifFormulaStr(d);
+    $('difficultyTip').textContent = difficultyTip(d);
+    $('acifsTip').textContent = `${d}: ACIFS ${acifRangeStr(d)} (${formula} per subsystem). Deckers must beat each rating for that operation type.`;
+    $('quickFillBtn').textContent = `>> Quick-Fill ACIFS (${d}: ${formula})`;
+    onSecValueChange();
+  } else {
+    $('difficultyTip').textContent = 'Determines typical SV and ACIFS ranges for random generation. Independent of security code.';
+    $('acifsTip').textContent = 'Deckers must beat each rating to perform that operation type. Select an Intrusion Difficulty to see typical ranges.';
+    $('quickFillBtn').textContent = '>> Quick-Fill ACIFS';
+  }
+  updateSummary();
+}
+
+function onOwnerTypeChange() {
+  const v = $('ownerType').value;
+  $('ownerTypeTip').textContent = v ? OWNER_TYPE_TIPS[v] || '' : '';
+}
+
+// --- Quick-fill ACIFS --------------------------------------------------------
+
+function _rollAcif(difficulty) {
+  const formula = acifFormulaStr(difficulty);
+  return formula ? rollFormula(formula) : null;
+}
+
+async function quickFillAcifs() {
+  const diff = $('intrusionDifficulty').value;
+  if (!diff) {
+    showAlert(alertEl(), 'Select an Intrusion Difficulty first to quick-fill ACIFS.', true);
+    return;
+  }
+  const hasValues = ['acifA','acifC','acifI','acifF','acifS'].some(id => {
+    const v = parseInt($(id)?.value, 10);
+    return !isNaN(v) && v > 0;
+  });
+  if (hasValues && !await showConfirm('ACIFS values already exist. Overwrite with a new random roll?', 'Roll New', 'btn-amber')) return;
+  $('acifA').value = _rollAcif(diff);
+  $('acifC').value = _rollAcif(diff);
+  $('acifI').value = _rollAcif(diff);
+  $('acifF').value = _rollAcif(diff);
+  $('acifS').value = _rollAcif(diff);
+  updateSummary();
+}
+
+// --- Data Bomb management ----------------------------------------------------
+
+const DB_TARGET_FILE_PREFIX = 'files::';
+const DB_TARGET_SLAVE_PREFIX = 'slave::';
+
+function _decodeDataBombTarget(target) {
+  if (typeof target !== 'string') return { scope: 'unknown', name: String(target || '') };
+  if (target.startsWith(DB_TARGET_FILE_PREFIX)) {
+    return { scope: 'files', name: target.slice(DB_TARGET_FILE_PREFIX.length) };
+  }
+  if (target.startsWith(DB_TARGET_SLAVE_PREFIX)) {
+    return { scope: 'slave', name: target.slice(DB_TARGET_SLAVE_PREFIX.length) };
+  }
+  // Legacy support for older saved hosts
+  if (target === '__slave__') {
+    return { scope: 'legacy_slave_subsystem', name: 'Slave Subsystem (legacy)' };
+  }
+  return { scope: 'files_legacy', name: target };
+}
+
+function _dataBombTargetLabel(target) {
+  const dec = _decodeDataBombTarget(target);
+  if (dec.scope === 'files' || dec.scope === 'files_legacy') return `Files - ${dec.name}`;
+  if (dec.scope === 'slave') return `Slave - ${dec.name}`;
+  return dec.name;
+}
+
+function renderDataBombs() {
+  const list = $('dataBombList');
+  if (!list) return;
+  const visible = dataBombs
+    .map((db, idx) => ({ db, idx }))
+    .filter(row => {
+      const dec = _decodeDataBombTarget(row.db.target);
+      return dec.scope !== 'files' && dec.scope !== 'files_legacy';
+    });
+  if (visible.length === 0) {
+    list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None configured.</div>';
+    return;
+  }
+  list.innerHTML = visible.map(({ db, idx }) =>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <span style="font-size:.72rem;color:var(--amber)">${esc(_dataBombTargetLabel(db.target))}-${db.rating}</span>
+      <button class="event-remove-btn" onclick="removeDataBomb(${idx})" data-tip="Remove">[x]</button>
+    </div>`
+  ).join('');
+}
+
+function addDataBomb() {
+  const target = $('dbTarget').value.trim();
+  const rating = parseInt($('dbRating').value, 10);
+  if (!target) { showAlert(alertEl(), 'Select a target.', true); return; }
+  if (isNaN(rating) || rating < 1 || rating > 20) { showAlert(alertEl(), 'Rating must be 1-20.', true); return; }
+  dataBombs.push({ target, rating });
+  $('dbTarget').value = '';
+  $('dbRating').value = '';
+  renderDataBombs();
+}
+
+function removeDataBomb(i) {
+  dataBombs.splice(i, 1);
+  renderDataBombs();
+}
+
+// --- Paydata management -------------------------------------------------------
+
+function _rollPaydataDensity() {
+  const code = $('secCode')?.value || '';
+  const formula = PAYDATA_INFO[code]?.density_roll || PAYDATA_INFO.Orange?.density_roll || '2D6x10';
+  return rollFormula(formula);
+}
+
+function renderPaydata() {
+  const el = $('paydataList');
+  if (!el) return;
+  if (!paydata.length) {
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:.65rem;padding:2px 0">No paydata files defined.</div>';
+    return;
+  }
+  const header = `<div style="display:flex;align-items:center;gap:8px;padding:2px 0 4px 0;border-bottom:1px solid #173017;margin-bottom:2px;font-size:.53rem;letter-spacing:1px;color:var(--text-dim);text-transform:uppercase">
+      <span style="flex:1">File</span>
+      <span style="width:58px;text-align:right">Size</span>
+      <span style="width:48px;text-align:center">Key</span>
+      <span style="width:78px;text-align:center">File Defense</span>
+      <span style="width:24px;text-align:center">Del</span>
+    </div>`;
+  el.innerHTML = header + paydata.map((p, i) => {
+    const d = _ensurePaydataDefenseShape(p);
+    const defRows = [];
+    if (d.data_bomb_rating != null) {
+      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
+        <span style="font-size:.66rem;color:var(--amber)">Data Bomb-${d.data_bomb_rating}</span>
+        <button class="event-edit-btn" onclick="editPaydataDefense(${i},'data_bomb')" data-tip="Edit Data Bomb rating">&#9998;</button>
+        <button class="event-remove-btn" onclick="clearPaydataDefense(${i},'data_bomb')" data-tip="Remove">[x]</button>
+      </div>`);
+    }
+    if (d.scramble_rating != null) {
+      const vLabel = d.scramble_variant === 'poison' ? 'Poison' : 'Exploding';
+      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
+        <span style="font-size:.66rem;color:var(--amber)">${vLabel} Scramble-${d.scramble_rating}</span>
+        <button class="event-edit-btn" onclick="editPaydataDefense(${i},'scramble')" data-tip="Edit Scramble variant/rating">&#9998;</button>
+        <button class="event-remove-btn" onclick="clearPaydataDefense(${i},'scramble')" data-tip="Remove">[x]</button>
+      </div>`);
+    }
+    if (defRows.length === 0) {
+      defRows.push(`<div style="display:flex;align-items:center;gap:6px;padding:1px 0 1px 18px">
+        <span style="font-size:.66rem;color:var(--text-dim)">No Defense</span>
+      </div>`);
+    }
+    return `
+    <div style="padding:4px 0;border-bottom:1px solid #0a1a0a">
+      <div style="display:flex;align-items:center;gap:8px">
+      <span id="pdNameSpan-${i}" style="flex:1;font-size:.7rem;color:var(--text-bright);cursor:text;border-bottom:1px dashed transparent"
+            data-tip="Click to rename"
+            onclick="inlineRenamePaydata(${i})">${esc(p.name)}</span>
+      <span style="width:58px;text-align:right;font-size:.6rem;color:var(--text-dim);padding:0 2px">${p.density}Mp</span>
+      <span onclick="paydata[${i}].is_key=!paydata[${i}].is_key;renderPaydata()"
+        style="width:48px;text-align:center;font-size:.58rem;letter-spacing:2px;cursor:pointer;padding:2px 0;border:1px solid ${p.is_key?'var(--amber)':'#1a2a1a'};color:${p.is_key?'var(--amber)':'var(--text-dim)'};user-select:none;background:${p.is_key?'rgba(255,153,0,.08)':'transparent'}"
+            data-tip="Mark as Key data -- must be retrieved; if Tapeworm IC exists, this data is corrupted on a roll of 5-6">KEY</span>
+      <button class="btn btn-ghost btn-sm" onclick="rollPaydataDefense(${i})" style="width:78px;padding:2px 0;text-align:center;justify-content:center" data-tip="Assign or re-roll paydata defense from the rules table">ROLL IC</button>
+      <button class="event-remove-btn" onclick="removePaydata(${i})" style="width:24px;text-align:center;margin-left:0" data-tip="Remove">[x]</button>
+      </div>
+      ${defRows.join('')}
+    </div>`;
+  }).join('');
+}
+
+function addPaydata() {
+  const name = ($('pdName')?.value || '').trim();
+  if (!name) { showAlert(alertEl(), 'Enter a file name.', true); return; }
+  const density = _rollPaydataDensity();
+  paydata.push({ name, density, is_key: false, defense: null });
+  $('pdName').value = '';
+  renderPaydata();
+  _rebuildTargetDropdowns();
+}
+
+function inlineRenamePaydata(i) {
+  const span = document.getElementById(`pdNameSpan-${i}`);
+  if (!span || span.querySelector('input')) return;
+  const old = paydata[i].name;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = old;
+  inp.style.cssText = 'flex:1;font-size:.7rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);font-family:var(--font);width:100%';
+  let committed = false;
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const v = inp.value.trim();
+    if (!v) { showAlert(alertEl(), 'Name cannot be empty.', true); renderPaydata(); return; }
+    if (v !== old) {
+      paydata[i].name = v;
+      // Cascade rename to any IC that references this file by name
+      for (const db of dataBombs) {
+        if (db.target === old) db.target = v; // legacy plain-name target
+        else if (db.target === `${DB_TARGET_FILE_PREFIX}${old}`) db.target = `${DB_TARGET_FILE_PREFIX}${v}`;
+      }
+      for (const sc of scrambles) {
+        if (sc.target_key === _encodeScrambleTargetKey('Files', 'file', old)) {
+          sc.target_key = _encodeScrambleTargetKey('Files', 'file', v);
+        }
+      }
+      _syncPassiveIcFromPaydataDefenses();
+      renderDataBombs();
+      renderScrambles();
+      _rebuildTargetDropdowns();
+    }
+    renderPaydata();
+  }
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { committed = true; renderPaydata(); }
+  };
+  inp.onblur = commit;
+  span.replaceWith(inp);
+  inp.focus();
+  inp.select();
+}
+
+function removePaydata(i) {
+  paydata.splice(i, 1);
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata();
+  renderDataBombs();
+  renderScrambles();
+  _rebuildTargetDropdowns();
+}
+
+function _defaultDefenseRating() {
+  const sv = parseInt($('secValue')?.value, 10);
+  const base = !Number.isNaN(sv) && sv > 0 ? sv : 6;
+  const jitter = Math.floor(Math.random() * 3) - 1;
+  return Math.max(1, Math.min(20, base + jitter));
+}
+
+function _randomScrambleVariant() {
+  return Math.random() < 0.5 ? 'poison' : 'exploding';
+}
+
+function _ensurePaydataDefenseShape(file) {
+  if (!file.defense || typeof file.defense !== 'object') {
+    file.defense = { mode: 'none', data_bomb_rating: null, scramble_rating: null, scramble_variant: null };
+  }
+  if (!['none', 'data_bomb', 'scramble', 'combo'].includes(file.defense.mode)) file.defense.mode = 'none';
+  if (file.defense.data_bomb_rating == null) file.defense.data_bomb_rating = null;
+  if (file.defense.scramble_rating == null) file.defense.scramble_rating = null;
+  if (!['poison', 'exploding'].includes(file.defense.scramble_variant)) file.defense.scramble_variant = null;
+  return file.defense;
+}
+
+function _rollPaydataDefenseMode(secCode) {
+  const r = Math.floor(Math.random() * 6) + 1;
+  if (secCode === 'Green') {
+    if (r <= 4) return 'none';
+    if (r === 5) return 'data_bomb';
+    return 'scramble';
+  }
+  if (secCode === 'Orange') {
+    if (r <= 3) return 'none';
+    if (r === 4) return 'data_bomb';
+    return 'scramble';
+  }
+  if (secCode === 'Red') {
+    if (r === 1) return 'none';
+    if (r <= 3) return 'data_bomb';
+    if (r <= 5) return 'scramble';
+    return 'combo';
+  }
+  if (secCode === 'Black') {
+    if (r <= 2) return 'data_bomb';
+    if (r <= 4) return 'scramble';
+    return 'combo';
+  }
+  return 'none';
+}
+
+function _applyPaydataDefenseMode(i, mode) {
+  const p = paydata[i];
+  if (!p) return;
+  const d = _ensurePaydataDefenseShape(p);
+  d.mode = mode;
+  d.data_bomb_rating = null;
+  d.scramble_rating = null;
+  d.scramble_variant = null;
+  if (mode === 'data_bomb' || mode === 'combo') d.data_bomb_rating = _defaultDefenseRating();
+  if (mode === 'scramble' || mode === 'combo') {
+    d.scramble_rating = _defaultDefenseRating();
+    d.scramble_variant = _randomScrambleVariant();
+  }
+}
+
+function _syncPassiveIcFromPaydataDefenses() {
+  const keepDataBombs = dataBombs.filter(db => {
+    const dec = _decodeDataBombTarget(db.target);
+    return dec.scope !== 'files' && dec.scope !== 'files_legacy';
+  });
+  const keepScrambles = scrambles.filter(sc => {
+    const dec = _decodeScrambleTargetKey(sc.target_key);
+    return !(dec && dec.scope === 'file');
+  });
+
+  const fileBombs = [];
+  const fileScrambles = [];
+  for (const p of paydata) {
+    const d = _ensurePaydataDefenseShape(p);
+    if (d.data_bomb_rating != null) {
+      fileBombs.push({ target: `${DB_TARGET_FILE_PREFIX}${p.name}`, rating: d.data_bomb_rating });
+    }
+    if (d.scramble_rating != null) {
+      fileScrambles.push({
+        target_key: _encodeScrambleTargetKey('Files', 'file', p.name),
+        rating: d.scramble_rating,
+        variant: d.scramble_variant === 'poison' ? 'poison' : 'exploding',
+      });
+    }
+  }
+
+  dataBombs = [...keepDataBombs, ...fileBombs];
+  scrambles = [...keepScrambles, ...fileScrambles];
+}
+
+function _hydratePaydataDefensesFromPassiveIc() {
+  const byName = new Map(paydata.map(p => [p.name, p]));
+  for (const p of paydata) _ensurePaydataDefenseShape(p);
+
+  for (const db of dataBombs) {
+    const dec = _decodeDataBombTarget(db.target);
+    const name = dec.name || '';
+    if ((dec.scope === 'files' || dec.scope === 'files_legacy') && byName.has(name)) {
+      _ensurePaydataDefenseShape(byName.get(name)).data_bomb_rating = parseInt(db.rating, 10) || 1;
+    }
+  }
+
+  for (const sc of scrambles) {
+    const dec = _decodeScrambleTargetKey(sc.target_key);
+    const name = dec?.file || '';
+    if (dec && dec.scope === 'file' && byName.has(name)) {
+      const d = _ensurePaydataDefenseShape(byName.get(name));
+      d.scramble_rating = parseInt(sc.rating, 10) || 1;
+      d.scramble_variant = sc.variant === 'poison' ? 'poison' : 'exploding';
+    }
+  }
+
+  _syncPassiveIcFromPaydataDefenses();
+}
+
+function rollPaydataDefense(i) {
+  const code = $('secCode')?.value || '';
+  if (!['Green', 'Orange', 'Red', 'Black'].includes(code)) {
+    showAlert(alertEl(), 'Set security code to Green/Orange/Red/Black to roll paydata defenses.', true);
+    return;
+  }
+  const mode = _rollPaydataDefenseMode(code);
+  _applyPaydataDefenseMode(i, mode);
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata();
+  renderDataBombs();
+  renderScrambles();
+}
+
+function editPaydataDefense(i, kind) {
+  const p = paydata[i];
+  if (!p) return;
+  const d = _ensurePaydataDefenseShape(p);
+
+  if (kind === 'data_bomb') {
+    const cur = d.data_bomb_rating != null ? String(d.data_bomb_rating) : String(_defaultDefenseRating());
+    const raw = prompt('Data Bomb rating (1-20):', cur);
+    if (raw === null) return;
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 1 || n > 20) { showAlert(alertEl(), 'Data Bomb rating must be 1-20.', true); return; }
+    d.data_bomb_rating = n;
+    d.mode = d.scramble_rating != null ? 'combo' : 'data_bomb';
+  }
+
+  if (kind === 'scramble') {
+    const vRaw = prompt('Scramble type (poison/exploding):', d.scramble_variant || _randomScrambleVariant());
+    if (vRaw === null) return;
+    const v = String(vRaw).trim().toLowerCase();
+    if (v !== 'poison' && v !== 'exploding') { showAlert(alertEl(), 'Scramble type must be poison or exploding.', true); return; }
+    const cur = d.scramble_rating != null ? String(d.scramble_rating) : String(_defaultDefenseRating());
+    const rRaw = prompt('Scramble rating (1-20):', cur);
+    if (rRaw === null) return;
+    const n = parseInt(rRaw, 10);
+    if (Number.isNaN(n) || n < 1 || n > 20) { showAlert(alertEl(), 'Scramble rating must be 1-20.', true); return; }
+    d.scramble_variant = v;
+    d.scramble_rating = n;
+    d.mode = d.data_bomb_rating != null ? 'combo' : 'scramble';
+  }
+
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata();
+  renderDataBombs();
+  renderScrambles();
+}
+
+function clearPaydataDefense(i, kind) {
+  const p = paydata[i];
+  if (!p) return;
+  const d = _ensurePaydataDefenseShape(p);
+  if (kind === 'data_bomb') d.data_bomb_rating = null;
+  if (kind === 'scramble') {
+    d.scramble_rating = null;
+    d.scramble_variant = null;
+  }
+  d.mode = (d.data_bomb_rating != null && d.scramble_rating != null)
+    ? 'combo'
+    : (d.data_bomb_rating != null)
+      ? 'data_bomb'
+      : (d.scramble_rating != null)
+        ? 'scramble'
+        : 'none';
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata();
+  renderDataBombs();
+  renderScrambles();
+}
+
+// --- Subsystem piece management (Access & Slave) ------------------------------
+
+function addSubPiece(type) {
+  const inp  = $(type === 'access' ? 'newAccessPiece' : 'newSlavePiece');
+  const name = inp.value.trim();
+  if (!name) { showAlert(alertEl(), 'Enter a name for the piece.', true); return; }
+  const arr  = type === 'access' ? accessPieces : slavePieces;
+  if (arr.includes(name)) { showAlert(alertEl(), 'A piece with that name already exists.', true); return; }
+  arr.push(name);
+  inp.value = '';
+  renderSubPieces(type);
+  _rebuildTargetDropdowns();
+  _rebuildTrapDoorSourceOpts();
+  onScrambleVariantChange(); // refresh unified scramble target list when pieces change
+}
+
+function removeSubPiece(type, i) {
+  const arr = type === 'access' ? accessPieces : slavePieces;
+  const removed = arr[i];
+  arr.splice(i, 1);
+  if (type === 'slave') {
+    slaveTrapPieces = slaveTrapPieces.filter(name => name !== removed);
+    trapDoors = trapDoors.filter(td => td.source_piece !== removed);
+    renderTrapDoors();
+  }
+  renderSubPieces(type);
+  _rebuildTargetDropdowns();
+  _rebuildTrapDoorSourceOpts();
+  onScrambleVariantChange();
+}
+
+function toggleSlaveTrapPiece(i) {
+  const name = slavePieces[i];
+  if (!name) return;
+  if (slaveTrapPieces.includes(name)) {
+    slaveTrapPieces = slaveTrapPieces.filter(n => n !== name);
+    trapDoors = trapDoors.filter(td => td.source_piece !== name);
+    renderTrapDoors();
+  } else {
+    slaveTrapPieces.push(name);
+  }
+  renderSubPieces('slave');
+  _rebuildTrapDoorSourceOpts();
+}
+
+function renderSubPieces(type) {
+  const arr    = type === 'access' ? accessPieces : slavePieces;
+  const listId = type === 'access' ? 'accessPieceList' : 'slavePieceList';
+  const list   = $(listId);
+  if (!list) return;
+  if (arr.length === 0) {
+    list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None defined.</div>';
+    return;
+  }
+  list.innerHTML = arr.map((name, i) => `
+    <div style="display:flex;align-items:center;gap:6px;padding:2px 0;border-bottom:1px solid #0a1a0a">
+      <span id="subpiece-${type}-${i}" style="flex:1;font-size:.7rem;color:var(--text-bright);cursor:text;border-bottom:1px dashed transparent"
+          data-tip="Click to rename" onclick="inlineRenameSubPiece('${type}',${i})">${esc(name)}</span>
+      ${type === 'slave'
+        ? `<span onclick="toggleSlaveTrapPiece(${i})"
+            style="font-size:.58rem;letter-spacing:2px;cursor:pointer;padding:2px 7px;border:1px solid ${slaveTrapPieces.includes(name)?'var(--amber)':'#1a2a1a'};color:${slaveTrapPieces.includes(name)?'var(--amber)':'var(--text-dim)'};user-select:none;background:${slaveTrapPieces.includes(name)?'rgba(255,153,0,.08)':'transparent'}"
+            data-tip="Marks this Slave device as a trap-door endpoint used in Step 5">TRAP DOOR</span>`
+        : ''}
+      <button class="event-remove-btn" onclick="removeSubPiece('${type}',${i})" data-tip="Remove">[x]</button>
+    </div>`).join('');
+}
+
+function inlineRenameSubPiece(type, i) {
+  const span = document.getElementById(`subpiece-${type}-${i}`);
+  if (!span || span.querySelector('input')) return;
+  const arr = type === 'access' ? accessPieces : slavePieces;
+  const old = arr[i];
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = old;
+  inp.style.cssText = 'flex:1;font-size:.7rem;padding:1px 4px;background:var(--bg-input);border:1px solid var(--green-dark);color:var(--text-bright);font-family:var(--font);width:100%';
+  let committed = false;
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const v = inp.value.trim();
+    if (!v) { showAlert(alertEl(), 'Name cannot be empty.', true); renderSubPieces(type); return; }
+    if (v !== old) {
+      arr[i] = v;
+      // Cascade rename to any scramble referencing this piece
+      const keyPrefix = type === 'access' ? 'access::piece::' : 'slave::piece::';
+      for (const sc of scrambles) {
+        if (sc.target_key === `${keyPrefix}${old}`) sc.target_key = `${keyPrefix}${v}`;
+      }
+      if (type === 'slave') {
+        if (slaveTrapPieces.includes(old)) {
+          slaveTrapPieces = slaveTrapPieces.map(n => n === old ? v : n);
+        }
+        for (const td of trapDoors) {
+          if (td.source_piece === old) td.source_piece = v;
+        }
+        _rebuildTrapDoorSourceOpts();
+        renderTrapDoors();
+        for (const db of dataBombs) {
+          if (db.target === `${DB_TARGET_SLAVE_PREFIX}${old}`) db.target = `${DB_TARGET_SLAVE_PREFIX}${v}`;
+        }
+      }
+      renderDataBombs();
+      renderScrambles();
+    }
+    renderSubPieces(type);
+    _rebuildTargetDropdowns();
+    onScrambleVariantChange();
+  }
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { committed = true; renderSubPieces(type); }
+  };
+  inp.onblur = commit;
+  span.replaceWith(inp);
+  inp.focus();
+  inp.select();
+}
+
+async function generatePaydata() {
+  if (paydata.length > 0 && !await showConfirm('Paydata files already exist. Discard them and generate a new set?', 'Generate New', 'btn-amber')) return;
+  const code = $('secCode')?.value || '';
+  const d6 = () => Math.floor(Math.random() * 6) + 1;
+  let count;
+  switch (code) {
+    case 'Blue':   count = Math.max(0, d6() - 1); break;
+    case 'Green':  count = Math.max(0, d6() + d6() - 2); break;
+    case 'Orange': count = d6() + d6(); break;
+    case 'Red':    count = d6() + d6() + 2; break;
+    case 'Black':  count = d6() + d6() + 4; break;
+    default:
+      showAlert(alertEl(), 'Select a security code first.', true);
+      return;
+  }
+  if (count === 0) {
+    paydata = [];
+    _syncPassiveIcFromPaydataDefenses();
+    renderPaydata();
+    _rebuildTargetDropdowns();
+    renderDataBombs();
+    renderScrambles();
+    showAlert(alertEl(), 'Roll result: 0 paydata files for this system.', false);
+    return;
+  }
+  paydata = [];
+  for (let i = 1; i <= count; i++) {
+    paydata.push({ name: `Paydata ${i}`, density: _rollPaydataDensity(), is_key: false, defense: null });
+    const mode = _rollPaydataDefenseMode(code);
+    _applyPaydataDefenseMode(paydata.length - 1, mode);
+  }
+  _syncPassiveIcFromPaydataDefenses();
+  renderPaydata();
+  _rebuildTargetDropdowns();
+  renderDataBombs();
+  renderScrambles();
+  updateSummary();
+  showAlert(alertEl(), `Generated ${count} paydata file${count !== 1 ? 's' : ''}.`, false);
+}
+
+function _rebuildTargetDropdowns() {
+  const slaveTargets = slavePieces.map(name => ({
+    value: `${DB_TARGET_SLAVE_PREFIX}${name}`,
+    label: `Slave - ${name}`,
+  }));
+  const dbTargets = [...slaveTargets];
+
+  // Data Bomb: paydata files + individual slave devices (no subsystem-level target)
+  const dbSel = $('dbTarget');
+  if (dbSel) {
+    const prev = dbSel.value;
+    if (dbTargets.length === 0) {
+      dbSel.innerHTML = '<option value="">-- no valid targets --</option>';
+      dbSel.disabled = true;
+      dbSel.style.opacity = '0.6';
+      dbSel.style.color = 'var(--text-dim)';
+      dbSel.style.borderColor = '#1a1a1a';
+      dbSel.style.backgroundColor = '#090909';
+    } else {
+      dbSel.disabled = false;
+      dbSel.style.opacity = '';
+      dbSel.style.color = '';
+      dbSel.style.borderColor = '';
+      dbSel.style.backgroundColor = '';
+      dbSel.innerHTML = '<option value="">-- select target --</option>'
+        + dbTargets.map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('');
+      if (prev && dbTargets.some(t => t.value === prev)) dbSel.value = prev;
+    }
+  }
+
+  onScrambleVariantChange();
+}
+
+// --- Scramble IC management --------------------------------------------------
+
+const SCR_POISON_BLOCKED = new Set(['Access', 'Slave']);
+
+const SCR_VARIANT_TIPS = {
+  exploding: 'Exploding: failed Decrypt or crash detonates on the decker. Valid for all targets.',
+  poison: 'Poison: destroys protected data on failed Decrypt. Valid only for Files - entire in this selector.',
+};
+
+function _encodeScrambleTargetKey(target, scope = 'entire', name = '') {
+  if (target === 'Access') return scope === 'piece' ? `access::piece::${name}` : 'access::entire';
+  if (target === 'Slave')  return scope === 'piece' ? `slave::piece::${name}`  : 'slave::entire';
+  if (target === 'Files')  return scope === 'file'  ? `files::file::${name}`   : 'files::entire';
+  return `files::file::${target}`;
+}
+
+function _decodeScrambleTargetKey(key) {
+  if (!key) return null;
+  if (key === 'access::entire') return { target: 'Access', scope: 'entire', label: 'Access - entire' };
+  if (key.startsWith('access::piece::')) {
+    const piece = key.slice('access::piece::'.length);
+    return { target: 'Access', scope: 'piece', piece, label: `Access - ${piece}` };
+  }
+  if (key === 'slave::entire') return { target: 'Slave', scope: 'entire', label: 'Slave - entire' };
+  if (key.startsWith('slave::piece::')) {
+    const piece = key.slice('slave::piece::'.length);
+    return { target: 'Slave', scope: 'piece', piece, label: `Slave - ${piece}` };
+  }
+  if (key === 'files::entire') return { target: 'Files', scope: 'entire', label: 'Files - entire' };
+  if (key.startsWith('files::file::')) {
+    const file = key.slice('files::file::'.length);
+    return { target: file, scope: 'file', file, label: `Files - ${file}` };
+  }
+  return null;
+}
+
+function _buildScrambleTargetOptions(variant) {
+  const opts = [];
+  if (variant === 'exploding') {
+    opts.push({ value: _encodeScrambleTargetKey('Access', 'entire'), label: 'Access - entire' });
+    for (const p of accessPieces) opts.push({ value: _encodeScrambleTargetKey('Access', 'piece', p), label: `Access - ${p}` });
+    opts.push({ value: _encodeScrambleTargetKey('Slave', 'entire'), label: 'Slave - entire' });
+    for (const p of slavePieces) opts.push({ value: _encodeScrambleTargetKey('Slave', 'piece', p), label: `Slave - ${p}` });
+  }
+  opts.push({ value: _encodeScrambleTargetKey('Files', 'entire'), label: 'Files - entire' });
+  return opts;
+}
+
+function onScrambleVariantChange() {
+  const variantSel = $('scrVariant');
+  const targetSel  = $('scrTarget');
+  const tipEl      = $('scrVariantTip');
+  if (!variantSel || !targetSel) return;
+
+  const variant = variantSel.value || 'exploding';
+  const tip = SCR_VARIANT_TIPS[variant] || '';
+  variantSel.dataset.tip = tip;
+  if (tipEl) tipEl.dataset.tip = tip;
+
+  const prev = targetSel.value;
+  const opts = _buildScrambleTargetOptions(variant);
+  targetSel.innerHTML = '<option value="">-- select target --</option>'
+    + opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  if (prev && opts.some(o => o.value === prev)) targetSel.value = prev;
+}
+
+function _scrambleTargetLabel(sc) {
+  const dec = _decodeScrambleTargetKey(sc.target_key);
+  return dec ? dec.label : '(invalid target)';
+}
+
+function renderScrambles() {
+  const list = $('scrambleList');
+  if (!list) return;
+  const visible = scrambles
+    .map((sc, idx) => ({ sc, idx }))
+    .filter(row => {
+      const dec = _decodeScrambleTargetKey(row.sc.target_key);
+      return !(dec && dec.scope === 'file');
+    });
+  if (visible.length === 0) {
+    list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None configured.</div>';
+    return;
+  }
+  const VARIANT_LABEL = { exploding: 'Exploding', poison: 'Poison' };
+  list.innerHTML = visible.map(({ sc, idx }) => {
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <span style="font-size:.72rem;color:var(--amber)">${esc(VARIANT_LABEL[sc.variant] || sc.variant)} Scramble: ${esc(_scrambleTargetLabel(sc))}-${sc.rating}</span>
+      <button class="event-remove-btn" onclick="removeScramble(${idx})" data-tip="Remove">[x]</button>
+    </div>`;
+  }).join('');
+}
+
+function addScramble() {
+  const variant = $('scrVariant')?.value || 'exploding';
+  const targetKey = $('scrTarget').value.trim();
+  const rating = parseInt($('scrRating').value, 10);
+  if (!targetKey)                                 { showAlert(alertEl(), 'Select a target.', true); return; }
+  if (isNaN(rating) || rating < 1 || rating > 20) { showAlert(alertEl(), 'Scramble rating must be 1-20.', true); return; }
+
+  const dec = _decodeScrambleTargetKey(targetKey);
+  if (!dec) { showAlert(alertEl(), 'Invalid target selection.', true); return; }
+  const scr = { target_key: targetKey, rating, variant };
+
+  if (variant === 'poison' && SCR_POISON_BLOCKED.has(dec.target)) {
+    showAlert(alertEl(), `Poison cannot protect the ${dec.target} subsystem -- no destroyable data.`, true);
+    return;
+  }
+
+  scrambles.push(scr);
+  $('scrTarget').value = '';
+  $('scrRating').value = '';
+  renderScrambles();
+}
+
+function removeScramble(i) {
+  scrambles.splice(i, 1);
+  renderScrambles();
+}
+
+// --- Worm IC management ------------------------------------------------------
+
+function renderWorms() {
+  const list = $('wormList');
+  if (!list) return;
+  if (worms.length === 0) {
+    list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None configured.</div>';
+    return;
+  }
+  const VARIANT_LABEL = { dataworm: 'Dataworm', deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
+  list.innerHTML = worms.map((w, i) =>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <span style="font-size:.72rem;color:var(--amber)">${esc(VARIANT_LABEL[w.variant] || w.variant)}: ${esc(w.target)}-${w.rating}</span>
+      <button class="event-remove-btn" onclick="removeWorm(${i})" data-tip="Remove">[x]</button>
+    </div>`
+  ).join('');
+}
+
+function addWorm() {
+  const target  = $('wrmTarget').value.trim();
+  const rating  = parseInt($('wrmRating').value, 10);
+  const variant = $('wrmVariant').value;
+  if (!target) { showAlert(alertEl(), 'Enter a target subsystem for Worm IC.', true); return; }
+  if (isNaN(rating) || rating < 1 || rating > 20) { showAlert(alertEl(), 'Worm rating must be 1-20.', true); return; }
+  worms.push({ target, rating, variant });
+  $('wrmTarget').value = '';
+  $('wrmRating').value = '';
+  renderWorms();
+}
+
+function removeWorm(i) {
+  worms.splice(i, 1);
+  renderWorms();
+}
+
+// --- Trap Doors ---------------------------------------------------------------
+
+function _rebuildTrapDoorDestOpts() {
+  const sel = $('tdDest');
+  if (!sel) return;
+
+  // Designed hosts (exclude current)
+  const designedOpts = hosts
+    .filter(h => currentHost ? h.id !== currentHost.id : true)
+    .map(h => {
+      const label = h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '');
+      return `<option value="host:${h.id}">${esc(label)}</option>`;
+    }).join('');
+
+  // LTG catalog (exclude current host's own LTG address)
+  const currentLtg = currentHost?.ltg_address || null;
+  const byOrg = {};
+  for (const e of ltgCatalog) {
+    if (currentLtg && e.full_address === currentLtg) continue;
+    (byOrg[e.org_name] = byOrg[e.org_name] || []).push(e);
+  }
+  const ltgGroups = Object.entries(byOrg).map(([org, entries]) => {
+    const opts = entries.map(e => {
+      const label = `${e.full_address}${e.id_code ? ' [' + e.id_code + ']' : ''} -- ${e.description}`;
+      return `<option value="ltg:${esc(e.full_address)}">${esc(label)}</option>`;
+    }).join('');
+    return `<optgroup label="${esc(org)}">${opts}</optgroup>`;
+  }).join('');
+
+  sel.innerHTML = `<option value="">-- destination --</option>`
+    + (designedOpts ? `<optgroup label="Designed Hosts">${designedOpts}</optgroup>` : '')
+    + ltgGroups;
+}
+
+function _rebuildTrapDoorSourceOpts() {
+  const sel = $('tdSource');
+  if (!sel) return;
+  const prev = sel.value;
+  const opts = slaveTrapPieces
+    .filter(name => typeof name === 'string' && name)
+    .map(name => `<option value="${esc(name)}">${esc(name)}</option>`)
+    .join('');
+  if (!opts) {
+    sel.innerHTML = '<option value="">-- no trap devices --</option>';
+    sel.disabled = true;
+    sel.style.opacity = '0.6';
+  } else {
+    sel.innerHTML = '<option value="">-- source device --</option>' + opts;
+    sel.disabled = false;
+    sel.style.opacity = '';
+    if (prev && slaveTrapPieces.includes(prev)) sel.value = prev;
+  }
+}
+
+function renderTrapDoors() {
+  const el = $('trapDoorList');
+  if (!el) return;
+  if (trapDoors.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = trapDoors.map((td, i) => {
+    const destLabel = td.destination_label || td.destination_ltg || `Host #${td.destination_host_id}` || '?';
+    const srcLabel = td.source_piece || 'Unknown device';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+      <span style="font-size:.72rem;color:var(--amber)">${esc(srcLabel)}</span>
+      <span style="font-size:.6rem;color:var(--text-dim)">-></span>
+      <span style="font-size:.72rem;color:var(--cyan)">${esc(destLabel)}</span>
+      <button class="event-remove-btn" onclick="removeTrapDoor(${i})" data-tip="Remove">[x]</button>
+    </div>`;
+  }).join('');
+}
+
+function addTrapDoor() {
+  const source = $('tdSource')?.value || '';
+  const destVal  = $('tdDest')?.value || '';
+
+  if (!source) { showAlert(alertEl(), 'Select a source device.', true); return; }
+  if (!destVal) { showAlert(alertEl(), 'Select a trap door destination.', true); return; }
+
+  let destHostId = null, destLtg = null, destLabel = '';
+  if (destVal.startsWith('host:')) {
+    destHostId = parseInt(destVal.slice(5), 10);
+    const h = hosts.find(x => x.id === destHostId);
+    destLabel  = h ? (h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '')) : `Host #${destHostId}`;
+  } else if (destVal.startsWith('ltg:')) {
+    destLtg   = destVal.slice(4);
+    const e   = ltgCatalog.find(x => x.full_address === destLtg);
+    destLabel = e ? `${e.full_address} -- ${e.description}` : destLtg;
+  }
+
+  trapDoors.push({
+    id:                   Date.now(),
+    source_piece:         source,
+    destination_host_id:  destHostId,
+    destination_ltg:      destLtg,
+    destination_label:    destLabel,
+    hidden:               true,   // always hidden until discovered by Analyze Subsystem
+  });
+
+  if ($('tdSource'))      $('tdSource').value      = '';
+  if ($('tdDest'))        $('tdDest').value        = '';
+  renderTrapDoors();
+}
+
+function removeTrapDoor(i) {
+  trapDoors.splice(i, 1);
+  renderTrapDoors();
+}
+
+function showSaveStateModal(message) {
+  const overlay = $('saveStateOverlay');
+  const msg = $('saveStateMsg');
+  if (!overlay || !msg) return;
+  msg.textContent = message;
+  pausePoll();
+  overlay.classList.add('open');
+  const okBtn = $('saveStateOkBtn');
+  if (okBtn) okBtn.focus();
+}
+
+function closeSaveStateModal() {
+  const overlay = $('saveStateOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  resumePoll();
+}
+
+function wireSaveStateModal() {
+  const overlay = $('saveStateOverlay');
+  if (!overlay) return;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeSaveStateModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) {
+      closeSaveStateModal();
+    }
+  });
+}
+
+// --- Save SR2 config ---------------------------------------------------------
+
+async function saveConfig() {
+  if (!currentHost) { showAlert(alertEl(), 'No host selected.', true); return; }
+
+  const code  = $('secCode').value;
+  const sv    = parseInt($('secValue').value, 10);
+  const diff  = $('intrusionDifficulty').value;
+  const owner = $('ownerType').value;
+
+  if (!code)             { showAlert(alertEl(), 'Select a security code.', true); return; }
+  if (isNaN(sv) || sv < 1) { showAlert(alertEl(), 'Security value must be at least 1.', true); return; }
+
+  const acifs = collectAcifs();
+  if (!acifs) return;
+
+  if (sheafSteps.length === 0) {
+    const ok = await showConfirm('Save with no security sheaf? The host will have no IC activation sequence.', 'Save Anyway', 'btn-amber');
+    if (!ok) return;
+  }
+
+  const validDataBombs = dataBombs.filter(db => _decodeDataBombTarget(db.target).scope !== 'legacy_slave_subsystem');
+  const prunedDataBombCount = dataBombs.length - validDataBombs.length;
+
+  const existingCfg = safeConfig(currentHost);
+  const newCfg = {
+    ...existingCfg,
+    security_code:        code,
+    security_value:       sv,
+    san_rating:           `${code}-${sv}`,  // keep SR1 manage-matrix.html display in sync
+    intrusion_difficulty: diff || null,
+    owner_type:           owner || existingCfg.owner_type || null,
+    acifs,
+    sheaf:         sheafSteps,
+    paydata:       paydata.length       > 0 ? paydata       : null,
+    data_bombs:    validDataBombs.length > 0 ? validDataBombs : null,
+    scrambles:     scrambles.length     > 0 ? scrambles     : null,
+    worms:         worms.length         > 0 ? worms         : null,
+    access_pieces: accessPieces.length  > 0 ? accessPieces  : null,
+    slave_pieces:  slavePieces.length   > 0 ? slavePieces   : null,
+    slave_trap_pieces: slaveTrapPieces.length > 0 ? slaveTrapPieces : null,
+  };
+
+  // Use the dropdown value; if blank, preserve the host's existing address rather than clearing it.
+  // The user can only explicitly clear it by picking "-- None / Custom --" when an address IS in the dropdown.
+  const ltgAddress = ($('ltgAddressSelect')?.value || '').trim() || currentHost.ltg_address || null;
+
+  try {
+    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        config_json:     newCfg,
+        ltg_address:     ltgAddress,
+        trap_doors_json: trapDoors.length > 0 ? trapDoors : null,
+      }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    const idx = hosts.findIndex(h => h.id === currentHost.id);
+    if (idx >= 0) hosts[idx] = updated;
+    currentHost = updated;
+    renderHostDropdown();
+    $('hostSelect').value = currentHost.id;
+    _rebuildTrapDoorDestOpts();
+    updateSummary();
+    checkRunReady();
+
+    // Refresh hostMeta line with new security value
+    const savedCfg = safeConfig(currentHost);
+    $('hostMeta').textContent = `ID ${currentHost.id}${savedCfg.security_code ? ' // ' + savedCfg.security_code + '-' + (savedCfg.security_value || '?') : ''}`;
+
+    // Update the LTG dropdown cache and info line immediately.
+    const newSanRating = `${code}-${sv}`;
+    const ltgSel  = $('ltgAddressSelect');
+    if (ltgSel && ltgSel.value) {
+      const opt = ltgSel.options[ltgSel.selectedIndex];
+      if (opt) opt.dataset.san = newSanRating;
+      const ltgEntry = ltgCatalog.find(e => e.full_address === ltgSel.value);
+      if (ltgEntry) ltgEntry.san_access_rating = newSanRating;
+      onLtgAddressChange();
+    }
+
+    // Persist security rating to the org's LTG entry using the same catalog reference
+    // that was used to read the value in the first place (org_id + rtg + ltg keys).
+    let syncNote = '';
+    const ltgEntryForSync = ltgCatalog.find(e => e.full_address === currentHost.ltg_address);
+    if (ltgEntryForSync?.org_id) {
+      try {
+        const syncRes = await apiFetch(`/organizations/${ltgEntryForSync.org_id}/ltg-security`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            rtg: ltgEntryForSync.rtg,
+            ltg: ltgEntryForSync.ltg,
+            san_access_rating: newSanRating,
+          }),
+        });
+        if (syncRes.ok) {
+          ltgEntryForSync.san_access_rating = newSanRating;
+          const ltgSelPost = $('ltgAddressSelect');
+          if (ltgSelPost?.value) {
+            const opt = ltgSelPost.options[ltgSelPost.selectedIndex];
+            if (opt) opt.dataset.san = newSanRating;
+            onLtgAddressChange();
+          }
+        } else {
+          syncNote = ` (org sync error: HTTP ${syncRes.status})`;
+        }
+      } catch (err) { syncNote = ` (org sync failed: ${err.message})`; }
+    }
+    const pruneNote = prunedDataBombCount > 0
+      ? ` Removed ${prunedDataBombCount} legacy Slave Subsystem data bomb${prunedDataBombCount !== 1 ? 's' : ''}.`
+      : '';
+    showSaveStateModal(`SR2 config saved for "${currentHost.name}".${syncNote}${pruneNote}`);
+  } catch (e) {
+    showAlert(alertEl(), 'Save failed: ' + e.message, true);
+  }
+}
+
+function collectAcifs() {
+  const fields = [
+    ['acifA', 'Access'], ['acifC', 'Control'], ['acifI', 'Index'], ['acifF', 'Files'], ['acifS', 'Slave'],
+  ];
+  const acifs = [];
+  for (const [id, name] of fields) {
+    const v = parseInt($(id).value, 10);
+    if (isNaN(v) || v < 1 || v > 20) {
+      showAlert(alertEl(), `${name} rating must be 1-20.`, true);
+      return null;
+    }
+    acifs.push(v);
+  }
+  return acifs;
+}
+
+// --- Generate sheaf ----------------------------------------------------------
+
+async function generateSheaf() {
+  if (!currentHost) { showAlert(alertEl(), 'Select a host first.', true); return; }
+  if (sheafSteps.length > 0 && !await showConfirm('A security sheaf already exists. Discard it and generate a new one?', 'Generate New', 'btn-amber')) return;
+
+  const code  = $('secCode').value;
+  const sv    = parseInt($('secValue').value, 10);
+  const owner = $('ownerType').value;
+
+  if (!code)           { showAlert(alertEl(), 'Set a security code before generating.', true); return; }
+  if (isNaN(sv) || sv < 1) { showAlert(alertEl(), 'Set a security value before generating.', true); return; }
+
+  const stepCount = parseInt($('stepCountOverride').value, 10);
+  const body = {
+    security_code:  code,
+    security_value: sv,
+  };
+  if (owner) body.owner_type = owner;
+  if (!isNaN(stepCount) && stepCount >= 1) body.step_count = stepCount;
+
+  $('genSpinner').style.display  = '';
+  $('generateBtn').style.display = 'none';
+  pausePoll();
+
+  try {
+    const res = await apiFetch('/matrix-runs2/rules/sheaf-preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) await apiThrow(res);
+    const data = await res.json();
+    sheafSteps = deepCloneSheaf(data.sheaf || []);
+    renderSheaf();
+    updateSummary();
+    showAlert(alertEl(), `Generated ${sheafSteps.length} step sheaf for ${code}-${sv} ${owner}.`, false);
+  } catch (e) {
+    showAlert(alertEl(), 'Generate failed: ' + e.message, true);
+  } finally {
+    $('genSpinner').style.display  = 'none';
+    $('generateBtn').style.display = '';
+    resumePoll();
+  }
+}
+// --- Run-ready check ---------------------------------------------------------
+
+function checkRunReady() {
+  if (!currentHost) { $('runReadyBanner').classList.remove('show'); return; }
+  const cfg = safeConfig(currentHost);
+  const ready = cfg.security_code && cfg.security_value && cfg.acifs && cfg.sheaf && cfg.sheaf.length > 0;
+  $('runReadyBanner').classList.toggle('show', !!ready);
+}
+
+// --- IC options rendering helper ---------------------------------------------
+
+function _icOptsSuffix(ev) {
+  const parts = [];
+  if (ev.cascading) parts.push('<span class="ic-opt-badge ic-opt-cascade">CASCADE</span>');
+  if (ev.expert) {
+    const sign = ev.expert.type === 'offense' ? '+' : '-';
+    parts.push(`<span class="ic-opt-badge ic-opt-expert">EXP ${sign}${ev.expert.value}</span>`);
+  }
+  for (const o of (ev.options || [])) parts.push(`<span class="ic-opt-badge">${esc(o)}</span>`);
+  return parts.join('');
+}
+
+function _icRatingImpactText(icType) {
+  if (icType === 'Probe') return 'Higher rating improves Probe tests against Detection Factor, increasing tally pressure faster.';
+  if (icType === 'Killer' || icType.startsWith('Crippler') || icType === 'Tar Baby' || icType === 'Tar Pit') {
+    return 'Higher rating increases attack/test strength and makes resisting or defeating this IC harder.';
+  }
+  if (icType === 'Blaster' || icType === 'Sparky') return 'Higher rating improves offensive pressure and increases crash/attack threat.';
+  if (icType.startsWith('Trace')) return 'Higher rating raises trace pressure and improves hostile trace outcomes.';
+  if (icType.startsWith('Black IC')) return 'Higher rating increases biofeedback threat and resistance difficulty.';
+  return 'Higher rating increases this IC\'s test strength and resistance difficulty.';
+}
+
+function _icInfoLookupKey(icType) {
+  if (!icType) return '';
+
+  const crippler = /^Crippler \(([^)]+)\)$/.exec(icType);
+  if (crippler) return crippler[1];
+
+  const ripper = /^Ripper \(([^)]+)\)$/.exec(icType);
+  if (ripper) return ripper[1];
+
+  if (icType === 'Black IC (Lethal)' || icType === 'Black IC (Non-Lethal)') return 'Black IC';
+  if (icType === 'Trace') return 'Trace';
+
+  return icType;
+}
+
+function _icTypeTip(icType) {
+  const key = _icInfoLookupKey(icType);
+  const info = icInfo && icInfo[key] ? icInfo[key] : null;
+  let summary = info?.summary || 'IC program from the host security sheaf.';
+  if (icType === 'Black IC (Non-Lethal)' && info?.non_lethal_summary) {
+    summary = info.non_lethal_summary;
+  }
+  const mode = isProactiveIc(icType) ? 'Proactive' : 'Reactive';
+  const cat = icCategory(icType);
+  const color = cat.charAt(0).toUpperCase() + cat.slice(1);
+  return `${mode} ${color} IC. ${summary}\n\nHigher rating effect: ${_icRatingImpactText(icType)}`;
+}
+
+function _expertTip(mode) {
+  if (mode === 'offense') {
+    return 'Expert Offense: increases IC offense tests by the Expert value (1-3), and decreases IC defense tests by the same amount.';
+  }
+  if (mode === 'defense') {
+    return 'Expert Defense: increases IC defense tests by the Expert value (1-3), and decreases IC offense tests by the same amount.';
+  }
+  return 'Expert IC: choose Offense or Defense. Expert value is 1-3 and the opposite side is reduced by the same amount. Only valid for Proactive IC and Black IC.';
+}
+
+function _eventTypeTip(val) {
+  if (!val) return '';
+  if (val.startsWith('ic__')) return _icTypeTip(val.slice(4));
+  if (val === 'trap_ic') return 'Trap IC: visible surface IC triggers a hidden IC. Higher ratings strengthen both IC tests and pressure.';
+  if (val === 'construct') return 'Construct: grouped IC in one icon. Component ratings and threat determine total potency.';
+  if (val === 'party_ic') return 'Party IC: IC cluster acting together. Higher component ratings increase overall threat.';
+  if (val === 'bouncer') return 'Bouncer: upgrades host security code/value at trigger, increasing downstream challenge.';
+  return '';
+}
+
+// --- Sheaf rendering ---------------------------------------------------------
+
+// Returns array indexed by si with 'none'|'passive'|'active'|'shutdown' for each step's label color.
+// Alert state is determined by what has fired in steps with lower-or-equal trigger values.
+function _computeStepAlertStates() {
+  // Sort steps by trigger to determine chronological state transitions
+  const sorted = sheafSteps
+    .map((step, si) => ({ si, trigger: step.trigger ?? 0, events: step.events || [] }))
+    .sort((a, b) => a.trigger - b.trigger || a.si - b.si);
+
+  // Walk sorted steps; the alert state a step reaches applies TO that step and forward
+  const states = new Array(sheafSteps.length).fill('none');
+  let current = 'none';
+  for (const { si, events } of sorted) {
+    // Determine what this step transitions to (check in order of severity)
+    let next = current;
+    for (const ev of events) {
+      if (ev.type === 'shutdown')     { next = 'shutdown'; break; }
+      if (ev.type === 'active_alert'  && next !== 'shutdown') next = 'active';
+      if (ev.type === 'passive_alert' && next === 'none')     next = 'passive';
+    }
+    current = next;
+    states[si] = current;
+  }
+  return states;
+}
+
+
+function renderSheaf() {
+  const list  = $('sheafStepList');
+  const empty = $('sheafEmpty');
+  renderAlertPanel();
+
+  if (sheafSteps.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  const alertStates = _computeStepAlertStates();
+  list.innerHTML = sheafSteps.map((step, si) => renderStepHTML(step, si, alertStates[si])).join('');
+  initNumSteppers(list);
+}
+
+function renderStepHTML(step, si, alertState) {
+  alertState = alertState || 'none';
+  const stepClass  = alertState !== 'none' ? ` step-${alertState}` : '';
+  const events     = (step.events || []).map((ev, ei) => renderEventHTML(ev, si, ei)).join('');
+  const traceBr    = step.trace_branch ? renderTraceBranchHTML(step.trace_branch, si) : '';
+  const branchSect = traceBr ? `<div style="margin-top:6px">${traceBr}</div>` : '';
+  const prevTrig   = si > 0 ? (sheafSteps[si - 1].trigger ?? 0) : 0;
+  const nextTrig   = si < sheafSteps.length - 1 ? (sheafSteps[si + 1].trigger ?? 9999) : 9999;
+  const minTrig    = si === 0 ? 0 : prevTrig + 1;
+  const maxTrig    = si < sheafSteps.length - 1 ? nextTrig - 1 : 9999;
+  const canBranch  = _hasPriorTrace(si) && !step.trace_branch;
+  const brBtn      = canBranch ? `onclick="addTraceBranch(${si})"` : 'disabled';
+  const brStyle    = canBranch ? 'color:var(--cyan)' : 'color:var(--text-dim);opacity:.45';
+  const brTip      = canBranch ? 'Add Trace IC branch: different events when jackpoint located vs not' : 'Requires Trace IC in a prior step';
+  return `
+    <div class="sheaf-step${stepClass}" id="step-${si}">
+      <button class="step-remove-btn" onclick="removeStep(${si})" data-tip="Remove step">[x]</button>
+      <div class="sheaf-step-header" style="padding-right:34px">
+        <span class="sheaf-trigger-label">Step ${si+1} &mdash; Trigger &ge;</span>
+        <input class="sheaf-trigger-input" type="number" min="${minTrig}" max="${maxTrig}"
+          value="${esc(String(step.trigger ?? 0))}"
+          onchange="updateTrigger(${si}, this.value)"
+          style="width:92px;padding:3px 4px;text-align:center"
+          data-tip="Trigger threshold: min ${minTrig}${maxTrig < 9999 ? ', max ' + maxTrig : ''} (ordered by prior/next step)">
+      </div>
+      <div class="sheaf-events" id="events-${si}">
+        ${events}
+      </div>
+      ${renderAddEventRow(si)}
+      ${branchSect}
+      <div style="margin-top:5px">
+        <button class="btn btn-ghost btn-sm" ${brBtn}
+          style="padding:2px 8px;font-size:.58rem;letter-spacing:1.5px;${brStyle}"
+          data-tip="${brTip}">+ Trace Branch</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderEventHTML(ev, si, ei) {
+  const type = ev.type || 'ic';
+
+  if (type === 'ic') {
+    const icType  = ev.ic_type || '';
+    const cat     = icCategory(icType);
+    const rating  = ev.rating != null ? ev.rating : '';
+    const label   = icDisplayName(icType) + (rating !== '' ? `-${rating}` : '');
+    const opts    = _icOptsSuffix(ev);
+    const modeTip = isProactiveIc(icType) ? 'Proactive IC' : 'Reactive IC';
+    const modeTag = `<span style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-right:4px" data-tip="${modeTip}">${icModeLabel(icType)}</span>`;
+    return `
+      <div class="sheaf-event" style="position:relative">
+        ${modeTag}<span class="ic-badge ${icBadgeClass(cat, icType)}">${esc(cat)}</span>
+        <span class="sheaf-event-type ev-ic" style="color:${icColor(cat, icType)}" data-tip="${esc(_icTypeTip(icType || 'IC'))}">${esc(label || '?')}</span>${opts}
+        <button class="event-edit-btn" onclick="editIcEvent(${si},${ei})" data-tip="Edit">&#9998;</button>
+        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+  }
+
+  if (type === 'trap_ic') {
+    const surfType = ev.surface_ic_type || 'Probe';
+    const surfRtg  = ev.surface_ic_rating != null ? ev.surface_ic_rating : '';
+    const hidType  = ev.hidden_ic_type || '';
+    const hidRtg   = ev.hidden_ic_rating != null ? ev.hidden_ic_rating : '';
+    const hidDefBadges = (ev.hidden_ic_options || []).map(o => `<span class="ic-opt-badge">${esc(o)}</span>`).join('');
+    const hidCascBadge = ev.hidden_ic_cascading ? '<span class="ic-opt-badge ic-opt-cascade">CASCADE</span>' : '';
+    const hidOpts  = hidDefBadges + hidCascBadge;
+    const surfCat  = 'white'; // Probe and Trace surface IC
+    const hidCat   = icCategory(hidType);
+    const surfLabel = esc(surfType) + (surfRtg !== '' ? `-${surfRtg}` : '');
+    const hidLabel  = esc(icDisplayName(hidType)) + (hidRtg !== '' ? `-${hidRtg}` : '');
+    return `
+      <div class="sheaf-event" style="position:relative">
+        <span class="ic-badge ic-white-badge">white</span>
+        <span class="sheaf-event-type ev-ic" style="color:${icColor(surfCat, surfType)}">${surfLabel}</span>
+        <span style="color:var(--text-dim);font-size:.7rem;margin:0 2px">-></span>
+        <span class="ic-badge ${icBadgeClass(hidCat, hidType)}">${esc(hidCat)}</span>
+        <span class="sheaf-event-type ev-ic" style="color:${icColor(hidCat, hidType)}">${hidLabel}</span>${hidOpts}
+        <button class="event-edit-btn" onclick="editTrapIcRatings(${si},${ei})" data-tip="Edit ratings">&#9998;</button>
+        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+  }
+
+  if (type === 'bouncer') {
+    const newCode = ev.new_security_code || '?';
+    const newSv   = ev.new_security_value != null ? ev.new_security_value : '?';
+    const notes   = ev.sculpting_notes ? ` -- ${ev.sculpting_notes}` : '';
+    return `
+      <div class="sheaf-event" style="position:relative">
+        <span class="ic-bouncer-badge">bouncer</span>
+        <span class="sheaf-event-type" style="color:#ff8800">-> <span class="sc-badge sc-${newCode.toLowerCase()}">${esc(newCode)}</span>-${newSv}${esc(notes)}</span>
+        <button class="event-edit-btn" onclick="editBouncerEvent(${si},${ei})" data-tip="Edit">&#9998;</button>
+        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+  }
+
+  if (type === 'construct') {
+    const threat  = ev.threat_rating != null ? ev.threat_rating : '?';
+    const comps   = (ev.components || []).map(c => `${esc(c.ic_type)}-${c.rating}`).join(', ');
+    const defs    = (ev.defenses || []).map(d => esc(d)).join(' ');
+    const expStr  = ev.expert
+      ? ` | <span class="ic-opt-badge ic-opt-expert">EXP ${ev.expert.type === 'offense' ? '+' : '-'}${ev.expert.value}</span>`
+      : '';
+    return `
+      <div class="sheaf-event" style="position:relative">
+        <span class="ic-construct-badge">construct</span>
+        <span class="sheaf-event-type ev-ic" style="color:#cc9900">Threat-${threat}${expStr} | ${comps || '--'}${defs ? ' | ' + defs : ''}</span>
+        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+  }
+
+  if (type === 'party_ic') {
+    const comps = (ev.components || []).map(c => {
+      const defs = (c.defenses || []).join('/');
+      return `${esc(c.ic_type)}-${c.rating}${defs ? '/' + defs : ''}`;
+    }).join(', ');
+    return `
+      <div class="sheaf-event" style="position:relative">
+        <span class="ic-party-badge">party</span>
+        <span class="sheaf-event-type ev-ic" style="color:var(--cyan)">${comps || '--'}</span>
+        <button class="event-remove-btn" onclick="removeEvent(${si},${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+  }
+
+  if (type === 'passive_alert') {
+    return `<div class="sheaf-event"><span class="sheaf-event-type ev-passive-alert">&#9654; Passive Alert</span>
+      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+  }
+  if (type === 'active_alert') {
+    return `<div class="sheaf-event"><span class="sheaf-event-type ev-active-alert">&#9658; Active Alert</span>
+      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+  }
+  if (type === 'shutdown') {
+    return `<div class="sheaf-event"><span class="sheaf-event-type ev-shutdown">&#9632; Shutdown</span>
+      <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+  }
+  return `<div class="sheaf-event"><span class="sheaf-event-type" style="color:var(--text-dim)">${esc(type)}</span>
+    <button class="event-remove-btn" onclick="removeEvent(${si},${ei})">[x]</button></div>`;
+}
+
+function renderAddEventRow(si) {
+  const inputStyle  = 'background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font)';
+  const selectStyle = inputStyle;
+
+  // Determine which IC types are available at this step per the Alert Table
+  const alertCtx   = _alertContextForSelectionAtStep(si);
+  const ctxLabel   = alertCtx === 'active' ? 'Active Alert' : alertCtx === 'passive' ? 'Passive Alert' : 'No Alert';
+  const ctxColor   = alertCtx === 'active' ? 'var(--red)' : alertCtx === 'passive' ? 'var(--amber)' : 'var(--text-dim)';
+  const specialOpts = _specialEventsForStep(si);
+  const specialOptgroup = specialOpts.length
+    ? `<optgroup label="Special">${specialOpts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('')}</optgroup>`
+    : '';
+
+  const filteredGray  = IC_GRAY.filter(t => _icAllowedByAlert(t, alertCtx));
+  const showBlackIc   = alertCtx === 'active';
+  const labelIc = t => `${icModeLabel(t)} ${t}`;
+
+  // For construct/party IC builders -- same filter applies to component types
+  const allIcForGroup = [
+    ...IC_WHITE.map(t => ({ t, extra: 0 })),
+    ...IC_GRAY.filter(t => _icAllowedByAlert(t, alertCtx)).map(t => ({ t, extra: 1 })),
+    ...(showBlackIc ? IC_BLACK.map(t => ({ t, extra: 2 })) : []),
+  ];
+  const groupIcOptions = allIcForGroup.map(({ t, extra }) => {
+    const labelBase = `${icModeLabel(t)} ${t}`;
+    const label = extra > 0 ? `${labelBase} (+${extra})` : labelBase;
+    return `<option value="${esc(t)}">${esc(label)}</option>`;
+  }).join('');
+
+  // Trap IC hidden options -- per Trap IC Table (vr2_rules.md): 2-5 Blaster, 6-8 Killer, 9-11 Sparky, 12 Black IC
+  const hiddenIcOptions =
+    `<option value="Blaster">Hidden: Blaster</option>` +
+    `<option value="Killer">Hidden: Killer</option>` +
+    `<option value="Sparky">Hidden: Sparky</option>` +
+    `<option value="Black IC (Non-Lethal)">Hidden: Black IC (Non-Lethal)</option>` +
+    `<option value="Black IC (Lethal)">Hidden: Black IC (Lethal)</option>`;
+
+  return `
+    <div class="add-event-row" id="addEvRow-${si}">
+      <span style="font-size:.55rem;letter-spacing:1px;color:${ctxColor};margin-right:4px" data-tip="Alert context at this step">[${ctxLabel}]</span>
+      <select id="addEvType-${si}" onchange="onAddEvTypeChange(${si})" data-tip="Choose an event to add to this step.">
+        <option value="">-- Add event --</option>
+        ${specialOptgroup}
+        <optgroup label="White IC">${IC_WHITE.map(t=>`<option value="ic__${esc(t)}">${esc(labelIc(t))}</option>`).join('')}</optgroup>
+        ${filteredGray.length ? `<optgroup label="Gray IC">${filteredGray.map(t=>`<option value="ic__${esc(t)}">${esc(labelIc(t))}</option>`).join('')}</optgroup>` : ''}
+        ${showBlackIc ? `<optgroup label="Black IC">${IC_BLACK.map(t=>`<option value="ic__${esc(t)}">${esc(labelIc(t))}</option>`).join('')}</optgroup>` : ''}
+        <optgroup label="Trap IC">
+          <option value="trap_ic">[R] Trap IC (surface -> hidden)</option>
+        </optgroup>
+        <optgroup label="Group IC">
+          <option value="construct">Construct (single icon)</option>
+          <option value="party_ic">Party IC (cluster)</option>
+        </optgroup>
+        <optgroup label="Host Events">
+          <option value="bouncer">Bouncer (upgrade security code)</option>
+        </optgroup>
+      </select>
+      <span id="ratingFieldWrap-${si}" style="display:none;align-items:center;gap:4px">
+        <input type="number" id="addEvRating-${si}" min="1" max="50" placeholder="?" value="${guessRating()}"
+          style="width:52px;padding:3px 6px;font-size:.72rem;${inputStyle}" data-tip="Set the rating for the selected IC or event.">
+      </span>
+      <div id="icOptsRow-${si}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;width:100%;padding-left:2px">
+        <span style="font-size:.53rem;letter-spacing:1.5px;color:var(--text-dim);text-transform:uppercase">Mods:</span>
+        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
+          <input type="checkbox" class="chk-reveal" id="addEvArmor-${si}" data-tip="Armor reduces Power of attacks against this IC by 2. In constructs, Armor costs 2 capacity points."> Armor
+        </label>
+        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
+          <input type="checkbox" class="chk-reveal" id="addEvShift-${si}" data-tip="Shift adds +2 TN to hit this IC. +4 TN against Penetration augmented programs. Shift and Shield are mutually exclusive."> Shifting
+        </label>
+        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--text-bright);cursor:pointer">
+          <input type="checkbox" class="chk-reveal" id="addEvShield-${si}" data-tip="Shield adds +2 TN to hit this IC. +4 TN against Chaser augmented programs. Shield and Shift are mutually exclusive."> Shielding
+        </label>
+        <label style="display:flex;gap:3px;align-items:center;font-size:.68rem;color:var(--cyan);cursor:pointer">
+          <input type="checkbox" class="chk-reveal" id="addEvCasc-${si}" data-tip="Cascade gains +1 dice on subsequent attacks after each miss, or after all damage is resisted. Growth is capped by security code. Can apply to any Proactive and Black IC."> Cascade
+        </label>
+        <select id="addEvExpert-${si}" style="${inputStyle};color:var(--amber);padding:2px 5px" data-tip="${_expertTip('')}">
+          <option value="">No Expert</option>
+          <option value="offense">Expert Offense</option>
+          <option value="defense">Expert Defense</option>
+        </select>
+        <input type="number" id="addEvExpertVal-${si}" min="1" max="3" value="1"
+          style="width:36px;padding:2px 4px;font-size:.7rem;${inputStyle};color:var(--amber)"
+          data-tip="Expert value 1-3">
+      </div>
+      <div id="bouncerBuilder-${si}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="bouncerCode-${si}" onchange="syncBouncerSvBounds(${si})" style="${selectStyle};color:var(--amber)" data-tip="Choose a security code at or above the host's current code.">
+          ${bouncerCodeOptions()}
+        </select>
+        <input type="number" id="bouncerSv-${si}" min="1" max="30" placeholder="New SV"
+          style="width:60px;padding:3px 6px;font-size:.72rem;${inputStyle};color:var(--amber)" data-tip="Security Value after this bouncer triggers.">
+        <input type="text" id="bouncerNotes-${si}" placeholder="sculpting notes (optional)"
+          style="flex:1;min-width:140px;padding:3px 6px;font-size:.68rem;${inputStyle};color:var(--text-bright)" data-tip="Optional notes for this bouncer event.">
+      </div>
+      <div id="trapIcBuilder-${si}" style="display:none;gap:4px;align-items:center;flex-wrap:wrap">
+        <select id="trapSurface-${si}" style="padding:3px 6px;font-size:.72rem;${selectStyle}" data-tip="Choose the visible surface IC.">
+          <option value="Probe">Surface: Probe</option>
+          <option value="Trace">Surface: Trace</option>
+        </select>
+        <input type="number" id="trapSurfaceRtg-${si}" min="1" max="50" placeholder="Rtg"
+          style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Surface IC rating.">
+        <span style="color:var(--text-dim);font-size:.8rem">-></span>
+        <select id="trapHidden-${si}" style="padding:3px 6px;font-size:.72rem;${selectStyle}" data-tip="Choose the hidden payload IC.">
+          ${hiddenIcOptions}
+        </select>
+        <input type="number" id="trapHiddenRtg-${si}" min="1" max="50" placeholder="Rtg"
+          style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Hidden payload rating.">
+      </div>
+      <div id="groupIcBuilder-${si}" style="display:none;flex-direction:column;gap:6px;width:100%;margin-top:4px">
+        <div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px">
+          Capacity: <span id="groupCapUsed-${si}" style="color:var(--amber)">0</span>
+          / <span id="groupCapMax-${si}" class="text-bright">0</span>
+          &nbsp;| Max IC rating: <span id="groupMaxRtg-${si}" class="text-bright">--</span>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+          <select id="groupIcType-${si}" style="flex:1;min-width:120px;padding:3px 6px;font-size:.72rem;${selectStyle}">
+            ${groupIcOptions}
+          </select>
+          <input type="number" id="groupIcRating-${si}" min="1" max="50" placeholder="Rtg"
+            style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}">
+          <button class="btn btn-ghost btn-sm" onclick="addGroupComponent(${si})" style="padding:3px 8px">+ IC</button>
+        </div>
+        <div id="groupCompList-${si}" style="font-size:.7rem;color:var(--amber);min-height:14px"></div>
+        <div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;margin-top:2px">Defenses (2 cap each for Construct, 1 for Party):</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.7rem">
+          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
+            <input type="checkbox" class="chk-reveal" id="groupDefArmor-${si}" onchange="updateGroupCapacity(${si})"> Armor
+          </label>
+          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
+            <input type="checkbox" class="chk-reveal" id="groupDefShielding-${si}" onchange="updateGroupCapacity(${si})"> Shielding
+          </label>
+          <label style="display:flex;gap:4px;align-items:center;color:var(--text-bright);cursor:pointer">
+            <input type="checkbox" class="chk-reveal" id="groupDefShifting-${si}" onchange="updateGroupCapacity(${si})"> Shifting
+          </label>
+        </div>
+        <div id="groupThreatRow-${si}" style="display:none;font-size:.7rem;gap:6px;align-items:center">
+          <span style="color:var(--text-dim);letter-spacing:1px">Threat Rating:</span>
+          <input type="number" id="groupThreat-${si}" min="0" max="4" placeholder="0-4"
+            style="width:44px;padding:3px 5px;font-size:.72rem;${inputStyle}" data-tip="Threat rating for the group. Higher values unlock stronger group profiles.">
+          <span class="tip" style="margin:0">0=Blue 1=Green 2=Orange 3=Red 4=Black</span>
+        </div>
+        <div id="groupExpertRow-${si}" style="display:none;font-size:.7rem;gap:6px;align-items:center;margin-top:2px">
+          <span style="color:var(--text-dim);letter-spacing:1px">Expert:</span>
+          <select id="groupExpert-${si}" style="${selectStyle};color:var(--amber);padding:2px 5px" data-tip="Choose expert stance for the group.">
+            <option value="">None</option>
+            <option value="offense">Offense</option>
+            <option value="defense">Defense</option>
+          </select>
+          <input type="number" id="groupExpertVal-${si}" min="1" max="3" value="1"
+            style="width:40px;padding:2px 4px;font-size:.7rem;${inputStyle};color:var(--amber)" data-tip="Expert modifier value 1-3.">
+          <span class="tip" style="margin:0">+Offense reduces Defense by same amount</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="commitGroupIc(${si})" style="padding:4px 10px;align-self:flex-start" data-tip="Commit the grouped IC as a single event.">&gt;&gt; Submit Group IC</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="addEvBtn-${si}" onclick="commitAddEvent(${si})" style="padding:3px 9px" data-tip="Add this configured event to the step.">+ Add</button>
+    </div>`;
+}
+
+function guessRating() {
+  if (!currentHost) return '';
+  const cfg = safeConfig(currentHost);
+  if (cfg.security_value) return Math.min(cfg.security_value, 20);
+  return '';
+}
+
+function onAddEvTypeChange(si) {
+  const sel = $(`addEvType-${si}`);
+  const v = sel?.value || '';
+  const wrap = $(`ratingFieldWrap-${si}`);
+  const trapBldr = $(`trapIcBuilder-${si}`);
+  const groupBldr = $(`groupIcBuilder-${si}`);
+  const addBtn = $(`addEvBtn-${si}`);
+  const icOpts = $(`icOptsRow-${si}`);
+  const bouncerBldr = $(`bouncerBuilder-${si}`);
+
+  if (wrap) wrap.style.display = 'none';
+  if (trapBldr) trapBldr.style.display = 'none';
+  if (groupBldr) groupBldr.style.display = 'none';
+  if (icOpts) icOpts.style.display = 'none';
+  if (bouncerBldr) bouncerBldr.style.display = 'none';
+
+  if (sel) {
+    const tip = _eventTypeTip(v);
+    if (tip) sel.dataset.tip = tip; else sel.removeAttribute('data-tip');
+  }
+
+  if (v === 'trap_ic') {
+    if (trapBldr) trapBldr.style.display = 'flex';
+    if (addBtn) addBtn.style.display = '';
+    return;
+  }
+
+  if (v === 'bouncer') {
+    if (bouncerBldr) bouncerBldr.style.display = 'flex';
+    syncBouncerSvBounds(si);
+    if (addBtn) addBtn.style.display = '';
+    return;
+  }
+
+  if (v === 'construct' || v === 'party_ic') {
+    if (groupBldr) {
+      groupBldr.style.display = 'flex';
+      const threatRow = $(`groupThreatRow-${si}`);
+      const expertRow = $(`groupExpertRow-${si}`);
+      if (threatRow) threatRow.style.display = (v === 'construct') ? 'flex' : 'none';
+      if (expertRow) expertRow.style.display = (v === 'construct') ? 'flex' : 'none';
+    }
+    if (addBtn) addBtn.style.display = 'none';
+    updateGroupCapacity(si);
+    return;
+  }
+
+  const isIc = v.startsWith('ic__');
+  if (wrap) wrap.style.display = isIc ? 'flex' : 'none';
+  if (icOpts) icOpts.style.display = isIc ? 'flex' : 'none';
+  if (addBtn) addBtn.style.display = '';
+  if (isIc) syncAddIcOptionRules(si);
+}
+
+function syncAddIcOptionRules(si) {
+  const raw = $(`addEvType-${si}`)?.value || '';
+  if (!raw.startsWith('ic__')) return;
+
+  const icType = raw.slice(4);
+  const cascadeAllowed = canUseCascade(icType);
+  const expertAllowed = canUseExpert(icType);
+
+  const casc = $(`addEvCasc-${si}`);
+  if (casc) {
+    casc.disabled = !cascadeAllowed;
+    if (!cascadeAllowed) casc.checked = false;
+    if (casc.parentElement) casc.parentElement.style.opacity = cascadeAllowed ? '' : '0.45';
+  }
+
+  const exSel = $(`addEvExpert-${si}`);
+  if (exSel) {
+    exSel.disabled = !expertAllowed;
+    if (!expertAllowed) exSel.value = '';
+    exSel.style.opacity = expertAllowed ? '' : '0.45';
+    exSel.dataset.tip = _expertTip(exSel.value || '');
+  }
+
+  const exVal = $(`addEvExpertVal-${si}`);
+  if (exVal) {
+    exVal.disabled = !expertAllowed;
+    exVal.style.opacity = expertAllowed ? '' : '0.45';
+    if (!expertAllowed) {
+      exVal.value = '';
+      exVal.placeholder = '-';
+    } else {
+      exVal.placeholder = '';
+      const cur = parseInt(exVal.value, 10);
+      if (Number.isNaN(cur) || cur < 1 || cur > 3) exVal.value = '1';
+    }
+  }
+}
+
+function commitAddEvent(si) {
+  const sel = $(`addEvType-${si}`);
+  if (!sel || !sel.value) return;
+  const raw = sel.value;
+
+  let ev;
+  if (raw.startsWith('ic__')) {
+    const icType = raw.slice(4);
+    const ratingEl = $(`addEvRating-${si}`);
+    const rating = ratingEl ? parseInt(ratingEl.value, 10) : null;
+
+    const options = [];
+    if ($(`addEvArmor-${si}`)?.checked) options.push('Armor');
+    if ($(`addEvShift-${si}`)?.checked) options.push('Shifting');
+    if ($(`addEvShield-${si}`)?.checked) options.push('Shielding');
+
+    const cascading = !!$(`addEvCasc-${si}`)?.checked && canUseCascade(icType);
+    const expertType = $(`addEvExpert-${si}`)?.value || '';
+    const expertVal = parseInt($(`addEvExpertVal-${si}`)?.value, 10);
+    const expert = (canUseExpert(icType) && expertType && !isNaN(expertVal) && expertVal >= 1 && expertVal <= 3)
+      ? { type: expertType, value: expertVal }
+      : null;
+
+    ev = {
+      type: 'ic', ic_type: icType,
+      rating: (!isNaN(rating) && rating > 0) ? rating : null,
+      ...(options.length ? { options } : {}),
+      ...(cascading ? { cascading: true } : {}),
+      ...(expert ? { expert } : {}),
+    };
+  } else if (raw === 'bouncer') {
+    const code = $(`bouncerCode-${si}`)?.value || 'Red';
+    if (!isAllowedBouncerCode(code)) {
+      showAlert(alertEl(), 'Bouncer security code cannot be below the host security code.', true);
+      return;
+    }
+    const sv = parseInt($(`bouncerSv-${si}`)?.value, 10);
+    const notes = ($(`bouncerNotes-${si}`)?.value || '').trim();
+    const minSv = bouncerMinSvForCode(code);
+    if (isNaN(sv) || sv < minSv) {
+      showAlert(alertEl(), `Enter a new Security Value of at least ${minSv}.`, true);
+      return;
+    }
+    ev = {
+      type: 'bouncer',
+      new_security_code: code,
+      new_security_value: sv,
+      ...(notes ? { sculpting_notes: notes } : {}),
+    };
+  } else if (raw === 'trap_ic') {
+    const surfType = $(`trapSurface-${si}`)?.value || 'Probe';
+    const hidType = $(`trapHidden-${si}`)?.value || 'Blaster';
+    const surfRtg = parseInt($(`trapSurfaceRtg-${si}`)?.value, 10);
+    const hidRtg = parseInt($(`trapHiddenRtg-${si}`)?.value, 10);
+    if (isNaN(surfRtg) || surfRtg < 1 || surfRtg > 20) { showAlert(alertEl(), 'Surface IC rating must be 1-20.', true); return; }
+    if (isNaN(hidRtg) || hidRtg < 1 || hidRtg > 20) { showAlert(alertEl(), 'Hidden IC rating must be 1-20.', true); return; }
+    ev = { type: 'trap_ic', surface_ic_type: surfType, surface_ic_rating: surfRtg, hidden_ic_type: hidType, hidden_ic_rating: hidRtg };
+  } else if (raw === 'construct' || raw === 'party_ic') {
+    commitGroupIc(si);
+    return;
+  } else {
+    return;
+  }
+
+  if (!sheafSteps[si].events) sheafSteps[si].events = [];
+  sheafSteps[si].events.push(ev);
+  renderSheaf();
+  updateSummary();
+}
+
+function removeEvent(si, ei) {
+  if (!sheafSteps[si] || !sheafSteps[si].events) return;
+  sheafSteps[si].events.splice(ei, 1);
+  renderSheaf();
+  updateSummary();
+}
+
+function updateTrigger(si, val) {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || !sheafSteps[si]) return;
+  const prevTrig = si > 0 ? (sheafSteps[si - 1].trigger ?? 0) : 0;
+  const nextTrig = si < sheafSteps.length - 1 ? (sheafSteps[si + 1].trigger ?? 9999) : 9999;
+  const minTrig  = si === 0 ? 0 : prevTrig + 1;
+  const maxTrig  = si < sheafSteps.length - 1 ? nextTrig - 1 : 9999;
+  sheafSteps[si].trigger = Math.max(minTrig, Math.min(maxTrig, n));
+  updateSummary();
+}
+function editIcEvent(si, ei) {
+  const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
+  if (!ev || ev.type !== 'ic') return;
+  openIcEditModal(si, ei);
+}
+
+let _icEditStepIndex = -1;
+let _icEditEventIndex = -1;
+let _icEditCascadeAllowed = true;
+let _icEditExpertAllowed = true;
+
+function syncIcEditExpertUI() {
+  const mode = $('icEditExpertType')?.value || '';
+  const val = $('icEditExpertVal');
+  if (!val) return;
+  const on = !!mode && _icEditExpertAllowed;
+  val.disabled = !on;
+  val.style.opacity = on ? '' : '0.45';
+
+  const exSel = $('icEditExpertType');
+  if (exSel) {
+    exSel.disabled = !_icEditExpertAllowed;
+    exSel.style.opacity = _icEditExpertAllowed ? '' : '0.45';
+    if (!_icEditExpertAllowed) exSel.value = '';
+    exSel.dataset.tip = _expertTip(exSel.value || '');
+  }
+
+  const casc = $('icEditCasc');
+  if (casc) {
+    casc.disabled = !_icEditCascadeAllowed;
+    if (!_icEditCascadeAllowed) casc.checked = false;
+    if (casc.parentElement) casc.parentElement.style.opacity = _icEditCascadeAllowed ? '' : '0.45';
+  }
+
+  const stepper = val.closest('.infield-num-wrap');
+  if (stepper) {
+    stepper.querySelectorAll('.infield-num-btn').forEach(btn => {
+      btn.disabled = !on;
+      btn.style.opacity = on ? '' : '0.35';
+      btn.style.cursor = on ? '' : 'default';
+    });
+  }
+
+  if (!on) {
+    // Show dash state when Expert is disabled.
+    val.value = '';
+    val.placeholder = '-';
+  } else {
+    val.placeholder = '';
+    const cur = parseInt(val.value, 10);
+    if (Number.isNaN(cur) || cur < 1 || cur > 3) val.value = '1';
+  }
+}
+
+function wireIcEditModal() {
+  const shift = $('icEditShift');
+  const shield = $('icEditShield');
+  const expert = $('icEditExpertType');
+  if (shift) {
+    shift.addEventListener('change', () => {
+      if (shift.checked && shield) shield.checked = false;
+    });
+  }
+  if (shield) {
+    shield.addEventListener('change', () => {
+      if (shield.checked && shift) shift.checked = false;
+    });
+  }
+  if (expert) expert.addEventListener('change', syncIcEditExpertUI);
+  syncIcEditExpertUI();
+}
+
+function openIcEditModal(si, ei) {
+  const ev = sheafSteps?.[si]?.events?.[ei];
+  if (!ev || ev.type !== 'ic') return;
+  _icEditStepIndex = si;
+  _icEditEventIndex = ei;
+  $('icEditHeader').textContent = `Edit IC Event: ${icDisplayName(ev.ic_type || 'IC')}`;
+  $('icEditRating').value = ev.rating != null ? String(ev.rating) : '';
+  const opts = Array.isArray(ev.options) ? ev.options : [];
+  $('icEditArmor').checked = opts.includes('Armor');
+  $('icEditShift').checked = opts.includes('Shifting');
+  $('icEditShield').checked = opts.includes('Shielding');
+  $('icEditCasc').checked = !!ev.cascading;
+  $('icEditExpertType').value = ev.expert?.type || '';
+  $('icEditExpertVal').value = ev.expert?.value != null ? String(ev.expert.value) : '1';
+  _icEditCascadeAllowed = canUseCascade(ev.ic_type || '');
+  _icEditExpertAllowed = canUseExpert(ev.ic_type || '');
+  syncIcEditExpertUI();
+  $('icEditTip').textContent = _icTypeTip(ev.ic_type || 'IC');
+  $('icEditOverlay').classList.add('open');
+}
+
+function closeIcEditModal() {
+  $('icEditOverlay').classList.remove('open');
+  _icEditStepIndex = -1;
+  _icEditEventIndex = -1;
+}
+
+function saveIcEditModal() {
+  const ev = sheafSteps?.[_icEditStepIndex]?.events?.[_icEditEventIndex];
+  if (!ev || ev.type !== 'ic') { closeIcEditModal(); return; }
+
+  const n = parseInt($('icEditRating').value, 10);
+  if (isNaN(n) || n < 1 || n > 20) {
+    showAlert(alertEl(), 'Rating must be 1-20.', true);
+    return;
+  }
+  ev.rating = n;
+
+  const opts = [];
+  if ($('icEditArmor').checked) opts.push('Armor');
+  if ($('icEditShift').checked) opts.push('Shifting');
+  if ($('icEditShield').checked) opts.push('Shielding');
+  if (opts.length) ev.options = opts; else delete ev.options;
+
+  if (_icEditCascadeAllowed && $('icEditCasc').checked) ev.cascading = true; else delete ev.cascading;
+
+  const eType = $('icEditExpertType').value || '';
+  const eVal = parseInt($('icEditExpertVal').value, 10);
+  if (_icEditExpertAllowed && eType) {
+    if (isNaN(eVal) || eVal < 1 || eVal > 3) {
+      showAlert(alertEl(), 'Expert value must be 1-3.', true);
+      return;
+    }
+    ev.expert = { type: eType, value: eVal };
+  } else {
+    delete ev.expert;
+  }
+
+  closeIcEditModal();
+  renderSheaf();
+  updateSummary();
+}
+
+function editBouncerEvent(si, ei) {
+  const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
+  if (!ev || ev.type !== 'bouncer') return;
+
+  const allowedCodes = bouncerAllowedCodes(currentSecurityCode());
+  const cVal  = prompt(`New security code (${allowedCodes.join('/')})`, ev.new_security_code || allowedCodes[0]);
+  if (cVal === null) return;
+  if (!allowedCodes.includes(cVal)) { showAlert(alertEl(), 'Bouncer security code cannot be below the host security code.', true); return; }
+
+  const minSv = bouncerMinSvForCode(cVal);
+  const sVal = prompt(`New security value (${minSv}-30):`, ev.new_security_value != null ? String(ev.new_security_value) : '');
+  if (sVal === null) return;
+  const sv = parseInt(sVal, 10);
+  if (isNaN(sv) || sv < minSv || sv > 30) { showAlert(alertEl(), `Security value must be between ${minSv} and 30.`, true); return; }
+
+  const nVal = prompt('Sculpting notes (optional):', ev.sculpting_notes || '');
+  if (nVal !== null) {
+    if (nVal.trim()) ev.sculpting_notes = nVal.trim(); else delete ev.sculpting_notes;
+  }
+
+  ev.new_security_code  = cVal;
+  ev.new_security_value = sv;
+  renderSheaf();
+  updateSummary();
+}
+
+// Keep the old name as a shim so any stored onclick="editEventRating" still works
+function editEventRating(si, ei) { editIcEvent(si, ei); }
+
+function editTrapIcRatings(si, ei) {
+  const ev = (sheafSteps[si] && sheafSteps[si].events) ? sheafSteps[si].events[ei] : null;
+  if (!ev || ev.type !== 'trap_ic') return;
+
+  const surfVal = prompt(
+    `Surface IC (${ev.surface_ic_type}) rating (1-20):`,
+    ev.surface_ic_rating != null ? String(ev.surface_ic_rating) : ''
+  );
+  if (surfVal === null) return;
+  const surfN = parseInt(surfVal, 10);
+  if (isNaN(surfN) || surfN < 1 || surfN > 20) { showAlert(alertEl(), 'Surface IC rating must be 1-20.', true); return; }
+
+  const hidVal = prompt(
+    `Hidden IC (${ev.hidden_ic_type}) rating (1-20):`,
+    ev.hidden_ic_rating != null ? String(ev.hidden_ic_rating) : ''
+  );
+  if (hidVal === null) return;
+  const hidN = parseInt(hidVal, 10);
+  if (isNaN(hidN) || hidN < 1 || hidN > 20) { showAlert(alertEl(), 'Hidden IC rating must be 1-20.', true); return; }
+
+  const oVal = prompt(
+    'Hidden IC defenses (comma-separated -- Armor, Shifting, Shielding -- or blank):',
+    (ev.hidden_ic_options || []).join(', ')
+  );
+  if (oVal !== null) {
+    const opts = oVal.split(',').map(s => s.trim()).filter(s => ['Armor','Shifting','Shielding'].includes(s));
+    if (opts.length) ev.hidden_ic_options = opts; else delete ev.hidden_ic_options;
+  }
+
+  const cVal = prompt('Hidden IC cascading? (yes / no):', ev.hidden_ic_cascading ? 'yes' : 'no');
+  if (cVal !== null) {
+    if (cVal.trim().toLowerCase() === 'yes') ev.hidden_ic_cascading = true; else delete ev.hidden_ic_cascading;
+  }
+
+  ev.surface_ic_rating = surfN;
+  ev.hidden_ic_rating  = hidN;
+  renderSheaf();
+  updateSummary();
+}
+
+// --- Group IC (Construct / Party) helpers ------------------------------------
+
+function _groupIcCost(icType) {
+  const cat = icCategory(icType);
+  if (cat === 'black') return 2;
+  if (cat === 'gray')  return 1;
+  return 0; // white: cost = rating (added separately)
+}
+
+function _groupCapacity() {
+  const sv = parseInt($('secValue').value, 10);
+  return !isNaN(sv) && sv > 0 ? 2 * sv : 0;
+}
+
+function _groupMaxRating() {
+  const sv = parseInt($('secValue').value, 10);
+  return !isNaN(sv) && sv > 0 ? Math.ceil(sv * 2 / 3) : 0;
+}
+
+// Per-step state for in-progress group IC
+const _groupBuilders = {}; // keyed by si: {components: [], defenses: []}
+
+function _getGroupBuilder(si) {
+  if (!_groupBuilders[si]) _groupBuilders[si] = { components: [], defenses: [] };
+  return _groupBuilders[si];
+}
+
+function addGroupComponent(si) {
+  const icType  = $(`groupIcType-${si}`)?.value;
+  const ratingEl = $(`groupIcRating-${si}`);
+  const rating   = ratingEl ? parseInt(ratingEl.value, 10) : NaN;
+  if (!icType) return;
+  if (isNaN(rating) || rating < 1 || rating > 20) {
+    showAlert(alertEl(), 'IC rating must be 1-20.', true); return;
+  }
+  const maxRtg = _groupMaxRating();
+  if (maxRtg > 0 && rating > maxRtg) {
+    showAlert(alertEl(), `Max IC rating for this host is ${maxRtg} (SV x 2/3, rounded up).`, true); return;
+  }
+  _getGroupBuilder(si).components.push({ ic_type: icType, rating });
+  if (ratingEl) ratingEl.value = '';
+  updateGroupCapacity(si);
+}
+
+function removeGroupComponent(si, idx) {
+  const b = _getGroupBuilder(si);
+  b.components.splice(idx, 1);
+  updateGroupCapacity(si);
+}
+
+function updateGroupCapacity(si) {
+  const b   = _getGroupBuilder(si);
+  const sel = $(`addEvType-${si}`)?.value;
+  const isConstruct = (sel === 'construct');
+  const defCost     = isConstruct ? 2 : 1;
+
+  // Collect checked defenses
+  b.defenses = ['Armor', 'Shielding', 'Shifting'].filter(d => $(`groupDef${d}-${si}`)?.checked);
+
+  // Calculate used capacity
+  let used = 0;
+  for (const c of b.components) {
+    used += c.rating + _groupIcCost(c.ic_type);
+  }
+  used += b.defenses.length * defCost;
+
+  const maxCap = _groupCapacity();
+  const maxRtg = _groupMaxRating();
+
+  const usedEl = $(`groupCapUsed-${si}`);
+  const maxEl  = $(`groupCapMax-${si}`);
+  const rtgEl  = $(`groupMaxRtg-${si}`);
+  if (usedEl) usedEl.textContent = used;
+  if (maxEl)  maxEl.textContent  = maxCap || '(set SV)';
+  if (rtgEl)  rtgEl.textContent  = maxRtg || '(set SV)';
+
+  if (usedEl) usedEl.style.color = (maxCap > 0 && used > maxCap) ? 'var(--red)' : 'var(--amber)';
+
+  // Render component list
+  const listEl = $(`groupCompList-${si}`);
+  if (listEl) {
+    if (b.components.length === 0) {
+      listEl.textContent = 'No components yet.';
+    } else {
+      listEl.innerHTML = b.components.map((c, idx) => {
+        const extra = _groupIcCost(c.ic_type);
+        const cost  = c.rating + extra;
+        return `<span style="margin-right:8px;color:var(--amber)">${esc(c.ic_type)}-${c.rating} <span style="color:var(--text-dim)">(${cost} cap)</span>
+          <button class="event-remove-btn" onclick="removeGroupComponent(${si},${idx})" data-tip="Remove">[x]</button></span>`;
+      }).join('');
+    }
+  }
+}
+
+function commitGroupIc(si) {
+  const b   = _getGroupBuilder(si);
+  const sel = $(`addEvType-${si}`)?.value;
+  const isConstruct = (sel === 'construct');
+
+  if (b.components.length === 0) {
+    showAlert(alertEl(), 'Add at least one IC component.', true); return;
+  }
+
+  const defCost = isConstruct ? 2 : 1;
+  let used = 0;
+  for (const c of b.components) {
+    used += c.rating + _groupIcCost(c.ic_type);
+  }
+  used += b.defenses.length * defCost;
+  const maxCap = _groupCapacity();
+  if (maxCap > 0 && used > maxCap) {
+    showAlert(alertEl(), `Capacity exceeded: ${used} used / ${maxCap} max. Remove components or defenses.`, true); return;
+  }
+
+  let ev;
+  if (isConstruct) {
+    const threat = parseInt($(`groupThreat-${si}`)?.value, 10);
+    const threatRating = (!isNaN(threat) && threat >= 0 && threat <= 4) ? threat : 0;
+    const MAX_THREAT = { Blue: 0, Green: 1, Orange: 2, Red: 3, Black: 4 };
+    const code      = $('secCode').value;
+    const maxThreat = code ? (MAX_THREAT[code] ?? 4) : 4;
+    if (threatRating > maxThreat) {
+      showAlert(alertEl(), `Max threat rating for ${code} security is ${maxThreat}.`, true); return;
+    }
+    const expertType = $(`groupExpert-${si}`)?.value || '';
+    const expertVal  = parseInt($(`groupExpertVal-${si}`)?.value, 10);
+    const expert = (expertType && !isNaN(expertVal) && expertVal >= 1 && expertVal <= 3)
+      ? { type: expertType, value: expertVal }
+      : null;
+    ev = {
+      type:          'construct',
+      threat_rating: threatRating,
+      components:    JSON.parse(JSON.stringify(b.components)),
+      defenses:      [...b.defenses],
+      ...(expert ? { expert } : {}),
+    };
+  } else {
+    // Party IC: each component can carry its own defenses subset -- here we apply defenses globally
+    const compsWithDef = b.components.map(c => ({ ...c, defenses: [...b.defenses] }));
+    ev = {
+      type:       'party_ic',
+      components: compsWithDef,
+      defenses:   [...b.defenses],
+    };
+  }
+
+  if (!sheafSteps[si].events) sheafSteps[si].events = [];
+  sheafSteps[si].events.push(ev);
+
+  // Reset builder
+  _groupBuilders[si] = { components: [], defenses: [] };
+  renderSheaf();
+  updateSummary();
+}
+
+// --- Trace-IC branch management ---------------------------------------------
+
+function _hasPriorTrace(si) {
+  for (let i = 0; i < si; i++) {
+    const step = sheafSteps[i];
+    if (!step?.events) continue;
+    for (const ev of step.events) {
+      if (ev.type === 'ic' && ev.ic_type === 'Trace') return true;
+      if (ev.type === 'trap_ic' && ev.surface_ic_type === 'Trace') return true;
+    }
+  }
+  return false;
+}
+
+function addTraceBranch(si) {
+  if (!_hasPriorTrace(si)) return;
+  sheafSteps[si].trace_branch = { yes_events: [], no_events: [] };
+  renderSheaf();
+}
+
+function removeTraceBranch(si) {
+  if (sheafSteps[si]) delete sheafSteps[si].trace_branch;
+  renderSheaf();
+}
+
+function removeTraceBranchEvent(si, side, ei) {
+  const branch = sheafSteps[si]?.trace_branch;
+  if (!branch) return;
+  const arr = side === 'yes' ? branch.yes_events : branch.no_events;
+  if (arr) arr.splice(ei, 1);
+  renderSheaf();
+}
+
+function commitTraceBranchEvent(si, side) {
+  const branch = sheafSteps[si]?.trace_branch;
+  if (!branch) return;
+  const selId  = `brTrEvType-${si}-${side}`;
+  const rtgId  = `brTrEvRating-${si}-${side}`;
+  const val    = $(selId)?.value || '';
+  if (!val) return;
+  const rating = parseInt($(rtgId)?.value, 10);
+  let ev;
+  if (val.startsWith('ic__')) {
+    const icType = val.slice(4);
+    ev = { type: 'ic', ic_type: icType, rating: (!isNaN(rating) && rating > 0) ? rating : null };
+  } else if (val === 'trap_ic') {
+    ev = { type: 'trap_ic',
+      surface_ic_type: 'Probe', surface_ic_rating: (!isNaN(rating) && rating > 0) ? rating : 8,
+      hidden_ic_type: 'Killer', hidden_ic_rating: (!isNaN(rating) && rating > 0) ? rating : 8 };
+  } else if (['passive_alert', 'active_alert', 'shutdown'].includes(val)) {
+    ev = { type: val };
+  } else return;
+  const arr = side === 'yes' ? branch.yes_events : branch.no_events;
+  arr.push(ev);
+  renderSheaf();
+}
+
+function renderTraceBranchHTML(branch, si) {
+  const selStyle = 'background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font);padding:2px 5px;font-size:.68rem';
+  const inStyle  = 'background:var(--bg-input);border:1px solid #1a2a1a;color:var(--amber);font-family:var(--font)';
+
+  function evList(events, side) {
+    if (!events || events.length === 0) {
+      return `<span style="font-size:.6rem;color:var(--red);letter-spacing:1px">&#x26A0; Required</span>`;
+    }
+    return events.map((ev, ei) => {
+      const type = ev.type || 'ic';
+      let label;
+      if (type === 'ic') {
+        const cat  = icCategory(ev.ic_type || '');
+        const opts = _icOptsSuffix(ev);
+        label = `<span class="ic-badge ${icBadgeClass(cat, ev.ic_type || '')}">${esc(cat)}</span>
+          <span class="sheaf-event-type ev-ic" style="color:${icColor(cat, ev.ic_type || '')}">${esc(icDisplayName(ev.ic_type || '?'))}-${ev.rating || '?'}</span>${opts}`;
+      } else if (type === 'trap_ic') {
+        label = `<span class="ic-badge ic-white-badge">trap</span>
+          <span class="sheaf-event-type ev-ic">${esc(ev.surface_ic_type || '?')}&rarr;${esc(ev.hidden_ic_type || '?')}</span>`;
+      } else if (type === 'passive_alert') {
+        label = `<span class="sheaf-event-type ev-passive-alert">&#9654; Passive Alert</span>`;
+      } else if (type === 'active_alert') {
+        label = `<span class="sheaf-event-type ev-active-alert">&#9658; Active Alert</span>`;
+      } else if (type === 'shutdown') {
+        label = `<span class="sheaf-event-type ev-shutdown">&#9632; Shutdown</span>`;
+      } else {
+        label = `<span class="sheaf-event-type">${esc(type)}</span>`;
+      }
+      return `<div class="sheaf-event">${label}
+        <button class="event-remove-btn" onclick="removeTraceBranchEvent(${si},'${side}',${ei})" data-tip="Remove">[x]</button>
+      </div>`;
+    }).join('');
+  }
+
+  function addRow(side) {
+    const alertCtx = _alertContextForSelectionAtStep(si);
+    const filtGray = IC_GRAY.filter(t => _icAllowedByAlert(t, alertCtx));
+    const showBlack = alertCtx === 'active';
+    return `
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <select id="brTrEvType-${si}-${side}" style="${selStyle}">
+          <option value="">+ Add event</option>
+          <optgroup label="White IC">${IC_WHITE.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>
+          ${filtGray.length ? `<optgroup label="Gray IC">${filtGray.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>` : ''}
+          ${showBlack ? `<optgroup label="Black IC">${IC_BLACK.map(t => `<option value="ic__${esc(t)}">${esc(t)}</option>`).join('')}</optgroup>` : ''}
+          <optgroup label="Alerts">
+            <option value="passive_alert">Passive Alert</option>
+            <option value="active_alert">Active Alert</option>
+            <option value="shutdown">Shutdown</option>
+          </optgroup>
+        </select>
+        <input type="number" id="brTrEvRating-${si}-${side}" min="1" max="50" placeholder="Rtg"
+          style="width:44px;padding:2px 4px;font-size:.7rem;${inStyle}">
+        <button class="btn btn-ghost btn-sm" onclick="commitTraceBranchEvent(${si},'${side}')" style="padding:2px 7px;font-size:.6rem">+ Add</button>
+      </div>`;
+  }
+
+  return `
+    <div class="trace-branch-block">
+      <div class="trace-branch-header">
+        <span>&#x2513; Trace IC Branch &mdash; Jackpoint Located?</span>
+        <button class="event-remove-btn" onclick="removeTraceBranch(${si})" data-tip="Remove branch" style="margin-left:auto">[x]</button>
+      </div>
+      <div class="trace-branch-cols">
+        <div class="trace-branch-col">
+          <div class="trace-branch-col-hdr" style="color:var(--red)">YES &mdash; Located</div>
+          <div class="trace-branch-events">${evList(branch.yes_events, 'yes')}</div>
+          ${addRow('yes')}
+        </div>
+        <div class="trace-branch-col">
+          <div class="trace-branch-col-hdr" style="color:var(--cyan)">NO &mdash; Not Located</div>
+          <div class="trace-branch-events">${evList(branch.no_events, 'no')}</div>
+          ${addRow('no')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function addStep() {
+  const base = sheafSteps.length > 0 ? Math.max(...sheafSteps.map(s => s.trigger || 0)) : 0;
+  const override = parseInt($('stepCountOverride')?.value, 10);
+  const increment = (!isNaN(override) && override >= 1)
+    ? override
+    : (Math.floor(Math.random() * 6) + 1); // auto mode: roll 1d6
+  const maxTrigger = base + increment;
+  sheafSteps.push({ trigger: maxTrigger, events: [] });
+  renderSheaf();
+  updateSummary();
+}
+
+function removeStep(si) {
+  sheafSteps.splice(si, 1);
+  renderSheaf();
+  updateSummary();
+}
+
+// --- Summary panel -----------------------------------------------------------
+
+function updateSummary() {
+  if (!currentHost) return;
+
+  const cfg = safeConfig(currentHost);
+  // Use form values for live preview
+  const code  = $('secCode').value  || cfg.security_code  || '--';
+  const sv    = $('secValue').value || cfg.security_value || '--';
+  const owner = $('ownerType').value|| cfg.owner_type     || '--';
+  const ACIF_NAMES = ['A', 'C', 'I', 'F', 'S'];
+  const ACIF_IDS   = ['acifA', 'acifC', 'acifI', 'acifF', 'acifS'];
+  // cfg.acifs is an array [A,C,I,F,S] from server
+  const acifsArr = ACIF_IDS.map((id, i) => {
+    const form = $('secCode') ? parseInt($(id).value, 10) : NaN;
+    if (!isNaN(form) && form > 0) return form;
+    return (Array.isArray(cfg.acifs) ? cfg.acifs[i] : null) || null;
+  });
+
+  $('sumName').textContent  = currentHost.name || '--';
+  $('sumOwner').textContent = owner !== '--' ? owner.charAt(0).toUpperCase() + owner.slice(1) : '--';
+  $('sumSteps').textContent = sheafSteps.length ? `${sheafSteps.length} step${sheafSteps.length !== 1 ? 's' : ''}` : '0 steps';
+
+  // Code with badge
+  const codeEl = $('sumCode');
+  if (code && code !== '--') {
+    codeEl.innerHTML = `<span class="sc-badge sc-${code.toLowerCase()}">${esc(code)}</span>`;
+  } else {
+    codeEl.textContent = '--';
+  }
+
+  // Value
+  const svEl = $('sumValue');
+  svEl.textContent = sv !== '--' ? sv : '--';
+
+  // ACIFS compact
+  const acifsEl = $('sumAcifs');
+  const vals = acifsArr.map((v, i) => v ? `${ACIF_NAMES[i]}:${v}` : null).filter(Boolean);
+  acifsEl.textContent = vals.length ? vals.join(' / ') : '--';
+
+  // Thresholds from current sheafSteps
+  const thrEl = $('sumThresholds');
+  if (sheafSteps.length === 0) {
+    thrEl.innerHTML = '<span class="threshold-tag" style="color:var(--text-dim);border-color:#222">No steps defined</span>';
+  } else {
+    const sorted = [...sheafSteps].sort((a, b) => a.trigger - b.trigger);
+    thrEl.innerHTML = sorted.map(s => {
+      const evLabels = (s.events || []).map(ev => {
+        if (ev.type === 'ic') return `<span style="color:${icColor(icCategory(ev.ic_type || ''))};">${esc(ev.ic_type || '?')}</span>`;
+        if (ev.type === 'trap_ic') return `<span style="color:var(--text-dim)">Trap(${esc(ev.surface_ic_type||'?')}->${esc(ev.hidden_ic_type||'?')})</span>`;
+        if (ev.type === 'construct') return `<span style="color:#cc9900">Construct</span>`;
+        if (ev.type === 'party_ic') return `<span style="color:var(--cyan)">Party</span>`;
+        if (ev.type === 'passive_alert') return `<span style="color:var(--amber)">Alert</span>`;
+        if (ev.type === 'active_alert')  return `<span style="color:var(--red)">ACTIVE</span>`;
+        if (ev.type === 'shutdown')      return `<span style="color:var(--purple)">SHUTDOWN</span>`;
+        if (ev.type === 'bouncer')       return `<span style="color:#ff8800">BOUNCER->${esc(ev.new_security_code||'?')}</span>`;
+        return `<span>${esc(ev.type)}</span>`;
+      }).join(', ');
+      return `<span class="threshold-tag" data-tip="Trigger at tally ${s.trigger}">&#9654;${s.trigger}: ${evLabels || '<span style=\'color:#444\'>empty</span>'}</span>`;
+    }).join('');
+  }
+
+  const delBtn = $('deleteHostBtn');
+  if (delBtn) delBtn.style.display = currentHost._autoCreated ? 'none' : '';
+
+  checkRunReady();
+}
+
+// --- Create Host -------------------------------------------------------------
+
+function toggleCreateForm() {
+  const form = $('createForm');
+  const btn  = $('createToggleBtn');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : '';
+  btn.textContent = visible ? 'v Expand' : '^ Collapse';
+}
+
+// --- Wizard ------------------------------------------------------------------
+
+let wizardStep = 1;
+const WIZARD_STEP_COUNT  = 7;
+const WIZARD_STEP_LABELS = ['Identity', 'Security', 'Subsystems', 'Files & IC', 'Access', 'Sheaf', 'Review'];
+
+function gotoStep(n) {
+  n = Math.max(1, Math.min(WIZARD_STEP_COUNT, n));
+  wizardStep = n;
+
+  for (let i = 1; i <= WIZARD_STEP_COUNT; i++) {
+    const el = $(`wStep${i}`);
+    if (el) el.classList.toggle('active', i === n);
+  }
+
+  renderWizardStepsBar();
+
+  const nav     = $('wizardNav');
+  const btnBack = $('btnWizBack');
+  const btnNext = $('btnWizNext');
+  const btnFin  = $('btnSaveFinish');
+  const btnSave = $('btnSaveProgress');
+  const lbl     = $('wizardStepLabel');
+
+  if (nav)     nav.style.display     = (n > 1 || !!currentHost) ? '' : 'none';
+  if (btnBack) btnBack.disabled      = n <= 1;
+  if (btnNext) btnNext.style.display = n < WIZARD_STEP_COUNT ? '' : 'none';
+  if (btnFin)  btnFin.style.display  = n === WIZARD_STEP_COUNT ? '' : 'none';
+  if (btnSave) btnSave.style.display = (n > 1 && n < WIZARD_STEP_COUNT) ? '' : 'none';
+  if (lbl)     lbl.textContent       = `Step ${n} of ${WIZARD_STEP_COUNT} -- ${WIZARD_STEP_LABELS[n - 1]}`;
+
+  if (n === 6) { renderSheaf(); _rebuildTrapDoorDestOpts(); }
+  if (n === 7) renderReview();
+}
+
+function wizardNext() {
+  if (!validateWizardStep(wizardStep)) return;
+  gotoStep(wizardStep + 1);
+}
+
+function wizardBack() {
+  gotoStep(wizardStep - 1);
+}
+
+function validateWizardStep(step) {
+  if (step >= 2 && !currentHost) {
+    showAlert(alertEl(), 'Select or create a host first.', true);
+    return false;
+  }
+  if (step === 2) {
+    if (!$('secCode').value) {
+      showAlert(alertEl(), 'Select a Security Code before continuing.', true);
+      return false;
+    }
+    const sv = parseInt($('secValue').value, 10);
+    if (isNaN(sv) || sv < 4 || sv > 14) {
+      showAlert(alertEl(), 'Enter a Security Value between 4 and 14 before continuing.', true);
+      return false;
+    }
+  }
+  if (step === 3) {
+    if (!collectAcifs()) return false;
+  }
+  return true;
+}
+
+function renderWizardStepsBar() {
+  const bar = $('wizardStepsBar');
+  if (!bar) return;
+  bar.innerHTML = WIZARD_STEP_LABELS.map((label, i) => {
+    const n   = i + 1;
+    const cls = n < wizardStep ? 'done' : n === wizardStep ? 'active' : '';
+    const clickable = n !== wizardStep && (n === 1 || !!currentHost);
+    const nav       = clickable ? ` onclick="gotoStep(${n})" data-tip="Jump to ${label}" style="cursor:pointer"` : '';
+    const sep       = n < WIZARD_STEP_COUNT ? '<span class="wstep-sep">/</span>' : '';
+    return `<span class="wstep-dot ${cls}"${nav}><span class="wdot"></span>${n}. ${label}</span>${sep}`;
+  }).join('');
+}
+
+function renderReview() {
+  const el = $('reviewDetails');
+  if (!el || !currentHost) return;
+
+  const code  = $('secCode').value || '--';
+  const sv    = $('secValue').value || '--';
+  const owner = $('ownerType').value || '--';
+  const diff  = $('intrusionDifficulty').value || 'Not set';
+  const ltg   = $('ltgAddressSelect')?.value || '';
+  const acifIds   = ['acifA', 'acifC', 'acifI', 'acifF', 'acifS'];
+  const acifNames = ['Access', 'Control', 'Index', 'Files', 'Slave'];
+  const acifVals  = acifIds.map((id, i) => {
+    const v = parseInt($(id).value, 10);
+    return `<span>${acifNames[i]}:&nbsp;<strong class="text-bright">${!isNaN(v) && v > 0 ? v : '--'}</strong></span>`;
+  }).join('  ');
+
+  const ownerLabel = owner !== '--' ? owner.charAt(0).toUpperCase() + owner.slice(1) : '--';
+  const codeHtml   = code !== '--'
+    ? `<span class="sc-badge sc-${code.toLowerCase()}">${esc(code)}</span>` : '--';
+
+  el.innerHTML = `
+    <div class="summary-grid" style="margin-bottom:14px">
+      <div class="summary-item"><div class="summary-label">Host</div>
+        <div class="summary-value" style="font-size:.78rem">${esc(currentHost.name)}</div></div>
+      <div class="summary-item"><div class="summary-label">LTG Address</div>
+        <div class="summary-value" style="font-size:.7rem;color:var(--cyan)">${ltg ? esc(ltg) : '<span style="color:var(--text-dim)">None</span>'}</div></div>
+      <div class="summary-item"><div class="summary-label">Security Code</div>
+        <div class="summary-value">${codeHtml}</div></div>
+      <div class="summary-item"><div class="summary-label">Security Value</div>
+        <div class="summary-value">${esc(String(sv))}</div></div>
+      <div class="summary-item"><div class="summary-label">Owner Type</div>
+        <div class="summary-value">${esc(ownerLabel)}</div></div>
+      <div class="summary-item"><div class="summary-label">Intrusion Difficulty</div>
+        <div class="summary-value" style="font-size:.78rem">${esc(diff)}</div></div>
+    </div>
+    <div class="summary-label" style="margin-bottom:5px">ACIFS Subsystems</div>
+    <div style="font-size:.7rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">${acifVals}</div>
+    <div class="summary-label" style="margin-bottom:5px">Files &amp; Passive IC</div>
+    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">
+      Paydata: <span class="text-bright">${paydata.length}</span>
+      &nbsp;&nbsp; Data Bombs: <span class="text-bright">${dataBombs.length}</span>
+      &nbsp;&nbsp; Scramble IC: <span class="text-bright">${scrambles.length}</span>
+      &nbsp;&nbsp; Worm IC: <span class="text-bright">${worms.length}</span>
+    </div>
+    <div class="summary-label" style="margin-bottom:5px">Trap Doors</div>
+    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:14px">
+      ${trapDoors.length
+        ? trapDoors.map(td => `-> ${esc(td.destination_label || td.destination_ltg || '?')}`).join('<br>')
+        : 'None configured.'}
+    </div>
+    <div class="summary-label" style="margin-bottom:5px">Security Sheaf</div>
+    <div style="font-size:.72rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px">
+      ${sheafSteps.length
+        ? `${sheafSteps.length} step${sheafSteps.length !== 1 ? 's' : ''} configured.`
+        : '<span style="color:var(--red);letter-spacing:1px">No sheaf defined -- host will not be run-ready.</span>'}
+    </div>
+  `;
+}
+
+// --- Create Host -------------------------------------------------------------
+
+async function createHost() {
+  const name  = $('newHostName').value.trim();
+  const notes = $('newHostNotes').value.trim();
+  if (!name) { showAlert(alertEl(), 'Host name is required.', true); return; }
+
+  try {
+    const res = await apiFetch('/matrix-hosts/', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        notes: notes || null,
+        config_json:   {},
+        topology_json: { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: '#398039' }] },
+        is_visible_to_players: false,
+      }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const created = await res.json();
+    hosts.unshift(created);
+    renderHostDropdown();
+    $('hostSelect').value = created.id;
+    currentHost = created;
+    sheafSteps = [];
+    $('summaryNoHost').style.display = 'none';
+    $('summaryPanel').style.display  = '';
+    updateSummary();
+    checkRunReady();
+    // Collapse the create form and reset it
+    $('createForm').style.display = 'none';
+    $('createToggleBtn').textContent = 'v Expand';
+    $('newHostName').value  = '';
+    $('newHostNotes').value = '';
+    showAlert(alertEl(), `Host "${name}" created. Configure SR2 settings on the next steps.`, false);
+    gotoStep(2);
+  } catch (e) {
+    showAlert(alertEl(), 'Create failed: ' + e.message, true);
+  }
+}
+</script>
+</body>
+</html>
+

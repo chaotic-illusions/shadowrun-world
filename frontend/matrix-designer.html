@@ -4240,6 +4240,15 @@ function gotoStep(n) {
 }
 
 let _inspReviewFlavor = false;   // true while the Inspector shows the Review-step flavor note
+// Sable's note carries an in-world timestamp: real clock, year shifted to the 2050s (matches the
+// world-state page's YEAR_OFFSET), in the same <HH:MM:SS/MM-DD-YY> frame the placeholder used.
+function _sableStamp() {
+  const YEAR_OFFSET = 24;
+  const t = new Date();
+  const p = n => String(n).padStart(2, '0');
+  const yy = p((t.getFullYear() + YEAR_OFFSET) % 100);
+  return `&lt;${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}/${p(t.getMonth() + 1)}-${p(t.getDate())}-${yy}&gt;`;
+}
 function _showReviewFlavor() {
   const insp = $('mdInspector');
   if (!insp) return;
@@ -4248,12 +4257,13 @@ function _showReviewFlavor() {
   _inspReviewFlavor = true;
   insp.innerHTML = `
     <div class="md3-insp-title">Final Walkthrough</div>
-    <div class="md3-insp-sub">&gt;&gt; incoming message</div>
-    <div class="md3-insp-flavor">Hoi, chummer. Before you flip this node live, walk the sheaf one more time &mdash; cold.
-      Make sure the alerts escalate in order, the Black IC actually has teeth, and you didn't leave a trap door
-      wired to nowhere. A host that looks scary but folds on the first probe just burns your cred. Run it like
-      you're the intruder. &mdash; <span style="color:var(--cyan)">Sable</span></div>
-    <div class="md3-insp-note">Review the configuration at left. It goes RUN-READY once it has a host, a security code + value, ACIFS ratings, and at least one sheaf step.</div>`;
+    <div class="md3-insp-sub">&gt;&gt; incoming priority message</div>
+    <div class="md3-insp-flavor">&gt;&gt;&gt;&gt;&gt;[Hoi, chummer. Before you flip this node live, walk the sheaf one more time &mdash; <span style="color:var(--steel-blue)">cold</span>.
+      <br><br>Make sure the alert escalations make sense, the Black IC actually has teeth, and you didn't leave a trap door
+      wired to nowhere.
+      <br><br>A host that looks scary but folds on the first probe just burns your cred. Run it like <span style="color:var(--dark-red)"><strong>you're</strong></span> the intruder.]&lt;&lt;&lt;&lt;&lt;
+      <br>&mdash;&mdash; <span style="color:var(--cyan)">Sable</span> <span style="color:var(--green-dim)">${_sableStamp()}</span></div>
+    <div class="md3-insp-note">Awaiting command...</div>`;
 }
 
 function wizardNext() {

@@ -308,6 +308,87 @@ async function apiThrow(res) {
 }
 
 
+// -- Manage-page auto-save -----------------------------------------------------
+// Replaces a CRUD modal's Save/Cancel buttons with a debounced auto-save plus a
+// quiet status line. A brand-new record is CREATED (POST) as soon as the required
+// field(s) are valid; every later edit silently PATCHes. All page-specific logic
+// (payload shape, list refresh, edit-mode flip) stays in the page via cfg.commit.
+//
+// cfg = {
+//   overlayId,            // id of the .edit-overlay that wraps the modal
+//   statusId,             // id to give the injected status <span>
+//   foot(),              // () => the .edit-modal-foot element to host the status line
+//   idleMsg,             // text shown while required fields are still blank
+//   active(),           // () => bool : only arm when true (e.g. isAdminMode())
+//   valid(),            // () => bool : required fields present
+//   editingId(),        // () => current record id, or null/undefined for a new record
+//   commit(isCreate),   // async () : POST (create) or PATCH (update). On create it MUST
+//                       //   set the page's editingId + flip the modal to edit mode, and
+//                       //   should refresh the list silently. Throw on failure.
+// }
+function makeManageAutoSave(cfg) {
+  let timer = null, inFlight = false, pending = false, ready = false;
+
+  function status(state) {
+    const el = document.getElementById(cfg.statusId);
+    if (!el) return;
+    el.className = 'ws-save-status ' + state;
+    el.textContent = state === 'saving' ? 'Saving...'
+      : state === 'error' ? 'Save failed -- retrying...'
+      : state === 'idle'  ? (cfg.idleMsg || 'Waiting for input...')
+      : 'All changes saved OK';
+  }
+
+  function arm() {
+    const foot = cfg.foot();
+    if (!foot || (cfg.active && !cfg.active())) { ready = false; return; }
+    let s = document.getElementById(cfg.statusId);
+    if (!s) {
+      s = document.createElement('span');
+      s.id = cfg.statusId;
+      s.className = 'ws-save-status';
+      s.style.flex = '1';
+      foot.insertBefore(s, foot.firstChild);
+    }
+    ready = true;
+    status(cfg.valid() ? 'saved' : 'idle');
+  }
+
+  function disarm() { ready = false; clearTimeout(timer); }
+
+  function schedule() {
+    if (!ready) return;
+    const ov = document.getElementById(cfg.overlayId);
+    if (!ov || !ov.classList.contains('open')) return;
+    if (!cfg.valid()) { clearTimeout(timer); status('idle'); return; }
+    status('saving');
+    clearTimeout(timer);
+    timer = setTimeout(saveNow, 1000);
+  }
+
+  async function saveNow() {
+    if (!ready || !cfg.valid()) return;
+    if (inFlight) { pending = true; return; }
+    inFlight = true;
+    const isCreate = cfg.editingId() == null;
+    try {
+      await cfg.commit(isCreate);
+      status('saved');
+    } catch (e) {
+      status('error');
+    } finally {
+      inFlight = false;
+      if (pending) { pending = false; schedule(); }
+    }
+  }
+
+  document.addEventListener('input',  e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
+  document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
+
+  return { arm, disarm, schedule };
+}
+
+
 // -- Heat helpers --------------------------------------------------------------
 
 function heatClass(h) {
