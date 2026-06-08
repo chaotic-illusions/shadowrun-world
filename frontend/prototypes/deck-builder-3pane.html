@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deck Builder (3-pane mockup v2) | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* -- prototype-only helpers (layout sign-off; not for production) -------- */
+
+    /* LEFT: the two big mode entries (Cyberdeck / Program) */
+    .db-modeswitch { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
+    .db-mode {
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+      padding: 10px 11px; border: 1px solid #161616; background: #0b0b0b;
+      border-left: 2px solid transparent; color: var(--text-dim);
+      letter-spacing: 1px; font-size: var(--fs-md); transition: background .12s, color .12s, border-color .12s;
+    }
+    .db-mode:hover { background: rgba(0,255,65,.04); color: var(--text-bright); }
+    .db-mode.on    { color: var(--green); border-color: var(--green-dim); border-left-color: var(--green); background: rgba(0,255,65,.06); }
+    .db-mode .ic   { flex-shrink: 0; width: 18px; text-align: center; color: var(--cyan); }
+    .db-mode.on .ic { color: var(--green); }
+    .db-mode .sub  { display: block; color: var(--text-dim); font-size: var(--fs-xxs); letter-spacing: 1px; margin-top: 2px; }
+
+    /* LEFT: live summary rows */
+    .db-sum-row { display: flex; justify-content: space-between; gap: 8px;
+      font-size: var(--fs-sm); padding: 3px 0; color: var(--text); }
+    .db-sum-row span:last-child { color: var(--text-bright); }
+    .db-sum-row.warn span:last-child { color: var(--amber); }
+    .db-sum-row.ok   span:last-child { color: var(--green); }
+    .db-sum-row.big  { padding-top: 6px; margin-top: 4px; border-top: 1px solid #1a2a1a;
+      font-size: var(--fs-md); }
+    .db-budget { height: 4px; background: #161616; margin: 5px 0 2px; overflow: hidden; }
+    .db-budget > i { display: block; height: 100%; background: var(--green-dim); }
+    .db-budget.warn > i { background: var(--amber); }
+
+    .db-validity { display:block; text-align:center; padding:8px; margin:0 0 12px;
+      border:1px solid var(--green-dim); background: rgba(0,255,65,.05);
+      color: var(--green); font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase; }
+    .db-validity.warn { border-color: var(--amber); background: rgba(255,176,0,.06); color: var(--amber); }
+
+    /* CENTER: build form */
+    .db-modepanel { display: none; }
+    .db-modepanel.on { display: block; }
+    .db-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .db-field { margin-bottom: 12px; }
+    .db-field label { display:block; font-size: var(--fs-sm); letter-spacing: 1px;
+      color: var(--cyan); margin-bottom: 4px; }
+    .db-field .tip { color:#5a5a5a; font-size: var(--fs-xs); letter-spacing:.5px; margin-top:3px; }
+
+    /* CENTER: clickable component rows -> drive the inspector detail */
+    .db-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding: 8px 10px; border: 1px solid #161616; background: #0b0b0b; margin-bottom: 6px;
+      cursor: pointer; transition: border-color .12s; }
+    .db-row:hover { border-color: var(--green-dim); }
+    .db-row.sel  { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(0,224,255,.12); }
+    .db-row .nm  { color: var(--text-bright); font-size: var(--fs-md); }
+    .db-row .mt  { color: var(--text-dim); font-size: var(--fs-sm); }
+    .db-chk { display:flex; align-items:center; gap:9px; padding:8px 10px; border:1px solid #161616;
+      background:#0b0b0b; margin-bottom:6px; cursor:pointer; color: var(--text); font-size: var(--fs-sm); }
+    .db-chk:hover { border-color: var(--green-dim); }
+    .db-chk .mt { margin-left:auto; color: var(--text-dim); font-size: var(--fs-xs); }
+
+    /* RIGHT: inspector */
+    .db-insp-cost { display:flex; justify-content:space-between; gap:8px; font-size: var(--fs-sm);
+      padding: 4px 0; border-bottom: 1px solid #121212; color: var(--text); }
+    .db-insp-cost span:last-child { color: var(--text-bright); }
+    .db-insp-cost.tot { border-bottom:none; border-top:1px solid #1a2a1a; margin-top:4px; padding-top:6px; }
+    .db-insp-cost.tot span:last-child { color: var(--green); }
+    .db-insp-cost .sz { color: var(--text-dim); font-size: var(--fs-xs); }
+
+    .db-progcard { border:1px solid var(--cyan); background: rgba(0,224,255,.04); padding:12px; margin-bottom:14px; }
+    .db-progcard .t { color: var(--text-bright); font-size: var(--fs-lg); letter-spacing:1px; }
+    .db-progcard .s { color: var(--cyan); font-size: var(--fs-xs); letter-spacing:1px; text-transform:uppercase; margin:2px 0 10px; }
+    .db-progstats { display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px; }
+    .db-progstats div { display:flex; justify-content:space-between; font-size: var(--fs-sm); color: var(--text); }
+    .db-progstats div span:last-child { color: var(--text-bright); }
+
+    .db-hint { color:#5a5a5a; font-size: var(--fs-xs); letter-spacing:1px; margin: 2px 0 12px; }
+    .db-mock-badge { position: fixed; left: 10px; bottom: 10px; z-index: 600;
+      color: var(--amber); font-size: .62rem; letter-spacing: 1px; opacity: .7; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="../world-state.html">World State</a>
+    <a href="../manage-characters.html">Characters</a>
+    <a href="../manage-organizations.html">Organizations</a>
+    <a href="../manage-locations.html">Locations</a>
+    <a href="../manage-rtgs.html">RTGs</a>
+    <a href="../manage-runs.html">Runs</a>
+    <a href="../manage-matrix.html">Matrix (SR1)</a>
+    <a href="../matrix-designer.html">Matrix Designer</a>
+    <a href="../matrix-run.html">Matrix Run</a>
+    <a href="../deck-builder.html" class="active">Deck Builder</a>
+  </nav>
+</header>
+
+<main>
+ <div class="md3">
+  <div class="page-title">&gt;&gt; DECKER GEAR CALCULATOR <em class="sep">//</em> Cyberdeck &amp; Program Costs</div>
+  <div class="page-sub" style="color:var(--cyan)">PROGRAMMER: <span class="text-bright">RAZOR</span> // Computer 6 // 3-PANE LAYOUT MOCKUP v2</div>
+
+  <div class="md3-panes">
+
+    <!-- ================= LEFT: mode switch + live summary ================= -->
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Builder</div>
+        <div class="pane-bd" id="md3SummaryMount">
+
+          <div class="db-modeswitch">
+            <div class="db-mode on" id="mode-deck" onclick="setMode('deck')">
+              <span class="ic">[#]</span>
+              <span>Cyberdeck Builder<span class="sub">Fairlight Excalibur</span></span>
+            </div>
+            <div class="db-mode" id="mode-program" onclick="setMode('program')">
+              <span class="ic">{ }</span>
+              <span>Program Builder<span class="sub">Attack-6 (editing)</span></span>
+            </div>
+          </div>
+
+          <!-- DECK summary (shown in deck mode) -->
+          <div id="sum-deck">
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Deck Summary</div>
+              <div class="db-validity">&#x25CF; VALID BUILD</div>
+              <div class="db-sum-row"><span>MPCP Rating</span><span>6</span></div>
+              <div class="db-sum-row"><span>Persona B/E/M/S</span><span>5 / 6 / 4 / 5</span></div>
+              <div class="db-sum-row"><span>Persona budget</span><span>20 / 18 used</span></div>
+              <div class="db-budget"><i style="width:90%"></i></div>
+              <div class="db-sum-row"><span>Hardening</span><span>2</span></div>
+              <div class="db-sum-row warn"><span>Response Increase</span><span>+1 (restricted)</span></div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Memory</div>
+              <div class="db-sum-row"><span>Active</span><span>120 / 200 Mp</span></div>
+              <div class="db-budget"><i style="width:60%"></i></div>
+              <div class="db-sum-row"><span>Storage</span><span>340 / 500 Mp</span></div>
+              <div class="db-budget"><i style="width:68%"></i></div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Cost</div>
+              <div class="db-sum-row"><span>Chassis + persona</span><span>202,500&yen;</span></div>
+              <div class="db-sum-row"><span>Hardware + memory</span><span>48,000&yen;</span></div>
+              <div class="db-sum-row"><span>Accessories</span><span>9,200&yen;</span></div>
+              <div class="db-sum-row big ok"><span>TOTAL</span><span>259,700&yen;</span></div>
+            </div>
+          </div>
+
+          <!-- PROGRAM summary (shown in program mode) -->
+          <div id="sum-program" style="display:none">
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Program Summary</div>
+              <div class="db-validity">&#x25CF; WITHIN UTILITY CAP (6)</div>
+              <div class="db-sum-row"><span>Type</span><span>Attack</span></div>
+              <div class="db-sum-row"><span>Effective Rating</span><span>6</span></div>
+              <div class="db-sum-row"><span>Active size</span><span>72 Mp</span></div>
+              <div class="db-sum-row"><span>Design size</span><span>144 Mp</span></div>
+            </div>
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Load on Deck</div>
+              <div class="db-sum-row"><span>Active pool</span><span>120 / 200 Mp</span></div>
+              <div class="db-budget"><i style="width:60%"></i></div>
+              <div class="db-sum-row"><span>Queued copies</span><span>2</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </aside>
+
+    <!-- ================= CENTER: the full build form ================= -->
+    <section class="md3-center">
+
+      <!-- ---- DECK MODE: every input section, all visible ---- -->
+      <div class="db-modepanel on" id="panel-deck">
+
+        <div class="mx-panel" style="margin-bottom:14px">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Deck Specification</div>
+          <div class="db-grid2">
+            <div class="db-field"><label>Deck Name *</label><input type="text" value="Fairlight Excalibur"></div>
+            <div class="db-field"><label>Deck Type</label>
+              <select><option>Hot ASIST (full VR, fastest)</option><option>Cold ASIST</option><option>Tortoise</option></select>
+            </div>
+            <div class="db-field"><label>MPCP Rating *</label><input type="number" class="md3-num" min="1" max="12" value="6">
+              <div class="tip">The deck's brain. Caps all other programs.</div></div>
+          </div>
+        </div>
+
+        <div class="mx-panel" style="margin-bottom:14px">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Persona Programs</div>
+          <div class="db-hint">Sum of all four &le; MPCP x 3. Click a program for its detail + cost.</div>
+          <div class="db-row sel" onclick="inspectComp(this,'persona','Bod')"><span class="nm">Bod</span><span class="mt">Rating 5 &middot; 15 Mp &middot; 31,250&yen;</span></div>
+          <div class="db-row" onclick="inspectComp(this,'persona','Evasion')"><span class="nm">Evasion</span><span class="mt">Rating 6 &middot; 18 Mp &middot; 45,000&yen;</span></div>
+          <div class="db-row" onclick="inspectComp(this,'persona','Masking')"><span class="nm">Masking</span><span class="mt">Rating 4 &middot; 8 Mp &middot; 20,000&yen;</span></div>
+          <div class="db-row" onclick="inspectComp(this,'persona','Sensor')"><span class="nm">Sensor</span><span class="mt">Rating 5 &middot; 10 Mp &middot; 31,250&yen;</span></div>
+        </div>
+
+        <div class="mx-panel" style="margin-bottom:14px">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Hardware Components</div>
+          <div class="db-grid2">
+            <div class="db-field"><label>Hardening (max 6)</label><input type="number" class="md3-num" min="0" max="6" value="2"></div>
+            <div class="db-field"><label>Response Increase (max 3)</label><input type="number" class="md3-num" min="0" max="3" value="1"></div>
+          </div>
+          <div class="db-chk" onclick="inspectComp(this,'hardware','ICCM Biofeedback Filter')"><input type="checkbox"> ICCM Biofeedback Filter <span class="mt">vs Black IC</span></div>
+          <div class="db-chk" onclick="inspectComp(this,'hardware','Reality Filter')"><input type="checkbox"> Reality Filter <span class="mt">+1 eff RI</span></div>
+        </div>
+
+        <div class="mx-panel" style="margin-bottom:14px">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Memory &amp; I/O</div>
+          <div class="db-grid2">
+            <div class="db-field"><label>Active Memory (Mp, max 600)</label><input type="number" class="md3-num" min="100" step="10" value="200"></div>
+            <div class="db-field"><label>I/O Speed (Mp/CT)</label><input type="number" class="md3-num" min="10" step="10" value="200"></div>
+            <div class="db-field"><label>Offline Storage / OMC (Mp)</label><input type="number" class="md3-num" min="0" step="10" value="500"></div>
+          </div>
+        </div>
+
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Accessories</div>
+          <div class="db-field"><label>Deck Casing</label>
+            <select><option>None (bare board)</option><option>Level 1 -- 500Y</option><option>Level 2 -- 2,000Y</option></select></div>
+          <div class="db-chk" onclick="inspectComp(this,'acc','Satlink Interface')"><input type="checkbox"> Satlink Interface <span class="mt">800&yen;</span></div>
+          <div class="db-chk" onclick="inspectComp(this,'acc','Hitcher Jack')"><input type="checkbox"> Hitcher Jack <span class="mt">250&yen;</span></div>
+        </div>
+
+      </div>
+
+      <!-- ---- PROGRAM MODE: the utility form ---- -->
+      <div class="db-modepanel" id="panel-program">
+
+        <div class="mx-panel" style="margin-bottom:14px">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Specification</div>
+          <div class="db-grid2">
+            <div class="db-field"><label>Utility Type</label>
+              <select onchange="document.getElementById('utilBrief').textContent=this.value+' utility selected.'">
+                <option>Attack</option><option>Analyze</option><option>Sleaze</option><option>Medic</option><option>Black Hammer</option>
+              </select></div>
+            <div class="db-field"><label>Base Rating (max 6)</label><input type="number" class="md3-num" min="1" max="6" value="6"></div>
+            <div class="db-field"><label>Damage Level (Attack)</label>
+              <select><option>Light (x2)</option><option>Moderate (x3)</option><option>Serious (x4)</option><option>Deadly (x5)</option></select></div>
+          </div>
+          <div class="tip" id="utilBrief" style="margin-top:4px;padding:8px 10px;border:1px solid #1f3a1f;background:var(--bg-input);color:var(--text);font-size:.78rem;line-height:1.45">Standard cybercombat. Multiplier varies by damage level chosen.</div>
+        </div>
+
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Options</div>
+          <div class="db-hint">Options modify effective rating and/or size. Click one to see its rule in the inspector.</div>
+          <div class="db-chk" onclick="inspectOpt(this,'Area')"><input type="checkbox"> Area <span class="mt">eff +[Area]</span></div>
+          <div class="db-chk" onclick="inspectOpt(this,'Targeting')"><input type="checkbox"> Targeting <span class="mt">-2 TN, eff +2</span></div>
+          <div class="db-chk" onclick="inspectOpt(this,'One-Shot')"><input type="checkbox"> One-Shot <span class="mt">x0.25 size</span></div>
+          <div class="db-chk" onclick="inspectOpt(this,'Optimization')"><input type="checkbox"> Optimization <span class="mt">x0.5 actual</span></div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ================= RIGHT: inspector (outputs + detail) ================= -->
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Inspector</div>
+        <div class="pane-bd" id="mdInspector">
+
+          <!-- DECK MODE inspector -->
+          <div id="insp-deck">
+            <div id="compDetail">
+              <div class="md3-insp-title">Bod</div>
+              <div class="md3-insp-sub">Persona Program -- Rating 5</div>
+              <div class="md3-insp-flavor">Soaks damage to the persona. Multiplier x3 Mp. Capped at MPCP.</div>
+              <div class="md3-insp-sec">
+                <span class="md3-insp-label">This Component</span>
+                <div class="db-insp-cost"><span>Size</span><span>15 Mp</span></div>
+                <div class="db-insp-cost"><span>OCC (parts)</span><span>6,250&yen;</span></div>
+                <div class="db-insp-cost"><span>PLC/DTC</span><span>25,000&yen;</span></div>
+                <div class="db-insp-cost"><span>Cook time</span><span>5 days</span></div>
+                <div class="db-insp-cost"><span>Install</span><span>1 day</span></div>
+                <div class="db-insp-cost tot"><span>Subtotal</span><span>31,250&yen;</span></div>
+              </div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Cost Breakdown</div>
+              <div class="db-insp-cost"><span>Deck chassis (MPCP 6)<br><span class="sz">120 Mp</span></span><span>140,000&yen;</span></div>
+              <div class="db-insp-cost"><span>Persona programs<br><span class="sz">51 Mp</span></span><span>62,500&yen;</span></div>
+              <div class="db-insp-cost"><span>Hardware<br><span class="sz">--</span></span><span>48,000&yen;</span></div>
+              <div class="db-insp-cost"><span>Accessories</span><span>9,200&yen;</span></div>
+              <div class="db-insp-cost tot"><span>TOTAL</span><span>259,700&yen;</span></div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Saved Deck Builds</div>
+              <div class="db-row" onclick="inspectComp(this,'build','Fairlight Excalibur')"><span class="nm">Fairlight Excalibur</span><span class="mt">259,700&yen;</span></div>
+              <div class="db-row" onclick="inspectComp(this,'build','CMT Avatar')"><span class="nm">CMT Avatar</span><span class="mt">96,400&yen;</span></div>
+            </div>
+          </div>
+
+          <!-- PROGRAM MODE inspector -->
+          <div id="insp-program" style="display:none">
+            <div class="db-progcard">
+              <div class="t">Attack-6</div>
+              <div class="s">Offensive Utility</div>
+              <div class="db-progstats">
+                <div><span>Eff Rating</span><span>6</span></div>
+                <div><span>Damage</span><span>Light</span></div>
+                <div><span>Active</span><span>72 Mp</span></div>
+                <div><span>Design</span><span>144 Mp</span></div>
+              </div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Cost &amp; Availability</div>
+              <div class="db-insp-cost"><span>Design cost</span><span>14,400&yen;</span></div>
+              <div class="db-insp-cost"><span>Availability</span><span>6 / 14 days</span></div>
+              <div class="db-insp-cost"><span>Street index</span><span>x2</span></div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Construction Time</div>
+              <div class="db-insp-cost"><span>Base time</span><span>12 days</span></div>
+              <div class="db-insp-cost"><span>w/ 3 successes</span><span>4 days</span></div>
+            </div>
+
+            <div class="md3-summary">
+              <div class="md3-summary-hd">Deck Load Planner</div>
+              <div class="db-row" onclick="inspectOpt(this,'Attack-6')"><span class="nm">Attack-6</span><span class="mt">active &middot; 72 Mp</span></div>
+              <div class="db-row" onclick="inspectOpt(this,'Analyze-4')"><span class="nm">Analyze-4</span><span class="mt">storage &middot; 48 Mp</span></div>
+              <div class="db-hint" style="margin-top:8px">+ Saved Load-outs and Program Library / Compile Jobs live here too.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </aside>
+
+  </div><!-- /md3-panes -->
+ </div><!-- /md3 -->
+</main>
+
+<div class="db-mock-badge">STATIC MOCKUP v2 -- layout sign-off only</div>
+
+<script>
+  function setMode(mode) {
+    var deck = mode === 'deck';
+    document.getElementById('mode-deck').classList.toggle('on', deck);
+    document.getElementById('mode-program').classList.toggle('on', !deck);
+    document.getElementById('panel-deck').classList.toggle('on', deck);
+    document.getElementById('panel-program').classList.toggle('on', !deck);
+    document.getElementById('sum-deck').style.display = deck ? '' : 'none';
+    document.getElementById('sum-program').style.display = deck ? 'none' : '';
+    document.getElementById('insp-deck').style.display = deck ? '' : 'none';
+    document.getElementById('insp-program').style.display = deck ? 'none' : '';
+  }
+
+  // Clicking a deck component swaps the inspector's top detail block.
+  var COMP = {
+    'Bod':       ['Persona Program -- Rating 5', 'Soaks damage to the persona. Multiplier x3 Mp. Capped at MPCP.', '15 Mp', '31,250'],
+    'Evasion':   ['Persona Program -- Rating 6', 'Dodges IC and detection. Multiplier x3 Mp.', '18 Mp', '45,000'],
+    'Masking':   ['Persona Program -- Rating 4', 'Hides the persona from IC. Multiplier x2 Mp.', '8 Mp', '20,000'],
+    'Sensor':    ['Persona Program -- Rating 5', 'Detection + analysis. Multiplier x2 Mp.', '10 Mp', '31,250'],
+    'ICCM Biofeedback Filter': ['Hardware -- toggle', 'Protects vs. lethal damage from Black IC.', '--', '12,000'],
+    'Reality Filter': ['Hardware -- toggle', '+1 effective RI; +2 MPCP for cost; -1 MPCP for persona cap.', '--', '0'],
+    'Satlink Interface': ['Accessory', 'Standard portable 0.5m dish.', '--', '800'],
+    'Hitcher Jack': ['Accessory', 'Allows a passenger in VR.', '--', '250'],
+    'Fairlight Excalibur': ['Saved Build', 'Click Load to open this build in the form.', '120 Mp', '259,700'],
+    'CMT Avatar': ['Saved Build', 'Cheaper starter rig.', '60 Mp', '96,400']
+  };
+  function inspectComp(row, kind, name) {
+    document.querySelectorAll('#panel-deck .db-row, #panel-deck .db-chk, #insp-deck .db-row').forEach(function (r) { r.classList.remove('sel'); });
+    if (row) row.classList.add('sel');
+    var d = COMP[name] || ['Component', '', '--', '0'];
+    document.getElementById('compDetail').innerHTML =
+      '<div class="md3-insp-title">' + name + '</div>' +
+      '<div class="md3-insp-sub">' + d[0] + '</div>' +
+      '<div class="md3-insp-flavor">' + d[1] + '</div>' +
+      '<div class="md3-insp-sec"><span class="md3-insp-label">This Component</span>' +
+      '<div class="db-insp-cost"><span>Size</span><span>' + d[2] + '</span></div>' +
+      '<div class="db-insp-cost"><span>Cook time</span><span>5 days</span></div>' +
+      '<div class="db-insp-cost"><span>Install</span><span>1 day</span></div>' +
+      '<div class="db-insp-cost tot"><span>Subtotal</span><span>' + d[3] + '&yen;</span></div></div>';
+  }
+
+  function inspectOpt(row, name) {
+    document.querySelectorAll('#panel-program .db-chk, #insp-program .db-row').forEach(function (r) { r.classList.remove('sel'); });
+    if (row) row.classList.add('sel');
+    // (program-mode inspector keeps its computed card; selecting an option/slot would
+    //  highlight + scroll the relevant rule in the live version)
+  }
+</script>
+</body>
+</html>

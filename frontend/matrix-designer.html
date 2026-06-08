@@ -3733,7 +3733,7 @@ function _inspAddComp() {
   if (!t) return;
   const maxRtg = _groupMaxRating();
   if (isNaN(r) || r < 1 || r > 20) { showAlert(alertEl(), 'IC rating must be 1-20.', true); return; }
-  if (maxRtg > 0 && r > maxRtg) { showAlert(alertEl(), `Max IC rating for this host is ${maxRtg} (SV x 2/3).`, true); return; }
+  if (maxRtg > 0 && r > maxRtg) { showAlert(alertEl(), `Max IC rating for this host is ${maxRtg} (SV x 2/3, rounded up).`, true); return; }
   c.draft.components.push({ ic_type: t, rating: r });
   _inspReRender();
 }

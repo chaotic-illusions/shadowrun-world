@@ -723,7 +723,7 @@ function inspectComposite(ev,ctx){
       <div class="note">Only the hidden payload takes defenses (Armor/Shielding/Shifting) and Cascade -- the surface IC does not.</div>`;
   } else if(ev.type==='construct'){ title='Construct'; sub='Grouped IC, single icon';
     const d=ev.defenses||[];
-    body=`<div class="insp-row"><span class="label">Max IC rating</span><span class="muted">${HOST_IC_CAP} -- ceil(SV x 2/3)</span></div>
+    body=`<div class="insp-row"><span class="label">Max IC rating</span><span class="muted">${HOST_IC_CAP} -- SV x 2/3, rounded up</span></div>
       <div class="insp-row"><span class="label">Capacity</span><span class="muted">11 used / 30 (SV + Threat)</span></div>
       <div class="insp-row"><span class="label">Threat Rating</span>${numField(ev.threat,0,4,64)}</div>
       <div class="note">Threat maps to security code -- 0 Blue, 1 Green, 2 Orange, 3 Red, 4 Black -- and cannot exceed the host code. It drives the construct's capacity and max IC rating; it is not flavor.</div>

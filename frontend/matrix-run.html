@@ -135,12 +135,12 @@
         <div class="mr-field">
           <label>Intelligence (1-50)</label>
           <input type="number" id="cfg-intelligence" min="1" max="50" value="4">
-          <span class="tip">Hacking Pool: floor((Intel + MPCP) / 3).</span>
+          <span class="tip">Hacking Pool: (Intel + MPCP) / 3, rounded down.</span>
         </div>
         <div class="mr-field">
           <label>Quickness (1-12)</label>
           <input type="number" id="cfg-quickness" min="1" max="12" value="4">
-          <span class="tip">Reaction = ceil((Quickness + Intel) / 2).</span>
+          <span class="tip">Reaction = (Quickness + Intel) / 2, rounded up.</span>
         </div>
         <div class="mr-field">
           <label>Willpower (1-50)</label>
@@ -973,10 +973,12 @@ function renderDeckAndLoadoutSelectors() {
   const prevLoad = loadSel.value;
 
   deckSel.innerHTML = '<option value="">-- Select deck build --</option>';
-  _savedDecks.forEach(deck => {
+  // Only runnable decks: BUILT (cook+install done) or GM-PURCHASED (open-market). Built decks
+  // carry a [Built] tag; purchased ones do not (the absence signifies an open-market buy).
+  _savedDecks.filter(deck => deck.fabricated || deck.purchased).forEach(deck => {
     const opt = document.createElement('option');
     opt.value = deck.name;
-    opt.textContent = `${deck.name} [MPCP ${deck.mpcp || '--'}]`;
+    opt.textContent = `${deck.name} [MPCP ${deck.mpcp || '--'}]${deck.fabricated ? ' [Built]' : ''}`;
     deckSel.appendChild(opt);
   });
 
