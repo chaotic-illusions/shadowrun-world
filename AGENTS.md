@@ -89,6 +89,22 @@ checks already exist. Search first; add second.
   function is usually called from inline handlers in the `.html`, so a single-file scan
   reports false positives.
 
+### Dice rolls -- Rule of 6 (exploding sixes) ALWAYS applies
+
+Every SR2 dice roll in this app uses the **rule of 6**: a die showing 6 is re-rolled and
+the result **added** to that die's total, repeating while it keeps coming up 6. The
+accumulated per-die total is what you compare to the target number -- so a 6 can chain to
+beat a TN above 6 (e.g. vs TN 12 a die can roll 6+6+3=15). Without it, **any TN > 6 is
+unbeatable** (a flat d6 maxes at 6) and the test silently always yields 0 successes.
+
+- Backend canonical impl: `app/services/matrix_engine.py` `roll_dice(pool, tn)` -- it only
+  explodes when `tn > 6` (for `tn <= 6` a 6 is already a success, so exploding can't change
+  the success count; that's a valid optimization, not a different rule).
+- Frontend: use `rollDicePool(dice, tn)` / `rollExplodingD6()` in `deck-builder*.html`. Do
+  NOT hand-roll `Math.floor(Math.random()*6)+1` and compare to TN -- that skips the rule
+  and breaks every high-TN test (this was the deck-construction and `rollProgrammingTask`
+  bug fixed 2026-06-04). Reuse the helper for any new roll.
+
 ---
 
 ## 4. Database, migrations & deployment
