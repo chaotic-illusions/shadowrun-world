@@ -3,172 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Deck Builder (preview) | Shadowrun World Engine</title>
+  <title>Deck Workshop (preview) | Deck Builder | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
   <script src="shared.js"></script>
-  <style>
-    /* deck-builder 3-pane shell helpers (scoped, reuse style.css .md3-* otherwise) */
-    #profileGateCard { padding-bottom: 12px; border-bottom: 1px solid #1a2a1a; margin-bottom: 12px; }
-    /* U7: section headers -- brighter / more visible */
-    .db-navgroup { color: var(--cyan); font-size: var(--fs-sm); letter-spacing: 2px;
-      text-transform: uppercase; font-weight: bold; padding: 10px 0 6px; margin-bottom: 8px;
-      border-bottom: 1px solid rgba(0,224,255,.22); text-shadow: 0 0 6px rgba(0,224,255,.25); }
-    .db-modeswitch { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; }
-    .db-mode { display: flex; align-items: center; gap: 9px; cursor: pointer; padding: 9px 10px;
-      border: 1px solid #161616; background: #0b0b0b; border-left: 2px solid transparent;
-      color: var(--text-dim); letter-spacing: 1px; font-size: var(--fs-md);
-      transition: background .12s, color .12s, border-color .12s; }
-    .db-mode:hover { background: rgba(0,255,65,.04); color: var(--text-bright); }
-    .db-mode.on { color: var(--green); border-color: var(--green-dim);
-      border-left-color: var(--green); background: rgba(0,255,65,.06); }
-    .db-mode .ic { width: 18px; text-align: center; color: var(--cyan); flex-shrink: 0; }
-    .db-mode.on .ic { color: var(--green); }
-    #leftSummaryDeck .validity-badge { display: block; margin-bottom: 12px; }
-    #deckSummaryPanel { margin-bottom: 12px; }
-    .db-review-btn { width: 100%; }
-    /* center panels keep normal spacing in the md3 column */
-    .md3-center .mx-panel { margin-bottom: 14px; }
-    .md3-center .mx-panel:last-child { margin-bottom: 0; }
-    .db-review-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 
-    /* R1: mode active indicator (left) -- glyph icons removed */
-    .db-mode { padding-left: 9px; }
-    .db-mode .db-ind { width: 9px; flex-shrink: 0; color: transparent; font-weight: bold; }
-    .db-mode.on { border-left-width: 3px; box-shadow: inset 2px 0 0 0 var(--green); }
-    .db-mode.on .db-ind { color: var(--green); }
+<style id="dwSkin">
+/* ===================== WORKSHOP SKIN (dw-*) ===================== */
+main { max-width:none !important; }
+.tab-bar { display:none !important; }
+.tab-panel { display:block !important; }  /* layer re-parents; visibility is per-dossier */
+.dw-shell { display:grid; grid-template-columns:272px minmax(0,1fr) 360px; gap:16px;
+  max-width:1920px; margin:0 auto; padding:8px 24px 70px; align-items:start; position:relative; z-index:2; }
+@media (max-width:1500px){ .dw-shell { grid-template-columns:256px minmax(0,1fr); } .dw-insp { grid-column:2; } }
+@media (max-width:980px){ .dw-shell { grid-template-columns:1fr; } .dw-insp { grid-column:auto; } }
+.dw-pane { background:var(--bg-card); border:1px solid #1a2a1a; }
+.dw-pane-hd { padding:10px 14px; border-bottom:1px solid #1a2a1a; color:var(--green);
+  font-size:.62rem; letter-spacing:3px; text-transform:uppercase; }
+.dw-pane-bd { padding:14px; }
+.dw-group { color:var(--cyan); font-size:.62rem; letter-spacing:3px; text-transform:uppercase;
+  padding:14px 2px 7px; display:flex; align-items:center; gap:8px; }
+.dw-group:first-child { padding-top:0; }
+.dw-group .add { margin-left:auto; color:var(--green-dim); cursor:pointer; font-size:.62rem;
+  border:1px solid #1d301d; padding:2px 8px; letter-spacing:1px; }
+.dw-group .add:hover { color:var(--green); border-color:var(--green); background:rgba(0,255,65,.07); }
+.dw-asset { padding:9px 10px; border:1px solid #141414; border-left:2px solid transparent;
+  background:#0b0b0b; margin-bottom:6px; cursor:pointer; }
+.dw-asset:hover { border-color:#243024; }
+.dw-asset.sel { border-left-color:var(--green); border-color:#1d301d; background:rgba(0,255,65,.05); }
+.dw-asset .nm { color:var(--text-bright); font-size:.82rem; display:flex; align-items:center; gap:8px; }
+.dw-asset .mt { color:var(--text-dim); font-size:.62rem; letter-spacing:.6px; margin-top:3px; text-transform:uppercase; }
+.chipx { font-size:.55rem; letter-spacing:1px; text-transform:uppercase; border:1px solid;
+  border-radius:3px; padding:1px 6px; margin-left:auto; flex-shrink:0; }
+.chipx.draft { color:var(--text); border-color:#3d3d3d; }
+.chipx.pending { color:var(--amber); border-color:#553300; animation:dwPulse 1.6s ease-in-out infinite; }
+.chipx.fab { color:var(--amber); border-color:#553300; animation:dwPulse 1.6s ease-in-out infinite; }
+.chipx.ready { color:var(--green); border-color:var(--green-dark); }
+.chipx.street { color:var(--cyan); border-color:#0a3a4a; }
+@keyframes dwPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+.dw-fam { border:1px solid #141414; background:#0b0b0b; margin-bottom:6px; }
+.dw-fam-hd { display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; }
+.dw-fam-hd .car { color:var(--green-dim); font-size:.62rem; width:10px; transition:transform .15s; }
+.dw-fam.open .dw-fam-hd .car { transform:rotate(90deg); }
+.dw-fam-hd .nm { color:var(--text-bright); font-size:.82rem; }
+.dw-fam-hd .ct { color:var(--text-dim); font-size:.55rem; letter-spacing:1px; }
+.dw-fam-bd { display:none; border-top:1px solid #141414; }
+.dw-fam.open .dw-fam-bd { display:block; }
+.dw-var { display:flex; align-items:center; gap:8px; padding:7px 10px 7px 24px; cursor:pointer;
+  border-left:2px solid transparent; font-size:.74rem; }
+.dw-var:hover { background:rgba(0,255,65,.04); }
+.dw-var.sel { border-left-color:var(--green); background:rgba(0,255,65,.06); }
+.dw-var .mp { color:var(--text-dim); font-size:.55rem; margin-left:auto; }
+.dw-archive { border:1px dashed #3d3d14; background:#0d0c08; padding:8px 10px; margin-bottom:9px; cursor:pointer; }
+.dw-archive .hd { display:flex; justify-content:space-between; font-size:.62rem; letter-spacing:1px;
+  color:var(--straw, #eecc66); text-transform:uppercase; }
+.dw-archive .hd .n { color:var(--text-bright); }
+.dw-archive .bar { height:3px; background:#161616; margin-top:5px; }
+.dw-archive .bar i { display:block; height:100%; background:var(--green-dim); }
+.dw-archive.hot .bar i { background:var(--amber); }
+.dw-archive .lbl { font-size:.55rem; color:var(--text-dim); margin-top:5px; }
+.dw-archive .buy { color:var(--amber); cursor:pointer; }
+.dw-dossier { display:none; }
+.dw-dossier.on { display:block; position:relative; animation:dwTrace .3s ease; padding:10px 12px 2px; }
+.dw-dossier.on::before, .dw-dossier.on::after { content:''; position:absolute; width:22px; height:22px;
+  pointer-events:none; border:1px solid var(--green); opacity:.6; animation:dwBrkt 3.2s ease-in-out infinite; }
+.dw-dossier.on::before { top:0; left:0; border-right:none; border-bottom:none; }
+.dw-dossier.on::after { bottom:0; right:0; border-left:none; border-top:none; }
+@keyframes dwBrkt { 0%,100%{opacity:.6} 50%{opacity:.22} }
+@keyframes dwTrace { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+.dw-plate { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:4px; }
+.dw-plate .name { font-size:1.3rem; color:var(--text-bright); letter-spacing:2px; }
+.dw-plate .serial { color:var(--text-dim); font-size:.62rem; letter-spacing:2px; text-transform:uppercase; }
+.dw-stages { display:flex; align-items:center; margin:12px 0 16px; }
+.dw-stage { display:flex; align-items:center; flex:1; min-width:0; }
+.dw-stage .node { border:1px solid #2a2a2a; color:var(--text-dim); background:#0b0b0b;
+  font-size:.55rem; letter-spacing:2px; text-transform:uppercase; padding:6px 12px; white-space:nowrap; }
+.dw-stage .wire { flex:1; height:1px; background:#222; margin:0 6px; position:relative; }
+.dw-stage:last-child .wire { display:none; }
+.dw-stage.done .node { color:var(--green-dim); border-color:var(--green-dark); }
+.dw-stage.done .wire { background:var(--green-dark); }
+.dw-stage.done .wire::after { content:''; position:absolute; top:-1px; left:0; width:14px; height:3px;
+  background:var(--green); box-shadow:0 0 8px var(--green); animation:dwWire 2.4s linear infinite; }
+@keyframes dwWire { from{left:0;opacity:0} 15%{opacity:1} 85%{opacity:1} to{left:calc(100% - 14px);opacity:0} }
+.dw-stage.now .node { color:var(--green); border-color:var(--green); box-shadow:0 0 10px rgba(0,255,65,.25);
+  animation:dwPulse 2s ease-in-out infinite; }
+.dw-stage.now.amber .node { color:var(--amber); border-color:var(--amber); }
+.dw-stage.skip .node { text-decoration:line-through; opacity:.35; }
+.dw-id { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 18px; margin:10px 24px;
+  border:1px solid #11301c; background:linear-gradient(90deg, rgba(0,255,65,.05), transparent 60%); }
+.dw-id .jack { color:var(--green); letter-spacing:2px; font-size:.74rem; text-transform:uppercase; }
+.dw-id .who { color:var(--text-bright); font-size:1.05rem; letter-spacing:1px; }
+.dw-id .caps { color:var(--text-dim); font-size:.74rem; }
+.dw-id .caps b { color:var(--cyan); font-weight:normal; }
+.dw-fixer { display:none; border:1px solid #553300; background:rgba(255,153,0,.04); margin-bottom:12px; }
+body.dw-gm .dw-fixer { display:block; }
+.dw-fixer-bar { display:flex; align-items:center; gap:10px; padding:9px 14px; cursor:pointer; }
+.dw-fixer-bar .t { color:var(--amber); letter-spacing:2px; font-size:.74rem; text-transform:uppercase; }
+.dw-fixer-bar .n { min-width:18px; text-align:center; font-size:.55rem; color:#0b0b0b; background:var(--amber);
+  border-radius:9px; padding:1px 6px; font-weight:bold; }
+.dw-fixer-bd { display:none; padding:0 14px 14px; }
+.dw-fixer.open .dw-fixer-bd { display:block; }
+.dw-appr { border:1px solid #20301f; background:#0c130c; padding:12px 14px; margin-top:8px; }
+.dw-appr .who { color:var(--cyan); letter-spacing:1px; font-size:.82rem; }
+.dw-appr .fields { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin:9px 0; }
+.dw-appr .fields label { display:flex; flex-direction:column; gap:5px; font-size:.62rem; letter-spacing:1px; color:var(--cyan); }
+.dw-appr .fields input { width:110px; }
+.dw-acquire { border:1px solid #20301f; background:#0c130c; padding:12px 14px; margin-top:12px; }
+.dw-acq-paths { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width:860px){ .dw-acq-paths { grid-template-columns:1fr; } }
+.dw-path { border:1px solid #1a2a1a; background:#0b0b0b; padding:12px; }
+.dw-path .hd { letter-spacing:2px; font-size:.82rem; text-transform:uppercase; margin-bottom:6px; }
+.dw-path.build .hd { color:var(--green); } .dw-path.buy .hd { color:var(--amber); }
+.dw-path .ln { font-size:.74rem; color:var(--text-dim); line-height:1.7; }
+#dwPackets { position:fixed; inset:0; z-index:0; pointer-events:none; }
+.dw-gridbg { position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:linear-gradient(rgba(0,255,65,.03) 1px, transparent 1px),
+             linear-gradient(90deg, rgba(0,255,65,.03) 1px, transparent 1px);
+  background-size:46px 46px; }
+@media (prefers-reduced-motion:reduce){ #dwPackets, .dw-gridbg { display:none; }
+  .dw-dossier.on::before, .dw-dossier.on::after, .dw-stage .wire::after { animation:none !important; } }
+/* relocated live panels: soften their outer margin inside dossiers */
+.dw-slot > .mx-panel, .dw-slot > div > .mx-panel { margin-top:12px; }
+#profileGateCard { margin:0 0 12px 0; }
+</style>
 
-    /* R4/U2: compact deck number fields + single-line, narrow B/E/M/S */
-    .db-bems { display: flex; gap: 14px; }
-    .db-bems .db-mini { flex: 0 0 auto; margin: 0; }
-    .db-bems .db-mini label { display: block; font-size: var(--fs-sm); letter-spacing: 1px;
-      color: var(--cyan); margin-bottom: 4px; text-align: center; }
-    .db-spec-row { display: flex; gap: 10px; align-items: flex-start; }
-    .db-spec-row .db-field { margin: 0; }
-    /* U1: disabled persona row (no MPCP yet) */
-    .db-disabled { opacity: .4; pointer-events: none; }
-    /* U3: deck-type select sized to fit its longest option (incl. arrow) */
-    .db-type-select { width: max-content; max-width: 100%; }
-    /* U5: Memory & I/O -- three boxed fields on one line */
-    .db-memrow { display: flex; gap: 10px; align-items: stretch; }
-    .db-membox { flex: 1; min-width: 0; border: 1px solid #1a2a1a; background: #0b0b0b; padding: 10px; }
-    .db-membox label { display: block; font-size: var(--fs-sm); letter-spacing: 1px; color: var(--cyan); margin-bottom: 6px; }
-    .db-membox .tip { margin-top: 6px; }
-    .db-membox .infield-num-wrap { width: 100%; }
-    /* U6: fade the build form in (world-state-style reveal) */
-    @keyframes dbFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    .db-fade { animation: dbFadeIn .3s ease; }
-    /* U8: inspector section separation */
-    #mdInspector .md3-summary { border-top: 1px solid #1a2a1a; margin-top: 16px; padding-top: 14px; }
-    /* V5: component detail boxed + tinted to separate it from Saved Deck Builds */
-    #mdInspector #compDetail { border: 1px solid #20301f; background: #0c130c; padding: 12px; }
-    /* component labels that open the inspector */
-    .db-clk { cursor: pointer; }
-    .db-clk:hover { color: var(--text-bright); text-shadow: var(--glow-cyan); }
-
-    /* R5: auto-save status line */
-    .db-autosave { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim);
-      margin: 10px 0 0; text-transform: uppercase; }
-    .db-autosave.saved { color: var(--green-dim); }
-
-    /* R6: delete buttons -> red + consistent (overrides the bare [x] look) */
-    .lp-remove-btn { color: var(--red); border: 1px solid #330000; background: transparent;
-      padding: 3px 8px; font-family: var(--font); font-size: var(--fs-xs); cursor: pointer;
-      letter-spacing: 1px; transition: background .12s; }
-    .lp-remove-btn:hover { background: rgba(255,51,51,.10); color: var(--red); }
-
-    /* R7: deck toolbar (New / autosave) */
-    .db-toolbar { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
-
-    /* R3: Review Build cost overlay (fade-in, world-state style) */
-    #deckReviewOverlay .ltg-modal { max-width: 900px; }
-    #deckReviewOverlay .ltg-modal-body { padding: 16px; overflow: auto; }
-    #deckReviewOverlay .ltg-modal-head { display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px; border-bottom: 1px solid var(--green-dim); }
-    #deckReviewOverlay .ltg-modal-head .t { color: var(--cyan); letter-spacing: 2px; text-transform: uppercase; font-size: var(--fs-sm); }
-
-    /* T3: invalid-build badge slowly flashes red until the deck is run-ready */
-    @keyframes dbInvalidFlash { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-    .validity-badge.db-flash { animation: dbInvalidFlash 1.4s ease-in-out infinite; }
-
-    /* T5: center empty-state (shown until a deck is loaded / New Deck) */
-    #deckEmptyState { text-align: center; padding: 48px 20px; }
-    #deckEmptyState .md3-insp-empty { margin-bottom: 16px; }
-    /* V1: uniform 34px control height across the deck-builder (inputs, selects, buttons) */
-    #deckMain input[type=text],
-    #deckMain input[type=number],
-    #deckMain input[type=password],
-    #deckMain select,
-    #deckMain .btn,
-    #deckMain button:not(.infield-num-btn):not(.md3-cdd-btn):not(.db-mode) {
-      height: 34px; box-sizing: border-box; line-height: 1;
-    }
-    /* Checkboxes get their own consistent size */
-    #deckMain input[type=checkbox] { width: 16px; height: 16px; margin: 0; vertical-align: middle; }
-    /* infield-num-btn (stepper carat), md3-cdd-btn (dropdown trigger) and db-mode
-       (left-rail nav) are intentionally exempt from the 34px rule above. */
-    /* V6: review-modal column headers not bold */
-    #deckReviewOverlay .comp-table th { font-weight: normal; }
-    /* V7: Construction Task panel inside the review overlay */
-    .db-construct { margin-top: 16px; border: 1px solid #20301f; background: #0c130c; padding: 14px; }
-    .db-construct-hd { color: var(--cyan); letter-spacing: 2px; text-transform: uppercase;
-      font-size: var(--fs-sm); margin-bottom: 8px; }
-    /* W4: Base/Actual cook+install as plain calculated label lines */
-    .db-construct-line { font-size: var(--fs-md); letter-spacing: .5px; color: var(--text);
-      padding: 3px 0; }
-    .db-construct-line .v { color: var(--text-bright); font-weight: bold; }
-    .db-construct-line.db-actual { color: var(--green); }
-    .db-construct-line.db-actual .v { color: var(--green); text-shadow: var(--glow-green); }
-    #deckConstructGrid { margin-bottom: 4px; }
-    /* W6: Fabrication Queue + fabricated badge */
-    .fab-job-phase { text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
-    .fab-job-phase.cook { color: var(--amber); }
-    .fab-job-phase.install { color: var(--cyan); }
-    .fab-job-phase.compile { color: var(--amber); }
-    .fab-badge { display: inline-block; font-size: var(--fs-xxs); letter-spacing: 1px;
-      text-transform: uppercase; color: var(--green); border: 1px solid var(--green-dim);
-      border-radius: 3px; padding: 1px 5px; margin-left: 6px; }
-    .fab-badge.built { color: var(--green); border-color: var(--green-dim); }
-    .fab-badge.bought { color: var(--cyan); border-color: rgba(0,224,255,.4); }
-    .fab-badge.pending { color: var(--amber); border-color: #553300; animation: apprPulse 1.6s ease-in-out infinite; }
-    #deckBuildStatus.building { color: var(--amber); }
-    #deckBuildStatus.fabricated { color: var(--green); }
-    #deckBuildStatus.pending { color: var(--amber); }
-
-    /* Flashier left-pane CTA: this opens Review AND starts the build/buy submission. */
-    .db-review-cta { color: var(--green); border-color: var(--green); background: rgba(0,255,65,.06);
-      letter-spacing: 1px; text-shadow: 0 0 6px rgba(0,255,65,.35);
-      box-shadow: 0 0 0 0 rgba(0,255,65,.45); animation: ctaPulse 2s ease-in-out infinite; }
-    .db-review-cta:hover { background: rgba(0,255,65,.14); box-shadow: 0 0 14px rgba(0,255,65,.4); }
-    .db-review-cta .db-cta-sub { color: var(--text-dim); font-size: var(--fs-xxs); letter-spacing: 1px; }
-    @keyframes ctaPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,65,.0); }
-      50%      { box-shadow: 0 0 12px 1px rgba(0,255,65,.30); }
-    }
-    @keyframes apprPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-
-    /* GM Pending Approvals panel (top of center, admin only) */
-    .appr-panel { border-color: #553300; box-shadow: inset 0 0 0 1px rgba(255,153,0,.12); }
-    .appr-count { display: inline-block; min-width: 18px; text-align: center; font-size: var(--fs-xxs);
-      color: #0b0b0b; background: var(--amber); border-radius: 9px; padding: 1px 6px; font-weight: bold; letter-spacing: 0; }
-    .appr-count:empty { display: none; }
-    .appr-row { border: 1px solid #20301f; background: #0c130c; padding: 10px 12px; margin-bottom: 10px; }
-    .appr-row:last-child { margin-bottom: 0; }
-    .appr-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .appr-name { color: var(--cyan); letter-spacing: 1px; }
-    .appr-kind { font-size: var(--fs-xxs); letter-spacing: 1px; text-transform: uppercase;
-      border-radius: 3px; padding: 1px 6px; border: 1px solid; }
-    .appr-kind.build { color: var(--green); border-color: var(--green-dim); }
-    .appr-kind.buy { color: var(--amber); border-color: #553300; }
-    .appr-fields { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; margin-bottom: 8px; }
-    .appr-fields label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm);
-      letter-spacing: 1px; color: var(--cyan); }
-    .appr-fields input { width: 90px; height: 30px; box-sizing: border-box; }
-    .appr-time { color: var(--green); text-shadow: var(--glow-green); letter-spacing: .5px; margin-bottom: 10px; }
-    .appr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    /* The column headers keep coming back bold -- force non-bold across every table on the page. */
-    #deckMain table th { font-weight: normal; }
-  </style>
 </head>
 <body>
 
@@ -194,210 +151,220 @@
 
   <div id="pageAlert" class="alert" style="margin-bottom:12px"></div>
 
- <div class="md3">
-  <div class="md3-panes">
+  <div class="db-panel deck-profile-panel" id="profileGateCard">
+    <div class="panel-title panel-title-cyan">&gt;&gt; Programmer Profile</div>
+    <div class="tip" id="profilePromptTip" style="margin-bottom:10px">Select a qualified PC to auto-load programming skill caps for this session.</div>
+    <div id="profileStatus" class="tip" style="margin-bottom:8px;color:var(--text)">Choose a programmer to begin.</div>
 
-   <!-- ===================== LEFT: profile + mode + live summary ===================== -->
-   <aside class="md3-side">
-    <div class="pane">
-      <div class="pane-hd">Builder</div>
-      <div class="pane-bd" id="md3SummaryMount">
-
-        <!-- A1 Programmer Profile gate (always interactive) -->
-        <div id="profileGateCard">
-          <div class="db-navgroup">Programmer Profile</div>
-          <div class="tip" id="profilePromptTip" style="margin-bottom:10px">Select a qualified PC to auto-load programming skill caps for this session.</div>
-          <div id="profileStatus" class="tip" style="margin-bottom:8px;color:var(--text)">Choose a programmer to begin.</div>
-
-          <div id="profileFormArea">
-            <div class="db-field">
-              <label>Programming Character (PC)</label>
-              <select id="programmerCharacter" onchange="updateProgrammerProfilePreview()">
-                <option value="">-- Select PC --</option>
-              </select>
-            </div>
-
-            <div id="profileDerived" class="tip" style="margin:6px 0 12px;color:var(--text-bright);font-size:.82rem;letter-spacing:1.2px;line-height:1.5">MPCP cap: -- | Utility cap: --</div>
-            <button class="btn btn-green btn-sm" id="activateProfileBtn" onclick="activateDeckBuilder()" disabled>&gt;&gt; Activate Deck Builder</button>
-          </div>
-
-          <div id="profileSummaryArea" style="display:none">
-            <div class="profile-summary-name" id="profileSummaryText"></div>
-            <div class="profile-summary-caps" id="profileSummaryCaps"></div>
-            <button class="btn btn-ghost btn-sm" onclick="editProgrammerProfile()">&gt;&gt; Change Programmer</button>
-          </div>
-        </div>
-
-        <!-- gated controls + live summary -->
-        <div id="deckBuilderApp" class="deck-builder-app deck-builder-locked">
-
-          <div class="db-navgroup">Builder Mode</div>
-          <div class="db-modeswitch">
-            <div class="db-mode on" id="mode-deck" onclick="setMode('deck')"><span class="db-ind">&gt;</span><span>Cyberdeck Builder</span></div>
-            <div class="db-mode" id="mode-program" onclick="setMode('program')"><span class="db-ind">&gt;</span><span>Program Builder</span></div>
-            <div class="db-mode" id="mode-loadout" onclick="setMode('loadout')"><span class="db-ind">&gt;</span><span>Deck Loadouts</span></div>
-          </div>
-
-          <!-- Deck-mode summary -->
-          <div id="leftSummaryDeck">
-            <div id="validityBadge" class="validity-badge validity-ok">&#x25CF; ENTER MPCP RATING TO BEGIN</div>
-            <div id="deckSummaryPanel" style="display:none">
-              <div class="md3-summary-hd">Deck Summary</div>
-              <div id="deckSumGrid"></div>
-            </div>
-            <button class="btn btn-sm db-review-btn db-review-cta" onclick="showDeckReview()">&gt;&gt; REVIEW &amp; SUBMIT <span class="db-cta-sub">// Build &middot; Buy &middot; Cost</span></button>
-            <div class="tip" style="margin-top:8px;line-height:1.5">Save your deck (Inspector, right) to name it. Saved decks can be submitted to Build or Buy from the Review overlay.</div>
-          </div>
-
-          <!-- Program-mode summary -->
-          <div id="leftSummaryProgram" style="display:none">
-            <div class="md3-summary-hd">Program Builder</div>
-            <div class="tip" style="line-height:1.5">The computed program (size, cost, build time) shows in the Inspector. Compiled programs and compile jobs live in the Program Library below the form. Assign programs to a deck in the Deck Loadouts tab.</div>
-          </div>
-
-          <!-- Loadout-mode summary: live deck memory/storage usage snapshot -->
-          <div id="leftSummaryLoadout" style="display:none">
-            <div class="md3-summary-hd">Load Usage</div>
-            <div class="tip" style="line-height:1.5;margin-bottom:10px">Live memory and storage for the selected deck. Add programs from the Program Library, then balance Active vs Storage in the planner.</div>
-            <div id="libraryLoadSnapshot"></div>
-          </div>
-
-        </div>
-
+    <div id="profileFormArea">
+      <div class="db-field">
+        <label>Programming Character (PC)</label>
+        <select id="programmerCharacter" onchange="updateProgrammerProfilePreview()">
+          <option value="">-- Select PC --</option>
+        </select>
       </div>
-    </div>
-   </aside>
 
-   <!-- ===================== CENTER: build form / review / program form ===================== -->
-   <section class="md3-center deck-builder-app deck-builder-locked" id="centerCol">
-
-    <!-- ---------- GM APPROVAL QUEUE (admin only, top of center, both modes) ---------- -->
-    <div class="mx-panel gm-only appr-panel" id="pendingApprovalsPanel" style="display:none">
-      <div class="panel-title panel-title-cyan" style="display:flex;align-items:center;gap:8px">
-        <span>&gt;&gt; Pending Approvals</span>
-        <span class="appr-count" id="pendingApprovalsCount"></span>
-      </div>
-      <div class="tip" style="margin-bottom:10px">Player requests awaiting GM sign-off. Set successes on a build request to preview its cook/install time, then Start Build. Authorize a purchase to make the deck available immediately.</div>
-      <div id="pendingApprovalsMount"></div>
+      <div id="profileDerived" class="tip" style="margin:6px 0 12px;color:var(--text-bright);font-size:.82rem;letter-spacing:1.2px;line-height:1.5">MPCP cap: -- | Utility cap: --</div>
+      <button class="btn btn-green" id="activateProfileBtn" onclick="activateDeckBuilder()" disabled>&gt;&gt; Activate Deck Builder</button>
     </div>
 
-    <!-- ---------- DECK MODE ---------- -->
-    <div id="centerDeck">
+    <div id="profileSummaryArea" style="display:none">
+      <div class="profile-summary-name" id="profileSummaryText"></div>
+      <div class="profile-summary-caps" id="profileSummaryCaps"></div>
+      <button class="btn btn-ghost btn-sm" onclick="editProgrammerProfile()">&gt;&gt; Change Programmer</button>
+    </div>
+  </div>
 
-      <!-- empty state (shown until a deck is loaded or a new one is started) -->
-      <div id="deckEmptyState" class="mx-panel">
-        <div class="md3-insp-empty">No deck loaded. Start a fresh build, or load a saved deck from the Inspector on the right.</div>
-        <button class="btn btn-green btn-sm" onclick="newDeckBuild()">&gt;&gt; New Deck</button>
+  <div id="deckBuilderApp" class="deck-builder-app deck-builder-locked">
+
+  <!-- Tab bar -->
+  
+<!-- ===================== WORKSHOP SHELL (layer re-parents live panels into slots) ===================== -->
+<div class="dw-gridbg"></div><canvas id="dwPackets"></canvas>
+<div class="dw-id" id="dwIdentity" style="display:none">
+  <span class="jack">&gt;&gt; Jacked in:</span><span class="who" id="dwWho">--</span>
+  <span class="caps" id="dwCaps"></span>
+  <span style="margin-left:auto"><button class="btn btn-sm" onclick="dwSwitchDecker()">&gt;&gt; Switch decker</button></span>
+</div>
+<div class="dw-shell" id="dwShell" style="display:none">
+  <aside class="dw-pane">
+    <div class="dw-pane-hd">Workshop Assets <span id="dwScope" style="color:var(--text-dim)"></span></div>
+    <div class="dw-pane-bd">
+      <div class="dw-group">Decks <span class="add" onclick="dwNewDeck()">+ new</span></div>
+      <div id="dwRailDecks"></div>
+      <div class="dw-group">Software <span class="add" onclick="dwNewSoft()">+ new</span></div>
+      <div class="dw-archive" id="dwArchive" onclick="dwArchiveInfo()">
+        <div class="hd"><span>Archive &middot; OMC</span><span class="n" id="dwArcN">--</span></div>
+        <div class="bar"><i id="dwArcBar" style="width:0%"></i></div>
+        <div class="lbl">off-line chips only &middot; <span class="buy" onclick="event.stopPropagation();dwOrderOmc()">+ order OMC via fixer</span></div>
       </div>
+      <div id="dwRailSoft"></div>
+      <div class="dw-group">Loadouts <span class="add" onclick="dwShow('loadout')">+ new</span></div>
+      <div id="dwRailLoadouts"></div>
+    </div>
+  </aside>
+  <section style="min-width:0">
+    <div class="dw-fixer" id="dwClockStrip">
+      <div class="dw-fixer-bar" style="cursor:default">
+        <span class="t">&gt;&gt; Downtime Clock</span>
+        <span style="color:var(--text-bright);font-size:.74rem" id="dwClockDate">--</span>
+        <button class="btn btn-amber btn-sm" onclick="dwTick(1)">+1 day</button>
+        <button class="btn btn-amber btn-sm" onclick="dwTick(7)">+1 week</button>
+        <span style="margin-left:auto;color:var(--text-dim);font-size:.55rem;letter-spacing:1px">one clock &middot; every job advances &times; its multiplier</span>
+      </div>
+    </div>
+    <div class="dw-fixer" id="dwQueue">
+      <div class="dw-fixer-bar" onclick="this.parentElement.classList.toggle('open')">
+        <span class="t">&gt;&gt; Fixer Queue</span><span class="n" id="dwQueueN">0</span>
+        <span style="margin-left:auto;color:var(--text-dim);font-size:.55rem;letter-spacing:1px">orders awaiting your callback</span>
+      </div>
+      <div class="dw-fixer-bd" id="dwQueueBody"></div>
+    </div>
+    <div class="dw-dossier" id="dwDosDeck">
+      <div class="dw-plate"><span class="name" id="dwDeckTitle">DECK</span><span class="serial" id="dwDeckSerial"></span></div>
+      <div class="dw-stages" id="dwDeckStages"></div>
+      <div class="dw-slot" id="dwSlotDeck"></div>
+      <div class="dw-acquire" id="dwDeckAcquire"></div>
+    </div>
+    <div class="dw-dossier" id="dwDosProgram">
+      <div class="dw-plate"><span class="name" id="dwProgTitle">SOFTWARE</span><span class="serial" id="dwProgSerial"></span></div>
+      <div class="dw-stages" id="dwProgStages"></div>
+      <div class="dw-slot" id="dwSlotProgram"></div>
+    </div>
+    <div class="dw-dossier" id="dwDosLoadout">
+      <div class="dw-plate"><span class="name">SLOT &amp; RUN</span>
+        <span class="serial">loadouts copy from the archive to a deck</span>
+        <span style="margin-left:auto"><a class="btn btn-green btn-sm" href="matrix-run.html">&gt;&gt; Jack in</a></span></div>
+      <div class="dw-slot" id="dwSlotLoadout"></div>
+    </div>
+  </section>
+  <aside class="dw-pane dw-insp">
+    <div class="dw-pane-hd">Inspector</div>
+    <div class="dw-pane-bd"><div class="dw-slot" id="dwSlotInspector"></div>
+      <div id="dwInspNote" class="tip" style="margin-top:10px"></div></div>
+  </aside>
+</div>
 
-      <!-- build form sub-view -->
-      <div id="deckFormView" style="display:none">
-        <div class="mx-panel">
+<div class="tab-bar">
+    <button class="tab-btn active" id="tabBtn0" onclick="switchTab(0)">&#x25BA; Cyberdeck Builder</button>
+    <button class="tab-btn" id="tabBtn1" onclick="switchTab(1)">&#x25BA; Program / Utility Builder</button>
+  </div>
+
+  <!-- -------------------------- TAB 0: CYBERDECK BUILDER -- -->
+  <div class="tab-panel active" id="tabPanel0">
+    <div class="db-layout">
+
+      <!-- LEFT: inputs -->
+      <div>
+        <div class="db-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Deck Specification</div>
 
-          <div class="db-spec-row" style="gap:14px">
-            <div class="db-field" style="flex:1 1 auto;min-width:140px">
-              <label>Deck Name *</label>
-              <input type="text" id="deckName" placeholder="e.g. Ghost Rig Mk.II" oninput="calcDeck()">
-            </div>
-            <div class="db-field" style="flex:0 0 auto">
-              <label>Deck Type</label>
-              <select id="deckType" class="db-type-select" onchange="calcDeck()">
-                <option value="hot">Hot ASIST (full VR, fastest)</option>
-                <option value="cool">Cold ASIST (no biofeedback)</option>
-                <option value="tortoise">Tortoise (DNI optional, no ASIST)</option>
-              </select>
-            </div>
-            <div class="db-field" style="flex:0 0 auto">
-              <label class="db-clk" onclick="inspectDeckComponent('MPCP')">MPCP *</label>
-              <input type="number" id="mpcp" min="1" max="50" placeholder="6" style="width:84px" oninput="calcDeck()">
-            </div>
+          <div class="db-field">
+            <label>Deck Name *</label>
+            <input type="text" id="deckName" placeholder="e.g. Ghost Rig Mk.II" oninput="calcDeck()">
           </div>
-          <div class="tip" style="margin-top:8px">MPCP is the deck's brain -- it caps every other program.</div>
-          <div class="tip" id="mpcpCapTip">Programmer cap: max MPCP 50 (Highest of Computer, Software Concentration, or Matrix Programming Specialization, x 1.5 rounded down).</div>
+
+          <div class="db-field">
+            <label>Deck Type</label>
+            <select id="deckType" onchange="calcDeck()">
+              <option value="hot">Hot ASIST (full VR, fastest)</option>
+              <option value="cool">Cold ASIST (no biofeedback)</option>
+              <option value="tortoise">Tortoise (DNI optional, no ASIST)</option>
+            </select>
+          </div>
+
+          <div class="db-field">
+            <label>MPCP Rating *</label>
+            <input type="number" id="mpcp" min="1" max="50" placeholder="e.g. 6" oninput="calcDeck()">
+            <div class="tip">The deck's brain. Sets the cap for all other programs.</div>
+            <div class="tip" id="mpcpCapTip">Programmer cap: max MPCP 50 (floor(Highest of Computer, Software Concentration, or Matrix Programming Specialization x 1.5)).</div>
+          </div>
         </div>
 
-        <div class="mx-panel">
+        <div class="db-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Persona Programs</div>
-          <div class="tip" style="margin-bottom:10px">All persona ratings capped at MPCP. Sum of all four <= MPCP x 3. Click a name for detail.</div>
+          <div class="tip" style="margin-bottom:10px">All persona ratings capped at MPCP. Sum of all four <= MPCP x 3.</div>
 
-          <div class="db-bems" id="personaRow">
-            <div class="db-mini">
-              <label class="db-clk" onclick="inspectDeckComponent('Bod')">Bod</label>
-              <input type="number" id="pBod" min="1" max="50" placeholder="--" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Bod')">
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Bod (x3 Mp)</label>
+              <input type="number" id="pBod" min="1" max="50" placeholder="--" oninput="calcDeck()">
             </div>
-            <div class="db-mini">
-              <label class="db-clk" onclick="inspectDeckComponent('Evasion')">Evasion</label>
-              <input type="number" id="pEvasion" min="1" max="50" placeholder="--" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Evasion')">
+            <div class="db-field">
+              <label>Evasion (x3 Mp)</label>
+              <input type="number" id="pEvasion" min="1" max="50" placeholder="--" oninput="calcDeck()">
             </div>
-            <div class="db-mini">
-              <label class="db-clk" onclick="inspectDeckComponent('Masking')">Masking</label>
-              <input type="number" id="pMasking" min="1" max="50" placeholder="--" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Masking')">
+          </div>
+          <div class="db-field-row">
+            <div class="db-field">
+              <label>Masking (x2 Mp)</label>
+              <input type="number" id="pMasking" min="1" max="50" placeholder="--" oninput="calcDeck()">
             </div>
-            <div class="db-mini">
-              <label class="db-clk" onclick="inspectDeckComponent('Sensor')">Sensor</label>
-              <input type="number" id="pSensor" min="1" max="50" placeholder="--" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Sensor')">
+            <div class="db-field">
+              <label>Sensor (x2 Mp)</label>
+              <input type="number" id="pSensor" min="1" max="50" placeholder="--" oninput="calcDeck()">
             </div>
           </div>
 
-          <div id="personaBar" class="persona-bar" style="margin-top:10px"></div>
+          <div id="personaBar" class="persona-bar"></div>
         </div>
 
-        <div class="mx-panel">
+        <div class="db-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Hardware Components</div>
 
-          <div class="db-spec-row" style="gap:28px;margin-bottom:18px">
+          <div class="db-field-row">
             <div class="db-field">
-              <label id="hardeningLabel" class="db-clk" onclick="inspectDeckComponent('Hardening')">Hardening<br><span class="tip">Max --</span></label>
-              <input type="number" id="hardening" min="0" max="10" value="0" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Hardening')">
+              <label id="hardeningLabel">Hardening<br><span class="tip">Max --</span></label>
+              <input type="number" id="hardening" min="0" max="10" value="0" oninput="calcDeck()">
             </div>
             <div class="db-field">
-              <label id="respIncreaseLabel" class="db-clk" onclick="inspectDeckComponent('Response Increase')">Response Increase<br><span class="tip">Max --</span></label>
-              <input type="number" id="respIncrease" min="0" max="3" value="0" style="width:72px" oninput="calcDeck()" onclick="inspectDeckComponent('Response Increase')">
+              <label id="respIncreaseLabel">Response Increase<br><span class="tip">Max --</span></label>
+              <input type="number" id="respIncrease" min="0" max="3" value="0" oninput="calcDeck()">
             </div>
           </div>
 
           <label class="chk-row">
-            <input type="checkbox" class="chk-reveal" id="iccm" onchange="calcDeck();inspectDeckComponent('ICCM Filter')">
+            <input type="checkbox" class="chk-reveal" id="iccm" onchange="calcDeck()">
             ICCM Biofeedback Filter
             <span class="tip">// Protects vs. lethal damage from Black IC</span>
           </label>
 
           <label class="chk-row">
-            <input type="checkbox" class="chk-reveal" id="realityFilter" onchange="calcDeck();inspectDeckComponent('Reality Filter')">
+            <input type="checkbox" class="chk-reveal" id="realityFilter" onchange="calcDeck()">
             Reality Filter
             <span class="tip">// +1 effective RI; +2 MPCP for cost calc; -1 MPCP for persona cap</span>
           </label>
         </div>
 
-        <div class="mx-panel">
+        <div class="db-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Memory &amp; I/O</div>
 
-          <div class="db-memrow">
-            <div class="db-membox">
-              <label id="activeMemLabel" class="db-clk" onclick="inspectDeckComponent('Active Memory')">Active Memory, Mp</label>
-              <input type="number" id="activeMem" min="100" max="100" step="10" placeholder="100" style="width:100%" oninput="calcDeck()" onclick="inspectDeckComponent('Active Memory')">
-              <div class="tip" id="activeMemTip">Multiples of 10. max --</div>
+          <div class="db-field-row">
+            <div class="db-field">
+              <label id="activeMemLabel">Active Memory (Mp, max --)</label>
+              <input type="number" id="activeMem" min="100" max="100" step="10" placeholder="100" oninput="calcDeck()" data-tip="Active Memory cap: MPCP x 100 Mp.">
+              <div class="tip" id="activeMemTip">Multiples of 10, min 100. Cap updates from MPCP x 100.</div>
             </div>
-            <div class="db-membox">
-              <label id="ioSpeedLabel" class="db-clk" onclick="inspectDeckComponent('I/O Speed')">I/O Speed, Mp/turn</label>
-              <input type="number" id="ioSpeed" min="10" max="10" step="10" placeholder="10" style="width:100%" oninput="calcDeck()" onclick="inspectDeckComponent('I/O Speed')">
-              <div class="tip" id="ioSpeedTip">Multiple of 10. max --</div>
+            <div class="db-field">
+              <label id="ioSpeedLabel">I/O Speed (Mp/CT, max --)</label>
+              <input type="number" id="ioSpeed" min="10" max="10" step="10" placeholder="10" oninput="calcDeck()" data-tip="I/O Speed cap: MPCP x Sensor x 10 Mp/CT.">
+              <div class="tip" id="ioSpeedTip">Multiples of 10, min 10. Cap updates from MPCP x Sensor x 10.</div>
             </div>
-            <div class="db-membox">
-              <label id="offlineStorageLabel" class="db-clk" onclick="inspectDeckComponent('Offline Storage')">Deck Storage, Mp</label>
-              <input type="number" id="offlineStorage" min="0" max="65535" step="10" placeholder="0" style="width:100%" oninput="calcDeck()" onclick="inspectDeckComponent('Offline Storage')">
-              <div class="tip" id="offlineStorageTip">Max: 65,535</div>
-            </div>
+          </div>
+
+          <div class="db-field">
+            <label id="offlineStorageLabel">Offline Storage / OMC (Mp, Max --)</label>
+            <input type="number" id="offlineStorage" min="0" max="65535" step="10" placeholder="0" oninput="calcDeck()" data-tip="Offline storage is not rules-capped; this app uses a practical max.">
+            <div class="tip" id="offlineStorageTip">Practical app cap: 65,535 Mp.</div>
           </div>
         </div>
 
-        <div class="mx-panel">
+        <div class="db-panel">
           <div class="panel-title panel-title-cyan">&gt;&gt; Accessories</div>
 
           <div class="db-field">
-            <label class="db-clk" onclick="inspectDeckComponent('Deck Casing')">Deck Casing</label>
-            <select id="deckCasing" onchange="calcDeck();inspectDeckComponent('Deck Casing')">
+            <label>Deck Casing</label>
+            <select id="deckCasing" onchange="calcDeck()">
               <option value="0">None (bare board)</option>
               <option value="1">Level 1 -- 500Y</option>
               <option value="2">Level 2 -- 2,000Y</option>
@@ -406,247 +373,199 @@
           </div>
 
           <label class="chk-row">
-            <input type="checkbox" class="chk-reveal" id="satlink" onchange="calcDeck();inspectDeckComponent('Satlink Interface')">
+            <input type="checkbox" class="chk-reveal" id="satlink" onchange="calcDeck()">
             Satlink Interface -- 800Y
             <span class="tip">// Standard portable 0.5m dish</span>
           </label>
 
           <label class="chk-row">
-            <input type="checkbox" class="chk-reveal" id="hitcherJack" onchange="calcDeck();inspectDeckComponent('Hitcher Jack')">
+            <input type="checkbox" class="chk-reveal" id="hitcherJack" onchange="calcDeck()">
             Hitcher Jack -- 250Y
             <span class="tip">// Allows a passenger in VR</span>
           </label>
         </div>
       </div>
 
-      <!-- W6: deck-build fabrication jobs (program compiles live in the Program tab) -->
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Deck Build Queue</div>
-        <div class="tip" style="margin-bottom:8px">In-progress deck builds. Cook runs before install. Admin advances the clock.</div>
-        <div class="fab-queue-mount" id="fabQueueDeck"></div>
-      </div>
+      <!-- RIGHT: output -->
+      <div>
+        <!-- Validity badge -->
+        <div id="validityBadge" class="validity-badge validity-ok">&#x25CF; ENTER MPCP RATING TO BEGIN</div>
 
-    </div>
-
-    <!-- ---------- PROGRAM MODE ---------- -->
-    <div id="centerProgram" style="display:none">
-
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Program Specification</div>
-
-        <div class="db-field">
-          <label>Utility Type</label>
-          <select id="utilType" onchange="onUtilTypeChange()">
-            <option value="">-- Select utility --</option>
-          </select>
-          <div id="utilBrief" class="tip" style="margin-top:8px;padding:8px 10px;border:1px solid #1f3a1f;background:var(--bg-input);color:var(--text);font-size:.78rem;line-height:1.45;letter-spacing:.5px">Select a utility to see what it does.</div>
+        <!-- Deck summary -->
+        <div class="db-panel" id="deckSummaryPanel" style="display:none">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Deck Summary</div>
+          <div class="sum-grid" id="deckSumGrid"></div>
         </div>
 
-        <div class="db-field">
-          <label>Base Rating</label>
-          <input type="number" id="utilRating" min="1" max="50" placeholder="e.g. 4" oninput="calcUtil()">
-          <div class="tip" id="utilCapTip">Programmer cap: max utility rating 50 (Highest of Computer, Software Concentration, or Matrix Programming Specialization).</div>
-        </div>
-
-        <!-- Attack damage level -->
-        <div class="db-field" id="attackDmgField" style="display:none">
-          <label>Damage Level (Attack)</label>
-          <select id="attackDmg" onchange="calcUtil()">
-            <option value="2">Light (x2)</option>
-            <option value="3">Moderate (x3)</option>
-            <option value="4">Serious (x4)</option>
-            <option value="5">Deadly (x5)</option>
-          </select>
-          <div class="tip">Determines multiplier for Attack program size and cost.</div>
-        </div>
-
-        <div class="gm-only" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
-          <div class="db-field" style="margin:0;min-width:160px">
-            <label>Programming Successes</label>
-            <input type="number" id="programSuccessesInput" min="1" max="50" value="1" oninput="calcUtil()">
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="rollProgrammingTask()">&gt;&gt; Roll Programming Task</button>
-        </div>
-        <div class="tip gm-only" id="programmingRollResult" style="margin-top:6px"></div>
-
-        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          <button class="btn btn-green btn-sm" id="saveProgramBtn" onclick="saveCurrentProgram()">&gt;&gt; Compile Program</button>
-          <button class="btn btn-ghost btn-sm" id="cancelProgramEditBtn" onclick="cancelProgramEdit()" style="display:none">Cancel Edit</button>
-        </div>
-        <div class="tip" id="programEditState" style="display:none;margin-top:8px;color:var(--amber)">Editing upgrade baseline...</div>
-      </div>
-
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Program Options</div>
-        <div class="tip" style="margin-bottom:10px">Options modify effective rating and/or size. Not all options apply to all utilities.</div>
-
-        <div id="optionsArea">
-          <div class="field-label">Select a utility to see applicable options.</div>
-        </div>
-      </div>
-
-      <!-- Program Library / Compile Jobs -->
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Program Library / Compile Jobs</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <button class="btn btn-amber btn-sm" onclick="openPurchasedImportModal()">&gt;&gt; Import Purchased Program</button>
-        </div>
-        <div class="tip" style="margin-bottom:8px">One normal program per type can be loaded to a deck. One-shots may have multiple active copies. Limit target is chosen when loading to active. Balance Active vs Storage in the Deck Loadouts tab.</div>
-        <div id="savedProgramsList"><div class="field-label">No saved programs.</div></div>
-      </div>
-
-      <!-- W6: program-compile fabrication jobs (deck builds live in the Cyberdeck tab) -->
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Program Compile Queue</div>
-        <div class="tip" style="margin-bottom:8px">In-progress program compiles. Admin advances the clock.</div>
-        <div class="fab-queue-mount" id="fabQueueProgram"></div>
-      </div>
-
-    </div>
-
-    <!-- ---------- LOADOUT MODE: deck load planner + saved load-outs ---------- -->
-    <div id="centerLoadout" style="display:none">
-
-      <!-- Deck Load Planner -->
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Deck Load Planner</div>
-        <div class="add-load-row">
-          <input type="text" id="loadLabelInput" placeholder="Custom label (optional)"
-            style="flex:1;min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-          <select id="loadTargetInput"
-            style="min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-            <option value="active">Active (also in Storage)</option>
-            <option value="storage">Storage</option>
-          </select>
-          <button class="btn btn-ghost btn-sm" onclick="addToLoadPlanner()">&gt;&gt; Add Current Program</button>
-        </div>
-        <div class="tip" style="margin-bottom:8px">Adds the program currently open in the Program Builder. To add a compiled program, use its Load button in the Program Library. Active loads always require storage presence and consume both pools; storage-only copies can be loaded mid-run via Swap Memory.</div>
-        <div id="loadPlannerArea"></div>
-        <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #1a2a1a;flex-wrap:wrap">
-          <input type="text" id="loadSaveName" placeholder="Save load-out as..."
-            style="flex:1;min-width:120px;padding:5px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-          <button class="btn btn-green btn-sm" onclick="saveLoadout()">&gt;&gt; Save Load-out</button>
-          <button class="btn btn-ghost btn-sm" onclick="clearLoadPlanner()">&gt;&gt; Clear</button>
-        </div>
-      </div>
-
-      <!-- Saved load-outs -->
-      <div class="mx-panel">
-        <div class="panel-title panel-title-cyan">&gt;&gt; Saved Program Load-outs</div>
-        <div id="savedLoadoutsList"><div class="field-label">No saved load-outs.</div></div>
-      </div>
-
-    </div>
-
-   </section>
-
-   <!-- ===================== RIGHT: inspector ===================== -->
-   <aside class="md3-side deck-builder-app deck-builder-locked" id="inspectorCol">
-    <div class="pane">
-      <div class="pane-hd">Inspector</div>
-      <div class="pane-bd" id="mdInspector">
-
-        <!-- ---------- DECK MODE ---------- -->
-        <div id="inspDeck">
-          <div id="compDetail"><div class="md3-insp-empty">Click any component label or field (MPCP, a persona program, Hardware, Memory/I/O, or an Accessory) to see its rules, size, and cost here.</div></div>
-
-          <div class="md3-summary">
-            <div class="md3-summary-hd">Saved Deck Designs</div>
-            <div class="tip" style="margin-bottom:8px">Name a build and Save it. Only BUILT (cook+install done) or GM-PURCHASED decks can be run. Use "New Deck" to start fresh.</div>
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-              <input type="text" id="deckSaveName" placeholder="Build name (uses Deck Name if blank)" style="flex:1;min-width:140px">
-              <button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save</button>
-            </div>
-            <div id="savedDecksList"><div class="field-label">No saved designs.</div></div>
+        <!-- Component cost breakdown -->
+        <div class="db-panel" id="costBreakdownPanel" style="display:none">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Component Cost Breakdown</div>
+          <div style="overflow-x:auto">
+            <table class="comp-table" id="costTable">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Size (Mp)</th>
+                  <th>OCC (Y)</th>
+                  <th>PLC/DTC (Y)</th>
+                  <th>Other (Y)</th>
+                  <th>Subtotal (Y)</th>
+                  <th>Cook</th>
+                  <th>Install</th>
+                </tr>
+              </thead>
+              <tbody id="costBody"></tbody>
+            </table>
           </div>
         </div>
 
-        <!-- ---------- PROGRAM MODE ---------- -->
-        <div id="inspProgram" style="display:none">
-          <div id="utilSummaryPanel" style="display:none">
-            <div class="prog-card" id="utilCard">
-              <div class="prog-card-title" id="utilCardTitle">--</div>
-              <div class="prog-card-sub" id="utilCardSub">--</div>
-              <div class="prog-stat-row" id="utilStatRow"></div>
-              <div id="utilNote" class="prog-note"></div>
-            </div>
-
-            <div class="md3-summary">
-              <div class="md3-summary-hd">Cost &amp; Availability</div>
-              <div class="sum-grid" id="utilCostGrid"></div>
-            </div>
-
-            <div class="md3-summary">
-              <div class="md3-summary-hd">Construction Time</div>
-              <div id="buildTimeMeta" style="font-size:.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px"></div>
-              <div class="sum-grid" id="buildTimeGrid"></div>
-            </div>
+        <!-- Save / load deck builds -->
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Saved Deck Builds</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <input type="text" id="deckSaveName" placeholder="Build name (uses Deck Name if blank)"
+              style="flex:1;min-width:140px;padding:6px 10px;font-size:.78rem;background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font)">
+            <button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save</button>
           </div>
-
-          <div id="utilEmpty" style="color:var(--text-dim);font-size:.72rem;letter-spacing:2px;padding:32px 0;text-align:center;text-transform:uppercase">
-            Select a utility type and set a rating to see calculations.
-          </div>
+          <div id="savedDecksList"><div class="field-label">No saved builds.</div></div>
         </div>
-
-        <!-- ---------- LOADOUT MODE ---------- -->
-        <div id="inspLoadout" style="display:none">
-          <div id="loadEntryDetail"><div class="md3-insp-empty">Click a loaded program in the planner to see its rating, size, and how it counts against Active and Storage memory.</div></div>
-        </div>
-
-      </div>
-    </div>
-   </aside>
-
-  </div><!-- /md3-panes -->
- </div><!-- /md3 -->
-</main>
-
-<!-- R3: Component Cost Breakdown -- fade-in overlay (world-state style; click backdrop to close) -->
-<div id="deckReviewOverlay" class="ltg-overlay" onclick="if(event.target===this)closeDeckReview()">
-  <div class="ltg-modal">
-    <div class="ltg-modal-head">
-      <span class="t">&gt;&gt; Component Cost Breakdown</span>
-      <button class="btn btn-red btn-sm" onclick="closeDeckReview()">x Close</button>
-    </div>
-    <div class="ltg-modal-body">
-      <div id="costBreakdownPanel">
-        <div style="overflow-x:auto">
-          <table class="comp-table" id="costTable">
-            <thead>
-              <tr>
-                <th>Component</th>
-                <th>Size (Mp)</th>
-                <th>OCC (Y)</th>
-                <th>PLC/DTC (Y)</th>
-                <th>Other (Y)</th>
-                <th>Subtotal (Y)</th>
-                <th>Cook</th>
-                <th>Install</th>
-              </tr>
-            </thead>
-            <tbody id="costBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Submit-for-approval panel. The PLAYER chooses Build It or Buy It; the request goes to
-           the GM approval queue. No dice roll: the GM sets cook/install successes at approval.
-           For a fabricated deck this shows the UPGRADE delta (new full base minus as-built). -->
-      <div id="deckConstructionPanel" class="db-construct">
-        <div class="db-construct-hd" id="deckConstructHd">&gt;&gt; Build or Buy This Deck</div>
-        <div class="tip" id="deckConstructMeta" style="margin-bottom:10px"></div>
-        <div class="sum-grid" id="deckConstructGrid"></div>
-
-        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-green btn-sm" id="requestBuildBtn" onclick="requestDeckBuild()">&gt;&gt; Build It</button>
-          <button class="btn btn-amber btn-sm" id="requestBuyBtn" onclick="requestDeckPurchase()">&gt;&gt; Buy It (Purchase)</button>
-          <button class="btn btn-ghost btn-sm" id="withdrawReqBtn" onclick="withdrawDeckRequest()" style="display:none">Withdraw Request</button>
-        </div>
-        <div class="tip" id="deckBuildStatus" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
-</div>
+
+  <!-- -------------------------- TAB 1: PROGRAM BUILDER -- -->
+  <div class="tab-panel" id="tabPanel1">
+    <div class="db-layout">
+
+      <!-- LEFT: inputs -->
+      <div>
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Specification</div>
+
+          <div class="db-field">
+            <label>Utility Type</label>
+            <select id="utilType" onchange="onUtilTypeChange()">
+              <option value="">-- Select utility --</option>
+            </select>
+            <div id="utilBrief" class="tip" style="margin-top:8px;padding:8px 10px;border:1px solid #1f3a1f;background:var(--bg-input);color:var(--text);font-size:.78rem;line-height:1.45;letter-spacing:.5px">Select a utility to see what it does.</div>
+          </div>
+
+          <div class="db-field">
+            <label>Base Rating</label>
+            <input type="number" id="utilRating" min="1" max="50" placeholder="e.g. 4" oninput="calcUtil()">
+            <div class="tip" id="utilCapTip">Programmer cap: max utility rating 50 (Highest of Computer, Software Concentration, or Matrix Programming Specialization).</div>
+          </div>
+
+          <!-- Attack damage level -->
+          <div class="db-field" id="attackDmgField" style="display:none">
+            <label>Damage Level (Attack)</label>
+            <select id="attackDmg" onchange="calcUtil()">
+              <option value="2">Light (x2)</option>
+              <option value="3">Moderate (x3)</option>
+              <option value="4">Serious (x4)</option>
+              <option value="5">Deadly (x5)</option>
+            </select>
+            <div class="tip">Determines multiplier for Attack program size and cost.</div>
+          </div>
+
+          <div class="gm-only" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:8px">
+            <div class="db-field" style="margin:0;min-width:160px">
+              <label>Programming Successes</label>
+              <input type="number" id="programSuccessesInput" min="1" max="50" value="1" oninput="calcUtil()">
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="rollProgrammingTask()">&gt;&gt; Roll Programming Task</button>
+          </div>
+          <div class="tip gm-only" id="programmingRollResult" style="margin-top:6px"></div>
+
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button class="btn btn-green btn-sm" id="saveProgramBtn" onclick="saveCurrentProgram()">&gt;&gt; Compile Program</button>
+            <button class="btn btn-ghost btn-sm" id="cancelProgramEditBtn" onclick="cancelProgramEdit()" style="display:none">Cancel Edit</button>
+          </div>
+          <div class="tip" id="programEditState" style="display:none;margin-top:8px;color:var(--amber)">Editing upgrade baseline...</div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Options</div>
+          <div class="tip" style="margin-bottom:10px">Options modify effective rating and/or size. Not all options apply to all utilities.</div>
+
+          <div id="optionsArea">
+            <div class="field-label">Select a utility to see applicable options.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: output -->
+      <div>
+        <!-- Program summary card -->
+        <div id="utilSummaryPanel" style="display:none">
+          <div class="prog-card" id="utilCard">
+            <div class="prog-card-title" id="utilCardTitle">--</div>
+            <div class="prog-card-sub" id="utilCardSub">--</div>
+            <div class="prog-stat-row" id="utilStatRow"></div>
+            <div id="utilNote" class="prog-note"></div>
+          </div>
+
+          <!-- Availability & cost breakdown -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Cost &amp; Availability</div>
+            <div class="sum-grid" id="utilCostGrid"></div>
+          </div>
+
+          <!-- Build time table -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Construction Time</div>
+            <div id="buildTimeMeta" style="font-size:.65rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px"></div>
+            <div class="sum-grid" id="buildTimeGrid"></div>
+          </div>
+
+          <!-- Add to deck load -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Deck Load Planner</div>
+            <div class="add-load-row">
+              <input type="text" id="loadLabelInput" placeholder="Custom label (optional)"
+                style="flex:1;min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <select id="loadTargetInput"
+                style="min-width:120px;padding:6px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                <option value="active">Active (also in Storage)</option>
+                <option value="storage">Storage</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" onclick="addToLoadPlanner()">&gt;&gt; Add to Load</button>
+            </div>
+            <div class="tip" style="margin-bottom:8px">Active loads always require storage presence and consume both pools. Storage-only copies can be loaded during runs via Swap Memory.</div>
+            <div id="loadPlannerArea"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #1a2a1a;flex-wrap:wrap">
+              <input type="text" id="loadSaveName" placeholder="Save load-out as..."
+                style="flex:1;min-width:120px;padding:5px 10px;font-size:.75rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+              <button class="btn btn-green btn-sm" onclick="saveLoadout()">&gt;&gt; Save Load-out</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearLoadPlanner()">&gt;&gt; Clear</button>
+            </div>
+          </div>
+
+          <!-- Saved load-outs -->
+          <div class="db-panel">
+            <div class="panel-title panel-title-cyan">&gt;&gt; Saved Program Load-outs</div>
+            <div id="savedLoadoutsList"><div class="field-label">No saved load-outs.</div></div>
+          </div>
+        </div>
+
+        <div class="db-panel">
+          <div class="panel-title panel-title-cyan">&gt;&gt; Program Library / Compile Jobs</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <button class="btn btn-amber btn-sm" onclick="openPurchasedImportModal()">&gt;&gt; Import Purchased Program</button>
+          </div>
+          <div class="tip" style="margin-bottom:8px">One normal program per type can be loaded to a deck. One-shots may have multiple active copies. Limit target is chosen when loading to active.</div>
+          <div id="libraryLoadSnapshot" style="margin-bottom:10px"></div>
+          <div id="savedProgramsList"><div class="field-label">No saved programs.</div></div>
+        </div>
+
+        <div id="utilEmpty" style="color:var(--text-dim);font-size:.72rem;letter-spacing:2px;padding:32px 0;text-align:center;text-transform:uppercase">
+          Select a utility type and set a rating to see calculations.
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</main>
 
 <div class="modal-overlay" id="purchasedImportModal" style="display:none">
   <div class="mr-modal-box" style="max-width:640px;border-top-color:var(--amber)">
@@ -949,52 +868,12 @@ function ensureDeckSelectedForLoad(actionFn) {
 
 // --- Tab switching -----------------------------------------------------------
 
-// Mode switch (replaces the old two-tab bar). 'deck' = Cyberdeck Builder,
-// 'program' = Program / Utility Builder, 'loadout' = Deck Loadouts (load planner +
-// saved load-outs). Toggles the matching center column, inspector column, and
-// left-rail summary together.
-function setMode(mode) {
-  if (mode !== 'program' && mode !== 'loadout') mode = 'deck';
-
-  ['deck', 'program', 'loadout'].forEach(m => {
-    const btn = $('mode-' + m);
-    if (btn) btn.classList.toggle('on', m === mode);
-  });
-
-  const toggle = (id, show) => { const el = $(id); if (el) el.style.display = show ? '' : 'none'; };
-  toggle('centerDeck', mode === 'deck');
-  toggle('centerProgram', mode === 'program');
-  toggle('centerLoadout', mode === 'loadout');
-  toggle('inspDeck', mode === 'deck');
-  toggle('inspProgram', mode === 'program');
-  toggle('inspLoadout', mode === 'loadout');
-  toggle('leftSummaryDeck', mode === 'deck');
-  toggle('leftSummaryProgram', mode === 'program');
-  toggle('leftSummaryLoadout', mode === 'loadout');
-
-  // Leaving deck mode closes the cost-breakdown overlay if open.
-  if (mode !== 'deck') closeDeckReview();
-  // Entering loadout mode refreshes the live usage bars + snapshot.
-  if (mode === 'loadout') renderLoadPlanner();
-}
-
-// Back-compat shim: old call sites (e.g. editSourceProject) call switchTab(1)/switchTab(0).
 function switchTab(idx) {
-  setMode(idx === 1 ? 'program' : 'deck');
+  for (let i = 0; i < 2; i++) {
+    document.getElementById(`tabBtn${i}`).classList.toggle('active', i === idx);
+    document.getElementById(`tabPanel${i}`).classList.toggle('active', i === idx);
+  }
 }
-
-// Component Cost Breakdown -- fade-in overlay (world-state style). Backdrop click closes.
-function showDeckReview() {
-  calcDeck(); // make sure the cost table reflects current inputs
-  const ov = $('deckReviewOverlay');
-  if (ov) ov.classList.add('open');
-}
-function closeDeckReview() {
-  const ov = $('deckReviewOverlay');
-  if (ov) ov.classList.remove('open');
-}
-// Back-compat alias (older callers).
-function showDeckForm() { closeDeckReview(); }
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -1282,8 +1161,9 @@ async function loadProgrammerCharacters() {
 
     eligible.forEach(c => {
       const opt = document.createElement('option');
+      const arch = c.archetype ? ` // ${c.archetype}` : '';
       opt.value = String(c.id);
-      opt.textContent = c.name;
+      opt.textContent = `${c.name}${arch}`;
       opt.dataset.computerEnabled = c.computer_skill_enabled ? '1' : '0';
       opt.dataset.computerRating = String(c.computer_skill_rating || 0);
       opt.dataset.computerBrEnabled = c.computer_br_skill_enabled ? '1' : '0';
@@ -1344,17 +1224,18 @@ async function activateDeckBuilder() {
   applyProgrammerCaps(caps);
   setProgramEditState('', '');
 
-  document.querySelectorAll('.deck-builder-app').forEach(app => {
+  const app = $('deckBuilderApp');
+  if (app) {
     app.classList.remove('deck-builder-locked');
     app.classList.add('deck-builder-unlocked');
-  });
+  }
 
   const form = $('profileFormArea');
   const summary = $('profileSummaryArea');
   if (form) form.style.display = 'none';
   if (summary) summary.style.display = '';
   const sumText = $('profileSummaryText');
-  if (sumText) sumText.textContent = selectedText;
+  if (sumText) sumText.textContent = `Programmer: ${selectedText}`;
   const sumCaps = $('profileSummaryCaps');
   if (sumCaps) sumCaps.textContent = `MPCP <= ${caps.mpcpMax}  |  Utility <= ${caps.utilMax}  |  Dominant: ${getDominantProgrammingSkill().label}`;
   if (status) status.textContent = '';
@@ -1373,16 +1254,16 @@ function editProgrammerProfile() {
   remoteDeckState = null;
   remoteDeckStateLoadedForCharacterId = '';
   activeDeckBuildName = '';
-  setDeckFormVisible(false);
   pendingDeckSelectionAction = null;
   selectedProgrammerSkillSet = null;
   applyProgrammerCaps({ mpcpMax: 50, utilMax: 50 });
   setProgramEditState('', '');
 
-  document.querySelectorAll('.deck-builder-app').forEach(app => {
+  const app = $('deckBuilderApp');
+  if (app) {
     app.classList.add('deck-builder-locked');
     app.classList.remove('deck-builder-unlocked');
-  });
+  }
   const form = $('profileFormArea');
   const summary = $('profileSummaryArea');
   if (form) form.style.display = '';
@@ -1421,66 +1302,60 @@ async function initProgrammerProfile() {
 
 // --- CYBERDECK BUILDER ------------------------------------------------------
 
-// U1: B/E/M/S bounded 1..MPCP; disabled (greyed, steppers off) until MPCP is set.
-function syncPersonaInputs() {
-  const mp = ni('mpcp');
-  const ok = mp >= 1;
-  const row = $('personaRow');
-  if (row) row.classList.toggle('db-disabled', !ok);
-  ['pBod', 'pEvasion', 'pMasking', 'pSensor'].forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    el.disabled = !ok;
-    if (ok) {
-      el.min = '1';
-      el.max = String(mp);
-      if (ni(id) > mp) el.value = String(mp);
-    }
-  });
-}
-
 function calcDeck() {
   const mpcpCap = getCurrentMpcpCap();
   if ($('mpcp')) {
     $('mpcp').max = String(mpcpCap);
     if (ni('mpcp') > mpcpCap) $('mpcp').value = String(mpcpCap);
   }
-  syncPersonaInputs();
 
   const mpcpForCaps = Math.max(1, ni('mpcp') || 1);
   const sensorForCaps = Math.max(1, ni('pSensor') || 1);
-  const activeMemMin = 100;
-  const ioSpeedMin = 10;
   const activeMemMax = mpcpForCaps * 100;
   const ioSpeedMax = mpcpForCaps * sensorForCaps * 10;
   const hardeningMaxForCaps = Math.floor(mpcpForCaps / 2);
   const riMaxForCaps = Math.min(Math.floor(mpcpForCaps / 4), 3);
 
-  if ($('activeMemLabel')) $('activeMemLabel').textContent = 'Active Memory, Mp';
-  if ($('ioSpeedLabel')) $('ioSpeedLabel').textContent = 'I/O Speed, Mp/turn';
+  if ($('activeMemLabel')) {
+    $('activeMemLabel').textContent = `Active Memory (Mp, max ${fmtN(activeMemMax)})`;
+  }
+  if ($('ioSpeedLabel')) {
+    $('ioSpeedLabel').textContent = `I/O Speed (Mp/CT, max ${fmtN(ioSpeedMax)})`;
+  }
   if ($('hardeningLabel')) {
-    $('hardeningLabel').innerHTML = `Hardening<br><span class="tip">Max ${fmtN(hardeningMaxForCaps)}</span>`;
+    $('hardeningLabel').innerHTML = `Hardening<br>(Max ${fmtN(hardeningMaxForCaps)})`;
   }
   if ($('respIncreaseLabel')) {
-    $('respIncreaseLabel').innerHTML = `Response Increase<br><span class="tip">Max ${fmtN(riMaxForCaps)}</span>`;
+    $('respIncreaseLabel').innerHTML = `Response Increase<br>(Max ${fmtN(riMaxForCaps)})`;
   }
-  if ($('offlineStorageLabel')) $('offlineStorageLabel').textContent = 'Deck Storage, Mp';
+  if ($('offlineStorageLabel')) {
+    $('offlineStorageLabel').textContent = `Offline Storage / OMC (Mp, Max ${fmtN(STORAGE_PRACTICAL_MAX)})`;
+  }
 
-  if ($('activeMemTip')) $('activeMemTip').textContent = `Multiples of 10. min ${fmtN(activeMemMin)} max ${fmtN(activeMemMax)}`;
-  if ($('ioSpeedTip')) $('ioSpeedTip').textContent = `Multiple of 10. min ${fmtN(ioSpeedMin)} max ${fmtN(ioSpeedMax)}`;
-  if ($('offlineStorageTip')) $('offlineStorageTip').textContent = 'Max: 65,535';
+  if ($('activeMemTip')) {
+    $('activeMemTip').textContent = `Multiples of 10, min 100, max ${fmtN(activeMemMax)} (MPCP x 100).`;
+  }
+  if ($('ioSpeedTip')) {
+    $('ioSpeedTip').textContent = `Multiples of 10, min 10, max ${fmtN(ioSpeedMax)} (MPCP x Sensor x 10).`;
+  }
+  if ($('offlineStorageTip')) {
+    $('offlineStorageTip').textContent = `Practical app cap: ${fmtN(STORAGE_PRACTICAL_MAX)} Mp.`;
+  }
 
   if ($('activeMem')) {
     $('activeMem').max = String(activeMemMax);
     $('activeMem').setAttribute('data-tip', `Active Memory cap: MPCP x 100 Mp (${fmtN(activeMemMax)}).`);
+    if (ni('activeMem') > activeMemMax) $('activeMem').value = String(activeMemMax);
   }
   if ($('ioSpeed')) {
     $('ioSpeed').max = String(ioSpeedMax);
     $('ioSpeed').setAttribute('data-tip', `I/O Speed cap: MPCP x Sensor x 10 Mp/CT (${fmtN(ioSpeedMax)}).`);
+    if (ni('ioSpeed') > ioSpeedMax) $('ioSpeed').value = String(ioSpeedMax);
   }
   if ($('offlineStorage')) {
     $('offlineStorage').max = String(STORAGE_PRACTICAL_MAX);
     $('offlineStorage').setAttribute('data-tip', `Offline storage practical cap: ${fmtN(STORAGE_PRACTICAL_MAX)} Mp.`);
+    if (ni('offlineStorage') > STORAGE_PRACTICAL_MAX) $('offlineStorage').value = String(STORAGE_PRACTICAL_MAX);
   }
 
   const mpcp = ni('mpcp');
@@ -1507,11 +1382,9 @@ function calcDeck() {
   const ioSpeed        = clampInt(ni('ioSpeed')   || 10,  10, ioSpeedMax);
   const offlineStorage = clampInt(ni('offlineStorage'), 0, STORAGE_PRACTICAL_MAX);
 
-  // Match live: clamp the memory fields to legal values (no snap-to-10).
   if ($('activeMem') && ni('activeMem') !== activeMem) $('activeMem').value = String(activeMem);
   if ($('ioSpeed') && ni('ioSpeed') !== ioSpeed) $('ioSpeed').value = String(ioSpeed);
   if ($('offlineStorage') && ni('offlineStorage') !== offlineStorage) $('offlineStorage').value = String(offlineStorage);
-
   const casingLvl      = parseInt($('deckCasing').value, 10);
   const hasSatlink     = cb('satlink');
   const hasHitcher     = cb('hitcherJack');
@@ -1554,16 +1427,10 @@ function calcDeck() {
   $('personaBar').innerHTML =
     `Persona sum: <span class="${personaSum > personaCap ? 'warn' : 'ok'}">${personaSum}</span> / ${personaCap} cap`;
 
-  // A deck is run-ready only when caps are satisfied AND all four persona programs are set.
-  // (matrix-run loads a deck via mpcp + B/E/M/S; a deck with no persona is not jackable.)
-  const personaComplete = bod >= 1 && evasion >= 1 && masking >= 1 && sensor >= 1;
   const vBadge = $('validityBadge');
   if (errors.length) {
-    vBadge.className = 'validity-badge validity-err db-flash';
-    vBadge.textContent = '* INVALID BUILD: ' + errors.join(' // ');
-  } else if (!personaComplete) {
-    vBadge.className = 'validity-badge validity-err db-flash';
-    vBadge.textContent = '* INVALID BUILD -- set all four persona programs (Bod, Evasion, Masking, Sensor)';
+    vBadge.className = 'validity-badge validity-err';
+    vBadge.textContent = '* CONSTRAINT VIOLATION: ' + errors.join(' // ');
   } else {
     vBadge.className = 'validity-badge validity-ok';
     vBadge.textContent = '* VALID BUILD';
@@ -1586,7 +1453,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = mpcp * 3;
     const inst  = mpcp * 2;
-    rows.push({ name: `MPCP (Rtg ${mpcp})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, roll: true });
+    rows.push({ name: `MPCP (Rtg ${mpcp})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
     totalCost += sub;
   }
 
@@ -1607,7 +1474,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = p.r * 3;
     const inst  = p.r * 2;
-    rows.push({ name: `${p.name} (Rtg ${p.r})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, roll: true });
+    rows.push({ name: `${p.name} (Rtg ${p.r})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
     totalCost += sub;
   }
   if (!personaPresent) corePresent = false;
@@ -1627,7 +1494,7 @@ function calcDeck() {
     rows.push({
       name: `ASIST (${isHot ? 'Hot' : 'Cold'})`,
       size, occ, plcDtc: plc, other: apu, sub, cook, inst,
-      otherLabel: 'APU 1,250', roll: true
+      otherLabel: 'APU 1,250'
     });
     totalCost += sub;
   } else {
@@ -1653,7 +1520,7 @@ function calcDeck() {
     const sub  = occ + plc + dtc;
     const cook = mpcp * hr;
     const inst = mpcp * hr * 2;
-    rows.push({ name: `Hardening (Rtg ${hr})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, roll: true });
+    rows.push({ name: `Hardening (Rtg ${hr})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
     totalCost += sub;
   }
 
@@ -1680,7 +1547,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = costMpcp * ri;
     const inst  = costMpcp + ri;
-    rows.push({ name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, roll: true });
+    rows.push({ name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
     totalCost += sub;
   }
 
@@ -1690,7 +1557,7 @@ function calcDeck() {
     const plc     = 25 * Math.ceil(activeMem / 10);
     const sub     = omcCost + plc;
     const inst    = Math.ceil(activeMem / 100);
-    rows.push({ name: `Active Memory (${fmtN(activeMem)} Mp)`, size: activeMem, occ: 0, plcDtc: plc, other: omcCost, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omcCost)}`, roll: true });
+    rows.push({ name: `Active Memory (${fmtN(activeMem)} Mp)`, size: activeMem, occ: 0, plcDtc: plc, other: omcCost, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omcCost)}` });
     totalCost += sub;
   }
 
@@ -1797,449 +1664,16 @@ function calcDeck() {
     { lbl: 'Total Cost', val: fmtY(finalCost) + (hasDiscount ? ' (10% off)' : ''), cls: 'nuyen' },
   ];
 
-  // matrix-designer-style summary rows: label (k) left, value (v) right, one line each.
-  $('deckSumGrid').innerHTML = sumItems.map(s => {
-    const vStyle = s.cls === 'warn' ? ' style="color:var(--red)"' : s.cls === 'nuyen' ? ' style="color:var(--amber)"' : '';
-    return `<div class="sum-row"><span class="k">${esc(s.lbl)}</span><span class="v"${vStyle}>${esc(String(s.val))}</span></div>`;
-  }).join('');
-
-  // expose component rows for the inspector's click-to-inspect detail
-  window._deckRows = rows;
-
-  // V7: construction task -- aggregate cook/install roll (TN = MPCP, dice = Computer B/R).
-  window._deckConstruction = renderConstructionTask(rows, mpcp);
-  window._deckFinalCost = finalCost; // W6: expose for the fabrication job snapshot
+  $('deckSumGrid').innerHTML = sumItems.map(s =>
+    `<div class="sum-item">
+      <div class="sum-label">${esc(s.lbl)}</div>
+      <div class="sum-value${s.cls === 'warn' ? '" style="color:var(--red)' : s.cls === 'nuyen' ? '" style="color:var(--amber)' : ''}">${esc(String(s.val))}</div>
+    </div>`
+  ).join('');
 
   $('deckSummaryPanel').style.display  = '';
   $('costBreakdownPanel').style.display = '';
   renderLoadPlanner();
-  updateDeckBuildStatus(); // reflect pending-request / fabricated / in-progress state
-  renderPendingApprovals(); // GM queue (no-op for players)
-}
-
-// Construction Task ----------------------------------------------------------
-// Aggregate model: rating-bearing rows (roll:true) form the "rollable" cook/install base that
-// the GM divides by successes at approval; accessories (roll:false) pass through unchanged.
-// actual = ceil(rollable base / successes) + misc base.
-function getDeckBrDice() {
-  const skillSet = selectedProgrammerSkillSet || getSelectedProgrammerSkillSet();
-  return (skillSet?.computerBrEnabled && skillSet?.computerBrRating >= 1) ? skillSet.computerBrRating : 0;
-}
-function computeDeckConstruction(rows, mpcp) {
-  const sum = (pred, k) => rows.reduce((s, r) => s + (pred(r) ? (r[k] || 0) : 0), 0);
-  // Full breakdown for the WHOLE deck at the current ratings.
-  const fullRollCook = sum(r => r.roll, 'cook'), fullRollInst = sum(r => r.roll, 'inst');
-  const fullMiscCook = sum(r => !r.roll, 'cook'), fullMiscInst = sum(r => !r.roll, 'inst');
-
-  // X4: if the deck is already fabricated, the build is an UPGRADE -- subtract the as-built
-  // snapshot's base breakdown so cook/install reflect only the delta (added components).
-  const build = getActiveDeckBuildRecord();
-  const snap = (build && build.fabricated && build.fabricatedSnapshot) ? build.fabricatedSnapshot : null;
-  const isUpgrade = !!(snap && snap.rollCook != null);
-  const rollCook = isUpgrade ? Math.max(0, fullRollCook - (snap.rollCook || 0)) : fullRollCook;
-  const rollInst = isUpgrade ? Math.max(0, fullRollInst - (snap.rollInst || 0)) : fullRollInst;
-  const miscCook = isUpgrade ? Math.max(0, fullMiscCook - (snap.miscCook || 0)) : fullMiscCook;
-  const miscInst = isUpgrade ? Math.max(0, fullMiscInst - (snap.miscInst || 0)) : fullMiscInst;
-
-  // Players no longer roll: the review shows the BASE cook/install (successes = 1). The GM
-  // sets successes at approval time, which reduces the rolled portion (computeApprovalTimes).
-  return {
-    tn: Math.max(1, mpcp || 1), dice: getDeckBrDice(),
-    isUpgrade,
-    // base (delta when upgrading) -- what the GM divides by successes at approval
-    baseCook: rollCook + miscCook, baseInst: rollInst + miscInst,
-    rollCook, rollInst, miscCook, miscInst,
-    // FULL breakdown -> stored on the snapshot at fabricate time, for the NEXT upgrade's delta
-    fullRollCook, fullRollInst, fullMiscCook, fullMiscInst,
-    fullBaseCook: fullRollCook + fullMiscCook, fullBaseInst: fullRollInst + fullMiscInst,
-  };
-}
-function renderConstructionTask(rows, mpcp) {
-  const c = computeDeckConstruction(rows, mpcp);
-  const hd = $('deckConstructHd');
-  if (hd) hd.innerHTML = c.isUpgrade ? '&gt;&gt; Build or Buy (Upgrade)' : '&gt;&gt; Build or Buy This Deck';
-  const meta = $('deckConstructMeta');
-  if (meta) {
-    meta.textContent = c.isUpgrade
-      ? 'Upgrade = added components only. Build It submits the delta to the GM; the GM sets cook/install successes to set the final time.'
-      : 'Build It submits this deck to the GM build queue (the GM sets cook/install successes). Buy It requests an open-market purchase (no build time).';
-  }
-  const grid = $('deckConstructGrid');
-  if (grid) {
-    // Base cook/install estimate (final time is set by the GM's successes at approval).
-    const pfx = c.isUpgrade ? 'Upgrade ' : '';
-    const line = (lbl, days) =>
-      `<div class="db-construct-line">${lbl}: <span class="v">${days}</span> day${days === 1 ? '' : 's'}</div>`;
-    grid.innerHTML =
-      line(pfx + 'Base Cook', c.baseCook) +
-      line(pfx + 'Base Install', c.baseInst);
-  }
-  return c;
-}
-
-// === Build/Buy requests + GM approval queue =================================
-// Player picks Build It / Buy It in the review overlay -> a request lands on the deck
-// record (build.request). The GM sees pending requests at the top of the center column,
-// sets cook/install successes for a build (live preview), and approves -> a fabrication job
-// is queued (cook then install). A purchase is authorized -> the deck is available at once.
-
-// Snapshot the as-built target (ratings + FULL breakdown) for a build/upgrade request.
-function buildTargetSnapshot(build, c, finalCost) {
-  return {
-    ratings: { mpcp: build.mpcp, pBod: build.pBod, pEvasion: build.pEvasion, pMasking: build.pMasking, pSensor: build.pSensor,
-      hardening: build.hardening, respIncrease: build.respIncrease, activeMem: build.activeMem, ioSpeed: build.ioSpeed,
-      offlineStorage: build.offlineStorage, deckType: build.deckType, iccm: build.iccm, realityFilter: build.realityFilter,
-      casingLvl: build.casingLvl, satlink: build.satlink, hitcherJack: build.hitcherJack },
-    totalCost: finalCost,
-    rollCook: c.fullRollCook, rollInst: c.fullRollInst, miscCook: c.fullMiscCook, miscInst: c.fullMiscInst,
-    baseCook: c.fullBaseCook, baseInst: c.fullBaseInst,
-    statDamage: (build.fabricatedSnapshot && build.fabricatedSnapshot.statDamage) || {}, // reserved for run-side chip burn
-  };
-}
-
-// PLAYER: submit a build (or upgrade) request to the GM queue.
-function requestDeckBuild() {
-  if (!getActiveProgrammerId()) { showAlert($('pageAlert'), 'Activate a Programmer Profile first.', true); return; }
-  const c = window._deckConstruction;
-  const finalCost = Math.max(0, parseInt(window._deckFinalCost, 10) || 0);
-  if (!activeDeckBuildName) { showAlert($('pageAlert'), 'Name your deck (it auto-saves) before submitting.', true); return; }
-  if (!c || finalCost <= 0) { showAlert($('pageAlert'), 'Finish a valid deck (MPCP + all four persona programs) before submitting.', true); return; }
-  if (findDeckJobFor(activeDeckBuildName)) { showAlert($('pageAlert'), `"${activeDeckBuildName}" is already building.`, true); return; }
-  const build = getActiveDeckBuildRecord();
-  if (!build) { showAlert($('pageAlert'), 'Save the deck before submitting.', true); return; }
-  if (build.request) { showAlert($('pageAlert'), 'A request is already pending GM approval for this deck.', true); return; }
-  if (c.isUpgrade && c.baseCook <= 0 && c.baseInst <= 0) {
-    showAlert($('pageAlert'), 'No improvement to build -- raise a rating above the as-built deck first.', true); return;
-  }
-  const decks = _loadStore(DECK_STORE);
-  const i = decks.findIndex(d => d.name === activeDeckBuildName);
-  if (i < 0) { showAlert($('pageAlert'), 'Save the deck before submitting.', true); return; }
-  decks[i].request = {
-    kind: 'build', requestedAt: Date.now(),
-    finalCost, isUpgrade: c.isUpgrade,
-    rollCook: c.rollCook, rollInst: c.rollInst, miscCook: c.miscCook, miscInst: c.miscInst,
-    baseCook: c.baseCook, baseInst: c.baseInst,
-    target: buildTargetSnapshot(build, c, finalCost),
-  };
-  _saveStore(DECK_STORE, decks);
-  closeDeckReview();
-  renderSavedDecks(); renderPendingApprovals(); updateDeckBuildStatus(); scheduleDeckBuilderStateSave();
-  showAlert($('pageAlert'), `>> SUBMITTED // ${c.isUpgrade ? 'Upgrade for ' : ''}"${activeDeckBuildName}" sent to the GM build queue.`, false);
-}
-
-// PLAYER: request an open-market purchase (no build time).
-function requestDeckPurchase() {
-  if (!getActiveProgrammerId()) { showAlert($('pageAlert'), 'Activate a Programmer Profile first.', true); return; }
-  const finalCost = Math.max(0, parseInt(window._deckFinalCost, 10) || 0);
-  if (!activeDeckBuildName) { showAlert($('pageAlert'), 'Name your deck (it auto-saves) before submitting.', true); return; }
-  if (finalCost <= 0) { showAlert($('pageAlert'), 'Finish a valid deck before submitting a purchase.', true); return; }
-  const build = getActiveDeckBuildRecord();
-  if (!build) { showAlert($('pageAlert'), 'Save the deck before submitting.', true); return; }
-  if (build.fabricated) { showAlert($('pageAlert'), 'That deck is already built -- no need to buy it.', true); return; }
-  if (build.request) { showAlert($('pageAlert'), 'A request is already pending GM approval for this deck.', true); return; }
-  const decks = _loadStore(DECK_STORE);
-  const i = decks.findIndex(d => d.name === activeDeckBuildName);
-  if (i < 0) { showAlert($('pageAlert'), 'Save the deck before submitting.', true); return; }
-  decks[i].request = { kind: 'purchase', requestedAt: Date.now(), finalCost };
-  _saveStore(DECK_STORE, decks);
-  closeDeckReview();
-  renderSavedDecks(); renderPendingApprovals(); updateDeckBuildStatus(); scheduleDeckBuilderStateSave();
-  showAlert($('pageAlert'), `>> SUBMITTED // Purchase request for "${activeDeckBuildName}" sent to the GM.`, false);
-}
-
-// PLAYER: cancel your own pending request on the active deck.
-function withdrawDeckRequest() {
-  if (!activeDeckBuildName) return;
-  const decks = _loadStore(DECK_STORE);
-  const i = decks.findIndex(d => d.name === activeDeckBuildName);
-  if (i < 0 || !decks[i].request) return;
-  delete decks[i].request;
-  _saveStore(DECK_STORE, decks);
-  renderSavedDecks(); renderPendingApprovals(); updateDeckBuildStatus(); scheduleDeckBuilderStateSave();
-  showAlert($('pageAlert'), `>> WITHDRAWN // request for "${activeDeckBuildName}" cancelled.`, false);
-}
-
-// Cook/install days for a build request given GM-entered successes (rule: ceil(rolled/succ) + misc).
-function computeApprovalTimes(req, cookSucc, instSucc) {
-  const ck = Math.max(1, cookSucc || 1), ins = Math.max(1, instSucc || 1);
-  return {
-    actualCook: (req.rollCook > 0 ? Math.ceil(req.rollCook / ck) : 0) + (req.miscCook || 0),
-    actualInst: (req.rollInst > 0 ? Math.ceil(req.rollInst / ins) : 0) + (req.miscInst || 0),
-  };
-}
-
-function renderPendingApprovals() {
-  const panel = $('pendingApprovalsPanel');
-  const mount = $('pendingApprovalsMount');
-  const badge = $('pendingApprovalsCount');
-  if (!mount) return;
-  const pend = _loadStore(DECK_STORE).filter(d => d.request);
-  window._pendingApprovalList = pend.map(d => d.name); // index -> name (avoids id-escaping names)
-  if (badge) badge.textContent = pend.length ? String(pend.length) : '';
-  if (panel) panel.style.display = pend.length ? '' : 'none';
-  if (!pend.length) { mount.innerHTML = ''; return; }
-  mount.innerHTML = pend.map((d, idx) => {
-    const r = d.request;
-    const nm = esc(d.name);
-    if (r.kind === 'purchase') {
-      return `<div class="appr-row">
-        <div class="appr-hd"><span class="appr-name">${nm}</span><span class="appr-kind buy">Purchase</span></div>
-        <div class="tip" style="margin-bottom:10px">Open-market acquisition -- no build time. Cost ${fmtY(r.finalCost || 0)}.</div>
-        <div class="appr-actions">
-          <button class="btn btn-green btn-sm" onclick="authorizeDeckPurchase(${idx})">&gt;&gt; Authorize Purchase</button>
-          <button class="btn btn-red btn-sm" onclick="rejectDeckRequest(${idx})">Reject</button>
-        </div></div>`;
-    }
-    const t = computeApprovalTimes(r, 1, 1);
-    const upg = r.isUpgrade ? ' <span class="appr-kind buy">Upgrade</span>' : '';
-    return `<div class="appr-row">
-      <div class="appr-hd"><span class="appr-name">${nm}</span><span class="appr-kind build">Build</span>${upg}</div>
-      <div class="tip" style="margin-bottom:8px">Base cook ${fmtN(r.baseCook || 0)}d / install ${fmtN(r.baseInst || 0)}d. Enter successes to set the final time.</div>
-      <div class="appr-fields">
-        <label>Cook successes<input type="number" id="appCook_${idx}" min="1" max="50" value="1" oninput="recomputeApprovalTimes(${idx})"></label>
-        <label>Install successes<input type="number" id="appInst_${idx}" min="1" max="50" value="1" oninput="recomputeApprovalTimes(${idx})"></label>
-      </div>
-      <div class="appr-time" id="appTime_${idx}">Actual cook ${fmtN(t.actualCook)}d / install ${fmtN(t.actualInst)}d</div>
-      <div class="appr-actions">
-        <button class="btn btn-green btn-sm" onclick="approveDeckBuild(${idx})">&gt;&gt; Start Build</button>
-        <button class="btn btn-red btn-sm" onclick="rejectDeckRequest(${idx})">Reject</button>
-      </div></div>`;
-  }).join('');
-}
-
-function _pendingDeckByIdx(idx) {
-  const name = (window._pendingApprovalList || [])[idx];
-  if (name == null) return { name: null, decks: _loadStore(DECK_STORE), i: -1 };
-  const decks = _loadStore(DECK_STORE);
-  return { name, decks, i: decks.findIndex(d => d.name === name) };
-}
-
-function recomputeApprovalTimes(idx) {
-  const { i, decks } = _pendingDeckByIdx(idx);
-  if (i < 0 || !decks[i].request) return;
-  const t = computeApprovalTimes(decks[i].request, ni('appCook_' + idx), ni('appInst_' + idx));
-  const el = $('appTime_' + idx);
-  if (el) el.textContent = `Actual cook ${fmtN(t.actualCook)}d / install ${fmtN(t.actualInst)}d`;
-}
-
-// GM: approve a build request -> queue the cook->install fabrication job.
-function approveDeckBuild(idx) {
-  if (!isAdminMode()) { showAlert($('pageAlert'), 'Only the GM can approve a build.', true); return; }
-  const { name, decks, i } = _pendingDeckByIdx(idx);
-  if (i < 0 || !decks[i].request || decks[i].request.kind !== 'build') { renderPendingApprovals(); return; }
-  if (findDeckJobFor(name)) { showAlert($('pageAlert'), `"${name}" is already building.`, true); return; }
-  const r = decks[i].request;
-  const t = computeApprovalTimes(r, ni('appCook_' + idx), ni('appInst_' + idx));
-  const target = r.target;
-  const cookDays = t.actualCook, instDays = t.actualInst;
-  delete decks[i].request;
-
-  // Degenerate: zero total work -> fabricate immediately.
-  if (cookDays <= 0 && instDays <= 0) {
-    decks[i].fabricated = true; decks[i].fabricatedSnapshot = target;
-    _saveStore(DECK_STORE, decks);
-    renderSavedDecks(); renderPendingApprovals(); scheduleDeckBuilderStateSave();
-    if (name === activeDeckBuildName) { calcDeck(); }
-    showAlert($('pageAlert'), `>> FABRICATED // "${name}" (no build time required).`, false);
-    return;
-  }
-  _saveStore(DECK_STORE, decks);
-
-  const startPhase = cookDays > 0 ? 'cook' : 'install';
-  const job = {
-    id: `deckjob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
-    kind: 'deck',
-    deckBuildName: name,
-    deckName: decks[i].deckName || name,
-    isUpgrade: r.isUpgrade,
-    phase: startPhase,
-    cookDays, installDays: instDays,
-    daysRemaining: startPhase === 'cook' ? cookDays : instDays,
-    status: 'queued',
-    targetSnapshot: target,
-    startedAt: Date.now(),
-  };
-  const jobs = _loadStore(COMPILE_JOB_STORE);
-  jobs.push(job);
-  _saveStore(COMPILE_JOB_STORE, jobs);
-  renderFabricationQueue(); renderPendingApprovals(); renderSavedDecks(); scheduleDeckBuilderStateSave();
-  if (name === activeDeckBuildName) { calcDeck(); }
-  showAlert($('pageAlert'),
-    `>> BUILD QUEUED // ${r.isUpgrade ? 'Upgrade to ' : ''}"${name}" // cook ${fmtN(cookDays)}d then install ${fmtN(instDays)}d.`, false);
-}
-
-// GM: authorize a purchase request -> deck is available immediately.
-function authorizeDeckPurchase(idx) {
-  if (!isAdminMode()) { showAlert($('pageAlert'), 'Only the GM can authorize a purchase.', true); return; }
-  const { name, decks, i } = _pendingDeckByIdx(idx);
-  if (i < 0 || !decks[i].request || decks[i].request.kind !== 'purchase') { renderPendingApprovals(); return; }
-  decks[i].purchased = true;
-  delete decks[i].request;
-  _saveStore(DECK_STORE, decks);
-  renderSavedDecks(); renderPendingApprovals(); scheduleDeckBuilderStateSave();
-  if (name === activeDeckBuildName) updateDeckBuildStatus();
-  showAlert($('pageAlert'), `>> PURCHASED // "${name}" authorized -- available to run now.`, false);
-}
-
-// GM: reject (clear) a pending request.
-function rejectDeckRequest(idx) {
-  if (!isAdminMode()) { showAlert($('pageAlert'), 'Only the GM can reject a request.', true); return; }
-  const { name, decks, i } = _pendingDeckByIdx(idx);
-  if (i < 0 || !decks[i].request) { renderPendingApprovals(); return; }
-  delete decks[i].request;
-  _saveStore(DECK_STORE, decks);
-  renderSavedDecks(); renderPendingApprovals(); scheduleDeckBuilderStateSave();
-  if (name === activeDeckBuildName) updateDeckBuildStatus();
-  showAlert($('pageAlert'), `>> REJECTED // request for "${name}" cleared.`, false);
-}
-
-// === W6: Deck fabrication jobs (cook -> install) ============================
-// Deck builds live in the SAME queue as program compiles (COMPILE_JOB_STORE) with
-// kind:'deck'. One job has two SEQUENTIAL phases: 'cook' then 'install'. On finish the
-// saved deck build is marked fabricated with an as-built snapshot. Re-building an already
-// fabricated deck queues only the DELTA (cook/install days + nuyen) vs the as-built snapshot.
-
-function getActiveDeckBuildRecord() {
-  if (!activeDeckBuildName) return null;
-  return _loadStore(DECK_STORE).find(d => d.name === activeDeckBuildName) || null;
-}
-function findDeckJobFor(name) {
-  return _loadStore(COMPILE_JOB_STORE).find(j => j.kind === 'deck' && j.deckBuildName === name) || null;
-}
-
-function finalizeDeckJob(job) {
-  const decks = _loadStore(DECK_STORE);
-  const i = decks.findIndex(d => d.name === job.deckBuildName);
-  if (i >= 0) {
-    decks[i].fabricated = true;
-    decks[i].fabricatedSnapshot = job.targetSnapshot;
-    _saveStore(DECK_STORE, decks);
-  }
-  const jobs = _loadStore(COMPILE_JOB_STORE).filter(j => j.id !== job.id);
-  _saveStore(COMPILE_JOB_STORE, jobs);
-  renderSavedDecks();
-  renderFabricationQueue();
-  updateDeckBuildStatus();
-  showAlert($('pageAlert'), `>> FABRICATED // "${job.deckName}" build complete.`, false);
-}
-
-function adjustDeckJobDays(jobs, idx, deltaDays) {
-  const job = jobs[idx];
-  job.status = 'in_progress';
-  if (deltaDays <= -9999) { _saveStore(COMPILE_JOB_STORE, jobs); finalizeDeckJob(job); return; }
-  const rem = (parseInt(job.daysRemaining, 10) || 0) + deltaDays;
-  if (rem > 0) { job.daysRemaining = rem; jobs[idx] = job; _saveStore(COMPILE_JOB_STORE, jobs); renderFabricationQueue(); return; }
-  // current phase finished
-  if (job.phase === 'cook') {
-    job.phase = 'install';
-    job.daysRemaining = Math.max(0, parseInt(job.installDays, 10) || 0);
-    if (job.daysRemaining === 0) { _saveStore(COMPILE_JOB_STORE, jobs); finalizeDeckJob(job); return; }
-    jobs[idx] = job; _saveStore(COMPILE_JOB_STORE, jobs); renderFabricationQueue(); return;
-  }
-  _saveStore(COMPILE_JOB_STORE, jobs);
-  finalizeDeckJob(job);
-}
-
-function deleteFabJob(jobId) {
-  const jobs = _loadStore(COMPILE_JOB_STORE).filter(j => j.id !== jobId);
-  _saveStore(COMPILE_JOB_STORE, jobs);
-  renderFabricationQueue();
-  renderSavedPrograms();
-  updateDeckBuildStatus();
-}
-
-function renderFabricationQueue() {
-  const deckMount = $('fabQueueDeck');
-  const progMount = $('fabQueueProgram');
-  if (!deckMount && !progMount) return;
-  const jobs = _loadStore(COMPILE_JOB_STORE).filter(j => String(j.status || '').toLowerCase() !== 'ready');
-  const admin = isAdminMode();
-
-  const rowHtml = (j) => {
-    const isDeck = j.kind === 'deck';
-    const name = isDeck ? `${esc(j.deckName)}${j.isUpgrade ? ' (upgrade)' : ''}` : `${esc(j.sourceName)} v${j.version}`;
-    const phase = isDeck ? String(j.phase || 'cook') : 'compile';
-    const phaseDays = isDeck ? (j.phase === 'cook' ? j.cookDays : j.installDays) : j.totalDays;
-    return `<tr>
-      <td style="color:var(--cyan)">${name}</td>
-      <td><span class="fab-job-phase ${phase}">${phase}</span></td>
-      <td style="color:var(--text-dim)">${fmtN(j.daysRemaining || 0)} / ${fmtN(phaseDays || 0)}</td>
-      <td style="white-space:nowrap">
-        ${admin ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='adjustCompileJobDays(${JSON.stringify(j.id)}, -1)'>-1d</button>` : ''}
-        ${admin ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='adjustCompileJobDays(${JSON.stringify(j.id)}, -9999)'>Finish</button>` : ''}
-        <button class="btn btn-red btn-sm" onclick='deleteFabJob(${JSON.stringify(j.id)})'>x</button>
-      </td>
-    </tr>`;
-  };
-
-  const tableHtml = (list, emptyMsg) => {
-    if (!list.length) return `<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px">${emptyMsg}</div>`;
-    return `<table class="load-prog-table" style="margin:0">
-      <thead><tr><th>Job</th><th>Phase</th><th>Days Left</th><th></th></tr></thead><tbody>` +
-      list.map(rowHtml).join('') + '</tbody></table>';
-  };
-
-  if (deckMount) deckMount.innerHTML = tableHtml(jobs.filter(j => j.kind === 'deck'), 'No active deck builds.');
-  if (progMount) progMount.innerHTML = tableHtml(jobs.filter(j => j.kind !== 'deck'), 'No active program compiles.');
-}
-
-// Drives the review-overlay submission controls (Build It / Buy It / Withdraw) + status line.
-function updateDeckBuildStatus() {
-  const el = $('deckBuildStatus');
-  const buildBtn = $('requestBuildBtn');
-  const buyBtn = $('requestBuyBtn');
-  const withdrawBtn = $('withdrawReqBtn');
-  if (!el) return;
-  el.className = 'tip';
-  const c = window._deckConstruction;
-  const build = getActiveDeckBuildRecord();
-  const job = activeDeckBuildName ? findDeckJobFor(activeDeckBuildName) : null;
-  const valid = !!(activeDeckBuildName && c && (parseInt(window._deckFinalCost, 10) || 0) > 0);
-  const hasImprovement = c ? (!c.isUpgrade || c.baseCook > 0 || c.baseInst > 0) : false;
-  const pending = !!(build && build.request);
-  const fabricated = !!(build && build.fabricated);
-  const purchased = !!(build && build.purchased);
-
-  const show = (btn, on) => { if (btn) btn.style.display = on ? '' : 'none'; };
-  show(withdrawBtn, pending);
-
-  if (job) { // currently building -- locked
-    el.classList.add('building');
-    el.textContent = `Building -- ${String(job.phase).toUpperCase()} ${fmtN(job.daysRemaining)} day(s) left.`;
-    show(buildBtn, false); show(buyBtn, false); show(withdrawBtn, false);
-    return;
-  }
-
-  if (pending) {
-    el.classList.add('pending');
-    el.textContent = build.request.kind === 'purchase'
-      ? 'Purchase request submitted -- awaiting GM authorization.'
-      : `${build.request.isUpgrade ? 'Upgrade' : 'Build'} request submitted -- awaiting GM approval.`;
-    show(buildBtn, false); show(buyBtn, false);
-    return;
-  }
-
-  // No pending request: offer Build It (always, upgrade when fabricated) and Buy It (only when
-  // the deck is not already built/purchased).
-  if (buildBtn) {
-    buildBtn.style.display = '';
-    buildBtn.disabled = !(valid && hasImprovement);
-    buildBtn.textContent = fabricated ? '>> Build Upgrade' : '>> Build It';
-  }
-  show(buyBtn, !fabricated && !purchased);
-  if (buyBtn) buyBtn.disabled = !valid;
-
-  if (fabricated) {
-    el.classList.add('fabricated');
-    const s = build.fabricatedSnapshot || {};
-    el.textContent = !hasImprovement
-      ? `Built as MPCP ${s.ratings?.mpcp ?? build.mpcp}, ${fmtY(s.totalCost || 0)}. Raise a rating to submit an upgrade.`
-      : 'Built. Raise a rating, then Build Upgrade to submit the delta to the GM.';
-    return;
-  }
-  if (purchased) { el.textContent = 'Purchased -- available to run.'; return; }
-  if (!valid) { el.textContent = ''; return; }
-  el.textContent = 'Build It submits to the GM queue; Buy It requests an open-market purchase.';
 }
 
 // --- PROGRAM / UTILITY BUILDER -----------------------------------------------
@@ -2713,25 +2147,6 @@ function getPlannedCompileDays(baseDays) {
   return Math.max(1, Math.floor(safeBase / Math.max(1, succ)));
 }
 
-// Rule of 6 (exploding d6): a die showing 6 is re-rolled and ADDED to that die's total;
-// repeat while it keeps showing 6. The accumulated per-die total is what is compared to the
-// target number (so a 6 can chain to beat a TN above 6). Applies to ALL dice rolls in the app.
-function rollExplodingD6() {
-  let total = 0, face;
-  do { face = Math.floor(Math.random() * 6) + 1; total += face; } while (face === 6);
-  return total;
-}
-function rollDicePool(dice, tn) {
-  let successes = 0;
-  const rolls = [];
-  for (let i = 0; i < dice; i++) {
-    const v = rollExplodingD6();
-    rolls.push(v);
-    if (v >= tn) successes++;
-  }
-  return { successes, rolls };
-}
-
 function rollProgrammingTask() {
   const rating = Math.max(1, ni('utilRating'));
   const tn = getProgrammingTargetNumber(rating);
@@ -2744,7 +2159,13 @@ function rollProgrammingTask() {
     return;
   }
   const dice = brDice;
-  const { successes, rolls } = rollDicePool(dice, tn); // rule of 6 applied
+  let successes = 0;
+  const rolls = [];
+  for (let i = 0; i < dice; i++) {
+    const r = Math.floor(Math.random() * 6) + 1;
+    rolls.push(r);
+    if (r >= tn) successes++;
+  }
   const applied = Math.max(1, successes);
   const inp = $('programSuccessesInput');
   if (inp) inp.value = String(applied);
@@ -3863,8 +3284,6 @@ function adjustCompileJobDays(jobId, deltaDays) {
   const job = jobs[idx];
   if (job.status === 'ready') return;
 
-  if (job.kind === 'deck') { adjustDeckJobDays(jobs, idx, deltaDays); return; } // W6: cook->install
-
   job.status = 'in_progress';
   job.daysRemaining = Math.max(0, (parseInt(job.daysRemaining, 10) || 0) + deltaDays);
   if (job.daysRemaining === 0) {
@@ -3875,7 +3294,6 @@ function adjustCompileJobDays(jobId, deltaDays) {
     _saveStore(COMPILE_JOB_STORE, jobs);
   }
   renderSavedPrograms();
-  renderFabricationQueue();
 }
 
 function deleteCompileJob(jobId) {
@@ -4118,7 +3536,7 @@ function renderSavedPrograms() {
               <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='addCompiledProgramToLoad(${JSON.stringify(c.id)}, "active")'>A</button>
               <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='addCompiledProgramToLoad(${JSON.stringify(c.id)}, "storage")'>S</button>
               ${allowUpgrade ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='startUpgradeFromCompiled(${JSON.stringify(c.id)})'>&gt;&gt; Upgrade</button>` : ''}
-              <button class="btn btn-red btn-sm" onclick='deleteCompiledProgram(${JSON.stringify(c.id)})'>x</button>
+              <button class="lp-remove-btn" onclick='deleteCompiledProgram(${JSON.stringify(c.id)})'>[x]</button>
             </td>
           </tr>`).join('') + `</tbody>
         </table>
@@ -4132,10 +3550,25 @@ function renderSavedPrograms() {
   html += '<div style="margin-bottom:8px;color:var(--amber);font-size:.72rem;letter-spacing:1.2px;text-transform:uppercase">Program Library // Purchased</div>';
   html += renderLibraryGroup(purchasedPrograms, false, 'purchased');
 
-  // W6: compile jobs now render in the unified Fabrication Queue (deck builds + program
-  // compiles), shown in both modes. See renderFabricationQueue().
+  html += '<div style="margin-bottom:8px;color:var(--amber);font-size:.72rem;letter-spacing:1.2px;text-transform:uppercase">Compile Jobs</div>';
+  if (!jobs.length) {
+    html += '<div style="color:var(--text-dim);font-size:.7rem;letter-spacing:1px;margin-bottom:10px">No compile jobs queued.</div>';
+  } else {
+    html += `<table class="load-prog-table" style="margin:0 0 10px 0">
+      <thead><tr><th>Job</th><th>Status</th><th>Days Left</th><th></th></tr></thead>
+      <tbody>` + jobs.map(j => `<tr>
+          <td style="color:var(--cyan)">${esc(j.sourceName)} v${j.version}</td>
+          <td style="color:${j.status === 'ready' ? 'var(--green)' : 'var(--amber)'}">${esc(String(j.status || 'queued').toUpperCase())}</td>
+          <td style="color:var(--text-dim)">${fmtN(j.daysRemaining || 0)} / ${fmtN(j.totalDays || 0)}</td>
+          <td style="white-space:nowrap">
+            ${isAdminMode() && j.status !== 'ready' ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='adjustCompileJobDays(${JSON.stringify(j.id)}, -1)'>-1d</button>` : ''}
+            ${isAdminMode() && j.status !== 'ready' ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='adjustCompileJobDays(${JSON.stringify(j.id)}, -9999)'>Finish</button>` : ''}
+            <button class="lp-remove-btn" onclick='deleteCompileJob(${JSON.stringify(j.id)})'>[x]</button>
+          </td>
+        </tr>`).join('') + '</tbody></table>';
+  }
+
   el.innerHTML = html;
-  renderFabricationQueue();
 }
 function recalcLoadPlannerWithWarnings() {
   const caps = { activeCap: ni('activeMem'), storageCap: ni('offlineStorage') };
@@ -4425,7 +3858,7 @@ function renderLoadPlanner() {
         const storagePctEntry = Math.min(100, Math.round((storageFootprint / Math.max(1, storageBase)) * 100));
         const usageLabel = `A ${fmtN(activeFootprint)} Mp (${activePctEntry}%) // S ${fmtN(storageFootprint)} Mp (${storagePctEntry}%)`;
         return `<tr>
-          <td class="db-clk" onclick='inspectLoadEntry(${JSON.stringify(entry.key)})'>${esc(entry.label)}${entry.limitTarget ? ` <span style="color:var(--amber)">[Limit:${esc(String(entry.limitTarget).toUpperCase())}]</span>` : ''}</td>
+          <td>${esc(entry.label)}${entry.limitTarget ? ` <span style="color:var(--amber)">[Limit:${esc(String(entry.limitTarget).toUpperCase())}]</span>` : ''}</td>
           <td style="color:var(--cyan)">${fmtN(size)} Mp</td>
           <td><span class="lp-chip ${storageOn ? 'on' : 'off'}">${esc(storageLabel)}</span></td>
           <td><span class="lp-chip ${activeCount > 0 ? 'on' : 'off'}">${esc(activeLabel)}</span></td>
@@ -4458,52 +3891,6 @@ function renderLoadPlanner() {
       <div class="load-bar-wrap" style="margin:4px 0 0 0"><div class="load-bar-fill${storageOver ? ' overload' : ''}" style="width:${storagePct}%"></div></div>
     </div>`;
   }
-}
-
-// Loadout-tab inspector: render the clicked load entry's detail into #loadEntryDetail.
-function inspectLoadEntry(key) {
-  const el = $('loadEntryDetail');
-  if (!el) return;
-  setMode('loadout');
-  const normalized = loadPlannerItems.map((item, idx) => ({ ...item, _idx: idx, target: item.target || 'active' }));
-  const entry = aggregateLoadPlannerEntries(normalized).find(e => e.key === key);
-  if (!entry) {
-    el.innerHTML = '<div class="md3-insp-empty">That program is no longer in the load.</div>';
-    return;
-  }
-  const activeCap = ni('activeMem');
-  const storageCap = ni('offlineStorage');
-  const size = Math.max(0, parseInt(entry.actualSize, 10) || 0);
-  const activeCount = entry.activeIdx.length;
-  const storageCount = entry.storageIdx.length;
-  const activeFootprint = size * activeCount;
-  const storageFootprint = size * (storageCount + activeCount);
-  const pct = (used, cap) => cap > 0 ? `${Math.min(100, Math.round((used / cap) * 100))}%` : 'n/a';
-
-  const rows = [
-    { lbl: 'Program Size', val: `${fmtN(size)} Mp` },
-    { lbl: 'Type', val: entry.isOneShot ? 'One-shot' : 'Standard' },
-    { lbl: 'Active Copies', val: activeCount > 0 ? `${activeCount}` : '--' },
-    { lbl: 'Storage Copies', val: `${storageCount + activeCount}` },
-    { lbl: 'Active Footprint', val: `${fmtN(activeFootprint)} Mp (${pct(activeFootprint, activeCap)})` },
-    { lbl: 'Storage Footprint', val: `${fmtN(storageFootprint)} Mp (${pct(storageFootprint, storageCap)})` },
-  ];
-  if (entry.limitTarget) rows.push({ lbl: 'Limit Target', val: String(entry.limitTarget).toUpperCase(), cls: 'warn' });
-
-  el.innerHTML = `<div class="prog-card">
-      <div class="prog-card-title">${esc(entry.label)}</div>
-      <div class="prog-card-sub">Loaded program detail</div>
-    </div>
-    <div class="md3-summary">
-      <div class="md3-summary-hd">Memory Contribution</div>
-      ${rows.map(r => `<div class="sum-row"><span class="k">${esc(r.lbl)}</span><span class="v"${r.cls === 'warn' ? ' style="color:var(--amber)"' : ''}>${esc(String(r.val))}</span></div>`).join('')}
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-      <button class="lp-op-btn" onclick='addEntryToStorage(${JSON.stringify(entry.key)})'>+S</button>
-      <button class="lp-op-btn" onclick='removeEntryFromStorage(${JSON.stringify(entry.key)})'>-S</button>
-      <button class="lp-op-btn" onclick='addEntryToActive(${JSON.stringify(entry.key)})'>+A</button>
-      <button class="lp-op-btn" onclick='removeEntryFromActive(${JSON.stringify(entry.key)})'>-A</button>
-    </div>`;
 }
 
 // --- Persistence (localStorage) ---------------------------------------------
@@ -4682,77 +4069,6 @@ function _saveStore(key, data) {
 
 // -- Cyberdeck save/load ------------------------------------------------------
 
-// T5: center shows the form only once a deck is loaded or a new one is started.
-function setDeckFormVisible(show) {
-  const form = $('deckFormView');
-  const empty = $('deckEmptyState');
-  if (form) {
-    form.style.display = show ? '' : 'none';
-    if (show) { form.classList.remove('db-fade'); void form.offsetWidth; form.classList.add('db-fade'); }
-  }
-  if (empty) empty.style.display = show ? 'none' : '';
-}
-
-// R7: start a fresh build.
-function newDeckBuild() {
-  setDeckFormVisible(true);
-  activeDeckBuildName = '';
-  loadPlannerItems = [];
-  if ($('deckName')) $('deckName').value = '';
-  if ($('deckType')) $('deckType').value = 'hot';
-  ['mpcp', 'pBod', 'pEvasion', 'pMasking', 'pSensor', 'activeMem', 'ioSpeed'].forEach(id => { if ($(id)) $(id).value = ''; });
-  ['hardening', 'respIncrease', 'offlineStorage'].forEach(id => { if ($(id)) $(id).value = '0'; });
-  if ($('deckCasing')) $('deckCasing').value = '0';
-  ['iccm', 'realityFilter', 'satlink', 'hitcherJack'].forEach(id => { if ($(id)) $(id).checked = false; });
-  if ($('deckSaveName')) $('deckSaveName').value = '';
-  calcDeck();
-  renderSavedDecks();
-  const cd = $('compDetail');
-  if (cd) cd.innerHTML = '<div class="md3-insp-empty">Click any component label or field (MPCP, a persona program, Hardware, Memory/I/O, or an Accessory) to see its rules, size, and cost here.</div>';
-}
-
-// R8: click-to-inspect deck components (rules + live size/cost from calcDeck's rows).
-const DECK_COMPONENT_INFO = {
-  'MPCP': 'Master Persona Control Program -- the deck core. Caps every persona program and most hardware. Size = MPCP^2 x 8 Mp.',
-  'Bod': 'Persona program. Soaks damage to the persona icon. Multiplier x3 Mp. Capped at MPCP.',
-  'Evasion': 'Persona program. Dodges IC and detection. Multiplier x3 Mp. Capped at MPCP.',
-  'Masking': 'Persona program. Hides the persona from IC; feeds Detection Factor with loaded Sleaze. Multiplier x2 Mp. Capped at MPCP.',
-  'Sensor': 'Persona program. Detection and analysis; gates the I/O Speed cap. Multiplier x2 Mp. Capped at MPCP.',
-  'Hardening': 'Resists dump shock and damage. Max = MPCP / 2, rounded down.',
-  'Response Increase': 'Speeds Matrix initiative (+2 reaction and +1 die per level). Max (MPCP /4) rounded down.  A deck cannot support more than 3 levels of Response Increase.',
-  'ICCM Filter': 'ICCM Biofeedback Filter -- protects against lethal damage from Black IC. Adds a 5,000Y bioscanner. Size = (cost MPCP)^2 x 4 Mp.',
-  'Reality Filter': 'Reality Filter -- +1 effective Response Increase, +2 MPCP for cost calc, and -1 MPCP for the persona cap. No size row of its own.',
-  'Active Memory': 'Active (working) memory for loaded programs. Cap = MPCP x 100 Mp. Online Memory Cost (OMC) = 5Y/Mp.',
-  'I/O Speed': 'Input/Output throughput in Mp per Combat Turn. Cap = MPCP x Sensor x 10 Mp/CT.',
-  'Offline Storage': 'Offline / bulk storage (OMC). Not rules-capped; this app uses a practical max of 65,535 Mp at 5Y/Mp.',
-  'Deck Casing': 'Physical casing toughness. Level 1 = 500Y, Level 2 = 2,000Y, Level 3 = 5,000Y.',
-  'Satlink Interface': 'Standard portable 0.5m satellite dish. Flat 800Y.',
-  'Hitcher Jack': 'Lets a passenger ride along in VR. Flat 250Y.',
-};
-
-function inspectDeckComponent(key) {
-  const el = $('compDetail');
-  if (!el) return;
-  const info = DECK_COMPONENT_INFO[key] || '';
-  const rows = window._deckRows || [];
-  const row = rows.find(r => String(r.name || '').indexOf(key) === 0);
-
-  let html = `<div class="md3-insp-title">${esc(key)}</div>`;
-  html += `<div class="md3-insp-flavor" style="margin:8px 0 12px">${esc(info)}</div>`;
-  if (row && (row.size > 0 || row.sub > 0)) {
-    const r = (lbl, val) => `<div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">${lbl}</span><span>${val}</span></div>`;
-    html += '<div class="md3-insp-sec"><span class="md3-insp-label">This Component</span>';
-    html += r('Size', row.size > 0 ? fmtN(row.size) + ' Mp' : '--');
-    html += r('Subtotal', fmtY(row.sub || 0));
-    html += r('Cook', row.cook > 0 ? row.cook + 'd' : '--');
-    html += r('Install', row.inst > 0 ? row.inst + 'd' : '--');
-    html += '</div>';
-  } else {
-    html += '<div class="tip">Set a rating for this component to see its size and cost.</div>';
-  }
-  el.innerHTML = html;
-}
-
 function saveDeckBuild() {
   if (!getActiveProgrammerId()) { showAlert($('pageAlert'), 'Activate a Programmer Profile before saving deck builds.', true); return; }
   const deckName = $('deckName')?.value.trim() || '';
@@ -4789,7 +4105,6 @@ function loadDeckBuild(name, options = {}) {
   if (!getActiveProgrammerId()) return;
   const build = _loadStore(DECK_STORE).find(d => d.name === name);
   if (!build) return;
-  setDeckFormVisible(true);
   activeDeckBuildName = name;
   $('deckName').value = build.deckName || '';
   $('deckType').value = build.deckType || 'hot';
@@ -4808,9 +4123,9 @@ function loadDeckBuild(name, options = {}) {
   $('deckCasing').value     = build.casingLvl  || 0;
   $('satlink').checked      = !!build.satlink;
   $('hitcherJack').checked  = !!build.hitcherJack;
-  // build.request (pending GM approval) and build.fabricatedSnapshot ride along on the record.
   calcDeck();
   renderSavedDecks();
+  if (!options.silent) showAlert($('pageAlert'), `>> LOADED // "${name}"`, false);
 }
 
 function deleteDeckBuild(name) {
@@ -4824,34 +4139,26 @@ function renderSavedDecks() {
   const el = $('savedDecksList');
   if (!el) return;
   if (!getActiveProgrammerId()) {
-    el.innerHTML = '<div class="field-label">Activate a Programmer Profile to access saved designs.</div>';
+    el.innerHTML = '<div class="field-label">Activate a Programmer Profile to access saved builds.</div>';
     return;
   }
   const decks = _loadStore(DECK_STORE);
   if (!decks.length) {
-    el.innerHTML = '<div class="field-label">No saved designs.</div>';
+    el.innerHTML = '<div class="field-label">No saved builds.</div>';
     return;
   }
-  // Inspector is intentionally minimal: Name (+ availability badge), MPCP, Load, Delete.
-  // Build/Buy now flow through the GM approval queue, so there is no inline Purchase button.
   el.innerHTML = `<table class="load-prog-table" style="margin-top:4px">
-    <thead><tr><th>Name</th><th>MPCP</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>MPCP</th><th>Saved</th><th></th></tr></thead>
     <tbody>` +
-    decks.map(d => {
-      const tag = d.request
-          ? `<span class="fab-badge pending">Pending ${d.request.kind === 'purchase' ? 'Buy' : 'Build'}</span>`
-        : d.fabricated ? '<span class="fab-badge built">Built</span>'
-        : d.purchased ? '<span class="fab-badge bought">Purchased</span>' : '';
-      const active = activeDeckBuildName === d.name ? ' <span class="text-green">[Active]</span>' : '';
-      return `<tr>
-      <td style="color:var(--cyan)">${esc(d.name)}${tag}${active}</td>
+    decks.map(d => `<tr>
+      <td style="color:var(--cyan)">${esc(d.name)}</td>
       <td style="color:var(--amber)">${d.mpcp || '--'}</td>
+      <td style="color:var(--text-dim);font-size:.6rem">${new Date(d.savedAt).toLocaleDateString()}${activeDeckBuildName === d.name ? ' <span class="text-green">[Active]</span>' : ''}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='loadDeckBuild(${JSON.stringify(d.name)})'>&gt;&gt; Load</button>
-        <button class="btn btn-red btn-sm" onclick='deleteDeckBuild(${JSON.stringify(d.name)})'>x</button>
+        <button class="lp-remove-btn" onclick='deleteDeckBuild(${JSON.stringify(d.name)})'>[x]</button>
       </td>
-    </tr>`;
-    }).join('') +
+    </tr>`).join('') +
     '</tbody></table>';
 }
 
@@ -4889,6 +4196,7 @@ function loadLoadout(name) {
   }));
   if (lo.deckMem && $('activeMem')) $('activeMem').value = lo.deckMem;
   calcDeck();
+  showAlert($('pageAlert'), `>> LOADED // "${name}"`, false);
 }
 
 function deleteLoadout(name) {
@@ -4924,7 +4232,7 @@ function renderSavedLoadouts() {
       <td style="color:var(--text-dim);font-size:.6rem">${new Date(lo.savedAt).toLocaleDateString()}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick='loadLoadout(${JSON.stringify(lo.name)})'>&gt;&gt; Load</button>
-        <button class="btn btn-red btn-sm" onclick='deleteLoadout(${JSON.stringify(lo.name)})'>x</button>
+        <button class="lp-remove-btn" onclick='deleteLoadout(${JSON.stringify(lo.name)})'>[x]</button>
       </td>
     </tr>`).join('') +
     '</tbody></table>';
@@ -4938,15 +4246,429 @@ document.addEventListener('DOMContentLoaded', async () => {
   buildUtilDropdown();
   onUtilTypeChange();
   syncProgrammingSuccessInputBounds();
-  initNumSteppers($('centerDeck')); // compact +/- steppers on the deck number fields (R4)
   calcDeck();
   renderLoadPlanner();
   renderSavedDecks();
-  renderPendingApprovals();
   renderSavedLoadouts();
   renderSavedPrograms();
   refreshPurchaseImportPreview();
 });
 </script>
+
+<script id="dwLayer">
+'use strict';
+/* =====================================================================
+   WORKSHOP LAYER -- progressive enhancement over the live deck-builder.
+   The live engine (stores, calcs, renders) is untouched; this layer:
+   1) re-parents live panels into the dossier shell,
+   2) renders the asset rail from the real stores,
+   3) adds the workshop state machine: requests -> GM queue -> fab jobs
+      -> ready, one global clock with per-job multipliers,
+   4) adds the OMC archive meter and FX.
+   Workshop state lives in its OWN scoped store (sr2_workshop_meta_v1) so
+   live saves never clobber it. matrix-run contracts are untouched.
+   ===================================================================== */
+const DW_META_STORE  = 'sr2_workshop_meta_v1';   // scoped per programmer (via _loadStore)
+const DW_CLOCK_KEY   = 'sr2_workshop_clock_v1';  // campaign-global (see consolidation note)
+const DW_CAMPAIGN_T0 = Date.UTC(2050, 0, 1);
+
+function dwMeta() {
+  const rows = _loadStore(DW_META_STORE);
+  return rows && rows.length ? rows[0] : { deckMeta:{}, progReq:[], omcCapacity:0, omcOrders:[] };
+}
+function dwSaveMeta(m) { _saveStore(DW_META_STORE, [m]); dwRefresh(); }
+
+function dwClockDays() { return parseInt(localStorage.getItem(DW_CLOCK_KEY) || '0', 10) || 0; }
+function dwClockDateStr() {
+  const d = new Date(DW_CAMPAIGN_T0 + dwClockDays() * 86400000);
+  return d.toUTCString().slice(0, 16) + ' 2050+' ;
+}
+function dwTick(n) {
+  if (!isAdminMode()) return;
+  localStorage.setItem(DW_CLOCK_KEY, String(dwClockDays() + n));
+  const m = dwMeta();
+  // deck fab jobs: advance elapsed by ticks x multiplier
+  Object.values(m.deckMeta || {}).forEach(dm => {
+    if (dm.status === 'fab' && dm.job) {
+      dm.job.elapsed = (dm.job.elapsed || 0) + n * (dm.job.multiplier || 1);
+      if (dm.job.elapsed >= (dm.job.cookDays + dm.job.installDays)) { dm.status = 'ready'; dm.completedAt = Date.now(); }
+    }
+  });
+  dwSaveMeta(m);
+  // program compile jobs: delegate to the live engine's own day decrement
+  try {
+    _loadStore(COMPILE_JOB_STORE).forEach(j => {
+      const mult = (m.deckMeta && m.deckMeta['__compile_' + j.id] && m.deckMeta['__compile_' + j.id].multiplier) || 1;
+      adjustCompileJobDays(j.id, -(n * mult));
+    });
+  } catch (e) { console.warn('compile tick', e); }
+}
+
+/* ---------- re-parenting: move live panels into dossier slots ---------- */
+function dwAdopt(el, slotId) { const s = document.getElementById(slotId); if (el && s) s.appendChild(el); }
+function dwPanelOf(id) { const el = document.getElementById(id); return el ? (el.closest('.mx-panel') || el.closest('.panel') || el.parentElement) : null; }
+function dwReparent() {
+  // deck tab -> deck dossier; summary/cost -> inspector
+  dwAdopt(document.getElementById('tabPanel0'), 'dwSlotDeck');
+  dwAdopt(document.getElementById('deckSummaryPanel'), 'dwSlotInspector');
+  dwAdopt(document.getElementById('costBreakdownPanel'), 'dwSlotInspector');
+  // program tab -> program dossier; loadout planner + saved loadouts -> loadout dossier
+  dwAdopt(document.getElementById('tabPanel1'), 'dwSlotProgram');
+  dwAdopt(dwPanelOf('loadPlannerArea'), 'dwSlotLoadout');
+  dwAdopt(dwPanelOf('savedLoadoutsList'), 'dwSlotLoadout');
+  // profile gate -> identity area (kept functional; collapses when active)
+  const gate = document.getElementById('profileGateCard');
+  if (gate) document.getElementById('dwIdentity').insertAdjacentElement('afterend', gate);
+  // legacy saved-design panels stay where they land; the rail supersedes them
+  const sd = dwPanelOf('savedDecksList'); if (sd) sd.style.display = 'none';
+  const sp = dwPanelOf('savedProgramsList'); if (sp) sp.style.display = 'none';
+}
+
+/* ---------- dossier switching ---------- */
+function dwShow(which) {
+  ['dwDosDeck','dwDosProgram','dwDosLoadout'].forEach(id => document.getElementById(id).classList.remove('on'));
+  const map = { deck:'dwDosDeck', program:'dwDosProgram', loadout:'dwDosLoadout' };
+  document.getElementById(map[which]).classList.add('on');
+}
+
+/* ---------- stage strip ---------- */
+function dwStages(el, stages) {
+  el.innerHTML = stages.map((s, i) =>
+    '<div class="dw-stage ' + (s.state || '') + '"><span class="node">' + s.label +
+    (s.sub ? '<span style="display:block;font-size:.55rem;color:var(--text-dim);letter-spacing:1px;margin-top:2px;text-transform:none">' + s.sub + '</span>' : '') +
+    '</span><span class="wire"></span></div>').join('');
+}
+
+/* ---------- rail ---------- */
+function dwDeckStatus(name) {
+  const dm = (dwMeta().deckMeta || {})[name];
+  return dm ? dm.status : 'draft';
+}
+function dwChip(status, dm) {
+  if (status === 'pending') return '<span class="chipx pending">Fixer</span>';
+  if (status === 'fab') {
+    const left = dm && dm.job ? Math.max(0, (dm.job.cookDays + dm.job.installDays) - (dm.job.elapsed || 0)) : '?';
+    return '<span class="chipx fab">Fab ' + left + 'd</span>';
+  }
+  if (status === 'ready') return '<span class="chipx ready">Ready</span>';
+  return '<span class="chipx draft">Draft</span>';
+}
+function dwRenderRail() {
+  const meta = dwMeta();
+  // decks
+  const decks = _loadStore(DECK_STORE);
+  document.getElementById('dwRailDecks').innerHTML = decks.length ? decks.map(d => {
+    const st = dwDeckStatus(d.name), dm = (meta.deckMeta || {})[d.name];
+    return '<div class="dw-asset" data-deck="' + escAttr(d.name) + '">' +
+      '<div class="nm">' + esc(d.deckName || d.name) + ' ' + dwChip(st, dm) + '</div>' +
+      '<div class="mt">MPCP ' + (d.mpcp || '?') + ' &middot; ' + [d.pBod,d.pEvasion,d.pMasking,d.pSensor].join('/') + '</div></div>';
+  }).join('') : '<div class="tip">No deck specs yet. Hit + new.</div>';
+  document.querySelectorAll('#dwRailDecks .dw-asset').forEach(el =>
+    el.addEventListener('click', () => dwOpenDeck(el.dataset.deck)));
+  // software: families from sources + compiled + purchased
+  const fams = {};
+  const push = (famName, row) => { (fams[famName] = fams[famName] || []).push(row); };
+  _loadStore(SOURCE_STORE).forEach(srcP => {
+    const v = srcP.versions && srcP.versions[srcP.versions.length - 1];
+    if (!v) return;
+    const fam = (v.util || srcP.util || 'Program');
+    const compiledIds = (srcP.versions || []).map(x => x.compiledId).filter(Boolean);
+    if (!compiledIds.length) push(fam, { kind:'source', id:srcP.id, label:'v' + (v.version||1) + ' r' + (v.rating||'?'), chip:'<span class="chipx draft">Draft</span>' });
+  });
+  _loadStore(COMPILED_STORE).forEach(a => {
+    const fam = a.util || getProgramTypeLabelFromKey?.(a.typeKey) || 'Program';
+    const prov = a.purchased ? '<span class="chipx street">Street</span>' : '<span class="chipx ready">Coded</span>';
+    push(fam, { kind:'compiled', id:a.id, label:esc(a.name || (fam + ' ' + (a.rating||''))), mp:(a.sizeMp || a.size || '?') + ' Mp', chip:prov });
+  });
+  _loadStore(COMPILE_JOB_STORE).forEach(j => {
+    push(j.util || 'Program', { kind:'job', id:j.id, label:esc(j.sourceName || 'compile') + ' v' + (j.version||1), chip:'<span class="chipx fab">Compile ' + (j.daysRemaining ?? j.days ?? '?') + 'd</span>' });
+  });
+  const famNames = Object.keys(fams).sort();
+  document.getElementById('dwRailSoft').innerHTML = famNames.length ? famNames.map(f =>
+    '<div class="dw-fam"><div class="dw-fam-hd" onclick="this.parentElement.classList.toggle(\'open\')">' +
+    '<span class="car">&gt;</span><span class="nm">' + esc(f) + '</span><span class="ct">' + fams[f].length + '</span></div>' +
+    '<div class="dw-fam-bd">' + fams[f].map(r =>
+      '<div class="dw-var" data-kind="' + r.kind + '" data-id="' + escAttr(String(r.id)) + '">' +
+      '<span>' + r.label + '</span>' + r.chip + (r.mp ? '<span class="mp">' + r.mp + '</span>' : '') + '</div>').join('') +
+    '</div></div>').join('') : '<div class="tip">No software yet. Hit + new.</div>';
+  document.querySelectorAll('#dwRailSoft .dw-var').forEach(el =>
+    el.addEventListener('click', () => dwOpenSoft(el.dataset.kind, el.dataset.id)));
+  // loadouts
+  const lo = _loadStore(LOADOUT_STORE);
+  document.getElementById('dwRailLoadouts').innerHTML = lo.length ? lo.map(l =>
+    '<div class="dw-asset" data-lo="' + escAttr(l.name) + '"><div class="nm">' + esc(l.name) +
+    ' <span class="chipx ready">Fits</span></div></div>').join('') : '<div class="tip">No loadouts yet.</div>';
+  document.querySelectorAll('#dwRailLoadouts .dw-asset').forEach(el =>
+    el.addEventListener('click', () => { loadLoadout(el.dataset.lo); dwShow('loadout'); dwSelect(el); }));
+  // archive meter
+  const lib = _loadStore(COMPILED_STORE).reduce((t, a) => t + (parseInt(a.sizeMp || a.size, 10) || 0), 0);
+  const cap = meta.omcCapacity || 0;
+  document.getElementById('dwArcN').textContent = fmtN(lib) + ' / ' + fmtN(cap) + ' Mp';
+  const pct = cap > 0 ? Math.min(100, Math.round(lib * 100 / cap)) : (lib > 0 ? 100 : 0);
+  document.getElementById('dwArcBar').style.width = pct + '%';
+  document.getElementById('dwArchive').classList.toggle('hot', pct >= 80);
+}
+function dwSelect(el) {
+  document.querySelectorAll('.dw-asset, .dw-var').forEach(x => x.classList.remove('sel'));
+  if (el) el.classList.add('sel');
+}
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return esc(s).replace(/"/g,'&quot;'); }
+
+/* ---------- dossier openers ---------- */
+function dwOpenDeck(name) {
+  loadDeckBuild(name, { silent: true });
+  const meta = dwMeta(), dm = (meta.deckMeta || {})[name] || {};
+  const st = dm.status || 'draft';
+  document.getElementById('dwDeckTitle').textContent = (name || 'DECK').toUpperCase();
+  document.getElementById('dwDeckSerial').textContent =
+    st === 'ready' ? 'as-built / route: ' + (dm.route || 'build')
+    : st === 'fab' ? 'fab in progress / x' + ((dm.job||{}).multiplier || 1)
+    : st === 'pending' ? 'awaiting fixer callback'
+    : 'deck spec / route: ' + (dm.route || 'build');
+  dwStages(document.getElementById('dwDeckStages'), [
+    { label:'Design', state: st === 'draft' ? 'now' : 'done' },
+    { label:'Authorize', state: st === 'pending' ? 'now amber' : (st === 'fab' || st === 'ready') ? 'done' : '',
+      sub: st === 'pending' ? 'fixer callback' : '' },
+    { label:'Fab', state: st === 'fab' ? 'now amber' : st === 'ready' ? (dm.route === 'buy' ? 'skip' : 'done') : '',
+      sub: st === 'fab' && dm.job ? Math.max(0,(dm.job.cookDays+dm.job.installDays)-(dm.job.elapsed||0)) + 'd left' : '' },
+    { label:'Ready', state: st === 'ready' ? 'now' : '' }
+  ]);
+  dwRenderDeckAcquire(name, dm);
+  dwShow('deck');
+  dwSelect(document.querySelector('#dwRailDecks .dw-asset[data-deck="' + CSS.escape(name) + '"]'));
+}
+function dwRenderDeckAcquire(name, dm) {
+  const el = document.getElementById('dwDeckAcquire');
+  const st = dm.status || 'draft';
+  if (st === 'pending') {
+    el.innerHTML = '<div class="tip" style="color:var(--amber)">Order transmitted (' + esc(dm.route) +
+      '). Awaiting fixer callback. <button class="btn btn-red btn-sm" onclick="dwWithdraw(\'' + escAttr(name) + '\')">&gt;&gt; Withdraw</button></div>';
+  } else if (st === 'fab') {
+    const total = dm.job.cookDays + dm.job.installDays, done = Math.min(total, dm.job.elapsed || 0);
+    el.innerHTML = '<div class="tip">Fab: ' + done + ' / ' + total + ' bench days (x' + dm.job.multiplier +
+      ' per tick). Advances with the downtime clock.</div>';
+  } else if (st === 'ready') {
+    el.innerHTML = '<div class="tip" style="color:var(--green)">READY. Slot it in a loadout and jack in. ' +
+      '(Spec changes re-enter the pipe as a new request.)</div>';
+  } else {
+    el.innerHTML =
+      '<div class="dw-acq-paths">' +
+      '<div class="dw-path build"><div class="hd">Build at bench</div>' +
+      '<div class="ln">Base parts at market. Computer B/R rolled at the table; GM banks successes on callback.</div>' +
+      '<button class="btn btn-green btn-sm" style="margin-top:10px" onclick="dwRequestDeck(\'' + escAttr(name) + '\',\'build\')">&gt;&gt; Transmit spec to fixer</button></div>' +
+      '<div class="dw-path buy"><div class="hd">Order from fixer</div>' +
+      '<div class="ln">Street pricing; final number quoted on callback. Bring your Etiquette dice.</div>' +
+      '<button class="btn btn-amber btn-sm" style="margin-top:10px" onclick="dwRequestDeck(\'' + escAttr(name) + '\',\'buy\')">&gt;&gt; Place order</button></div></div>' +
+      '<div class="tip" style="margin-top:8px">Save the build first; requests reference the saved spec by name.</div>';
+  }
+}
+function dwOpenSoft(kind, id) {
+  if (kind === 'source') { editSourceProject(id); }
+  document.getElementById('dwProgTitle').textContent = kind === 'compiled' ? 'OBJECT CODE' : kind === 'job' ? 'COMPILING' : 'SOURCE DRAFT';
+  document.getElementById('dwProgSerial').textContent =
+    kind === 'compiled' ? 'in the archive / slot it from the loadout planner'
+    : kind === 'job' ? 'task clock running / advances with downtime'
+    : 'code route / your caps apply';
+  dwStages(document.getElementById('dwProgStages'), [
+    { label:'Source', state: kind === 'source' ? 'now' : 'done' },
+    { label:'Compile', state: kind === 'job' ? 'now amber' : kind === 'compiled' ? 'done' : '' },
+    { label:'Object code', state: kind === 'compiled' ? 'now' : '' }
+  ]);
+  dwShow('program');
+}
+function dwNewDeck() { clearTimeout(window.__dwND); $('deckName') && ($('deckName').value = ''); dwShow('deck');
+  document.getElementById('dwDeckTitle').textContent = 'UNTITLED DECK';
+  document.getElementById('dwDeckSerial').textContent = 'new spec / save to add it to the rail';
+  dwStages(document.getElementById('dwDeckStages'), [{label:'Design',state:'now'},{label:'Authorize'},{label:'Fab'},{label:'Ready'}]);
+  document.getElementById('dwDeckAcquire').innerHTML = '<div class="tip">Spec the iron, save it, then transmit.</div>'; }
+function dwNewSoft() { cancelProgramEdit?.(); dwShow('program');
+  document.getElementById('dwProgTitle').textContent = 'NEW SOFTWARE';
+  document.getElementById('dwProgSerial').textContent = 'code it below (your caps) or import a purchased binary (pro caps)';
+  dwStages(document.getElementById('dwProgStages'), [{label:'Source',state:'now'},{label:'Compile'},{label:'Object code'}]); }
+
+/* ---------- workshop state machine: requests, queue, fab ---------- */
+function dwRequestDeck(name, route) {
+  const m = dwMeta();
+  m.deckMeta = m.deckMeta || {};
+  m.deckMeta[name] = { status:'pending', route, requestedAt: Date.now() };
+  dwSaveMeta(m);
+  showAlert($('pageAlert'), '>> TRANSMITTED // ' + (route === 'buy' ? 'Order' : 'Spec') + ' for "' + name + '" sent to your fixer.', false);
+  dwOpenDeck(name);
+}
+function dwWithdraw(name) {
+  const m = dwMeta(); if (m.deckMeta && m.deckMeta[name]) { delete m.deckMeta[name]; dwSaveMeta(m); dwOpenDeck(name); }
+}
+function dwOrderOmc() {
+  const mp = parseInt(prompt('Order how many Mp of OMC? (50Y + 0.5Y/Mp)', '600'), 10);
+  if (!mp || mp <= 0) return;
+  const m = dwMeta();
+  (m.omcOrders = m.omcOrders || []).push({ mp, cost: Math.round(50 + 0.5 * mp), at: Date.now() });
+  dwSaveMeta(m);
+  showAlert($('pageAlert'), '>> TRANSMITTED // OMC +' + mp + ' Mp order sent to your fixer.', false);
+}
+function dwArchiveInfo() {
+  document.getElementById('dwInspNote').innerHTML =
+    '<b style="color:var(--cyan)">ARCHIVE / OMC</b><br>Your chip rack: every program you own lives on off-line OMC chips, separate from any deck. Loadouts copy FROM the archive TO a deck. Order more shelf through the fixer (50Y + 0.5Y/Mp); capacity bumps on GM approval. OMC backups are the only thing a Tar Pit can\'t reach.';
+}
+function dwRenderQueue() {
+  const gm = isAdminMode();
+  document.body.classList.toggle('dw-gm', gm);
+  if (!gm) return;
+  document.getElementById('dwClockDate').textContent = 'Day ' + dwClockDays() + ' / ' + dwClockDateStr();
+  const m = dwMeta(); const body = []; let n = 0;
+  Object.entries(m.deckMeta || {}).forEach(([name, dm]) => {
+    if (dm.status !== 'pending') return;
+    n++;
+    if (dm.route === 'build') {
+      body.push('<div class="dw-appr"><div class="who">' + esc(name) + ' / BUILD</div>' +
+        '<div class="fields"><label>Cook succ.<input type="number" min="1" value="2" id="dwCk_' + escAttr(name) + '"></label>' +
+        '<label>Install succ.<input type="number" min="1" value="2" id="dwIn_' + escAttr(name) + '"></label>' +
+        '<label>Task multiplier (1-10)<input type="number" min="1" max="10" value="1" id="dwMu_' + escAttr(name) + '"></label></div>' +
+        '<button class="btn btn-green btn-sm" onclick="dwApproveBuild(\'' + escAttr(name) + '\')">&gt;&gt; Start build</button> ' +
+        '<button class="btn btn-red btn-sm" onclick="dwWithdraw(\'' + escAttr(name) + '\')">Refuse</button></div>');
+    } else {
+      body.push('<div class="dw-appr"><div class="who">' + esc(name) + ' / PURCHASE</div>' +
+        '<div class="tip">Quote street price per your SI + etiquette ruling, collect the nuyen at the table, then authorize.</div>' +
+        '<div class="fields"><label>Delivery days<input type="number" min="0" value="0" id="dwDel_' + escAttr(name) + '"></label></div>' +
+        '<button class="btn btn-green btn-sm" onclick="dwApproveBuy(\'' + escAttr(name) + '\')">&gt;&gt; Authorize</button> ' +
+        '<button class="btn btn-red btn-sm" onclick="dwWithdraw(\'' + escAttr(name) + '\')">Refuse</button></div>');
+    }
+  });
+  (m.omcOrders || []).forEach((o, i) => {
+    n++;
+    body.push('<div class="dw-appr"><div class="who">OMC chips +' + o.mp + ' Mp / ' + fmtY(o.cost) + '</div>' +
+      '<button class="btn btn-green btn-sm" onclick="dwApproveOmc(' + i + ')">&gt;&gt; Authorize</button> ' +
+      '<button class="btn btn-red btn-sm" onclick="dwRefuseOmc(' + i + ')">Refuse</button></div>');
+  });
+  document.getElementById('dwQueueN').textContent = n;
+  document.getElementById('dwQueueBody').innerHTML = body.join('') ||
+    '<div class="tip" style="padding:10px 0">Nothing on the wire.</div>';
+}
+function dwApproveBuild(name) {
+  const m = dwMeta(), dm = m.deckMeta[name]; if (!dm) return;
+  const ck = Math.max(1, parseInt($('dwCk_' + name)?.value, 10) || 1);
+  const inn = Math.max(1, parseInt($('dwIn_' + name)?.value, 10) || 1);
+  const mu = Math.min(10, Math.max(1, parseInt($('dwMu_' + name)?.value, 10) || 1));
+  // base times from the deck record's MPCP (cook = MPCP size factor; v1 heuristic, see report)
+  const deck = _loadStore(DECK_STORE).find(d => d.name === name) || {};
+  const baseCook = Math.max(2, (deck.mpcp || 6) * 2), baseInstall = Math.max(1, Math.ceil((deck.mpcp || 6)));
+  dm.status = 'fab';
+  dm.job = { cookDays: Math.max(1, Math.ceil(baseCook / ck)), installDays: Math.max(1, Math.ceil(baseInstall / inn)),
+             multiplier: mu, elapsed: 0, successes: { cook: ck, install: inn }, startedDay: dwClockDays() };
+  dwSaveMeta(m);
+}
+function dwApproveBuy(name) {
+  const m = dwMeta(), dm = m.deckMeta[name]; if (!dm) return;
+  const del = Math.max(0, parseInt($('dwDel_' + name)?.value, 10) || 0);
+  if (del === 0) { dm.status = 'ready'; dm.completedAt = Date.now(); }
+  else { dm.status = 'fab'; dm.job = { cookDays: del, installDays: 0, multiplier: 1, elapsed: 0, delivery: true, startedDay: dwClockDays() }; }
+  dwSaveMeta(m);
+}
+function dwApproveOmc(i) { const m = dwMeta(); const o = (m.omcOrders || []).splice(i, 1)[0]; if (o) m.omcCapacity = (m.omcCapacity || 0) + o.mp; dwSaveMeta(m); }
+function dwRefuseOmc(i) { const m = dwMeta(); (m.omcOrders || []).splice(i, 1); dwSaveMeta(m); }
+
+/* ---------- identity strip ---------- */
+function dwIdentity() {
+  const prof = getSavedProgrammerProfile?.();
+  const idEl = document.getElementById('dwIdentity');
+  if (!prof || !getActiveProgrammerId()) { idEl.style.display = 'none'; return; }
+  idEl.style.display = '';
+  document.getElementById('dwWho').textContent = (prof.name || 'DECKER').toUpperCase();
+  try {
+    const skill = getDominantProgrammingSkill();
+    const caps = computeProgrammerCapsFromSkillSet(getSelectedProgrammerSkillSet());
+    document.getElementById('dwCaps').innerHTML = esc(skill.label || 'Computer') + ' <b>' + (skill.rating ?? '?') +
+      '</b> // Build Caps: MPCP <b>' + (caps.mpcpCap ?? '?') + '</b> &middot; Utility <b>' + (caps.utilCap ?? '?') + '</b>';
+  } catch (e) { document.getElementById('dwCaps').textContent = ''; }
+  document.getElementById('dwScope').textContent = '// ' + (prof.name || '').toUpperCase() + ' (private)';
+}
+function dwSwitchDecker() { editProgrammerProfile?.(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+/* ---------- FX: packets on the grid (mirrors the approved prototype) ---------- */
+(function dwPackets() {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const GRID = 46, canvas = document.getElementById('dwPackets');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const COLORS = [['0,255,65',.4],['0,204,255',.3],['255,153,0',.16],['153,102,255',.14]];
+  let packets = [];
+  function size() { canvas.width = innerWidth; canvas.height = innerHeight; }
+  addEventListener('resize', size); size();
+  function color() { let r = Math.random(), a = 0; for (const [c, w] of COLORS) { a += w; if (r <= a) return c; } return COLORS[0][0]; }
+  function spawn() {
+    const dir = Math.floor(Math.random() * 4), g = n => Math.round(n / GRID) * GRID;
+    const p = { pvx:0, pvy:0, jog:0, run:3 + (Math.random()*5|0), speed:180 + Math.random()*150,
+      color: color(), shape:['dot','dash','twin','diamond'][Math.random()*4|0], trail:[], tmax:150 + Math.random()*120 };
+    if (dir===0){p.x=-GRID;p.y=g(Math.random()*canvas.height);p.pvx=1;} if (dir===1){p.x=canvas.width+GRID;p.y=g(Math.random()*canvas.height);p.pvx=-1;}
+    if (dir===2){p.x=g(Math.random()*canvas.width);p.y=-GRID;p.pvy=1;} if (dir===3){p.x=g(Math.random()*canvas.width);p.y=canvas.height+GRID;p.pvy=-1;}
+    p.vx=p.pvx; p.vy=p.pvy; packets.push(p);
+  }
+  function decide(p) {
+    if (p.jog > 0) { if (--p.jog === 0) { p.vx = p.pvx; p.vy = p.pvy; } return; }
+    if (p.run > 0) { p.run--; return; }
+    if (Math.random() < .38) { const s = Math.random() < .5 ? 1 : -1;
+      if (p.pvx !== 0) { p.vx = 0; p.vy = s; } else { p.vy = 0; p.vx = s; }
+      p.jog = 1 + (Math.random()*3|0); }
+    p.run = 2 + (Math.random()*6|0);
+  }
+  let last = 0;
+  function loop(t) {
+    const dt = Math.min((t - (last || t)) / 1000, .05); last = t;
+    if (!document.hidden) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = packets.length - 1; i >= 0; i--) {
+        const p = packets[i]; let d = p.speed * dt;
+        while (d > 0) {
+          const nx = p.vx ? (p.vx > 0 ? Math.floor(p.x/GRID+1) : Math.ceil(p.x/GRID-1)) * GRID : p.x;
+          const ny = p.vy ? (p.vy > 0 ? Math.floor(p.y/GRID+1) : Math.ceil(p.y/GRID-1)) * GRID : p.y;
+          let dn = p.vx ? Math.abs(nx - p.x) : Math.abs(ny - p.y); if (dn <= .01) dn = GRID;
+          const st = Math.min(d, dn); p.x += p.vx * st; p.y += p.vy * st; p.trail.push({x:p.x,y:p.y}); d -= st;
+          if (st === dn) decide(p);
+        }
+        let budget = p.tmax; const kept = [p.trail[p.trail.length - 1]];
+        for (let t2 = p.trail.length - 2; t2 >= 0 && budget > 0; t2--) {
+          const a = p.trail[t2], b = kept[kept.length - 1];
+          budget -= Math.abs(a.x - b.x) + Math.abs(a.y - b.y); kept.push(a);
+        }
+        p.trail = kept.reverse();
+        const mrg = p.tmax + GRID * 2;
+        if (p.x < -mrg || p.x > canvas.width + mrg || p.y < -mrg || p.y > canvas.height + mrg) { packets.splice(i, 1); continue; }
+        for (let s2 = 1; s2 < p.trail.length; s2++) {
+          const f = s2 / p.trail.length;
+          ctx.strokeStyle = 'rgba(' + p.color + ',' + (f * f * .55) + ')'; ctx.lineWidth = 1 + f * 1.2;
+          ctx.beginPath(); ctx.moveTo(p.trail[s2-1].x, p.trail[s2-1].y); ctx.lineTo(p.trail[s2].x, p.trail[s2].y); ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(' + p.color + ',.95)'; ctx.shadowColor = 'rgb(' + p.color + ')'; ctx.shadowBlur = 8;
+        if (p.shape === 'dash') { p.vx ? ctx.fillRect(p.x-5,p.y-1,10,2) : ctx.fillRect(p.x-1,p.y-5,2,10); }
+        else if (p.shape === 'twin') { const ox = p.vx?4:0, oy = p.vy?4:0; ctx.fillRect(p.x-1.5,p.y-1.5,3,3); ctx.fillRect(p.x-1.5-ox,p.y-1.5-oy,3,3); }
+        else if (p.shape === 'diamond') { ctx.beginPath(); ctx.moveTo(p.x,p.y-3.5); ctx.lineTo(p.x+3.5,p.y); ctx.lineTo(p.x,p.y+3.5); ctx.lineTo(p.x-3.5,p.y); ctx.closePath(); ctx.fill(); }
+        else ctx.fillRect(p.x-1.5,p.y-1.5,3,3);
+        ctx.shadowBlur = 0;
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+  (function sched() { setTimeout(() => { if (packets.length < 5) spawn(); sched(); }, 600 + Math.random() * 1900); })();
+  requestAnimationFrame(loop);
+})();
+
+/* ---------- refresh + boot ---------- */
+function dwRefresh() { try { dwRenderRail(); dwRenderQueue(); dwIdentity(); } catch (e) { console.warn('dwRefresh', e); } }
+window.addEventListener('load', function () {
+  try {
+    dwReparent();
+    document.getElementById('dwShell').style.display = '';
+    dwShow('deck');
+    dwNewDeck();
+    dwRefresh();
+    // re-render rail whenever the live engine touches its stores
+    const origSave = window._saveStore;
+    window._saveStore = function (k, v) { const r = origSave(k, v); try { dwRenderRail(); } catch (e) {} return r; };
+    setInterval(dwRenderQueue, 4000); // pick up admin-mode flips / cross-tab clock
+  } catch (e) { console.error('workshop layer init failed; live page remains functional', e); }
+});
+</script>
+
 </body>
 </html>
