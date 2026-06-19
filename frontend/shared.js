@@ -82,8 +82,17 @@ async function bootstrapAuth() {
 // -- Auth label (bottom-right, no logout) -------------------------------------
 
 function _injectAuthLabel() {
-  // Add Tokens nav link for all authenticated users
   const nav = document.querySelector('header nav');
+  // Add Downtime nav link (GM-only via .gm-only -> hidden for players and in runner view)
+  if (nav && !nav.querySelector('[href="manage-downtime.html"]')) {
+    const d = document.createElement('a');
+    d.href = 'manage-downtime.html';
+    d.textContent = 'Downtime';
+    d.className = 'gm-only';
+    if (window.location.pathname.endsWith('manage-downtime.html')) d.className += ' active';
+    nav.appendChild(d);
+  }
+  // Add Tokens nav link for all authenticated users
   if (nav && !nav.querySelector('[href="manage-tokens.html"]')) {
     const a = document.createElement('a');
     a.href = 'manage-tokens.html';
@@ -284,6 +293,80 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
     cancel.addEventListener('click', onCancel);
     overlay.addEventListener('click', onBackdrop);
     document.addEventListener('keydown', onKey);
+  });
+}
+
+/**
+ * Show a styled prompt dialog with a single input field. Returns a
+ * Promise<string|null> -- the entered value, or null when cancelled.
+ * opts: { okLabel='OK', okClass='btn-green', title='>> INPUT REQUIRED',
+ *         inputType='text', placeholder='' }
+ */
+function showPrompt(message, defaultVal = '', opts = {}) {
+  const okLabel     = opts.okLabel     || 'OK';
+  const okClass     = opts.okClass     || 'btn-green';
+  const title       = opts.title       || '>> INPUT REQUIRED';
+  const inputType   = opts.inputType   || 'text';
+  const placeholder = opts.placeholder || '';
+  return new Promise(resolve => {
+    let overlay = document.getElementById('_sharedPromptOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = '_sharedPromptOverlay';
+      overlay.className = 'modal-overlay';
+      overlay.style.zIndex = '700';
+      overlay.innerHTML = `
+        <div style="background:var(--bg-card);border:1px solid #1a2a1a;border-top:2px solid var(--cyan);
+                    padding:28px 32px;width:100%;max-width:420px">
+          <div id="_sharedPromptTitle" style="font-size:.75rem;letter-spacing:2px;color:var(--cyan);margin-bottom:14px"></div>
+          <div id="_sharedPromptMsg" style="font-size:.8rem;color:var(--text-bright);margin-bottom:14px;line-height:1.6"></div>
+          <input id="_sharedPromptInput" type="text" style="margin-bottom:22px" />
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="_sharedPromptOk" class="btn btn-green" style="min-width:90px"></button>
+            <button id="_sharedPromptCancel" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+
+    const titleEl = document.getElementById('_sharedPromptTitle');
+    const msgEl   = document.getElementById('_sharedPromptMsg');
+    const input   = document.getElementById('_sharedPromptInput');
+    const okBtn   = document.getElementById('_sharedPromptOk');
+    const cancel  = document.getElementById('_sharedPromptCancel');
+
+    titleEl.textContent = title;
+    msgEl.textContent   = message;
+    input.type          = inputType;
+    input.placeholder   = placeholder;
+    input.value         = defaultVal == null ? '' : String(defaultVal);
+    okBtn.textContent   = okLabel;
+    okBtn.className     = `btn ${okClass}`;
+    pausePoll();
+    overlay.style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+
+    function cleanup(result) {
+      resumePoll();
+      overlay.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onBackdrop);
+      input.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onOk()       { cleanup(input.value); }
+    function onCancel()   { cleanup(null); }
+    function onBackdrop(e){ if (e.target === overlay) cleanup(null); }
+    function onKey(e) {
+      if (e.key === 'Enter')  { e.preventDefault(); cleanup(input.value); }
+      if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onBackdrop);
+    input.addEventListener('keydown', onKey);
   });
 }
 
@@ -490,6 +573,10 @@ function initNumSteppers(root) {
 
     function makeStep(dir) {
       return function() {
+        // A disabled input must never be steppable -- a disabled <button> suppresses real
+        // user clicks, but programmatic/synthetic events still reach this handler. Guard
+        // here so a locked form (e.g. a deck repair) cannot have its values changed.
+        if (inp.disabled || inp.readOnly) return;
         const step = parseFloat(inp.step) || 1;
         const min  = inp.min !== '' ? parseFloat(inp.min) : -Infinity;
         const max  = inp.max !== '' ? parseFloat(inp.max) : Infinity;
