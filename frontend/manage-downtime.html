@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Downtime Control | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    /* -- Downtime Control page-local skin -------------------------------------
+       v11 dw-appr / fields / calc classes are not in style.css, so the ones this
+       page uses are copied here verbatim from the deck workshop; the buy-card
+       price table / summary / adjustments box styles are page-local additions.
+       CSS custom properties (--amber, --cyan, --fs-*, ...) come from style.css. */
+    .dt-wrap { max-width: 1120px; }
+
+    .dt-clock { border:1px solid #553300; background:rgba(255,153,0,.04); padding:13px 16px; margin-bottom:16px; }
+    .dt-clock-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .dt-clock-t { color:var(--amber); letter-spacing:2px; font-size:var(--fs-sm); text-transform:uppercase; }
+    .dt-clock-day { color:var(--text-bright); font-size:var(--fs-md); letter-spacing:1px; }
+    .dt-clock-hint { margin-left:auto; color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; }
+
+    .dt-queue { border:1px solid #20301f; background:rgba(0,255,65,.02); padding:14px 16px; }
+    .dt-queue-hd { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .dt-queue-hd .t { color:var(--green); letter-spacing:2px; font-size:var(--fs-sm); text-transform:uppercase; }
+    .dt-queue-hd .n { min-width:18px; text-align:center; font-size:var(--fs-xxs); color:#0b0b0b;
+      background:var(--green); border-radius:9px; padding:1px 6px; font-weight:bold; }
+    .dt-queue-hd .hint { margin-left:auto; color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; }
+
+    /* approval card (v11 dw-appr) */
+    .dw-appr { border:1px solid #20301f; background:#0c130c; padding:12px 14px; margin-bottom:10px; }
+    .dw-appr.inprog { border-color:#2a2a2a; background:#0b0b0b; }
+    .dw-appr .hd { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+    .dw-appr .who { color:var(--cyan); letter-spacing:1px; font-size:var(--fs-md); }
+    .dw-appr .kind { font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; border:1px solid; border-radius:3px; padding:1px 6px; }
+    .dw-appr .kind.build { color:var(--green); border-color:var(--green-dark); }
+    .dw-appr .kind.buy { color:var(--amber); border-color:#553300; }
+    .dw-appr .kind.code { color:var(--violet); border-color:#2d1d4d; }
+    .dw-appr .kind.live { color:var(--text-bright); border-color:#2a2a2a; margin-left:auto; }
+    .dw-appr .fields { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin:9px 0; }
+    .dw-appr .fields label { display:flex; flex-direction:column; gap:5px; font-size:var(--fs-xs); letter-spacing:1px; color:var(--cyan); }
+    .dw-appr .fields .hintq { color:var(--text-dim); }
+    .dw-appr .fields input { width:110px; }
+    .dw-appr .fields select { width:110px; }
+    .dw-appr .calc { color:var(--green); font-size:var(--fs-md); letter-spacing:.5px; margin-bottom:9px; }
+    .dw-appr .acts { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+
+    .dw-pricetbl { width:100%; border-collapse:collapse; margin:8px 0 2px; font-size:var(--fs-xs); }
+    .dw-pricetbl th { text-align:left; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; font-weight:normal; border-bottom:1px solid #2a2a2a; padding:3px 7px; }
+    .dw-pricetbl td { padding:3px 7px; border-bottom:1px solid #161616; color:var(--text); }
+    .dw-pricetbl th.r, .dw-pricetbl td.r { text-align:right; }
+    .dw-pricetbl td.r { color:var(--amber); }
+    .dw-pricetbl .det { color:var(--text-dim); }
+    .dw-pricetbl .pair2 { border-left:1px solid #242424; padding-left:14px; }
+    .dw-buysum { display:flex; gap:26px; flex-wrap:wrap; align-items:baseline; margin:8px 0 10px; padding:9px 12px; background:#0a100a; border:1px solid #1c2a1b; font-size:var(--fs-md); letter-spacing:.5px; }
+    .dw-buysum .lbl { color:var(--text-dim); }
+    .dw-buysum .val { font-weight:bold; }
+    .dw-buysum .val.qprice { color:var(--purple); font-weight:normal; }
+    .dw-buysum .val.price { color:var(--green); }
+    .dw-buysum .val.avail { color:var(--cyan); }
+    .dw-buysum .val.deliv { color:var(--amber); }
+    .dw-adjbox { border:1px solid #2a2a2a; background:#0b0b0b; padding:7px 12px 10px; margin:10px 0; }
+    .dw-adjbox .fields { margin-top:7px; }
+    .dw-adjhd { color:var(--amber); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; margin-bottom:1px; }
+    .tip { color:var(--text-dim); font-size:var(--fs-xs); line-height:1.65; margin:4px 0; }
+    .tip b { color:var(--amber); font-weight:normal; }
+    .dw-empty { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; text-align:center;
+      padding:26px 8px; text-transform:uppercase; }
+    .dt-prog { color:var(--text-dim); font-size:var(--fs-sm); margin:6px 0; }
+    .dt-prog b { color:var(--green); font-weight:normal; }
+    .dt-bar { height:6px; background:#111; border:1px solid #1a1a1a; margin:6px 0 2px; }
+    .dt-bar i { display:block; height:100%; background:var(--green); }
+    .dt-bar.buy i { background:var(--amber); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-matrix.html">Matrix (SR1)</a>
+    <a href="matrix-designer.html">Matrix Designer</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="deck-builder.html">Deck Builder</a>
+    <a href="manage-downtime.html" class="active gm-only">Downtime</a>
+  </nav>
+</header>
+
+<main class="dt-wrap">
+  <div class="page-title">&gt;&gt; Downtime Control <em class="sep">//</em> Build Queue</div>
+  <div class="page-sub" style="color:var(--amber)">GM ONLY <span class="text-dim">&gt;&gt; one clock advances every bench job, compile, and delivery at once</span></div>
+
+  <div id="globalAlert" class="alert"></div>
+
+  <div id="dtNotGm" class="dw-empty" style="display:none">GM only.</div>
+
+  <div id="dtMain" style="display:none">
+    <!-- Downtime Clock -->
+    <div class="dt-clock">
+      <div class="dt-clock-row">
+        <span class="dt-clock-t">&gt;&gt; Downtime Clock</span>
+        <span class="dt-clock-day" id="dtDay">Day 0</span>
+        <button class="btn btn-amber btn-sm" id="dtPlus1">+1 day</button>
+        <button class="btn btn-amber btn-sm" id="dtPlus7">+1 week</button>
+        <button class="btn btn-ghost btn-sm" id="dtRefresh">Refresh</button>
+        <span class="dt-clock-hint">prototype clock &middot; advances all authorized jobs at once</span>
+      </div>
+    </div>
+
+    <!-- Build Queue -->
+    <div class="dt-queue">
+      <div class="dt-queue-hd">
+        <span class="t">&gt;&gt; Build Queue</span><span class="n" id="dtQueueN">0</span>
+        <span class="hint">enter table-rolled successes &middot; set a task bonus &middot; authorize, then run the clock</span>
+      </div>
+      <div id="dtQueueBody"><div class="dw-empty">Loading runner requests...</div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===========================================================================
+   DOWNTIME CONTROL -- unified GM build queue + prototype clock.
+   Aggregates every active PC's deck/compile/OMC requests (read via the
+   admin-or-owner /characters/{id}/deck-builder-state endpoint), lets the GM
+   enter table-rolled successes + a task bonus, then advances all authorized
+   jobs on one client-side clock. No backend changes -- the campaign tick
+   (app/services/campaign.py current_tick) is wired in a later pass.
+   =========================================================================== */
+
+// -- store keys (must match deck-builder-preview.html) ------------------------
+const DECK_STORE        = 'sr2_decks_v1';
+const COMPILE_JOB_STORE = 'sr2_compile_jobs_v1';
+const COMPILED_STORE    = 'sr2_compiled_programs_v1';
+const SOURCE_STORE      = 'sr2_program_sources_v1';
+const OMC_STORE         = 'sr2_omc_archive_v1';
+const OMC_DEFAULT_CAPACITY = 1000;
+const OMC_ORDER_BASE       = 50;
+const OMC_ORDER_PER_MP     = 0.5;
+const CLOCK_STORE       = 'sr2_downtime_clock_v1';   // prototype-local day counter
+
+// Etiquette price-adjustment tiers (buy deals): label -> price delta percent.
+const ETQ_TIERS = [
+  { label: '-20%', pct: -20 },
+  { label: '-10%', pct: -10 },
+  { label: '-5%', pct: -5 },
+  { label: '0%', pct: 0 },
+  { label: '+5%', pct: 5 },
+  { label: '+10%', pct: 10 },
+  { label: '+20%', pct: 20 },
+];
+
+// -- tiny helpers -------------------------------------------------------------
+function $(id) { return document.getElementById(id); }
+function fmtN(n) { return (Math.round(Number(n) || 0)).toLocaleString('en-US'); }
+function fmtY(n) { return fmtN(n) + '&yen;'; }     // innerHTML only (yen entity)
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+}
+function alertMsg(msg, isErr) { showAlert($('globalAlert'), msg, !!isErr); }
+
+// -- prototype clock ----------------------------------------------------------
+function getClockDay() {
+  const v = parseInt(localStorage.getItem(CLOCK_STORE), 10);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+}
+function setClockDay(d) { localStorage.setItem(CLOCK_STORE, String(Math.max(0, Math.round(d || 0)))); }
+function renderClock() { const d = $('dtDay'); if (d) d.textContent = 'Day ' + fmtN(getClockDay()); }
+
+// -- per-PC store access (operate on an arbitrary PC's stores object) ---------
+function _storesRead(stores, key, pcId) {
+  if (!stores || typeof stores !== 'object') return [];
+  if (Array.isArray(stores[key])) return stores[key];
+  const scoped = key + '_' + pcId;
+  if (Array.isArray(stores[scoped])) return stores[scoped];
+  return [];
+}
+function _storesWrite(stores, key, pcId, data) {
+  stores[key] = data;
+  const scoped = key + '_' + pcId;
+  if (Object.prototype.hasOwnProperty.call(stores, scoped)) delete stores[scoped];
+}
+
+// -- queue state --------------------------------------------------------------
+var _stateCache = {};      // pcId -> full deck_builder_state (mutated, then PUT)
+var _queueItems = [];
+var _loading = false;
+
+async function _putState(pcId) {
+  const state = _stateCache[pcId];
+  if (!state) throw new Error('state not loaded for PC ' + pcId);
+  const res = await apiFetch('/characters/' + pcId + '/deck-builder-state', {
+    method: 'PUT', body: JSON.stringify({ state }),
+  });
+  if (!res.ok) await apiThrow(res);
+}
+
+async function loadQueue() {
+  const host = $('dtQueueBody');
+  if (!host || !isAdmin()) return;
+  if (_loading) return;
+  _loading = true;
+  host.innerHTML = '<div class="dw-empty">Loading runner requests...</div>';
+  try {
+    const res = await apiFetch('/characters/?is_pc=true&is_active=true');
+    if (!res.ok) await apiThrow(res);
+    const chars = await res.json();
+    const states = await Promise.all((chars || []).map(async c => {
+      try {
+        const r = await apiFetch('/characters/' + c.id + '/deck-builder-state');
+        if (!r.ok) return null;
+        const payload = await r.json();
+        return { id: String(c.id), label: c.name || ('PC ' + c.id), state: (payload && payload.state) || null };
+      } catch (_) { return null; }
+    }));
+    _stateCache = {};
+    const items = [];
+    states.forEach(s => {
+      if (!s || !s.state || typeof s.state !== 'object') return;
+      const stores = s.state.stores || {};
+      _stateCache[s.id] = s.state;
+
+      // OMC archive orders (instant authorize -- not on the clock)
+      const omc = _storesRead(stores, OMC_STORE, s.id);
+      const omcRec = (omc && omc[0]) || null;
+      const cap = (omcRec && parseInt(omcRec.capacity, 10)) || OMC_DEFAULT_CAPACITY;
+      const orders = (omcRec && Array.isArray(omcRec.orders)) ? omcRec.orders : [];
+      orders.forEach(o => items.push({
+        kind: 'omc', phase: 'omc', pcId: s.id, pcLabel: s.label, id: o.id,
+        addMp: parseInt(o.addMp, 10) || 0, cost: parseInt(o.cost, 10) || 0,
+        capacity: cap, requestedAt: o.requestedAt || 0,
+      }));
+
+      // Compile jobs
+      const jobs = _storesRead(stores, COMPILE_JOB_STORE, s.id);
+      jobs.forEach(j => {
+        if (!j || j.status === 'ready') return;
+        const payload = j.payload || {};
+        items.push({
+          kind: 'compile', phase: j.authorized ? 'inprog' : 'pending',
+          pcId: s.id, pcLabel: s.label, id: j.id,
+          label: (j.sourceName || j.utilName || 'Program') + ' v' + (j.version || 1) + (j.utilName ? ' -- ' + j.utilName : ''),
+          designSize: parseInt(payload.designSize, 10) || 0,
+          baseDays: Math.max(1, parseInt(payload.baseDesignDays, 10) || parseInt(payload.designDays, 10) || 1),
+          job: j, requestedAt: j.startedAt || 0,
+        });
+      });
+
+      // Deck acquisition (buy / build)
+      const decks = _storesRead(stores, DECK_STORE, s.id);
+      decks.forEach(d => {
+        const st = (d && typeof d.status === 'string') ? d.status : 'draft';
+        if (st !== 'onorder' && st !== 'building') return;
+        const acq = d.acq || {};
+        items.push({
+          kind: 'deck', phase: acq.authorized ? 'inprog' : 'pending',
+          pcId: s.id, pcLabel: s.label, id: d.name,
+          deckName: d.deckName || d.name, acqKind: acq.kind || (st === 'onorder' ? 'buy' : 'build'),
+          acq, requestedAt: acq.requestedAt || acq.startedAt || 0,
+        });
+      });
+    });
+    // pending first, then in-progress; oldest first within each
+    items.sort((a, b) => {
+      const pa = a.phase === 'pending' ? 0 : (a.phase === 'omc' ? 0 : 1);
+      const pb = b.phase === 'pending' ? 0 : (b.phase === 'omc' ? 0 : 1);
+      if (pa !== pb) return pa - pb;
+      return (a.requestedAt || 0) - (b.requestedAt || 0);
+    });
+    _queueItems = items;
+    renderQueue();
+  } catch (e) {
+    host.innerHTML = '<div class="dw-empty">Could not load queue: ' + esc(e && e.message ? e.message : String(e)) + '</div>';
+    $('dtQueueN').textContent = '0';
+  } finally {
+    _loading = false;
+  }
+}
+
+// -- card builders ------------------------------------------------------------
+function _numInput(value, min, max) {
+  const i = document.createElement('input');
+  i.type = 'number';
+  i.value = String(value);
+  if (min != null) i.min = String(min);
+  if (max != null) i.max = String(max);
+  return i;
+}
+function _labelWrap(text, control, hintHtml) {
+  const l = document.createElement('label');
+  l.appendChild(document.createTextNode(text));
+  if (hintHtml) { const s = document.createElement('span'); s.className = 'hintq'; s.innerHTML = ' ' + hintHtml; l.appendChild(s); }
+  l.appendChild(control);
+  return l;
+}
+function _btn(label, cls, onClick) {
+  const b = document.createElement('button');
+  b.className = 'btn ' + cls + ' btn-sm';
+  b.innerHTML = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+function _cardHead(it, kindCls, kindText, liveText) {
+  const hd = el('div', 'hd');
+  const who = el('span', 'who');
+  who.textContent = it.pcLabel + ' -- ' + (it.deckName || it.label || ('OMC +' + fmtN(it.addMp) + ' Mp'));
+  const kind = el('span', 'kind ' + kindCls);
+  kind.textContent = kindText;
+  hd.appendChild(who);
+  hd.appendChild(kind);
+  if (liveText) { const lv = el('span', 'kind live'); lv.textContent = liveText; hd.appendChild(lv); }
+  return hd;
+}
+
+function renderQueue() {
+  const host = $('dtQueueBody');
+  const nEl = $('dtQueueN');
+  if (!host) return;
+  if (nEl) nEl.textContent = String(_queueItems.length);
+  host.innerHTML = '';
+  if (!_queueItems.length) { host.innerHTML = '<div class="dw-empty">No pending requests</div>'; return; }
+  _queueItems.forEach(it => {
+    let card;
+    if (it.kind === 'omc') card = _omcCard(it);
+    else if (it.kind === 'deck' && it.acqKind === 'buy') card = (it.phase === 'inprog') ? _inprogCard(it) : _buyCard(it);
+    else if (it.kind === 'deck') card = (it.phase === 'inprog') ? _inprogCard(it) : _buildCard(it);
+    else card = (it.phase === 'inprog') ? _inprogCard(it) : _compileCard(it);
+    host.appendChild(card);
+  });
+  initNumSteppers(host);
+}
+
+// OMC -- instant authorize, no clock
+function _omcCard(it) {
+  const card = el('div', 'dw-appr');
+  card.appendChild(_cardHead(it, 'buy', 'OMC chips'));
+  card.appendChild(el('div', 'tip',
+    'Archive expansion &middot; ' + fmtY(it.cost) + ' (' + OMC_ORDER_BASE + ' + ' + OMC_ORDER_PER_MP + '/Mp). '
+    + 'On authorize, capacity bumps to <b>' + fmtN(it.capacity + it.addMp) + ' Mp</b> immediately.'));
+  const acts = el('div', 'acts');
+  acts.appendChild(_btn('&gt;&gt; Authorize', 'btn-green', () => authorizeOmc(it)));
+  acts.appendChild(_btn('Refuse', 'btn-red', () => refuseOmc(it)));
+  card.appendChild(acts);
+  return card;
+}
+
+// BUY deck -- etiquette adjusts price; delivery = fixed availability band
+function _buyCard(it) {
+  const acq = it.acq || {};
+  const card = el('div', 'dw-appr');
+  card.appendChild(_cardHead(it, 'buy', 'Purchase'));
+
+  const rows = Array.isArray(acq.priceRows) ? acq.priceRows : [];
+  const street = parseInt(acq.priceFinal, 10) || rows.reduce((t, r) => t + (parseInt(r.price, 10) || 0), 0);
+  const days = Math.max(1, parseInt(acq.baseDays, 10) || 1);
+  const tn = parseInt(acq.tn, 10) || 4;
+  // Component price table -- two component/price pairs per row to keep it compact
+  if (rows.length) {
+    const cell = (r, second) => {
+      const cls = second ? ' class="pair2"' : '';
+      if (!r) return '<td' + cls + '></td><td class="r"></td>';
+      const det = r.detail ? ' <span class="det">(' + esc(r.detail) + ')</span>' : '';
+      return '<td' + cls + '>' + esc(r.name) + det + '</td><td class="r">' + fmtY(r.price) + '</td>';
+    };
+    let body = '';
+    for (let i = 0; i < rows.length; i += 2) {
+      body += '<tr>' + cell(rows[i], false) + cell(rows[i + 1], true) + '</tr>';
+    }
+    card.appendChild(el('table', 'dw-pricetbl',
+      '<thead><tr><th>Component</th><th class="r">Street Price</th><th class="pair2">Component</th><th class="r">Street Price</th></tr></thead><tbody>' + body + '</tbody>'));
+  }
+
+  // Prominent summary: quoted price (street) + live final price + availability + live delivery
+  const sum = el('div', 'dw-buysum');
+  sum.innerHTML =
+    '<span><span class="lbl">Quoted Price:</span> <span class="val qprice">' + fmtY(street) + '</span></span>'
+    + '<span><span class="lbl">Final Price:</span> <span class="val price"></span></span>'
+    + '<span><span class="lbl">Availability:</span> <span class="val avail">' + tn + ' / ' + fmtN(days) + ' days</span></span>'
+    + '<span><span class="lbl">Delivery:</span> <span class="val deliv"></span></span>';
+  card.appendChild(sum);
+  const fpriceEl = sum.querySelector('.price');
+  const delivEl = sum.querySelector('.deliv');
+
+  // Price-adjustments container
+  const adj = el('div', 'dw-adjbox');
+  adj.appendChild(el('div', 'dw-adjhd', 'Etiquette Influence'));
+
+  const fields = el('div', 'fields');
+  const etqSel = document.createElement('select');
+  ETQ_TIERS.forEach((t, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = t.label; if (t.pct === 0) o.selected = true; etqSel.appendChild(o); });
+  const availInput = _numInput(1, 1, 10);
+  fields.appendChild(_labelWrap('Price Factor', etqSel, '(-20% to +20%)'));
+  fields.appendChild(_labelWrap('Successes', availInput, '(1-10)'));
+  adj.appendChild(fields);
+  card.appendChild(adj);
+
+  let quoted = street, delivDays = days;
+  const updateCalc = () => {
+    const tier = ETQ_TIERS[parseInt(etqSel.value, 10) || 0] || ETQ_TIERS[3];
+    quoted = Math.max(0, Math.round(street * (1 + tier.pct / 100)));
+    const div = Math.max(1, Math.min(10, parseInt(availInput.value, 10) || 1));
+    delivDays = Math.max(1, Math.ceil(days / div));
+    fpriceEl.innerHTML = fmtY(quoted);
+    delivEl.textContent = fmtN(delivDays) + ' days';
+  };
+  etqSel.addEventListener('change', updateCalc);
+  availInput.addEventListener('input', updateCalc);
+  updateCalc();
+
+  const acts = el('div', 'acts');
+  acts.appendChild(_btn('&gt;&gt; Quote &amp; authorize', 'btn-green', () => authorizeBuy(it, {
+    etiquetteTier: ETQ_TIERS[parseInt(etqSel.value, 10) || 0].label,
+    etiquettePct: ETQ_TIERS[parseInt(etqSel.value, 10) || 0].pct,
+    priceQuoted: quoted,
+    days: delivDays,
+  })));
+  acts.appendChild(_btn('Refuse', 'btn-red', () => refuseDeck(it)));
+  card.appendChild(acts);
+  return card;
+}
+
+// BUILD deck -- cook/install successes + task bonus -> bench days * bonus
+function _buildCard(it) {
+  const acq = it.acq || {};
+  const card = el('div', 'dw-appr');
+  card.appendChild(_cardHead(it, 'build', 'Build'));
+
+  const cookBase = Math.max(0, parseInt(acq.cookBase, 10) || 0);
+  const instBase = Math.max(0, parseInt(acq.installBase, 10) || 0);
+  card.appendChild(el('div', 'tip',
+    'Base cook <b>' + fmtN(cookBase) + 'd</b> / install <b>' + fmtN(instBase) + 'd</b> &middot; parts ' + fmtY(acq.partsCost || 0)
+    + '. Enter table-rolled Computer B/R successes.'));
+
+  const fields = el('div', 'fields');
+  const cookSucc = _numInput(1, 1, 50);
+  const instSucc = _numInput(1, 1, 50);
+  fields.appendChild(_labelWrap('Cook successes', cookSucc));
+  fields.appendChild(_labelWrap('Install successes', instSucc));
+  card.appendChild(fields);
+
+  const fields2 = el('div', 'fields');
+  const bonus = _numInput(1, 1, 10);
+  fields2.appendChild(_labelWrap('Task bonus', bonus, '(1-10)'));
+  card.appendChild(fields2);
+
+  const calc = el('div', 'calc');
+  const updateCalc = () => {
+    const cd = Math.max(1, Math.ceil(Math.max(1, cookBase) / Math.max(1, parseInt(cookSucc.value, 10) || 1)));
+    const idd = Math.max(1, Math.ceil(Math.max(1, instBase) / Math.max(1, parseInt(instSucc.value, 10) || 1)));
+    const bench = cd + idd;
+    const b = Math.max(1, parseInt(bonus.value, 10) || 1);
+    const ticks = Math.max(1, Math.ceil(bench / b));
+    calc.innerHTML = 'Computed: cook ' + fmtN(cd) + 'd &rarr; install ' + fmtN(idd) + 'd (<b>' + fmtN(bench)
+      + ' bench days</b>) &middot; at &times;' + b + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
+  };
+  [cookSucc, instSucc, bonus].forEach(i => i.addEventListener('input', updateCalc));
+  updateCalc();
+  card.appendChild(calc);
+
+  card.appendChild(el('div', 'tip',
+    'Task bonus 1-10, your call: tool bonuses can stack (kit +1, doubled PC memory +1 = &times;3). '
+    + 'Each downtime day advances this job by &times;bonus bench days; the clock itself is untouched.'));
+
+  const acts = el('div', 'acts');
+  acts.appendChild(_btn('&gt;&gt; Start build', 'btn-green', () => authorizeBuild(it, {
+    cookSucc: Math.max(1, parseInt(cookSucc.value, 10) || 1),
+    installSucc: Math.max(1, parseInt(instSucc.value, 10) || 1),
+    taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
+  })));
+  acts.appendChild(_btn('Refuse', 'btn-red', () => refuseDeck(it)));
+  card.appendChild(acts);
+  return card;
+}
+
+// COMPILE -- successes + task bonus -> task days * bonus
+function _compileCard(it) {
+  const card = el('div', 'dw-appr');
+  card.appendChild(_cardHead(it, 'code', 'Compile'));
+  card.appendChild(el('div', 'tip',
+    'Design size ' + fmtN(it.designSize) + ' Mp &rarr; base time <b>' + fmtN(it.baseDays)
+    + ' days</b> &middot; Computer test at the table (task pool rides in the successes).'));
+
+  const fields = el('div', 'fields');
+  const succ = _numInput(1, 1, 50);
+  fields.appendChild(_labelWrap('Successes', succ));
+  const bonus = _numInput(1, 1, 10);
+  fields.appendChild(_labelWrap('Task bonus', bonus, '(1-10)'));
+  card.appendChild(fields);
+
+  const calc = el('div', 'calc');
+  const updateCalc = () => {
+    const s = Math.max(1, parseInt(succ.value, 10) || 1);
+    const td = Math.max(1, Math.ceil(Math.max(1, it.baseDays) / s));
+    const b = Math.max(1, parseInt(bonus.value, 10) || 1);
+    const ticks = Math.max(1, Math.ceil(td / b));
+    calc.innerHTML = 'Computed task period: ' + fmtN(it.baseDays) + ' &divide; ' + s + ' = <b>' + fmtN(td)
+      + ' days</b> &middot; at &times;' + b + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
+  };
+  [succ, bonus].forEach(i => i.addEventListener('input', updateCalc));
+  updateCalc();
+  card.appendChild(calc);
+
+  const acts = el('div', 'acts');
+  acts.appendChild(_btn('&gt;&gt; Start compile', 'btn-green', () => authorizeCompile(it, {
+    successes: Math.max(1, parseInt(succ.value, 10) || 1),
+    taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
+  })));
+  acts.appendChild(_btn('Refuse', 'btn-red', () => refuseCompile(it)));
+  card.appendChild(acts);
+  return card;
+}
+
+// IN-PROGRESS -- shows remaining days; bench jobs expose an editable task bonus
+function _inprogCard(it) {
+  const isCompile = it.kind === 'compile';
+  const src = isCompile ? (it.job || {}) : (it.acq || {});
+  const bench = isCompile || it.acqKind === 'build';
+  const total = Math.max(1, parseInt(src.taskDays, 10) || parseInt(src.totalDays, 10) || 1);
+  const left = Math.max(0, parseInt(src.daysRemaining, 10) || 0);
+  const bonus = Math.max(1, parseInt(src.taskBonus, 10) || 1);
+  const pct = Math.max(0, Math.min(100, Math.round((1 - left / total) * 100)));
+
+  const kindCls = isCompile ? 'code' : (it.acqKind === 'build' ? 'build' : 'buy');
+  const kindText = isCompile ? 'Compile' : (it.acqKind === 'build' ? 'Build' : 'Purchase');
+  const card = el('div', 'dw-appr inprog');
+  card.appendChild(_cardHead(it, kindCls, kindText, bench ? ('in fab &times;' + bonus) : 'on order'));
+
+  card.appendChild(el('div', 'dt-prog',
+    (bench ? 'In fab' : 'On order') + ' &middot; <b>' + fmtN(left) + '</b> of ' + fmtN(total) + ' '
+    + (bench ? 'bench' : 'delivery') + ' days left'
+    + (bench ? ' &middot; each day burns &times;' + bonus : '')));
+  const bar = el('div', 'dt-bar' + (bench ? '' : ' buy'));
+  bar.appendChild(el('i', null, '')); bar.firstChild.style.width = pct + '%';
+  card.appendChild(bar);
+
+  const acts = el('div', 'acts');
+  if (bench) {
+    const fields = el('div', 'fields');
+    const bonusInput = _numInput(bonus, 1, 10);
+    fields.appendChild(_labelWrap('Task bonus', bonusInput, '(1-10)'));
+    card.appendChild(fields);
+    acts.appendChild(_btn('Save bonus', 'btn-amber', () => updateTaskBonus(it, Math.max(1, Math.min(10, parseInt(bonusInput.value, 10) || 1)))));
+  }
+  acts.appendChild(_btn('Cancel job', 'btn-red', () => (isCompile ? refuseCompile(it) : refuseDeck(it))));
+  card.appendChild(acts);
+  return card;
+}
+
+// -- write-back: locate + mutate a single PC's stores, then PUT ---------------
+function _findDeck(pcId, name) {
+  const stores = (_stateCache[pcId] && _stateCache[pcId].stores) || null;
+  if (!stores) return null;
+  const decks = _storesRead(stores, DECK_STORE, pcId).slice();
+  const idx = decks.findIndex(d => d.name === name);
+  return idx < 0 ? null : { stores, decks, idx };
+}
+function _findJob(pcId, jobId) {
+  const stores = (_stateCache[pcId] && _stateCache[pcId].stores) || null;
+  if (!stores) return null;
+  const jobs = _storesRead(stores, COMPILE_JOB_STORE, pcId).slice();
+  const idx = jobs.findIndex(j => j.id === jobId);
+  return idx < 0 ? null : { stores, jobs, idx };
+}
+
+async function authorizeBuy(it, opts) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const f = _findDeck(it.pcId, it.id);
+  if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
+  const deck = Object.assign({}, f.decks[f.idx]);
+  const acq = Object.assign({}, deck.acq || {});
+  acq.kind = 'buy';
+  acq.authorized = true;
+  acq.etiquetteTier = opts.etiquetteTier;
+  acq.etiquettePct = opts.etiquettePct;
+  acq.priceQuoted = opts.priceQuoted;
+  acq.taskDays = Math.max(1, opts.days);
+  acq.daysRemaining = Math.max(1, opts.days);
+  acq.startedClockDay = getClockDay();
+  deck.acq = acq;
+  deck.status = 'onorder';
+  f.decks[f.idx] = deck;
+  _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // ' + (deck.deckName || it.id) + ' quoted at ' + fmtN(opts.priceQuoted) + ' nuyen -- delivery ' + fmtN(opts.days) + ' days.', false);
+  loadQueue();
+}
+
+async function authorizeBuild(it, opts) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const f = _findDeck(it.pcId, it.id);
+  if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
+  const deck = Object.assign({}, f.decks[f.idx]);
+  const acq = Object.assign({}, deck.acq || {});
+  const cookBase = Math.max(1, parseInt(acq.cookBase, 10) || 1);
+  const instBase = Math.max(1, parseInt(acq.installBase, 10) || 1);
+  const cookDays = Math.max(1, Math.ceil(cookBase / opts.cookSucc));
+  const instDays = Math.max(1, Math.ceil(instBase / opts.installSucc));
+  acq.kind = 'build';
+  acq.authorized = true;
+  acq.cookSucc = opts.cookSucc;
+  acq.installSucc = opts.installSucc;
+  acq.cookDays = cookDays;
+  acq.installDays = instDays;
+  acq.taskBonus = opts.taskBonus;
+  acq.taskDays = cookDays + instDays;
+  acq.daysRemaining = cookDays + instDays;
+  acq.startedClockDay = getClockDay();
+  deck.acq = acq;
+  deck.status = 'building';
+  f.decks[f.idx] = deck;
+  _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // ' + (deck.deckName || it.id) + ' on the bench -- ' + fmtN(acq.taskDays) + ' bench days at x' + opts.taskBonus + '.', false);
+  loadQueue();
+}
+
+async function authorizeCompile(it, opts) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const f = _findJob(it.pcId, it.id);
+  if (!f) { alertMsg('Compile no longer present.', true); return loadQueue(); }
+  const job = Object.assign({}, f.jobs[f.idx]);
+  const taskDays = Math.max(1, Math.ceil(Math.max(1, it.baseDays) / opts.successes));
+  job.authorized = true;
+  job.status = 'in_progress';
+  job.successes = opts.successes;
+  job.taskBonus = opts.taskBonus;
+  job.taskDays = taskDays;
+  job.totalDays = taskDays;
+  job.daysRemaining = taskDays;
+  job.startedClockDay = getClockDay();
+  f.jobs[f.idx] = job;
+  _storesWrite(f.stores, COMPILE_JOB_STORE, it.pcId, f.jobs);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // compile started -- ' + fmtN(taskDays) + ' task days at x' + opts.taskBonus + '.', false);
+  loadQueue();
+}
+
+async function updateTaskBonus(it, bonus) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  if (it.kind === 'compile') {
+    const f = _findJob(it.pcId, it.id);
+    if (!f) { alertMsg('Compile no longer present.', true); return loadQueue(); }
+    const job = Object.assign({}, f.jobs[f.idx]); job.taskBonus = bonus; f.jobs[f.idx] = job;
+    _storesWrite(f.stores, COMPILE_JOB_STORE, it.pcId, f.jobs);
+  } else {
+    const f = _findDeck(it.pcId, it.id);
+    if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
+    const deck = Object.assign({}, f.decks[f.idx]); const acq = Object.assign({}, deck.acq || {});
+    acq.taskBonus = bonus; deck.acq = acq; f.decks[f.idx] = deck;
+    _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
+  }
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // task bonus set to x' + bonus + '.', false);
+  loadQueue();
+}
+
+async function refuseDeck(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const ok = await showConfirm('Refuse "' + (it.deckName || it.id) + '" and return it to the runner?', 'Refuse', 'btn-red');
+  if (!ok) return;
+  const f = _findDeck(it.pcId, it.id);
+  if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
+  // Restore the pristine pre-submit deck the runner captured at transmit/order: an upgrade or
+  // repair reverts to its Ready state + original spec (no free upgrade, damage overlay intact);
+  // a fresh build/order reverts to Draft. Legacy in-fab jobs with no snapshot fall back to Draft.
+  const prev = f.decks[f.idx];
+  const from = (prev.acq && prev.acq.fromDeck) ? prev.acq.fromDeck : null;
+  const deck = from ? Object.assign({}, from) : Object.assign({}, prev);
+  if (!from) { deck.status = 'draft'; }
+  deck.acq = null;
+  f.decks[f.idx] = deck;
+  _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  const restoredMsg = deck.status === 'ready' ? 'restored to its finished deck' : 'returned to draft';
+  alertMsg('GM // request refused -- "' + (deck.deckName || it.id) + '" ' + restoredMsg + '.', false);
+  loadQueue();
+}
+
+async function refuseCompile(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const ok = await showConfirm('Cancel the compile "' + (it.label || it.id) + '"? The queued job is removed.', 'Cancel job', 'btn-red');
+  if (!ok) return;
+  const f = _findJob(it.pcId, it.id);
+  if (!f) { alertMsg('Compile no longer present.', true); return loadQueue(); }
+  f.jobs.splice(f.idx, 1);
+  _storesWrite(f.stores, COMPILE_JOB_STORE, it.pcId, f.jobs);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // compile cancelled.', false);
+  loadQueue();
+}
+
+async function authorizeOmc(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) return;
+  const omc = _storesRead(stores, OMC_STORE, it.pcId);
+  const src = (omc && omc[0]) ? omc[0] : null;
+  const rec = {
+    capacity: src ? (parseInt(src.capacity, 10) || OMC_DEFAULT_CAPACITY) : OMC_DEFAULT_CAPACITY,
+    orders: src && Array.isArray(src.orders) ? src.orders.slice() : [],
+  };
+  const order = rec.orders.find(o => o.id === it.id);
+  if (!order) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  rec.capacity = Math.max(0, rec.capacity + (parseInt(order.addMp, 10) || 0));
+  rec.orders = rec.orders.filter(o => o.id !== it.id);
+  _storesWrite(stores, OMC_STORE, it.pcId, [rec]);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // OMC authorized -- archive now ' + fmtN(rec.capacity) + ' Mp.', false);
+  loadQueue();
+}
+
+async function refuseOmc(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) return;
+  const omc = _storesRead(stores, OMC_STORE, it.pcId);
+  const src = (omc && omc[0]) ? omc[0] : null;
+  if (!src || !Array.isArray(src.orders)) return loadQueue();
+  const rec = { capacity: parseInt(src.capacity, 10) || OMC_DEFAULT_CAPACITY, orders: src.orders.filter(o => o.id !== it.id) };
+  _storesWrite(stores, OMC_STORE, it.pcId, [rec]);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // OMC order refused.', false);
+  loadQueue();
+}
+
+// -- compile finalize (mirror of finalizeCompileJob, on arbitrary PC stores) --
+function _finalizeCompile(stores, pcId, jobId) {
+  const jobs = _storesRead(stores, COMPILE_JOB_STORE, pcId).slice();
+  const idx = jobs.findIndex(j => j.id === jobId);
+  if (idx < 0) return false;
+  const job = jobs[idx];
+  if (job.status === 'ready') return false;
+  const payload = job.payload || {};
+  const compiled = _storesRead(stores, COMPILED_STORE, pcId).slice();
+  compiled.push({
+    id: 'bin_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+    createdAt: Date.now(), sourceId: job.sourceId, sourceVersion: job.version,
+    utilName: payload.utilName || job.utilName, programTypeKey: payload.programTypeKey || job.programTypeKey,
+    baseRating: payload.baseRating, effectiveRating: payload.effectiveRating,
+    mods: payload.mods || 'None', isOneShot: !!payload.isOneShot, hasLimit: !!payload.hasLimit,
+    attackDamage: payload.attackDamage || null, optionState: payload.optionState || null,
+    actualSize: Math.max(0, parseInt(payload.actualSize, 10) || 0),
+    designSize: Math.max(0, parseInt(payload.designSize, 10) || 0),
+    buyCost: Math.max(0, parseInt(payload.buyCost, 10) || 0),
+    designDays: Math.max(1, parseInt(payload.designDays, 10) || 1),
+    name: (payload.utilName || job.utilName) + '-' + (payload.baseRating || 0) + ' v' + job.version + ' | ' + (payload.mods || 'None'),
+  });
+  jobs.splice(idx, 1);
+  _storesWrite(stores, COMPILED_STORE, pcId, compiled);
+  _storesWrite(stores, COMPILE_JOB_STORE, pcId, jobs);
+  const sources = _storesRead(stores, SOURCE_STORE, pcId).slice();
+  const srcIdx = sources.findIndex(s => s.id === job.sourceId);
+  if (srcIdx >= 0) {
+    const src = sources[srcIdx];
+    const latestVersion = (src.versions && src.versions[src.versions.length - 1] && src.versions[src.versions.length - 1].version) || 0;
+    if ((parseInt(job.version, 10) || 0) > latestVersion && payload && payload.utilName) {
+      src.versions = [...(src.versions || []), payload];
+      src.name = payload.utilName + '-' + payload.baseRating;   // mirror getSourceDisplayName
+    }
+    src.totalDesignDaysSpent = Math.max(0, parseInt(src.totalDesignDaysSpent, 10) || 0) + (parseInt(job.totalDays, 10) || 0);
+    sources[srcIdx] = src;
+    _storesWrite(stores, SOURCE_STORE, pcId, sources);
+  }
+  return true;
+}
+
+// -- the clock: advance every authorized job at once --------------------------
+async function advanceClock(days) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const d = Math.max(1, Math.round(days || 1));
+  // operate on the freshly-loaded cache
+  const dirty = {};      // pcId -> true
+  let deckDone = 0, progDone = 0;
+
+  Object.keys(_stateCache).forEach(pcId => {
+    const state = _stateCache[pcId];
+    const stores = state && state.stores;
+    if (!stores) return;
+
+    // decks
+    const decks = _storesRead(stores, DECK_STORE, pcId).slice();
+    let deckChanged = false;
+    decks.forEach((deck, i) => {
+      const st = deck && deck.status;
+      if (st !== 'onorder' && st !== 'building') return;
+      const acq = deck.acq || {};
+      if (!acq.authorized) return;
+      const bonus = (st === 'building') ? Math.max(1, parseInt(acq.taskBonus, 10) || 1) : 1;
+      const burn = d * bonus;
+      const left = Math.max(0, (parseInt(acq.daysRemaining, 10) || 0) - burn);
+      const next = Object.assign({}, deck);
+      // A repair job restores the deck to as-built: drop the damage overlay on completion.
+      if (left <= 0) { next.status = 'ready'; if (acq.isRepair) delete next.damage; next.acq = null; deckDone++; }
+      else { next.acq = Object.assign({}, acq, { daysRemaining: left }); }
+      decks[i] = next;
+      deckChanged = true;
+    });
+    if (deckChanged) { _storesWrite(stores, DECK_STORE, pcId, decks); dirty[pcId] = true; }
+
+    // compiles
+    const jobs = _storesRead(stores, COMPILE_JOB_STORE, pcId).slice();
+    const toFinalize = [];
+    let jobChanged = false;
+    jobs.forEach((job, i) => {
+      if (!job || job.status === 'ready' || !job.authorized) return;
+      const bonus = Math.max(1, parseInt(job.taskBonus, 10) || 1);
+      const left = Math.max(0, (parseInt(job.daysRemaining, 10) || 0) - d * bonus);
+      const next = Object.assign({}, job, { daysRemaining: left, status: 'in_progress' });
+      jobs[i] = next;
+      jobChanged = true;
+      if (left <= 0) toFinalize.push(job.id);
+    });
+    if (jobChanged) {
+      _storesWrite(stores, COMPILE_JOB_STORE, pcId, jobs);
+      toFinalize.forEach(id => { if (_finalizeCompile(stores, pcId, id)) progDone++; });
+      dirty[pcId] = true;
+    }
+  });
+
+  setClockDay(getClockDay() + d);
+  renderClock();
+
+  const pcIds = Object.keys(dirty);
+  try {
+    for (const pcId of pcIds) { await _putState(pcId); }
+  } catch (e) { alertMsg('Clock advanced locally but a save failed: ' + (e.message || e), true); }
+
+  const parts = [];
+  if (deckDone) parts.push(deckDone + ' deck' + (deckDone === 1 ? '' : 's'));
+  if (progDone) parts.push(progDone + ' program' + (progDone === 1 ? '' : 's'));
+  alertMsg('Advanced ' + d + ' day' + (d === 1 ? '' : 's') + '.' + (parts.length ? ' Delivered: ' + parts.join(' & ') + '.' : ''), false);
+  loadQueue();
+}
+
+// -- init ---------------------------------------------------------------------
+function wireClock() {
+  $('dtPlus1').addEventListener('click', () => advanceClock(1));
+  $('dtPlus7').addEventListener('click', () => advanceClock(7));
+  $('dtRefresh').addEventListener('click', () => loadQueue());
+}
+
+bootstrapAuth().then(ctx => {
+  if (!ctx) return;
+  renderClock();
+  if (!isAdmin()) { $('dtNotGm').style.display = ''; return; }
+  $('dtMain').style.display = '';
+  wireClock();
+  loadQueue();
+});
+</script>
+</body>
+</html>
