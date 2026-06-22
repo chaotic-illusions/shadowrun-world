@@ -1732,11 +1732,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .mcr-pill-all.selected    { border-color: var(--green-dim); color: var(--green); background: #001a00; }
 
 /* ---------------------------------------------------------------------------
-   SECTION 23 -- MATRIX HOST DESIGNER (manage-matrix.html)
+   SECTION 23 -- MATRIX DESIGNER PANELS (matrix-designer.html)
    --------------------------------------------------------------------------- */
-
-.mx-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
-@media (max-width: 900px) { .mx-layout { grid-template-columns: 1fr; } }
 
 .mx-panel { background: var(--bg-card); border: 1px solid #111; padding: 16px; }
 
@@ -1756,114 +1753,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 .mx-field { margin-bottom: 12px; }
 
-.host-item {
-  padding: 10px 12px; border: 1px solid #111; border-left: 3px solid var(--text-dim);
-  margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
-}
-.host-item:hover, .host-item.active { border-left-color: var(--cyan); background: #0a0f0a; }
-.host-name { font-size: var(--fs-lg); color: var(--text-bright); letter-spacing: 1px; }
-.host-meta { font-size: var(--fs-xs); color: var(--text-dim); letter-spacing: 1px; margin-top: 3px; }
-
-/* Node palette */
-.palette-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.palette-item {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 8px 4px; border: 1px solid #1a2a1a; background: #080808;
-  cursor: grab; user-select: none; font-size: var(--fs-xs); letter-spacing: 1px;
-  color: var(--text-dim); transition: border-color .15s;
-}
-.palette-item:hover  { border-color: var(--cyan); color: var(--text-bright); }
-.palette-item:active { cursor: grabbing; }
-
-/* SVG canvas */
-.mx-canvas-wrap {
-  background: #050505; border: 1px solid #111; position: relative;
-  overflow: hidden; height: 820px;
-}
-#matrixSvg          { width: 100%; height: 100%; display: block; cursor: grab; }
-#matrixSvg.dragging { cursor: grabbing; }
-
-/* Canvas toolbar */
-.mx-toolbar {
-  display: flex; gap: 8px; align-items: center;
-  padding: 8px 12px; background: #0a0a0a; border-bottom: 1px solid #111;
-}
-.mx-toolbar .btn { padding: 4px 12px; font-size: var(--fs-xs); letter-spacing: 1px; }
-.mx-mode-badge {
-  font-size: var(--fs-xs); letter-spacing: 2px; padding: 3px 10px;
-  border: 1px solid; text-transform: uppercase;
-}
-.mx-mode-view, .mx-mode-edit { color: #c87533; border-color: #5a3010; }
-
-/* Visibility badge */
-.vis-badge {
-  font-size: var(--fs-xxs); letter-spacing: 1.5px;
-  padding: 2px 7px; border: 1px solid; cursor: pointer;
-  text-transform: uppercase; float: right; margin-top: 2px;
-}
-.vis-revealed       { color: var(--green-dim); border-color: #004400; }
-.vis-hidden         { color: var(--text-dim);  border-color: #222; }
-.vis-revealed:hover { border-color: var(--green); color: var(--green); }
-.vis-hidden:hover   { border-color: var(--amber); color: var(--amber); }
-
-/* Player-info side panel */
-#playerInfoPanel {
-  background: #080e08; border: 1px solid #0e2a0e; border-left: 3px solid var(--cyan);
-  padding: 12px 14px; margin-bottom: 8px; font-size: var(--fs-sm);
-}
-.pi-header     { font-size: var(--lbl-fs); letter-spacing: 3px; color: var(--cyan); margin-bottom: 10px; text-transform: uppercase; }
-.pi-grid       { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pi-stat label { display: block; font-size: var(--fs-xxs); letter-spacing: 2px; color: var(--text-dim); margin-bottom: 2px; }
-.pi-notes      { margin-top: 10px; color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.5; border-top: 1px solid #1a2a1a; padding-top: 8px; }
-
-/* Node legend */
-.mx-legend     { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; background: #080808; border-top: 1px solid #111; }
-.mx-leg-item   { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); letter-spacing: 1px; color: var(--text-dim); }
-.mx-leg-swatch { width: 14px; height: 14px; border: 1px solid #333; flex-shrink: 0; }
-
-/* Connection-matrix legend */
-.conn-legend       { background: #080808; border: 1px solid #111; border-top: none; padding: 12px; overflow-x: auto; }
-.conn-legend-title { font-size: var(--fs-xs); letter-spacing: 3px; color: var(--text-dim); margin-bottom: 8px; }
-.conn-table        { border-collapse: collapse; font-size: var(--fs-xs); font-family: var(--font); letter-spacing: 1px; }
-.conn-table th,
-.conn-table td     { padding: 4px 8px; border: 1px solid #1a2a1a; text-align: center; }
-.conn-table th     { color: var(--text-dim); background: #0a0a0a; }
-.conn-table td.conn-yes { color: var(--green); }
-.conn-table td.conn-no  { color: #222; }
-.conn-table td.conn-hdr { color: var(--cyan); background: #0a0a0a; text-align: left; padding-left: 10px; }
-
-/* Node edit modal & confirm modal */
-#nodeModal {
-  display: none; position: fixed; inset: 0; z-index: var(--z-edit);
-  background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
-}
-#nodeModal.open    { display: flex; }
-#confirmModal {
-  display: none; position: fixed; inset: 0; z-index: var(--z-confirm);
-  background: rgba(0,0,0,0.82); align-items: center; justify-content: center;
-}
-#confirmModal.open { display: flex; }
-.mx-modal-box {
-  background: #0e0e0e; border: 1px solid #1a2a1a; padding: 20px 24px;
-  width: 420px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
-}
-.mx-modal-title { font-size: var(--fs-sm); letter-spacing: 3px; color: var(--cyan); margin-bottom: 16px; }
-.modal-field { margin-bottom: 12px; }
-.modal-field label { font-size: var(--fs-xs); letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 4px; }
-.ic-row             { display: grid; grid-template-columns: 1fr 80px 32px; gap: 6px; margin-bottom: 6px; align-items: center; }
-.ic-row select,
-.ic-row input       { padding: 5px 8px; font-size: var(--fs-md); }
-.mx-modal-actions      { display: flex; gap: 8px; margin-top: 16px; }
-.mx-modal-actions .btn { flex: 1; justify-content: center; font-size: var(--btn-sm-fs); }
-
-/* Drag ghost (during palette drag) */
-#paletteDragGhost {
-  position: fixed; pointer-events: none; z-index: var(--z-tooltip);
-  display: none; transform: translate(-50%,-50%);
-}
-
 /* ---------------------------------------------------------------------------
-   SECTION 24 -- DECK BUILDER (deck-builder.html)
+   SECTION 24 -- DECK BUILDER (deck-workshop.html)
    --------------------------------------------------------------------------- */
 
 /* Tab system */

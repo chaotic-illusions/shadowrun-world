@@ -1519,9 +1519,9 @@ All operational utilities may use the DINAB, one-shot, optimization, and squeeze
 - Reduces the chance that the system detects the decker's presence.
 - Must be running during the entire run to be effective.
 
-**Track** | Multiplier: 3
-- Used to trace other deckers after they jack out.
-- Track utility allows the decker to follow and trace a jacked-out decker's datatrail.
+**Track** | Multiplier: 8
+- Used to trace enemy deckers in the Matrix, functioning much like Trace IC does against a decker.
+- Works against enemy deckers in general -- not only after they jack out -- following their datatrail to locate them.
 
 #### Offensive Utilities
 

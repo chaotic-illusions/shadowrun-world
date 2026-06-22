@@ -18,10 +18,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="manage-matrix.html">Matrix (SR1)</a>
     <a href="matrix-designer.html" class="active">Matrix Designer</a>
     <a href="matrix-run.html">Matrix Run</a>
-    <a href="deck-builder.html">Deck Builder</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
   </nav>
 </header>
 
@@ -2241,7 +2240,7 @@ async function saveConfig() {
     ...existingCfg,
     security_code:        code,
     security_value:       sv,
-    san_rating:           `${code}-${sv}`,  // keep SR1 manage-matrix.html display in sync
+    san_rating:           `${code}-${sv}`,  // formatted code-value string (e.g. "Z-8")
     intrusion_difficulty: diff || null,
     owner_type:           owner || existingCfg.owner_type || null,
     acifs,

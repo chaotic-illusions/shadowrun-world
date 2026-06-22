@@ -3408,9 +3408,20 @@ function computeLoadUsage(items) {
     .filter(i => targetIsActive(i.target))
     .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
 
+  // Storage: a one-shot program keeps a single storage master, so its footprint counts
+  // ONCE no matter how many copies run in active memory; normal programs count each copy.
+  const oneShotCounted = new Set();
   const storageUsed = normalized
     .filter(i => targetHasStorage(i.target))
-    .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
+    .reduce((s, i) => {
+      const sz = parseInt(i.actualSize, 10) || 0;
+      if (isOneShotProgram(i)) {
+        const k = getProgramIdentityKey(i);
+        if (oneShotCounted.has(k)) return s;
+        oneShotCounted.add(k);
+      }
+      return s + sz;
+    }, 0);
 
   return { activeUsed, storageUsed };
 }
@@ -3666,7 +3677,9 @@ function renderLoadPlanner() {
         const storageLabel = entry.isOneShot ? (storageOn ? `ON${storageCount > 1 ? ` x${storageCount}` : ''}` : 'OFF') : (storageOn ? 'ON' : 'OFF');
         const activeLabel = activeCount > 0 ? `ON${activeCount > 1 ? ` x${activeCount}` : ''}` : 'OFF';
         const activeFootprint = size * activeCount;
-        const storageFootprint = size * (storageCount + activeCount);
+        // One-shot programs keep a single storage master (counted once); normal programs
+        // count each storage + active copy.
+        const storageFootprint = entry.isOneShot ? (storageOn ? size : 0) : size * (storageCount + activeCount);
         const activePctEntry = Math.min(100, Math.round((activeFootprint / Math.max(1, activeBase)) * 100));
         const storagePctEntry = Math.min(100, Math.round((storageFootprint / Math.max(1, storageBase)) * 100));
         const usageLabel = `A ${fmtN(activeFootprint)} Mp (${activePctEntry}%) // S ${fmtN(storageFootprint)} Mp (${storagePctEntry}%)`;

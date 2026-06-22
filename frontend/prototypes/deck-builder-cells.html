@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deck Builder (cells prototype) | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* =============================================================
+       CELL-BUILDER PROTOTYPE -- STATIC, NO BACKEND
+       - Tabs (top): Decks / Programs / Loadouts
+       - Each tab = themed band with Designs | Workspace | Artifacts
+         in the 3-col Hybrid layout
+       - Fully fluid: scales up on 4K, no fixed max-width caps
+       ============================================================= */
+
+    main.proto-main { padding: clamp(12px, 1.4vw, 28px); }
+    .proto-main .page-title { font-size: clamp(1.05rem, 1.05vw + .6rem, 1.6rem); }
+    .proto-main .page-sub   { font-size: clamp(.72rem, .35vw + .55rem, .95rem); }
+
+    /* =============================================================
+       TAB BAR -- domain switcher (Decks / Programs / Loadouts)
+       ============================================================= */
+    .proto-tabs {
+      display: flex; align-items: stretch; gap: 4px;
+      border-bottom: 1px solid #1a2a1a; margin-bottom: 0;
+      padding: 0 4px;
+    }
+    .proto-tabs .ptab {
+      padding: 10px 22px;
+      border: 1px solid transparent;
+      border-bottom: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: var(--font); letter-spacing: 2px; text-transform: uppercase;
+      font-size: var(--fs-md);
+      cursor: pointer;
+      transition: color .12s, background .12s, border-color .12s;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .proto-tabs .ptab:hover { color: var(--text-bright); background: rgba(255,255,255,.02); }
+    .proto-tabs .ptab .accent {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      box-shadow: 0 0 6px currentColor;
+    }
+    .proto-tabs .ptab[data-tab="decks"]    .accent { color: var(--cyan);   background: var(--cyan); }
+    .proto-tabs .ptab[data-tab="programs"] .accent { color: var(--purple); background: var(--purple); }
+    .proto-tabs .ptab[data-tab="loadouts"] .accent { color: var(--gold);   background: var(--gold); }
+
+    /* active state -- the tab's accent color drives the band header below */
+    .proto-tabs .ptab.on { background: #0a1010; border-color: #1a2a1a;
+      border-bottom-color: transparent; position: relative; top: 1px; }
+    .proto-tabs .ptab[data-tab="decks"].on    { color: var(--cyan);   text-shadow: 0 0 6px rgba(0,224,255,.35); }
+    .proto-tabs .ptab[data-tab="programs"].on { color: var(--purple); text-shadow: 0 0 6px rgba(187,68,255,.35); }
+    .proto-tabs .ptab[data-tab="loadouts"].on { color: var(--gold);   text-shadow: 0 0 6px rgba(232,170,58,.35); }
+
+    .proto-tabs .programmer {
+      margin-left: auto; align-self: center; padding-right: 10px;
+      color: var(--text-dim); font-size: var(--fs-xs); letter-spacing: 1px;
+    }
+    .proto-tabs .programmer b { color: var(--text-bright); }
+
+    /* =============================================================
+       BAND -- one slab per tab, themed (cyan / purple / gold)
+       ============================================================= */
+    .band {
+      border: 1px solid #1a2a1a;
+      border-top: none;
+      border-left-width: 3px;
+      background: #07090a;
+      padding: 14px 16px 18px;
+      display: none;
+    }
+    .band.on { display: block; }
+    .band.band-decks    { border-left-color: var(--cyan); }
+    .band.band-programs { border-left-color: var(--purple); }
+    .band.band-loadouts { border-left-color: var(--gold); }
+
+    .band-hd {
+      display: flex; align-items: baseline; gap: 14px;
+      padding-bottom: 10px; margin-bottom: 14px;
+      border-bottom: 1px solid #16201f;
+      font-size: clamp(.95rem, .6vw + .6rem, 1.35rem);
+      letter-spacing: 3px; text-transform: uppercase;
+    }
+    .band.band-decks    .band-hd { color: var(--cyan);   text-shadow: 0 0 8px rgba(0,224,255,.35); }
+    .band.band-programs .band-hd { color: var(--purple); text-shadow: 0 0 8px rgba(187,68,255,.35); }
+    .band.band-loadouts .band-hd { color: var(--gold);   text-shadow: 0 0 8px rgba(232,170,58,.35); }
+    .band-hd .sub { color: var(--text-dim); font-size: var(--fs-sm); letter-spacing: 1px; text-transform: none; }
+
+    /* =============================================================
+       BAND BODY -- 3-col Hybrid (Designs | Workspace | Artifacts)
+       ============================================================= */
+    .band-bd {
+      display: grid; gap: 18px;
+      grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.6fr) minmax(280px, 1fr);
+    }
+
+    .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+    .col-hd {
+      display: flex; align-items: center; gap: 10px;
+      font-size: var(--fs-sm); letter-spacing: 2px; text-transform: uppercase;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed #16201f;
+    }
+    .band-decks    .col-hd { color: var(--cyan); }
+    .band-programs .col-hd { color: var(--purple); }
+    .band-loadouts .col-hd { color: var(--gold); }
+
+    .col-hd .pill {
+      font-size: var(--fs-xxs); letter-spacing: 1px;
+      padding: 1px 6px; border-radius: 2px; border: 1px solid currentColor;
+      background: rgba(255,255,255,.02);
+    }
+    .col-hd .grow { flex: 1; }
+    .col-hd .mini-btn {
+      padding: 4px 10px; border: 1px solid currentColor; background: transparent;
+      color: inherit; font-family: var(--font); font-size: var(--fs-xxs);
+      letter-spacing: 1px; cursor: pointer;
+    }
+    .col-hd .mini-btn:hover { background: rgba(255,255,255,.05); }
+
+    /* =============================================================
+       CELL GRID -- small individual cells, fluid grid
+       ============================================================= */
+    .cell-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+
+    .cell {
+      border: 1px solid #1a2a1a; background: #0a1010;
+      padding: 11px 12px; cursor: pointer;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: border-color .12s, box-shadow .12s, transform .12s;
+      position: relative;
+    }
+    /* domain-scoped hover/select tints */
+    .band-decks    .cell:hover { border-color: var(--cyan);
+      box-shadow: 0 0 0 1px rgba(0,224,255,.25), 0 0 12px rgba(0,224,255,.15); transform: translateY(-1px); }
+    .band-decks    .cell.selected { border-color: var(--cyan);
+      box-shadow: inset 3px 0 0 var(--cyan), 0 0 12px rgba(0,224,255,.18); }
+    .band-programs .cell:hover { border-color: var(--purple);
+      box-shadow: 0 0 0 1px rgba(187,68,255,.25), 0 0 12px rgba(187,68,255,.15); transform: translateY(-1px); }
+    .band-programs .cell.selected { border-color: var(--purple);
+      box-shadow: inset 3px 0 0 var(--purple), 0 0 12px rgba(187,68,255,.18); }
+    .band-loadouts .cell:hover { border-color: var(--gold);
+      box-shadow: 0 0 0 1px rgba(232,170,58,.25), 0 0 12px rgba(232,170,58,.15); transform: translateY(-1px); }
+    .band-loadouts .cell.selected { border-color: var(--gold);
+      box-shadow: inset 3px 0 0 var(--gold), 0 0 12px rgba(232,170,58,.18); }
+
+    .cell .hd { display: flex; align-items: baseline; gap: 8px; }
+    .cell .nm { color: var(--text-bright); letter-spacing: 1px; flex: 1; }
+    .cell .tag { font-size: var(--fs-xs); letter-spacing: 1px; }
+    .band-decks    .cell .tag { color: var(--cyan); }
+    .band-programs .cell .tag { color: var(--purple); }
+    .band-loadouts .cell .tag { color: var(--gold); }
+
+    .cell .row { display: flex; gap: 14px; color: var(--text-dim);
+      font-size: var(--fs-xs); letter-spacing: .5px; }
+    .cell .row .k { color: var(--text-dim); }
+    .cell .row .v { color: var(--text); }
+    .cell .cost  { color: var(--gold); }
+
+    .pill-st {
+      display: inline-block; font-size: var(--fs-xxs); letter-spacing: 1px;
+      padding: 1px 6px; border: 1px solid; border-radius: 2px; text-transform: uppercase;
+    }
+    .pill-st.draft   { color: var(--text-dim); border-color: #2a2a2a; }
+    .pill-st.pending { color: var(--amber); border-color: #553300; animation: pendPulse 1.8s ease-in-out infinite; }
+    .pill-st.built   { color: var(--green); border-color: var(--green-dim); }
+    .pill-st.bought  { color: var(--cyan); border-color: rgba(0,224,255,.45); }
+    .pill-st.damaged { color: var(--red); border-color: var(--dark-red); }
+    @keyframes pendPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+    .cell .actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+    .cell .actions button {
+      padding: 3px 8px; font-family: var(--font); font-size: var(--fs-xxs);
+      letter-spacing: 1px; background: transparent; cursor: pointer;
+    }
+    .cell .actions .a-edit  { border: 1px solid var(--cyan);     color: var(--cyan); }
+    .cell .actions .a-build { border: 1px solid var(--green);    color: var(--green); }
+    .cell .actions .a-buy   { border: 1px solid var(--gold);     color: var(--gold); }
+    .cell .actions .a-load  { border: 1px solid var(--cyan);     color: var(--cyan); }
+    .cell .actions .a-upg   { border: 1px solid var(--green);    color: var(--green); }
+    .cell .actions .a-del   { border: 1px solid var(--dark-red); color: var(--red); }
+    /* programs band: edit/load buttons take the purple accent so they sit in the theme */
+    .band-programs .cell .actions .a-edit { border-color: var(--purple); color: var(--purple); }
+    .band-programs .cell .actions .a-load { border-color: var(--purple); color: var(--purple); }
+    .cell .actions button:hover { filter: brightness(1.4); }
+
+    /* =============================================================
+       WORKSPACE -- editor cells per spec section
+       ============================================================= */
+    .workspace {
+      border: 1px solid #16201f; background: #080c0c; padding: 14px;
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .workspace .ws-title {
+      grid-column: 1 / -1;
+      display: flex; align-items: baseline; gap: 12px;
+      padding-bottom: 8px; border-bottom: 1px solid #1a2a1a;
+    }
+    .workspace .ws-title .nm  { color: var(--text-bright); letter-spacing: 1px; font-size: 1.05rem; }
+    .workspace .ws-title .src { color: var(--text-dim); font-size: var(--fs-xs); letter-spacing: 1px; }
+    .workspace .ws-title .grow { flex: 1; }
+
+    .ws-cell {
+      border: 1px solid #142020; background: #0a1010; padding: 10px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .ws-cell .lbl { font-size: var(--fs-xxs); letter-spacing: 2px; text-transform: uppercase; }
+    .band-decks    .ws-cell .lbl { color: var(--cyan); }
+    .band-programs .ws-cell .lbl { color: var(--purple); }
+    .band-loadouts .ws-cell .lbl { color: var(--gold); }
+
+    .ws-cell input[type=text], .ws-cell input[type=number], .ws-cell select {
+      background: var(--bg-input); border: 1px solid #1a2a1a; color: var(--text-bright);
+      padding: 4px 6px; font-family: var(--font); height: 28px; box-sizing: border-box;
+    }
+    .ws-cell .qrow { display: flex; gap: 6px; }
+    .ws-cell .qrow .q { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .ws-cell .qrow .q .qlbl { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); text-align: center; }
+    .ws-cell .qrow .q input { text-align: center; }
+    .ws-cell .tip { color: var(--text-dim); font-size: var(--fs-xxs); letter-spacing: .5px; }
+    .ws-cell label.chk { display: flex; align-items: center; gap: 6px;
+      color: var(--text); font-size: var(--fs-xs); letter-spacing: 1px; cursor: pointer; }
+
+    .ws-cell.wide   { grid-column: span 2; }
+    .ws-cell.wider  { grid-column: span 3; }
+    .ws-cell.summary {
+      grid-column: 1 / -1; background: #0c130c; border-color: #20301f;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 18px;
+    }
+    .ws-cell.summary .sline { display: flex; justify-content: space-between;
+      font-size: var(--fs-sm); letter-spacing: .5px; }
+    .ws-cell.summary .sline .k { color: var(--text-dim); }
+    .ws-cell.summary .sline .v { color: var(--text-bright); }
+    .ws-cell.summary .sline.tot .v { color: var(--gold); }
+
+    .ws-footer {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 10px;
+      padding-top: 10px; border-top: 1px solid #1a2a1a;
+    }
+    .ws-footer .vbadge {
+      padding: 4px 10px; border: 1px solid var(--green-dim); color: var(--green);
+      font-size: var(--fs-xs); letter-spacing: 1px; text-transform: uppercase;
+    }
+    .ws-footer .note { color: var(--text-dim); font-size: var(--fs-xs); letter-spacing: 1px; }
+    .ws-footer .grow { flex: 1; }
+    .ws-footer .submit-build { padding: 8px 18px; border: 1px solid var(--green); color: var(--green); background: rgba(0,255,65,.06); font-family: var(--font); letter-spacing: 1px; cursor: pointer; }
+    .ws-footer .submit-buy   { padding: 8px 18px; border: 1px solid var(--gold);  color: var(--gold);  background: rgba(232,170,58,.06); font-family: var(--font); letter-spacing: 1px; cursor: pointer; }
+    .ws-footer .submit-build:hover { box-shadow: var(--glow-green); }
+    .ws-footer .submit-buy:hover   { box-shadow: var(--glow-gold); }
+    .ws-footer .ghost { padding: 8px 14px; border: 1px solid #2a2a2a; color: var(--text-dim); background: transparent; font-family: var(--font); letter-spacing: 1px; cursor: pointer; }
+
+    /* loadouts placeholder text */
+    .placeholder-note {
+      padding: 28px; color: var(--text-dim); font-style: italic;
+      border: 1px dashed #2a2a2a; text-align: center;
+    }
+
+    /* options panel inside programs editor: flow of toggle chips */
+    .opt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .opt-chips .opt {
+      padding: 3px 9px; border: 1px solid #2a2a2a; color: var(--text-dim);
+      font-size: var(--fs-xxs); letter-spacing: 1px; cursor: pointer;
+      transition: color .12s, border-color .12s, background .12s;
+    }
+    .opt-chips .opt.on { color: var(--purple); border-color: var(--purple);
+      background: rgba(187,68,255,.08); }
+    .opt-chips .opt:hover { color: var(--text-bright); }
+
+    /* loadouts editor: memory bins (Active / Storage), usage bars, item lists */
+    .ws-cell.bin .bin-hd { display: flex; align-items: baseline; gap: 10px; }
+    .ws-cell.bin .bin-hd .bin-meta { margin-left: auto; color: var(--text-bright);
+      font-size: var(--fs-xs); letter-spacing: 1px; }
+    .ws-cell.bin .bin-bar {
+      height: 8px; border: 1px solid #1a2a1a; background: #060c06; position: relative;
+      overflow: hidden;
+    }
+    .ws-cell.bin .bin-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: linear-gradient(90deg, rgba(232,170,58,.55), rgba(232,170,58,.85));
+      box-shadow: 0 0 8px rgba(232,170,58,.4);
+    }
+    .ws-cell.bin .bin-fill.warn { background: linear-gradient(90deg, rgba(255,153,0,.6), rgba(255,153,0,.9)); }
+    .ws-cell.bin .bin-fill.over { background: linear-gradient(90deg, rgba(255,51,51,.7), rgba(255,51,51,1)); }
+    .ws-cell.bin .bin-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+    .ws-cell.bin .bin-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; background: #060c06; border: 1px solid #142020;
+      font-size: var(--fs-xs); letter-spacing: .5px;
+    }
+    .ws-cell.bin .bi-nm { color: var(--text); flex: 1; }
+    .ws-cell.bin .bi-sz { color: var(--text-dim); font-size: var(--fs-xxs); }
+    .ws-cell.bin .bi-mv, .ws-cell.bin .bi-rm {
+      background: transparent; padding: 2px 7px; font-family: var(--font);
+      font-size: var(--fs-xxs); letter-spacing: 1px; cursor: pointer;
+    }
+    .ws-cell.bin .bi-mv { border: 1px solid var(--gold); color: var(--gold); }
+    .ws-cell.bin .bi-rm { border: 1px solid var(--dark-red); color: var(--red); }
+    .ws-cell.bin .bi-mv:hover, .ws-cell.bin .bi-rm:hover { filter: brightness(1.4); }
+
+    /* loadouts: primary action button (gold) */
+    .ws-footer .submit-save {
+      padding: 8px 18px; border: 1px solid var(--gold); color: var(--gold);
+      background: rgba(232,170,58,.06); font-family: var(--font); letter-spacing: 1px; cursor: pointer;
+    }
+    .ws-footer .submit-save:hover { box-shadow: var(--glow-gold); }
+    .ws-footer .name-in {
+      padding: 4px 8px; height: 32px; box-sizing: border-box;
+      background: var(--bg-input); border: 1px solid #1a2a1a; color: var(--text-bright);
+      font-family: var(--font); letter-spacing: 1px; min-width: 160px;
+    }
+
+    /* loadouts band: program-library right column gets +Active / +Storage actions */
+    .band-loadouts .cell .actions .a-act { border: 1px solid var(--gold); color: var(--gold); }
+    .band-loadouts .cell .actions .a-sto { border: 1px solid var(--copper); color: var(--copper); }
+    .band-loadouts .cell .actions .a-edit, .band-loadouts .cell .actions .a-load { border-color: var(--gold); color: var(--gold); }
+    .band-loadouts .cell .in-load {
+      font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--green);
+      border: 1px solid var(--green-dim); padding: 1px 5px; border-radius: 2px;
+    }
+
+    /* loadouts library filter chips */
+    .lib-filter { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+    .lib-filter .lf {
+      padding: 2px 8px; border: 1px solid #2a2a2a; color: var(--text-dim);
+      font-size: var(--fs-xxs); letter-spacing: 1px; cursor: pointer;
+    }
+    .lib-filter .lf.on { color: var(--gold); border-color: var(--gold); background: rgba(232,170,58,.08); }
+    .lib-filter .lf:hover { color: var(--text-bright); }
+
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="../world-state.html">World State</a>
+    <a href="../manage-characters.html">Characters</a>
+    <a href="../manage-organizations.html">Organizations</a>
+    <a href="../manage-locations.html">Locations</a>
+    <a href="../manage-rtgs.html">RTGs</a>
+    <a href="../manage-runs.html">Runs</a>
+    <a href="../manage-matrix.html">Matrix (SR1)</a>
+    <a href="../matrix-designer.html">Matrix Designer</a>
+    <a href="../matrix-run.html">Matrix Run</a>
+    <a href="../deck-builder.html" class="active">Deck Builder</a>
+  </nav>
+</header>
+
+<main class="proto-main">
+  <div class="page-title">&gt;&gt; DECK BUILDER <em class="sep">//</em> Cell-Based Layout Prototype</div>
+  <div class="page-sub" style="color:var(--cyan)">Designs and Artifacts &middot; Hybrid 3-col &middot; <span style="color:var(--text-dim)">demo data -- not wired</span></div>
+
+  <!-- =========================================================
+       TABS (Decks / Programs / Loadouts)
+       ========================================================= -->
+  <div class="proto-tabs">
+    <button class="ptab on" data-tab="decks"><span class="accent"></span>Decks</button>
+    <button class="ptab"    data-tab="programs"><span class="accent"></span>Programs</button>
+    <button class="ptab"    data-tab="loadouts"><span class="accent"></span>Loadouts</button>
+    <div class="programmer">PROGRAMMER: <b>Static</b> &middot; MPCP cap 12 &middot; Utility cap 8</div>
+  </div>
+
+  <!-- =========================================================
+       DECKS BAND
+       ========================================================= -->
+  <section class="band band-decks on" data-tab="decks">
+    <header class="band-hd">
+      Decks
+      <span class="sub">Cyberdecks &mdash; spec it (Design), then own it (Artifact). Built or bought, both can be upgraded.</span>
+    </header>
+
+    <div class="band-bd">
+
+      <!-- ===== DESIGNS COLUMN ===== -->
+      <div class="col col-designs">
+        <div class="col-hd">
+          <span>Designs</span>
+          <span class="pill">4</span>
+          <span class="grow"></span>
+          <button class="mini-btn">+ New Design</button>
+        </div>
+
+        <div class="cell-grid" id="deckDesignsGrid">
+
+          <div class="cell" data-design="deep-dive">
+            <div class="hd">
+              <span class="nm">Deep Dive</span>
+              <span class="tag">MPCP 8</span>
+              <span class="pill-st pending">Pending Build</span>
+            </div>
+            <div class="row"><span class="k">Persona</span><span class="v">B7 / E6 / M7 / S7</span></div>
+            <div class="row"><span class="k">Hardware</span><span class="v">Hardening 2, Resp+1, ICCM</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y68,200</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-del" title="Withdraw request">Withdraw</button>
+            </div>
+          </div>
+
+          <div class="cell selected" data-design="smoke-rig">
+            <div class="hd">
+              <span class="nm">Smoke Rig</span>
+              <span class="tag">MPCP 6</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Persona</span><span class="v">B5 / E5 / M3 / S4</span></div>
+            <div class="row"><span class="k">Hardware</span><span class="v">Hardening 1, Resp+1</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y32,400</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Build</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-design="pocket-mule">
+            <div class="hd">
+              <span class="nm">Pocket Mule</span>
+              <span class="tag">MPCP 4</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Persona</span><span class="v">B4 / E2 / M3 / S2</span></div>
+            <div class="row"><span class="k">Hardware</span><span class="v">stock</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y14,800</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Build</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-design="stealth-razor">
+            <div class="hd">
+              <span class="nm">Stealth Razor</span>
+              <span class="tag">MPCP 10</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Persona</span><span class="v">B9 / E10 / M8 / S9</span></div>
+            <div class="row"><span class="k">Hardware</span><span class="v">Hardening 4, RF, ICCM</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y142,000</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Build</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== WORKSPACE COLUMN ===== -->
+      <div class="col col-workspace">
+        <div class="col-hd">
+          <span>Workspace</span>
+          <span class="pill" id="deckWsTag">editing: Smoke Rig</span>
+          <span class="grow"></span>
+        </div>
+        <div class="workspace" id="deckWorkspaceMount"></div>
+      </div>
+
+      <!-- ===== ARTIFACTS COLUMN ===== -->
+      <div class="col col-artifacts">
+        <div class="col-hd">
+          <span>Artifacts</span>
+          <span class="pill">4 owned</span>
+          <span class="grow"></span>
+        </div>
+
+        <div class="cell-grid">
+
+          <div class="cell" data-artifact="smoke-rig-v1">
+            <div class="hd">
+              <span class="nm">Smoke Rig v1</span>
+              <span class="tag">MPCP 6</span>
+              <span class="pill-st built">Built</span>
+            </div>
+            <div class="row"><span class="k">As-built</span><span class="v">B5 / E5 / M3 / S4</span></div>
+            <div class="row"><span class="k">Fabricated</span><span class="v">2026-05-22</span></div>
+            <div class="row"><span class="k">Paid</span><span class="v cost">Y32,400</span></div>
+            <div class="actions">
+              <button class="a-load">Load to Run</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Retire</button>
+            </div>
+          </div>
+
+          <div class="cell" data-artifact="predator-iv">
+            <div class="hd">
+              <span class="nm">Predator IV</span>
+              <span class="tag">MPCP 8</span>
+              <span class="pill-st bought">Bought</span>
+            </div>
+            <div class="row"><span class="k">Spec</span><span class="v">B7 / E7 / M6 / S6</span></div>
+            <div class="row"><span class="k">Acquired</span><span class="v">2026-05-30</span></div>
+            <div class="row"><span class="k">Paid</span><span class="v cost">Y95,000</span></div>
+            <div class="actions">
+              <button class="a-load">Load to Run</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Retire</button>
+            </div>
+          </div>
+
+          <div class="cell" data-artifact="smoke-rig-v2">
+            <div class="hd">
+              <span class="nm">Smoke Rig v2</span>
+              <span class="tag">MPCP 7</span>
+              <span class="pill-st built">Built</span>
+            </div>
+            <div class="row"><span class="k">As-built</span><span class="v">B6 / E5 / M3 / S4</span></div>
+            <div class="row"><span class="k">Upgraded</span><span class="v">2026-06-02 (from v1)</span></div>
+            <div class="row"><span class="k">Delta paid</span><span class="v cost">Y8,200</span></div>
+            <div class="actions">
+              <button class="a-load">Load to Run</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Retire</button>
+            </div>
+          </div>
+
+          <div class="cell" data-artifact="old-reliable">
+            <div class="hd">
+              <span class="nm">Old Reliable</span>
+              <span class="tag">MPCP 5</span>
+              <span class="pill-st damaged">Chip Burn -1 Bod</span>
+            </div>
+            <div class="row"><span class="k">As-built</span><span class="v">B4 (was 5) / E4 / M3 / S3</span></div>
+            <div class="row"><span class="k">Fabricated</span><span class="v">2026-04-10</span></div>
+            <div class="row"><span class="k">Paid</span><span class="v cost">Y18,600</span></div>
+            <div class="actions">
+              <button class="a-load">Load to Run</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Retire</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- =========================================================
+       PROGRAMS BAND
+       ========================================================= -->
+  <section class="band band-programs" data-tab="programs">
+    <header class="band-hd">
+      Programs
+      <span class="sub">Utilities &mdash; spec it (Source), then own it (Compiled / Purchased). Compile time + cost on every Build.</span>
+    </header>
+
+    <div class="band-bd">
+
+      <!-- ===== DESIGNS (Sources) COLUMN ===== -->
+      <div class="col col-designs">
+        <div class="col-hd">
+          <span>Sources</span>
+          <span class="pill">4</span>
+          <span class="grow"></span>
+          <button class="mini-btn">+ New Source</button>
+        </div>
+
+        <div class="cell-grid">
+
+          <div class="cell" data-source="deception-5">
+            <div class="hd">
+              <span class="nm">Deception v1</span>
+              <span class="tag">R5</span>
+              <span class="pill-st pending">Pending Compile</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Defensive / Deception</span></div>
+            <div class="row"><span class="k">Options</span><span class="v">Area 2</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y2,500 / 28 d</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-del">Withdraw</button>
+            </div>
+          </div>
+
+          <div class="cell selected" data-source="attack-6">
+            <div class="hd">
+              <span class="nm">Attack v1</span>
+              <span class="tag">R6</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Offensive / Attack (Serious)</span></div>
+            <div class="row"><span class="k">Options</span><span class="v">Optimization 2</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y6,000 / 36 d</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Compile</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-source="sleaze-8">
+            <div class="hd">
+              <span class="nm">Sleaze v2</span>
+              <span class="tag">R8</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Defensive / Sleaze</span></div>
+            <div class="row"><span class="k">Options</span><span class="v">&mdash;</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y4,800 / 32 d</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Compile</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-source="browse-4">
+            <div class="hd">
+              <span class="nm">Browse v1</span>
+              <span class="tag">R4</span>
+              <span class="pill-st draft">Draft</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Operational / Browse</span></div>
+            <div class="row"><span class="k">Options</span><span class="v">&mdash;</span></div>
+            <div class="row"><span class="k">Est.</span><span class="v cost">Y800 / 8 d</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-build">Submit Compile</button>
+              <button class="a-buy">Submit Buy</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== WORKSPACE COLUMN ===== -->
+      <div class="col col-workspace">
+        <div class="col-hd">
+          <span>Workspace</span>
+          <span class="pill" id="progWsTag">editing: Attack v1</span>
+          <span class="grow"></span>
+        </div>
+        <div class="workspace" id="progWorkspaceMount"></div>
+      </div>
+
+      <!-- ===== ARTIFACTS (Compiled + Purchased) COLUMN ===== -->
+      <div class="col col-artifacts">
+        <div class="col-hd">
+          <span>Compiled &middot; Purchased</span>
+          <span class="pill">5</span>
+          <span class="grow"></span>
+        </div>
+
+        <div class="cell-grid">
+
+          <div class="cell" data-prog="attack-6-bin">
+            <div class="hd">
+              <span class="nm">Attack-6 [Serious]</span>
+              <span class="tag">R6</span>
+              <span class="pill-st built">Compiled</span>
+            </div>
+            <div class="row"><span class="k">Size</span><span class="v">36 Mp</span></div>
+            <div class="row"><span class="k">In loadouts</span><span class="v">3</span></div>
+            <div class="row"><span class="k">Compiled</span><span class="v">2026-05-22</span></div>
+            <div class="actions">
+              <button class="a-load">Add to Load</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="sleaze-6-bin">
+            <div class="hd">
+              <span class="nm">Sleaze-6</span>
+              <span class="tag">R6</span>
+              <span class="pill-st bought">Bought</span>
+            </div>
+            <div class="row"><span class="k">Size</span><span class="v">24 Mp</span></div>
+            <div class="row"><span class="k">In loadouts</span><span class="v">2</span></div>
+            <div class="row"><span class="k">Acquired</span><span class="v">2026-05-18</span></div>
+            <div class="actions">
+              <button class="a-load">Add to Load</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="medic-4-bin">
+            <div class="hd">
+              <span class="nm">Medic-4</span>
+              <span class="tag">R4</span>
+              <span class="pill-st built">Compiled</span>
+            </div>
+            <div class="row"><span class="k">Size</span><span class="v">12 Mp (oneshot)</span></div>
+            <div class="row"><span class="k">In loadouts</span><span class="v">1</span></div>
+            <div class="row"><span class="k">Compiled</span><span class="v">2026-05-30</span></div>
+            <div class="actions">
+              <button class="a-load">Add to Load</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="analyze-5-bin">
+            <div class="hd">
+              <span class="nm">Analyze-5</span>
+              <span class="tag">R5</span>
+              <span class="pill-st built">Compiled</span>
+            </div>
+            <div class="row"><span class="k">Size</span><span class="v">15 Mp</span></div>
+            <div class="row"><span class="k">In loadouts</span><span class="v">2</span></div>
+            <div class="row"><span class="k">Compiled</span><span class="v">2026-05-12</span></div>
+            <div class="actions">
+              <button class="a-load">Add to Load</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="armor-4-bin">
+            <div class="hd">
+              <span class="nm">Armor-4</span>
+              <span class="tag">R4</span>
+              <span class="pill-st bought">Bought</span>
+            </div>
+            <div class="row"><span class="k">Size</span><span class="v">16 Mp</span></div>
+            <div class="row"><span class="k">In loadouts</span><span class="v">0</span></div>
+            <div class="row"><span class="k">Acquired</span><span class="v">2026-04-30</span></div>
+            <div class="actions">
+              <button class="a-load">Add to Load</button>
+              <button class="a-upg">Upgrade</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- =========================================================
+       LOADOUTS BAND -- combines a deck artifact with compiled programs
+       ========================================================= -->
+  <section class="band band-loadouts" data-tab="loadouts">
+    <header class="band-hd">
+      Loadouts
+      <span class="sub">Pair a deck artifact with compiled / purchased programs &mdash; fits the memory budget; saved for re-use across runs.</span>
+    </header>
+
+    <div class="band-bd">
+
+      <!-- ===== SAVED LOADOUTS COLUMN ===== -->
+      <div class="col col-designs">
+        <div class="col-hd">
+          <span>Saved Loadouts</span>
+          <span class="pill">4</span>
+          <span class="grow"></span>
+          <button class="mini-btn">+ New Loadout</button>
+        </div>
+
+        <div class="cell-grid">
+
+          <div class="cell selected" data-loadout="combat-run">
+            <div class="hd">
+              <span class="nm">Combat Run</span>
+              <span class="tag">5 progs</span>
+            </div>
+            <div class="row"><span class="k">Deck</span><span class="v">Smoke Rig v2 (MPCP 7)</span></div>
+            <div class="row"><span class="k">Active</span><span class="v">75 / 200 Mp</span></div>
+            <div class="row"><span class="k">Storage</span><span class="v">28 / 2,400 Mp</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-load">Load to Run</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-loadout="stealth-op">
+            <div class="hd">
+              <span class="nm">Stealth Op</span>
+              <span class="tag">4 progs</span>
+            </div>
+            <div class="row"><span class="k">Deck</span><span class="v">Predator IV (MPCP 8)</span></div>
+            <div class="row"><span class="k">Active</span><span class="v">80 / 240 Mp</span></div>
+            <div class="row"><span class="k">Storage</span><span class="v">40 / 3,000 Mp</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-load">Load to Run</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-loadout="quick-scan">
+            <div class="hd">
+              <span class="nm">Quick Scan</span>
+              <span class="tag">2 progs</span>
+            </div>
+            <div class="row"><span class="k">Deck</span><span class="v">Pocket Mule (MPCP 4)</span></div>
+            <div class="row"><span class="k">Active</span><span class="v">30 / 120 Mp</span></div>
+            <div class="row"><span class="k">Storage</span><span class="v">12 / 1,200 Mp</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-load">Load to Run</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+          <div class="cell" data-loadout="heavy-hit">
+            <div class="hd">
+              <span class="nm">Heavy Hit</span>
+              <span class="tag">3 progs</span>
+            </div>
+            <div class="row"><span class="k">Deck</span><span class="v">Smoke Rig v2 (MPCP 7)</span></div>
+            <div class="row"><span class="k">Active</span><span class="v">60 / 200 Mp</span></div>
+            <div class="row"><span class="k">Storage</span><span class="v">0 / 2,400 Mp</span></div>
+            <div class="actions">
+              <button class="a-edit">Edit</button>
+              <button class="a-load">Load to Run</button>
+              <button class="a-del">Delete</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== WORKSPACE COLUMN -- active loadout editor ===== -->
+      <div class="col col-workspace">
+        <div class="col-hd">
+          <span>Workspace</span>
+          <span class="pill" id="loadWsTag">editing: Combat Run</span>
+          <span class="grow"></span>
+        </div>
+        <div class="workspace" id="loadWorkspaceMount"></div>
+      </div>
+
+      <!-- ===== PROGRAM LIBRARY COLUMN -- compiled + purchased programs ===== -->
+      <div class="col col-artifacts">
+        <div class="col-hd">
+          <span>Program Library</span>
+          <span class="pill">5</span>
+          <span class="grow"></span>
+        </div>
+
+        <div class="lib-filter">
+          <span class="lf on">All</span>
+          <span class="lf">Offensive</span>
+          <span class="lf">Defensive</span>
+          <span class="lf">Operational</span>
+          <span class="lf">Special</span>
+        </div>
+
+        <div class="cell-grid">
+
+          <div class="cell" data-prog="attack-6-bin">
+            <div class="hd">
+              <span class="nm">Attack-6 [Serious]</span>
+              <span class="tag">36 Mp</span>
+              <span class="in-load" title="Already in this loadout">IN</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Offensive / Attack</span></div>
+            <div class="row"><span class="k">Source</span><span class="v">Compiled</span></div>
+            <div class="actions">
+              <button class="a-act">+ Active</button>
+              <button class="a-sto">+ Storage</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="sleaze-6-bin">
+            <div class="hd">
+              <span class="nm">Sleaze-6</span>
+              <span class="tag">24 Mp</span>
+              <span class="in-load" title="Already in this loadout">IN</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Defensive / Sleaze</span></div>
+            <div class="row"><span class="k">Source</span><span class="v">Bought</span></div>
+            <div class="actions">
+              <button class="a-act">+ Active</button>
+              <button class="a-sto">+ Storage</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="medic-4-bin">
+            <div class="hd">
+              <span class="nm">Medic-4 (oneshot)</span>
+              <span class="tag">12 Mp</span>
+              <span class="in-load" title="Already in this loadout">IN</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Defensive / Medic</span></div>
+            <div class="row"><span class="k">Source</span><span class="v">Compiled</span></div>
+            <div class="actions">
+              <button class="a-act">+ Active</button>
+              <button class="a-sto">+ Storage</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="analyze-5-bin">
+            <div class="hd">
+              <span class="nm">Analyze-5</span>
+              <span class="tag">15 Mp</span>
+              <span class="in-load" title="Already in this loadout">IN</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Operational / Analyze</span></div>
+            <div class="row"><span class="k">Source</span><span class="v">Compiled</span></div>
+            <div class="actions">
+              <button class="a-act">+ Active</button>
+              <button class="a-sto">+ Storage</button>
+            </div>
+          </div>
+
+          <div class="cell" data-prog="armor-4-bin">
+            <div class="hd">
+              <span class="nm">Armor-4</span>
+              <span class="tag">16 Mp</span>
+            </div>
+            <div class="row"><span class="k">Type</span><span class="v">Defensive / Armor</span></div>
+            <div class="row"><span class="k">Source</span><span class="v">Bought</span></div>
+            <div class="actions">
+              <button class="a-act">+ Active</button>
+              <button class="a-sto">+ Storage</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- =============================================================
+     EDITOR TEMPLATES (cloned into the workspace mount points)
+     ============================================================= -->
+<template id="tplDeckWorkspace">
+  <div class="ws-title">
+    <span class="nm" data-slot="title">Smoke Rig</span>
+    <span class="src" data-slot="src">design &middot; draft</span>
+    <span class="grow"></span>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Deck Spec</span>
+    <input type="text" value="Smoke Rig">
+    <select><option>Hot ASIST</option><option>Cool ASIST</option><option>Tortoise</option></select>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">MPCP</span>
+    <input type="number" value="6" min="1" max="12">
+    <span class="tip">Cap 12 (Computer B/R x 1.5, rounded down)</span>
+  </div>
+
+  <div class="ws-cell wide">
+    <span class="lbl">Persona (B / E / M / S)</span>
+    <div class="qrow">
+      <div class="q"><span class="qlbl">B</span><input type="number" value="5" min="1" max="6"></div>
+      <div class="q"><span class="qlbl">E</span><input type="number" value="5" min="1" max="6"></div>
+      <div class="q"><span class="qlbl">M</span><input type="number" value="3" min="1" max="6"></div>
+      <div class="q"><span class="qlbl">S</span><input type="number" value="4" min="1" max="6"></div>
+    </div>
+    <span class="tip">Each capped at MPCP. Sum cap = MPCP x 3.</span>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Hardware</span>
+    <div class="qrow">
+      <div class="q"><span class="qlbl">Hard</span><input type="number" value="1" min="0" max="3"></div>
+      <div class="q"><span class="qlbl">Resp+</span><input type="number" value="1" min="0" max="3"></div>
+    </div>
+    <label class="chk"><input type="checkbox" checked> ICCM Biofeedback Filter</label>
+    <label class="chk"><input type="checkbox"> Reality Filter</label>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Memory / IO</span>
+    <div class="qrow">
+      <div class="q"><span class="qlbl">Active</span><input type="number" value="200" step="10"></div>
+      <div class="q"><span class="qlbl">I/O</span><input type="number" value="60" step="10"></div>
+    </div>
+    <input type="number" value="2400" step="10" placeholder="Storage">
+    <span class="tip">Storage max 65,535. Multiples of 10.</span>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Accessories</span>
+    <select><option>No Casing</option><option selected>Casing 1</option><option>Casing 2</option><option>Casing 3</option></select>
+    <label class="chk"><input type="checkbox"> Satlink</label>
+    <label class="chk"><input type="checkbox" checked> Hitcher Jack</label>
+  </div>
+
+  <div class="ws-cell summary">
+    <div class="sline"><span class="k">Persona sum / cap</span><span class="v">17 / 18</span></div>
+    <div class="sline"><span class="k">Hacking Pool</span><span class="v">7</span></div>
+    <div class="sline"><span class="k">Init</span><span class="v">+2D6 (react 9)</span></div>
+    <div class="sline"><span class="k">Detection Factor</span><span class="v">3</span></div>
+    <div class="sline"><span class="k">Cook</span><span class="v">78 days</span></div>
+    <div class="sline"><span class="k">Install</span><span class="v">56 days</span></div>
+    <div class="sline tot"><span class="k">Estimated cost</span><span class="v">Y32,400</span></div>
+  </div>
+
+  <div class="ws-footer">
+    <span class="vbadge">VALID</span>
+    <span class="note">Submit a request to the GM &mdash; build it (cook + install timeline), or buy the finished spec.</span>
+    <span class="grow"></span>
+    <button class="submit-build">&gt;&gt; Submit Build</button>
+    <button class="submit-buy">&gt;&gt; Submit Buy</button>
+    <button class="ghost">Cancel</button>
+  </div>
+</template>
+
+<template id="tplProgWorkspace">
+  <div class="ws-title">
+    <span class="nm" data-slot="title">Attack v1</span>
+    <span class="src" data-slot="src">source &middot; draft</span>
+    <span class="grow"></span>
+  </div>
+
+  <div class="ws-cell wide">
+    <span class="lbl">Utility</span>
+    <select>
+      <optgroup label="Offensive">
+        <option selected>Attack</option>
+        <option>Black Hammer</option>
+        <option>Killjoy</option>
+        <option>Slow</option>
+      </optgroup>
+      <optgroup label="Defensive">
+        <option>Armor</option>
+        <option>Deception</option>
+        <option>Medic</option>
+        <option>Sleaze</option>
+        <option>Shield</option>
+      </optgroup>
+      <optgroup label="Operational">
+        <option>Analyze</option>
+        <option>Browse</option>
+        <option>Decrypt</option>
+        <option>Read/Write</option>
+      </optgroup>
+      <optgroup label="Special">
+        <option>Crash</option>
+        <option>Validate</option>
+      </optgroup>
+    </select>
+    <span class="tip">Offensive attack utility. Multiplier x 6 base size per rating point.</span>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Rating</span>
+    <input type="number" value="6" min="1" max="8">
+    <span class="tip">Cap 8 (programmer utility cap).</span>
+  </div>
+
+  <div class="ws-cell">
+    <span class="lbl">Attack Damage</span>
+    <select>
+      <option>Light</option>
+      <option>Moderate</option>
+      <option selected>Serious</option>
+      <option>Deadly</option>
+    </select>
+    <span class="tip">Damage multiplier shifts size + cost.</span>
+  </div>
+
+  <div class="ws-cell wider">
+    <span class="lbl">Variable Options</span>
+    <label class="chk"><input type="checkbox"> Area &nbsp; <input type="number" value="0" min="0" style="width:64px"></label>
+    <label class="chk"><input type="checkbox"> Dinab &nbsp; <input type="number" value="0" min="0" style="width:64px"></label>
+    <label class="chk"><input type="checkbox"> Skulk &nbsp; <input type="number" value="0" min="0" style="width:64px"></label>
+  </div>
+
+  <div class="ws-cell wider">
+    <span class="lbl">Toggle Options</span>
+    <div class="opt-chips">
+      <span class="opt">Chaser</span>
+      <span class="opt">One-Shot</span>
+      <span class="opt on">Optimization 2</span>
+      <span class="opt">Penetration</span>
+      <span class="opt">Squeeze</span>
+      <span class="opt">Targeting</span>
+      <span class="opt">Limit: Decker</span>
+    </div>
+  </div>
+
+  <div class="ws-cell summary">
+    <div class="sline"><span class="k">Base size</span><span class="v">36 Mp</span></div>
+    <div class="sline"><span class="k">Design size</span><span class="v">30 Mp</span></div>
+    <div class="sline"><span class="k">Actual size</span><span class="v">30 Mp</span></div>
+    <div class="sline"><span class="k">Street index</span><span class="v">x 1.5</span></div>
+    <div class="sline"><span class="k">Availability</span><span class="v">7 / 14d</span></div>
+    <div class="sline"><span class="k">Construction</span><span class="v">36 days</span></div>
+    <div class="sline tot"><span class="k">Estimated cost</span><span class="v">Y6,000</span></div>
+  </div>
+
+  <div class="ws-footer">
+    <span class="vbadge">VALID</span>
+    <span class="note">Submit a request to the GM &mdash; compile it (construction timeline), or buy a binary off the street.</span>
+    <span class="grow"></span>
+    <button class="submit-build">&gt;&gt; Submit Compile</button>
+    <button class="submit-buy">&gt;&gt; Submit Buy</button>
+    <button class="ghost">Cancel</button>
+  </div>
+</template>
+
+<template id="tplLoadoutWorkspace">
+  <div class="ws-title">
+    <span class="nm" data-slot="title">Combat Run</span>
+    <span class="src" data-slot="src">loadout &middot; for Smoke Rig v2</span>
+    <span class="grow"></span>
+  </div>
+
+  <!-- Deck picker -->
+  <div class="ws-cell wider">
+    <span class="lbl">Target Deck Artifact</span>
+    <select>
+      <option selected>Smoke Rig v2 &mdash; MPCP 7, Active 200 Mp, Storage 2,400 Mp</option>
+      <option>Smoke Rig v1 &mdash; MPCP 6, Active 200 Mp, Storage 2,400 Mp</option>
+      <option>Predator IV &mdash; MPCP 8, Active 240 Mp, Storage 3,000 Mp</option>
+      <option>Old Reliable &mdash; MPCP 5, Active 150 Mp, Storage 1,800 Mp (chip-burn -1 Bod)</option>
+    </select>
+    <span class="tip">Loadouts attach to a built / bought deck artifact. Switching decks re-validates the memory budget.</span>
+  </div>
+
+  <!-- Active bin -->
+  <div class="ws-cell wide bin">
+    <div class="bin-hd">
+      <span class="lbl">Active Memory</span>
+      <span class="bin-meta">75 / 200 Mp</span>
+    </div>
+    <div class="bin-bar"><div class="bin-fill" style="width: 37.5%"></div></div>
+    <div class="bin-list">
+      <div class="bin-item">
+        <span class="bi-nm">Attack-6 [Serious]</span>
+        <span class="bi-sz">36 Mp</span>
+        <button class="bi-mv" title="Move to Storage">&gt;&gt;</button>
+        <button class="bi-rm" title="Remove">x</button>
+      </div>
+      <div class="bin-item">
+        <span class="bi-nm">Sleaze-6</span>
+        <span class="bi-sz">24 Mp</span>
+        <button class="bi-mv" title="Move to Storage">&gt;&gt;</button>
+        <button class="bi-rm" title="Remove">x</button>
+      </div>
+      <div class="bin-item">
+        <span class="bi-nm">Analyze-5</span>
+        <span class="bi-sz">15 Mp</span>
+        <button class="bi-mv" title="Move to Storage">&gt;&gt;</button>
+        <button class="bi-rm" title="Remove">x</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storage bin -->
+  <div class="ws-cell wide bin">
+    <div class="bin-hd">
+      <span class="lbl">Storage</span>
+      <span class="bin-meta">28 / 2,400 Mp</span>
+    </div>
+    <div class="bin-bar"><div class="bin-fill" style="width: 1.2%"></div></div>
+    <div class="bin-list">
+      <div class="bin-item">
+        <span class="bi-nm">Medic-4 (oneshot)</span>
+        <span class="bi-sz">12 Mp</span>
+        <button class="bi-mv" title="Move to Active">&lt;&lt;</button>
+        <button class="bi-rm" title="Remove">x</button>
+      </div>
+      <div class="bin-item">
+        <span class="bi-nm">Armor-4</span>
+        <span class="bi-sz">16 Mp</span>
+        <button class="bi-mv" title="Move to Active">&lt;&lt;</button>
+        <button class="bi-rm" title="Remove">x</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="ws-cell summary">
+    <div class="sline"><span class="k">Active used</span><span class="v">75 / 200 Mp</span></div>
+    <div class="sline"><span class="k">Storage used</span><span class="v">28 / 2,400 Mp</span></div>
+    <div class="sline"><span class="k">Programs loaded</span><span class="v">5</span></div>
+    <div class="sline"><span class="k">Loaded Sleaze</span><span class="v">R6 (DF +3)</span></div>
+    <div class="sline tot"><span class="k">Status</span><span class="v">OK</span></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="ws-footer">
+    <span class="vbadge">VALID</span>
+    <span class="note">Save this configuration as a reusable loadout. Cleared loadouts are not persisted.</span>
+    <span class="grow"></span>
+    <input type="text" class="name-in" value="Combat Run">
+    <button class="submit-save">&gt;&gt; Save Loadout</button>
+    <button class="ghost">Clear</button>
+  </div>
+</template>
+
+<script>
+  function renderTpl(tplId, mountId, title, src) {
+    const tpl = document.getElementById(tplId);
+    const mount = document.getElementById(mountId);
+    if (!tpl || !mount) return;
+    mount.innerHTML = '';
+    mount.appendChild(tpl.content.cloneNode(true));
+    if (title) {
+      const t = mount.querySelector('[data-slot="title"]'); if (t) t.textContent = title;
+    }
+    if (src) {
+      const s = mount.querySelector('[data-slot="src"]'); if (s) s.textContent = src;
+    }
+  }
+
+  // initial render of all three editors
+  renderTpl('tplDeckWorkspace',    'deckWorkspaceMount', 'Smoke Rig',   'design \u00b7 draft');
+  renderTpl('tplProgWorkspace',    'progWorkspaceMount', 'Attack v1',   'source \u00b7 draft');
+  renderTpl('tplLoadoutWorkspace', 'loadWorkspaceMount', 'Combat Run',  'loadout \u00b7 for Smoke Rig v2');
+
+  // ---- tab switching ----
+  document.querySelectorAll('.proto-tabs .ptab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.proto-tabs .ptab').forEach(b => b.classList.toggle('on', b === btn));
+      document.querySelectorAll('.band').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    });
+  });
+
+  // ---- click a design cell to select + retitle the workspace ----
+  function wireSelectable(scopeSel, mountId, tplId, srcLabel, tagId) {
+    document.querySelectorAll(scopeSel + ' .cell').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.actions')) return;
+        document.querySelectorAll(scopeSel + ' .cell').forEach(c => c.classList.remove('selected'));
+        cell.classList.add('selected');
+        const name = cell.querySelector('.nm').textContent;
+        renderTpl(tplId, mountId, name, srcLabel + ' \u00b7 draft');
+        const tag = document.getElementById(tagId);
+        if (tag) tag.textContent = 'editing: ' + name;
+      });
+    });
+  }
+  wireSelectable('.band-decks    .col-designs', 'deckWorkspaceMount', 'tplDeckWorkspace',    'design',  'deckWsTag');
+  wireSelectable('.band-programs .col-designs', 'progWorkspaceMount', 'tplProgWorkspace',    'source',  'progWsTag');
+  wireSelectable('.band-loadouts .col-designs', 'loadWorkspaceMount', 'tplLoadoutWorkspace', 'loadout', 'loadWsTag');
+
+  // ---- artifact Upgrade button reloads the workspace as an upgrade target ----
+  function wireUpgrade(scopeSel, mountId, tplId, srcLabel, tagId) {
+    document.querySelectorAll(scopeSel + ' .a-upg').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cell = btn.closest('.cell');
+        const name = cell.querySelector('.nm').textContent;
+        renderTpl(tplId, mountId, name + ' (upgrade)', 'from as-built ' + srcLabel);
+        const tag = document.getElementById(tagId);
+        if (tag) tag.textContent = 'upgrading: ' + name;
+        document.getElementById(mountId).scrollIntoView({behavior:'smooth', block:'center'});
+      });
+    });
+  }
+  wireUpgrade('.band-decks    .col-artifacts', 'deckWorkspaceMount', 'tplDeckWorkspace', 'artifact', 'deckWsTag');
+  wireUpgrade('.band-programs .col-artifacts', 'progWorkspaceMount', 'tplProgWorkspace', 'binary',   'progWsTag');
+
+  // ---- library filter chips (visual only -- single selection per chip group) ----
+  document.querySelectorAll('.lib-filter').forEach(group => {
+    group.querySelectorAll('.lf').forEach(chip => {
+      chip.addEventListener('click', () => {
+        group.querySelectorAll('.lf').forEach(c => c.classList.toggle('on', c === chip));
+      });
+    });
+  });
+
+  // ---- library +Active / +Storage buttons: append a new item into the appropriate bin ----
+  function addToBin(progCell, binIdx) {
+    const mount = document.getElementById('loadWorkspaceMount');
+    if (!mount) return;
+    const bins = mount.querySelectorAll('.ws-cell.bin');
+    const bin = bins[binIdx];
+    if (!bin) return;
+    const name = progCell.querySelector('.nm').textContent;
+    const size = progCell.querySelector('.tag').textContent;
+    const list = bin.querySelector('.bin-list');
+    const item = document.createElement('div');
+    item.className = 'bin-item';
+    item.innerHTML =
+      '<span class="bi-nm">' + name + '</span>' +
+      '<span class="bi-sz">' + size + '</span>' +
+      '<button class="bi-mv" title="Move">' + (binIdx === 0 ? '&gt;&gt;' : '&lt;&lt;') + '</button>' +
+      '<button class="bi-rm" title="Remove">x</button>';
+    list.appendChild(item);
+  }
+  document.querySelectorAll('.band-loadouts .col-artifacts .a-act').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); addToBin(btn.closest('.cell'), 0); });
+  });
+  document.querySelectorAll('.band-loadouts .col-artifacts .a-sto').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); addToBin(btn.closest('.cell'), 1); });
+  });
+
+  // ---- in-bin remove + move buttons (delegated since bins can grow at runtime) ----
+  document.querySelector('.band-loadouts').addEventListener('click', (e) => {
+    if (e.target.classList && e.target.classList.contains('bi-rm')) {
+      const item = e.target.closest('.bin-item'); if (item) item.remove();
+    }
+    if (e.target.classList && e.target.classList.contains('bi-mv')) {
+      const item = e.target.closest('.bin-item');
+      const mount = document.getElementById('loadWorkspaceMount');
+      const bins = mount.querySelectorAll('.ws-cell.bin .bin-list');
+      if (!item || bins.length < 2) return;
+      const currentList = item.parentElement;
+      const otherList = (currentList === bins[0]) ? bins[1] : bins[0];
+      const mvBtn = item.querySelector('.bi-mv');
+      if (mvBtn) mvBtn.innerHTML = (otherList === bins[0]) ? '&gt;&gt;' : '&lt;&lt;';
+      otherList.appendChild(item);
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -23,10 +23,10 @@ app/
   models/          -- SQLAlchemy ORM models (adventure_log, auth, character, contact, location,
                      matrix_host, matrix_run, organization, reputation, rtg, associations)
   routers/         -- one file per resource; all world-data routes require get_any_token
-                     (matrix_runs.py = SR2 run engine, prefix /matrix-runs2; matrix_hosts.py = SR1 topology)
+                     (matrix_runs.py = SR2 run engine, prefix /matrix-runs2; matrix_hosts.py = shared host CRUD)
   schemas/         -- Pydantic v2 models (Create/Update/Read per resource)
   services/        -- campaign.py, consequence_engine.py, heat_calculator.py,
-                     matrix_engine.py, matrix_generator.py, matrix_rules.py,
+                     matrix_engine.py, matrix_rules.py,
                      narrative_parser.py, secrets.py
   data/            -- consequence_tags.py (SINGLE_TAG_RULES, COMPOUND_TAG_RULES)
 alembic/           -- env.py uses async engine; versions/ holds the migration chain (keep a single head)
