@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loadout Canvas Concepts | Prototype</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* ====================================================================
+       THROWAWAY PROTOTYPE -- not wired to deck-builder-preview.html.
+       Three loadout-canvas concepts share ONE sample plan so you can flip
+       tabs and see the same loadout rendered three ways.
+       Concept 1 = Nested Hot Zone  |  Concept 2 = Starters & Bench  |
+       Concept 4 = Dock + Tray.
+       All sizes use the real app math: actualSize = rating^2 * mult,
+       then x0.25 (one-shot) / x0.5 (optimized). Active cap = MPCP x 100.
+       ==================================================================== */
+    body { background:var(--bg); color:var(--text); font-family:var(--font); padding:0; }
+    .proto-wrap { max-width:1180px; margin:0 auto; padding:22px 20px 80px; }
+    .proto-head { border-bottom:1px solid var(--border-dark); padding-bottom:14px; margin-bottom:18px; }
+    .proto-head h1 { font-size:var(--fs-2xl); color:var(--green); letter-spacing:2px; font-weight:normal; }
+    .proto-head .sub { font-size:var(--fs-sm); color:var(--text-dim); letter-spacing:1px; margin-top:4px; }
+    .proto-note { font-size:var(--fs-xs); color:var(--straw); letter-spacing:.5px; margin-top:8px; line-height:1.5; }
+
+    /* deck context + shared meters */
+    .deck-bar { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:14px 0 6px;
+      padding:10px 14px; border:1px solid var(--border-dark); background:#0b0b0b; }
+    .deck-bar .dk { font-size:var(--fs-sm); letter-spacing:1px; color:var(--cyan); text-transform:uppercase; }
+    .deck-bar .dk b { color:var(--text-bright); }
+    .meters { display:flex; flex-wrap:wrap; gap:22px; margin:8px 0 18px; }
+    .meter { flex:1 1 320px; }
+    .meter .hd { display:flex; justify-content:space-between; font-size:var(--fs-sm);
+      letter-spacing:1px; text-transform:uppercase; color:var(--cyan); }
+    .meter .hd .n { color:var(--text-bright); }
+    .meter .bar { height:7px; background:#161616; margin-top:6px; border:1px solid #141414; }
+    .meter .bar > i { display:block; height:100%; background:var(--green-dim); transition:width .25s; }
+    .meter.amber .bar > i { background:var(--amber); }
+    .meter.red .bar > i { background:var(--red); }
+
+    /* tabs */
+    .proto-tabs { display:flex; gap:0; border-bottom:1px solid var(--border-dark); margin-bottom:20px; }
+    .proto-tabs button { background:transparent; border:1px solid transparent; border-bottom:none;
+      color:var(--text-dim); font-family:var(--font); font-size:var(--fs-sm); letter-spacing:1.5px;
+      text-transform:uppercase; padding:10px 18px; cursor:pointer; }
+    .proto-tabs button:hover { color:var(--text-bright); }
+    .proto-tabs button.on { color:var(--green); border-color:var(--border-dark);
+      background:#0b0b0b; position:relative; top:1px; }
+    .panel { display:none; }
+    .panel.on { display:block; }
+
+    /* shared tile */
+    .tile { position:relative; border:1px solid #1f1f1f; background:#0d0d0d; padding:7px 9px;
+      display:flex; flex-direction:column; gap:5px; cursor:pointer; min-width:96px; }
+    .tile:hover { border-color:#2e2e2e; }
+    .tile .tn { font-size:var(--fs-sm); color:var(--text-bright); letter-spacing:.5px; line-height:1.2; }
+    .tile .tn .rt { color:var(--green); }
+    .tile .meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .tile .mp { font-size:var(--fs-xxs); color:var(--text-dim); letter-spacing:.5px; }
+    .tile .cat-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .tile.cat-off  { border-left:2px solid var(--red); }
+    .tile.cat-def  { border-left:2px solid var(--cyan); }
+    .tile.cat-ops  { border-left:2px solid var(--green); }
+    .tile.cat-spc  { border-left:2px solid var(--straw); }
+    .tile.live { background:rgba(0,255,65,.06); border-color:var(--green-dark); box-shadow:inset 0 0 12px rgba(0,255,65,.05); }
+    .tile.over { border-color:#552222 !important; background:rgba(255,51,51,.06); }
+
+    .otag { font-size:8px; letter-spacing:.5px; text-transform:uppercase; color:var(--copper);
+      border:1px solid #3a2a14; border-radius:2px; padding:0 3px; line-height:13px; }
+    .otag.shot { color:var(--straw); border-color:#4a3d14; }
+    .otag.wear { color:var(--amber); border-color:#553300; }
+    .otag.safe { color:var(--green-dim); border-color:var(--green-dark); }
+    .otag.risk { color:var(--red); border-color:#552222; }
+
+    .tact { display:flex; gap:4px; margin-top:2px; }
+    .tact button { flex:1; font-family:var(--font); font-size:8px; letter-spacing:.5px;
+      text-transform:uppercase; padding:2px 0; background:#111; border:1px solid #262626;
+      color:var(--text-dim); cursor:pointer; }
+    .tact button:hover { color:var(--text-bright); border-color:#3a3a3a; }
+    .tact button.go:hover { color:var(--green); border-color:var(--green-dark); }
+    .tact button.dn:hover { color:var(--amber); border-color:#553300; }
+    .tact button.rm:hover { color:var(--red); border-color:#552222; }
+
+    .legend { display:flex; flex-wrap:wrap; gap:14px; margin:0 0 16px; font-size:var(--fs-xxs);
+      color:var(--text-dim); letter-spacing:.5px; }
+    .legend span { display:inline-flex; align-items:center; gap:5px; }
+    .legend i { width:10px; height:10px; display:inline-block; }
+    .swatch-off { background:var(--red); } .swatch-def { background:var(--cyan); }
+    .swatch-ops { background:var(--green); } .swatch-spc { background:var(--straw); }
+
+    .sec-title { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase;
+      color:var(--cyan); margin:0 0 10px; }
+    .hint { font-size:var(--fs-xs); color:var(--text-dim); letter-spacing:.5px; line-height:1.5; margin:6px 0 14px; }
+    .empty { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; text-align:center;
+      padding:14px; border:1px dashed #222; }
+
+    /* ---- Concept 1: Nested Hot Zone ---- */
+    .c1-board { border:1px solid #1a3a1a; background:#070b07; padding:14px; }
+    .c1-board .board-hd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+    .c1-board .board-hd .lbl { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+    .c1-board .board-hd .val { font-size:var(--fs-sm); color:var(--text-bright); }
+    .c1-active { border:1px solid var(--green-dark); background:rgba(0,255,65,.04); padding:12px;
+      box-shadow:inset 0 0 22px rgba(0,255,65,.04); }
+    .c1-active .board-hd .lbl { color:var(--green); }
+    .tile-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; }
+    .free-ghost { border:1px dashed #1f3a1f; color:var(--text-dim); display:flex; align-items:center;
+      justify-content:center; font-size:var(--fs-xxs); letter-spacing:1px; padding:7px 9px; min-width:120px; flex:1; }
+    .c1-bench { margin-top:14px; padding-top:12px; border-top:1px dashed #1c2c1c; }
+    .c1-bench .sec-title { color:var(--steel-blue); }
+
+    /* ---- Concept 2: Starters & Bench ---- */
+    .lane { margin-bottom:20px; }
+    .lane-hd { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; margin-bottom:9px;
+      padding-bottom:4px; border-bottom:1px solid #161616; }
+    .lane.off .lane-hd { color:var(--red); } .lane.def .lane-hd { color:var(--cyan); }
+    .lane.ops .lane-hd { color:var(--green); } .lane.spc .lane-hd { color:var(--straw); }
+    .type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:12px; }
+    .type-card { border:1px solid #1c1c1c; background:#0c0c0c; padding:10px; }
+    .type-card .tc-hd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px; }
+    .type-card .tc-nm { font-size:var(--fs-md); color:var(--text-bright); letter-spacing:1px; }
+    .type-card .tc-cap { font-size:var(--fs-xxs); color:var(--text-dim); letter-spacing:.5px; }
+    .starter { border:1px solid var(--green-dark); background:rgba(0,255,65,.05); padding:7px 9px; }
+    .starter.empty-slot { border:1px dashed #333; background:transparent; color:var(--text-dim);
+      font-size:var(--fs-xxs); letter-spacing:1px; text-align:center; }
+    .starter .tn { font-size:var(--fs-sm); color:var(--text-bright); }
+    .starter .tn .rt { color:var(--green); }
+    .bench-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .bench-chip { font-size:var(--fs-xxs); letter-spacing:.5px; padding:3px 7px; border:1px solid #262626;
+      background:#0e0e0e; color:var(--text); cursor:pointer; display:inline-flex; gap:5px; align-items:center; }
+    .bench-chip:hover { border-color:var(--green-dark); color:var(--text-bright); }
+    .bench-chip .bmp { color:var(--text-dim); }
+    .bench-lbl { font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--steel-blue); margin-top:9px; }
+
+    /* ---- Concept 4: Dock + Tray ---- */
+    .dock { border:1px solid var(--green-dark); background:rgba(0,255,65,.04); padding:12px;
+      box-shadow:inset 0 0 22px rgba(0,255,65,.04); margin-bottom:8px; }
+    .dock-hd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px; }
+    .dock-hd .lbl { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; color:var(--green); }
+    .dock-hd .val { font-size:var(--fs-sm); color:var(--text-bright); }
+    .dock-slots { display:flex; flex-wrap:wrap; gap:8px; }
+    .dslot { width:104px; height:78px; border:1px solid #1f1f1f; background:#0c0c0c; padding:6px;
+      display:flex; flex-direction:column; justify-content:space-between; cursor:pointer; position:relative; }
+    .dslot.filled { border-color:var(--green-dark); background:rgba(0,255,65,.06); }
+    .dslot.filled:hover { box-shadow:inset 0 0 12px rgba(0,255,65,.08); }
+    .dslot.empty { border-style:dashed; border-color:#262626; align-items:center; justify-content:center;
+      color:var(--text-dim); font-size:18px; }
+    .dslot .dn { font-size:var(--fs-xxs); color:var(--text-bright); line-height:1.2; }
+    .dslot .dn .rt { color:var(--green); }
+    .dslot .dmp { font-size:8px; color:var(--text-dim); letter-spacing:.5px; }
+    .dslot .stack { position:absolute; top:4px; right:5px; font-size:8px; color:var(--straw);
+      border:1px solid #4a3d14; border-radius:2px; padding:0 3px; }
+    .tray { border:1px solid #161616; background:#080808; padding:12px; }
+    .tray-hd { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; color:var(--steel-blue); margin-bottom:9px; }
+    .tray-group { margin-bottom:12px; }
+    .tray-group .tg-lbl { font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+    .tray-chips { display:flex; flex-wrap:wrap; gap:6px; }
+    .tchip { font-size:var(--fs-xxs); letter-spacing:.5px; padding:4px 8px; border:1px solid #242424;
+      background:#0d0d0d; color:var(--text); cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+    .tchip:hover { border-color:var(--green-dark); color:var(--text-bright); }
+    .tchip.staged { border-color:var(--steel-blue); }
+    .tchip .cdot { width:6px; height:6px; border-radius:50%; }
+    .tchip .tmp { color:var(--text-dim); }
+
+    .toolbar { display:flex; gap:10px; margin:6px 0 16px; }
+    .toolbar button { font-family:var(--font); font-size:var(--fs-xs); letter-spacing:1px;
+      text-transform:uppercase; padding:6px 14px; background:#0e0e0e; border:1px solid #262626;
+      color:var(--text-dim); cursor:pointer; }
+    .toolbar button:hover { color:var(--text-bright); border-color:#3a3a3a; }
+  </style>
+</head>
+<body>
+  <div class="proto-wrap">
+    <div class="proto-head">
+      <h1>&gt;&gt; LOADOUT CANVAS CONCEPTS</h1>
+      <div class="sub">Throwaway prototype &middot; three ways to plan a deck loadout without endless scrolling. Not wired to the live builder.</div>
+      <div class="proto-note">
+        Storage = everything resident on the deck (the kit you bring). Active = the working set running now (cap = MPCP &times; 100).
+        Active programs also occupy storage (active &sub; storage). Reserves staged in storage are what you can Swap Memory into Active <b>during a run</b> &mdash;
+        so picking them is still a loadout-build decision, even though the swap itself happens live.
+      </div>
+    </div>
+
+    <div class="deck-bar">
+      <span class="dk">Deck: <b>Fuchi Cyber-7</b></span>
+      <span class="dk">MPCP <b>8</b></span>
+      <span class="dk">Program cap <b>R8</b></span>
+      <span class="dk">Active <b>800 Mp</b></span>
+      <span class="dk">Storage <b>2000 Mp</b></span>
+    </div>
+
+    <div class="meters">
+      <div class="meter" id="mActive">
+        <div class="hd"><span>Active memory (RAM)</span><span class="n" id="mActiveN">0 / 800 Mp</span></div>
+        <div class="bar"><i id="mActiveBar" style="width:0%"></i></div>
+      </div>
+      <div class="meter" id="mStorage">
+        <div class="hd"><span>Storage memory (disk)</span><span class="n" id="mStorageN">0 / 2000 Mp</span></div>
+        <div class="bar"><i id="mStorageBar" style="width:0%"></i></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch-off"></i> Offensive</span>
+      <span><i class="swatch-def"></i> Defensive</span>
+      <span><i class="swatch-ops"></i> Operational</span>
+      <span><i class="swatch-spc"></i> Special</span>
+      <span><b class="otag shot">1-SHOT</b> single use</span>
+      <span><b class="otag wear">WEARS</b> degrades per use &mdash; carry a spare</span>
+      <span><b class="otag safe">SWAP-SAFE</b> backup staged in storage</span>
+      <span><b class="otag risk">LONE</b> no backup (Tar-Pit wipes it)</span>
+    </div>
+
+    <div class="toolbar">
+      <button onclick="resetPlan()">Reset sample plan</button>
+      <span class="hint" style="margin:0;align-self:center">Click tiles / chips to move programs between Library &rarr; Storage &rarr; Active.</span>
+    </div>
+
+    <div class="proto-tabs">
+      <button class="on" data-tab="c1" onclick="showTab('c1')">1 &middot; Nested Hot Zone</button>
+      <button data-tab="c2" onclick="showTab('c2')">2 &middot; Starters &amp; Bench</button>
+      <button data-tab="c4" onclick="showTab('c4')">4 &middot; Dock + Tray</button>
+    </div>
+
+    <!-- CONCEPT 1 -->
+    <section class="panel on" id="panel-c1">
+      <div class="hint">
+        One board is <b>storage</b>. The glowing frame inside it is <b>active</b> &mdash; because active is drawn <i>inside</i> storage,
+        the &ldquo;active also eats storage&rdquo; rule needs no explanation. <b>Go live</b> lifts a reserve into the frame; <b>stow</b> drops it back.
+        Tiles are sized by Mp, so a fat program (Black Hammer!) visibly hogs the board.
+      </div>
+      <div class="c1-board">
+        <div class="board-hd"><span class="lbl">Storage &mdash; everything resident</span><span class="val" id="c1StorageVal">0 / 2000 Mp</span></div>
+        <div class="c1-active">
+          <div class="board-hd"><span class="lbl">&#9650; Active (running now)</span><span class="val" id="c1ActiveVal">0 / 800 Mp</span></div>
+          <div class="tile-grid" id="c1Active"></div>
+        </div>
+        <div class="c1-bench">
+          <div class="sec-title">Reserve (staged in storage, swap-ready)</div>
+          <div class="tile-grid" id="c1Bench"></div>
+        </div>
+      </div>
+      <div style="margin-top:18px">
+        <div class="sec-title">Library &mdash; not on the deck yet</div>
+        <div class="hint" style="margin-top:0">Add a program to storage first; then go live. Grouped by type so variants collapse.</div>
+        <div class="tile-grid" id="c1Lib"></div>
+      </div>
+    </section>
+
+    <!-- CONCEPT 2 -->
+    <section class="panel" id="panel-c2">
+      <div class="hint">
+        Variants collapse to <b>one card per type</b>. The <b>starter</b> is the variant you run; the <b>bench</b> below it is the same
+        type&rsquo;s other copies plus alternates you own. Picking a bench item here means &ldquo;stage this in storage so I can swap to it mid-run.&rdquo;
+        Tap a bench chip to promote it to starter (the old starter drops to the bench).
+      </div>
+      <div id="c2Lanes"></div>
+    </section>
+
+    <!-- CONCEPT 4 -->
+    <section class="panel" id="panel-c4">
+      <div class="hint">
+        Active is a fixed <b>dock</b> (a persona hotbar) &mdash; always the same height, never scrolls. Storage + library live in the
+        <b>tray</b> drawer beneath. Click a tray chip to promote it to the dock; click a dock slot to send it back down. One-shots stack with &times;N.
+      </div>
+      <div class="dock">
+        <div class="dock-hd"><span class="lbl">&#9650; Active dock</span><span class="val" id="c4ActiveVal">0 / 800 Mp</span></div>
+        <div class="dock-slots" id="c4Dock"></div>
+      </div>
+      <div class="tray">
+        <div class="tray-hd">Tray &mdash; storage reserve &amp; library</div>
+        <div id="c4Tray"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    "use strict";
+    /* ---- tiny helpers (prototype-local; no shared.js dependency) ---- */
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+    function $(id){ return document.getElementById(id); }
+    function fmt(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    /* ---- model ---- */
+    var MPCP = 8, ACTIVE_CAP = MPCP * 100, STORAGE_CAP = 2000;
+    var CAT = {
+      Offensive:  { key:'off', cls:'cat-off' },
+      Defensive:  { key:'def', cls:'cat-def' },
+      Operational:{ key:'ops', cls:'cat-ops' },
+      Special:    { key:'spc', cls:'cat-spc' }
+    };
+    var CAT_ORDER = ['Offensive','Defensive','Operational','Special'];
+    var DEGRADERS = { Medic:1, Shield:1, Armor:1, Evaluate:1 };
+
+    // actualSize = rating^2 * mult, then x0.25 one-shot / x0.5 optimized (real app math)
+    function sizeOf(type, mult, rating, opts){
+      var s = rating * rating * mult;
+      if (opts && opts.indexOf('1-SHOT') >= 0) s = Math.round(s * 0.25);
+      if (opts && opts.indexOf('OPT') >= 0)    s = Math.round(s * 0.5);
+      return s;
+    }
+    var _id = 0;
+    function P(type, cat, mult, rating, opts, slot){
+      opts = opts || [];
+      return { id: 'p'+(++_id), type:type, cat:cat, mult:mult, rating:rating, opts:opts,
+               oneShot: opts.indexOf('1-SHOT')>=0, mp: sizeOf(type,mult,rating,opts), slot:slot||'lib' };
+    }
+
+    // Sample owned library for an MPCP-8 decker. slot: 'active' | 'storage' | 'lib'.
+    function buildSample(){
+      _id = 0;
+      return [
+        // Offensive
+        P('Attack','Offensive',2,8,['OPT'],'active'),
+        P('Attack','Offensive',2,8,[],'lib'),
+        P('Attack','Offensive',2,6,['1-SHOT'],'storage'),
+        P('Attack','Offensive',2,6,[],'lib'),
+        P('Black Hammer','Offensive',20,5,[],'lib'),
+        P('Killjoy','Offensive',10,4,[],'lib'),
+        P('Slow','Offensive',4,4,[],'lib'),
+        // Defensive
+        P('Armor','Defensive',3,5,[],'active'),
+        P('Armor','Defensive',3,5,[],'storage'),
+        P('Shield','Defensive',4,4,[],'lib'),
+        P('Medic','Defensive',4,6,[],'active'),
+        P('Medic','Defensive',4,6,['1-SHOT'],'storage'),
+        P('Cloak','Defensive',3,4,[],'lib'),
+        P('Camo','Defensive',3,4,[],'lib'),
+        // Operational
+        P('Deception','Operational',2,6,[],'active'),
+        P('Browse','Operational',1,4,[],'active'),
+        P('Analyze','Operational',3,6,[],'lib'),
+        P('Read/Write','Operational',2,4,[],'storage'),
+        P('Evaluate','Operational',2,3,[],'lib'),
+        P('Decrypt','Operational',1,4,[],'storage'),
+        P('Scanner','Operational',3,4,[],'lib'),
+        P('Mirrors','Operational',3,3,[],'lib'),
+        // Special
+        P('Sleaze','Special',3,6,[],'active'),
+        P('Sleaze','Special',3,8,[],'lib'),
+        P('Compressor','Special',2,3,[],'lib')
+      ];
+    }
+    var PROGRAMS = buildSample();
+
+    /* ---- derived ---- */
+    function activeUsed(){ return PROGRAMS.filter(function(p){return p.slot==='active';}).reduce(function(s,p){return s+p.mp;},0); }
+    function storageUsed(){ return PROGRAMS.filter(function(p){return p.slot==='active'||p.slot==='storage';}).reduce(function(s,p){return s+p.mp;},0); }
+    function typeKey(p){ return p.type.toLowerCase(); }
+    function variantLabel(p){
+      var t = p.type + ' R' + p.rating;
+      return t;
+    }
+    // swap-safe = at least one OTHER copy of this type sits in storage/active as backup
+    function hasBackup(p){
+      return PROGRAMS.some(function(q){ return q!==p && typeKey(q)===typeKey(p) && (q.slot==='storage'||q.slot==='active'); });
+    }
+
+    /* ---- mutations ---- */
+    function setSlot(id, slot){
+      var p = PROGRAMS.filter(function(x){return x.id===id;})[0];
+      if (!p) return;
+      // one active per type (except one-shots may stack): promoting demotes the current starter
+      if (slot==='active' && !p.oneShot){
+        PROGRAMS.forEach(function(q){ if (q!==p && typeKey(q)===typeKey(p) && q.slot==='active' && !q.oneShot) q.slot='storage'; });
+      }
+      p.slot = slot;
+      renderAll();
+    }
+    function resetPlan(){ PROGRAMS = buildSample(); renderAll(); }
+
+    /* ---- tile builders ---- */
+    function optTags(p){
+      var out = '';
+      p.opts.forEach(function(o){
+        if (o==='1-SHOT') out += '<b class="otag shot">1-SHOT</b>';
+        else out += '<b class="otag">'+esc(o)+'</b>';
+      });
+      if (DEGRADERS[p.type]) out += '<b class="otag wear">WEARS</b>';
+      return out;
+    }
+    function safetyTag(p){
+      if (p.slot!=='active') return '';
+      if (hasBackup(p)) return '<b class="otag safe">SWAP-SAFE</b>';
+      if (DEGRADERS[p.type] || p.oneShot) return '<b class="otag risk">LONE</b>';
+      return '';
+    }
+    function catClass(p){ return CAT[p.cat] ? CAT[p.cat].cls : ''; }
+    function over(p){ return p.rating > MPCP; }
+
+    // a full tile with action buttons; mode = 'active' | 'bench' | 'lib'
+    function tileHtml(p, mode){
+      var w = Math.max(108, Math.round(p.mp * 0.5));
+      var cls = 'tile ' + catClass(p) + (mode==='active'?' live':'') + (over(p)?' over':'');
+      var acts = '';
+      if (mode==='active') acts = '<div class="tact"><button class="dn" data-act="storage" data-id="'+p.id+'">Stow</button></div>';
+      else if (mode==='bench') acts = '<div class="tact"><button class="go" data-act="active" data-id="'+p.id+'">Go live</button><button class="rm" data-act="lib" data-id="'+p.id+'">Drop</button></div>';
+      else acts = '<div class="tact"><button class="go" data-act="storage" data-id="'+p.id+'">+ Storage</button><button class="go" data-act="active" data-id="'+p.id+'">+ Active</button></div>';
+      return '<div class="'+cls+'" style="flex-grow:'+p.mp+';flex-basis:'+w+'px">'
+        + '<div class="tn">'+esc(p.type)+' <span class="rt">R'+p.rating+'</span></div>'
+        + '<div class="meta">'+optTags(p)+safetyTag(p)+'</div>'
+        + '<div class="mp">'+fmt(p.mp)+' Mp</div>'
+        + acts + '</div>';
+    }
+
+    /* ---- meters ---- */
+    function paintMeter(box, nEl, barEl, used, cap){
+      var pct = Math.min(100, Math.round(used/cap*100));
+      nEl.textContent = fmt(used)+' / '+fmt(cap)+' Mp';
+      barEl.style.width = pct+'%';
+      box.classList.remove('amber','red');
+      if (used > cap) box.classList.add('red');
+      else if (pct >= 80) box.classList.add('amber');
+    }
+    function renderMeters(){
+      var a = activeUsed(), s = storageUsed();
+      paintMeter($('mActive'), $('mActiveN'), $('mActiveBar'), a, ACTIVE_CAP);
+      paintMeter($('mStorage'), $('mStorageN'), $('mStorageBar'), s, STORAGE_CAP);
+      $('c1ActiveVal').textContent = fmt(a)+' / '+fmt(ACTIVE_CAP)+' Mp';
+      $('c1StorageVal').textContent = fmt(s)+' / '+fmt(STORAGE_CAP)+' Mp';
+      $('c4ActiveVal').textContent = fmt(a)+' / '+fmt(ACTIVE_CAP)+' Mp';
+    }
+
+    /* ---- Concept 1 ---- */
+    function renderC1(){
+      var act = PROGRAMS.filter(function(p){return p.slot==='active';});
+      var bench = PROGRAMS.filter(function(p){return p.slot==='storage';});
+      var lib = PROGRAMS.filter(function(p){return p.slot==='lib';});
+      var free = Math.max(0, ACTIVE_CAP - activeUsed());
+      var aHtml = act.map(function(p){return tileHtml(p,'active');}).join('');
+      aHtml += '<div class="free-ghost">'+fmt(free)+' Mp free</div>';
+      $('c1Active').innerHTML = aHtml || '<div class="empty">No active programs</div>';
+      $('c1Bench').innerHTML = bench.length ? bench.map(function(p){return tileHtml(p,'bench');}).join('') : '<div class="empty">No reserves staged</div>';
+      // library grouped by type (collapse variants): show each variant but ordered by type
+      var byType = groupByType(lib);
+      var libHtml = '';
+      Object.keys(byType).forEach(function(k){
+        byType[k].forEach(function(p){ libHtml += tileHtml(p,'lib'); });
+      });
+      $('c1Lib').innerHTML = libHtml || '<div class="empty">Everything is on the deck</div>';
+    }
+    function groupByType(list){
+      var m = {};
+      list.forEach(function(p){ (m[typeKey(p)] = m[typeKey(p)] || []).push(p); });
+      return m;
+    }
+
+    /* ---- Concept 2 ---- */
+    function renderC2(){
+      var host = $('c2Lanes');
+      var html = '';
+      CAT_ORDER.forEach(function(cat){
+        var inCat = PROGRAMS.filter(function(p){return p.cat===cat;});
+        // only types the decker owns
+        var types = {};
+        inCat.forEach(function(p){ (types[typeKey(p)] = types[typeKey(p)] || []).push(p); });
+        var typeKeys = Object.keys(types);
+        if (!typeKeys.length) return;
+        var cards = '';
+        typeKeys.sort().forEach(function(tk){
+          var variants = types[tk];
+          var starter = variants.filter(function(p){return p.slot==='active';})[0];
+          var bench = variants.filter(function(p){return p!==starter;});
+          var nm = variants[0].type;
+          var starterHtml = starter
+            ? '<div class="starter"><div class="tn">'+esc(nm)+' <span class="rt">R'+starter.rating+'</span> '
+                + '<span style="color:var(--text-dim);font-size:var(--fs-xxs)">'+fmt(starter.mp)+' Mp</span></div>'
+                + '<div class="meta" style="margin-top:4px">'+optTags(starter)+safetyTag(starter)+'</div>'
+                + '<div class="tact" style="margin-top:6px"><button class="dn" data-act="storage" data-id="'+starter.id+'">Stand down</button></div></div>'
+            : '<div class="starter empty-slot">&mdash; not slotted &mdash;</div>';
+          var benchChips = bench.map(function(p){
+            var tag = p.slot==='storage' ? 'staged' : 'lib';
+            return '<span class="bench-chip" data-act="active" data-id="'+p.id+'" title="'+tag+'">'
+              + 'R'+p.rating + (p.oneShot?' 1-shot':'') + ' <span class="bmp">'+fmt(p.mp)+'</span></span>';
+          }).join('');
+          cards += '<div class="type-card">'
+            + '<div class="tc-hd"><span class="tc-nm">'+esc(nm)+'</span><span class="tc-cap">'+variants.length+' owned</span></div>'
+            + starterHtml
+            + (bench.length ? '<div class="bench-lbl">Bench (stage to swap mid-run)</div><div class="bench-row">'+benchChips+'</div>' : '')
+            + '</div>';
+        });
+        html += '<div class="lane '+CAT[cat].key+'"><div class="lane-hd">'+esc(cat)+'</div><div class="type-grid">'+cards+'</div></div>';
+      });
+      host.innerHTML = html || '<div class="empty">No programs owned</div>';
+    }
+
+    /* ---- Concept 4 ---- */
+    function renderC4(){
+      var act = PROGRAMS.filter(function(p){return p.slot==='active';});
+      var slots = '';
+      act.forEach(function(p){
+        slots += '<div class="dslot filled" data-act="storage" data-id="'+p.id+'" title="Send to tray">'
+          + '<div class="dn">'+esc(p.type)+' <span class="rt">R'+p.rating+'</span></div>'
+          + '<div class="dmp">'+fmt(p.mp)+' Mp</div>'
+          + (p.oneShot?'<span class="stack">&times;1</span>':'')
+          + '</div>';
+      });
+      // pad with a couple of empty dock slots to read as a hotbar
+      var pad = Math.max(0, 8 - act.length);
+      for (var i=0;i<pad;i++) slots += '<div class="dslot empty">+</div>';
+      $('c4Dock').innerHTML = slots;
+
+      // tray: storage reserves first, then library, grouped by category
+      var tray = '';
+      var groups = [
+        { lbl:'Storage reserve (swap-ready)', col:'var(--steel-blue)', list: PROGRAMS.filter(function(p){return p.slot==='storage';}), staged:true },
+        { lbl:'Library (not on deck)', col:'var(--text-dim)', list: PROGRAMS.filter(function(p){return p.slot==='lib';}), staged:false }
+      ];
+      groups.forEach(function(g){
+        if (!g.list.length) return;
+        var chips = g.list.slice().sort(function(a,b){ return CAT_ORDER.indexOf(a.cat)-CAT_ORDER.indexOf(b.cat) || a.type.localeCompare(b.type); })
+          .map(function(p){
+            var col = p.cat==='Offensive'?'var(--red)':p.cat==='Defensive'?'var(--cyan)':p.cat==='Operational'?'var(--green)':'var(--straw)';
+            return '<span class="tchip'+(g.staged?' staged':'')+'" data-act="active" data-id="'+p.id+'">'
+              + '<span class="cdot" style="background:'+col+'"></span>'
+              + esc(p.type)+' R'+p.rating + (p.oneShot?' 1s':'')
+              + ' <span class="tmp">'+fmt(p.mp)+'</span></span>';
+          }).join('');
+        tray += '<div class="tray-group"><div class="tg-lbl" style="color:'+g.col+'">'+esc(g.lbl)+'</div><div class="tray-chips">'+chips+'</div></div>';
+      });
+      $('c4Tray').innerHTML = tray || '<div class="empty">Tray empty</div>';
+    }
+
+    /* ---- render + events ---- */
+    function renderAll(){ renderMeters(); renderC1(); renderC2(); renderC4(); }
+
+    document.addEventListener('click', function(e){
+      var t = e.target.closest('[data-act]');
+      if (!t) return;
+      var id = t.getAttribute('data-id');
+      var act = t.getAttribute('data-act');
+      if (id && act) setSlot(id, act);
+    });
+
+    function showTab(tab){
+      ['c1','c2','c4'].forEach(function(k){
+        $('panel-'+k).classList.toggle('on', k===tab);
+        var btn = document.querySelector('.proto-tabs button[data-tab="'+k+'"]');
+        if (btn) btn.classList.toggle('on', k===tab);
+      });
+    }
+    window.showTab = showTab; window.resetPlan = resetPlan;
+
+    renderAll();
+  </script>
+</body>
+</html>

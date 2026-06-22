@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loadout Hot Zone + Memory Bars | Prototype</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    /* ====================================================================
+       THROWAWAY PROTOTYPE -- merges three things the user liked:
+         1. v11 memory map  -- colored Active/Storage BARS where each program
+            is a segment sized by its Mp, with cursor hover-linking.
+         2. Nested Hot Zone -- the Active frame drawn INSIDE the Storage board
+            (so "active also eats storage" is visual, not a footnote).
+         3. Library bordered CARDS -- the same bordered tile look, now used in
+            BOTH storage and active, all at ONE fixed size for consistency.
+       Hovering a card lights up its bar segment(s); hovering a segment lights
+       up its card. An active program owns a segment in BOTH bars (active is a
+       subset of storage), so it highlights in three places at once.
+       Sizes use the real app math: actualSize = rating^2 * mult, then
+       x0.25 (one-shot) / x0.5 (optimized). Active cap = MPCP x 100.
+       ==================================================================== */
+
+    /* Fallback for non-core tokens (present in style.css; declared here so the
+       file also renders standalone). Core tokens come from ../style.css. */
+    :root {
+      --border-dark:#1a2a1a; --steel-blue:#4a7a8a; --copper:#b87333; --active:#b86bff;
+      /* Fixed card width -- the SINGLE size every program card uses, for
+         consistency. Derived by measuring the widest card content with
+         window.__measureCards(): the binding case is the longest program name
+         "Black Hammer R5" (98px of text -> 119px total card incl. padding +
+         border). 124px = that minimum + a 5px margin so no name ever clips. */
+      --card-w:124px;
+    }
+
+    body { background:var(--bg); color:var(--text); font-family:var(--font); padding:0; }
+    .proto-wrap { max-width:1180px; margin:0 auto; padding:22px 20px 80px; }
+    .proto-head { border-bottom:1px solid var(--border-dark); padding-bottom:14px; margin-bottom:18px; }
+    .proto-head h1 { font-size:var(--fs-2xl); color:var(--green); letter-spacing:2px; font-weight:normal; }
+    .proto-head .sub { font-size:var(--fs-sm); color:var(--text-dim); letter-spacing:1px; margin-top:4px; }
+    .proto-note { font-size:var(--fs-xs); color:var(--straw); letter-spacing:.5px; margin-top:8px; line-height:1.55; }
+    .proto-note b { color:var(--text-bright); font-weight:normal; }
+
+    /* deck context */
+    .deck-bar { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:14px 0 16px;
+      padding:10px 14px; border:1px solid var(--border-dark); background:#0b0b0b; }
+    .deck-bar .dk { font-size:var(--fs-sm); letter-spacing:1px; color:var(--cyan); text-transform:uppercase; }
+    .deck-bar .dk b { color:var(--text-bright); }
+
+    /* ---- v11 memory map: colored proportional bars, hover-linked ---- */
+    .memmap { display:flex; flex-direction:column; gap:12px; margin-bottom:6px; }
+    .mem .hd { display:flex; justify-content:space-between; font-size:var(--fs-sm);
+      letter-spacing:1px; text-transform:uppercase; color:var(--cyan); }
+    .mem .hd .n { color:var(--text-bright); }
+    .slotbar { display:flex; height:22px; background:#101010; border:1px solid var(--border-dark);
+      margin-top:6px; overflow:hidden; }
+    .slotbar i { display:block; height:100%; border-right:1px solid #080808; cursor:pointer;
+      min-width:7px; transition:filter .1s; }
+    .slotbar i.off { background:#5a1212; } .slotbar i.def { background:#0a4d1c; }
+    .slotbar i.ops { background:#0a3a4a; } .slotbar i.spc { background:#4a3d14; }
+    .slotbar i.shot { background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.12) 4px,rgba(255,255,255,.12) 7px); }
+    .slotbar i.over { box-shadow:inset 0 0 0 1px var(--red); }
+    .slotbar i.hl { filter:brightness(2.1); box-shadow:inset 0 0 8px rgba(255,255,255,.35); }
+    .slotbar .free { flex:1 1 auto; background:repeating-linear-gradient(90deg,#0c0c0c,#0c0c0c 9px,#0e0e0e 9px,#0e0e0e 18px);
+      cursor:default; min-width:0; border-right:none; }
+
+    .legend { display:flex; flex-wrap:wrap; gap:14px; margin:14px 0 16px; font-size:var(--fs-xxs);
+      color:var(--text-dim); letter-spacing:.5px; }
+    .legend span { display:inline-flex; align-items:center; gap:5px; }
+    .legend i { width:10px; height:10px; display:inline-block; }
+    .swatch-off { background:#5a1212; } .swatch-def { background:#0a4d1c; }
+    .swatch-ops { background:#0a3a4a; } .swatch-spc { background:#4a3d14; }
+    .swatch-shot { background-color:#2a2a2a;
+      background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,.30) 3px,rgba(255,255,255,.30) 5px); }
+    .swatch-active { background:var(--active); }
+
+    .toolbar { display:flex; gap:10px; margin:0 0 18px; align-items:center; }
+    .toolbar button { font-family:var(--font); font-size:var(--fs-xs); letter-spacing:1px;
+      text-transform:uppercase; padding:6px 14px; background:#0e0e0e; border:1px solid #262626;
+      color:var(--text-dim); cursor:pointer; }
+    .toolbar button:hover { color:var(--text-bright); border-color:#3a3a3a; }
+    .hint { font-size:var(--fs-xs); color:var(--text-dim); letter-spacing:.5px; line-height:1.55; margin:6px 0 14px; }
+    .hint b { color:var(--text); font-weight:normal; }
+    .sec-title { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase;
+      color:var(--cyan); margin:0 0 10px; }
+    .empty { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; text-align:center;
+      padding:14px; border:1px dashed #222; width:100%; box-sizing:border-box; }
+
+    /* ---- nested hot zone ---- */
+    /* the encompassing STORAGE box: dark steel-blue, matching the steel Reserve line */
+    .board { border:1px solid #1f3a44; background:#070a0b; padding:14px; }
+    .board-hd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+    .board-hd .lbl { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+    .board-hd .val { font-size:var(--fs-sm); color:var(--text-bright); }
+    .active-frame { border:1px solid #3a2a5a; background:rgba(184,107,255,.045); padding:12px;
+      box-shadow:inset 0 0 22px rgba(184,107,255,.05); }
+    .active-frame .board-hd .lbl { color:var(--active); }
+    /* the box's top line is the deck name (cyan); the storage meter now lives down
+       on the Storage Memory line, not at the top of the box. */
+    .board-hd.deck-hd .lbl { color:var(--cyan); }
+    .bench { margin-top:14px; padding-top:12px; border-top:1px dashed #1d3038; }
+    .bench .board-hd .lbl { color:var(--steel-blue); }
+    .library { margin-top:18px; }
+
+    .tile-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; }
+
+    /* ---- fixed-size bordered card (same in active, storage, library) ---- */
+    .tile { width:var(--card-w); flex:0 0 var(--card-w); box-sizing:border-box; min-height:62px;
+      position:relative; border:1px solid #1f1f1f; background:#0d0d0d; padding:7px 9px 7px 12px;
+      display:flex; flex-direction:column; gap:5px; cursor:grab; user-select:none; }
+    .tile:hover { border-color:#2e2e2e; }
+    .tile:active { cursor:grabbing; }
+    .tile.dragging { opacity:.35; border-style:dashed; }
+    .tile .tn { font-size:var(--fs-sm); color:var(--text-bright); letter-spacing:.5px; line-height:1.2;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .tile .tn .rt { color:var(--green); }
+    .tile .meta { display:flex; align-items:center; gap:5px; flex-wrap:wrap; min-height:14px; }
+    .tile .mp { font-size:var(--fs-xxs); color:var(--text-dim); letter-spacing:.5px; margin-top:auto; }
+    /* one-shot active-copy stepper ( < xN > ) -- straw, matching the 1-SHOT tag */
+    .tile .copies { display:inline-flex; align-items:center; border:1px solid #4a3d14; line-height:1; }
+    .tile .copies .st { color:var(--straw); cursor:pointer; padding:0 5px; user-select:none;
+      font-size:var(--fs-sm); }
+    .tile .copies .st:hover { background:rgba(238,204,102,.14); }
+    .tile .copies b { color:var(--straw); font-weight:normal; min-width:16px; text-align:center;
+      font-size:var(--fs-xxs); letter-spacing:.5px; }
+    /* category color shows as a left-edge strip */
+    .tile.cat-off { --cat:var(--red); }
+    .tile.cat-def { --cat:var(--green); }
+    .tile.cat-ops { --cat:var(--cyan); }
+    .tile.cat-spc { --cat:var(--straw); }
+    .tile::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+      background:var(--cat, transparent); pointer-events:none; }
+    /* active programs keep their plain category edge; the violet ACTIVE FRAME
+       (the container, not the card) is what signals they are running. The card
+       gets only a faint violet wash to tie it to that frame -- no violet border. */
+    .tile.live { background:rgba(184,107,255,.07);
+      box-shadow:inset 0 0 12px rgba(184,107,255,.06); }
+    /* a utility rated above MPCP can't be loaded onto the deck: render it subdued and
+       struck through (no red fill) so it reads as "owned, but unrunnable on this deck". */
+    .tile.over { border-color:#242424 !important; background:#0a0a0a; opacity:.5; cursor:not-allowed; }
+    .tile.over::before { opacity:.3; }
+    .tile.over .tn { text-decoration:line-through; text-decoration-color:#777; }
+    .tile.over .tn, .tile.over .tn .rt { color:var(--text-dim); }
+    /* the hover-link highlight (driven by hovering this card's bar segment) */
+    .tile.hl { border-color:var(--text-bright); box-shadow:0 0 0 1px var(--text-bright), 0 0 12px rgba(255,255,255,.14); }
+
+    .otag { font-size:8px; letter-spacing:.5px; text-transform:uppercase; color:var(--copper);
+      border:1px solid #3a2a14; border-radius:2px; padding:0 3px; line-height:13px; }
+    .otag.shot { color:var(--straw); border-color:#4a3d14; }
+    .otag.wear { color:var(--amber); border-color:#553300; }
+
+    /* drop zones -- the three tile grids accept dragged cards */
+    .dropzone { min-height:56px; transition:background .12s; }
+    .dropzone.drop-ok { outline:1px dashed var(--green); outline-offset:4px; background:rgba(0,255,65,.05); }
+
+    .free-ghost { width:var(--card-w); flex:0 0 var(--card-w); min-height:62px; box-sizing:border-box;
+      border:1px dashed #1f3a1f; color:var(--text-dim); display:flex; align-items:center;
+      justify-content:center; font-size:var(--fs-xxs); letter-spacing:1px; padding:7px 9px; text-align:center; }
+
+    /* rejected-drop feedback: a centered toast over a dimmed backdrop + a red pulse on the deck */
+    .toast-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:40; opacity:0;
+      pointer-events:none; transition:opacity .18s; }
+    .toast-backdrop.show { opacity:1; }
+    .toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96);
+      background:#180a0a; border:1px solid var(--red); color:var(--red); font-size:var(--fs-sm);
+      letter-spacing:1px; text-transform:uppercase; padding:14px 22px; z-index:50; opacity:0;
+      pointer-events:none; white-space:nowrap; box-shadow:0 0 30px rgba(255,51,51,.18);
+      transition:opacity .18s, transform .18s; }
+    .toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+    .board.deny { animation:denyflash .55s ease; }
+    @keyframes denyflash {
+      0%,100% { box-shadow:none; }
+      25%,55% { box-shadow:inset 0 0 0 2px var(--red), inset 0 0 26px rgba(255,51,51,.20); }
+    }
+  </style>
+</head>
+<body>
+  <div id="toastBackdrop" class="toast-backdrop"></div>
+  <div id="toast" class="toast" role="status" aria-live="assertive"></div>
+  <div class="proto-wrap">
+    <div class="proto-head">
+      <h1>&gt;&gt; LOADOUT &middot; HOT ZONE + MEMORY BARS</h1>
+      <div class="sub">Throwaway prototype &middot; v11 memory bars + nested hot zone + fixed-size bordered cards. Not wired to the live builder.</div>
+      <div class="proto-note">
+        The two <b>bars</b> are the v11 memory map: every program is a colored segment sized by its Mp, so you read fit at a glance.
+        Below, the glowing <b>violet</b> frame is <b>Active</b>, drawn inside the <b>Storage</b> board &mdash; an active program also occupies storage memory, so it counts against <b>both</b> meters and can never live in active alone. It appears <b>once</b>, in the Active frame; it is not repeated as a card in the reserve pool below, but the storage meter and bar still include its size.
+        <b>Drag</b> a card between Library, the reserve pool and the Active frame to move it; hover a card to light its segment(s) in both bars. A program rated above the deck's <b>MPCP</b> can't be loaded onto the deck at all &mdash; not active, not storage (your iron can't run it, and you can't swap it in later) &mdash; so dropping it anywhere on the deck is rejected.
+      </div>
+    </div>
+
+    <div class="deck-bar">
+      <span class="dk">Deck: <b>Fuchi Cyber-7</b></span>
+      <span class="dk">MPCP <b>8</b></span>
+      <span class="dk">Program cap <b>R8</b></span>
+      <span class="dk">Active <b>800 Mp</b></span>
+      <span class="dk">Storage <b>2000 Mp</b></span>
+    </div>
+
+    <div class="memmap">
+      <div class="mem">
+        <div class="hd"><span>Active memory (RAM)</span><span class="n" id="actN">0 / 800 Mp</span></div>
+        <div class="slotbar" id="actBar"></div>
+      </div>
+      <div class="mem">
+        <div class="hd"><span>Storage (disk)</span><span class="n" id="stoN">0 / 2000 Mp</span></div>
+        <div class="slotbar" id="stoBar"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch-off"></i> Offensive</span>
+      <span><i class="swatch-def"></i> Defensive</span>
+      <span><i class="swatch-ops"></i> Operational</span>
+      <span><i class="swatch-spc"></i> Special</span>
+      <span><i class="swatch-shot"></i> <b class="otag shot">1-SHOT</b> single use</span>
+      <span><b class="otag wear">WEARS</b> degrades per use</span>
+    </div>
+
+    <div class="toolbar">
+      <button onclick="resetPlan()">Reset sample plan</button>
+      <span class="hint" style="margin:0">Drag cards between Library, Reserve and Active (any direction). Running a program still consumes storage memory (the storage meter rises), but it appears only in the Active frame, not as a second card. <b>One-shot</b> programs can load several copies into active memory &mdash; drop one on Active again or use the <b>&lsaquo; &times;N &rsaquo;</b> stepper on the card; storage always keeps a single master. Programs above MPCP can't be loaded on the deck at all. Hover to see the memory link.</span>
+    </div>
+
+    <!-- nested hot zone -->
+    <div class="board">
+      <div class="board-hd deck-hd"><span class="lbl">Fuchi Cyber-7</span></div>
+      <div class="active-frame">
+        <div class="board-hd"><span class="lbl">&#9650; Active Memory</span><span class="val" id="boardActVal">0 / 800 Mp</span></div>
+        <div class="tile-grid dropzone" id="zoneActive"></div>
+      </div>
+      <div class="bench">
+        <div class="board-hd"><span class="lbl">Storage Memory</span><span class="val" id="boardStoVal">0 / 2000 Mp</span></div>
+        <div class="tile-grid dropzone" id="zoneBench"></div>
+      </div>
+    </div>
+
+    <!-- library -->
+    <div class="library">
+      <div class="sec-title">Library &mdash; owned, not on the deck yet</div>
+      <div class="hint" style="margin-top:0">Drag a card up into Reserve or the Active frame to load it onto the deck. Drag a deck card back here to remove it.</div>
+      <div class="tile-grid dropzone" id="zoneLib"></div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    /* ---- tiny helpers (prototype-local; no shared.js dependency) ---- */
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+    function $(id){ return document.getElementById(id); }
+    function fmt(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    /* ---- model ---- */
+    var MPCP = 8, ACTIVE_CAP = MPCP * 100, STORAGE_CAP = 2000;
+    var CAT = {
+      Offensive:  { key:'off', cls:'cat-off' },
+      Defensive:  { key:'def', cls:'cat-def' },
+      Operational:{ key:'ops', cls:'cat-ops' },
+      Special:    { key:'spc', cls:'cat-spc' }
+    };
+    var CAT_ORDER = ['Offensive','Defensive','Operational','Special'];
+    var DEGRADERS = { Medic:1, Shield:1, Armor:1, Evaluate:1 };
+    // Attack utilities are sized by their damage level: the size multiplier IS the
+    // damage code (Light 2, Moderate 3, Serious 4, Deadly 5). Only Attack shows it.
+    var DMG_LETTER = { 2:'L', 3:'M', 4:'S', 5:'D' };
+
+    // actualSize = rating^2 * mult, then x0.25 one-shot / x0.5 optimized (real app math)
+    function sizeOf(type, mult, rating, opts){
+      var s = rating * rating * mult;
+      if (opts && opts.indexOf('1-SHOT') >= 0) s = Math.round(s * 0.25);
+      if (opts && opts.indexOf('OPT') >= 0)    s = Math.round(s * 0.5);
+      return s;
+    }
+    var _id = 0;
+    // copies = active-memory copies (one-shots only): a one-shot keeps ONE master in
+    // storage but may load N copies into active memory at once. Ignored for others.
+    function P(type, cat, mult, rating, opts, slot, copies){
+      opts = opts || [];
+      var oneShot = opts.indexOf('1-SHOT')>=0;
+      return { id:'p'+(++_id), type:type, cat:cat, mult:mult, rating:rating, opts:opts,
+               oneShot: oneShot, mp: sizeOf(type,mult,rating,opts), slot:slot||'lib',
+               copies: oneShot ? (copies||0) : 0 };
+    }
+
+    // Sample owned library for an MPCP-8 decker. slot: 'active' | 'storage' | 'lib'.
+    function buildSample(){
+      _id = 0;
+      return [
+        // Offensive (Attack mult = damage level: 2=L 3=M 4=S 5=D)
+        P('Attack','Offensive',2,8,['OPT'],'active'),
+        P('Attack','Offensive',4,8,[],'lib'),
+        P('Attack','Offensive',2,6,['1-SHOT'],'storage',2),
+        P('Attack','Offensive',3,6,[],'lib'),
+        P('Black Hammer','Offensive',20,5,[],'lib'),
+        P('Killjoy','Offensive',10,4,[],'lib'),
+        P('Slow','Offensive',4,4,[],'lib'),
+        // Defensive
+        P('Armor','Defensive',3,5,[],'active'),
+        P('Armor','Defensive',3,5,[],'storage'),
+        P('Shield','Defensive',4,4,[],'lib'),
+        P('Medic','Defensive',4,6,[],'active'),
+        P('Medic','Defensive',4,6,['1-SHOT'],'storage'),
+        P('Cloak','Defensive',3,4,[],'lib'),
+        P('Camo','Defensive',3,4,[],'lib'),
+        // Operational
+        P('Deception','Operational',2,6,[],'active'),
+        P('Browse','Operational',1,4,[],'active'),
+        P('Analyze','Operational',3,6,[],'lib'),
+        P('Read/Write','Operational',2,4,[],'storage'),
+        P('Evaluate','Operational',2,3,[],'lib'),
+        P('Decrypt','Operational',1,4,[],'storage'),
+        P('Scanner','Operational',3,4,[],'lib'),
+        P('Mirrors','Operational',3,3,[],'lib'),
+        // Special
+        P('Sleaze','Special',3,6,[],'active'),
+        P('Sleaze','Special',3,8,[],'lib'),
+        P('Compressor','Special',2,3,[],'lib'),
+        // Looted high-rating program: rating 10 exceeds the deck's MPCP (8). The
+        // iron can't run a program above its MPCP, and you can't swap it into
+        // active from storage later either -- so it's blocked from the deck
+        // entirely (no active, no storage) and can only sit in the library.
+        // Dropping it anywhere on the deck is rejected with a "can't load" flash.
+        P('Attack','Offensive',2,10,[],'lib')
+      ];
+    }
+    var PROGRAMS = buildSample();
+
+    /* ---- derived ----
+       A one-shot keeps ONE master in storage (slot 'storage' once on the deck) and
+       loads p.copies copies into active memory. So it is "active" when copies>0 even
+       though its slot stays 'storage'. Non-one-shots use slot directly. */
+    function byId(id){ return PROGRAMS.filter(function(x){ return x.id===id; })[0]; }
+    function bySlot(slot){ return PROGRAMS.filter(function(p){ return p.slot===slot; }); }
+    function onDeck(p){ return p.slot==='active' || p.slot==='storage'; }
+    function isActive(p){ return p.oneShot ? p.copies>0 : p.slot==='active'; }
+    function activeCards(){ return PROGRAMS.filter(isActive); }
+    function reserveCards(){ return PROGRAMS.filter(function(p){
+      return p.oneShot ? (p.slot==='storage' && p.copies===0) : p.slot==='storage'; }); }
+    // bar segments: one entry per active instance (a one-shot contributes p.copies)
+    function activeSegList(){
+      var out = [];
+      PROGRAMS.forEach(function(p){
+        if (p.oneShot){ for (var i=0;i<p.copies;i++) out.push(p); }
+        else if (p.slot==='active'){ out.push(p); }
+      });
+      return out;
+    }
+    // storage holds every on-deck program once (one-shot master counted a single time)
+    function storageSegList(){ return PROGRAMS.filter(function(p){
+      return p.oneShot ? p.slot==='storage' : onDeck(p); }); }
+    function activeUsed(){ return activeSegList().reduce(function(s,p){ return s+p.mp; },0); }
+    function storageUsed(){ return storageSegList().reduce(function(s,p){ return s+p.mp; },0); }
+    function typeKey(p){ return p.type.toLowerCase(); }
+    function catClass(p){ return CAT[p.cat] ? CAT[p.cat].cls : ''; }
+    function catKey(p){ return CAT[p.cat] ? CAT[p.cat].key : 'ops'; }
+    function over(p){ return p.rating > MPCP; }
+    // display name: Type-Rating, with damage code appended for Attack (e.g. Attack-6S)
+    function progName(p){ return p.type+'-'+p.rating+(p.type==='Attack'?(DMG_LETTER[p.mult]||''):''); }
+    function sortForBar(list){
+      return list.slice().sort(function(a,b){
+        return CAT_ORDER.indexOf(a.cat)-CAT_ORDER.indexOf(b.cat)
+            || a.type.localeCompare(b.type) || b.rating-a.rating;
+      });
+    }
+
+    /* ---- mutations ---- */
+    function setSlot(id, slot){
+      var p = byId(id);
+      if (!p) return;
+      // a utility rated above the deck's MPCP can't be loaded onto the deck at
+      // all -- not active, not storage. The iron can't run it, so it must never
+      // be staged where a Swap Memory could later pull it into active.
+      if (slot!=='lib' && over(p)){ flashCantRun(p); return; }
+      if (p.oneShot){
+        // one-shot: ONE master in storage, copies live in active. Drop on Active adds
+        // a copy; drop on Storage stages the master with no active copy; drop on
+        // Library removes it from the deck entirely.
+        if (slot==='active'){ p.slot='storage'; p.copies = (p.copies||0) + 1; }
+        else if (slot==='storage'){ p.slot='storage'; p.copies = 0; }
+        else { p.slot='lib'; p.copies = 0; }
+        renderAll();
+        return;
+      }
+      // non-one-shot: one active copy per type -- promoting demotes the current starter
+      if (slot==='active'){
+        PROGRAMS.forEach(function(q){ if (q!==p && typeKey(q)===typeKey(p) && q.slot==='active' && !q.oneShot) q.slot='storage'; });
+      }
+      p.slot = slot;
+      renderAll();
+    }
+    // one-shot active-copy steppers (storage keeps its single master either way)
+    function incCopies(id){
+      var p = byId(id);
+      if (!p || !p.oneShot || over(p)) return;
+      if (p.slot==='lib') p.slot = 'storage';
+      p.copies = (p.copies||0) + 1;
+      renderAll();
+    }
+    function decCopies(id){
+      var p = byId(id);
+      if (!p || !p.oneShot) return;
+      p.copies = Math.max(0, (p.copies||0) - 1);
+      renderAll();
+    }
+    function resetPlan(){ PROGRAMS = buildSample(); renderAll(); }
+
+    /* ---- hover-link: light up every element sharing this program id ---- */
+    function hl(id, on){
+      var els = document.querySelectorAll('[data-p="'+id+'"]');
+      for (var i=0;i<els.length;i++) els[i].classList.toggle('hl', !!on);
+    }
+
+    /* ---- transient feedback when a drop is rejected (can't run) ---- */
+    var _toastT = null;
+    function showToast(msg){
+      var t = $('toast'), bd = $('toastBackdrop');
+      t.textContent = msg;            // textContent -> no escaping needed
+      t.classList.add('show');
+      if (bd) bd.classList.add('show');
+      if (_toastT) clearTimeout(_toastT);
+      _toastT = setTimeout(function(){
+        t.classList.remove('show');
+        if (bd) bd.classList.remove('show');
+      }, 1600);
+    }
+    function flashCantRun(p){
+      showToast("Can't load on deck: " + progName(p) + ' exceeds MPCP ' + MPCP);
+      var b = document.querySelector('.board');
+      if (b){ b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny');
+              setTimeout(function(){ b.classList.remove('deny'); }, 560); }
+    }
+
+    /* ---- card + segment builders ---- */
+    function optTags(p){
+      var out = '';
+      p.opts.forEach(function(o){
+        if (o==='1-SHOT') out += '<b class="otag shot">1-SHOT</b>';
+        else out += '<b class="otag">'+esc(o)+'</b>';
+      });
+      if (DEGRADERS[p.type]) out += '<b class="otag wear">WEARS</b>';
+      return out;
+    }
+
+    // fixed-size draggable card.
+    //   mode 'active' = card in the Active frame (running)
+    //   mode 'bench'  = a reserve (storage-only) program
+    //   mode 'lib'    = an owned program not on the deck
+    function tileHtml(p, mode){
+      var cls = 'tile ' + catClass(p) + (mode==='active'?' live':'') + (over(p)?' over':'');
+      var nm = progName(p);
+      var rlabel = p.rating + (p.type==='Attack' ? (DMG_LETTER[p.mult]||'') : '');
+      var osActive = (p.oneShot && mode==='active');   // show the active-copy stepper
+      var ttl = over(p)
+        ? nm+" - exceeds MPCP "+MPCP+", can't load on deck"
+        : nm+' - '+fmt(p.mp)+' Mp - drag to move';
+      var meta = optTags(p);
+      if (osActive){
+        meta += '<span class="copies" title="Copies loaded in active memory">'
+          + '<span class="st" draggable="false" onmousedown="event.stopPropagation()" onclick="decCopies(\''+p.id+'\')">&lsaquo;</span>'
+          + '<b>&times;'+p.copies+'</b>'
+          + '<span class="st" draggable="false" onmousedown="event.stopPropagation()" onclick="incCopies(\''+p.id+'\')">&rsaquo;</span>'
+          + '</span>';
+      }
+      var mpText = osActive ? fmt(p.copies*p.mp)+' Mp' : fmt(p.mp)+' Mp';
+      return '<div class="'+cls+'" draggable="true" data-p="'+p.id+'" title="'+esc(ttl)+'"'
+        + ' onmouseenter="hl(\''+p.id+'\',1)" onmouseleave="hl(\''+p.id+'\',0)">'
+        + '<div class="tn">'+esc(p.type)+'<span class="rt">-'+esc(rlabel)+'</span></div>'
+        + '<div class="meta">'+meta+'</div>'
+        + '<div class="mp">'+mpText+'</div>'
+        + '</div>';
+    }
+    function segHtml(p, cap){
+      var pct = (p.mp / cap) * 100;
+      var cls = 'i-seg ' + catKey(p) + (p.oneShot?' shot':'') + (over(p)?' over':'');
+      return '<i class="'+cls+'" data-p="'+p.id+'" style="width:'+pct.toFixed(2)+'%"'
+        + ' title="'+esc(progName(p)+' - '+fmt(p.mp)+' Mp')+'"'
+        + ' onmouseenter="hl(\''+p.id+'\',1)" onmouseleave="hl(\''+p.id+'\',0)"></i>';
+    }
+
+    /* ---- meters / numbers ---- */
+    function setMemClass(barId, used, cap){
+      var hd = $(barId).previousElementSibling; // .hd
+      if (!hd) return;
+      hd.style.color = used > cap ? 'var(--red)' : (used >= cap*0.8 ? 'var(--amber)' : 'var(--cyan)');
+    }
+    function renderBars(){
+      var a = activeUsed(), s = storageUsed();
+      // active bar = active instances (one-shot adds one segment per copy);
+      // storage bar = every on-deck program once (one-shot master counted once)
+      var actSegs = sortForBar(activeSegList());
+      var stoSegs = sortForBar(storageSegList());
+      $('actBar').innerHTML = actSegs.map(function(p){ return segHtml(p, ACTIVE_CAP); }).join('') + '<span class="free"></span>';
+      $('stoBar').innerHTML = stoSegs.map(function(p){ return segHtml(p, STORAGE_CAP); }).join('') + '<span class="free"></span>';
+      $('actN').textContent = fmt(a)+' / '+fmt(ACTIVE_CAP)+' Mp';
+      $('stoN').textContent = fmt(s)+' / '+fmt(STORAGE_CAP)+' Mp';
+      $('boardActVal').textContent = fmt(a)+' / '+fmt(ACTIVE_CAP)+' Mp';
+      $('boardStoVal').textContent = fmt(s)+' / '+fmt(STORAGE_CAP)+' Mp';
+      setMemClass('actBar', a, ACTIVE_CAP);
+      setMemClass('stoBar', s, STORAGE_CAP);
+    }
+
+    /* ---- nested hot zone + library ---- */
+    function groupByType(list){
+      var m = {};
+      list.forEach(function(p){ (m[typeKey(p)] = m[typeKey(p)] || []).push(p); });
+      return m;
+    }
+    function renderZone(){
+      var act = sortForBar(activeCards());
+      var free = Math.max(0, ACTIVE_CAP - activeUsed());
+      var aHtml = act.map(function(p){ return tileHtml(p,'active'); }).join('');
+      aHtml += '<div class="free-ghost">'+fmt(free)+' Mp<br>free</div>';
+      $('zoneActive').innerHTML = aHtml || '<div class="empty">No active programs</div>';
+      // The reserve pool shows only NON-running programs: storage-staged copies and
+      // one-shot masters with no active copy. A running program is NOT repeated here
+      // -- it lives in the Active frame -- but it still consumes storage memory, so
+      // the storage meter and bar count it.
+      var reserve = sortForBar(reserveCards());
+      $('zoneBench').innerHTML = reserve.length
+        ? reserve.map(function(p){ return tileHtml(p,'bench'); }).join('')
+        : '<div class="empty">No reserves staged</div>';
+    }
+    function renderLib(){
+      var lib = bySlot('lib');
+      var byType = groupByType(lib);
+      var html = '';
+      // keep variants of a type together, types ordered by category then name
+      Object.keys(byType).sort(function(a,b){
+        var pa = byType[a][0], pb = byType[b][0];
+        return CAT_ORDER.indexOf(pa.cat)-CAT_ORDER.indexOf(pb.cat) || pa.type.localeCompare(pb.type);
+      }).forEach(function(k){
+        byType[k].sort(function(a,b){ return b.rating-a.rating; })
+                 .forEach(function(p){ html += tileHtml(p,'lib'); });
+      });
+      $('zoneLib').innerHTML = html || '<div class="empty">Everything is on the deck</div>';
+    }
+
+    function renderAll(){ renderBars(); renderZone(); renderLib(); }
+
+    /* ---- drag & drop (the only way to move cards now) ---- */
+    var _dragId = null;
+    document.addEventListener('dragstart', function(e){
+      if (e.target.closest && e.target.closest('.copies')){ e.preventDefault(); return; }
+      var card = e.target.closest('.tile');
+      if (!card){ return; }
+      _dragId = card.getAttribute('data-p');
+      e.dataTransfer.setData('text/plain', _dragId);
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+    document.addEventListener('dragend', function(e){
+      var card = e.target.closest('.tile');
+      if (card){ card.classList.remove('dragging'); }
+      _dragId = null;
+      var lit = document.querySelectorAll('.dropzone.drop-ok');
+      for (var i=0;i<lit.length;i++){ lit[i].classList.remove('drop-ok'); }
+    });
+    function initDropzones(){
+      [['zoneActive','active'],['zoneBench','storage'],['zoneLib','lib']].forEach(function(pair){
+        var z = $(pair[0]), slot = pair[1];
+        z.addEventListener('dragover', function(e){ e.preventDefault(); e.dataTransfer.dropEffect = 'move'; z.classList.add('drop-ok'); });
+        z.addEventListener('dragleave', function(e){ if (!z.contains(e.relatedTarget)){ z.classList.remove('drop-ok'); } });
+        z.addEventListener('drop', function(e){
+          e.preventDefault();
+          z.classList.remove('drop-ok');
+          var id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || _dragId;
+          if (id){ setSlot(id, slot); }
+        });
+      });
+    }
+    window.resetPlan = resetPlan;
+    window.hl = hl;
+    window.incCopies = incCopies;
+    window.decCopies = decCopies;
+
+    /* ---- dev aid: measure the widest card content to set --card-w ----
+       Run window.__measureCards() in the console: it temporarily lets every
+       card size to its content, reports the max, then restores. Use that
+       number (rounded up) as --card-w above. */
+    window.__measureCards = function(){
+      var cards = document.querySelectorAll('.tile');
+      var max = 0, who = '';
+      cards.forEach(function(c){
+        var prev = c.style.cssText;
+        c.style.width = 'max-content';
+        c.style.flexBasis = 'auto';
+        if (c.offsetWidth > max){ max = c.offsetWidth; who = c.querySelector('.tn') ? c.querySelector('.tn').textContent : ''; }
+        c.style.cssText = prev;
+      });
+      console.log('Widest card content:', max, 'px  ->', who.trim(), ' (set --card-w to', (max), 'px)');
+      return max;
+    };
+
+    renderAll();
+    initDropzones();
+  </script>
+</body>
+</html>

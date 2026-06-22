@@ -275,9 +275,9 @@ The editor enforces valid connection rules between node types, and includes a ch
 
 In a typical system IC assignment scales with complexity and is weighted by host area -- CPUs and SANs receive more (and potentially more lethal) IC coverage.
 
-### Visual Editor
+### Host Designer
 
-The `manage-matrix.html` page provides an SVG canvas editor with drag-and-drop node placement, connection drawing, IC assignment, zone editing, and a node connection legend. Admins can toggle host visibility to control what players see.
+The `matrix-designer.html` page is the Matrix host editor: define each host's security code/value, intrusion difficulty, ACIFS subsystem ratings, IC sheaf (the ordered list of triggered IC), and paydata. Admins can toggle host visibility to control what players see.
 
 ---
 
@@ -292,7 +292,8 @@ The `manage-matrix.html` page provides an SVG canvas editor with drag-and-drop n
 | **Manage Locations** | Location database. Sites with security level, controlling org, district info, and descriptions. |
 | **Manage RTGs** | Regional Telecommunications Grid registry. Canonical (source-book) and campaign-created nodes with security ratings (Green-3 through Black-10). Used as backbone references for Matrix host placement. |
 | **Manage Runs** | Adventure log manager. Create runs via AI narrative parser or manual form. Select participants, locations, orgs. Add consequence tags and world-state changes. Browse run history with full details. |
-| **Manage Matrix** | Matrix host topology editor. Generate hosts from configuration parameters, then edit visually on SVG canvas. Drag-and-drop nodes, draw connections, assign IC, define zones. Toggle player visibility per host. |
+| **Matrix Designer** | Matrix host editor. Define each host's security code/value, intrusion difficulty, ACIFS subsystem ratings, IC sheaf, and paydata. Toggle player visibility per host. |
+| **Matrix Run** | Player-facing Matrix intrusion. Launch a decking run against a designed host and resolve it through the SR2 run engine, tracking persona and deck state. |
 | **Manage Tokens** | Access control panel. GMs create, rename, regenerate, and revoke admin and player tokens. Token plaintext shown once at creation. |
 
 ---
