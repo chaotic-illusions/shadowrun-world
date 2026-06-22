@@ -116,8 +116,13 @@
     .dw-pane-bd { padding:14px; }
 
     .dw-group { color:var(--cyan); font-size:var(--fs-xs); letter-spacing:3px; text-transform:uppercase;
-      padding:14px 2px 7px; display:flex; align-items:center; gap:8px; }
+      padding:14px 2px 7px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
     .dw-group:first-child { padding-top:0; }
+    .dw-group:hover .dw-caret { color:var(--cyan); }
+    .dw-caret { color:var(--green-dim); font-size:13px; line-height:1; width:14px; text-align:center;
+      display:inline-block; transition:transform .15s; }
+    .dw-group.collapsed .dw-caret { transform:rotate(-90deg); }
+    .dw-sec.collapsed { display:none; }
     .dw-group .add { margin-left:auto; color:var(--green-dim); cursor:pointer; font-size:var(--fs-xs);
       border:1px solid #1d301d; padding:2px 8px; letter-spacing:1px; transition:all .15s; }
     .dw-group .add:hover { color:var(--green); border-color:var(--green); background:rgba(0,255,65,.07); box-shadow:0 0 8px rgba(0,255,65,.2); }
@@ -232,7 +237,18 @@
     .dw-tog .lvl { display:none; align-items:center; gap:4px; margin-left:2px; }
     .dw-tog.on .lvl { display:inline-flex; }
     .dw-tog .lvl .infield-num-wrap, .dw-tog .lvl input { width:58px; padding:3px 5px; font-size:var(--fs-sm); }
-    .dw-tog .lvl select { padding:3px 5px; font-size:var(--fs-xs); }
+    /* reserve room on the right for the global select arrow (style.css draws it at
+       `right 12px center`); the compact override above otherwise collapses the gutter
+       so a longer option label (DECKER) renders on top of the arrow. */
+    .dw-tog .lvl select { padding:3px 26px 3px 6px; font-size:var(--fs-xs); }
+    /* program options: single-line v11 toggle chips that wrap; field chips are naturally wider */
+    .opt-tog-grid { display:flex; flex-wrap:wrap; gap:9px; margin-top:4px; }
+    .opt-tog-grid .dw-tog .tog-head { display:inline-flex; align-items:center; gap:8px; }
+    /* keep the in-field +/- stepper flush to the rating field's right edge and the
+       same height as the field: the generic .lvl rule pads the WRAPPER (which made
+       the controls overshoot the input) and drops the input's right gutter. */
+    .opt-tog-grid .dw-tog .lvl .infield-num-wrap { padding:0; }
+    .opt-tog-grid .dw-tog .lvl .infield-num-wrap input[type=number] { width:100%; padding:3px 26px 3px 6px; }
     .dw-budget { height:5px; background:#161616; margin-top:10px; }
     .dw-budget > i { display:block; height:100%; background:var(--green-dim); transition:width .2s; }
     .dw-budget.max > i { background:var(--amber); }
@@ -268,8 +284,8 @@
     .dw-path.gated { opacity:.5; cursor:not-allowed; }
     .dw-path.gated:hover { border-color:#1a2a1a; }
     .dw-path .gate-note { color:var(--amber); }
-    #deckBuildBtn:disabled, #deckBuyBtn:disabled { opacity:.4; cursor:not-allowed; }
-    #deckBuildBtn:disabled:hover, #deckBuyBtn:disabled:hover { background:transparent; box-shadow:none; text-shadow:none; }
+    #deckBuildBtn:disabled, #deckBuyBtn:disabled, #progBuildBtn:disabled, #progBuyBtn:disabled { opacity:.4; cursor:not-allowed; }
+    #deckBuildBtn:disabled:hover, #deckBuyBtn:disabled:hover, #progBuildBtn:disabled:hover, #progBuyBtn:disabled:hover { background:transparent; box-shadow:none; text-shadow:none; }
     .dw-itemize { margin-top:12px; }
     .dw-itemize-cap { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:.6px; margin-bottom:8px; text-transform:uppercase; }
     .dw-itemize table { width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
@@ -320,6 +336,110 @@
     .dw-copies .st { color:var(--straw); cursor:pointer; border:1px solid #4a3d14; padding:0 6px; user-select:none; }
     .dw-copies .st:hover { background:rgba(238,204,102,.1); }
     .dw-copies .lab { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; }
+
+    /* ============================================================
+       LP2 -- loadout hot-zone board + colored memory bars, ported
+       from frontend/prototypes/loadout-hotzone-bars.html. Renders the
+       loadout planner as proportional per-program memory bars and a
+       nested Active-inside-Storage box of fixed-size category cards
+       (drag to move, one-shot stepper, subdued over-MPCP cards,
+       hover-linking, centered reject toast). Scoped with lp2- prefixes
+       so it cannot collide with the dw- loadout rows used elsewhere.
+       ============================================================ */
+    :root { --lp-active:var(--violet); --lp-steel:#4a7a8a; --lp-copper:#b87333; --lp-card-w:130px; }
+
+    .lp2-deckbar { display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin:0 0 14px;
+      padding:10px 14px; border:1px solid #1a2a1a; background:#0b0b0b; }
+    .lp2-deckbar .dk { font-size:var(--fs-sm); letter-spacing:1px; color:var(--cyan); text-transform:uppercase; }
+    .lp2-deckbar .dk b { color:var(--text-bright); font-weight:normal; }
+    .lp2-deckbar .dk.warn b { color:var(--red); }
+
+    .lp2-memmap { display:flex; flex-direction:column; gap:12px; margin-bottom:12px; }
+    .lp2-mem .hd { display:flex; justify-content:space-between; font-size:var(--fs-sm);
+      letter-spacing:1px; text-transform:uppercase; color:var(--cyan); }
+    .lp2-mem .hd .n { color:var(--text-bright); }
+    .lp2-mem .hd .n.over { color:var(--red); }
+    .lp2-slotbar { display:flex; height:22px; background:#101010; border:1px solid #1a2a1a;
+      margin-top:6px; overflow:hidden; }
+    .lp2-slotbar i { display:block; height:100%; border-right:1px solid #080808; cursor:pointer;
+      min-width:7px; transition:filter .1s; }
+    .lp2-slotbar i.off { background:#5a1212; } .lp2-slotbar i.def { background:#0a4d1c; }
+    .lp2-slotbar i.ops { background:#0a3a4a; } .lp2-slotbar i.spc { background:#4a3d14; }
+    .lp2-slotbar i.shot { background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.12) 4px,rgba(255,255,255,.12) 7px); }
+    .lp2-slotbar i.over { box-shadow:inset 0 0 0 1px var(--red); }
+    .lp2-slotbar i.hl { filter:brightness(2.1); box-shadow:inset 0 0 8px rgba(255,255,255,.35); }
+    .lp2-slotbar .free { flex:1 1 auto; min-width:0; border-right:none; cursor:default;
+      background:repeating-linear-gradient(90deg,#0c0c0c,#0c0c0c 9px,#0e0e0e 9px,#0e0e0e 18px); }
+
+    .lp2-legend { display:flex; flex-wrap:wrap; gap:14px; margin:0 0 14px; font-size:var(--fs-xxs);
+      color:var(--text-dim); letter-spacing:.5px; }
+    .lp2-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .lp2-legend i { width:10px; height:10px; display:inline-block; }
+    .lp2-sw-off { background:#5a1212; } .lp2-sw-def { background:#0a4d1c; }
+    .lp2-sw-ops { background:#0a3a4a; } .lp2-sw-spc { background:#4a3d14; }
+    .lp2-sw-shot { background-color:#2a2a2a; background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,.30) 3px,rgba(255,255,255,.30) 5px); }
+
+    .lp2-board { border:1px solid #1f3a44; background:#070a0b; padding:14px; }
+    .lp2-board.deny { animation:lp2deny .55s ease; }
+    @keyframes lp2deny { 0%,100% { box-shadow:none; } 25%,55% { box-shadow:inset 0 0 0 2px var(--red), inset 0 0 26px rgba(255,51,51,.20); } }
+    .lp2-board-hd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+    .lp2-board-hd .lbl { font-size:var(--fs-sm); letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+    .lp2-board-hd .val { font-size:var(--fs-sm); color:var(--text-bright); }
+    .lp2-board-hd .val.over { color:var(--red); }
+    .lp2-board-hd.deck-hd .lbl { color:var(--cyan); }
+    .lp2-active-frame { border:1px solid #3a2a5a; background:rgba(184,107,255,.045); padding:12px;
+      box-shadow:inset 0 0 22px rgba(184,107,255,.05); }
+    .lp2-active-frame .lp2-board-hd .lbl { color:var(--lp-active); }
+    .lp2-bench { margin-top:14px; padding-top:12px; border-top:1px dashed #1d3038; }
+    .lp2-bench .lp2-board-hd .lbl { color:var(--lp-steel); }
+    .lp2-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; }
+
+    .lp2-tile { width:var(--lp-card-w); flex:0 0 var(--lp-card-w); box-sizing:border-box; min-height:62px;
+      position:relative; border:1px solid #1f1f1f; background:#0d0d0d; padding:7px 9px 7px 12px;
+      display:flex; flex-direction:column; gap:5px; cursor:grab; }
+    .lp2-tile:hover { border-color:#2e2e2e; }
+    .lp2-tile:active { cursor:grabbing; }
+    .lp2-tile.dragging { opacity:.35; border-style:dashed; }
+    .lp2-tile .tn { font-size:var(--fs-sm); color:var(--text-bright); letter-spacing:.5px; line-height:1.2;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .lp2-tile .tn .rt { color:var(--green); }
+    .lp2-tile .meta { display:flex; align-items:center; gap:5px; flex-wrap:wrap; min-height:14px; }
+    .lp2-tile .mp { font-size:var(--fs-xxs); color:var(--text-dim); letter-spacing:.5px; margin-top:auto; }
+    .lp2-tile.cat-off { --cat:var(--red); } .lp2-tile.cat-def { --cat:var(--green); }
+    .lp2-tile.cat-ops { --cat:var(--cyan); } .lp2-tile.cat-spc { --cat:var(--straw); }
+    .lp2-tile::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+      background:var(--cat, transparent); pointer-events:none; }
+    .lp2-tile.live { background:rgba(184,107,255,.07); box-shadow:inset 0 0 12px rgba(184,107,255,.06); }
+    .lp2-tile.over { border-color:#242424 !important; background:#0a0a0a; opacity:.5; cursor:not-allowed; }
+    .lp2-tile.over::before { opacity:.3; }
+    .lp2-tile.over .tn { text-decoration:line-through; text-decoration-color:#777; }
+    .lp2-tile.over .tn, .lp2-tile.over .tn .rt { color:var(--text-dim); }
+    .lp2-tile.hl { border-color:var(--text-bright); box-shadow:0 0 0 1px var(--text-bright), 0 0 12px rgba(255,255,255,.14); }
+
+    .lp2-tile .copies { display:inline-flex; align-items:center; border:1px solid #4a3d14; line-height:1; }
+    .lp2-tile .copies .st { color:var(--straw); cursor:pointer; padding:0 5px; user-select:none; font-size:var(--fs-sm); }
+    .lp2-tile .copies .st:hover { background:rgba(238,204,102,.14); }
+    .lp2-tile .copies b { color:var(--straw); font-weight:normal; min-width:18px; text-align:center; font-size:var(--fs-xxs); letter-spacing:.5px; }
+
+    .lp2-otag { font-size:8px; letter-spacing:.5px; text-transform:uppercase; color:var(--lp-copper);
+      border:1px solid #3a2a14; border-radius:2px; padding:0 3px; line-height:13px; }
+    .lp2-otag.shot { color:var(--straw); border-color:#4a3d14; }
+    .lp2-otag.wear { color:var(--amber); border-color:#553300; }
+
+    .lp2-zone { min-height:56px; transition:background .12s; }
+    .lp2-zone.drop-ok { outline:1px dashed var(--green); outline-offset:4px; background:rgba(0,255,65,.05); }
+    .lp2-ghost { width:var(--lp-card-w); flex:0 0 var(--lp-card-w); min-height:62px; box-sizing:border-box;
+      border:1px dashed #1f3a1f; color:var(--text-dim); display:flex; align-items:center; justify-content:center;
+      font-size:var(--fs-xxs); letter-spacing:1px; padding:7px 9px; text-align:center; }
+    .lp2-empty { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; padding:10px 4px; }
+
+    .lp2-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:40; opacity:0; pointer-events:none; transition:opacity .18s; }
+    .lp2-backdrop.show { opacity:1; }
+    .lp2-toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.96);
+      background:#180a0a; border:1px solid var(--red); color:var(--red); font-size:var(--fs-sm);
+      letter-spacing:1px; text-transform:uppercase; padding:14px 22px; z-index:50; opacity:0; pointer-events:none;
+      white-space:nowrap; box-shadow:0 0 30px rgba(255,51,51,.18); transition:opacity .18s, transform .18s; }
+    .lp2-toast.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
 
     /* GM banner: the live fixer queue now lives on manage-downtime.html (Downtime Control). */
     .dw-fixer { display:none; border:1px solid #553300; background:rgba(255,153,0,.04);
@@ -410,7 +530,7 @@
     <a href="manage-matrix.html">Matrix (SR1)</a>
     <a href="matrix-designer.html">Matrix Designer</a>
     <a href="matrix-run.html">Matrix Run</a>
-    <a href="deck-builder.html" class="active">Deck Builder</a>
+    <a href="deck-workshop.html" class="active">Deck Workshop</a>
   </nav>
 </header>
 
@@ -463,28 +583,32 @@
       <div class="dw-pane-hd">Workshop Assets <span id="dwRailWho" style="color:var(--text-dim)"></span></div>
       <div class="dw-pane-bd">
 
-        <div class="dw-group">Decks <span class="add" onclick="newDeck()">+ new</span></div>
-        <div id="dwRailDecks"><div class="dw-empty">No decks yet</div></div>
-
-        <div class="dw-group">Software <span class="add" onclick="newProgram()">+ new</span></div>
-        <div class="dw-archive" id="dwArchive" onclick="inspect('omc')">
-          <div class="hd"><span>OMC Archive</span><span class="n" id="dwArcN">0 / 0 Mp</span></div>
-          <div class="dw-fit"><i id="dwArcBar" style="width:0%"></i></div>
-          <div class="lbl">Off-line chip storage &middot; <span class="buy">order more</span></div>
+        <div class="dw-group" data-sec="decks" onclick="toggleRailSection('decks')"><span class="dw-caret">&#9662;</span>Decks <span class="add" onclick="event.stopPropagation();newDeck()">+ new</span></div>
+        <div class="dw-sec" id="dwSecDecks">
+          <div id="dwRailDecks"><div class="dw-empty">No decks yet</div></div>
         </div>
-        <input class="dw-search" id="dwSoftSearch" placeholder="search software..." oninput="filterLib(this.value)">
-        <div class="dw-filters" id="dwSoftFilters">
-          <span class="dw-filt on" onclick="setFilter(this,'all')">All</span>
-          <span class="dw-filt" onclick="setFilter(this,'draft')">Draft</span>
-          <span class="dw-filt" onclick="setFilter(this,'coded')">Coded</span>
-          <span class="dw-filt" onclick="setFilter(this,'street')">Street</span>
-          <span class="dw-filt" onclick="setFilter(this,'fab')">Compiling</span>
-          <span class="dw-filt" onclick="setFilter(this,'pending')">On order</span>
-        </div>
-        <div id="dwRailSoft"><div class="dw-empty">No software yet</div></div>
 
-        <div class="dw-group">Loadouts <span class="add" onclick="newLoadout()">+ new</span></div>
-        <div id="dwRailLoadouts"><div class="dw-empty">No loadouts yet</div></div>
+        <div class="dw-group" data-sec="soft" onclick="toggleRailSection('soft')"><span class="dw-caret">&#9662;</span>Software <span class="add" onclick="event.stopPropagation();newProgram()">+ new</span></div>
+        <div class="dw-sec" id="dwSecSoft">
+          <div class="dw-archive" id="dwArchive" onclick="inspect('omc')">
+            <div class="hd"><span>OMC Archive</span><span class="n" id="dwArcN">0 / 0 Mp</span></div>
+            <div class="dw-fit"><i id="dwArcBar" style="width:0%"></i></div>
+            <div class="lbl">Off-line chip storage &middot; <span class="buy">order more</span></div>
+          </div>
+          <input type="text" class="dw-search" id="dwSoftSearch" placeholder="search software..." oninput="filterLib(this.value)">
+          <div class="dw-filters" id="dwSoftFilters">
+            <span class="dw-filt on" onclick="setFilter(this,'all')">All</span>
+            <span class="dw-filt" onclick="setFilter(this,'ready')">Ready</span>
+            <span class="dw-filt" onclick="setFilter(this,'busy')">In Flight</span>
+            <span class="dw-filt" onclick="setFilter(this,'draft')">Drafts</span>
+          </div>
+          <div id="dwRailSoft"><div class="dw-empty">No software yet</div></div>
+        </div>
+
+        <div class="dw-group" data-sec="loadouts" onclick="toggleRailSection('loadouts')"><span class="dw-caret">&#9662;</span>Loadouts <span class="add" onclick="event.stopPropagation();newLoadout()">+ new</span></div>
+        <div class="dw-sec" id="dwSecLoadouts">
+          <div id="dwRailLoadouts"><div class="dw-empty">No loadouts yet</div></div>
+        </div>
       </div>
     </aside>
 
@@ -640,7 +764,7 @@ const UTILITIES = [
   // Special
   { name: "Compressor", mult: 2,  cat: "Special", note: "Reduce transfer file size by 50%. Max file = Rating\xd7100 Mp." },
   { name: "Sleaze",     mult: 3,  cat: "Special", note: "Passive. Increases Detection Factor.  ((Masking + Sleaze) \xf7 2)" },
-  { name: "Track",      mult: 8,  cat: "Special", note: "Attack program with trace capability for Deckers." },
+  { name: "Track",      mult: 8,  cat: "Special", note: "Traces enemy deckers in the Matrix, like Trace IC -- not just after they jack out." },
   // Offensive
   { name: "Attack",     mult: 2,  cat: "Offensive", dmg_levels: { Light:2, Moderate:3, Serious:4, Deadly:5 }, note: "Standard cybercombat. Multiplier varies by damage level chosen." },
   { name: "Black Hammer",mult:20, cat: "Offensive", note: "Decker version of Black IC, minus the Blaster-like capabilities. Lethal damage to deckers. Uses standard program cap." },
@@ -675,26 +799,42 @@ const OPTION_DEFS = [
   { id: "targeting",    label: "Targeting",     type: "check",  note: "Rule: -2 TN on attacks made with this utility.\n\nEff Rating: +2.\n\nDesign: Per [Eff Rating]." },
 ];
 
-// Utilities where some options are excluded
-const OPTION_EXCLUSIONS = {
-  "Sleaze":       ["area","chaser","dinab","limit","oneshot","optimization","penetration","skulk","squeeze","targeting"],
-  "Compressor":   ["area","dinab","skulk","targeting"],
-  "Track":        ["area","targeting"],
-  "Black Hammer": ["area","targeting"],
-  "Killjoy":      ["area","targeting"],
-  "Steamroller":  ["area","chaser","limit","penetration","squeeze"],
+// Options each utility may carry, taken verbatim from the VR2 utility tables
+// (vr2_rules.md). All operational utilities share one blanket set; special
+// utilities (Compressor, Sleaze, Track) list none; offensive/defensive
+// utilities each enumerate their own. "Stealth" in the book == our "skulk".
+const OPERATIONAL_OPTIONS = ["dinab", "oneshot", "optimization", "squeeze"];
+const UTILITY_OPTION_ALLOW = {
+  // Offensive
+  "Attack":       ["area", "chaser", "dinab", "limit", "oneshot", "optimization", "penetration", "skulk", "targeting"],
+  "Black Hammer": ["oneshot", "optimization", "targeting"],
+  "Hog":          ["dinab", "oneshot", "optimization", "targeting"],
+  "Killjoy":      ["oneshot", "optimization", "targeting"],
+  "Poison":       ["area", "dinab", "oneshot", "optimization", "targeting"],
+  "Restrict":     ["area", "dinab", "oneshot", "optimization", "targeting"],
+  "Reveal":       ["area", "dinab", "oneshot", "optimization", "targeting"],
+  "Slow":         ["area", "dinab", "oneshot", "optimization", "targeting"],
+  "Steamroller":  ["dinab", "oneshot", "optimization", "skulk", "targeting"],
+  // Defensive
+  "Armor":        ["optimization"],
+  "Camo":         ["oneshot", "optimization"],
+  "Cloak":        ["oneshot", "optimization"],
+  "Lock-On":      ["oneshot", "optimization"],
+  "Medic":        ["dinab", "optimization"],
+  "Restore":      ["dinab", "oneshot", "optimization"],
+  "Shield":       ["optimization"],
 };
 
-const OFFENSIVE_ONLY_OPTIONS = ["chaser", "penetration", "targeting"];
+function getUtilityAllowedOptions(util) {
+  if (!util) return [];
+  if (util.cat === 'Operational') return OPERATIONAL_OPTIONS.slice();
+  if (util.cat === 'Special') return []; // Compressor / Sleaze / Track carry no options per RAW
+  return UTILITY_OPTION_ALLOW[util.name] || [];
+}
 
 function getUtilityOptionExclusions(util) {
-  const allOptionIds = OPTION_DEFS.map(o => o.id);
-  if (!util) return allOptionIds;
-  if (util.cat !== 'Offensive' && util.cat !== 'Defensive') return allOptionIds;
-
-  const base = OPTION_EXCLUSIONS[util?.name] || [];
-  if (util.cat === 'Offensive') return base;
-  return [...new Set([...base, ...OFFENSIVE_ONLY_OPTIONS])];
+  const allowed = new Set(getUtilityAllowedOptions(util));
+  return OPTION_DEFS.map(o => o.id).filter(id => !allowed.has(id));
 }
 
 // --- State -------------------------------------------------------------------
@@ -705,17 +845,14 @@ const STORAGE_PRACTICAL_MAX = 65535;
 const YEAR_OFFSET = 24;
 let selectedProgrammerSkillSet = null;
 let editingSourceProjectId = '';
-let currentSoftRoute = 'code';
 let remoteDeckState = null;
 let remoteDeckStateLoadedForCharacterId = '';
 let remoteDeckStateSaveTimer = null;
 let loadPlannerFilter = 'all';
-let loadPlannerDense = false;
 let loadPlannerDeckName = '';   // saved deck (DECK_STORE.name) the active loadout is planned against
 let editingLoadoutName = '';    // name of the loadout currently open in the dossier
 let activeDeckBuildName = '';
 let deckUpgradeBaseline = null;  // as-built spec snapshot when upgrading a saved deck (no-downgrade floor)
-let _deckCalcTotalCost = 0;      // last calcDeck pre-discount component total (for upgrade delta)
 let _deckAcqPath = null;         // selected acquisition route ('build' | 'buy' | null) -> drives the itemize
 let _deckBuildItemize = null;    // last build-at-bench parts breakdown (rows + totals) for the itemize
 let _deckBuyItemize = null;      // last order-from-fixer a la Carte breakdown (rows + totals) for the itemize
@@ -876,7 +1013,7 @@ function acknowledgeInterrupt() {
     const u = new URL(ref);
     const sameOrigin = u.origin === window.location.origin;
     const inApp = u.pathname.startsWith('/ui/');
-    const notSelf = !u.pathname.endsWith('/deck-builder-preview.html');
+    const notSelf = !u.pathname.endsWith('/deck-workshop.html');
     if (sameOrigin && inApp && notSelf) {
       window.location.href = ref;
       return;
@@ -971,41 +1108,55 @@ function getBuyRatingCeiling() {
   return best > 0 ? Math.min(14, best) : 0;
 }
 
+function isHalfRatingUtility(utilName) {
+  return utilName === 'Black Hammer' || utilName === 'Killjoy';
+}
+
+// What YOUR programming skill lets you DESIGN (code route). Practical ceiling 14.
+// Black Hammer / Killjoy cap at half skill, rounded UP (SR2 rule). The dominant
+// programming skill (Computer / Software conc. / Matrix spec.) already feeds getCurrentUtilCap.
+function getUtilityBuildCap(utilName) {
+  const skillCap = Math.min(14, getCurrentUtilCap());
+  const cap = isHalfRatingUtility(utilName) ? Math.ceil(skillCap / 2) : skillCap;
+  return Math.max(1, cap);
+}
+
+// What your IRON lets you RUN (buy route): best finished deck MPCP, ceiling 14.
+// No finished deck -> 0 (buying unavailable). BH/Killjoy halved, rounded UP.
+function getUtilityBuyCap(utilName) {
+  const ceiling = getBuyRatingCeiling(); // min(14, best ready deck MPCP), 0 if none
+  if (ceiling <= 0) return 0;
+  const cap = isHalfRatingUtility(utilName) ? Math.ceil(ceiling / 2) : ceiling;
+  return Math.max(1, cap);
+}
+
+// Field max for the Rating input: the higher of what you can code or buy, so you
+// can't pick a rating you can neither build nor order. When upgrading a source you
+// already hold, only the build cap applies (an order can't raise source you own).
 function getUtilityRatingCap(utilName) {
-  const generalCap = (currentSoftRoute === 'buy') ? getBuyRatingCeiling() : getCurrentUtilCap();
-  if (utilName === 'Black Hammer' || utilName === 'Killjoy') {
-    return Math.max(1, Math.floor(generalCap / 2));
-  }
-  return generalCap;
+  const buildCap = getUtilityBuildCap(utilName);
+  if (editingSourceProjectId) return buildCap;
+  return Math.max(1, Math.min(14, Math.max(buildCap, getUtilityBuyCap(utilName))));
 }
 
 function updateUtilityRatingCapUI() {
   const utilName = $('utilType')?.value || '';
-  const utilLabel = utilName || 'utility';
-  const generalCap = getCurrentUtilCap();
   const effectiveCap = getUtilityRatingCap(utilName);
-  const dominantSkill = getDominantProgrammingSkill();
-
   const utilEl = $('utilRating');
   if (utilEl) {
     utilEl.max = String(effectiveCap);
     if (ni('utilRating') > effectiveCap) utilEl.value = String(effectiveCap);
   }
-
+  // Compact hint under the Rating field: the best FINISHED deck's MPCP (built/purchased only --
+  // not designs, drafts, or on-order iron), so the player can see when a program's rating exceeds
+  // what their iron can run. The programming/skill cap is shown elsewhere on the page, so this
+  // hint carries ONLY the deck ceiling. Deck max is a property of the runner's iron, so it shows
+  // regardless of whether a utility is selected.
   const utilTip = $('utilCapTip');
-  if (!utilTip) return;
-  if (currentSoftRoute === 'buy') {
-    const best = getBestReadyDeckMpcp();
-    const half = (utilName === 'Black Hammer' || utilName === 'Killjoy') ? ', BH/Killjoy /2' : '';
-    const gate = best > 0 ? `best deck MPCP ${best}, ceiling 14${half}` : `no finished deck -- buy unavailable${half}`;
-    utilTip.textContent = `Order cap: max ${utilLabel} rating ${effectiveCap} (${gate}).`;
-    return;
+  if (utilTip) {
+    const bestDeck = getBestReadyDeckMpcp();
+    utilTip.textContent = bestDeck > 0 ? `Deck max ${bestDeck}` : 'Deck max -- (no built deck)';
   }
-  if (utilName === 'Black Hammer' || utilName === 'Killjoy') {
-    utilTip.textContent = `Programmer cap: max ${utilLabel} rating ${effectiveCap} (${dominantSkill.label} / 2).`;
-    return;
-  }
-  utilTip.textContent = `Programmer cap: max ${utilLabel} rating ${generalCap} (${dominantSkill.label}).`;
 }
 
 function applyProgrammerCaps(caps) {
@@ -1157,6 +1308,7 @@ async function activateDeckBuilder() {
   renderSavedDecks();
   renderSavedLoadouts();
   renderSavedPrograms();
+  applyRailCollapsed();
 }
 
 function switchDecker() {
@@ -1390,6 +1542,32 @@ function _saveStore(key, data) {
   }
 }
 
+// ---- Collapsible asset-rail sections (Decks / Software / Loadouts) ----
+// Players can roll up the sections they aren't actively working on. This is a
+// view preference only, so it lives in plain localStorage (not character data).
+const RAIL_COLLAPSE_STORE = 'sr2_rail_collapsed_v1';
+const RAIL_SECTIONS = ['decks', 'soft', 'loadouts'];
+function _loadRailCollapsed() {
+  try { return JSON.parse(localStorage.getItem(RAIL_COLLAPSE_STORE)) || {}; }
+  catch (e) { return {}; }
+}
+function applyRailCollapsed() {
+  const state = _loadRailCollapsed();
+  RAIL_SECTIONS.forEach(sec => {
+    const collapsed = !!state[sec];
+    const grp = document.querySelector(`.dw-group[data-sec="${sec}"]`);
+    const body = $('dwSec' + sec.charAt(0).toUpperCase() + sec.slice(1));
+    if (grp) grp.classList.toggle('collapsed', collapsed);
+    if (body) body.classList.toggle('collapsed', collapsed);
+  });
+}
+function toggleRailSection(sec) {
+  const state = _loadRailCollapsed();
+  state[sec] = !state[sec];
+  try { localStorage.setItem(RAIL_COLLAPSE_STORE, JSON.stringify(state)); } catch (e) {}
+  applyRailCollapsed();
+}
+
 /* ===========================================================================
    STUBS -- grown into real behavior over the next checkpoints (deck dossier,
    program dossier, loadout planner, asset rail, upgrades, damage, OMC, GM
@@ -1445,12 +1623,16 @@ function renderSavedLoadouts() {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en-US', { sensitivity: 'base' }));
   if (!loadouts.length) { el.innerHTML = '<div class="dw-empty">No loadouts yet</div>'; return; }
   el.innerHTML = '';
+  const decks = _loadStore(DECK_STORE);
   loadouts.forEach(lo => {
     const count = lo.items?.length ?? 0;
     const date = lo.savedAt ? new Date(lo.savedAt).toLocaleDateString() : '';
+    const deck = decks.find(d => d.name === lo.deckName) || null;
+    const notRunnable = deck ? getMpcpViolationsFor(lo.items || [], deck).length > 0 : false;
+    const runChip = notRunnable ? ' <span class="chipx damaged inline">Not runnable</span>' : '';
     const row = document.createElement('div');
     row.className = 'dw-asset' + (editingLoadoutName === lo.name ? ' sel' : '');
-    row.innerHTML = `<div class="nm">${esc(lo.name)} <span class="chipx ready inline">${count} prog${count === 1 ? '' : 's'}</span><span class="dw-del" title="Delete">&times;</span></div>
+    row.innerHTML = `<div class="nm">${esc(lo.name)} <span class="chipx ready inline">${count} prog${count === 1 ? '' : 's'}</span>${runChip}<span class="dw-del" title="Delete">&times;</span></div>
       <div class="mt">${esc(lo.deckName || 'no deck')}${date ? ' &middot; ' + esc(date) : ''}</div>`;
     row.addEventListener('click', (e) => {
       if (e.target.closest('.dw-del')) { e.stopPropagation(); deleteLoadout(lo.name); return; }
@@ -1468,6 +1650,9 @@ function setProgramEditState(_id, _name) { editingSourceProjectId = _id || ''; }
    =========================================================================== */
 let _libSearch = '';
 let _libFilter = 'all';
+// Top-level library filter chips collapse the per-program statuses into 4 buckets:
+// All, Ready (coded/street), In Flight (compiling 'fab' / on-order 'pending'), Drafts.
+const _LIB_FILTER_STATUS = { ready: ['coded', 'street'], busy: ['fab', 'pending'], draft: ['draft'] };
 const _DMG_LETTER = { 2: 'L', 3: 'M', 4: 'S', 5: 'D' };
 
 function getSourceDisplayName(version) {
@@ -1748,8 +1933,8 @@ function applyProgramOptionState(state, baseRating) {
     if (limitEl.checked) {
       onUtilTypeChange();
       const target = safeState.limitTarget === 'ic' ? 'ic' : 'decker';
-      const targetEl = document.querySelector(`input[name="opt_limit_target"][value="${target}"]`);
-      if (targetEl) targetEl.checked = true;
+      const targetEl = document.getElementById('opt_limit_target');
+      if (targetEl) targetEl.value = target;
     }
   }
 }
@@ -1800,7 +1985,7 @@ function openProgramSource(sourceId) {
   const src = _loadStore(SOURCE_STORE).find(s => s.id === sourceId);
   if (!src || !src.versions?.length) return;
   const latest = src.versions[src.versions.length - 1];
-  if (!$('utilType') || currentSoftRoute !== 'code') openSoftDraft('code');
+  if (!$('utilType')) openSoftDraft();
   setProgramEditState(src.id, src.name);
   $('utilType').value = latest.utilName || '';
   if ($('utilRating')) {
@@ -1818,7 +2003,7 @@ function openProgramSource(sourceId) {
 
 function openProgramArtifactClone(data) {
   if (!data) return;
-  if (!$('utilType') || currentSoftRoute !== 'code') openSoftDraft('code');
+  if (!$('utilType')) openSoftDraft();
   setProgramEditState('', '');
   $('utilType').value = data.utilName || '';
   if ($('utilRating')) {
@@ -2120,7 +2305,8 @@ function applyLibFilter() {
   root.querySelectorAll('.dw-fam').forEach(fam => {
     let anyVisible = false;
     fam.querySelectorAll('.dw-var').forEach(v => {
-      const statusOk = _libFilter === 'all' || v.getAttribute('data-status') === _libFilter;
+      const statusOk = _libFilter === 'all' ||
+        (_LIB_FILTER_STATUS[_libFilter] || [_libFilter]).includes(v.getAttribute('data-status'));
       const searchOk = !_libSearch || (v.getAttribute('data-search') || '').includes(_libSearch);
       const show = statusOk && searchOk;
       v.style.display = show ? '' : 'none';
@@ -2463,7 +2649,6 @@ function calcDeck() {
 
   // Upgrade/repair = re-fabricate only the changed components (+ MPCP cascade); a plain
   // build benches/bills every component.
-  _deckCalcTotalCost = totalCost;
   const upgInfo = (deckUpgradeBaseline && deckUpgradeBaseline.name === activeDeckBuildName) ? deckUpgradeBaseline : null;
 
   // -- Total construction time ----------------------------
@@ -2803,9 +2988,6 @@ function computeDeckAlaCarteRows(s) {
   if (s.casingLvl > 0) add('casing', 'Deck Casing', 'Lvl ' + s.casingLvl, casing[s.casingLvl]);
   return rows;
 }
-function computeDeckAlaCarte(s) {
-  return computeDeckAlaCarteRows(s).reduce((t, r) => t + r.price, 0);
-}
 function deckAvailBand(r) {
   // Buying Programs / Program Prices availability bands (TN / base days), vr2_rules.md.
   if (r <= 3) return { tn: 2, days: 7 };
@@ -2986,9 +3168,20 @@ function computeLoadUsage(items) {
   const activeUsed = normalized
     .filter(i => targetIsActive(i.target))
     .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
+  // Storage: a one-shot program keeps a single storage master, so its footprint counts
+  // ONCE no matter how many copies run in active memory; normal programs count each copy.
+  const oneShotCounted = new Set();
   const storageUsed = normalized
     .filter(i => targetHasStorage(i.target))
-    .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
+    .reduce((s, i) => {
+      const sz = parseInt(i.actualSize, 10) || 0;
+      if (isOneShotProgram(i)) {
+        const k = getProgramIdentityKey(i);
+        if (oneShotCounted.has(k)) return s;
+        oneShotCounted.add(k);
+      }
+      return s + sz;
+    }, 0);
   return { activeUsed, storageUsed };
 }
 
@@ -3003,6 +3196,7 @@ function aggregateLoadPlannerEntries(items) {
         utilName: item.utilName,
         programTypeKey: item.programTypeKey || getProgramTypeKey(item.utilName || ''),
         baseRating: item.baseRating,
+        attackDamage: item.attackDamage || null,
         mods: item.mods || 'None',
         hasLimit: !!item.hasLimit,
         limitTarget: item.limitTarget || '',
@@ -3031,6 +3225,7 @@ function _buildLoadItemFromEntry(entry, target) {
     utilName: entry.utilName,
     programTypeKey: entry.programTypeKey,
     baseRating: entry.baseRating,
+    attackDamage: entry.attackDamage || null,
     mods: entry.mods,
     hasLimit: entry.hasLimit,
     limitTarget: entry.limitTarget,
@@ -3056,25 +3251,6 @@ function addEntryToActive(key) {
     }
   }
   addProgramToLoadPlanner(_buildLoadItemFromEntry(entry, 'active'));
-}
-
-function addEntryToStorage(key) {
-  const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(e => e.key === key);
-  if (!entry) return;
-  if (!entry.isOneShot) {
-    if (entry.activeIdx.length > 0) {
-      showAlert(null, '>> INFO // Program is already active, so storage is already allocated.', false);
-      return;
-    }
-    if (entry.storageIdx.length > 0) {
-      showAlert(null, '>> DUPLICATE BLOCKED // Program already exists in Storage.', true);
-      return;
-    }
-  } else if (entry.storageIdx.length > 0) {
-    showAlert(null, '>> DUPLICATE BLOCKED // One-Shot storage copy already exists. Add extra copies to Active.', true);
-    return;
-  }
-  addProgramToLoadPlanner(_buildLoadItemFromEntry(entry, 'storage'));
 }
 
 function removeEntryFromActive(key) {
@@ -3186,6 +3362,34 @@ function getLoadoutDeckCaps() {
   };
 }
 
+/* --- Run-time validity: the MPCP caps every utility's runnable rating (vr2: "Maximum
+   rating for most utility programs equals the MPCP Rating"). Hardware damage to the MPCP
+   lowers that cap until the deck is refit, so an otherwise-legal loadout can become
+   un-runnable. Persona (BEMS) damage degrades those persona ratings but does NOT cap
+   utility ratings, so persona damage alone never invalidates a loadout. ---------------- */
+function getDeckEffectiveMpcp(deck) {
+  if (!deck) return { effective: 0, built: 0, damaged: false };
+  const built = Math.max(0, parseInt(deck.mpcp, 10) || 0);
+  let effective = built;
+  if (deck.damage && deck.damage.mpcp != null) {
+    const cur = parseInt(deck.damage.mpcp, 10);
+    if (!isNaN(cur)) effective = Math.max(0, Math.min(built, cur));
+  }
+  return { effective, built, damaged: effective < built };
+}
+function getLoadoutDeckMpcp() { return getDeckEffectiveMpcp(getLoadoutDeck()); }
+
+// Loadout programs whose rating exceeds the deck's current (possibly damaged) MPCP cap.
+// These cannot run until the MPCP is repaired or the program is swapped for a lower rating.
+function getMpcpViolationsFor(items, deck) {
+  const { effective, built } = getDeckEffectiveMpcp(deck);
+  if (built <= 0) return [];
+  return aggregateLoadPlannerEntries(items)
+    .filter(e => (parseInt(e.baseRating, 10) || 0) > effective)
+    .map(e => ({ key: e.key, label: e.label, rating: parseInt(e.baseRating, 10) || 0, active: e.activeIdx.length > 0 }));
+}
+function getLoadoutMpcpViolations() { return getMpcpViolationsFor(loadPlannerItems, getLoadoutDeck()); }
+
 function recalcLoadPlannerWithWarnings() {
   const caps = getLoadoutDeckCaps();
   const usage = computeLoadUsage(loadPlannerItems);
@@ -3222,6 +3426,7 @@ async function addCompiledProgramToLoad(compiledId, target) {
     utilName: artifact.utilName || '',
     programTypeKey: artifact.programTypeKey || getProgramTypeKey(artifact.utilName || ''),
     baseRating: Math.max(0, parseInt(artifact.baseRating, 10) || 0),
+    attackDamage: artifact.attackDamage || null,
     mods: artifact.mods || 'None',
     isOneShot: !!artifact.isOneShot,
     hasLimit: !!artifact.hasLimit,
@@ -3230,40 +3435,235 @@ async function addCompiledProgramToLoad(compiledId, target) {
   });
 }
 
+/* === LP2 loadout hot-zone helpers (ported from the loadout-hotzone-bars prototype) ===
+   The planner is drawn as colored proportional memory bars plus a nested
+   Active-inside-Storage board of fixed-size category cards. Movement is by drag
+   (library card -> Active/Storage, deck card between zones, deck card -> library to
+   drop) and by the one-shot copy stepper; every mutation reuses the existing model
+   functions. Over-MPCP programs render subdued/struck and are refused from Active
+   with a centered toast (they may still be staged in Storage for a later refit). */
+const LP_CAT = {
+  Offensive:   { key: 'off', cls: 'cat-off' },
+  Defensive:   { key: 'def', cls: 'cat-def' },
+  Operational: { key: 'ops', cls: 'cat-ops' },
+  Special:     { key: 'spc', cls: 'cat-spc' },
+};
+// Utilities that physically degrade one rating point per use (vr2 wear rules).
+const LP_DEGRADERS = { Medic: 1, Shield: 1, Armor: 1, Evaluate: 1 };
+const _LP_UTIL_CAT = (() => { const m = {}; UTILITIES.forEach(u => { m[u.name] = u.cat; }); return m; })();
+function lpCatOf(utilName) { return _LP_UTIL_CAT[utilName] || 'Operational'; }
+function lpCatClass(utilName) { const c = LP_CAT[lpCatOf(utilName)]; return c ? c.cls : 'cat-ops'; }
+function lpCatKey(utilName) { const c = LP_CAT[lpCatOf(utilName)]; return c ? c.key : 'ops'; }
+function lpDmgLetter(o) {
+  return (o && o.utilName === 'Attack' && o.attackDamage && _DMG_LETTER[o.attackDamage]) ? _DMG_LETTER[o.attackDamage] : '';
+}
+function lpProgName(o) { return `${o.utilName || ''}-${parseInt(o.baseRating, 10) || 0}${lpDmgLetter(o)}`; }
+function lpRatingLabel(o) { return `${parseInt(o.baseRating, 10) || 0}${lpDmgLetter(o)}`; }
+function lpSortForBar(list) {
+  const order = ['Offensive', 'Defensive', 'Operational', 'Special'];
+  return list.slice().sort((a, b) =>
+    (order.indexOf(lpCatOf(a.utilName)) - order.indexOf(lpCatOf(b.utilName)))
+    || String(a.utilName || '').localeCompare(String(b.utilName || ''))
+    || ((parseInt(b.baseRating, 10) || 0) - (parseInt(a.baseRating, 10) || 0)));
+}
+
+function lpTagsHtml(o) {
+  let out = '';
+  if (o.isOneShot) out += '<b class="lp2-otag shot">1-SHOT</b>';
+  if (o.street) out += '<b class="lp2-otag">STREET</b>';
+  if (o.limitTarget) out += '<b class="lp2-otag">LIMIT</b>';
+  if (LP_DEGRADERS[o.utilName]) out += '<b class="lp2-otag wear">WEARS</b>';
+  return out;
+}
+
+/* o: { key, cid?, utilName, baseRating, attackDamage?, actualSize, isOneShot, mods?,
+        street?, limitTarget?, copies? }. mode: 'lib' | 'active' | 'bench'. */
+function lpCardHtml(o, mode, mpcp) {
+  const rating = parseInt(o.baseRating, 10) || 0;
+  const over = !!(mpcp && mpcp.built > 0 && rating > mpcp.effective);
+  const osActive = !!(o.isOneShot && mode === 'active');
+  const cls = `lp2-tile ${lpCatClass(o.utilName)}${mode === 'active' ? ' live' : ''}${over ? ' over' : ''}`;
+  const nm = lpProgName(o);
+  const unit = Math.max(0, parseInt(o.actualSize, 10) || 0);
+  const totalMp = osActive ? ((parseInt(o.copies, 10) || 0) * unit) : unit;
+  const dataFrom = mode === 'active' ? 'active' : (mode === 'bench' ? 'bench' : 'lib');
+  const ttl = over
+    ? `${nm} exceeds the deck MPCP ${mpcp.effective} -- cannot load on deck`
+    : `${nm} -- ${fmtN(unit)} Mp -- drag to move`;
+  let meta = lpTagsHtml(o);
+  if (osActive) {
+    meta += '<span class="copies" title="Copies loaded in active memory">'
+      + '<span class="st" data-cstep="dec" draggable="false">&lsaquo;</span>'
+      + `<b>&times;${parseInt(o.copies, 10) || 0}</b>`
+      + '<span class="st" data-cstep="inc" draggable="false">&rsaquo;</span>'
+      + '</span>';
+  }
+  return `<div class="${cls}" draggable="true" data-from="${dataFrom}" data-lp="${esc(o.key)}"`
+    + `${o.cid ? ` data-cid="${esc(o.cid)}"` : ''} data-rt="${rating}" title="${esc(ttl)}">`
+    + `<div class="tn">${esc(o.utilName || '')}<span class="rt">-${esc(lpRatingLabel(o))}</span></div>`
+    + `<div class="meta">${meta}</div>`
+    + `<div class="mp">${fmtN(totalMp)} Mp</div>`
+    + '</div>';
+}
+
+/* Hover-linking: light every bar segment + card that shares an identity key. */
+function lpHl(key, on) {
+  document.querySelectorAll('[data-lp]').forEach(el => {
+    if (el.getAttribute('data-lp') === key) el.classList.toggle('hl', !!on);
+  });
+}
+function lpWireHover(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-lp]').forEach(el => {
+    const k = el.getAttribute('data-lp');
+    el.addEventListener('mouseenter', () => lpHl(k, true));
+    el.addEventListener('mouseleave', () => lpHl(k, false));
+  });
+}
+
+/* Centered reject toast + dimmed backdrop (over-MPCP feedback). */
+let _lpToastT = null;
+function lpEnsureToast() {
+  if ($('lp2Toast')) return;
+  const bd = document.createElement('div'); bd.id = 'lp2Backdrop'; bd.className = 'lp2-backdrop';
+  const t = document.createElement('div'); t.id = 'lp2Toast'; t.className = 'lp2-toast';
+  t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'assertive');
+  document.body.appendChild(bd); document.body.appendChild(t);
+}
+function lpToast(msg) {
+  lpEnsureToast();
+  const t = $('lp2Toast'), bd = $('lp2Backdrop');
+  t.textContent = msg; t.classList.add('show'); if (bd) bd.classList.add('show');
+  if (_lpToastT) clearTimeout(_lpToastT);
+  _lpToastT = setTimeout(() => { t.classList.remove('show'); if (bd) bd.classList.remove('show'); }, 1600);
+}
+function lpDenyPulse() {
+  const b = document.querySelector('.lp2-board');
+  if (!b) return;
+  b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny');
+  setTimeout(() => b.classList.remove('deny'), 560);
+}
+
+/* Drag-and-drop. Library cards add; deck cards move between zones or drop back to
+   the library. All routes call the existing add/remove model functions. */
+let _lpDrag = null;
+let _lpDragWired = false;
+let _lpDropHandled = false;
+function lpWireDragOnce() {
+  if (_lpDragWired) return; _lpDragWired = true;
+  document.addEventListener('dragstart', e => {
+    const card = e.target.closest && e.target.closest('.lp2-tile');
+    if (!card) return;
+    if (e.target.closest('.copies')) { e.preventDefault(); return; }
+    _lpDropHandled = false;
+    _lpDrag = {
+      from: card.getAttribute('data-from') || 'lib',
+      cid: card.getAttribute('data-cid') || '',
+      key: card.getAttribute('data-lp') || '',
+      rating: parseInt(card.getAttribute('data-rt'), 10) || 0,
+    };
+    if (e.dataTransfer) { e.dataTransfer.setData('text/plain', _lpDrag.key || _lpDrag.cid); e.dataTransfer.effectAllowed = 'move'; }
+    card.classList.add('dragging');
+  });
+  document.addEventListener('dragend', e => {
+    const card = e.target.closest && e.target.closest('.lp2-tile');
+    if (card) card.classList.remove('dragging');
+    const d = _lpDrag;
+    // Released outside any drop zone: dragging a loaded program off Active/Storage and
+    // letting go anywhere on the page removes it from the deck (same result as dropping
+    // it back on the library). Library cards (from === 'lib') released in empty space do
+    // nothing. Deck cards carry from === 'active' or 'bench'.
+    if (d && !_lpDropHandled && d.from !== 'lib') {
+      removeEntryFromStorage(d.key);
+    }
+    _lpDrag = null;
+    _lpDropHandled = false;
+    document.querySelectorAll('.lp2-zone.drop-ok').forEach(z => z.classList.remove('drop-ok'));
+  });
+}
+function lpBindZone(zoneEl, slot) {
+  if (!zoneEl) return;
+  zoneEl.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; zoneEl.classList.add('drop-ok'); });
+  zoneEl.addEventListener('dragleave', e => { if (!zoneEl.contains(e.relatedTarget)) zoneEl.classList.remove('drop-ok'); });
+  zoneEl.addEventListener('drop', e => { e.preventDefault(); zoneEl.classList.remove('drop-ok'); _lpDropHandled = true; lpHandleDrop(slot); });
+}
+/* Display name for a drag descriptor (used by the over-MPCP reject toast). */
+function lpDropName(d) {
+  if (!d) return 'Program';
+  if (d.from === 'lib' && d.cid) {
+    const a = _loadStore(COMPILED_STORE).find(x => x.id === d.cid);
+    if (a) return lpProgName({ utilName: a.utilName, baseRating: a.baseRating, attackDamage: a.attackDamage });
+  }
+  const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(e => e.key === d.key);
+  if (entry) return lpProgName(entry);
+  return `R${d.rating}`;
+}
+/* Centered reject toast + red deck pulse when an over-MPCP program is refused. */
+function lpRejectOverMpcp(name, eff) {
+  lpToast(`Can't load on deck: ${name} exceeds MPCP ${eff}`);
+  lpDenyPulse();
+}
+function lpHandleDrop(slot) {
+  const d = _lpDrag; if (!d) return;
+  const mpcp = getLoadoutDeckMpcp();
+  const blocked = mpcp.built > 0 && d.rating > mpcp.effective;
+  // A utility rated above the deck's MPCP can't be loaded onto the deck at all -- not
+  // active, not storage (the iron can't run it, and it must never be staged where a
+  // later Swap Memory could pull it into active). Only dropping it back to the library
+  // (removing it from the deck) is allowed.
+  if (blocked && slot !== 'lib') { lpRejectOverMpcp(lpDropName(d), mpcp.effective); return; }
+  if (slot === 'active') {
+    if (d.from === 'lib') addCompiledProgramToLoad(d.cid, 'active');
+    else addEntryToActive(d.key);
+  } else if (slot === 'storage') {
+    if (d.from === 'lib') addCompiledProgramToLoad(d.cid, 'storage');
+    else if (d.from === 'active') removeEntryFromActive(d.key);
+    // dragging a bench card onto storage is a no-op (already there).
+  } else if (slot === 'lib') {
+    if (d.from !== 'lib') removeEntryFromStorage(d.key);
+  }
+}
+function lpIncCopies(key) {
+  const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(e => e.key === key);
+  if (!entry) return;
+  const mpcp = getLoadoutDeckMpcp();
+  if (mpcp.built > 0 && (parseInt(entry.baseRating, 10) || 0) > mpcp.effective) {
+    lpRejectOverMpcp(lpProgName(entry), mpcp.effective); return;
+  }
+  addEntryToActive(key);
+}
+function lpDecCopies(key) { removeEntryFromActive(key); }
+
 /* --- v11-native renderers --------------------------------------------------- */
 function renderLoadLibrary() {
   const area = $('loadLibraryArea');
   if (!area) return;
-  if (!loadPlannerDeckName) { area.innerHTML = '<div class="dw-empty">Select a deck to load programs onto.</div>'; return; }
-  const compiled = _loadStore(COMPILED_STORE)
-    .slice()
-    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en-US', { sensitivity: 'base' }));
-  if (!compiled.length) { area.innerHTML = '<div class="dw-empty">No coded or street software yet. Build or buy programs first.</div>'; return; }
-  area.innerHTML = compiled.map(a => {
-    const sz = Math.max(0, parseInt(a.actualSize, 10) || 0);
-    const isStreet = a.acquisition === 'purchased';
-    const chip = isStreet ? '<span class="chipx street inline">Street</span>' : '<span class="chipx ready inline">Coded</span>';
-    const os = a.isOneShot ? ' <span class="alias">one-shot</span>' : '';
-    return `<div class="dw-prog-row" data-cid="${esc(a.id)}">
-        <span class="nm">${esc(a.name)}${os}</span>
-        ${chip}
-        <span class="mp">${fmtN(sz)} Mp</span>
-        <button class="btn btn-ghost btn-sm" data-op="addA">+ Active</button>
-        <button class="btn btn-ghost btn-sm" data-op="addS">+ Storage</button>
-      </div>`;
-  }).join('');
-  area.querySelectorAll('.dw-prog-row').forEach(row => {
-    const cid = row.getAttribute('data-cid');
-    row.querySelectorAll('[data-op]').forEach(btn => btn.addEventListener('click', () => {
-      addCompiledProgramToLoad(cid, btn.getAttribute('data-op') === 'addA' ? 'active' : 'storage');
-    }));
-  });
+  if (!loadPlannerDeckName) { area.innerHTML = '<div class="lp2-empty">Select a deck to load programs onto.</div>'; return; }
+  const compiled = _loadStore(COMPILED_STORE).slice();
+  if (!compiled.length) { area.innerHTML = '<div class="lp2-empty">No coded or street software yet. Build or buy programs first.</div>'; return; }
+  const mpcp = getLoadoutDeckMpcp();
+  const cards = lpSortForBar(compiled).map(a => lpCardHtml({
+    key: getProgramIdentityKey(a),
+    cid: a.id,
+    utilName: a.utilName || '',
+    baseRating: a.baseRating,
+    attackDamage: a.attackDamage,
+    actualSize: a.actualSize,
+    isOneShot: !!a.isOneShot,
+    mods: a.mods,
+    street: a.acquisition === 'purchased',
+  }, 'lib', mpcp)).join('');
+  area.innerHTML = `<div class="lp2-grid lp2-zone" id="lp2Lib">${cards}</div>`;
+  const zone = $('lp2Lib');
+  lpWireDragOnce();
+  lpBindZone(zone, 'lib');
+  lpWireHover(zone);
 }
 
 function renderLoadPlanner() {
   const area = $('loadPlannerArea');
   if (!area) return;
-  if (!loadPlannerDeckName) { area.innerHTML = '<div class="dw-empty">Select a deck to begin planning a loadout.</div>'; return; }
+  if (!loadPlannerDeckName) { area.innerHTML = '<div class="lp2-empty">Select a deck to begin planning a loadout.</div>'; return; }
 
   const caps = getLoadoutDeckCaps();
   const usage = computeLoadUsage(loadPlannerItems);
@@ -3271,20 +3671,73 @@ function renderLoadPlanner() {
   const storageOver = caps.storageCap > 0 && usage.storageUsed > caps.storageCap;
   const activeBase = caps.activeCap > 0 ? caps.activeCap : Math.max(usage.activeUsed, 1);
   const storageBase = caps.storageCap > 0 ? caps.storageCap : Math.max(usage.storageUsed, 1);
-  const activePct = Math.min(100, Math.round((usage.activeUsed / activeBase) * 100));
-  const storagePct = Math.min(100, Math.round((usage.storageUsed / storageBase) * 100));
   const sleaze = getLoadedSleazeRating();
+  const mpcp = getLoadoutDeckMpcp();
+  const violations = getLoadoutMpcpViolations();
+  const deck = getLoadoutDeck();
+  const deckName = deck ? deck.name : loadPlannerDeckName;
+
+  // Bar segments are drawn straight off the items so each bar totals to its live meter.
+  const activeSegs = lpSortForBar(loadPlannerItems.filter(i => targetIsActive(i.target || 'active')));
+  // Storage collapses one-shot copies to a single master segment so the bar matches the
+  // deduped storage meter (a one-shot's footprint is counted once however many copies run).
+  const _storageSeen = new Set();
+  const storageSegs = lpSortForBar(loadPlannerItems
+    .filter(i => targetHasStorage(i.target || 'active'))
+    .filter(i => {
+      if (!isOneShotProgram(i)) return true;
+      const k = getProgramIdentityKey(i);
+      if (_storageSeen.has(k)) return false;
+      _storageSeen.add(k);
+      return true;
+    }));
+  const segHtml = (item, base) => {
+    const sz = Math.max(0, parseInt(item.actualSize, 10) || 0);
+    const pct = base > 0 ? Math.max(0, (sz / base) * 100) : 0;
+    const key = getProgramIdentityKey(item);
+    const over = mpcp.built > 0 && (parseInt(item.baseRating, 10) || 0) > mpcp.effective;
+    const cls = `${lpCatKey(item.utilName)}${isOneShotProgram(item) ? ' shot' : ''}${over ? ' over' : ''}`;
+    return `<i class="${cls}" data-lp="${esc(key)}" style="width:${pct.toFixed(2)}%" title="${esc(`${lpProgName(item)} -- ${fmtN(sz)} Mp`)}"></i>`;
+  };
 
   let html = '';
-  html += `<div class="dw-mem">
-      <div class="hd"><span>Active memory</span><span class="n" style="color:${activeOver ? 'var(--red)' : 'var(--text-bright)'}">${fmtN(usage.activeUsed)} / ${fmtN(caps.activeCap)} Mp${activeOver ? ' &middot; OVER' : ''}</span></div>
-      <div class="dw-fit${activeOver ? ' hot' : ''}"><i style="width:${activePct}%"></i></div>
-    </div>`;
-  html += `<div class="dw-mem">
-      <div class="hd"><span>Storage memory</span><span class="n" style="color:${storageOver ? 'var(--red)' : 'var(--text-bright)'}">${fmtN(usage.storageUsed)} / ${fmtN(caps.storageCap)} Mp${storageOver ? ' &middot; OVER' : ''}</span></div>
-      <div class="dw-fit${storageOver ? ' hot' : ''}"><i style="width:${storagePct}%"></i></div>
-    </div>`;
-  html += `<div class="dim-label" style="margin:-6px 0 12px">Loaded Sleaze rating: <span style="color:var(--text-bright)">${sleaze || '&mdash;'}</span> &middot; active programs also consume storage.</div>`;
+  html += '<div class="lp2-deckbar">'
+    + `<span class="dk">Deck: <b>${esc(deckName)}</b></span>`
+    + `<span class="dk">MPCP <b>${mpcp.effective}${mpcp.damaged ? ` / ${mpcp.built}` : ''}</b></span>`
+    + `<span class="dk${mpcp.damaged ? ' warn' : ''}">Program cap <b>R${mpcp.effective}</b></span>`
+    + `<span class="dk">Active <b>${fmtN(caps.activeCap)} Mp</b></span>`
+    + `<span class="dk">Storage <b>${fmtN(caps.storageCap)} Mp</b></span>`
+    + '</div>';
+  html += '<div class="lp2-memmap">';
+  html += `<div class="lp2-mem"><div class="hd"><span>Active memory (RAM)</span>`
+    + `<span class="n${activeOver ? ' over' : ''}">${fmtN(usage.activeUsed)} / ${fmtN(caps.activeCap)} Mp${activeOver ? ' &middot; OVER' : ''}</span></div>`
+    + `<div class="lp2-slotbar">${activeSegs.map(i => segHtml(i, activeBase)).join('')}<span class="free"></span></div></div>`;
+  html += `<div class="lp2-mem"><div class="hd"><span>Storage (disk)</span>`
+    + `<span class="n${storageOver ? ' over' : ''}">${fmtN(usage.storageUsed)} / ${fmtN(caps.storageCap)} Mp${storageOver ? ' &middot; OVER' : ''}</span></div>`
+    + `<div class="lp2-slotbar">${storageSegs.map(i => segHtml(i, storageBase)).join('')}<span class="free"></span></div></div>`;
+  html += '</div>';
+
+  html += '<div class="lp2-legend">'
+    + '<span><i class="lp2-sw-off"></i> Offensive</span>'
+    + '<span><i class="lp2-sw-def"></i> Defensive</span>'
+    + '<span><i class="lp2-sw-ops"></i> Operational</span>'
+    + '<span><i class="lp2-sw-spc"></i> Special</span>'
+    + '<span><i class="lp2-sw-shot"></i> <b class="lp2-otag shot">1-SHOT</b> single use</span>'
+    + '<span><b class="lp2-otag wear">WEARS</b> degrades per use</span>'
+    + '</div>';
+
+  if (violations.length) {
+    const names = violations.map(v => `${esc(v.label)} (R${v.rating})`).join(', ');
+    const plural = violations.length > 1;
+    html += `<div class="mx-panel" style="border-color:#552222;margin-bottom:12px">
+        <div class="dw-row" style="align-items:center;gap:10px">
+          <span class="chipx damaged inline">Not runnable</span>
+          <span class="text-red" style="letter-spacing:1px">Program rating exceeds MPCP ${mpcp.effective}${mpcp.damaged ? ` (damaged from ${mpcp.built})` : ''}</span>
+        </div>
+        <div class="tip" style="margin-top:8px">${plural ? 'These programs' : 'This program'} cannot run on this deck: <span class="text-bright">${names}</span>. A utility may not exceed the deck's MPCP rating.</div>
+        <div class="tip" style="margin-top:4px">Fix: ${mpcp.damaged ? `refit the deck's MPCP back to ${mpcp.built}, ` : ''}swap in a copy rated ${mpcp.effective} or lower, or drop ${plural ? 'them' : 'it'} from the plan.</div>
+      </div>`;
+  }
 
   const filters = [
     { key: 'all', label: 'All' },
@@ -3297,53 +3750,66 @@ function renderLoadPlanner() {
     '</div>';
 
   const aggregated = aggregateLoadPlannerEntries(loadPlannerItems);
-  const filtered = aggregated.filter(entry => {
-    if (loadPlannerFilter === 'active') return entry.activeIdx.length > 0;
-    if (loadPlannerFilter === 'storage_only') return entry.activeIdx.length === 0 && entry.storageIdx.length > 0;
+  const showInZone = (entry, zone) => {
+    if (loadPlannerFilter === 'active') return zone === 'active';
+    if (loadPlannerFilter === 'storage_only') return zone === 'bench';
     if (loadPlannerFilter === 'oneshot') return entry.isOneShot;
     return true;
-  });
+  };
+  const activeEntries = aggregated.filter(e => e.activeIdx.length > 0 && showInZone(e, 'active'));
+  const reserveEntries = aggregated.filter(e => e.activeIdx.length === 0 && e.storageIdx.length > 0 && showInZone(e, 'bench'));
+  const entryCard = (entry, mode) => lpCardHtml({
+    key: entry.key,
+    utilName: entry.utilName,
+    baseRating: entry.baseRating,
+    attackDamage: entry.attackDamage,
+    actualSize: entry.actualSize,
+    isOneShot: entry.isOneShot,
+    limitTarget: entry.limitTarget,
+    copies: entry.activeIdx.length,
+  }, mode, mpcp);
 
+  const free = Math.max(0, caps.activeCap - usage.activeUsed);
+  let activeHtml = activeEntries.map(e => entryCard(e, 'active')).join('');
+  if (caps.activeCap > 0) activeHtml += `<div class="lp2-ghost">${fmtN(free)} Mp<br>free</div>`;
+  else if (!activeEntries.length) activeHtml = '<div class="lp2-empty">No active programs</div>';
+  const benchHtml = reserveEntries.length
+    ? reserveEntries.map(e => entryCard(e, 'bench')).join('')
+    : '<div class="lp2-empty">No reserves staged</div>';
+
+  html += '<div class="lp2-board">'
+    + `<div class="lp2-board-hd deck-hd"><span class="lbl">${esc(deckName)}</span></div>`
+    + '<div class="lp2-active-frame">'
+    + `<div class="lp2-board-hd"><span class="lbl">&#9650; Active Memory</span><span class="val${activeOver ? ' over' : ''}">${fmtN(usage.activeUsed)} / ${fmtN(caps.activeCap)} Mp</span></div>`
+    + `<div class="lp2-grid lp2-zone" id="lp2Active">${activeHtml}</div>`
+    + '</div>'
+    + '<div class="lp2-bench">'
+    + `<div class="lp2-board-hd"><span class="lbl">Storage Memory</span><span class="val${storageOver ? ' over' : ''}">${fmtN(usage.storageUsed)} / ${fmtN(caps.storageCap)} Mp</span></div>`
+    + `<div class="lp2-grid lp2-zone" id="lp2Bench">${benchHtml}</div>`
+    + '</div>'
+    + '</div>';
+
+  html += `<div class="dim-label" style="margin-top:10px">Loaded Sleaze rating: <span style="color:var(--text-bright)">${sleaze || '&mdash;'}</span> &middot; active programs also consume storage &middot; drag a card onto Active or Storage, or off the deck (anywhere) to remove it.</div>`;
   if (!loadPlannerItems.length) {
-    html += '<div class="dw-empty">No programs loaded. Add from the library above.</div>';
-  } else if (!filtered.length) {
-    html += '<div class="dw-empty">No programs match this filter.</div>';
-  } else {
-    html += filtered.map(entry => {
-      const size = Math.max(0, parseInt(entry.actualSize, 10) || 0);
-      const activeCount = entry.activeIdx.length;
-      const storageOn = activeCount > 0 || entry.storageIdx.length > 0;
-      const rowCls = activeCount > 0 ? 'dw-prog-row hl' : 'dw-prog-row';
-      const activeChip = activeCount > 0
-        ? `<span class="where act">Active${entry.isOneShot && activeCount > 1 ? ' &times;' + activeCount : ''}</span>` : '';
-      const storageChip = storageOn ? '<span class="where sto">Storage</span>' : '';
-      const limitTag = entry.limitTarget ? ` <span class="alias">[limit: ${esc(String(entry.limitTarget).toUpperCase())}]</span>` : '';
-      const oneShotTag = entry.isOneShot ? ' <span class="alias">one-shot</span>' : '';
-      return `<div class="${rowCls}" data-lpkey="${esc(entry.key)}">
-          <span class="nm">${esc(entry.label)}${oneShotTag}${limitTag}</span>
-          <span class="mp">${fmtN(size)} Mp</span>
-          ${activeChip}${storageChip}
-          <button class="btn btn-ghost btn-sm" data-op="addA" title="Load to Active">+A</button>
-          <button class="btn btn-ghost btn-sm" data-op="remA" title="Drop from Active">-A</button>
-          <button class="btn btn-ghost btn-sm" data-op="addS" title="Hold in Storage">+S</button>
-          <span class="x" data-op="del" title="Remove from load plan">remove</span>
-        </div>`;
-    }).join('');
+    html += '<div class="dim-label" style="margin-top:6px">Load plan is empty. Drag a program from the library below.</div>';
   }
 
   area.innerHTML = html;
 
   area.querySelectorAll('.dw-filt[data-lpf]').forEach(el =>
     el.addEventListener('click', () => setLoadPlannerFilter(el.getAttribute('data-lpf'))));
-  area.querySelectorAll('.dw-prog-row[data-lpkey]').forEach(row => {
-    const key = row.getAttribute('data-lpkey');
-    row.querySelectorAll('[data-op]').forEach(btn => btn.addEventListener('click', () => {
-      const op = btn.getAttribute('data-op');
-      if (op === 'addA') addEntryToActive(key);
-      else if (op === 'remA') removeEntryFromActive(key);
-      else if (op === 'addS') addEntryToStorage(key);
-      else if (op === 'del') removeEntryFromStorage(key);
-    }));
+  lpWireDragOnce();
+  lpBindZone($('lp2Active'), 'active');
+  lpBindZone($('lp2Bench'), 'storage');
+  lpWireHover(area);
+  area.querySelectorAll('.copies .st[data-cstep]').forEach(st => {
+    st.addEventListener('mousedown', e => e.stopPropagation());
+    st.addEventListener('click', e => {
+      e.stopPropagation();
+      const card = st.closest('.lp2-tile'); if (!card) return;
+      const key = card.getAttribute('data-lp');
+      if (st.getAttribute('data-cstep') === 'inc') lpIncCopies(key); else lpDecCopies(key);
+    });
   });
 }
 
@@ -3416,7 +3882,7 @@ function buildUtilDropdown() {
     for (const u of UTILITIES.filter(u => u.cat === cat)) {
       const opt = document.createElement('option');
       opt.value = u.name;
-      opt.textContent = u.name + ' (\xd7' + u.mult + ')';
+      opt.textContent = u.name;
       group.appendChild(opt);
     }
     sel.appendChild(group);
@@ -3442,7 +3908,7 @@ function onUtilTypeChange() {
   if (!area) return;
   const sameUtil = (area.dataset.utilName || '') === name;
   const prevLimitTarget = sameUtil
-    ? (document.querySelector('input[name="opt_limit_target"]:checked')?.value || 'decker')
+    ? (document.getElementById('opt_limit_target')?.value || 'decker')
     : 'decker';
   if (!util) {
     area.innerHTML = '<div class="field-label">Select a utility to see applicable options.</div>';
@@ -3455,7 +3921,7 @@ function onUtilTypeChange() {
   const applicable = OPTION_DEFS.filter(o => !excluded.includes(o.id));
 
   if (applicable.length === 0) {
-    area.innerHTML = '<div class="field-label">No modifiable options for this utility.</div>';
+    area.innerHTML = '<div class="field-label">Program does not support options.</div>';
   } else {
     const optionOrder = ['area', 'dinab', 'skulk', 'chaser', 'oneshot', 'optimization', 'penetration', 'squeeze', 'targeting', 'limit'];
     const numberIds = new Set(['area', 'dinab', 'skulk']);
@@ -3466,8 +3932,6 @@ function onUtilTypeChange() {
       const bv = bi === -1 ? 999 : bi;
       return av - bv;
     });
-    const variableOpts = orderedOpts.filter(o => o.type === 'number' && numberIds.has(o.id));
-    const checkOpts = orderedOpts.filter(o => o.type === 'check');
     const baseRatingCap = Math.max(0, ni('utilRating'));
 
     const prevCheckStates = {};
@@ -3488,51 +3952,34 @@ function onUtilTypeChange() {
       }
     });
 
-    let html = '';
-    if (variableOpts.length) {
-      html += '<div style="margin:8px 0 6px;color:var(--text-dim);font-size:.62rem;letter-spacing:1px;text-transform:uppercase">Variable Value Options</div>';
-      html += '<div class="opt-grid">';
-      variableOpts.forEach(o => {
+    let html = '<div class="opt-tog-grid">';
+    orderedOpts.forEach(o => {
+      const tip = esc(o.note);
+      if (o.type === 'number' && numberIds.has(o.id)) {
         const prior = sameUtil ? (prevNumValues[o.id] ?? 0) : 0;
         const clamped = Math.max(0, Math.min(baseRatingCap, prior));
         const enabled = sameUtil ? !!prevNumEnabled[o.id] : clamped > 0;
         const displayVal = enabled ? Math.max(1, clamped || 1) : 0;
-        html += `<div class="opt-row" data-tip="${esc(o.note)}">
-          <label class="opt-row-main" for="opt_${o.id}_enabled">
-            <input type="checkbox" class="chk-reveal" id="opt_${o.id}_enabled" ${enabled ? 'checked' : ''} onchange="onNumericOptionToggle('${o.id}')">
-            <span class="opt-row-name">${esc(o.label)}</span>
-          </label>
-          <span class="opt-row-control">
-            <input type="number" id="opt_${o.id}" min="0" max="${baseRatingCap}" value="${displayVal}" ${enabled ? '' : 'disabled'} oninput="onOptionRatingInput(this)">
-          </span>
-        </div>`;
-      });
-      html += '</div>';
-    }
-
-    if (checkOpts.length) {
-      html += '<div style="margin:10px 0 6px;color:var(--text-dim);font-size:.62rem;letter-spacing:1px;text-transform:uppercase">Toggle Options</div>';
-      html += '<div class="opt-grid">';
-      checkOpts.forEach(o => {
-        const showLimitTargets = (o.id === 'limit') && !!prevCheckStates.limit;
-        const renderedLabel = showLimitTargets ? `${o.label} >>` : o.label;
-        const checkedAttr = prevCheckStates[o.id] ? 'checked' : '';
-        const onChange = o.id === 'limit' ? 'onUtilTypeChange()' : 'calcUtil()';
-        html += `<div class="opt-row" data-tip="${esc(o.note)}">
-          <label class="opt-row-main" for="opt_${o.id}">
-            <input type="checkbox" class="chk-reveal" id="opt_${o.id}" ${checkedAttr} onchange="${onChange}">
-            <span class="opt-row-name">${esc(renderedLabel)}</span>
-          </label>
-        </div>`;
-        if (showLimitTargets) {
-          html += `<div class="limit-target-row" data-tip="When Limit is enabled, choose exactly one valid target type. Utility cannot be used against non-matching target types.">
-            <label><input type="radio" class="opt-radio" name="opt_limit_target" value="decker" ${prevLimitTarget === 'decker' ? 'checked' : ''} onchange="calcUtil()"> Decker</label>
-            <label><input type="radio" class="opt-radio" name="opt_limit_target" value="ic" ${prevLimitTarget === 'ic' ? 'checked' : ''} onchange="calcUtil()"> IC</label>
-          </div>`;
-        }
-      });
-      html += '</div>';
-    }
+        html += `<span class="dw-tog${enabled ? ' on' : ''}" data-optid="${o.id}" data-tip="${tip}" onclick="toggleProgramOpt('${o.id}','number')">
+          <span class="tog-head"><span class="led"></span><span class="nm">${esc(o.label)}</span><span class="lvl" onclick="event.stopPropagation()">lvl <input type="number" id="opt_${o.id}" min="1" max="${baseRatingCap}" value="${displayVal}" ${enabled ? '' : 'disabled'} oninput="onOptionRatingInput(this)"></span><span class="q" onclick="event.stopPropagation();inspect('opt-${o.id}')">?</span></span>
+          <input type="checkbox" id="opt_${o.id}_enabled" ${enabled ? 'checked' : ''} hidden>
+        </span>`;
+      } else if (o.id === 'limit') {
+        const on = !!prevCheckStates.limit;
+        const decker = prevLimitTarget !== 'ic';
+        html += `<span class="dw-tog${on ? ' on' : ''}" data-optid="limit" data-tip="${tip}" onclick="toggleProgramOpt('limit','check')">
+          <span class="tog-head"><span class="led"></span><span class="nm">${esc(o.label)}</span><span class="lvl"><select id="opt_limit_target" onclick="event.stopPropagation()" onchange="calcUtil()"><option value="decker" ${decker ? 'selected' : ''}>DECKER</option><option value="ic" ${!decker ? 'selected' : ''}>IC</option></select></span><span class="q" onclick="event.stopPropagation();inspect('opt-limit')">?</span></span>
+          <input type="checkbox" id="opt_limit" ${on ? 'checked' : ''} hidden>
+        </span>`;
+      } else {
+        const on = !!prevCheckStates[o.id];
+        html += `<span class="dw-tog${on ? ' on' : ''}" data-optid="${o.id}" data-tip="${tip}" onclick="toggleProgramOpt('${o.id}','check')">
+          <span class="tog-head"><span class="led"></span><span class="nm">${esc(o.label)}</span><span class="q" onclick="event.stopPropagation();inspect('opt-${o.id}')">?</span></span>
+          <input type="checkbox" id="opt_${o.id}" ${on ? 'checked' : ''} hidden>
+        </span>`;
+      }
+    });
+    html += '</div>';
 
     area.innerHTML = html;
     area.dataset.utilName = name;
@@ -3542,26 +3989,50 @@ function onUtilTypeChange() {
   calcUtil();
 }
 
+// Toggling a program option from its v11 box: flips the underlying input that the
+// footprint math reads (opt_<id> for checks/limit, opt_<id>_enabled for leveled),
+// then recalculates. The .on visual is synced by refreshOptionToggleVisuals via calcUtil.
+function toggleProgramOpt(id, kind) {
+  if (kind === 'number') {
+    const chk = $(`opt_${id}_enabled`);
+    if (!chk) return;
+    chk.checked = !chk.checked;
+    onNumericOptionToggle(id);
+  } else {
+    const chk = $(`opt_${id}`);
+    if (!chk) return;
+    chk.checked = !chk.checked;
+    calcUtil();
+  }
+}
+
+// Mirror each option box's .on state from the hidden input the math reads, so the
+// LED + level reveal stay in sync no matter how the value changed (click, edit, load).
+function refreshOptionToggleVisuals() {
+  const area = $('optionsArea');
+  if (!area) return;
+  area.querySelectorAll('.dw-tog[data-optid]').forEach(box => {
+    const id = box.dataset.optid;
+    const numChk = $(`opt_${id}_enabled`);
+    const on = numChk ? numChk.checked : !!$(`opt_${id}`)?.checked;
+    box.classList.toggle('on', on);
+  });
+}
+
 function onOptionRatingInput(inputEl) {
   const max = Math.max(0, ni('utilRating'));
   inputEl.max = String(max);
-  const raw = parseInt(inputEl.value, 10);
-  if (isNaN(raw)) {
-    inputEl.value = '0';
-    calcUtil();
-    return;
-  }
-  if (raw < 0) inputEl.value = '0';
-  else if (raw > max) inputEl.value = String(max);
-
   const id = String(inputEl.id || '');
   const suffix = id.startsWith('opt_') ? id.slice(4) : '';
   const chk = suffix ? $(`opt_${suffix}_enabled`) : null;
-  if (chk) {
-    if (parseInt(inputEl.value, 10) > 0 && !chk.checked) chk.checked = true;
-    if (parseInt(inputEl.value, 10) === 0 && chk.checked) chk.checked = false;
-    inputEl.disabled = !chk.checked;
-  }
+  // Leveled options range 1..max; turning an option off is done by clicking the
+  // box (which clears its _enabled checkbox), never by lowering the rating to 0.
+  // So while enabled the rating floors at 1 -- the down stepper stops there.
+  const floor = chk ? Math.min(1, max) : 0;
+  const raw = parseInt(inputEl.value, 10);
+  if (isNaN(raw) || raw < floor) inputEl.value = String(floor);
+  else if (raw > max) inputEl.value = String(max);
+  if (chk) inputEl.disabled = !chk.checked;
   calcUtil();
 }
 
@@ -3605,7 +4076,7 @@ function computeUtilityFootprint(util, baseR) {
     const v = getOptVal(id, 'number');
     return Math.max(0, Math.min(baseR, v));
   };
-  const limitTarget = document.querySelector('input[name="opt_limit_target"]:checked')?.value || '';
+  const limitTarget = document.getElementById('opt_limit_target')?.value || '';
 
   let effRatingAdd  = 0;
 
@@ -3728,6 +4199,7 @@ function setProgramReadoutEmpty() {
   if ($('inspReadout')) $('inspReadout').innerHTML = '<div class="dw-empty">Select a utility type and set a rating.</div>';
   setDeckValidity('', 'AWAITING SPEC');
   if ($('inspDetail')) $('inspDetail').innerHTML = '<div class="dw-detail"><div class="t">Software</div><div class="rule">Pick a utility and rating; options square into size.</div></div>';
+  clearProgramAcquire();
   const plate = $('progPlateName');
   if (plate) { plate.textContent = 'NEW SOFTWARE'; plate.style.color = 'var(--text-dim)'; }
 }
@@ -3735,6 +4207,7 @@ function setProgramReadoutEmpty() {
 function calcUtil() {
   updateUtilityRatingCapUI();
   syncOptionRatingCaps();
+  refreshOptionToggleVisuals();
 
   const utilSel = $('utilType');
   if (!utilSel) return; // program dossier not open -> no-op (e.g. applyProgrammerCaps)
@@ -3830,7 +4303,7 @@ function calcUtil() {
     ...(upgradeCtx
       ? [{ lbl: 'Upgrade Delta Cost', val: fmtY(upgradeCtx.deltaCost) }, { lbl: 'Full Build Cost', val: fmtY(cost) }]
       : [{ lbl: 'Buy Cost', val: fmtY(cost) }]),
-    { lbl: 'Street Price', val: fmtY(streetCost) + ' (SI \xd7' + siMult + ')' },
+    { lbl: 'Base Street Price', val: fmtY(streetCost) },
     { lbl: 'Availability', val: availStr },
     { lbl: 'Cost / Mp Tier', val: fmtY(pf) + '/Mp' },
     ...(limitActive ? [{ lbl: 'Limit Target', val: (limitTarget || '--').toUpperCase() }] : []),
@@ -3848,9 +4321,118 @@ function calcUtil() {
     $('inspDetail').innerHTML =
       `<div class="dw-detail"><div class="t">${esc(util.name)} <small>${esc(util.cat)} &middot; \xd7${mult}</small></div>` +
       `<div class="rule">${esc(util.note)}</div>` +
-      `<div class="rule" style="color:var(--text-dim)">Programming: Computer B/R vs TN ${targetNumber}. The GM rolls Computer B/R and applies successes to shorten the compile. Street index \xd7${siMult} for off-the-shelf binaries.</div></div>`;
+      `<div class="rule" style="color:var(--text-dim)">Programming: Computer B/R vs TN ${targetNumber}. The GM rolls Computer B/R and applies successes to shorten the compile.</div></div>`;
+  }
+
+  updateProgramAcquire({
+    util, baseR, effRating, effRatingAdd, designSize, actualSize,
+    cost, availStr, baseConstructTime, targetNumber, upgradeCtx,
+  });
+}
+
+// Fills the build/buy acquisition cards from the live spec, gating each route by the
+// rating dynamics: Code-it enables while base rating <= your build cap; Buy-it enables
+// while you own a finished deck and base rating <= its MPCP (and the binary fits OMC).
+// Editing a source you already hold hides the Buy card (an order can't raise owned source).
+function updateProgramAcquire(ctx) {
+  const acq = $('progAcquire');
+  if (!acq || !ctx || !ctx.util) return;
+  const name = (($('progName')?.value || '').trim()) || `${ctx.util.name}-${ctx.baseR}`;
+  const nameEl = $('progAcqName');
+  if (nameEl) nameEl.textContent = name;
+
+  const fit = omcCapacityCheck(ctx.actualSize);
+  const fitTxt = fit.fits
+    ? `fits OMC &middot; ${fmtN(fit.free)} Mp free`
+    : `OVER OMC by ${fmtN(Math.max(0, ctx.actualSize - fit.free))} Mp`;
+  const ratingTxt = ctx.effRatingAdd !== 0 ? `base ${ctx.baseR} &rarr; eff ${ctx.effRating}` : `rating ${ctx.baseR}`;
+  const metaEl = $('progAcqMeta');
+  if (metaEl) {
+    metaEl.innerHTML = `${ratingTxt} &middot; design ${fmtN(ctx.designSize)} / actual ${fmtN(ctx.actualSize)} Mp &middot; ` +
+      `<span style="color:${fit.fits ? 'var(--green-dim)' : 'var(--red)'}">${fitTxt}</span>`;
+  }
+
+  const isUpgrade = !!editingSourceProjectId;
+  const hasProgrammer = !!getActiveProgrammerId();
+  const buildCap = getUtilityBuildCap(ctx.util.name);
+  const buyCap = getUtilityBuyCap(ctx.util.name);
+  const half = isHalfRatingUtility(ctx.util.name);
+
+  // -- Code it (your bench) --
+  const buildBody = $('progBuildBody');
+  if (buildBody) {
+    const days = (isUpgrade && ctx.upgradeCtx) ? ctx.upgradeCtx.deltaBaseDays : ctx.baseConstructTime;
+    buildBody.innerHTML = isUpgrade
+      ? `Delta time <b>${fmtN(days)} d</b> at base &divide; table-rolled successes<br>` +
+        `Computer B/R test <b>TN ${ctx.targetNumber}</b> (rule of 6)<br>` +
+        `Cost: <b>your time</b> &mdash; you already hold the source.`
+      : `Base time <b>${fmtN(days)} d</b> &divide; table-rolled successes<br>` +
+        `Computer B/R test <b>TN ${ctx.targetNumber}</b> (rule of 6)<br>` +
+        `Cost: <b>your time</b>, not nuyen &mdash; the source is yours to upgrade forever.`;
+  }
+  const buildOk = hasProgrammer && ctx.baseR <= buildCap;
+  const buildGate = $('progBuildGate');
+  if (buildGate) {
+    let note = '';
+    if (!hasProgrammer) note = 'Activate a programmer profile to code.';
+    else if (ctx.baseR > buildCap) note = `Rating ${ctx.baseR} is past your programming skill (max ${buildCap}${half ? ', BH/Killjoy at half skill' : ''})` + (isUpgrade ? '.' : ' &mdash; order it from a fixer instead.');
+    buildGate.innerHTML = note;
+    buildGate.classList.toggle('hidden', !note);
+  }
+  const buildBtn = $('progBuildBtn');
+  if (buildBtn) {
+    buildBtn.disabled = !buildOk;
+    buildBtn.innerHTML = isUpgrade ? '&gt;&gt; Queue upgrade compile' : '&gt;&gt; Save source &amp; queue compile';
+  }
+  const buildCard = $('progPathBuild');
+  if (buildCard) buildCard.classList.toggle('gated', !buildOk);
+
+  // -- Buy it (fixer) -- hidden while upgrading a source you already hold --
+  const buyCard = $('progPathBuy');
+  if (buyCard) buyCard.classList.toggle('hidden', isUpgrade);
+  if (!isUpgrade) {
+    const canBuy = canBuySoftware();
+    const buyOk = hasProgrammer && canBuy && ctx.baseR <= buyCap && fit.fits;
+    const streetPrice = getPurchasedStreetPrice(ctx.cost);
+    const buyBody = $('progBuyBody');
+    if (buyBody) {
+      buyBody.innerHTML = `Street price <span class="street">${fmtY(streetPrice)}</span><br>` +
+        `Availability <b>${esc(ctx.availStr)}</b> &middot; final number on fixer callback<br>` +
+        `No source: bought binaries can't be bench-upgraded &mdash; re-buy to raise the rating.`;
+    }
+    const buyGate = $('progBuyGate');
+    if (buyGate) {
+      let note = '';
+      if (!hasProgrammer) note = 'Activate a programmer profile to order.';
+      else if (!canBuy) note = 'No finished cyberdeck on file &mdash; build or buy a deck first (a design draft does not count).';
+      else if (ctx.baseR > buyCap) note = `Rating ${ctx.baseR} is past your best deck's MPCP (max ${buyCap}${half ? ', BH/Killjoy at half' : ''}).`;
+      else if (!fit.fits) note = 'No OMC space to store this binary &mdash; free archive space or order more OMC.';
+      buyGate.innerHTML = note;
+      buyGate.classList.toggle('hidden', !note);
+    }
+    const buyBtn = $('progBuyBtn');
+    if (buyBtn) buyBtn.disabled = !buyOk;
+    if (buyCard) buyCard.classList.toggle('gated', !buyOk);
   }
 }
+
+// Reset the acquisition cards to their idle state (no utility/rating chosen yet).
+function clearProgramAcquire() {
+  const nameEl = $('progAcqName');
+  if (nameEl) nameEl.textContent = '--';
+  const metaEl = $('progAcqMeta');
+  if (metaEl) metaEl.textContent = 'pick a utility & rating';
+  const bBody = $('progBuildBody');
+  if (bBody) bBody.textContent = 'Spec a utility to cost the build.';
+  const yBody = $('progBuyBody');
+  if (yBody) yBody.textContent = 'Spec a utility to price the order.';
+  ['progBuildGate', 'progBuyGate'].forEach(id => { const g = $(id); if (g) { g.textContent = ''; g.classList.add('hidden'); } });
+  ['progBuildBtn', 'progBuyBtn'].forEach(id => { const b = $(id); if (b) b.disabled = true; });
+  ['progPathBuild', 'progPathBuy'].forEach(id => { const c = $(id); if (c) c.classList.add('gated'); });
+  const buyCard = $('progPathBuy');
+  if (buyCard) buyCard.classList.remove('hidden');
+}
+
 // Honest save-state for the deck acquire row: compares the live form to the
 // stored build so the label reflects saved / unsaved-changes / not-yet-saved.
 function deckFormSaveState() {
@@ -4260,13 +4842,7 @@ function renderDeckDamagePanel(deck) {
       note.className = 'tip';
       note.style.display = 'inline';
       note.textContent = 'No hardware damage on record.';
-      // TODO(temporary): GM "Record damage" is a testing affordance. Once Matrix-Run
-      // applies hardware damage organically, this manual entry path should be removed.
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-ghost btn-sm';
-      btn.textContent = 'Record damage (GM)';
-      btn.addEventListener('click', () => markDeckDamage(deck.name));
-      row.appendChild(note); row.appendChild(btn); panel.appendChild(row); host.appendChild(panel);
+      row.appendChild(note); panel.appendChild(row); host.appendChild(panel);
     }
     return;
   }
@@ -4381,44 +4957,6 @@ function startDeckRepair(name) {
   refreshDeckPlateActions();
   calcDeck();
   showAlert(null, `>> REPAIR MODE // "${deck.name}" pre-filled to as-built. Transmit to refit damaged parts.`, false);
-}
-
-function markDeckDamage(name) {
-  if (!isAdminMode()) { showAlert(null, 'GM mode only.', true); return; }
-  const deck = _loadStore(DECK_STORE).find(d => d.name === name);
-  if (!deck) return;
-  const fields = DECK_DAMAGE_FIELDS.map(f => f.field).join(', ');
-  const spec = window.prompt('GM: record hardware damage as field:value (current degraded ratings), e.g. "mpcp:8,pMasking:6". Optional note after ";". Fields: ' + fields, '');
-  if (spec == null) return;
-  const semi = spec.indexOf(';');
-  const pairStr = semi >= 0 ? spec.slice(0, semi) : spec;
-  const note = semi >= 0 ? spec.slice(semi + 1).trim() : '';
-  const damage = {};
-  let any = false;
-  for (const tok of pairStr.split(',')) {
-    const ci = tok.indexOf(':');
-    if (ci < 0) continue;
-    const key = tok.slice(0, ci).trim();
-    const val = tok.slice(ci + 1).trim();
-    const def = DECK_DAMAGE_FIELDS.find(f => f.field === key);
-    if (!def) continue;
-    const cur = parseInt(val, 10);
-    if (!Number.isFinite(cur)) continue;
-    const built = parseInt(deck[key], 10) || 0;
-    if (cur >= built) { showAlert(null, `${def.label}: damaged value ${cur} must be below as-built ${built}.`, true); return; }
-    damage[key] = Math.max(0, cur);
-    any = true;
-  }
-  if (!any) { showAlert(null, 'No valid damaged components parsed.', true); return; }
-  if (note) damage.note = note;
-  const decks = _loadStore(DECK_STORE);
-  const idx = decks.findIndex(d => d.name === name);
-  if (idx < 0) return;
-  decks[idx] = { ...decks[idx], damage };
-  _saveStore(DECK_STORE, decks);
-  showAlert(null, `>> GM // damage recorded on "${name}".`, false);
-  renderSavedDecks();
-  if (activeDeckBuildName === name) renderDeckDamagePanel(decks[idx]);
 }
 
 function clearDeckDamage(name) {
@@ -4593,10 +5131,10 @@ function newDeck() {
         <div class="mx-panel">
           <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Persona &middot; budget <span id="deckBudN" style="color:var(--text-bright)">--</span> &middot; each &le; <span id="deckCapN" style="color:var(--text-bright)">--</span></div>
           <div class="dw-row">
-            <div class="dw-f"><label onclick="inspect('bod')">Bod</label><input type="number" id="pBod" min="1" placeholder="--" oninput="calcDeck()"></div>
-            <div class="dw-f"><label>Evasion</label><input type="number" id="pEvasion" min="1" placeholder="--" oninput="calcDeck()"></div>
-            <div class="dw-f"><label onclick="inspect('masking')">Masking</label><input type="number" id="pMasking" min="1" placeholder="--" oninput="calcDeck()"></div>
-            <div class="dw-f"><label>Sensor</label><input type="number" id="pSensor" min="1" placeholder="--" oninput="calcDeck()"></div>
+            <div class="dw-f clickable" onclick="inspect('bod')"><label>Bod</label><input type="number" id="pBod" min="1" placeholder="--" oninput="calcDeck()"></div>
+            <div class="dw-f clickable" onclick="inspect('evasion')"><label>Evasion</label><input type="number" id="pEvasion" min="1" placeholder="--" oninput="calcDeck()"></div>
+            <div class="dw-f clickable" onclick="inspect('masking')"><label>Masking</label><input type="number" id="pMasking" min="1" placeholder="--" oninput="calcDeck()"></div>
+            <div class="dw-f clickable" onclick="inspect('sensor')"><label>Sensor</label><input type="number" id="pSensor" min="1" placeholder="--" oninput="calcDeck()"></div>
             <div class="dw-grow" style="align-self:center;min-width:160px">
               <div class="dw-budget" id="deckBudBar"><i style="width:0%"></i></div>
               <div class="dw-budget-lbl" id="deckBudLbl">0 / 0 allocated</div>
@@ -4769,120 +5307,42 @@ function autoSaveActiveDeckBuild() {
   }
 }
 function newProgram() {
-  const host = $('dwDossierHost');
-  if (!host) return;
   editingSourceProjectId = '';
-  const canBuy = canBuySoftware();
-  const buyChoice = canBuy
-    ? `<div class="dw-choice amber" onclick="openSoftDraft('buy')">
-            <div class="hd">&gt;&gt; Buy it &middot; pro caps</div>
-            <div class="ln">Commission a nova-hot pro: rating and leveled options run to the practical ceiling of 14. The real gate is your iron &mdash; you must own a finished deck, and orders cap at that deck's MPCP (a design draft doesn't count). No source: what you buy is what you run.</div>
-          </div>`
-    : `<div class="dw-choice amber locked">
-            <div class="hd">&gt;&gt; Buy it &middot; pro caps</div>
-            <div class="ln">Commission a nova-hot pro: rating runs to the practical ceiling of 14, gated by your deck's MPCP.</div>
-            <div class="lock-note">Locked &mdash; you need a finished cyberdeck to order software. Build or buy a deck first (a design draft doesn't count). You can still code this one yourself.</div>
-          </div>`;
-  host.innerHTML = `
-    <div class="dw-dossier on" id="dosSoftChoose">
-      <div class="dw-plate">
-        <span class="name" style="color:var(--text-dim)">NEW SOFTWARE</span>
-        <span class="serial">spin up a program &middot; choose your route</span>
-        <span class="act">
-          <button class="btn btn-red btn-sm" onclick="discardProgramDossier()">Cancel</button>
-        </span>
-      </div>
-      <div class="dw-form">
-        <div class="mx-panel">
-          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Utility</div>
-          <div class="dw-row">
-            <div class="dw-f dw-grow"><label>Utility type</label><div class="cap2">optional &middot; carries into the draft</div><select id="softChooseUtil"></select></div>
-          </div>
-          <div class="tip">Pick your route first &mdash; it decides whose limits apply to the spec.</div>
-        </div>
-        <div class="dw-choose">
-          <div class="dw-choice" onclick="openSoftDraft('code')">
-            <div class="hd">&gt;&gt; Code it &middot; your caps</div>
-            <div class="ln">Open a source draft on YOUR bench. Rating is capped by your programming skill, and leveled options (DINAB) share that ceiling. Costs design time, not nuyen &mdash; and the source is yours to upgrade forever.</div>
-          </div>
-          ${buyChoice}
-        </div>
-      </div>
-    </div>`;
-  document.querySelectorAll('#dwRailSoft .dw-asset').forEach(a => a.classList.remove('sel'));
-  const sel = $('softChooseUtil');
-  if (sel) {
-    populateUtilityDropdownLikeBuilder(sel);
-    sel.insertAdjacentHTML('afterbegin', '<option value="">-- choose (optional) --</option>');
-    sel.value = '';
-  }
+  openSoftDraft();
 }
 
-function openSoftDraft(route, presetUtil) {
+function openSoftDraft(presetUtil) {
   const host = $('dwDossierHost');
   if (!host) return;
-  if (route === 'buy' && !canBuySoftware()) {
-    showAlert(null, 'You need a finished cyberdeck to order software. Build or buy a deck first -- a design draft does not count. You can still code the program yourself.', true);
-    return;
-  }
-  if (presetUtil === undefined) {
-    const chooseSel = $('softChooseUtil');
-    presetUtil = chooseSel ? chooseSel.value : '';
-  }
-  currentSoftRoute = (route === 'buy') ? 'buy' : 'code';
   editingSourceProjectId = '';
-  const isBuy = currentSoftRoute === 'buy';
-  const serial = isBuy
-    ? 'order draft &middot; buy route &middot; pro caps &middot; no source'
-    : 'bench draft &middot; code route &middot; your caps &middot; unsaved';
-  const primaryBtn = isBuy
-    ? '<button class="btn btn-amber btn-sm" onclick="orderPurchasedProgram()">&gt;&gt; Order</button>'
-    : '<button class="btn btn-green btn-sm" onclick="saveProgramBuild()">&gt;&gt; Save source</button>';
-  const stages = isBuy
-    ? `<div class="dw-stages">
-        <div class="dw-stage now"><span class="node">Spec<span class="sub">pick the binary</span></span><span class="wire"></span></div>
-        <div class="dw-stage"><span class="node">Order<span class="sub">pay street price</span></span><span class="wire"></span></div>
-        <div class="dw-stage"><span class="node">Library<span class="sub">slot &amp; run</span></span></div>
-      </div>`
-    : `<div class="dw-stages">
-        <div class="dw-stage now"><span class="node">Source<span class="sub">spec &amp; options</span></span><span class="wire"></span></div>
-        <div class="dw-stage"><span class="node">Authorize<span class="sub">fixer callback</span></span><span class="wire"></span></div>
-        <div class="dw-stage"><span class="node">Compile<span class="sub">task clock</span></span><span class="wire"></span></div>
-        <div class="dw-stage"><span class="node">Object code<span class="sub">slot &amp; run</span></span></div>
-      </div>`;
-  const footPanel = isBuy
-    ? `<div class="mx-panel">
-          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Off-the-shelf binary</div>
-          <div class="tip">Street price is the design cost &times;1.5 (see the inspector). Ordering drops the finished binary straight into your library &mdash; instant, but with no source code it can't be bench-upgraded; rebuy at a higher rating to improve it. Rating is gated by your best finished deck's MPCP (ceiling 14) &mdash; you must own a real deck to order software.</div>
-        </div>`
-    : `<div class="mx-panel">
-          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Programming &middot; Computer B/R</div>
-          <div class="tip">Programming is a Computer B/R test vs TN = base program rating (rule of 6). You submit the compile at base design time; the GM rolls Computer B/R, applies the successes, and advances it from Downtime Control.</div>
-        </div>`;
   host.innerHTML = `
     <div class="dw-dossier on" id="dosProgram">
       <div class="dw-plate">
         <span class="name" id="progPlateName" style="color:var(--text-dim)">NEW SOFTWARE</span>
-        <span class="serial">${serial}</span>
+        <span class="serial">program draft &middot; spec it, then code or buy below</span>
         <span class="act">
-          ${primaryBtn}
           <button class="btn btn-red btn-sm" onclick="discardProgramDossier()">Discard</button>
         </span>
       </div>
-      ${stages}
+      <div class="dw-stages">
+        <div class="dw-stage now"><span class="node">Spec<span class="sub">utility &amp; rating</span></span><span class="wire"></span></div>
+        <div class="dw-stage"><span class="node">Options<span class="sub">tune size</span></span><span class="wire"></span></div>
+        <div class="dw-stage"><span class="node">Acquire<span class="sub">code or buy</span></span><span class="wire"></span></div>
+        <div class="dw-stage"><span class="node">Library<span class="sub">slot &amp; run</span></span></div>
+      </div>
       <div class="dw-form">
         <div class="mx-panel">
           <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Program specification</div>
           <div class="dw-row">
+            <div class="dw-f dw-grow"><label>Utility</label><div class="cap2">required</div><select id="utilType" onchange="onUtilTypeChange()"></select></div>
             <div class="dw-f dw-grow"><label>Street name</label><div class="cap2">optional</div><input type="text" id="progName" placeholder="auto from utility &amp; rating" oninput="calcUtil()"></div>
-            <div class="dw-f dw-grow"><label>Utility</label><div class="cap2">&nbsp;</div><select id="utilType" onchange="onUtilTypeChange()"></select></div>
             <div class="dw-f"><label>Rating</label><div class="cap2" id="utilCapTip">&nbsp;</div><input type="number" id="utilRating" min="1" value="1" oninput="calcUtil()"></div>
             <div class="dw-f" id="attackDmgField" style="display:none"><label>Damage</label><div class="cap2">attack only</div>
               <select id="attackDmg" onchange="calcUtil()">
-                <option value="2">Light (&times;2)</option>
-                <option value="3">Moderate (&times;3)</option>
-                <option value="4">Serious (&times;4)</option>
-                <option value="5">Deadly (&times;5)</option>
+                <option value="2">Light</option>
+                <option value="3">Moderate</option>
+                <option value="4">Serious</option>
+                <option value="5">Deadly</option>
               </select></div>
           </div>
           <div class="tip" id="utilBrief">Select a utility to see what it does.</div>
@@ -4895,12 +5355,35 @@ function openSoftDraft(route, presetUtil) {
           <div class="panel-title panel-title-cyan" style="margin-bottom:4px">&gt;&gt; Live math</div>
           <div class="dw-math" id="progMath"><div class="cell"><div class="k">Spec</div><div class="v">--<small>pick a utility &amp; rating</small></div></div></div>
         </div>
-        ${footPanel}
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Acquire <span class="tip" style="display:inline">code it on your bench or order the binary</span></div>
+          <div class="dw-acquire" id="progAcquire">
+            <div class="dw-acq-row">
+              <span class="total" id="progAcqName">--</span>
+              <span class="meta" id="progAcqMeta">pick a utility &amp; rating</span>
+            </div>
+            <div class="dw-acq-paths">
+              <div class="dw-path build gated" id="progPathBuild">
+                <div class="hd">Code it &middot; your bench</div>
+                <div class="ln" id="progBuildBody">Spec a utility to cost the build.</div>
+                <div class="ln gate-note hidden" id="progBuildGate"></div>
+                <button class="btn btn-green btn-sm" id="progBuildBtn" onclick="saveProgramBuild()" disabled>&gt;&gt; Save source &amp; queue compile</button>
+              </div>
+              <div class="dw-path buy gated" id="progPathBuy">
+                <div class="hd">Buy it &middot; fixer</div>
+                <div class="ln" id="progBuyBody">Spec a utility to price the order.</div>
+                <div class="ln gate-note hidden" id="progBuyGate"></div>
+                <button class="btn btn-amber btn-sm" id="progBuyBtn" onclick="orderPurchasedProgram()" disabled>&gt;&gt; Order from fixer</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
   buildUtilDropdown();
   if (presetUtil) { const ut = $('utilType'); if (ut) ut.value = presetUtil; }
   document.querySelectorAll('#dwRailSoft .dw-asset').forEach(a => a.classList.remove('sel'));
+  initNumSteppers(host);
   onUtilTypeChange();
   $('utilType')?.focus();
 }
@@ -5004,16 +5487,22 @@ function newLoadout() {
   loadPlannerFilter = 'all';
   editingLoadoutName = '';
 
-  const decks = _loadStore(DECK_STORE).slice().sort((a, b) =>
-    String(a.name || '').localeCompare(String(b.name || ''), 'en-US', { sensitivity: 'base' }));
+  // Loadouts can only target a real, finished deck ARTIFACT (status 'ready'). Draft /
+  // on-order / in-fab specs are not iron you can run programs on yet, so they are excluded.
+  // Damaged-but-built decks stay selectable -- a fried deck can still be run (with limits).
+  const decks = _loadStore(DECK_STORE).slice()
+    .filter(d => getDeckStatus(d) === 'ready')
+    .sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''), 'en-US', { sensitivity: 'base' }));
   loadPlannerDeckName = decks.length ? decks[0].name : '';
   const deckOpts = decks.length
     ? decks.map(d => {
         const am = parseInt(d.activeMem, 10) || 0;
         const os = parseInt(d.offlineStorage, 10) || 0;
-        return `<option value="${esc(d.name)}">${esc(d.name)} &middot; ${fmtN(am)} / ${fmtN(os)} Mp</option>`;
+        const dmg = isDeckDamaged(d) ? ' &middot; damaged' : '';
+        return `<option value="${esc(d.name)}">${esc(d.name)} &middot; ${fmtN(am)} / ${fmtN(os)} Mp${dmg}</option>`;
       }).join('')
-    : '<option value="">No saved decks -- build one first</option>';
+    : '<option value="">No built decks -- finish a build first</option>';
 
   host.innerHTML = `
     <div class="dw-dossier on" id="dosLoadout">
@@ -5025,15 +5514,11 @@ function newLoadout() {
       <div class="dw-form">
         <div class="mx-panel">
           <div class="dw-row">
-            <div class="dw-f dw-grow"><label>Loadout name</label><input type="text" id="loadSaveName" placeholder="e.g. Datasteal Special"></div>
             <div class="dw-f"><label>Deck</label><select id="loadoutDeckSelect" onchange="onLoadoutDeckChange()">${deckOpts}</select></div>
+            <div class="dw-f dw-grow"><label>Loadout name</label><input type="text" id="loadSaveName" placeholder="e.g. Datasteal Special"></div>
             <button class="btn btn-green" onclick="saveLoadout()">&gt;&gt; Save loadout</button>
           </div>
-          <div class="tip">The planner uses the chosen deck's Active and Storage memory banks. Active programs also consume storage. Only one program of each type may run; One-Shot utilities may stack in Active.</div>
-        </div>
-        <div class="mx-panel">
-          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Program library</div>
-          <div id="loadLibraryArea"></div>
+          <div class="tip">Drag programs from the library onto the deck's Active or Storage memory. Active programs also consume storage. Only one program of each type may run; One-Shot utilities stack copies in Active via the card stepper.</div>
         </div>
         <div class="mx-panel">
           <div class="dw-row" style="justify-content:space-between;align-items:center">
@@ -5041,6 +5526,10 @@ function newLoadout() {
             <button class="btn btn-ghost btn-sm" onclick="clearLoadPlanner()">Clear plan</button>
           </div>
           <div id="loadPlannerArea" style="margin-top:10px"></div>
+        </div>
+        <div class="mx-panel">
+          <div class="panel-title panel-title-cyan" style="margin-bottom:10px">&gt;&gt; Program library &mdash; drag a card onto Active or Storage</div>
+          <div id="loadLibraryArea"></div>
         </div>
       </div>
     </div>`;
@@ -5087,7 +5576,13 @@ function saveLoadout() {
   _saveStore(LOADOUT_STORE, loadouts);
   editingLoadoutName = name;
   if ($('loadoutPlateName')) { $('loadoutPlateName').textContent = name.toUpperCase(); $('loadoutPlateName').style.color = ''; }
-  showAlert(null, `>> SAVED // Loadout "${name}" stored.`, false);
+  const violations = getLoadoutMpcpViolations();
+  if (violations.length) {
+    const { effective } = getLoadoutDeckMpcp();
+    showAlert(null, `>> SAVED // "${name}" stored, but it cannot be run yet: ${violations.length} program${violations.length > 1 ? 's' : ''} exceed MPCP ${effective}. Repair the deck or swap to a lower rating.`, true);
+  } else {
+    showAlert(null, `>> SAVED // Loadout "${name}" stored.`, false);
+  }
   renderSavedLoadouts();
 }
 
@@ -5138,23 +5633,6 @@ function setFilter(el, f) {
   applyLibFilter();
 }
 
-function populateUtilityDropdownLikeBuilder(selectEl) {
-  if (!selectEl) return;
-  selectEl.innerHTML = '';
-  const cats = ['Operational', 'Special', 'Offensive', 'Defensive'];
-  for (const cat of cats) {
-    const group = document.createElement('optgroup');
-    group.label = cat;
-    for (const u of UTILITIES.filter(util => util.cat === cat)) {
-      const opt = document.createElement('option');
-      opt.value = u.name;
-      opt.textContent = `${u.name} (x${u.mult})`;
-      group.appendChild(opt);
-    }
-    selectEl.appendChild(group);
-  }
-}
-
 function getPurchasedStreetPrice(rawBuyCost) {
   const base = Math.max(0, parseInt(rawBuyCost, 10) || 0);
   return Math.round(base * 1.5);
@@ -5193,8 +5671,10 @@ var DETAIL = {
   'opt-oneshot': { t:'Option: One-Shot', b:'Each loaded copy fires once per run, then reloads from storage. Multiple copies may be active at once.', r:'Design &times;1.5, Actual &times;0.25. Tar Baby crashes the firing copy only; Tar Pit corrupts all copies in active and storage for the rest of the run.' },
   'opt-squeeze': { t:'Option: Squeeze', b:'Self-compressed: uploads at 50% size, must decompress (Complex Action) before use.', r:'+1 affects design size only. Deck needs room for the full decompressed program.' },
   'mpcp': { t:'MPCP', b:'The deck\'s brain; caps persona and loaded utilities. Size = Rating&sup2; &times; 8 Mp.', r:'Cap: highest of Computer / Software conc. / Matrix Programming spec., &times;1.5. Your cap follows your dominant programming skill.' },
-  'bod': { t:'Bod (persona)', b:'Resists Matrix damage. &times;3 Mp.', r:'Counts vs MPCP &times; 3 budget.' },
-  'masking': { t:'Masking (persona)', b:'Detection Factor = (Masking + Sleaze) / 2, round up. &times;2 Mp.', r:'Capped by MPCP.' },
+  'bod': { t:'Bod (persona)', b:'The icon\'s toughness. Bod is the dice pool for the Bod Resistance Test that soaks cybercombat damage from IC (rolled against the IC Rating). More Bod means your persona shrugs off more Matrix damage before it crashes.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget. Hardening and Armor cut the Power before you roll Bod.' },
+  'evasion': { t:'Evasion (persona)', b:'The icon\'s speed and slipperiness. Evasion is the heart of your Trace Factor, so it sets how hard trace IC can pin down your jackpoint; it also fuels Evade Detection maneuvers and dodging in cybercombat.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget. In the persona, Quickness equals Evasion.' },
+  'masking': { t:'Masking (persona)', b:'How well the icon hides. Masking sets your Detection Factor &mdash; the TN the host rolls to notice you: (Masking + Sleaze) / 2, round up (or Masking / 2 with no Sleaze running). Higher Masking is harder to detect.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget.' },
+  'sensor': { t:'Sensor (persona)', b:'The icon\'s Matrix perception. Sensor is the dice pool for Sensor Tests &mdash; spotting hidden IC, noticing a dataworm phoning home, and locating files, slaves, and other icons. Higher Sensor means you see the trap before it springs.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget.' },
   'hardening': { t:'Hardening', b:'Subtracts from IC attack power before resistance.', r:'PF basis: MPCP. Max = MPCP / 2 (round down).' },
   'active': { t:'Active Memory', b:'Total Mp of utilities running at once.', r:'Cap MPCP &times; 100. Multiples of 10.' },
   'tools': { t:'Task multiplier &middot; tool bonuses', b:'Software side (Programming Tools table): doubled-memory PC +1 &middot; kit +1 (1,500&yen;) &middot; shop +2 (15,000&yen;) &middot; mainframe host +4 (100&yen; &times; SV/day) &middot; Programming Suite +5 (300,000&yen;). Hardware side (Tool Availability table): having a better tool unit than the task requires grants its own bonus. Multiplier = 1 + total bonus, capped &times;10.', r:'Whether bonuses stack is GM discretion &mdash; the rules don\'t say, so this field doesn\'t either. Tools are bought like any gear through the fixer pipe; when the decker invests, bump the multiplier on their jobs.' },

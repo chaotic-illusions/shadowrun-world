@@ -9,7 +9,6 @@ from app.schemas.matrix_host import (
     MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostSummary,
 )
 from app.auth.dependencies import get_admin_token, get_any_token
-from app.services.matrix_generator import IC_INFO, VALID_CONNECTIONS
 
 router = APIRouter()
 
@@ -42,18 +41,6 @@ async def create_host(body: MatrixHostCreate, db: AsyncSession = Depends(get_db)
     await db.commit()
     await db.refresh(host)
     return host
-
-
-@router.get("/ic-info")
-async def ic_info():
-    """Return IC type metadata (mechanics, flavor) for the frontend tooltip system."""
-    return IC_INFO
-
-
-@router.get("/connection-matrix")
-async def connection_matrix():
-    """Return the valid connection rules as a serializable dict."""
-    return {k: sorted(v) for k, v in VALID_CONNECTIONS.items()}
 
 
 @router.get("/ltg-catalog")
