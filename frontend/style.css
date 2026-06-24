@@ -7,6 +7,12 @@
   font-style: normal;
 }
 @font-face {
+  font-family: 'Epokha';
+  src: url('fonts/Epokha Std Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
   font-family: 'Shadowrun';
   src: url('fonts/SHADB___.TTF') format('truetype');
   font-weight: bold;
