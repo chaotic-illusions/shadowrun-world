@@ -6,6 +6,24 @@
   <title>Organizations | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
   <script src="shared.js"></script>
+  <style>
+    /* This list renders over the Aztechnology pyramid backdrop, so the row
+       action button needs an opaque chip or its amber blends into the glass.
+       Sizing it to the text line also keeps admin rows as compact as the
+       runner view (the button -- not the ACTIVE label -- is what made admin
+       rows ~6px taller per row). */
+    .manage-table .td-act .btn-sm {
+      background: #0b0906;
+      border-color: var(--amber);
+      color: var(--amber);
+      padding: 2px 11px;
+      box-shadow: 0 0 0 1px #000;
+    }
+    .manage-table .td-act .btn-sm:hover {
+      background: #1a1206;
+      box-shadow: 0 0 8px rgba(255, 153, 0, .35);
+    }
+  </style>
 </head>
 <body>
 
@@ -18,9 +36,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -746,5 +764,7 @@ bootstrapAuth().then(async u => {
   if (idParam && isAdminMode()) openModal(idParam);
 });
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('corp');</script>
 </body>
 </html>

@@ -18,9 +18,9 @@
     <a href="manage-locations.html" class="active">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -376,6 +376,12 @@ async function loadAll() {
 }
 
 bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
+</script>
+<script src="ambiance.js"></script>
+<script>
+  // Identity (Club Penumbra | Underworld 93) is chosen randomly per page load
+  // inside the club scene's club_identity() -- no toggle, both are in rotation.
+  Ambiance.start('club');
 </script>
 </body>
 </html>

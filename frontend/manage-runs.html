@@ -18,9 +18,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html" class="active">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -50,19 +50,14 @@
         <span id="participant-warning" style="font-size:.62rem;color:var(--red);letter-spacing:1px;display:none">&triangleright; select at least one runner</span>
       </div>
       <div id="run-participants" style="display:flex;flex-wrap:wrap;gap:4px 18px;min-height:22px"></div>
-      <div style="margin-top:10px;padding-top:8px;border-top:1px solid #111;display:flex;align-items:center;gap:10px">
-        <label style="font-size:.62rem;letter-spacing:1px;color:var(--text-dim)">TICK OVERRIDE</label>
-        <input type="number" id="run-tick-count" min="1" max="14" value="1"
-          style="width:52px;padding:2px 6px;font-size:.78rem;background:#0a0a0a;border:1px solid #2a2a2a;color:var(--text)">
-        <span style="font-size:.62rem;color:var(--text-dim)">NUMBER OF DAYS ELAPSED FOR THIS RUN (1-14)</span>
-      </div>
     </div>
 
     <!-- -- AI Mode ------------------------------------------- -->
     <div id="aiMode">
       <div class="field mb-14">
         <label>Mission Date</label>
-        <input type="date" id="ai-date" style="max-width:200px;font-size:.7rem">
+        <input type="date" id="ai-date" style="max-width:200px;font-size:.7rem" oninput="srHint('ai-date','ai-date-sr')">
+        <span id="ai-date-sr" class="text-dim" style="font-size:.62rem;letter-spacing:1px;margin-left:8px"></span>
       </div>
       <div class="field mb-14">
         <label>GM Narrative -- describe what happened during the run</label>
@@ -105,7 +100,8 @@
         </div>
         <div class="field">
           <label>Mission Date *</label>
-          <input type="date" id="m-date">
+          <input type="date" id="m-date" oninput="srHint('m-date','m-date-sr')">
+          <span id="m-date-sr" class="text-dim" style="font-size:.62rem;letter-spacing:1px;margin-left:8px"></span>
         </div>
       </div>
       <div class="field mb-14">
@@ -213,6 +209,11 @@ function srDate(dateStr) {
   // Shift the year forward by YEAR_OFFSET for in-world display
   const [y, m, d] = dateStr.split('-');
   return `${parseInt(y) + YEAR_OFFSET}-${m}-${d}`;
+}
+function srHint(inputId, spanId) {
+  const v = document.getElementById(inputId)?.value;
+  const span = document.getElementById(spanId);
+  if (span) span.textContent = v ? `in-world: ${srDate(v)}` : '';
 }
 
 // -- UI helpers ------------------------------------------------
@@ -336,11 +337,10 @@ async function applyAndLog() {
   // Apply world changes
   if (changesApplied.length) {
     try {
-      const tickCount = Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1));
       const res = await apiFetch(`${API}/runs/apply-changes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: changesApplied, tick_count: tickCount }),
+        body: JSON.stringify({ changes: changesApplied }),
       });
       if (!res.ok) await apiThrow(res);
       const result = await res.json();
@@ -366,7 +366,6 @@ async function applyAndLog() {
     gm_notes:         document.getElementById('aiNarrative').value.trim(),
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    tick_count:       Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1)),
     participant_ids:  getChecked('run-participants'),
     location_ids:     [],
     org_ids:          [],
@@ -721,13 +720,12 @@ async function submitManual() {
   const { applied: changesApplied, excluded: changesExcluded } = getManualChanges();
 
   // Apply world changes first (same flow as AI parse)
-  const tickCount = Math.min(14, Math.max(1, parseInt(document.getElementById('run-tick-count').value) || 1));
   if (changesApplied.length) {
     try {
       const r = await apiFetch(`${API}/runs/apply-changes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: changesApplied, tick_count: tickCount }),
+        body: JSON.stringify({ changes: changesApplied }),
       });
       if (!r.ok) await apiThrow(r);
       const result = await r.json();
@@ -751,7 +749,6 @@ async function submitManual() {
     outcome_tags:     outcomeTags,
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
-    tick_count:       tickCount,
     participant_ids:  getChecked('run-participants'),
     location_ids:     getChecked('m-locations'),
     org_ids:          getChecked('m-orgs'),
@@ -805,6 +802,7 @@ function buildRunDetail(run) {
   }
 
   let html = '';
+  if (run.session_date) html += `<div class="run-detail-label">Mission Date</div><div>${esc(srDate(run.session_date))}</div>`;
   if (run.objective) html += `<div class="run-detail-label">Objective</div><div>${esc(run.objective)}</div>`;
   if (run.result)    html += `<div class="run-detail-label">Result</div><div>${esc(run.result)}</div>`;
   if (run.casualties) html += `<div class="run-detail-label">Casualties / Injuries</div><div>${esc(run.casualties)}</div>`;
@@ -825,40 +823,11 @@ function buildRunDetail(run) {
       html += `<div style="color:var(--text-dim);font-size:.75rem;margin-top:4px">No world-state changes recorded.</div>`;
     }
     if (run.gm_notes) html += `<div class="run-detail-label">GM Notes</div><div style="color:var(--text-dim);font-size:.75rem;white-space:pre-wrap">${esc(run.gm_notes)}</div>`;
-
-    html += `
-      <div class="run-detail-label" style="margin-top:14px">Tick Override</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="number" id="rd-tick-${run.id}" min="1" max="5" value="${run.tick_count ?? 1}"
-          style="width:54px;padding:2px 6px;font-size:.8rem;background:#0a0a0a;border:1px solid #2a2a2a;color:var(--text)">
-        <button onclick="updateRunTick(${run.id})" class="btn"
-          style="font-size:.65rem;padding:2px 8px;border-color:#2a0044;color:var(--purple)">Save</button>
-        <span id="rd-tick-msg-${run.id}" style="font-size:.65rem;color:var(--text-dim)"></span>
-      </div>`;
   }
   return html;
 }
 
 const _detailCache = {};
-
-async function updateRunTick(id) {
-  const inp = document.getElementById(`rd-tick-${id}`);
-  const val = Math.min(5, Math.max(1, parseInt(inp.value) || 1));
-  inp.value = val;
-  try {
-    const res = await apiFetch(`${API}/runs/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ tick_count: val }),
-    });
-    if (!res.ok) await apiThrow(res);
-    const msg = document.getElementById(`rd-tick-msg-${id}`);
-    if (msg) { msg.textContent = '[ok] saved'; setTimeout(() => { if (msg) msg.textContent = ''; }, 2000); }
-    delete _detailCache[id];  // force re-render next open
-  } catch(e) {
-    const msg = document.getElementById(`rd-tick-msg-${id}`);
-    if (msg) msg.textContent = `Error: ${e.message}`;
-  }
-}
 
 async function toggleRunDetail(id) {
   const detail = document.getElementById(`rd-${id}`);
@@ -951,8 +920,12 @@ async function loadWorldData() {
 // -- Init ------------------------------------------------------
 document.getElementById('ai-date').value  = today();
 document.getElementById('m-date').value   = today();
+srHint('ai-date','ai-date-sr');
+srHint('m-date','m-date-sr');
 setMode('ai');
 bootstrapAuth().then(u => { if (u) { loadRuns(); loadWorldData(); startPolling(loadRuns); } });
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('violethaze');</script>
 </body>
 </html>

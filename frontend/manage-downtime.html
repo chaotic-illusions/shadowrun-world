@@ -84,9 +84,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
     <a href="manage-downtime.html" class="active gm-only">Downtime</a>
   </nav>
 </header>
@@ -105,10 +105,11 @@
       <div class="dt-clock-row">
         <span class="dt-clock-t">&gt;&gt; Downtime Clock</span>
         <span class="dt-clock-day" id="dtDay">Day 0</span>
+        <span class="dt-clock-hint" id="dtTick">world clock --</span>
         <button class="btn btn-amber btn-sm" id="dtPlus1">+1 day</button>
         <button class="btn btn-amber btn-sm" id="dtPlus7">+1 week</button>
         <button class="btn btn-ghost btn-sm" id="dtRefresh">Refresh</button>
-        <span class="dt-clock-hint">prototype clock &middot; advances all authorized jobs at once</span>
+        <span class="dt-clock-hint">advances all authorized jobs and the world clock (heat &amp; reputation decay)</span>
       </div>
     </div>
 
@@ -129,8 +130,10 @@
    Aggregates every active PC's deck/compile/OMC requests (read via the
    admin-or-owner /characters/{id}/deck-builder-state endpoint), lets the GM
    enter table-rolled successes + a task bonus, then advances all authorized
-   jobs on one client-side clock. No backend changes -- the campaign tick
-   (app/services/campaign.py current_tick) is wired in a later pass.
+   jobs on one client-side clock. Advancing also steps the world clock via
+   POST /campaign/advance (app/services/campaign.py advance_clock), so heat,
+   reputation and org-standing decay move with downtime. The GM instant-finish
+   buttons deliver a single job without touching either clock.
    =========================================================================== */
 
 // -- store keys (must match deck-workshop.html) ------------------------
@@ -174,6 +177,16 @@ function getClockDay() {
 }
 function setClockDay(d) { localStorage.setItem(CLOCK_STORE, String(Math.max(0, Math.round(d || 0)))); }
 function renderClock() { const d = $('dtDay'); if (d) d.textContent = 'Day ' + fmtN(getClockDay()); }
+function renderTick(tick) {
+  const t = $('dtTick');
+  if (t) t.textContent = (tick == null || tick < 0) ? 'world clock --' : 'world clock: tick ' + fmtN(tick);
+}
+async function loadCampaignClock() {
+  try {
+    const r = await apiFetch('/campaign/clock');
+    if (r.ok) { const j = await r.json(); renderTick(j.current_tick); }
+  } catch (e) { /* non-fatal: clock readout stays blank */ }
+}
 
 // -- per-PC store access (operate on an arbitrary PC's stores object) ---------
 function _storesRead(stores, key, pcId) {
@@ -475,6 +488,7 @@ function _buildCard(it) {
     installSucc: Math.max(1, parseInt(instSucc.value, 10) || 1),
     taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
   })));
+  acts.appendChild(_btn('Build now &middot; no clock', 'btn-amber', () => finishDeckNow(it)));
   acts.appendChild(_btn('Refuse', 'btn-red', () => refuseDeck(it)));
   card.appendChild(acts);
   return card;
@@ -513,6 +527,7 @@ function _compileCard(it) {
     successes: Math.max(1, parseInt(succ.value, 10) || 1),
     taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
   })));
+  acts.appendChild(_btn('Compile now &middot; no clock', 'btn-amber', () => finishCompileNow(it)));
   acts.appendChild(_btn('Refuse', 'btn-red', () => refuseCompile(it)));
   card.appendChild(acts);
   return card;
@@ -549,6 +564,7 @@ function _inprogCard(it) {
     card.appendChild(fields);
     acts.appendChild(_btn('Save bonus', 'btn-amber', () => updateTaskBonus(it, Math.max(1, Math.min(10, parseInt(bonusInput.value, 10) || 1)))));
   }
+  acts.appendChild(_btn('Finish now &middot; no clock', 'btn-amber', () => (isCompile ? finishCompileNow(it) : finishDeckNow(it))));
   acts.appendChild(_btn('Cancel job', 'btn-red', () => (isCompile ? refuseCompile(it) : refuseDeck(it))));
   card.appendChild(acts);
   return card;
@@ -772,6 +788,40 @@ function _finalizeCompile(stores, pcId, jobId) {
   return true;
 }
 
+// -- GM instant-finish (no clock) --------------------------------------------
+// Admin shortcut: deliver a single deck build/order or program compile right now,
+// reusing the exact completion logic the clock uses -- but WITHOUT advancing the
+// world clock (/campaign/advance) or the local fab clock, so heat / reputation /
+// org-standing decay stay put. Lets the GM stand up gear for a runner without
+// spending campaign time.
+async function finishDeckNow(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const f = _findDeck(it.pcId, it.id);
+  if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
+  const deck = Object.assign({}, f.decks[f.idx]);
+  const acq = deck.acq || {};
+  // Mirror advanceClock's completion branch: a repair reverts to as-built (drop
+  // the damage overlay); a build or order lands as the finished deck.
+  deck.status = 'ready';
+  if (acq.isRepair) delete deck.damage;
+  deck.acq = null;
+  f.decks[f.idx] = deck;
+  _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // ' + (deck.deckName || it.id) + ' delivered now -- world clock untouched.', false);
+  loadQueue();
+}
+
+async function finishCompileNow(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) { alertMsg('Compile no longer present.', true); return loadQueue(); }
+  if (!_finalizeCompile(stores, it.pcId, it.id)) { alertMsg('Compile could not be finalized.', true); return loadQueue(); }
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // program compiled now -- world clock untouched.', false);
+  loadQueue();
+}
+
 // -- the clock: advance every authorized job at once --------------------------
 async function advanceClock(days) {
   if (!isAdmin()) return alertMsg('GM only.', true);
@@ -828,6 +878,15 @@ async function advanceClock(days) {
   setClockDay(getClockDay() + d);
   renderClock();
 
+  // Advance the world clock too: this is the single control that moves campaign
+  // time, so heat / public-awareness / org-standing decay all step forward here.
+  let worldMsg = '';
+  try {
+    const r = await apiFetch('/campaign/advance', { method: 'POST', body: JSON.stringify({ days: d }) });
+    if (r.ok) { const j = await r.json(); renderTick(j.current_tick); worldMsg = ' World clock at tick ' + fmtN(j.current_tick) + '.'; }
+    else { worldMsg = ' (world clock advance failed)'; }
+  } catch (e) { worldMsg = ' (world clock advance failed)'; }
+
   const pcIds = Object.keys(dirty);
   try {
     for (const pcId of pcIds) { await _putState(pcId); }
@@ -836,7 +895,7 @@ async function advanceClock(days) {
   const parts = [];
   if (deckDone) parts.push(deckDone + ' deck' + (deckDone === 1 ? '' : 's'));
   if (progDone) parts.push(progDone + ' program' + (progDone === 1 ? '' : 's'));
-  alertMsg('Advanced ' + d + ' day' + (d === 1 ? '' : 's') + '.' + (parts.length ? ' Delivered: ' + parts.join(' & ') + '.' : ''), false);
+  alertMsg('Advanced ' + d + ' day' + (d === 1 ? '' : 's') + '.' + (parts.length ? ' Delivered: ' + parts.join(' & ') + '.' : '') + worldMsg, false);
   loadQueue();
 }
 
@@ -853,8 +912,11 @@ bootstrapAuth().then(ctx => {
   if (!isAdmin()) { $('dtNotGm').style.display = ''; return; }
   $('dtMain').style.display = '';
   wireClock();
+  loadCampaignClock();
   loadQueue();
 });
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
 </body>
 </html>
