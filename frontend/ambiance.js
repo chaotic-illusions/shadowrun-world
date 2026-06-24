@@ -176,16 +176,16 @@
     if (elen < 40) return;
     var ux = ex / elen, uy = ey / elen;          // unit vector, downhill to base
     var nx = -uy, ny = ux;                        // inward normal (onto the face)
-    var inset = h * 0.078;
+    var inset = h * 0.059;
     var ang = Math.atan2(uy, ux);
     g.save();
     g.translate(ax + nx * inset, ay + ny * inset);
     g.rotate(ang);
     var fs = Math.round(h * 0.058);
-    g.font = '700 ' + fs + "px 'Shadowrun', 'Share Tech Mono', monospace";
+    g.font = fs + "px 'Epokha', 'Shadowrun', 'Share Tech Mono', monospace";
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    var t0 = elen * 0.15, t1 = elen * 0.93;       // span most of the edge
+    var t0 = elen * 0.17, t1 = elen * 0.85;       // span most of the edge
     var n = word.length;
     // neon-tube look: a saturated-teal bloom built up over several blur passes,
     // finished with a near-white hot core so the letters glow like lit glass.
@@ -287,7 +287,7 @@
       st.drops = []; st.speckles = [];          // rainy-Seattle theme (reuses ws_drawRain)
       // re-bake once the display font is ready so AZTECHNOLOGY uses it
       if (global.document && document.fonts && document.fonts.load) {
-        document.fonts.load("700 40px 'Shadowrun'").then(function () {
+        document.fonts.load("40px 'Epokha'").then(function () {
           if (st._env) corp_paint(st._env);
         }).catch(function () {});
       }
