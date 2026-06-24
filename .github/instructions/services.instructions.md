@@ -40,7 +40,9 @@ async def endpoint(db: AsyncSession = Depends(get_db)):
 - Returns: `title`, `objective`, `result`, `outcome`, `employer`, `outcome_tags`, `proposed_changes`
 
 ### campaign.py
-- `current_tick(db)` -> `sum(AdventureLog.tick_count)` -- total elapsed campaign days
+- `current_tick(db)` -> reads the persistent single-row `CampaignState` (id=1); 1 tick = 1 day. Only the Downtime control advances it (logging a run no longer moves time).
+- `advance_clock(db, days)` -> bumps `CampaignState.current_tick` by `days`, commits, returns the new total
+- `get_campaign_state(db)` -> gets/creates the row, seeding it once from the legacy `sum(AdventureLog.tick_count)` so decay stamps stay continuous on existing DBs
 
 ### secrets.py
 - `get_api_key()` -> keyring first (Windows Credential Manager), then `ANTHROPIC_API_KEY` env var, else `None`

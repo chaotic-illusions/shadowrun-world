@@ -319,7 +319,9 @@ async def apply_world_changes(
     """Apply a reviewed set of world-state changes (reputation, org standings)."""
     applied = []
     errors = []
-    tick = await current_tick(db) + body.tick_count
+    # Stamp decay at the current campaign clock; logging a run no longer advances
+    # time -- only the Downtime control moves the clock.
+    tick = await current_tick(db)
 
     for ch in body.changes:
         try:

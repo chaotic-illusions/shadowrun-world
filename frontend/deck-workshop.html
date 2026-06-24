@@ -6,6 +6,7 @@
   <title>Deck Workshop | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
   <script src="shared.js"></script>
+  <script src="ambiance.js"></script>
   <style>
     /* Workshop-only button variant not in style.css: bright secondary button. */
     .btn-bright { color:var(--text-bright); border-color:#3a5a3a; }
@@ -338,8 +339,7 @@
     .dw-copies .lab { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; text-transform:uppercase; }
 
     /* ============================================================
-       LP2 -- loadout hot-zone board + colored memory bars, ported
-       from frontend/prototypes/loadout-hotzone-bars.html. Renders the
+       LP2 -- loadout hot-zone board + colored memory bars. Renders the
        loadout planner as proportional per-program memory bars and a
        nested Active-inside-Storage box of fixed-size category cards
        (drag to move, one-shot stepper, subdued over-MPCP cards,
@@ -527,9 +527,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html" class="active">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -537,8 +537,8 @@
 
   <!-- =====================================================================
        PROGRAMMER PROFILE GATE -- choose a PC; caps load from their skills.
-       (Ported from deck-builder.html; original element IDs preserved so the
-       ported profile/caps logic binds without change.)
+       (Original element IDs are preserved so the profile/caps logic binds
+       without change.)
        ===================================================================== -->
   <div id="profileGateWrap" style="max-width:600px;margin:22px auto 8px;padding:0 24px;position:relative;z-index:2">
     <div class="db-panel deck-profile-panel" id="profileGateCard">
@@ -640,7 +640,7 @@
   </div><!-- /deckBuilderApp -->
 </main>
 
-<!-- ===================== MODALS (ported from deck-builder.html) ===================== -->
+<!-- ===================== MODALS ===================== -->
 <div class="modal-overlay" id="deckAlertModal" style="display:none">
   <div class="mr-modal-box" id="deckAlertCard" style="max-width:560px;border-top-color:var(--amber)">
     <div class="mr-modal-title" id="deckAlertTitle" style="color:var(--amber)">&gt;&gt; SYSTEM NOTICE</div>
@@ -690,11 +690,10 @@
 'use strict';
 
 /* ===========================================================================
-   Deck Workshop (preview port). Behavior/math ported verbatim from
-   deck-builder.html; presentation is the v11 workshop shell. shared.js
+   Deck Workshop. Presentation is the v11 workshop shell. shared.js
    provides: esc, apiFetch, apiThrow, authHeaders, isAdmin, isAdminMode,
    showConfirm, initNumSteppers. (showAlert is intentionally overridden below
-   to route through the themed deck alert modal, matching deck-builder.html.)
+   to route through the themed deck alert modal.)
    =========================================================================== */
 
 const $ = id => document.getElementById(id);
@@ -1644,7 +1643,7 @@ function setProgramEditState(_id, _name) { editingSourceProjectId = _id || ''; }
 
 /* ===========================================================================
    SOFTWARE LIBRARY -- source project -> compile job -> compiled artifact.
-   Data math ported verbatim from deck-builder.html; only the rail render is
+   Canonical SR2 data math; only the rail render is
    re-authored into the v11 dw-fam / dw-var family skin.
    =========================================================================== */
 let _libSearch = '';
@@ -2332,9 +2331,9 @@ function syncOptionRatingCaps() {
 }
 /* ---------------------------------------------------------------------------
    CHECKPOINT 2 -- CYBERDECK DOSSIER
-   Verbatim SR2 deck math from deck-builder.html calcDeck (input ids preserved
-   so every formula reads the same value); only the render is retargeted from
-   deck-builder panels to the v11 dossier (dw-itemize cost table) + inspector
+   Canonical SR2 deck math in calcDeck (input ids are stable so every formula
+   reads the same value); only the render is retargeted to the v11 dossier
+   (dw-itemize cost table) + inspector
    (dw-validity badge, dw-readout/dw-ro summary).
    --------------------------------------------------------------------------- */
 function calcDeck() {
@@ -3141,7 +3140,7 @@ function requestDeckOrder() {
    Operates on SAVED compiled programs (COMPILED_STORE) loaded against a SAVED
    deck (DECK_STORE). Because the v11 dossiers swap, memory caps come from the
    selected saved deck (loadPlannerDeckName) instead of a live deck form.
-   Data/aggregation rules ported verbatim from deck-builder.html.
+   Data/aggregation rules are the canonical SR2 implementation.
    =========================================================================== */
 
 function targetIsActive(target) { return target === 'active' || target === 'both'; }
@@ -3434,7 +3433,7 @@ async function addCompiledProgramToLoad(compiledId, target) {
   });
 }
 
-/* === LP2 loadout hot-zone helpers (ported from the loadout-hotzone-bars prototype) ===
+/* === LP2 loadout hot-zone helpers ===
    The planner is drawn as colored proportional memory bars plus a nested
    Active-inside-Storage board of fixed-size category cards. Movement is by drag
    (library card -> Active/Storage, deck card between zones, deck card -> library to
@@ -3814,7 +3813,7 @@ function renderLoadPlanner() {
 
 /* ---------------------------------------------------------------------------
    CHECKPOINT 3 -- PROGRAM / UTILITY DOSSIER
-   SR2 software builder ported from deck-builder.html. Option/footprint/
+   SR2 software builder. Option/footprint/
    economics math is verbatim (same form ids: utilType, utilRating, attackDmg,
    opt_<id>) so every value reads identically; only calcUtil's render is
    retargeted to the v11 dossier (#progMath dw-math) + inspector
@@ -3825,7 +3824,7 @@ function renderLoadPlanner() {
 
 // Can the source's latest version still gain options at its current rating?
 // An upgrade may add an unchecked option, or raise a numeric option toward the
-// rating cap, without raising base rating. Ported from deck-builder.html.
+// rating cap, without raising base rating.
 function canAddUpgradeOptionsFromVersion(version) {
   if (!version) return false;
   const util = UTILITIES.find(u => getProgramTypeKey(u.name) === version.programTypeKey);
@@ -4060,8 +4059,8 @@ function getOptVal(id, type) {
   return isNaN(v) ? 0 : v;
 }
 
-// Single source of truth for utility footprint math (verbatim from
-// deck-builder.html). Reads current form state via getOptVal.
+// Single source of truth for utility footprint math. Reads current form
+// state via getOptVal.
 function computeUtilityFootprint(util, baseR) {
   if (!util || baseR < 1) return null;
 
@@ -5693,171 +5692,13 @@ function inspect(key) {
 
 /* =====================================================================
    DATA PACKETS -- bits riding the blueprint grid.
-   Movement grammar (per spec):
-   - Each packet has ONE primary direction (right, left, down, or up),
-     chosen at spawn; it NEVER reverses along that axis.
-   - At grid intersections it may jog perpendicular for 1-3 cells
-     (weighted random), then resumes the primary direction.
-   - Max 5 alive; spawn on a random timer; moderate fading trail.
+   Rendered by the shared ambiance module (ambiance.js) on the page's own
+   #fxPackets canvas. The workshop keeps its FX chip: startPackets /
+   stopPackets drive the module controller returned by Ambiance.start.
    ===================================================================== */
-var GRID = 46;
-var packets = [], rafId = null, spawnTimer = null;
-var canvas = document.getElementById('fxPackets');
-var ctx = canvas.getContext('2d');
-var COLORS = [
-  { c:'0,255,65',   w:.40 },  // green
-  { c:'0,204,255',  w:.30 },  // cyan
-  { c:'255,153,0',  w:.16 },  // amber
-  { c:'153,102,255',w:.14 }   // violet
-];
-
-function sizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', sizeCanvas);
-sizeCanvas();
-
-function pickColor() {
-  var r = Math.random(), acc = 0;
-  for (var i = 0; i < COLORS.length; i++) { acc += COLORS[i].w; if (r <= acc) return COLORS[i].c; }
-  return COLORS[0].c;
-}
-
-function spawnPacket() {
-  // primary direction: 0=right 1=left 2=down 3=up
-  var dir = Math.floor(Math.random() * 4);
-  var w = canvas.width, h = canvas.height;
-  var gx = function(n){ return Math.round(n / GRID) * GRID; };
-  var x, y, vx = 0, vy = 0;
-  if (dir === 0) { x = -GRID; y = gx(Math.random() * h); vx = 1; }
-  if (dir === 1) { x = w + GRID; y = gx(Math.random() * h); vx = -1; }
-  if (dir === 2) { x = gx(Math.random() * w); y = -GRID; vy = 1; }
-  if (dir === 3) { x = gx(Math.random() * w); y = h + GRID; vy = -1; }
-  packets.push({
-    x: x, y: y,
-    pvx: vx, pvy: vy,        // primary axis unit vector (never reversed)
-    vx: vx, vy: vy,          // current heading
-    jogLeft: 0,              // cells remaining in a perpendicular jog
-    runLeft: 3 + Math.floor(Math.random() * 5), // cells before next decision
-    speed: 180 + Math.random() * 150,           // px/sec (+40% per feedback)
-    color: pickColor(),
-    shape: ['dot','dash','twin','diamond'][Math.floor(Math.random() * 4)],
-    trail: [],
-    trailMax: 150 + Math.random() * 120         // px of trail
-  });
-}
-
-function decide(p) {
-  // called at each grid intersection
-  if (p.jogLeft > 0) {
-    p.jogLeft--;
-    if (p.jogLeft === 0) { p.vx = p.pvx; p.vy = p.pvy; } // resume primary
-    return;
-  }
-  if (p.runLeft > 0) { p.runLeft--; return; }
-  // decision point: 62% keep going, 38% jog perpendicular 1-3 cells
-  if (Math.random() < 0.38) {
-    var side = Math.random() < 0.5 ? 1 : -1;
-    if (p.pvx !== 0) { p.vx = 0; p.vy = side; }   // horizontal primary jogs vertically
-    else { p.vy = 0; p.vx = side; }               // vertical primary jogs horizontally
-    p.jogLeft = 1 + Math.floor(Math.random() * 3);
-  }
-  p.runLeft = 2 + Math.floor(Math.random() * 6);
-}
-
-function stepPackets(dt) {
-  var w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  for (var i = packets.length - 1; i >= 0; i--) {
-    var p = packets[i];
-    var dist = p.speed * dt;
-    // advance, snapping decisions to grid intersections
-    while (dist > 0) {
-      var nextX = p.vx !== 0 ? (p.vx > 0 ? Math.floor(p.x / GRID + 1) : Math.ceil(p.x / GRID - 1)) * GRID : p.x;
-      var nextY = p.vy !== 0 ? (p.vy > 0 ? Math.floor(p.y / GRID + 1) : Math.ceil(p.y / GRID - 1)) * GRID : p.y;
-      var dToNode = p.vx !== 0 ? Math.abs(nextX - p.x) : Math.abs(nextY - p.y);
-      if (dToNode <= 0.01) dToNode = GRID;
-      var step = Math.min(dist, dToNode);
-      p.x += p.vx * step; p.y += p.vy * step;
-      p.trail.push({ x: p.x, y: p.y });
-      dist -= step;
-      if (step === dToNode) decide(p);
-    }
-    // trim trail to length budget
-    var lenBudget = p.trailMax, kept = [p.trail[p.trail.length - 1]];
-    for (var t = p.trail.length - 2; t >= 0 && lenBudget > 0; t--) {
-      var a = p.trail[t], b = kept[kept.length - 1];
-      lenBudget -= Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-      kept.push(a);
-    }
-    p.trail = kept.reverse();
-    // cull when fully off screen (head + trail margin)
-    var m = p.trailMax + GRID * 2;
-    if (p.x < -m || p.x > w + m || p.y < -m || p.y > h + m) { packets.splice(i, 1); continue; }
-    // draw trail with fading alpha
-    for (var s = 1; s < p.trail.length; s++) {
-      var f = s / p.trail.length;
-      ctx.strokeStyle = 'rgba(' + p.color + ',' + (f * f * 0.55) + ')';
-      ctx.lineWidth = 1 + f * 1.2;
-      ctx.beginPath();
-      ctx.moveTo(p.trail[s - 1].x, p.trail[s - 1].y);
-      ctx.lineTo(p.trail[s].x, p.trail[s].y);
-      ctx.stroke();
-    }
-    // head: bright glyph with glow (varied shapes)
-    ctx.fillStyle = 'rgba(' + p.color + ',.95)';
-    ctx.shadowColor = 'rgb(' + p.color + ')';
-    ctx.shadowBlur = 8;
-    if (p.shape === 'dash') {
-      // elongated along current heading
-      if (p.vx !== 0) ctx.fillRect(p.x - 5, p.y - 1, 10, 2);
-      else ctx.fillRect(p.x - 1, p.y - 5, 2, 10);
-    } else if (p.shape === 'twin') {
-      var ox = p.vx !== 0 ? 4 : 0, oy = p.vy !== 0 ? 4 : 0;
-      ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
-      ctx.fillRect(p.x - 1.5 - ox, p.y - 1.5 - oy, 3, 3);
-    } else if (p.shape === 'diamond') {
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y - 3.5); ctx.lineTo(p.x + 3.5, p.y);
-      ctx.lineTo(p.x, p.y + 3.5); ctx.lineTo(p.x - 3.5, p.y);
-      ctx.closePath(); ctx.fill();
-    } else {
-      ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
-    }
-    ctx.shadowBlur = 0;
-  }
-}
-
-var lastT = 0;
-function loop(t) {
-  if (!lastT) lastT = t;
-  var dt = Math.min((t - lastT) / 1000, .05);
-  lastT = t;
-  if (!document.hidden) stepPackets(dt);
-  rafId = requestAnimationFrame(loop);
-}
-
-function scheduleSpawn() {
-  spawnTimer = setTimeout(function () {
-    if (packets.length < 5) spawnPacket();
-    scheduleSpawn();
-  }, 600 + Math.random() * 1900);
-}
-
-function startPackets() {
-  if (rafId) return;
-  lastT = 0;
-  rafId = requestAnimationFrame(loop);
-  scheduleSpawn();
-}
-function stopPackets() {
-  if (rafId) cancelAnimationFrame(rafId);
-  if (spawnTimer) clearTimeout(spawnTimer);
-  rafId = null; spawnTimer = null;
-  packets = [];
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
+var _packetFx = Ambiance.start('deckgrid', { canvas: 'fxPackets', toggle: false });
+function startPackets() { _packetFx.start(); }
+function stopPackets() { _packetFx.stop(); }
 
 // --- Boot -------------------------------------------------------------------
 initNumSteppers(document);

@@ -18,9 +18,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html" class="active">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -271,6 +271,19 @@ async function loadRTGs() {
     if (!res.ok) await apiThrow(res);
     allRTGs = await res.json();
 
+    // publish grid codes (the part AFTER the '/', e.g. AS/JPN-HOK -> JPN-HOK),
+    // de-duped, for the meshgrid ambiance to label its nodes with real grids.
+    (function () {
+      var seen = {}, out = [];
+      allRTGs.forEach(function (r) {
+        var c = (r.code || '').trim(); var i = c.indexOf('/');
+        var code = i >= 0 ? c.slice(i + 1) : c;
+        if (code && !seen[code]) { seen[code] = 1; out.push(code); }
+      });
+      out.sort();
+      window.AMB_RTG_CODES = out;
+    })();
+
     // Build continent filter options
     const continents = [...new Set(allRTGs.map(r => r.continent).filter(Boolean))].sort();
     const sel = document.getElementById('filterContinent');
@@ -287,6 +300,20 @@ async function loadRTGs() {
 }
 
 bootstrapAuth().then(u => { if (u) { loadRTGs(); startPolling(loadRTGs); } });
+</script>
+<script src="ambiance.js"></script>
+<script>
+  // Expose the live content-table rectangle so the meshgrid ambiance can fade
+  // itself to near-zero where it passes UNDER the table (viewport coords; the
+  // ambiance canvas is position:fixed over the whole viewport).
+  window.AMB_GET_FADE_RECT = function () {
+    var el = document.querySelector('.manage-table') || document.getElementById('tableWrap');
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return null;
+    return { l: r.left, t: r.top, r: r.right, b: r.bottom };
+  };
+  Ambiance.start('meshgrid');
 </script>
 </body>
 </html>

@@ -17,9 +17,9 @@
     <a href="manage-locations.html">Locations</a>
     <a href="manage-rtgs.html">RTGs</a>
     <a href="manage-runs.html">Runs</a>
-    <a href="matrix-designer.html">Matrix Designer</a>
-    <a href="matrix-run.html" class="active">Matrix Run</a>
     <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html" class="active">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
   </nav>
 </header>
 
@@ -2349,6 +2349,31 @@ async function abandonRun() {
   }
   showSetupView();
 }
+</script>
+<script src="ambiance.js"></script>
+<script>
+/* Matrix-run ambiance: full-screen ICE-sentinel scene dimmed under the main
+   panels. AMB_GET_FADE_RECT returns the union of the visible .mr-panel rects so
+   the scene fades to near-zero where it passes behind the content (same treatment
+   as the RTG meshgrid). */
+(function () {
+  window.AMB_GET_FADE_RECT = function () {
+    var panels = document.querySelectorAll('.mr-panel');
+    var l = Infinity, t = Infinity, r = -Infinity, b = -Infinity, found = false, i, rc;
+    for (i = 0; i < panels.length; i++) {
+      rc = panels[i].getBoundingClientRect();
+      if (rc.width < 4 || rc.height < 4) continue;
+      if (rc.bottom < 0 || rc.top > window.innerHeight) continue;
+      found = true;
+      if (rc.left < l) l = rc.left;
+      if (rc.top < t) t = rc.top;
+      if (rc.right > r) r = rc.right;
+      if (rc.bottom > b) b = rc.bottom;
+    }
+    return found ? { l: l, t: t, r: r, b: b } : null;
+  };
+  Ambiance.start('icevoid');
+})();
 </script>
 </body>
 </html>
