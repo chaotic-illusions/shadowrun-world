@@ -745,6 +745,25 @@ function getSelectedDeck() {
   return _savedDecks.find(d => d.name === sel.value) || null;
 }
 
+// Mirror deck-workshop's getDeckStatus exactly: the lifecycle is the single source of truth
+// for whether a deck is a finished ARTIFACT. A deck with no/unknown status is a draft.
+function getDeckStatus(deck) {
+  const s = String(deck && deck.status || 'draft').toLowerCase();
+  return ['draft', 'onorder', 'building', 'ready'].includes(s) ? s : 'draft';
+}
+// A deck is runnable only when it is a finished artifact (status 'ready') -- the same test
+// deck-workshop uses. The pre-lifecycle boolean fabricated/purchased flags are vestigial and
+// intentionally NOT honored: legacy/test decks carry them but deck-workshop treats them as
+// drafts, so trusting them here would surface stale draft decks the workshop won't run.
+function isRunnableDeck(deck) {
+  return getDeckStatus(deck) === 'ready';
+}
+// "Built" = coded from source on file (origin 'built'); a bought deck is object-code only
+// (origin 'bought') and carries no [Built] tag.
+function isBuiltDeck(deck) {
+  return !!deck && deck.origin === 'built';
+}
+
 function getSelectedLoadout() {
   const sel = document.getElementById('runLoadoutSelect');
   if (!sel || !sel.value) return null;
@@ -972,12 +991,13 @@ function renderDeckAndLoadoutSelectors() {
   const prevLoad = loadSel.value;
 
   deckSel.innerHTML = '<option value="">-- Select deck build --</option>';
-  // Only runnable decks: BUILT (cook+install done) or GM-PURCHASED (open-market). Built decks
-  // carry a [Built] tag; purchased ones do not (the absence signifies an open-market buy).
-  _savedDecks.filter(deck => deck.fabricated || deck.purchased).forEach(deck => {
+  // Only finished artifacts (status 'ready'): a coded BUILT deck or an open-market bought deck.
+  // Built decks carry a [Built] tag; bought (object-code) decks don't. Drafts / on-order /
+  // in-fab decks are excluded -- they aren't iron you can run yet.
+  _savedDecks.filter(isRunnableDeck).forEach(deck => {
     const opt = document.createElement('option');
     opt.value = deck.name;
-    opt.textContent = `${deck.name} [MPCP ${deck.mpcp || '--'}]${deck.fabricated ? ' [Built]' : ''}`;
+    opt.textContent = `${deck.name} [MPCP ${deck.mpcp || '--'}]${isBuiltDeck(deck) ? ' [Built]' : ''}`;
     deckSel.appendChild(opt);
   });
 
@@ -1021,13 +1041,35 @@ async function hydrateDeckLoadoutFromBackend() {
     const res = await apiFetch(`${API}/characters/${profile.characterId}/deck-builder-state`);
     if (!res.ok) return;
     const stores = ((await res.json())?.state || {}).stores || {};
-    for (const baseKey of [DECK_STORE, LOADOUT_STORE]) {
-      const scoped = getProgrammerScopedStoreKey(baseKey);
+
+    // Load-outs: fill-only. The player edits load-out drafts on THIS page (saveScopedStore),
+    // so unsynced local edits must win -- only seed from the backend when local is empty.
+    {
+      const scoped = getProgrammerScopedStoreKey(LOADOUT_STORE);
       let localHas = false;
       try { localHas = (JSON.parse(localStorage.getItem(scoped) || '[]') || []).length > 0; } catch (_) {}
-      const backendVal = stores[baseKey] || stores[scoped];
+      const backendVal = stores[LOADOUT_STORE] || stores[scoped];
       if (!localHas && Array.isArray(backendVal) && backendVal.length) {
         localStorage.setItem(scoped, JSON.stringify(backendVal));
+      }
+    }
+
+    // Decks: the lifecycle (draft -> on order / in fab -> ready) is GM-owned and a deck only
+    // becomes a finished ARTIFACT on the backend (Downtime Control). matrix-run never edits
+    // decks, so the backend copy is authoritative -- reconcile by name (backend wins) rather
+    // than fill-only. Without this, a stale local pre-finish copy shadows the GM's finished
+    // deck and it never appears as runnable, even though deck-workshop (which reads the
+    // backend) lists it as Ready.
+    {
+      const scoped = getProgrammerScopedStoreKey(DECK_STORE);
+      const backendDecks = stores[DECK_STORE] || stores[scoped];
+      if (Array.isArray(backendDecks) && backendDecks.length) {
+        let localDecks = [];
+        try { localDecks = JSON.parse(localStorage.getItem(scoped) || '[]') || []; } catch (_) {}
+        const byName = new Map((Array.isArray(localDecks) ? localDecks : [])
+          .filter(d => d && d.name).map(d => [d.name, d]));
+        backendDecks.forEach(d => { if (d && d.name) byName.set(d.name, d); });
+        localStorage.setItem(scoped, JSON.stringify([...byName.values()]));
       }
     }
   } catch (_) { /* offline: keep whatever local has */ }

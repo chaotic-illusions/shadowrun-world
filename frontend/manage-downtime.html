@@ -140,6 +140,7 @@
 const DECK_STORE        = 'sr2_decks_v1';
 const COMPILE_JOB_STORE = 'sr2_compile_jobs_v1';
 const COMPILED_STORE    = 'sr2_compiled_programs_v1';
+const FIXER_PROG_STORE  = 'sr2_fixer_prog_orders_v1';
 const SOURCE_STORE      = 'sr2_program_sources_v1';
 const OMC_STORE         = 'sr2_omc_archive_v1';
 const OMC_DEFAULT_CAPACITY = 1000;
@@ -267,6 +268,18 @@ async function loadQueue() {
         });
       });
 
+      // Fixer program orders (pending GM delivery)
+      const fixerOrders = _storesRead(stores, FIXER_PROG_STORE, s.id);
+      fixerOrders.forEach(o => items.push({
+        kind: 'fixer_prog', phase: o.authorized ? 'inprog' : 'pending',
+        pcId: s.id, pcLabel: s.label, id: o.id,
+        label: o.name || (o.utilName + '-' + o.baseRating),
+        buyCost: parseInt(o.buyCost, 10) || 0,
+        baseDays: parseInt(o.baseDays, 10) || 7,
+        tn: parseInt(o.tn, 10) || 4,
+        order: o, requestedAt: o.requestedAt || 0,
+      }));
+
       // Deck acquisition (buy / build)
       const decks = _storesRead(stores, DECK_STORE, s.id);
       decks.forEach(d => {
@@ -343,6 +356,7 @@ function renderQueue() {
   _queueItems.forEach(it => {
     let card;
     if (it.kind === 'omc') card = _omcCard(it);
+    else if (it.kind === 'fixer_prog') card = (it.phase === 'inprog') ? _inprogCard(it) : _fixerProgCard(it);
     else if (it.kind === 'deck' && it.acqKind === 'buy') card = (it.phase === 'inprog') ? _inprogCard(it) : _buyCard(it);
     else if (it.kind === 'deck') card = (it.phase === 'inprog') ? _inprogCard(it) : _buildCard(it);
     else card = (it.phase === 'inprog') ? _inprogCard(it) : _compileCard(it);
@@ -533,17 +547,71 @@ function _compileCard(it) {
   return card;
 }
 
+// FIXER PROG ORDER -- etiquette negotiation + delivery clock (mirrors _buyCard)
+function _fixerProgCard(it) {
+  const street = it.buyCost;
+  const days = it.baseDays;
+  const tn = it.tn;
+  const card = el('div', 'dw-appr');
+  card.appendChild(_cardHead(it, 'buy', 'Fixer Order'));
+
+  const sum = el('div', 'dw-buysum');
+  sum.innerHTML =
+    '<span><span class="lbl">Street Price:</span> <span class="val qprice">' + fmtY(street) + '</span></span>'
+    + '<span><span class="lbl">Final Price:</span> <span class="val price"></span></span>'
+    + '<span><span class="lbl">Availability:</span> <span class="val avail">' + tn + ' / ' + fmtN(days) + ' days</span></span>'
+    + '<span><span class="lbl">Delivery:</span> <span class="val deliv"></span></span>';
+  card.appendChild(sum);
+  const fpriceEl = sum.querySelector('.price');
+  const delivEl  = sum.querySelector('.deliv');
+
+  const adj = el('div', 'dw-adjbox');
+  adj.appendChild(el('div', 'dw-adjhd', 'Etiquette Influence'));
+  const fields = el('div', 'fields');
+  const etqSel = document.createElement('select');
+  ETQ_TIERS.forEach((t, i) => { const op = document.createElement('option'); op.value = String(i); op.textContent = t.label; if (t.pct === 0) op.selected = true; etqSel.appendChild(op); });
+  const availInput = _numInput(1, 1, 10);
+  fields.appendChild(_labelWrap('Price Factor', etqSel, '(-20% to +20%)'));
+  fields.appendChild(_labelWrap('Successes', availInput, '(1-10)'));
+  adj.appendChild(fields);
+  card.appendChild(adj);
+
+  let quoted = street, delivDays = days;
+  const updateCalc = () => {
+    const tier = ETQ_TIERS[parseInt(etqSel.value, 10) || 0] || ETQ_TIERS[3];
+    quoted = Math.max(0, Math.round(street * (1 + tier.pct / 100)));
+    const div = Math.max(1, Math.min(10, parseInt(availInput.value, 10) || 1));
+    delivDays = Math.max(1, Math.ceil(days / div));
+    fpriceEl.innerHTML = fmtY(quoted);
+    delivEl.textContent = fmtN(delivDays) + ' days';
+  };
+  etqSel.addEventListener('change', updateCalc);
+  availInput.addEventListener('input', updateCalc);
+  updateCalc();
+
+  const acts = el('div', 'acts');
+  acts.appendChild(_btn('&gt;&gt; Quote &amp; authorize', 'btn-green', () => authorizeFixerProg(it, {
+    etiquetteTier: ETQ_TIERS[parseInt(etqSel.value, 10) || 0].label,
+    etiquettePct:  ETQ_TIERS[parseInt(etqSel.value, 10) || 0].pct,
+    priceQuoted: quoted, days: delivDays,
+  })));
+  acts.appendChild(_btn('Refuse', 'btn-red', () => refuseFixerProg(it)));
+  card.appendChild(acts);
+  return card;
+}
+
 // IN-PROGRESS -- shows remaining days; bench jobs expose an editable task bonus
 function _inprogCard(it) {
-  const isCompile = it.kind === 'compile';
-  const src = isCompile ? (it.job || {}) : (it.acq || {});
-  const bench = isCompile || it.acqKind === 'build';
+  const isCompile   = it.kind === 'compile';
+  const isFixerProg = it.kind === 'fixer_prog';
+  const src   = isCompile ? (it.job || {}) : isFixerProg ? (it.order || {}) : (it.acq || {});
+  const bench = (isCompile || it.acqKind === 'build') && !isFixerProg;
   const total = Math.max(1, parseInt(src.taskDays, 10) || parseInt(src.totalDays, 10) || 1);
-  const left = Math.max(0, parseInt(src.daysRemaining, 10) || 0);
-  const bonus = Math.max(1, parseInt(src.taskBonus, 10) || 1);
-  const pct = Math.max(0, Math.min(100, Math.round((1 - left / total) * 100)));
+  const left  = Math.max(0, parseInt(src.daysRemaining, 10) || 0);
+  const bonus = bench ? Math.max(1, parseInt(src.taskBonus, 10) || 1) : 1;
+  const pct   = Math.max(0, Math.min(100, Math.round((1 - left / total) * 100)));
 
-  const kindCls = isCompile ? 'code' : (it.acqKind === 'build' ? 'build' : 'buy');
+  const kindCls  = isCompile ? 'code' : (it.acqKind === 'build' ? 'build' : 'buy');
   const kindText = isCompile ? 'Compile' : (it.acqKind === 'build' ? 'Build' : 'Purchase');
   const card = el('div', 'dw-appr inprog');
   card.appendChild(_cardHead(it, kindCls, kindText, bench ? ('in fab &times;' + bonus) : 'on order'));
@@ -564,8 +632,10 @@ function _inprogCard(it) {
     card.appendChild(fields);
     acts.appendChild(_btn('Save bonus', 'btn-amber', () => updateTaskBonus(it, Math.max(1, Math.min(10, parseInt(bonusInput.value, 10) || 1)))));
   }
-  acts.appendChild(_btn('Finish now &middot; no clock', 'btn-amber', () => (isCompile ? finishCompileNow(it) : finishDeckNow(it))));
-  acts.appendChild(_btn('Cancel job', 'btn-red', () => (isCompile ? refuseCompile(it) : refuseDeck(it))));
+  const finishFn = isCompile ? () => finishCompileNow(it) : isFixerProg ? () => finishFixerProgNow(it) : () => finishDeckNow(it);
+  const cancelFn = isCompile ? () => refuseCompile(it) : isFixerProg ? () => refuseFixerProg(it) : () => refuseDeck(it);
+  acts.appendChild(_btn('Finish now &middot; no clock', 'btn-amber', finishFn));
+  acts.appendChild(_btn('Cancel job', 'btn-red', cancelFn));
   card.appendChild(acts);
   return card;
 }
@@ -713,6 +783,76 @@ async function refuseCompile(it) {
   loadQueue();
 }
 
+// Sync helper: move a fixer prog order from FIXER_PROG_STORE -> COMPILED_STORE.
+function _finalizeFixerProg(stores, pcId, orderId) {
+  const orders = _storesRead(stores, FIXER_PROG_STORE, pcId).slice();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx < 0) return false;
+  const o = orders[idx];
+  const compiled = _storesRead(stores, COMPILED_STORE, pcId).slice();
+  compiled.push({
+    id: 'buy_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+    createdAt: Date.now(), sourceId: null, sourceVersion: null,
+    utilName: o.utilName, programTypeKey: o.programTypeKey,
+    baseRating: o.baseRating, effectiveRating: o.effectiveRating,
+    mods: o.mods || 'None', isOneShot: !!o.isOneShot, hasLimit: !!o.hasLimit,
+    attackDamage: o.attackDamage || null, optionState: o.optionState || null,
+    actualSize: Math.max(0, parseInt(o.actualSize, 10) || 0),
+    designSize: Math.max(0, parseInt(o.designSize, 10) || 0),
+    buyCost: Math.max(0, parseInt(o.priceQuoted || o.buyCost, 10) || 0),
+    designDays: 0, acquisition: 'purchased', name: o.name,
+  });
+  orders.splice(idx, 1);
+  _storesWrite(stores, FIXER_PROG_STORE, pcId, orders);
+  _storesWrite(stores, COMPILED_STORE, pcId, compiled);
+  return true;
+}
+
+async function authorizeFixerProg(it, opts) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  const orders = _storesRead(stores, FIXER_PROG_STORE, it.pcId).slice();
+  const idx = orders.findIndex(o => o.id === it.id);
+  if (idx < 0) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  const order = Object.assign({}, orders[idx]);
+  order.authorized      = true;
+  order.etiquetteTier   = opts.etiquetteTier;
+  order.etiquettePct    = opts.etiquettePct;
+  order.priceQuoted     = opts.priceQuoted;
+  order.taskDays        = Math.max(1, opts.days);
+  order.daysRemaining   = Math.max(1, opts.days);
+  order.startedClockDay = getClockDay();
+  orders[idx] = order;
+  _storesWrite(stores, FIXER_PROG_STORE, it.pcId, orders);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // ' + (it.label || 'program') + ' quoted at ' + fmtY(opts.priceQuoted) + ' -- delivery ' + fmtN(opts.days) + ' days.', false);
+  loadQueue();
+}
+
+async function finishFixerProgNow(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  if (!_finalizeFixerProg(stores, it.pcId, it.id)) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // ' + (it.label || 'program') + ' delivered now -- world clock untouched.', false);
+  loadQueue();
+}
+
+async function refuseFixerProg(it) {
+  if (!isAdmin()) return alertMsg('GM only.', true);
+  const ok = await showConfirm('Refuse fixer order "' + (it.label || it.id) + '"? The order is removed.', 'Refuse', 'btn-red');
+  if (!ok) return;
+  const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
+  if (!stores) { alertMsg('Order no longer present.', true); return loadQueue(); }
+  const orders = _storesRead(stores, FIXER_PROG_STORE, it.pcId).filter(o => o.id !== it.id);
+  _storesWrite(stores, FIXER_PROG_STORE, it.pcId, orders);
+  try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
+  alertMsg('GM // fixer order refused.', false);
+  loadQueue();
+}
+
 async function authorizeOmc(it) {
   if (!isAdmin()) return alertMsg('GM only.', true);
   const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
@@ -854,6 +994,23 @@ async function advanceClock(days) {
       deckChanged = true;
     });
     if (deckChanged) { _storesWrite(stores, DECK_STORE, pcId, decks); dirty[pcId] = true; }
+
+    // fixer prog orders
+    const fixerOrders = _storesRead(stores, FIXER_PROG_STORE, pcId).slice();
+    const fixerToDeliver = [];
+    let fixerChanged = false;
+    fixerOrders.forEach((o, i) => {
+      if (!o || !o.authorized) return;
+      const left = Math.max(0, (parseInt(o.daysRemaining, 10) || 0) - d);
+      fixerOrders[i] = Object.assign({}, o, { daysRemaining: left });
+      fixerChanged = true;
+      if (left <= 0) fixerToDeliver.push(o.id);
+    });
+    if (fixerChanged) {
+      _storesWrite(stores, FIXER_PROG_STORE, pcId, fixerOrders);
+      fixerToDeliver.forEach(id => { if (_finalizeFixerProg(stores, pcId, id)) progDone++; });
+      dirty[pcId] = true;
+    }
 
     // compiles
     const jobs = _storesRead(stores, COMPILE_JOB_STORE, pcId).slice();
