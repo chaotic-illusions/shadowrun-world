@@ -415,6 +415,8 @@
     .lp2-tile.over .tn { text-decoration:line-through; text-decoration-color:#777; }
     .lp2-tile.over .tn, .lp2-tile.over .tn .rt { color:var(--text-dim); }
     .lp2-tile.hl { border-color:var(--text-bright); box-shadow:0 0 0 1px var(--text-bright), 0 0 12px rgba(255,255,255,.14); }
+    .lp2-tile.sel { border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan), 0 0 12px rgba(102,238,238,.18); }
+    .lp2-tile { cursor:pointer; }
 
     .lp2-tile .copies { display:inline-flex; align-items:center; border:1px solid #4a3d14; line-height:1; }
     .lp2-tile .copies .st { color:var(--straw); cursor:pointer; padding:0 5px; user-select:none; font-size:var(--fs-sm); }
@@ -1369,6 +1371,7 @@ const PROGRAM_STORE = 'sr2_programs_v1';
 const SOURCE_STORE = 'sr2_program_sources_v1';
 const COMPILE_JOB_STORE = 'sr2_compile_jobs_v1';
 const COMPILED_STORE = 'sr2_compiled_programs_v1';
+const FIXER_PROG_STORE = 'sr2_fixer_prog_orders_v1';
 const PROGRAM_MIGRATION_STORE = 'sr2_program_migration_v1';
 const PROGRAM_RECONCILE_STORE = 'sr2_program_reconcile_v1';
 const OMC_STORE = 'sr2_omc_archive_v1';        // per-decker: [{ capacity, orders:[] }]
@@ -2986,20 +2989,23 @@ function computeDeckAlaCarteRows(s) {
   if (s.casingLvl > 0) add('casing', 'Deck Casing', 'Lvl ' + s.casingLvl, casing[s.casingLvl]);
   return rows;
 }
-function deckAvailBand(r) {
-  // Buying Programs / Program Prices availability bands (TN / base days), vr2_rules.md.
-  if (r <= 3) return { tn: 2, days: 7 };
-  if (r <= 6) return { tn: 4, days: 7 };
-  if (r <= 9) return { tn: 8, days: 14 };
-  return { tn: 16, days: 30 };
+function programPriceBand(r) {
+  // Program Prices Table (vr2_rules.md): availability (TN / base days) and Street
+  // Index, both scaling with Program Rating. The Street Index is the street-buy
+  // multiplier applied to the Size x PF base price; it is NOT a flat 1.5.
+  const rr = Math.max(1, parseInt(r, 10) || 1);
+  if (rr <= 3) return { tn: 2,  days: 7,  streetIndex: 1,   availStr: '2/7 days'   };
+  if (rr <= 6) return { tn: 4,  days: 7,  streetIndex: 1.5, availStr: '4/7 days'   };
+  if (rr <= 9) return { tn: 8,  days: 14, streetIndex: 2,   availStr: '8/14 days'  };
+  return         { tn: 16, days: 30, streetIndex: 3,   availStr: '16/30 days' };
 }
 function computeDeckAvailability(mpcp, persona) {
   // Hybrid worst-of: MPCP band vs each persona band (longest days, then highest TN).
   // MPCP is the highest rating on the deck, so its band is normally the single worst.
-  let worst = deckAvailBand(mpcp || 1);
+  let worst = programPriceBand(mpcp || 1);
   for (const r of (persona || [])) {
     if (r > 0) {
-      const b = deckAvailBand(r);
+      const b = programPriceBand(r);
       if (b.days > worst.days || (b.days === worst.days && b.tn > worst.tn)) worst = b;
     }
   }
@@ -3400,6 +3406,10 @@ function recalcLoadPlannerWithWarnings() {
     showAlert(null, `>> WARNING // Load plan exceeds memory caps: ${warn.join(' // ')}`, true);
   }
   renderLoadPlanner();
+  // Keep the library in sync: programs added to the plan drop out of the rail, removed
+  // ones return. (One-shot copy steps don't change library membership, but re-rendering
+  // is cheap and keeps the two panes authoritative.)
+  renderLoadLibrary();
 }
 
 /* Add a saved compiled program to the load plan (replaces the source library
@@ -3516,6 +3526,93 @@ function lpWireHover(root) {
     const k = el.getAttribute('data-lp');
     el.addEventListener('mouseenter', () => lpHl(k, true));
     el.addEventListener('mouseleave', () => lpHl(k, false));
+  });
+}
+
+/* Click-to-inspect: render a library/loaded program into the right-hand Inspector
+   pane (same #inspValidity / #inspReadout / #inspDetail used by the deck & program
+   dossiers). o is a plain descriptor: { utilName, baseRating, attackDamage?,
+   actualSize, isOneShot, mods?, limitTarget?, street? }. */
+function lpInspect(o) {
+  if (!o || !o.utilName) return;
+  const util = UTILITIES.find(u => u.name === o.utilName);
+  const cat = util ? util.cat : lpCatOf(o.utilName);
+  const nm = lpProgName(o);
+  const rating = parseInt(o.baseRating, 10) || 0;
+  const unit = Math.max(0, parseInt(o.actualSize, 10) || 0);
+  const mpcp = getLoadoutDeckMpcp();
+  const over = mpcp.built > 0 && rating > mpcp.effective;
+
+  const vEl = $('inspValidity');
+  if (vEl) {
+    vEl.style.display = '';
+    setDeckValidity(over ? 'err' : 'ok',
+      over ? `! ${nm.toUpperCase()} EXCEEDS MPCP ${mpcp.effective}` : `* ${nm.toUpperCase()} -- ${fmtN(unit)} Mp`);
+  }
+
+  const rows = [
+    { lbl: 'Program', val: nm },
+    { lbl: 'Category', val: cat },
+    { lbl: 'Base Rating', val: rating },
+    ...(o.utilName === 'Attack' && o.attackDamage && _DMG_LETTER[o.attackDamage] ? [{ lbl: 'Damage', val: _DMG_LETTER[o.attackDamage] }] : []),
+    { lbl: 'Mods', val: (o.mods && o.mods !== 'None') ? o.mods : '--' },
+    { lbl: 'Footprint (loaded)', val: fmtN(unit) + ' Mp' },
+    { lbl: 'One-Shot', val: o.isOneShot ? 'Yes -- single use' : 'No' },
+    ...(LP_DEGRADERS[o.utilName] ? [{ lbl: 'Wear', val: 'Degrades 1 pt / use' }] : []),
+    ...(o.limitTarget ? [{ lbl: 'Limit Target', val: String(o.limitTarget).toUpperCase() }] : []),
+    { lbl: 'Source', val: o.street ? 'Street (object code)' : 'Coded (source on file)' },
+    { lbl: 'Runs on deck', val: over ? `No -- exceeds MPCP ${mpcp.effective}` : 'Yes', tot: true },
+  ];
+  if ($('inspReadout')) {
+    $('inspReadout').innerHTML = '<div class="dw-readout">' + rows.map(s =>
+      `<div class="dw-ro${s.tot ? ' tot' : ''}"><span>${esc(s.lbl)}</span><span>${esc(String(s.val))}</span></div>`
+    ).join('') + '</div>';
+  }
+  if ($('inspDetail')) {
+    const note = util ? util.note : '';
+    $('inspDetail').innerHTML =
+      `<div class="dw-detail"><div class="t">${esc(o.utilName)} <small>${esc(cat)} &middot; R${rating}</small></div>` +
+      (note ? `<div class="rule">${esc(note)}</div>` : '') +
+      (over ? `<div class="rule" style="color:var(--red)">Rating ${rating} is above this deck's MPCP ${mpcp.effective}; load a copy rated ${mpcp.effective} or lower.</div>` : '') +
+      '</div>';
+  }
+}
+
+/* Resolve a clicked card into an inspector descriptor and show it. source is
+   'lib' (library card -> compiled artifact) or 'plan' (loaded card -> aggregated
+   entry). Clicks on the copy stepper are ignored (it has its own handler). */
+function lpWireInspect(root, source) {
+  if (!root) return;
+  root.querySelectorAll('.lp2-tile').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.copies')) return;
+      let o = null;
+      if (source === 'lib') {
+        const a = _loadStore(COMPILED_STORE).find(x => x.id === card.getAttribute('data-cid'));
+        if (a) o = {
+          utilName: a.utilName || '', baseRating: a.baseRating, attackDamage: a.attackDamage,
+          actualSize: a.actualSize, isOneShot: !!a.isOneShot, mods: a.mods,
+          limitTarget: a.limitTarget || '', street: a.acquisition === 'purchased',
+        };
+      } else {
+        const key = card.getAttribute('data-lp');
+        const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(en => en.key === key);
+        if (entry) {
+          // street provenance isn't carried on the plan item, so resolve it from the
+          // matching compiled artifact (identity-keyed) for an accurate Source line.
+          const art = _loadStore(COMPILED_STORE).find(x => getProgramIdentityKey(x) === key);
+          o = {
+            utilName: entry.utilName, baseRating: entry.baseRating, attackDamage: entry.attackDamage,
+            actualSize: entry.actualSize, isOneShot: entry.isOneShot, mods: entry.mods,
+            limitTarget: entry.limitTarget || '', street: art ? art.acquisition === 'purchased' : false,
+          };
+        }
+      }
+      if (!o) return;
+      document.querySelectorAll('.lp2-tile.sel').forEach(t => t.classList.remove('sel'));
+      card.classList.add('sel');
+      lpInspect(o);
+    });
   });
 }
 
@@ -3637,8 +3734,13 @@ function renderLoadLibrary() {
   const area = $('loadLibraryArea');
   if (!area) return;
   if (!loadPlannerDeckName) { area.innerHTML = '<div class="lp2-empty">Select a deck to load programs onto.</div>'; return; }
-  const compiled = _loadStore(COMPILED_STORE).slice();
-  if (!compiled.length) { area.innerHTML = '<div class="lp2-empty">No coded or street software yet. Build or buy programs first.</div>'; return; }
+  const allCompiled = _loadStore(COMPILED_STORE).slice();
+  if (!allCompiled.length) { area.innerHTML = '<div class="lp2-empty">No coded or street software yet. Build or buy programs first.</div>'; return; }
+  // A program already placed in the load plan leaves the library, so the rail only shows
+  // what you could still add. Identity-keyed so a swapped/removed copy returns here.
+  const loadedKeys = new Set((loadPlannerItems || []).map(i => getProgramIdentityKey(i)));
+  const compiled = allCompiled.filter(a => !loadedKeys.has(getProgramIdentityKey(a)));
+  if (!compiled.length) { area.innerHTML = '<div class="lp2-empty">Every coded/street program is already in this load plan. Drag one back to the library to free it.</div>'; return; }
   const mpcp = getLoadoutDeckMpcp();
   const cards = lpSortForBar(compiled).map(a => lpCardHtml({
     key: getProgramIdentityKey(a),
@@ -3656,6 +3758,7 @@ function renderLoadLibrary() {
   lpWireDragOnce();
   lpBindZone(zone, 'lib');
   lpWireHover(zone);
+  lpWireInspect(zone, 'lib');
 }
 
 function renderLoadPlanner() {
@@ -3800,6 +3903,7 @@ function renderLoadPlanner() {
   lpBindZone($('lp2Active'), 'active');
   lpBindZone($('lp2Bench'), 'storage');
   lpWireHover(area);
+  lpWireInspect(area, 'plan');
   area.querySelectorAll('.copies .st[data-cstep]').forEach(st => {
     st.addEventListener('mousedown', e => e.stopPropagation());
     st.addEventListener('click', e => {
@@ -4226,18 +4330,12 @@ function calcUtil() {
 
   const { mult, effRating, effRatingAdd, baseSize, designSize, actualSize, limitActive, limitTarget } = fp;
 
-  // Cost based on base rating tier
+  // Cost + availability from the Program Prices Table (scales with base rating).
+  const band   = programPriceBand(baseR);
   const pf     = pfFactor(baseR);
   const cost   = designSize * pf;
-  const siMult = baseR <= 3 ? 1 : baseR <= 6 ? 1.5 : baseR <= 9 ? 2 : 3;
-  const streetCost = Math.round(cost * siMult);
-
-  // Availability
-  let availStr;
-  if (baseR <= 3)       { availStr = '2/7 days';   }
-  else if (baseR <= 6)  { availStr = '4/7 days';   }
-  else if (baseR <= 9)  { availStr = '8/14 days';  }
-  else                  { availStr = '16/30 days'; }
+  const streetCost = Math.round(cost * band.streetIndex);
+  const availStr = band.availStr;
 
   // Build time
   const baseConstructTime = designSize * 2; // days
@@ -4391,7 +4489,7 @@ function updateProgramAcquire(ctx) {
   if (!isUpgrade) {
     const canBuy = canBuySoftware();
     const buyOk = hasProgrammer && canBuy && ctx.baseR <= buyCap && fit.fits;
-    const streetPrice = getPurchasedStreetPrice(ctx.cost);
+    const streetPrice = getPurchasedStreetPrice(ctx.cost, ctx.baseR);
     const buyBody = $('progBuyBody');
     if (buyBody) {
       buyBody.innerHTML = `Street price <span class="street">${fmtY(streetPrice)}</span><br>` +
@@ -5401,14 +5499,14 @@ function orderPurchasedProgram() {
   if (!snap) { showAlert(null, 'Select a utility and rating first.', true); return; }
   const omcFit = omcCapacityCheck(snap.actualSize);
   if (!omcFit.fits) { showAlert(null, omcFit.message, true); return; }
-  const streetPrice = getPurchasedStreetPrice(snap.buyCost);
+  const streetPrice = getPurchasedStreetPrice(snap.buyCost, snap.baseRating);
   const name = `${snap.utilName}-${snap.baseRating}${snap.mods && snap.mods !== 'None' ? ` [${snap.mods}]` : ''}`;
-  const compiled = _loadStore(COMPILED_STORE);
-  compiled.push({
+  const av = programPriceBand(snap.baseRating);
+  const orders = _loadStore(FIXER_PROG_STORE);
+  orders.push({
     id: `buy_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
-    createdAt: Date.now(),
-    sourceId: null,
-    sourceVersion: null,
+    requestedAt: Date.now(),
+    baseDays: av.days, tn: av.tn,
     utilName: snap.utilName,
     programTypeKey: snap.programTypeKey,
     baseRating: snap.baseRating,
@@ -5422,13 +5520,12 @@ function orderPurchasedProgram() {
     designSize: snap.designSize,
     buyCost: streetPrice,
     designDays: 0,
-    acquisition: 'purchased',
     name,
   });
-  _saveStore(COMPILED_STORE, compiled);
+  _saveStore(FIXER_PROG_STORE, orders);
   renderSavedPrograms();
   discardProgramDossier();
-  showAlert(null, `>> PURCHASED // ${name} added to your library at ${fmtY(streetPrice)} street.`, false);
+  showAlert(null, `>> ON ORDER // ${name} at ${fmtY(streetPrice)} street -- fixer (GM) authorizes delivery from Downtime Control.`, false);
 }
 
 function saveProgramBuild() {
@@ -5623,6 +5720,7 @@ function clearLoadPlanner() {
   if (!loadPlannerItems.length) return;
   loadPlannerItems = [];
   renderLoadPlanner();
+  renderLoadLibrary();
 }
 function filterLib(q) { _libSearch = String(q || '').trim().toLowerCase(); applyLibFilter(); }
 function setFilter(el, f) {
@@ -5631,9 +5729,12 @@ function setFilter(el, f) {
   applyLibFilter();
 }
 
-function getPurchasedStreetPrice(rawBuyCost) {
+function getPurchasedStreetPrice(rawBuyCost, baseRating) {
+  // Street price = base Program Price x the Street Index for that rating band
+  // (Program Prices Table). Falls back to the 4-6 band's 1.5 if no rating is given.
   const base = Math.max(0, parseInt(rawBuyCost, 10) || 0);
-  return Math.round(base * 1.5);
+  const si = baseRating == null ? 1.5 : programPriceBand(baseRating).streetIndex;
+  return Math.round(base * si);
 }
 
 // --- View + FX toggles ------------------------------------------------------

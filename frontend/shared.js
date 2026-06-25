@@ -33,6 +33,33 @@ function authHeaders(extra = {}) {
   return h;
 }
 
+// -- Matrix Run nav gate -------------------------------------------------------
+// Hides the Matrix Run nav link for players with no claimed PC that has deck skills,
+// matching the same access check used by the deck-workshop interrupt overlay.
+async function _applyMatrixRunNavGate() {
+  if (isAdminMode()) return;
+  try {
+    const [charRes, mineRes] = await Promise.all([
+      apiFetch('/characters/'),
+      apiFetch('/characters/mine'),
+    ]);
+    if (!charRes.ok || !mineRes.ok) return;
+    const chars = await charRes.json();
+    const mineData = await mineRes.json();
+    const mineIds = new Set(mineData.ids || []);
+    const eligible = chars.filter(c =>
+      c.is_pc && c.is_active && mineIds.has(c.id) &&
+      ((c.computer_skill_enabled  && (c.computer_skill_rating  || 0) >= 1) ||
+       (c.software_skill_enabled  && (c.software_skill_rating  || 0) >= 1) ||
+       (c.matrix_skill_enabled    && (c.matrix_skill_rating    || 0) >= 1))
+    );
+    if (!eligible.length) {
+      document.querySelectorAll('nav a[href="matrix-run.html"]')
+        .forEach(a => { a.style.display = 'none'; });
+    }
+  } catch (_) {}
+}
+
 // -- bootstrapAuth -------------------------------------------------------------
 
 async function bootstrapAuth() {
@@ -71,6 +98,8 @@ async function bootstrapAuth() {
       style.textContent = '.gm-only { display: none !important; }';
       document.head.appendChild(style);
     }
+
+    _applyMatrixRunNavGate();
 
     return _authCtx;
   } catch (e) {
