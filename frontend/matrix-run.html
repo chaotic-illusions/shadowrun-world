@@ -34,68 +34,81 @@
     <div class="mr-panel" style="max-width:900px;margin:0 auto">
       <div class="panel-title panel-title-green">&gt;&gt; INITIATE MATRIX INTRUSION // Host Selection &amp; Decker Configuration</div>
 
-      <div id="hostSelectWrap">
-        <label>Target Host</label>
-        <select id="hostSelect">
-          <option value="">-- Loading hosts... --</option>
-        </select>
-      </div>
-
-      <div class="setup-grid" style="margin-bottom:10px;gap:10px">
-        <div class="mr-section-head">&gt;&gt; DECK LOADOUT</div>
-        <div class="mr-field">
-          <label>Saved Deck Build</label>
-          <select id="runDeckSelect" onchange="onDeckSelectionChange()">
-            <option value="">-- Select deck build --</option>
-          </select>
-          <span class="tip">Pulled from Deck Builder saves for active programmer profile.</span>
-        </div>
-        <div class="mr-field">
-          <label>Saved Program Load-out</label>
-          <select id="runLoadoutSelect" onchange="onLoadoutSelectionChange()">
-            <option value="">-- Select load-out --</option>
-          </select>
-          <span class="tip">Load-outs come from Deck Builder and must satisfy active/storage rules.</span>
-        </div>
-        <div class="mr-field span2">
-          <div id="runLoadoutStatus" class="tip">Select a deck and load-out.</div>
-        </div>
-        <div class="mr-field span2" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" id="adjustLoadoutBtn" onclick="openLoadoutAdjuster()">&gt;&gt; Adjust Before Run</button>
-          <button class="btn btn-ghost btn-sm" id="clearDraftBtn" onclick="clearLoadoutDraft()" style="display:none">Clear Draft</button>
-          <span id="loadoutDraftBadge" class="tip" style="display:none;color:var(--amber)">Using temporary draft changes.</span>
-        </div>
-        <div class="mr-field span2" id="runLoadoutEditor" style="display:none;border:1px solid #1a2a1a;background:var(--bg-soft);padding:10px">
-          <div style="font-size:.68rem;letter-spacing:1.2px;color:var(--amber);text-transform:uppercase;margin-bottom:8px">Load-out Draft Editor</div>
-          <div id="runLoadoutEditorBody"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;border-top:1px solid #1a2a1a;padding-top:10px">
-            <button class="btn btn-ghost btn-sm" onclick="applyDraftTemporarily()">Use Draft For This Run</button>
-            <button class="btn btn-green btn-sm" onclick="updateSelectedLoadoutFromDraft()">Update Selected Load-out</button>
-            <input type="text" id="draftSaveAsName" placeholder="Save draft as new load-out..."
-              style="flex:1;min-width:180px;padding:5px 8px;font-size:.72rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
-            <button class="btn btn-green btn-sm" onclick="saveDraftAsNewLoadout()">Save As New</button>
+      <div class="mr-setup">
+        <div class="mr-row cols-dh">
+          <div class="mr-field">
+            <label>Active Decker</label>
+            <select id="runDeckerSelect" onchange="onDeckerSelectionChange()">
+              <option value="">-- Select decker --</option>
+            </select>
+          </div>
+          <div class="mr-field">
+            <label>Target Host</label>
+            <select id="hostSelect">
+              <option value="">-- Loading hosts... --</option>
+            </select>
           </div>
         </div>
+
+        <div class="mr-row cols-loadout">
+          <div class="mr-field">
+            <label>Cyberdeck</label>
+            <select id="runDeckSelect" onchange="onDeckSelectionChange()">
+              <option value="">-- Select deck build --</option>
+            </select>
+          </div>
+          <div class="mr-field">
+            <label>Program Loadout</label>
+            <select id="runLoadoutSelect" onchange="onLoadoutSelectionChange()">
+              <option value="">-- Select load-out --</option>
+            </select>
+          </div>
+          <button class="btn btn-amber mr-adjust-btn" id="adjustLoadoutBtn" onclick="openLoadoutAdjuster()">&gt;&gt; Adjust Before Run</button>
+        </div>
+
+        <div class="mr-row cols-2 jp-align">
+          <div class="mr-field">
+            <label>Deck Mode</label>
+            <select id="cfg-mode">
+              <option value="hot">Hot -- Full simsense (no modifier)</option>
+              <option value="cool">Cool -- Reduced feedback (-2 dice)</option>
+              <option value="tortoise">Tortoise -- Minimal feedback (-4 dice)</option>
+            </select>
+          </div>
+          <div class="mr-field">
+            <label>Jackpoint</label>
+            <select id="cfg-jackpoint" onchange="onJackpointChange()">
+              <option value="legal">Legal Access (Trace TN -2, Access TN -2)</option>
+              <option value="illegal" selected>Illegal Access (Trace TN +0, Access TN +0)</option>
+              <option value="workstation">Workstation (Trace TN -4, Access TN -4)</option>
+              <option value="remote">Remote Device (Trace TN +4, Access TN +4)</option>
+              <option value="console">Console Access (Trace TN -6, Access/SV halved)</option>
+              <option value="satellite">Satellite Uplink (Trace TN +0, Access TN +2, Reaction -2)</option>
+            </select>
+            <span class="tip" id="jackpointTip"></span>
+          </div>
+        </div>
+
+        <div id="runLoadoutStatus" class="tip run-loadout-status" style="margin-top:2px">Select a deck and load-out.</div>
+        <div class="tip" id="runDeckerStatus"></div>
+
+        <input type="hidden" id="cfg-trace-factor" value="0">
+        <input type="hidden" id="cfg-bandwidth-mod" value="0">
       </div>
 
-      <div class="setup-grid">
+      <div class="setup-grid" style="margin-top:14px">
+
+        <!-- Read-only spec summary (deck + persona + hardware + loaded programs) -->
+        <div class="span2" id="deckSummaryPanel"></div>
+
+        <!-- Hidden value model: populated from the selected deck/load-out/character and read
+             by startRun(). The player edits the deck/load-out in the Deck Workshop, not here. -->
+        <div id="cfgInputs" style="display:none">
+        <!-- Decker handle = the selected decker's name (set by applyActiveCharacterToConfig);
+             read by startRun(). No separate handle field -- the decker IS the handle. -->
+        <input type="hidden" id="cfg-name">
         <!-- Deck Stats -->
         <div class="mr-section-head">&gt;&gt; DECK STATS</div>
-
-        <div class="mr-field">
-          <label>Decker Name</label>
-          <input type="text" id="cfg-name" placeholder="Ghost" maxlength="80">
-          <span class="tip">Optional handle. Default: Ghost.</span>
-        </div>
-        <div class="mr-field">
-          <label>Deck Mode</label>
-          <select id="cfg-mode">
-            <option value="hot">Hot -- Full simsense (no modifier)</option>
-            <option value="cool">Cool -- Reduced feedback (-2 dice)</option>
-            <option value="tortoise">Tortoise -- Minimal feedback (-4 dice)</option>
-          </select>
-          <span class="tip">hot/cool/tortoise. Affects damage and dice pool.</span>
-        </div>
 
         <div class="mr-field">
           <label>MPCP (1-50)</label>
@@ -139,7 +152,7 @@
         <div class="mr-field">
           <label>Quickness (1-12)</label>
           <input type="number" id="cfg-quickness" min="1" max="12" value="4">
-          <span class="tip">Reaction = (Quickness + Intel) / 2, rounded up.</span>
+          <span class="tip">Reaction = (Quickness + Intel) / 2, rounded up. Satellite Uplink jackpoint applies -2.</span>
         </div>
         <div class="mr-field">
           <label>Willpower (1-50)</label>
@@ -164,16 +177,6 @@
           <label>Response Increase (0-3)</label>
           <input type="number" id="cfg-response-increase" min="0" max="3" value="0">
           <span class="tip">+2 Reaction and +1D6 Initiative per point.</span>
-        </div>
-        <div class="mr-field">
-          <label>Jackpoint Modifier (-6 to +6)</label>
-          <input type="number" id="cfg-trace-factor" min="-6" max="6" value="0">
-          <span class="tip">Trace Factor component from jackpoint type. Console Access = -6, Workstation = -4.</span>
-        </div>
-        <div class="mr-field">
-          <label>Bandwidth Modifier (-6 to +6)</label>
-          <input type="number" id="cfg-bandwidth-mod" min="-6" max="6" value="0">
-          <span class="tip">Trace Factor component. Negative if icon BW exceeds I/O speed.</span>
         </div>
         <div class="mr-field">
           <label>Active Memory (Mp)</label>
@@ -301,6 +304,7 @@
           <input type="number" id="cfg-u-lock-on" min="0" max="50" value="0">
           <span class="tip">Sensor maneuver targeting aid.</span>
         </div>
+        </div><!-- /cfgInputs -->
 
         <!-- Computed Stats -->
         <div class="computed-row" id="computedStats">
@@ -502,6 +506,22 @@
   </div>
 </div>
 
+<!-- Load-out adjuster: self-contained, validated drag/drop (mirrors Deck Workshop) -->
+<div class="modal-overlay" id="loadoutModal">
+  <div class="mr-modal-box lao-box">
+    <div class="lao-head">
+      <div class="mr-modal-title" style="margin:0">&gt;&gt; ADJUST LOAD-OUT</div>
+      <button class="lao-close" onclick="closeLoadoutModal()" title="Close" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="tip" style="margin-bottom:10px">Drag a program between Active and Storage. Active programs also occupy storage. Any move that would overflow memory is blocked. This adjustment applies to this run only.</div>
+    <div id="loadoutModalBody"></div>
+    <div class="lao-foot">
+      <button class="btn btn-green lao-ok" onclick="laoOk()">OK</button>
+    </div>
+    <div class="lao-toast" id="laoToast" role="status" aria-live="assertive"></div>
+  </div>
+</div>
+
 <script src="shared.js"></script>
 <script>
 'use strict';
@@ -523,9 +543,18 @@ let _savedDecks = [];
 let _savedLoadouts = [];
 let _runLoadoutDraft = null;
 
+// Thousands-formatter (matches deck-workshop). Defined here because matrix-run only loads
+// shared.js/ambiance.js, neither of which provides it -- the load-out draft editor and the
+// deck summary both rely on it.
+function fmtN(n) {
+  if (!isFinite(n) || n === 0) return '0';
+  return Number(n).toLocaleString('en-US');
+}
+
 const PROGRAMMER_PROFILE_STORE = 'sr2_deck_programmer_profile_v1';
 const DECK_STORE = 'sr2_decks_v1';
 const LOADOUT_STORE = 'sr2_loadouts_v1';
+const COMPILED_STORE = 'sr2_compiled_programs_v1';
 
 const UTIL_FIELD_MAP = {
   sleaze: 'cfg-u-sleaze',
@@ -736,6 +765,7 @@ async function applyActiveCharacterToConfig() {
     set('cfg-willpower', c.willpower);
     set('cfg-body', c.body);
     if (typeof updateComputedStats === 'function') updateComputedStats();
+    renderDeckSummary();
   } catch (_) { /* leave defaults on failure */ }
 }
 
@@ -787,23 +817,6 @@ function getEffectiveLoadout() {
   return _runLoadoutDraft || getSelectedLoadout();
 }
 
-function updateDraftBadge() {
-  const badge = document.getElementById('loadoutDraftBadge');
-  const clearBtn = document.getElementById('clearDraftBtn');
-  if (badge) badge.style.display = _runLoadoutDraft ? '' : 'none';
-  if (clearBtn) clearBtn.style.display = _runLoadoutDraft ? '' : 'none';
-}
-
-function clearLoadoutDraft() {
-  _runLoadoutDraft = null;
-  updateDraftBadge();
-  renderLoadoutDraftEditor();
-  const selected = getSelectedLoadout();
-  if (selected) setUtilityFieldsFromLoadout(selected);
-  updateComputedStats();
-  updateRunStartEligibility();
-}
-
 function openLoadoutAdjuster() {
   const selected = getSelectedLoadout();
   if (!selected) {
@@ -813,130 +826,387 @@ function openLoadoutAdjuster() {
   if (!_runLoadoutDraft) {
     _runLoadoutDraft = cloneLoadout(selected);
   }
-  updateDraftBadge();
-  renderLoadoutDraftEditor();
+  const overlay = document.getElementById('loadoutModal');
+  if (overlay) overlay.classList.add('open');
+  renderLoadoutModal();
 }
+
+function closeLoadoutModal() {
+  const overlay = document.getElementById('loadoutModal');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function isLoadoutModalOpen() {
+  const overlay = document.getElementById('loadoutModal');
+  return !!overlay && overlay.classList.contains('open');
+}
+
+// The adjuster is an on-the-fly tweak for THIS run only: OK accepts the current draft
+// into the live run config (utilities, computed stats, summary) and deliberately does
+// NOT persist it to the saved load-out library.
+function laoOk() { applyDraftTemporarily(); closeLoadoutModal(); }
 
 function applyDraftTemporarily() {
   if (!_runLoadoutDraft) return;
   setUtilityFieldsFromLoadout(_runLoadoutDraft);
   updateComputedStats();
+  renderDeckSummary();
   updateRunStartEligibility();
-  showAlert(document.getElementById('pageAlert'), 'Using draft load-out for this run (temporary unless saved).', false);
+  showAlert(document.getElementById('pageAlert'), 'Load-out accepted for this run.', false);
 }
 
-function updateSelectedLoadoutFromDraft() {
-  if (!_runLoadoutDraft) return;
-  const selected = getSelectedLoadout();
-  if (!selected) {
-    showAlert(document.getElementById('pageAlert'), 'Select a load-out to update.', true);
-    return;
-  }
-  const idx = _savedLoadouts.findIndex(l => l.name === selected.name);
-  if (idx < 0) return;
-  _savedLoadouts[idx] = {
-    ..._runLoadoutDraft,
-    name: selected.name,
-    savedAt: Date.now(),
-  };
-  saveScopedStore(LOADOUT_STORE, _savedLoadouts);
-  renderDeckAndLoadoutSelectors();
-  const loadSel = document.getElementById('runLoadoutSelect');
-  if (loadSel) loadSel.value = selected.name;
-  showAlert(document.getElementById('pageAlert'), `Updated load-out "${selected.name}" from draft.`, false);
-  applyDraftTemporarily();
-}
-
-function saveDraftAsNewLoadout() {
-  if (!_runLoadoutDraft) return;
-  const nameInput = document.getElementById('draftSaveAsName');
-  const name = (nameInput?.value || '').trim();
-  if (!name) {
-    showAlert(document.getElementById('pageAlert'), 'Enter a name to save draft as new load-out.', true);
-    return;
-  }
-  const idx = _savedLoadouts.findIndex(l => l.name === name);
-  const next = {
-    ...cloneLoadout(_runLoadoutDraft),
-    name,
-    savedAt: Date.now(),
-  };
-  if (idx >= 0) _savedLoadouts[idx] = next;
-  else _savedLoadouts.push(next);
-  saveScopedStore(LOADOUT_STORE, _savedLoadouts);
-  renderDeckAndLoadoutSelectors();
-  const loadSel = document.getElementById('runLoadoutSelect');
-  if (loadSel) loadSel.value = name;
-  if (nameInput) nameInput.value = '';
-  _runLoadoutDraft = cloneLoadout(next);
-  updateDraftBadge();
-  renderLoadoutDraftEditor();
-  applyDraftTemporarily();
-  showAlert(document.getElementById('pageAlert'), `Saved draft as load-out "${name}".`, false);
-}
-
-function onDraftTargetChange(index, value) {
-  if (!_runLoadoutDraft || !_runLoadoutDraft.items?.[index]) return;
-  _runLoadoutDraft.items[index].target = value === 'storage' ? 'storage' : 'active';
-  renderLoadoutDraftEditor();
-  applyDraftTemporarily();
-}
-
-function removeDraftItem(index) {
-  if (!_runLoadoutDraft) return;
-  _runLoadoutDraft.items.splice(index, 1);
-  renderLoadoutDraftEditor();
-  applyDraftTemporarily();
-}
-
-function addDraftOneShotCopy(index) {
-  if (!_runLoadoutDraft || !_runLoadoutDraft.items?.[index]) return;
-  const item = _runLoadoutDraft.items[index];
-  if (!isOneShotItem(item)) return;
-  const copy = { ...item, target: 'active' };
-  _runLoadoutDraft.items.splice(index + 1, 0, copy);
-  renderLoadoutDraftEditor();
-  applyDraftTemporarily();
-}
-
+// renderLoadoutDraftEditor is retained as a compatibility shim: callers throughout the
+// page invoke it after any draft/selection change. The inline table editor it used to
+// drive was replaced by the validated #loadoutModal, so it now simply re-renders that
+// modal when it is open (and is a no-op otherwise).
 function renderLoadoutDraftEditor() {
-  const panel = document.getElementById('runLoadoutEditor');
-  const body = document.getElementById('runLoadoutEditorBody');
-  if (!panel || !body) return;
+  if (isLoadoutModalOpen()) renderLoadoutModal();
+}
+
+// ===== Validated load-out adjuster modal ====================================
+// Operates on _runLoadoutDraft.items. Mirrors the Deck Workshop loadout planner:
+// two memory pools (Active RAM + Storage), drag/drop or buttons to re-target a
+// program, and a hard space check that REFUSES any move which would overflow a pool.
+const LAO_CAT = {
+  attack: 'off', crash: 'off',
+  armor: 'def', shield: 'def', restore: 'def', medic: 'def', cloak: 'def', 'lock-on': 'def',
+  sleaze: 'spc', camo: 'spc',
+};
+const _LAO_ORDER = { off: 0, def: 1, ops: 2, spc: 3 };
+function laoCatKey(utilName) { return LAO_CAT[normalizeUtilityName(utilName)] || 'ops'; }
+function laoSortCmp(a, b) {
+  return (_LAO_ORDER[laoCatKey(a.utilName)] - _LAO_ORDER[laoCatKey(b.utilName)])
+    || String(a.utilName || '').localeCompare(String(b.utilName || ''));
+}
+function laoItemLabel(item) {
+  const p = parseProgramIdentity(item);
+  return p.utilName ? `${p.utilName}-${p.baseRating}` : String(item.label || 'program');
+}
+function laoCaps() {
+  const deck = getSelectedDeck() || {};
+  return {
+    mpcp: Math.max(0, parseInt(deck.mpcp, 10) || 0),
+    activeCap: Math.max(0, parseInt(deck.activeMem, 10) || 0),
+    storageCap: Math.max(0, parseInt(deck.offlineStorage, 10) || 0),
+  };
+}
+
+// Returns a rejection message if simItems would overflow either pool, else null.
+function laoOverCap(simItems) {
+  const caps = laoCaps();
+  const u = computeLoadoutUsage(simItems);
+  if (caps.activeCap > 0 && u.activeUsed > caps.activeCap) {
+    return `Not enough active memory (${fmtN(u.activeUsed)} / ${fmtN(caps.activeCap)} Mp).`;
+  }
+  if (caps.storageCap > 0 && u.storageUsed > caps.storageCap) {
+    return `Not enough storage (${fmtN(u.storageUsed)} / ${fmtN(caps.storageCap)} Mp).`;
+  }
+  return null;
+}
+
+// After any accepted mutation: refresh the modal, the page spec summary, and the run
+// start gate. We deliberately do NOT push utility fields here -- the footer's explicit
+// OK button (applyDraftTemporarily) stays the single commit point so a stray
+// drag never silently changes what an un-applied run would fire.
+function laoCommit() {
+  renderLoadoutModal();
+  renderDeckSummary();
+  updateRunStartEligibility();
+}
+
+function laoMoveItem(index, newTarget) {
+  if (!_runLoadoutDraft) return;
+  const items = _runLoadoutDraft.items || [];
+  const item = items[index];
+  if (!item) return;
+  const want = newTarget === 'storage' ? 'storage' : 'active';
+  if ((item.target || 'active') === want) return;
+  const sim = items.map((x, i) => (i === index ? { ...x, target: want } : x));
+  const reason = laoOverCap(sim);
+  if (reason) { laoToast(reason); laoDeny(); return; }
+  item.target = want;
+  laoCommit();
+}
+
+function laoRemoveItem(index) {
+  if (!_runLoadoutDraft) return;
+  (_runLoadoutDraft.items || []).splice(index, 1);
+  laoCommit();
+}
+
+function laoAddCopy(index) {
+  if (!_runLoadoutDraft) return;
+  const items = _runLoadoutDraft.items || [];
+  const item = items[index];
+  if (!item || !isOneShotItem(item)) return;
+  const copy = { ...item, target: 'active' };
+  const sim = items.slice(0, index + 1).concat([copy], items.slice(index + 1));
+  const reason = laoOverCap(sim);
+  if (reason) { laoToast(reason); laoDeny(); return; }
+  items.splice(index + 1, 0, copy);
+  laoCommit();
+}
+
+let _laoToastTimer = null;
+function laoToast(msg) {
+  const t = document.getElementById('laoToast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  if (_laoToastTimer) clearTimeout(_laoToastTimer);
+  _laoToastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function laoDeny() {
+  const z = document.querySelector('#loadoutModal .lao-zones');
+  if (!z) return;
+  z.classList.remove('deny');
+  void z.offsetWidth;
+  z.classList.add('deny');
+  setTimeout(() => z.classList.remove('deny'), 560);
+}
+
+// One delegated drag handler for both pools (survives re-render).
+let _laoDrag = null, _laoDragWired = false, _laoDropHandled = false;
+function laoWireDragOnce() {
+  if (_laoDragWired) return;
+  _laoDragWired = true;
+  document.addEventListener('dragstart', e => {
+    const tile = e.target.closest ? (e.target.closest('.lao-tile') || e.target.closest('.lao-libcard')) : null;
+    if (!tile || !isLoadoutModalOpen()) return;
+    if (e.target.closest('.lao-tile-acts')) { e.preventDefault(); return; }
+    _laoDropHandled = false;
+    const from = tile.getAttribute('data-from') || (tile.classList.contains('lao-libcard') ? 'lib' : 'zone');
+    _laoDrag = {
+      from,
+      idx: parseInt(tile.getAttribute('data-lao-idx'), 10),
+      cid: tile.getAttribute('data-cid') || '',
+    };
+    if (e.dataTransfer) {
+      e.dataTransfer.setData('text/plain', tile.getAttribute('data-lao-idx') || tile.getAttribute('data-cid') || '');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    tile.classList.add('dragging');
+  });
+  document.addEventListener('dragend', e => {
+    const tile = e.target.closest ? (e.target.closest('.lao-tile') || e.target.closest('.lao-libcard')) : null;
+    if (tile) tile.classList.remove('dragging');
+    const d = _laoDrag;
+    // Released outside any zone while dragging a loaded program off Active/Storage removes
+    // it from the load-out -- the deck-workshop "drag a card back to the library" gesture.
+    if (d && !_laoDropHandled && d.from === 'zone' && Number.isInteger(d.idx)) {
+      laoRemoveItem(d.idx);
+    }
+    _laoDrag = null;
+    _laoDropHandled = false;
+    document.querySelectorAll('#loadoutModal .lao-zone.drop-ok').forEach(z => z.classList.remove('drop-ok'));
+  });
+}
+function laoBindZone(zoneEl) {
+  zoneEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    zoneEl.classList.add('drop-ok');
+  });
+  zoneEl.addEventListener('dragleave', e => {
+    if (!zoneEl.contains(e.relatedTarget)) zoneEl.classList.remove('drop-ok');
+  });
+  zoneEl.addEventListener('drop', e => {
+    e.preventDefault();
+    zoneEl.classList.remove('drop-ok');
+    if (!_laoDrag) return;
+    _laoDropHandled = true;
+    const slot = zoneEl.getAttribute('data-slot') === 'storage' ? 'storage' : 'active';
+    if (_laoDrag.from === 'lib') laoAddFromLibrary(_laoDrag.cid, slot);
+    else if (Number.isInteger(_laoDrag.idx)) laoMoveItem(_laoDrag.idx, slot);
+  });
+}
+
+// -- Program library + hover cross-highlight (mirrors the deck-workshop loadout planner) -----
+function _loadCompiled() { return loadScopedStore(COMPILED_STORE); }
+
+// Identity key shared by a program across the memory bars, the zone tiles, and the library so
+// hovering any one instance lights up every matching instance (the deck-workshop "roll-over").
+function laoKey(item) {
+  const p = parseProgramIdentity(item);
+  return `${String(p.utilName || '').toLowerCase()}-${p.baseRating || 0}`;
+}
+
+function laoHl(key, on) {
+  document.querySelectorAll('#loadoutModal [data-lp]').forEach(el => {
+    if (el.getAttribute('data-lp') === key) el.classList.toggle('lao-hl', !!on);
+  });
+}
+function laoWireHover(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-lp]').forEach(el => {
+    const k = el.getAttribute('data-lp');
+    el.addEventListener('mouseenter', () => laoHl(k, true));
+    el.addEventListener('mouseleave', () => laoHl(k, false));
+  });
+}
+
+function laoLibCardHtml(a) {
+  const cat = laoCatKey(a.utilName);
+  const sz = Math.max(0, parseInt(a.actualSize, 10) || 0);
+  const oneShot = !!a.isOneShot;
+  const label = a.utilName ? `${a.utilName}-${parseInt(a.baseRating, 10) || 0}` : String(a.name || 'program');
+  return `<div class="lao-libcard cat-${cat}${oneShot ? ' shot' : ''}" draggable="true" data-from="lib" data-cid="${esc(String(a.id))}" data-lp="${esc(laoKey(a))}" data-rt="${parseInt(a.baseRating, 10) || 0}" title="${esc(label)} -- ${fmtN(sz)} Mp -- drag onto Active or Storage">
+    <div class="tn">${esc(label)}</div>
+    <div class="meta">${oneShot ? '<b class="lao-otag shot">1-SHOT</b>' : ''}</div>
+    <div class="mp">${fmtN(sz)} Mp</div>
+  </div>`;
+}
+
+function laoLibraryHtml() {
+  const compiled = _loadCompiled();
+  if (!compiled.length) {
+    return `<div class="lao-lib"><div class="lao-lib-hd">Program Library</div>
+      <div class="lao-empty">No coded programs found for this decker. Code programs in the Deck Workshop.</div></div>`;
+  }
+  const loadedKeys = new Set((_runLoadoutDraft?.items || []).map(laoKey));
+  const avail = compiled.filter(a => !loadedKeys.has(laoKey(a)));
+  const cards = avail.length
+    ? avail.slice().sort(laoSortCmp).map(laoLibCardHtml).join('')
+    : '<div class="lao-empty">Every coded program is already in this load-out.</div>';
+  return `<div class="lao-lib">
+    <div class="lao-lib-hd">Program Library <span class="lao-lib-sub">// drag a coded program onto Active or Storage</span></div>
+    <div class="lao-lib-grid">${cards}</div>
+  </div>`;
+}
+
+function laoAddFromLibrary(cid, target) {
+  if (!_runLoadoutDraft) return;
+  const a = _loadCompiled().find(x => String(x.id) === String(cid));
+  if (!a) return;
+  const want = target === 'storage' ? 'storage' : 'active';
+  const item = {
+    label: a.name || (a.utilName ? `${a.utilName}-${parseInt(a.baseRating, 10) || 0}` : 'program'),
+    actualSize: Math.max(0, parseInt(a.actualSize, 10) || 0),
+    utilName: a.utilName || '',
+    programTypeKey: a.programTypeKey || getProgramTypeKey(a.utilName || ''),
+    baseRating: Math.max(0, parseInt(a.baseRating, 10) || 0),
+    attackDamage: a.attackDamage || null,
+    mods: a.mods || 'None',
+    isOneShot: !!a.isOneShot,
+    hasLimit: !!a.hasLimit,
+    limitTarget: a.hasLimit ? 'decker' : '',
+    target: want,
+  };
+  const items = _runLoadoutDraft.items || [];
+  const reason = laoOverCap(items.concat([item]));
+  if (reason) { laoToast(reason); laoDeny(); return; }
+  items.push(item);
+  _runLoadoutDraft.items = items;
+  laoCommit();
+}
+
+function laoBar(label, segItems, used, cap, over) {
+  const base = cap > 0 ? cap : Math.max(used, 1);
+  const segs = segItems.slice().sort(laoSortCmp).map(it => {
+    const sz = Math.max(0, parseInt(it.actualSize, 10) || 0);
+    const pct = base > 0 ? Math.min(100, (sz / base) * 100) : 0;
+    const cls = laoCatKey(it.utilName) + (isOneShotItem(it) ? ' shot' : '');
+    return `<i class="${cls}" data-lp="${esc(laoKey(it))}" style="width:${pct.toFixed(2)}%" title="${esc(laoItemLabel(it))} -- ${fmtN(sz)} Mp"></i>`;
+  }).join('');
+  const capTxt = cap > 0 ? fmtN(cap) : '&infin;';
+  return `<div class="lao-mem">
+    <div class="hd"><span>${esc(label)}</span><span class="n${over ? ' over' : ''}">${fmtN(used)} / ${capTxt} Mp${over ? ' &middot; OVER' : ''}</span></div>
+    <div class="lao-bar">${segs}<span class="free"></span></div>
+  </div>`;
+}
+
+function laoTileHtml(item, idx, slot, caps) {
+  const parsed = parseProgramIdentity(item);
+  const sz = Math.max(0, parseInt(item.actualSize, 10) || 0);
+  const cat = laoCatKey(item.utilName);
+  const oneShot = isOneShotItem(item);
+  const overMpcp = caps.mpcp > 0 && parsed.baseRating > caps.mpcp;
+  const copyBtn = (oneShot && slot === 'active')
+    ? `<button class="lao-cp" data-lao-cp="${idx}" title="Add a one-shot copy">+1</button>` : '';
+  return `<div class="lao-tile cat-${cat}${oneShot ? ' shot' : ''}${overMpcp ? ' over' : ''}" draggable="true" data-from="zone" data-lao-idx="${idx}" data-lp="${esc(laoKey(item))}" data-rt="${parsed.baseRating || 0}" title="Drag between Active and Storage; drag out to remove">
+    <div class="tn">${esc(laoItemLabel(item))}</div>
+    <div class="meta">${oneShot ? '<b class="lao-otag shot">1-SHOT</b>' : ''}${overMpcp ? '<b class="lao-otag over">&gt; MPCP</b>' : ''}</div>
+    <div class="mp">${fmtN(sz)} Mp</div>
+    <div class="lao-tile-acts">${copyBtn}<button class="lao-x" data-lao-x="${idx}" title="Remove">&#10005;</button></div>
+  </div>`;
+}
+
+function laoZone(slot, title, entries, used, cap, over, caps) {
+  const capTxt = cap > 0 ? fmtN(cap) : '&infin;';
+  const tiles = entries.length
+    ? entries.map(o => laoTileHtml(o.it, o.idx, slot, caps)).join('')
+    : `<div class="lao-empty">${slot === 'active' ? 'No active programs' : 'No reserves'}</div>`;
+  return `<div class="lao-zonecol ${slot === 'active' ? 'active-frame' : 'bench-frame'}">
+    <div class="lao-zone-hd"><span class="lbl">${title}</span><span class="val${over ? ' over' : ''}">${fmtN(used)} / ${capTxt} Mp</span></div>
+    <div class="lao-zone" data-slot="${slot}">${tiles}</div>
+  </div>`;
+}
+
+function renderLoadoutModal() {
+  const body = document.getElementById('loadoutModalBody');
+  if (!body) return;
   if (!_runLoadoutDraft) {
-    panel.style.display = 'none';
+    body.innerHTML = '<div class="lao-empty">No load-out draft to adjust.</div>';
     return;
   }
-  panel.style.display = '';
-
   const items = Array.isArray(_runLoadoutDraft.items) ? _runLoadoutDraft.items : [];
-  if (!items.length) {
-    body.innerHTML = '<div style="color:var(--text-dim);font-size:.7rem">No programs in draft load-out.</div>';
-    return;
-  }
+  const caps = laoCaps();
+  const usage = computeLoadoutUsage(items);
+  const deck = getSelectedDeck() || {};
+  const deckName = String(deck.deckName || deck.name || _runLoadoutDraft.name || 'DECK');
+  const activeOver = caps.activeCap > 0 && usage.activeUsed > caps.activeCap;
+  const storageOver = caps.storageCap > 0 && usage.storageUsed > caps.storageCap;
 
-  body.innerHTML = `<table class="load-prog-table" style="margin:0">
-    <thead><tr><th>#</th><th>Program</th><th>Target</th><th>Size</th><th></th></tr></thead>
-    <tbody>` + items.map((item, idx) => {
-      const parsed = parseProgramIdentity(item);
-      const typeLabel = parsed.utilName || 'unknown';
-      const oneShot = isOneShotItem(item);
-      return `<tr>
-        <td style="color:var(--text-dim)">${idx + 1}</td>
-        <td style="color:var(--cyan)">${esc(item.label || `${typeLabel}-${parsed.baseRating}`)}</td>
-        <td>
-          <select onchange="onDraftTargetChange(${idx}, this.value)" style="padding:3px 6px;font-size:.68rem;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright)">
-            <option value="active" ${item.target !== 'storage' ? 'selected' : ''}>Active+Storage</option>
-            <option value="storage" ${item.target === 'storage' ? 'selected' : ''}>Storage Only</option>
-          </select>
-        </td>
-        <td style="color:var(--amber)">${fmtN(parseInt(item.actualSize, 10) || 0)} Mp</td>
-        <td style="white-space:nowrap">
-          ${oneShot ? `<button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick="addDraftOneShotCopy(${idx})">+1 Active</button>` : ''}
-          <button class="lp-remove-btn" onclick="removeDraftItem(${idx})">[x]</button>
-        </td>
-      </tr>`;
-    }).join('') + '</tbody></table>';
+  const activeEntries = items.map((it, idx) => ({ it, idx })).filter(o => (o.it.target || 'active') !== 'storage');
+  const storageEntries = items.map((it, idx) => ({ it, idx })).filter(o => (o.it.target || 'active') === 'storage');
+
+  let html = `<div class="lao-deckbar">
+    <span>Deck <b>${esc(deckName)}</b></span>
+    <span>MPCP <b>${caps.mpcp || '--'}</b></span>
+    <span>Active <b>${caps.activeCap ? fmtN(caps.activeCap) + ' Mp' : '&infin;'}</b></span>
+    <span>Storage <b>${caps.storageCap ? fmtN(caps.storageCap) + ' Mp' : '&infin;'}</b></span>
+  </div>`;
+
+  html += `<div class="lao-mems">
+    ${laoBar('Active Memory (RAM)', items.filter(i => targetUsesActive(i.target || 'active')), usage.activeUsed, caps.activeCap, activeOver)}
+    ${laoBar('Storage', items, usage.storageUsed, caps.storageCap, storageOver)}
+  </div>`;
+
+  html += `<div class="lao-legend">
+    <span><i class="off"></i>Offensive</span>
+    <span><i class="def"></i>Defensive</span>
+    <span><i class="ops"></i>Operational</span>
+    <span><i class="spc"></i>Stealth</span>
+    <span><i class="shot"></i>One-shot</span>
+  </div>`;
+
+  html += '<div class="lao-zones">'
+    + laoZone('active', '&#9650; Active Memory', activeEntries, usage.activeUsed, caps.activeCap, activeOver, caps)
+    + laoZone('storage', 'Storage', storageEntries, usage.storageUsed, caps.storageCap, storageOver, caps)
+    + '</div>';
+
+  const issues = validateLoadoutRules(_runLoadoutDraft);
+  const warns = [];
+  if (activeOver) warns.push(`Active memory over by ${fmtN(usage.activeUsed - caps.activeCap)} Mp`);
+  if (storageOver) warns.push(`Storage over by ${fmtN(usage.storageUsed - caps.storageCap)} Mp`);
+  issues.forEach(i => warns.push(i));
+  if (warns.length) html += `<div class="lao-warn">${warns.map(w => esc(w)).join(' &middot; ')}</div>`;
+
+  html += laoLibraryHtml();
+
+  body.innerHTML = html;
+
+  laoWireDragOnce();
+  body.querySelectorAll('.lao-zone').forEach(z => laoBindZone(z));
+  body.querySelectorAll('[data-lao-cp]').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    laoAddCopy(parseInt(b.getAttribute('data-lao-cp'), 10));
+  }));
+  body.querySelectorAll('[data-lao-x]').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    laoRemoveItem(parseInt(b.getAttribute('data-lao-x'), 10));
+  }));
+  laoWireHover(body);
 }
 
 function updateRunStartEligibility() {
@@ -947,7 +1217,7 @@ function updateRunStartEligibility() {
   const profile = getSavedProgrammerProfile();
   if (!profile?.characterId) {
     startBtn.disabled = true;
-    statusEl.textContent = 'No active programmer profile. Activate one in Deck Builder first.';
+    statusEl.textContent = 'Select a decker above to load their decks and load-outs.';
     return;
   }
 
@@ -1017,17 +1287,18 @@ function renderDeckAndLoadoutSelectors() {
 function onDeckSelectionChange() {
   const deck = getSelectedDeck();
   if (deck) applySelectedDeckToConfig(deck);
-  updateComputedStats();
+  updateJackpointOptions();   // gate Satellite jackpoint on deck.satlink (may reset the selection)
+  onJackpointChange();   // re-apply jackpoint trace factor; updateComputedStats recomputes Icon Bandwidth
   updateRunStartEligibility();
 }
 
 function onLoadoutSelectionChange() {
   const loadout = getSelectedLoadout();
   _runLoadoutDraft = null;
-  updateDraftBadge();
   renderLoadoutDraftEditor();
   if (loadout) setUtilityFieldsFromLoadout(loadout);
   updateComputedStats();
+  renderDeckSummary();
   updateRunStartEligibility();
 }
 
@@ -1072,16 +1343,124 @@ async function hydrateDeckLoadoutFromBackend() {
         localStorage.setItem(scoped, JSON.stringify([...byName.values()]));
       }
     }
+
+    // Compiled programs (the load-out library source): reconcile by id, backend wins. matrix-run
+    // never codes programs, so the backend artifact list is authoritative for the library.
+    {
+      const scoped = getProgrammerScopedStoreKey(COMPILED_STORE);
+      const backendCompiled = stores[COMPILED_STORE] || stores[scoped];
+      if (Array.isArray(backendCompiled) && backendCompiled.length) {
+        let localCompiled = [];
+        try { localCompiled = JSON.parse(localStorage.getItem(scoped) || '[]') || []; } catch (_) {}
+        const byId = new Map((Array.isArray(localCompiled) ? localCompiled : [])
+          .filter(p => p && p.id != null).map(p => [String(p.id), p]));
+        backendCompiled.forEach(p => { if (p && p.id != null) byId.set(String(p.id), p); });
+        localStorage.setItem(scoped, JSON.stringify([...byId.values()]));
+      }
+    }
   } catch (_) { /* offline: keep whatever local has */ }
 }
 
 function refreshDeckLoadoutSources() {
   _savedDecks = loadScopedStore(DECK_STORE);
   _savedLoadouts = loadScopedStore(LOADOUT_STORE);
-  updateDraftBadge();
   renderLoadoutDraftEditor();
   renderDeckAndLoadoutSelectors();
   updateRunStartEligibility();
+}
+
+// -- Decker selection (page-local) ------------------------------------------
+// The run is driven by an "active programmer profile" (a claimed PC with deck skills). Rather
+// than depend on one being pre-selected in the Deck Workshop, list the player's eligible
+// deckers here and let them pick. Selecting one becomes the active profile so the scoped
+// deck/load-out stores (keyed by characterId) resolve to that decker.
+function hasActiveDeckSkill(c) {
+  if (!c || !c.is_pc || !c.is_active) return false;
+  return (
+    (c.computer_skill_enabled && (c.computer_skill_rating || 0) >= 1) ||
+    (c.software_skill_enabled && (c.software_skill_rating || 0) >= 1) ||
+    (c.matrix_skill_enabled && (c.matrix_skill_rating || 0) >= 1)
+  );
+}
+
+function setActiveDecker(characterId, label) {
+  // Mirror the Deck Workshop profile shape so both pages agree on the active decker.
+  const profile = { characterId: String(characterId) };
+  if (label) profile.characterLabel = label;
+  try { localStorage.setItem(PROGRAMMER_PROFILE_STORE, JSON.stringify(profile)); } catch (_) {}
+}
+
+async function selectDecker(characterId, label) {
+  if (!characterId) return;
+  setActiveDecker(characterId, label);
+  await hydrateDeckLoadoutFromBackend();
+  refreshDeckLoadoutSources();
+  await applyActiveCharacterToConfig();
+  updateJackpointOptions();
+  onJackpointChange();
+  updateRunStartEligibility();
+}
+
+async function onDeckerSelectionChange() {
+  const sel = document.getElementById('runDeckerSelect');
+  if (!sel) return;
+  const opt = sel.options[sel.selectedIndex];
+  await selectDecker(sel.value, opt ? opt.textContent : '');
+}
+
+// Populate the decker dropdown from the player's eligible (claimed, deck-skilled) PCs, mirror
+// the Deck Workshop's runner-view "mine" filter, then activate the saved or first decker.
+async function loadDeckerOptions() {
+  const sel = document.getElementById('runDeckerSelect');
+  const status = document.getElementById('runDeckerStatus');
+  if (!sel) return false;
+  sel.innerHTML = '<option value="">-- Select decker --</option>';
+
+  let eligible = [];
+  try {
+    const runnerView = !isAdminMode();
+    const reqs = [apiFetch(`${API}/characters/?is_pc=true&is_active=true`)];
+    if (runnerView) reqs.push(apiFetch(`${API}/characters/mine`));
+    const [charRes, mineRes] = await Promise.all(reqs);
+    if (!charRes.ok) throw new Error('characters');
+    const chars = await charRes.json();
+    let mineIds = new Set();
+    if (runnerView && mineRes && mineRes.ok) {
+      const mineData = await mineRes.json();
+      mineIds = new Set(mineData.ids || []);
+    }
+    eligible = chars.filter(hasActiveDeckSkill);
+    if (runnerView) eligible = eligible.filter(c => mineIds.has(c.id));
+  } catch (_) {
+    if (status) status.textContent = 'Could not load deckers (network error).';
+    return false;
+  }
+
+  if (!eligible.length) {
+    if (status) {
+      status.textContent = isAdminMode()
+        ? 'No active PCs with computer skills. Create one in Characters, then build a deck in the Deck Workshop.'
+        : 'No claimed decker found. Claim a deck-skilled PC and build a deck in the Deck Workshop first.';
+    }
+    return false;
+  }
+
+  eligible.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = String(c.id);
+    opt.textContent = c.name;   // name only -- the decker's name is also their run handle
+    sel.appendChild(opt);
+  });
+
+  // Re-activate the previously-chosen decker if still eligible, else default to the first.
+  const profile = getSavedProgrammerProfile();
+  const savedId = profile && profile.characterId ? String(profile.characterId) : '';
+  sel.value = (savedId && eligible.some(c => String(c.id) === savedId)) ? savedId : String(eligible[0].id);
+  if (status) status.textContent = '';
+
+  const opt = sel.options[sel.selectedIndex];
+  await selectDecker(sel.value, opt ? opt.textContent : '');
+  return true;
 }
 
 // -- Action subsystem map ---------------------------------------------------
@@ -1131,9 +1510,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = await bootstrapAuth();
   if (!auth) return;
 
-  await hydrateDeckLoadoutFromBackend();
-  refreshDeckLoadoutSources();
-  await applyActiveCharacterToConfig();
+  // Populate the decker dropdown and activate the saved/first eligible decker, which hydrates
+  // that decker's decks + load-outs and fills the config. No dependency on the Deck Workshop
+  // having been visited first in this browser.
+  await loadDeckerOptions();
 
   // Wire computed stats listeners
   const calcInputs = [
@@ -1146,6 +1526,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (el) el.addEventListener('input', updateComputedStats);
   });
   updateComputedStats();
+  updateJackpointOptions();
+  onJackpointChange();
 
   // Load action subsystem auto-select
   const actionSel = document.getElementById('actionType');
@@ -1218,6 +1600,21 @@ function renderHostSelect() {
   if (prev) sel.value = prev;
 }
 
+// Icon Bandwidth (vr2_rules.md L1262): the decker's Matrix footprint = the sum of all
+// persona program ratings (Bod + Evasion + Masking + Sensor) plus the ratings of every
+// utility currently loaded into Active memory. This (NOT the deck's I/O speed) is what
+// drives the Bandwidth Trace Modifier.
+function computeIconBandwidth() {
+  const gv = id => { const e = document.getElementById(id); return e ? (parseInt(e.value, 10) || 0) : 0; };
+  const personaSum = gv('cfg-bod') + gv('cfg-evasion') + gv('cfg-masking') + gv('cfg-sensor');
+  const loadout = getEffectiveLoadout();
+  const items = Array.isArray(loadout?.items) ? loadout.items : [];
+  const utilSum = items
+    .filter(i => targetUsesActive(i?.target || 'active'))
+    .reduce((sum, i) => sum + (parseProgramIdentity(i).baseRating || 0), 0);
+  return personaSum + utilSum;
+}
+
 // -- Computed stats ---------------------------------------------------------
 function updateComputedStats() {
   const intel    = parseInt(document.getElementById('cfg-intelligence')?.value) || 0;
@@ -1228,11 +1625,24 @@ function updateComputedStats() {
   const sleaze   = parseInt(document.getElementById('cfg-u-sleaze')?.value)     || 0;
   const camo     = parseInt(document.getElementById('cfg-u-camo')?.value)       || 0;
   const jackpt   = parseInt(document.getElementById('cfg-trace-factor')?.value) || 0;
-  const bwMod    = parseInt(document.getElementById('cfg-bandwidth-mod')?.value)|| 0;
+
+  // Bandwidth Trace Modifier (vr2_rules.md L218-222): floor(Icon Bandwidth / jackpoint base
+  // bandwidth) x -1. Icon Bandwidth (not the deck's I/O speed) is the footprint, so recompute
+  // it here and write it back so the modifier tracks persona-rating and loaded-utility changes.
+  const jp       = JACKPOINTS[document.getElementById('cfg-jackpoint')?.value] || JACKPOINTS.illegal;
+  const iconBW   = computeIconBandwidth();
+  const bwMod    = jp.baseBW > 0 ? -Math.floor(iconBW / jp.baseBW) : 0;
+  const bwModEl  = document.getElementById('cfg-bandwidth-mod');
+  if (bwModEl) bwModEl.value = String(bwMod);
+  const bwReadEl = document.getElementById('cfg-bandwidth-readout');
+  if (bwReadEl) bwReadEl.textContent = String(bwMod);
 
   const hp       = Math.floor((intel + mpcp) / 3);
   const df       = Math.ceil((masking + sleaze) / 2);
-  const reaction = Math.ceil((quick + intel) / 2);
+  // Satellite Uplink imposes a flat -2 Reaction -- the operational trade-off for jacking in
+  // over a satlink (the deck's Satlink Interface is required to pick that jackpoint at all).
+  const onSatellite = (document.getElementById('cfg-jackpoint')?.value === 'satellite');
+  const reaction = Math.ceil((quick + intel) / 2) - (onSatellite ? 2 : 0);
   // Base trace TN (no IC rating yet -- shows best-case with no IC)
   const traceTN  = Math.max(2, evasion + camo + jackpt + bwMod);
 
@@ -1242,6 +1652,158 @@ function updateComputedStats() {
   set('stat-reaction', reaction);
   set('stat-trace-tn', `${traceTN}+ (-IC rating at run time)`);
   updateRunStartEligibility();
+}
+
+// Jackpoint types (vr2_rules.md L201-222). traceMod = the Trace Factor column; baseBW = Base
+// Bandwidth (0 = unlimited -> no bandwidth trace penalty). The jackpoint is a per-run choice
+// (where the decker physically jacks in), NOT a deck stat, so it can't be derived from the deck.
+const JACKPOINTS = {
+  legal:       { traceMod: -2, accessMod: -2, baseBW: 20 },
+  illegal:     { traceMod:  0, accessMod:  0, baseBW: 20 },
+  workstation: { traceMod: -4, accessMod: -4, baseBW: 50 },
+  remote:      { traceMod:  4, accessMod:  4, baseBW: 20 },
+  console:     { traceMod: -6, accessMod:  0, baseBW: 0  },
+  satellite:   { traceMod:  0, accessMod:  2, baseBW: 50 },
+};
+
+// The Satellite Uplink jackpoint requires a Satlink Interface built into the deck (you can't
+// jack in via satellite without the hardware). Disable that option -- and fall back to Illegal
+// Access -- whenever the selected deck has no satlink.
+function updateJackpointOptions() {
+  const sel = document.getElementById('cfg-jackpoint');
+  if (!sel) return;
+  const hasSatlink = !!getSelectedDeck()?.satlink;
+  const satOpt = sel.querySelector('option[value="satellite"]');
+  if (satOpt) {
+    satOpt.disabled = !hasSatlink;
+    satOpt.textContent = hasSatlink
+      ? 'Satellite Uplink (Trace TN +0, Access TN +2, Reaction -2)'
+      : 'Satellite Uplink (requires deck Satlink)';
+  }
+  if (!hasSatlink && sel.value === 'satellite') sel.value = 'illegal';
+}
+
+// Set the Trace Factor jackpoint modifier from the chosen jackpoint. The Bandwidth Trace
+// Modifier now derives from the deck's Icon Bandwidth and is recomputed inside
+// updateComputedStats, so here we just apply the jackpoint trace factor and refresh.
+function onJackpointChange() {
+  const sel = document.getElementById('cfg-jackpoint');
+  const jp = JACKPOINTS[sel?.value] || JACKPOINTS.illegal;
+  const traceEl = document.getElementById('cfg-trace-factor');
+  if (traceEl) traceEl.value = String(jp.traceMod);
+  // Satlink immunity (vr2_rules.md Satlink): a completed Trace IC reaches the satellite uplink
+  // but CANNOT backtrace to the decker's physical location, so no physical security responds.
+  // Off-satlink, a completed trace pins the physical location and the GM may send assets.
+  const tip = document.getElementById('jackpointTip');
+  if (tip) {
+    tip.textContent = (sel?.value === 'satellite')
+      ? 'Satlink: Trace IC can locate the satellite uplink but NOT your physical location -- no physical security can be dispatched. (+2 Access, -2 Reaction.)'
+      : 'A completed Trace IC pinpoints your physical location -- the GM may dispatch physical security.';
+  }
+  updateComputedStats();
+  renderDeckSummary();
+}
+
+// Prominent Active/Storage memory meters for the Loaded Programs summary column. Each bar fills
+// to the used/cap ratio and turns red on overflow; an unlimited cap (0) shows an infinity glyph.
+function memMeterHtml(usage, activeCap, storageCap) {
+  const line = (label, used, cap) => {
+    const over = cap > 0 && used > cap;
+    const capTxt = cap > 0 ? fmtN(cap) : '&infin;';
+    return `<div class="mr-memline${over ? ' over' : ''}">
+      <span class="mr-memline-lbl">${esc(label)}</span>
+      <span class="mr-memline-val">${fmtN(used)}<small> / ${capTxt} Mp</small></span>
+    </div>`;
+  };
+  return `<div class="mr-memtext">${line('Active', usage.activeUsed, activeCap)}${line('Storage', usage.storageUsed, storageCap)}</div>`;
+}
+
+// Read-only spec summary of the resolved decker config. The editable inputs are hidden in
+// #cfgInputs (the value model startRun reads); the deck/load-out are designed in the Deck
+// Workshop, so here we only summarize them.
+function renderDeckSummary() {
+  const host = document.getElementById('deckSummaryPanel');
+  if (!host) return;
+  const deck = getSelectedDeck();
+  const loadout = getEffectiveLoadout();
+  if (!deck) {
+    host.innerHTML = '<div class="mr-summary-empty">Select a deck build and load-out to see the spec summary.</div>';
+    return;
+  }
+
+  const gv = id => { const e = document.getElementById(id); return e ? (parseInt(e.value, 10) || 0) : 0; };
+  const iccm = document.getElementById('cfg-iccm')?.checked;
+
+  const opts = [];
+  if (iccm) opts.push('ICCM');
+  if (deck.realityFilter) opts.push('Reality Filter');
+  if (deck.satlink) opts.push('Satlink');
+  if (deck.hitcherJack) opts.push('Hitcher Jack');
+  if (parseInt(deck.casingLvl, 10)) opts.push('Casing L' + parseInt(deck.casingLvl, 10));
+
+  const deckRows = [
+    ['MPCP Rating', String(gv('cfg-mpcp'))],
+    ['Persona B/E/M/S', `${gv('cfg-bod')}/${gv('cfg-evasion')}/${gv('cfg-masking')}/${gv('cfg-sensor')}`],
+    ['Hardening', gv('cfg-hardening') ? String(gv('cfg-hardening')) : '--'],
+    ['Response Increase', gv('cfg-response-increase') ? String(gv('cfg-response-increase')) : '--'],
+    ['Active Memory', fmtN(gv('cfg-active-memory') || 100) + ' Mp'],
+    ['I/O Speed', fmtN(gv('cfg-io-speed') || 10) + ' Mp/CT'],
+    ['Offline Storage', parseInt(deck.offlineStorage, 10) ? fmtN(parseInt(deck.offlineStorage, 10)) + ' Mp' : '--'],
+    ['Icon Bandwidth', fmtN(computeIconBandwidth()) + ' Mp'],
+    ['Bandwidth Trace Mod', (() => { const v = gv('cfg-bandwidth-mod'); return v > 0 ? '+' + v : String(v); })()],
+    ['Options', opts.length ? opts.join(', ') : 'None'],
+  ];
+  const deckTitle = String(deck.deckName || deck.name || 'DECK').toUpperCase();
+
+  const personaRows = [
+    ['Computer Skill', String(gv('cfg-computer'))],
+    ['Intelligence', String(gv('cfg-intelligence'))],
+    ['Quickness', String(gv('cfg-quickness'))],
+    ['Willpower', String(gv('cfg-willpower'))],
+    ['Body', String(gv('cfg-body'))],
+  ];
+
+  const roList = rows => '<div class="mr-readout">' + rows.map(([l, v]) =>
+    `<div class="mr-ro"><span>${esc(l)}</span><span>${esc(String(v))}</span></div>`).join('') + '</div>';
+
+  let progHtml;
+  const items = Array.isArray(loadout?.items) ? loadout.items : [];
+  if (!loadout) {
+    progHtml = '<div class="mr-summary-empty">No load-out selected.</div>';
+  } else if (!items.length) {
+    progHtml = '<div class="mr-summary-empty">Load-out has no programs.</div>';
+  } else {
+    const usage = computeLoadoutUsage(items);
+    const activeCap = Math.max(0, parseInt(deck.activeMem, 10) || 0);
+    const storageCap = Math.max(0, parseInt(deck.offlineStorage, 10) || 0);
+    progHtml = `<table class="load-prog-table lp-dense" style="margin:0">
+      <thead><tr><th>#</th><th>Program</th><th>Target</th><th>Size</th></tr></thead>
+      <tbody>` + items.map((item, idx) => {
+        const parsed = parseProgramIdentity(item);
+        const typeLabel = parsed.utilName || 'unknown';
+        const tgt = item.target === 'storage' ? 'Storage only' : 'Active+Storage';
+        return `<tr>
+          <td style="color:var(--text-dim)">${idx + 1}</td>
+          <td style="color:var(--cyan)">${esc(item.label || `${typeLabel}-${parsed.baseRating}`)}</td>
+          <td>${esc(tgt)}</td>
+          <td style="color:var(--amber)">${fmtN(parseInt(item.actualSize, 10) || 0)} Mp</td>
+        </tr>`;
+      }).join('') + `</tbody></table>` + memMeterHtml(usage, activeCap, storageCap);
+  }
+
+  host.innerHTML = `
+    <div class="mr-summary mr-summary-2col">
+      <div class="mr-summary-col">
+        <div class="mr-summary-head">Decker</div>
+        ${roList(personaRows)}
+        <div class="mr-summary-head" style="margin-top:12px">${esc(deckTitle)} &mdash; Deck</div>
+        ${roList(deckRows)}
+      </div>
+      <div class="mr-summary-col">
+        <div class="mr-summary-head">Loaded Programs</div>
+        ${progHtml}
+      </div>
+    </div>`;
 }
 
 // -- Start run --------------------------------------------------------------
@@ -1277,6 +1839,8 @@ async function startRun() {
   const resp     = gn('cfg-response-increase');
   const trace    = parseInt(gi('cfg-trace-factor')?.value) || 0;
   const bwMod    = parseInt(gi('cfg-bandwidth-mod')?.value) || 0;
+  const jpKey    = gi('cfg-jackpoint')?.value || 'illegal';
+  const jp       = JACKPOINTS[jpKey] || JACKPOINTS.illegal;
   const actMem   = gn('cfg-active-memory');
   const ioSpeed  = gn('cfg-io-speed');
   const iccm     = gi('cfg-iccm').checked;
@@ -1318,6 +1882,9 @@ async function startRun() {
     response_increase: resp,
     trace_factor: trace,
     bandwidth_modifier: bwMod,
+    base_bandwidth: jp.baseBW,
+    access_modifier: jp.accessMod,
+    console_access: jpKey === 'console',
     active_memory: actMem,
     io_speed: ioSpeed,
     iccm,
@@ -1641,12 +2208,17 @@ function renderRunState(run) {
   // Deck stats
   const mpcpDmg = cm.mpcp_damage || 0;
   const pdmg    = cm.persona_damage || {};
+  const liveBW     = state.icon_bandwidth;
+  const bwTraceMod = state.bandwidth_modifier ?? 0;
+  const bwTraceTxt = bwTraceMod > 0 ? `+${bwTraceMod}` : String(bwTraceMod);
   document.getElementById('run-deck-stats').innerHTML =
     `<span class="ds-stat">MPCP: <span>${decker.mpcp || 0}</span></span>` +
     `<span class="ds-stat">BOD: <span>${decker.bod || 0}</span></span>` +
     `<span class="ds-stat">EVA: <span>${decker.evasion || 0}</span></span>` +
     `<span class="ds-stat">MASK: <span>${decker.masking || 0}</span></span>` +
-    `<span class="ds-stat">SENS: <span>${decker.sensor || 0}</span></span>`;
+    `<span class="ds-stat">SENS: <span>${decker.sensor || 0}</span></span>` +
+    `<span class="ds-stat">Icon BW: <span>${liveBW ?? '--'}</span></span>` +
+    `<span class="ds-stat">BW Trace: <span>${bwTraceTxt}</span></span>`;
   document.getElementById('run-mpcp-damage').innerHTML =
     mpcpDmg > 0 ? `MPCP Damage: <span>${mpcpDmg}</span>` : '';
   const pdmgParts = [];

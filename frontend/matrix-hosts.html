@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hosts | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Matrix Topology <em class="sep">//</em> Host Registry</div>
+  <div class="page-sub" style="color:var(--cyan)">DISCOVERED SYSTEMS -- BY HOST ORGANIZATION</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="mh-help">
+    <b>Matrix systems</b> your team has discovered, grouped by host organization.
+    Unaffiliated systems run on independent LTGs. Launch a run from the
+    <b>Matrix Run</b> screen.
+  </div>
+  <div id="sysGroups"><div class="mh-empty">Loading Matrix systems...</div></div>
+</main>
+
+<script>
+const API = '';
+
+// Player-facing discovered-systems registry state.
+let sysHosts = [];
+let sysCatalog = [];
+let _lastSysHtml = null;
+
+// "RTG LTG" -> { rtg, ltg } (LTG = final whitespace-separated token).
+function _sysParseAddr(addr) {
+  const parts = String(addr || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { rtg: '', ltg: '' };
+  const ltg = parts.pop();
+  return { rtg: parts.join(' '), ltg };
+}
+
+// Map a SAN rating ("Orange-5") to the world-state rating color class.
+function _sysRatingClass(r) {
+  const c = String(r || '').split('-')[0].toLowerCase();
+  return { blue: 'r-blue', green: 'r-green', orange: 'r-orange', red: 'r-red', black: 'r-black' }[c] || 'r-green';
+}
+
+// Org-style colored address cell: "> RTG // LTG [ID]".
+function _sysAddrHtml(rtg, ltg, idCode) {
+  return `<span class="mh-addr"><span class="text-amber">&#8250; ${esc(rtg)}</span>`
+    + `<span class="text-dim"> // </span><span class="mh-ltg">${esc(ltg)}</span>`
+    + `${idCode ? `<span class="mh-id"> [${esc(idCode)}]</span>` : ''}</span>`;
+}
+
+// full_address ("RTG LTG") -> org catalog entry, for grouping a host by its org LTG.
+function _sysLtgIndex() {
+  const m = {};
+  sysCatalog.forEach(e => { if (e.full_address) m[e.full_address] = e; });
+  return m;
+}
+
+// Group discovered (revealed) hosts by owning org; address-less or non-catalog hosts
+// fall into "Unaffiliated". Hidden hosts are filtered out even for an admin preview.
+function _sysGroupHosts() {
+  const idx = _sysLtgIndex();
+  const groups = {};
+  const unaffiliated = [];
+  sysHosts.forEach(h => {
+    if (!h.is_visible_to_players) return;
+    const addr = (h.ltg_address || '').trim();
+    const entry = addr ? idx[addr] : null;
+    if (entry) {
+      const key = entry.org_name || 'Unknown Organization';
+      (groups[key] = groups[key] || []).push({ host: h, entry });
+    } else {
+      unaffiliated.push({ host: h, entry: null });
+    }
+  });
+  return { groups, unaffiliated };
+}
+
+function _sysRowHtml(row) {
+  const h = row.host, entry = row.entry;
+  const p = _sysParseAddr(h.ltg_address);
+  const idCode = h.id_code || (entry && entry.id_code) || '';
+  const san = h.san_rating || (entry && entry.san_access_rating) || '';
+  const ratingHtml = san ? `<span class="ltg-rating ${_sysRatingClass(san)}">${esc(san)}</span>` : '';
+  return `<div class="mh-host mh-host-ro">
+    <span class="mh-col-host"><span class="nm">${esc(h.name)}</span></span>
+    <span class="mh-col-mid">${_sysAddrHtml(p.rtg, p.ltg, idCode)}</span>
+    <span class="mh-col-rating">${ratingHtml}</span>
+  </div>`;
+}
+
+function _sysGroupHtml(title, rows, isUnaff) {
+  const head = `<div class="mh-host mh-host-ro mh-host-head">
+    <span class="mh-col-host">System</span>
+    <span class="mh-col-mid">Address</span>
+    <span class="mh-col-rating">Rating</span>
+  </div>`;
+  const body = head + rows.map(_sysRowHtml).join('');
+  return `<div class="mh-group">
+    <div class="mh-group-head${isUnaff ? ' unaff' : ''}">
+      <span class="org">${esc(title)}</span>
+      <span class="count">${rows.length} system${rows.length === 1 ? '' : 's'}</span>
+    </div>
+    ${body}
+  </div>`;
+}
+
+function renderSystems() {
+  const wrap = document.getElementById('sysGroups');
+  if (!wrap) return;
+  const { groups, unaffiliated } = _sysGroupHosts();
+  const orgNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+  let newHtml;
+  if (!orgNames.length && !unaffiliated.length) {
+    newHtml = '<div class="mh-empty">No Matrix systems have been discovered yet.</div>';
+  } else {
+    newHtml = orgNames.map(n => _sysGroupHtml(n, groups[n], false)).join('');
+    if (unaffiliated.length) newHtml += _sysGroupHtml('Unaffiliated', unaffiliated, true);
+  }
+  if (newHtml === _lastSysHtml) return;
+  _lastSysHtml = newHtml;
+  wrap.innerHTML = newHtml;
+}
+
+async function loadSystems() {
+  try {
+    const [hRes, cRes] = await Promise.all([
+      apiFetch(`${API}/matrix-hosts/`),
+      apiFetch(`${API}/matrix-hosts/ltg-catalog`),
+    ]);
+    if (hRes.ok) sysHosts = await hRes.json();
+    if (cRes.ok) sysCatalog = await cRes.json();
+    renderSystems();
+  } catch (e) {
+    const wrap = document.getElementById('sysGroups');
+    if (wrap) wrap.innerHTML = `<div class="alert alert-err show">&gt;&gt; CONNECTION FAILED // ${esc(e.message)}</div>`;
+  }
+}
+
+// Publish RTG grid codes for the meshgrid ambiance (mirrors the RTG page) so the background
+// mesh labels its nodes with the campaign's real grids.
+async function publishRtgCodes() {
+  try {
+    const res = await apiFetch(`${API}/rtgs/`);
+    if (!res.ok) return;
+    const rtgs = await res.json();
+    const seen = {}, out = [];
+    rtgs.forEach(r => {
+      const c = (r.code || '').trim(); const i = c.indexOf('/');
+      const code = i >= 0 ? c.slice(i + 1) : c;
+      if (code && !seen[code]) { seen[code] = 1; out.push(code); }
+    });
+    out.sort();
+    window.AMB_RTG_CODES = out;
+  } catch (_) {}
+}
+
+bootstrapAuth().then(u => {
+  if (!u) return;
+  publishRtgCodes();
+  loadSystems();
+  startPolling(loadSystems);
+});
+</script>
+<script src="ambiance.js"></script>
+<script>
+  // Expose the live content rectangle so the meshgrid ambiance fades to near-zero where it
+  // passes UNDER the registry (viewport coords; the ambiance canvas is fixed over the page).
+  window.AMB_GET_FADE_RECT = function () {
+    var el = document.getElementById('sysGroups');
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return null;
+    return { l: r.left, t: r.top, r: r.right, b: r.bottom };
+  };
+  Ambiance.start('meshgrid');
+</script>
+</body>
+</html>

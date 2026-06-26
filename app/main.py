@@ -80,6 +80,60 @@ async def _ensure_matrix_run_version_column():
         print("[startup] Added matrix_runs.version column")
 
 
+async def _ensure_matrix_host_id_code_column():
+    """Startup safety migration for matrix_hosts.id_code on SQLite deployments.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    matrix_hosts table. Add it in place when an older DB file predates the column.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_hosts)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "id_code" in cols:
+            return
+        await conn.exec_driver_sql(
+            "ALTER TABLE matrix_hosts ADD COLUMN id_code VARCHAR(20)"
+        )
+        print("[startup] Added matrix_hosts.id_code column")
+
+
+async def _ensure_matrix_host_trap_dest_column():
+    """Startup safety migration for matrix_hosts.is_trap_door_dest on SQLite deployments.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    matrix_hosts table. Add it in place when an older DB file predates the column.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_hosts)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "is_trap_door_dest" not in cols:
+            await conn.exec_driver_sql(
+                "ALTER TABLE matrix_hosts ADD COLUMN is_trap_door_dest BOOLEAN NOT NULL DEFAULT 0"
+            )
+            print("[startup] Added matrix_hosts.is_trap_door_dest column")
+        # Reconcile is_trap_door_dest to the canonical truth: a host is a trap-door destination IFF
+        # some host's trap_doors_json names it. The flag is fully derived now (the manual toggles
+        # were removed), so flip BOTH directions -- set it on referenced hosts and clear it on
+        # hosts no longer referenced (e.g. stale legacy/manual flags). The WHERE guard keeps it
+        # idempotent: only rows whose flag disagrees with the derived truth are touched.
+        ref_subquery = """
+                SELECT DISTINCT json_extract(td.value, '$.destination_host_id')
+                FROM matrix_hosts mh,
+                     json_each(CASE WHEN json_valid(mh.trap_doors_json)
+                                    THEN mh.trap_doors_json ELSE '[]' END) td
+                WHERE json_extract(td.value, '$.destination_host_id') IS NOT NULL
+        """
+        result = await conn.exec_driver_sql(
+            f"""
+            UPDATE matrix_hosts
+               SET is_trap_door_dest = CASE WHEN id IN ({ref_subquery}) THEN 1 ELSE 0 END
+             WHERE is_trap_door_dest <> CASE WHEN id IN ({ref_subquery}) THEN 1 ELSE 0 END
+            """
+        )
+        if result.rowcount and result.rowcount > 0:
+            print(f"[startup] Reconciled {result.rowcount} trap-door destination flag(s)")
+
+
 async def _ensure_campaign_state():
     """Seed the single CampaignState row at startup for timeline continuity.
 
@@ -107,6 +161,14 @@ async def lifespan(app: FastAPI):
         await _ensure_matrix_run_version_column()
     except Exception:
         logging.getLogger(__name__).exception("matrix-run version-column migration failed")
+    try:
+        await _ensure_matrix_host_id_code_column()
+    except Exception:
+        logging.getLogger(__name__).exception("matrix-host id_code-column migration failed")
+    try:
+        await _ensure_matrix_host_trap_dest_column()
+    except Exception:
+        logging.getLogger(__name__).exception("matrix-host trap-dest-column migration failed")
     try:
         await _ensure_campaign_state()
     except Exception:

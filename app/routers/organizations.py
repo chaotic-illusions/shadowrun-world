@@ -8,6 +8,7 @@ from app.models.character import Character
 from app.models.contact import Contact
 from app.models.location import Location
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary, LtgSecurityUpdate
+from app.services.host_visibility import sync_org_reveals_to_hosts, sync_org_security_to_hosts
 from app.auth.dependencies import get_admin_token
 
 router = APIRouter()
@@ -54,7 +55,16 @@ async def update_organization(
     _: str = Depends(get_admin_token),
 ):
     org = await get_or_404(db, Organization, org_id)
-    await apply_update(db, org, body)
+    fields = body.model_dump(exclude_unset=True)
+    await apply_update(db, org, body, commit=False)
+    # When the LTG list changes, propagate each matrix_host entry's "revealed" flag onto the
+    # matching host rows so revealing a host on the org card also makes it runnable, and push
+    # each entry's san_access_rating onto the matching host's config so security stays in sync.
+    if "ltgs" in fields:
+        await sync_org_reveals_to_hosts(db, org)
+        await sync_org_security_to_hosts(db, org)
+    await db.commit()
+    await db.refresh(org)
     return org
 
 
@@ -81,6 +91,9 @@ async def update_ltg_security(
             detail=f"No LTG entry with rtg='{body.rtg}' ltg='{body.ltg}' in org {org_id}",
         )
     org.ltgs = updated
+    # Push the new rating onto the matching host's config so the designer, host registry, and
+    # run engine agree with the org card (the host->org direction lives in matrix_hosts).
+    await sync_org_security_to_hosts(db, org)
     await db.commit()
     return {"updated": True, "org_id": org_id, "new_rating": body.san_access_rating}
 

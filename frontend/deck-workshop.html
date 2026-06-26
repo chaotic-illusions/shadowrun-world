@@ -2035,16 +2035,32 @@ function openSoftwareVariant(v) {
     startUpgradeFromCompiled(art.id);
     return;
   }
+  if (v.kind === 'order') {
+    const order = _loadStore(FIXER_PROG_STORE).find(o => o.id === v.id);
+    if (order) openProgramArtifactClone(order);
+    return;
+  }
   const job = _loadStore(COMPILE_JOB_STORE).find(j => j.id === v.id);
   if (job) openProgramArtifactClone(job.payload || {});
 }
 
 async function deleteSoftwareVariant(v) {
   if (!v) return;
+  if (v.kind === 'order') {
+    if (v.authorized) { showAlert(null, 'This order is already authorized by the fixer -- cancel it from Downtime Control.', true); return; }
+    if (!await showConfirm(`Cancel on-order program R${v.baseRating}? This cannot be undone.`, 'Cancel order')) return;
+    cancelPurchasedProgramOrder(v.id);
+    return;
+  }
   const label = v.kind === 'job' ? `${v.sourceName || 'compile job'} v${v.version}` : `program R${v.baseRating}`;
   if (!await showConfirm(`Delete ${label}? This cannot be undone.`, 'Delete')) return;
   if (v.kind === 'compiled') deleteCompiledProgram(v.id);
   else deleteCompileJob(v.id);
+}
+
+function cancelPurchasedProgramOrder(orderId) {
+  _saveStore(FIXER_PROG_STORE, _loadStore(FIXER_PROG_STORE).filter(o => o.id !== orderId));
+  renderSavedPrograms();
 }
 
 function _softVariantVn(v) {
@@ -2249,6 +2265,16 @@ function renderSavedPrograms() {
       version: j.version, sourceName: j.sourceName,
     });
   });
+  const orders = _loadStore(FIXER_PROG_STORE);
+  orders.forEach(o => {
+    const typeKey = o.programTypeKey || getProgramTypeKey(o.utilName || '');
+    ensureFam(typeKey).variants.push({
+      kind: 'order', id: o.id, status: 'pending',
+      baseRating: parseInt(o.baseRating, 10) || 0, attackDamage: o.attackDamage, isOneShot: !!o.isOneShot,
+      mods: o.mods || 'None', actualSize: parseInt(o.actualSize, 10) || 0,
+      authorized: !!o.authorized,
+    });
+  });
 
   if (!fams.size) { el.innerHTML = '<div class="dw-empty">No software yet</div>'; return; }
 
@@ -2259,7 +2285,7 @@ function renderSavedPrograms() {
   el.innerHTML = keys.map(typeKey => {
     const fam = fams.get(typeKey);
     fam.variants.sort((a, b) => (a.baseRating - b.baseRating) || String(a.mods).localeCompare(String(b.mods)));
-    const open = openState[typeKey] !== undefined ? openState[typeKey] : fam.variants.some(v => v.status === 'fab');
+    const open = openState[typeKey] !== undefined ? openState[typeKey] : fam.variants.some(v => v.status === 'fab' || v.status === 'pending');
     const dots = fam.variants.slice(0, 8).map(v => `<span class="dot ${dotClass(v.status)}"></span>`).join('');
     const rows = fam.variants.map((v, vi) => {
       const mp = `${fmtN(v.actualSize)} Mp${v.isOneShot ? '/copy' : ''}`;
@@ -2636,8 +2662,18 @@ function calcDeck() {
     totalCost += sub;
   }
   if (hasSatlink) {
-    rows.push({ key: 'satlink', name: 'Satlink Interface', size: 0, occ: 0, plcDtc: 0, other: 800, sub: 800, cook: 0, inst: 0 });
-    totalCost += 800;
+    // Software Task: Rating = MPCP, Multiplier 2. Cook: OCC @ program size, MPCP days.
+    // Install: PLC + DTC @ MPCP Rating, MPCP days. External dish (800) billed separately.
+    const size = costMpcp * costMpcp * 2;
+    const occ  = size * 20;
+    const plc  = 25 * costMpcp;
+    const dtc  = 10 * costMpcp;
+    const dish = 800;
+    const sub  = occ + plc + dtc + dish;
+    const cook = costMpcp;
+    const inst = costMpcp;
+    rows.push({ key: 'satlink', name: 'Satlink Interface', size, occ, plcDtc: plc + dtc, other: dish, sub, cook, inst, otherLabel: 'Dish 800' });
+    totalCost += sub;
   }
   if (hasHitcher) {
     rows.push({ key: 'hitcher', name: 'Hitcher Jack', size: 0, occ: 0, plcDtc: 0, other: 250, sub: 250, cook: 0, inst: 0 });
@@ -3079,6 +3115,7 @@ function requestDeckBuild() {
   _saveStore(DECK_STORE, decks);
   if (upgrading) { deckUpgradeBaseline = null; resetDeckUpgradeFloors(); if (repairing) setDeckFormLocked(false); }
   renderDeckProgressDossier(decks[idx]);
+  renderSavedDecks();
   const verb = repairing ? 'REPAIR TRANSMITTED' : (upgrading ? 'UPGRADE TRANSMITTED' : 'SPEC TRANSMITTED');
   showAlert(null, `>> ${verb} // "${activeDeckBuildName}" -- ${fmtN(Math.max(0, cookBase + installBase))}d cook+install queued. The GM rolls Computer B/R, sets a task bonus, and starts the build from Downtime Control.`, false);
 }
@@ -3137,6 +3174,7 @@ function requestDeckOrder() {
   _saveStore(DECK_STORE, decks);
   if (upgrading) { deckUpgradeBaseline = null; resetDeckUpgradeFloors(); if (repairing) setDeckFormLocked(false); }
   renderDeckProgressDossier(decks[idx]);
+  renderSavedDecks();
   const verb = repairing ? 'REPAIR ORDERED' : (upgrading ? 'UPGRADE ORDERED' : 'ORDER PLACED');
   showAlert(null, `>> ${verb} // "${activeDeckBuildName}" -- street price ${fmtN(finalPrice)} at availability TN ${av.tn}. The fixer (GM) reviews your Etiquette, quotes a price, and authorizes delivery from Downtime Control.`, false);
 }
@@ -4371,7 +4409,6 @@ function calcUtil() {
   const mathCells = [
     { k: 'Base rating', v: String(baseR), s: util.cat },
     { k: 'Effective rating', v: String(effRating), s: effRatingAdd !== 0 ? `base ${baseR} ${effRatingAdd >= 0 ? '+' : ''}${effRatingAdd}` : 'no mods' },
-    { k: 'Multiplier', v: '\xd7' + mult, s: name === 'Attack' ? (dmgText || 'damage') : util.name },
     { k: 'Design size', v: fmtN(designSize) + ' Mp', s: `${effRating}\xb2 \xd7${mult}` },
     { k: 'Actual size', v: fmtN(actualSize) + ' Mp', hi: true, s: 'loaded footprint' },
     { k: 'Base time', v: fmtN(baseConstructTime) + ' d', s: 'design \xd72' },
@@ -4390,7 +4427,6 @@ function calcUtil() {
   const rows = [
     { lbl: 'Utility', val: util.name },
     { lbl: 'Category', val: util.cat },
-    { lbl: 'Multiplier', val: '\xd7' + mult + (name === 'Attack' && dmgText ? ` (${dmgText})` : '') },
     { lbl: 'Base Rating', val: baseR },
     { lbl: 'Effective Rating', val: `${effRating}${effRatingAdd !== 0 ? ` (base ${baseR} ${effRatingAdd >= 0 ? '+' : ''}${effRatingAdd})` : ''}` },
     { lbl: 'Base Size', val: fmtN(baseSize) + ' Mp' },
@@ -5256,7 +5292,7 @@ function newDeck() {
           <div class="dw-row">
             <span class="dw-tog" id="togIccm" onclick="toggleDeckTog('iccm')"><span class="led"></span>ICCM Filter<span class="q" onclick="event.stopPropagation();inspect('iccm')">?</span></span>
             <span class="dw-tog" id="togRf" onclick="toggleDeckTog('realityFilter')"><span class="led"></span>Reality Filter<span class="q" onclick="event.stopPropagation();inspect('rfilter')">?</span></span>
-            <span class="dw-tog" id="togSat" onclick="toggleDeckTog('satlink')"><span class="led"></span>Satlink &middot; 800&yen;<span class="q" onclick="event.stopPropagation();inspect('satlink')">?</span></span>
+            <span class="dw-tog" id="togSat" onclick="toggleDeckTog('satlink')"><span class="led"></span>Satlink<span class="q" onclick="event.stopPropagation();inspect('satlink')">?</span></span>
             <span class="dw-tog" id="togHitch" onclick="toggleDeckTog('hitcherJack')"><span class="led"></span>Hitcher Jack &middot; 250&yen;<span class="q" onclick="event.stopPropagation();inspect('hitcher')">?</span></span>
           </div>
           <input type="checkbox" id="iccm" style="display:none" onchange="calcDeck()">

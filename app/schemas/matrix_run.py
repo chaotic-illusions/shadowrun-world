@@ -56,7 +56,8 @@ class DeckerStats(BaseModel):
     io_speed:          int = Field(0, ge=0)          # Mp/ct; feeds bandwidth modifier
     # Trace Factor components (fixed inputs; Evasion and Camo are dynamic)
     trace_factor:      int = Field(0, ge=-6, le=6)   # jackpoint modifier
-    bandwidth_modifier: int = Field(0, ge=-6, le=6)  # I/O speed relative to icon BW
+    bandwidth_modifier: int = Field(0, ge=-6, le=6)  # legacy frozen BW Trace mod (fallback only)
+    base_bandwidth:    int = Field(0, ge=0, le=200)  # jackpoint base BW (Mp); 0 = console/unlimited
     # Jackpoint Access side (vr2 Jackpoint table): Legal -2 / Illegal 0 / Satellite +2 /
     # Workstation -4 / Remote +4. Console halves Access Rating & Security Value.
     access_modifier:   int = Field(0, ge=-6, le=6)
