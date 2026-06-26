@@ -112,6 +112,15 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
                 if isinstance(e, dict) and e.get("revealed")
             ]
         data["state_json"] = state
+
+    # Live decker footprint: expose Icon Bandwidth and the Bandwidth Trace Modifier recomputed
+    # from the *current* persona ratings and active-memory utilities (they shift as programs
+    # crash or the persona takes crippler/MPCP damage), so the UI can show living values.
+    decker = run.decker_json or {}
+    st = data.get("state_json")
+    if isinstance(st, dict):
+        st["icon_bandwidth"] = _live_icon_bandwidth(decker, st)
+        st["bandwidth_modifier"] = _live_bandwidth_modifier(decker, st)
     return data
 
 
@@ -239,6 +248,7 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "defused_bombs": [],
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
+        "base_bandwidth": decker.get("base_bandwidth", 0),     # jackpoint base BW for live BW Trace mod
         "linked_passcode": decker.get("linked_passcode", False),
         "enemy_deckers": [],   # security deckers injected by the GM (vr2 #5)
         "logon_complete": False,
@@ -694,7 +704,7 @@ def _compute_trace_tn(state: dict, decker: dict, ic_rating: int, eff: dict) -> i
         - ic_rating
         + utilities.get("camo", 0)
         + decker.get("trace_factor", 0)
-        + decker.get("bandwidth_modifier", 0)
+        + _live_bandwidth_modifier(decker, state, eff)
         - state.get("redirects_placed", 0)
     )
     return max(2, tf)
@@ -748,6 +758,33 @@ def _get_decker_effective(decker: dict, state: dict) -> dict:
         "sensor":  _attr("sensor"),
         "mpcp":    max(1, decker.get("mpcp", 4) - mpcp_dmg),
     }
+
+
+def _live_icon_bandwidth(decker: dict, state: dict, eff: dict | None = None) -> int:
+    """Live Icon Bandwidth (vr2): persona program ratings + the ratings of every utility held
+    in active memory, recomputed from the *current* run state. Crippler/MPCP damage lowers the
+    persona side (via _get_decker_effective) and program crashes (program_damage) lower the
+    utilities, so the footprint shrinks/grows mid-run instead of being frozen at logon."""
+    if eff is None:
+        eff = _get_decker_effective(decker, state)
+    persona = eff["bod"] + eff["evasion"] + eff["masking"] + eff["sensor"]
+    pd = state.get("program_damage", {}) or {}
+    utils = decker.get("utilities") or {}
+    util_sum = sum(max(0, (r or 0) - pd.get(n, 0)) for n, r in utils.items())
+    return persona + util_sum
+
+
+def _live_bandwidth_modifier(decker: dict, state: dict, eff: dict | None = None) -> int:
+    """Live Bandwidth Trace Modifier: -1 to Trace Factor per full multiple of the jackpoint's
+    base bandwidth the Icon Bandwidth exceeds (a fatter icon is easier to trace). base==0 is a
+    console/unlimited jackpoint (no penalty). Legacy runs with no stored base_bandwidth fall
+    back to the value frozen on the decker at logon."""
+    base = state.get("base_bandwidth")
+    if base is None:
+        return decker.get("bandwidth_modifier", 0)
+    if base <= 0:
+        return 0
+    return -(_live_icon_bandwidth(decker, state, eff) // base)
 
 
 def _secret_sensor_test(state: dict, decker: dict, ic: dict) -> int:

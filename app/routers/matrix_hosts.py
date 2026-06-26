@@ -8,6 +8,7 @@ from app.models.organization import Organization
 from app.schemas.matrix_host import (
     MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostSummary,
 )
+from app.services.host_visibility import sync_host_reveal_to_org, sync_host_security_to_org
 from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
@@ -21,16 +22,57 @@ async def _get_or_404(db: AsyncSession, host_id: int) -> MatrixHost:
     return host
 
 
+def _dest_ids(trap_doors) -> set[int]:
+    """Collect the destination host ids named in a trap_doors_json list."""
+    ids: set[int] = set()
+    for td in (trap_doors or []):
+        if isinstance(td, dict):
+            d = td.get("destination_host_id")
+            if isinstance(d, int):
+                ids.add(d)
+    return ids
+
+
+async def _recompute_trap_dest_flags(db: AsyncSession, affected_ids: set[int]) -> None:
+    """Re-derive is_trap_door_dest for the given hosts from the live set of trap-door edges.
+
+    A host is a trap-door destination IFF some host's trap_doors_json names it -- the flag is a
+    pure derivation now (the manual toggles were removed). Call this whenever an edge set changes
+    so a removed link drops the child's flag (and an added link sets it). Autoflush makes the
+    pending in-session edits visible to the reference scan, so it reflects the just-saved state.
+    """
+    res = await db.execute(select(MatrixHost.trap_doors_json))
+    referenced: set[int] = set()
+    for (tds,) in res.all():
+        referenced |= _dest_ids(tds)
+    res2 = await db.execute(select(MatrixHost).where(MatrixHost.id.in_(affected_ids)))
+    for dest in res2.scalars().all():
+        should = dest.id in referenced
+        if bool(dest.is_trap_door_dest) != should:
+            dest.is_trap_door_dest = should
+
+
 @router.get("/", response_model=list[MatrixHostSummary])
 async def list_hosts(
     auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
+    is_admin = bool(auth.get("is_admin"))
     q = select(MatrixHost).order_by(MatrixHost.name)
-    if not auth.get("is_admin"):
+    if not is_admin:
         q = q.where(MatrixHost.is_visible_to_players == True)  # noqa: E712
     result = await db.execute(q)
-    return result.scalars().all()
+    rows = result.scalars().all()
+    if is_admin:
+        return rows
+    # Trap-door topology is GM-only -- the admin registry needs the edge list to draw the parent/
+    # child tree, but players must never get it in the bulk listing. Strip it from each summary.
+    redacted = []
+    for h in rows:
+        s = MatrixHostSummary.model_validate(h)
+        s.trap_doors_json = None
+        redacted.append(s)
+    return redacted
 
 
 @router.post("/", response_model=MatrixHostRead, status_code=201,
@@ -69,6 +111,7 @@ async def ltg_catalog(
                 "id_code":          ltg.get("id_code"),
                 "description":      ltg.get("description", ""),
                 "visibility":       ltg.get("visibility", "listed"),
+                "revealed":         bool(ltg.get("revealed", False)),
                 "san_access_rating": ltg.get("san_access_rating", ""),
             })
     return entries
@@ -92,9 +135,48 @@ async def update_host(
     host_id: int, body: MatrixHostUpdate, db: AsyncSession = Depends(get_db)
 ):
     host = await _get_or_404(db, host_id)
+    # A host is reachable if it has a grid address OR is a trap-door destination (reached through a
+    # parent host's trap door). Capture that before applying so we can block an update that strips
+    # reachability away -- only a trap-door destination may legitimately drop its LTG and go off-grid.
+    was_reachable = bool((host.ltg_address or "").strip()) or bool(host.is_trap_door_dest)
+    old_dest_ids = _dest_ids(host.trap_doors_json)
     updates = body.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(host, field, value)
+    now_reachable = bool((host.ltg_address or "").strip()) or bool(host.is_trap_door_dest)
+    if was_reachable and not now_reachable:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "A non-trap-door host must keep an RTG/LTG address. Mark it as a trap-door "
+                "destination first to take it off the grid."
+            ),
+        )
+    # A host can only be revealed to players once it has a real grid address (RTG/LTG).
+    # Revealing an address-less host would surface a non-runnable entry on the Matrix Run screen.
+    if host.is_visible_to_players and not (host.ltg_address or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Host must have an RTG/LTG address before it can be revealed to players.",
+        )
+    # Mirror a visibility/LTG-link change onto the org page's per-LTG "revealed" flag so the
+    # two surfaces stay in sync (the org card and this host share one reveal state).
+    if "is_visible_to_players" in updates or "ltg_address" in updates:
+        await sync_host_reveal_to_org(db, host)
+    # Security rating edited in the designer (config_json) -- or a re-link to a different LTG --
+    # propagates onto the matching org LTG entry's san_access_rating so the org card, the host
+    # registry, and the run engine all agree on one value.
+    if "config_json" in updates or "ltg_address" in updates:
+        await sync_host_security_to_org(db, host)
+    # When trap doors are saved, re-derive the is_trap_door_dest flag for every host that just
+    # gained or lost an inbound link (old destinations union new destinations). A host named as a
+    # destination becomes a trap-door destination; one no longer named drops the flag -- so the
+    # destination picker, the registry tree, and the reachability guard all stay consistent without
+    # any manual toggle.
+    if "trap_doors_json" in updates:
+        affected = old_dest_ids | _dest_ids(host.trap_doors_json)
+        if affected:
+            await _recompute_trap_dest_flags(db, affected)
     await db.commit()
     await db.refresh(host)
     return host
@@ -105,5 +187,11 @@ async def update_host(
                dependencies=[Depends(get_admin_token)])
 async def delete_host(host_id: int, db: AsyncSession = Depends(get_db)):
     host = await _get_or_404(db, host_id)
+    # Deleting a parent removes its trap doors, so re-derive its children's destination flag after
+    # the row is gone (an off-grid child left with no inbound link surfaces as Unreachable).
+    affected = _dest_ids(host.trap_doors_json)
     await db.delete(host)
+    await db.flush()
+    if affected:
+        await _recompute_trap_dest_flags(db, affected)
     await db.commit()

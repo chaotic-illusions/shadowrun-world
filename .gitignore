@@ -19,6 +19,9 @@ env/
 *.db-wal
 *.db-shm
 
+# Runtime data backups (timestamped state dumps)
+data/backups/
+
 # IDE
 .vscode/
 .idea/

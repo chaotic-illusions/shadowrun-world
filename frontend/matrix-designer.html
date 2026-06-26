@@ -26,11 +26,19 @@
 
 <main>
  <div class="md3">
-  <div class="page-title">&gt;&gt; MATRIX HOST DESIGNER <em class="sep">//</em> HOST SECURITY AND IC DESIGNER</div>
-  <div class="page-sub" style="color:var(--cyan)">LOADING PROGRAMS... // LOADING IC... // READY</div>
+  <div class="page-title" id="mdPageTitle">&gt;&gt; MATRIX HOST DESIGNER <em class="sep">//</em> HOST SECURITY AND IC DESIGNER</div>
+  <div class="page-sub" id="mdPageSub" style="color:var(--cyan)">LOADING PROGRAMS... // LOADING IC... // READY</div>
 
   <div id="pageAlert" class="alert" style="margin-bottom:12px"></div>
 
+  <!-- Top-level view switch: the build wizard (Host Designer) vs. the host visibility/LTG
+       registry (Matrix Hosts). The center pane swaps between the two below. -->
+  <div class="md-viewtabs">
+    <button type="button" id="viewTabDesigner" class="md-viewtab active" onclick="switchMdView('designer')">Host Designer</button>
+    <button type="button" id="viewTabHosts" class="md-viewtab" onclick="switchMdView('hosts')">Matrix Hosts</button>
+  </div>
+
+  <div id="mdViewDesigner">
   <!-- In-app host tabs: the current host is always tab 1; a trap-door Follow opens its
        destination as a new tab. The bar grid-aligns the strip to the center pane column. -->
   <div class="md3-tabbar">
@@ -60,34 +68,12 @@
           <div class="panel-title panel-title-cyan">&gt;&gt; Host Selection</div>
           <div class="tip" style="margin-bottom:8px">Select an existing configured host or a canon LTG entry to begin, or create a custom off-grid host. Selecting an LTG entry auto-creates its host record.</div>
           <div class="mx-field">
-            <label>Target Host</label>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <select id="hostSelect" onchange="onHostChange()" data-tip="Select an existing host/LTG entry point." style="flex:1 1 auto;min-width:0"></select>
-              <button class="btn btn-ghost btn-sm" onclick="toggleCreateForm()" id="createToggleBtn" data-tip="Create a custom off-grid host">+ Create Custom Host</button>
+            <label>Target Host <span style="color:var(--text-dim)">/ Custom Host</span></label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap">
+              <select id="hostSelect" onchange="onHostChange()" data-tip="Select an existing host or LTG entry point." style="flex:1 1 0;min-width:0"></select>
+              <span style="color:var(--text-dim);font-size:.7rem">or</span>
+              <button class="btn btn-ghost btn-sm" onclick="openCreateHostModal()" id="createToggleBtn" data-tip="Create a custom host" style="align-self:stretch;white-space:nowrap;flex:0 0 auto">+ Create Custom Host</button>
             </div>
-          </div>
-
-          <div id="createForm" style="display:none;border-top:1px solid #1a2a1a;margin-top:12px;padding-top:12px">
-            <div class="tip" style="margin-bottom:8px">For off-grid systems: trap door sub-hosts, hidden research nodes, and any host without a public LTG.</div>
-            <div class="mx-field">
-              <label>Host Name *</label>
-              <input type="text" id="newHostName" placeholder="e.g. Ares Sub-Basement Black Node" maxlength="200">
-            </div>
-            <div class="mx-field">
-              <label>Notes <span style="color:var(--text-dim)">(optional)</span></label>
-              <textarea id="newHostNotes" rows="2" placeholder="GM notes..." style="background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font);resize:vertical;width:100%"></textarea>
-            </div>
-            <button class="btn btn-green" style="width:100%;justify-content:center;margin-top:4px" onclick="createHost()">&gt;&gt; Create Custom Host</button>
-          </div>
-
-          <div class="mx-field" style="border-top:1px solid #1a2a1a;margin-top:12px;padding-top:12px">
-            <label>LTG Address <span style="color:var(--text-dim)">(optional linkage)</span></label>
-            <select id="ltgAddressSelect" onchange="onLtgAddressChange()"
-              data-tip="Optional LTG linkage. Choosing an entry can prefill security profile context."
-              style="font-size:.75rem;padding:5px 8px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--cyan);font-family:var(--font)">
-              <option value="">-- None / Custom --</option>
-            </select>
-            <div id="ltgAddressInfo" style="margin-top:4px;font-size:.62rem;color:var(--text-dim);letter-spacing:1px;min-height:14px"></div>
           </div>
         </div>
       </div>
@@ -180,25 +166,25 @@
 
           <div class="mx-field" style="margin-top:10px">
             <label>Access -- Named Pieces</label>
-            <div id="accessPieceList" style="margin-bottom:5px"></div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="text" id="newAccessPiece" placeholder="e.g., SAN Port, Terminal 1"
+            <div class="piece-add-row">
+              <input type="text" id="newAccessPiece" class="piece-add-input" maxlength="40" placeholder="e.g., SAN Port, Terminal 1"
                 data-tip="Add a named Access entry point such as a SAN port or terminal."
-                style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addSubPiece('access');}">
               <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addSubPiece('access')" data-tip="Add this Access piece.">+ Add</button>
             </div>
+            <div id="accessPieceList"></div>
             <div class="tip">Physical ports, terminals, or nodes outside of the normal LTG access point. Required to target a specific piece with Exploding Scramble IC.</div>
           </div>
 
           <div class="mx-field" style="margin-top:6px">
             <label>Slave -- Named Devices</label>
-            <div id="slavePieceList" style="margin-bottom:5px"></div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="text" id="newSlavePiece" placeholder="e.g., Security Camera 1, Door Lock"
+            <div class="piece-add-row">
+              <input type="text" id="newSlavePiece" class="piece-add-input" maxlength="40" placeholder="e.g., Security Camera 1, Door Lock"
                 data-tip="Add a named Slave device such as a camera, lock, or sensor."
-                style="flex:1;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);font-family:var(--font)">
+                onkeydown="if(event.key==='Enter'){event.preventDefault();addSubPiece('slave');}">
               <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addSubPiece('slave')" data-tip="Add this Slave device.">+ Add</button>
             </div>
+            <div id="slavePieceList"></div>
             <div class="tip">Named devices or hardware controlled by this host such as cameras, security doors, etc. Click a device to rename it, flag it as a <strong>Trap Door</strong>, and set its destination + Follow in the Inspector. Required to target a specific device with Exploding Scramble IC.</div>
           </div>
         </div>
@@ -339,6 +325,19 @@
     </aside>
 
   </div><!-- /md3-panes -->
+  </div><!-- /mdViewDesigner -->
+
+  <!-- ===== MATRIX HOSTS view: host visibility + LTG registry (folded-in page) ===== -->
+  <div id="mdViewHosts" style="display:none">
+    <div class="mh-help">
+      Reveal a host to make it <b>runnable by players</b> on the Matrix Run screen. A host
+      grouped under an organization shares its reveal state with that org's LTG entry on the
+      <b>Organizations</b> page &mdash; toggling here flips the org card's Reveal flag, and vice
+      versa. <b>Unaffiliated</b> hosts have no org LTG &mdash; use the edit pencil to assign or
+      fix an RTG/LTG and optional ID code before a host can be revealed.
+    </div>
+    <div id="hostGroups"><div class="mh-empty">Loading Matrix hosts...</div></div>
+  </div>
 
   <!-- legacy summary markup -- relocated into the left Host Summary pane on boot -->
   <div id="md3OldSidebar" style="display:none">
@@ -358,6 +357,11 @@
           <div class="sum-row"><span class="k">Sheaf Steps</span><span class="v" id="sumSteps">--</span></div>
           <div class="sum-thr-label">Alert Thresholds</div>
           <div class="thresholds" id="sumThresholds"></div>
+          <div class="sum-row" style="margin-top:8px">
+            <span class="k">Player Access</span>
+            <span class="v"><button id="hostVisBtn" class="btn btn-ghost btn-sm" onclick="toggleHostVisibility()"
+              style="padding:2px 8px;font-size:.66rem" data-tip="Toggle whether players can see this host on the Matrix Run screen">--</button></span>
+          </div>
           <div class="sum-delete-row">
             <button id="deleteHostBtn" class="btn btn-red btn-sm" onclick="deleteCurrentHost()"
               style="padding:3px 10px;font-size:.7rem" data-tip="Delete this host">x Delete Host</button>
@@ -365,6 +369,36 @@
         </div>
       </div>
   </div><!-- /md3OldSidebar -->
+
+  <!-- Create Custom Host modal (kept inside .md3 so its RTG select gets the custom dropdown) -->
+  <div class="edit-overlay" id="createHostOverlay" onclick="if(event.target===this)closeCreateHostModal()">
+    <div class="edit-modal-mini" style="min-width:340px;max-width:640px;border-color:#1a2a1a;background:#060606;gap:12px">
+      <div style="font-size:var(--fs-lg);letter-spacing:2px;color:var(--green);text-transform:uppercase">&gt;&gt; Create Custom Host</div>
+      <div class="tip" style="margin-top:0;white-space:normal">Build a new host. Give it a grid address to put it on the Matrix, or leave the address blank for an off-grid system reached only through another host's trap door (wire it from that host's Slave device, or it stays under <em>Unreachable</em> until you do).</div>
+      <div id="createHostAlert" class="alert" style="margin:0"></div>
+      <div class="mx-field" style="margin-bottom:0">
+        <label>Host Name *</label>
+        <input type="text" id="newHostName" placeholder="e.g. Ares Sub-Basement Black Node" maxlength="200">
+      </div>
+      <div class="mx-field" style="margin-bottom:0">
+        <label>Notes <span style="color:var(--text-dim)">(optional)</span></label>
+        <textarea id="newHostNotes" rows="2" placeholder="GM notes..." style="background:var(--bg-input);border:1px solid #1a3a1a;color:var(--text-bright);font-family:var(--font);resize:vertical;width:100%"></textarea>
+      </div>
+      <div class="mx-field" style="margin-bottom:0">
+        <label>Grid Address (LTG) <span id="newHostAddrReq" style="color:var(--text-dim)">(optional)</span></label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="newHostRtg" style="flex:1 1 240px;min-width:0"><option value="">-- RTG --</option></select>
+          <input type="text" id="newHostLtg" maxlength="12" title="Auto-generated unique LTG code" placeholder="LTG" style="width:96px;color:var(--text-dim)" readonly data-tip="Auto-generated unique LTG code">
+          <input type="text" id="newHostId" maxlength="8" placeholder="ID Code" style="width:96px">
+        </div>
+        <div class="tip" id="newHostAddrHint">Pick an RTG and generate a unique LTG to put this host on the Matrix. Leave blank for an off-grid system reached only via a trap door.</div>
+      </div>
+      <div class="edit-modal-btns" style="justify-content:flex-end;gap:8px">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="closeCreateHostModal()">Cancel</button>
+        <button class="btn btn-green btn-sm" type="button" onclick="createHost()">&gt;&gt; Create Custom Host</button>
+      </div>
+    </div>
+  </div>
 
  </div><!-- /md3 -->
 </main>
@@ -412,6 +446,14 @@
   </div>
 </div>
 
+<div class="edit-overlay" id="mhEditOverlay" onclick="if(event.target===this)mhCancelEdit()">
+  <div class="edit-modal-mini" style="min-width:340px;max-width:700px;border-color:#1a2a1a;background:#060606;gap:12px">
+    <div id="mhEditHeader" style="font-size:var(--fs-lg);letter-spacing:2px;color:var(--cyan);text-transform:uppercase">&gt;&gt; Assign Grid Address</div>
+    <div id="mhEditBody"></div>
+    <div class="tip" style="margin-top:0;white-space:normal">RTG // LTG forms the host's grid address. ID code is optional (max 8 characters).</div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -428,6 +470,8 @@ let paydata      = [];   // [{name: string, points: number, density: number}]  (
 let dataBombs    = [];   // [{target: string, rating: number}]
 let scrambles    = [];   // [{target_key: string, rating: number, variant: 'exploding'|'poison'}]
 let worms        = [];   // [{target: string, rating: number, variant: 'dataworm'|'deathworm'|'tapeworm'}]
+let _mhRtgs      = [];   // [{code, ...}] RTG list for the Matrix Hosts registry assign row
+let _mhView      = 'designer';  // active top-level view: 'designer' | 'hosts'
 let accessPieces = [];   // string[] -- named Access subsystem pieces (for Scramble IC specific-piece targeting)
 let slavePieces  = [];   // string[] -- named Slave subsystem devices
 let slaveTrapPieces = []; // string[] -- slave device names flagged as trap-door endpoints
@@ -765,11 +809,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (holder && mount) { while (holder.firstChild) mount.appendChild(holder.firstChild); holder.remove(); }
   })();
 
-  await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog(), loadHostRules()]);
+  await Promise.all([loadIcInfo(), loadHosts(), loadLtgCatalog(), loadHostRules(), loadMhRtgs()]);
   renderWizardStepsBar();
   wireIcEditModal();
   wireSaveStateModal();
+  wireCreateHostModal();
   initCustomDropdowns();
+  // Keep the Target Host selector compact on the Target Host / Custom Host line, but let its
+  // options panel grow to full width so long host / LTG names are not truncated when picking.
+  $('hostSelect')?._cdd?.wrap.classList.add('cdd-roomy');
+  // The Create-Custom-Host RTG picker is narrow; let its panel grow so long RTG names are readable.
+  $('newHostRtg')?._cdd?.wrap.classList.add('cdd-roomy');
   startPolling(refreshCurrentHost, 2500);
 });
 
@@ -816,6 +866,7 @@ async function loadHosts() {
     hosts = await res.json();
     renderHostDropdown();
     _rebuildTrapDoorDestOpts();
+    renderHostRegistry();
   } catch (_) {}
 }
 
@@ -824,45 +875,9 @@ async function loadLtgCatalog() {
     const res = await apiFetch('/matrix-hosts/ltg-catalog');
     if (!res.ok) return;
     ltgCatalog = await res.json();
-    _populateLtgSelect();
     renderHostDropdown();  // merge LTG optgroups into host selector
+    renderHostRegistry();
   } catch (_) {}
-}
-
-function _populateLtgSelect() {
-  const sel = $('ltgAddressSelect');
-  if (!sel) return;
-  // Group by org
-  const byOrg = {};
-  for (const e of ltgCatalog) {
-    (byOrg[e.org_name] = byOrg[e.org_name] || []).push(e);
-  }
-  const none = `<option value="">-- None / Custom --</option>`;
-  const groups = Object.entries(byOrg).map(([org, entries]) => {
-    const opts = entries.map(e => {
-      const label = `${e.full_address}${e.id_code ? ' [' + e.id_code + ']' : ''} -- ${e.description}`;
-      return `<option value="${esc(e.full_address)}" data-org="${esc(e.org_name)}"
-        data-org-id="${e.org_id || ''}" data-desc="${esc(e.description)}"
-        data-vis="${esc(e.visibility)}" data-san="${esc(e.san_access_rating)}">${esc(label)}</option>`;
-    }).join('');
-    return `<optgroup label="${esc(org)}">${opts}</optgroup>`;
-  }).join('');
-  sel.innerHTML = none + groups;
-}
-
-function onLtgAddressChange() {
-  const sel  = $('ltgAddressSelect');
-  const info = $('ltgAddressInfo');
-  if (!sel || !info) return;
-  const opt = sel.options[sel.selectedIndex];
-  if (!sel.value || !opt) { info.textContent = ''; return; }
-  const vis = opt.dataset.vis || '';
-  const san = opt.dataset.san || '';
-  const org = opt.dataset.org || '';
-  const visColor = vis === 'black' ? 'var(--purple)' : vis === 'unlisted' ? 'var(--red)' : 'var(--text-dim)';
-  info.innerHTML = `<span style="color:${visColor}">${esc(vis.toUpperCase())}</span>`
-    + (san ? ` &nbsp;|&nbsp; Security: <span style="color:var(--amber)">${esc(san)}</span>` : '')
-    + (org ? ` &nbsp;|&nbsp; ${esc(org)}` : '');
 }
 
 async function refreshCurrentHost() {
@@ -1192,27 +1207,6 @@ async function onHostChange() {
     ? cfg.slave_trap_pieces.filter(name => slavePieces.includes(name))
     : [];
 
-  // LTG address + trap doors (top-level host fields)
-  const ltgSel = $('ltgAddressSelect');
-  if (ltgSel) {
-    const existingAddr = currentHost.ltg_address || '';
-    // If the host has an LTG address that isn't in the catalog dropdown
-    // (e.g., it was set externally or the catalog changed), add a fallback option
-    // so saving doesn't accidentally null it out.
-    if (existingAddr && !Array.from(ltgSel.options).some(o => o.value === existingAddr)) {
-      const fallback = document.createElement('option');
-      fallback.value = existingAddr;
-      fallback.textContent = existingAddr;
-      const cfg = safeConfig(currentHost);
-      const sanVal = (cfg.security_code && cfg.security_value)
-        ? `${cfg.security_code}-${cfg.security_value}`
-        : (cfg.san_rating || '');
-      fallback.dataset.san = sanVal;
-      ltgSel.insertBefore(fallback, ltgSel.options[1] || null);
-    }
-    ltgSel.value = existingAddr;
-    onLtgAddressChange();
-  }
   trapDoors = Array.isArray(currentHost.trap_doors_json)
     ? JSON.parse(JSON.stringify(currentHost.trap_doors_json)) : [];
   if (slaveTrapPieces.length === 0) {
@@ -1265,6 +1259,511 @@ async function deleteCurrentHost() {
   }
 }
 
+// Toggle whether this host appears on the player-facing Matrix Run screen. Hosts are created
+// hidden (is_visible_to_players=false); this is the only control that reveals them. The
+// backend already accepts the field via MatrixHostUpdate.
+async function toggleHostVisibility() {
+  if (!currentHost || currentHost._autoCreated) return;
+  const next = !currentHost.is_visible_to_players;
+  // A host can only be revealed once it has a real grid address (RTG/LTG) -- otherwise it would
+  // surface a non-runnable entry on the Matrix Run screen. The backend enforces this too (400).
+  if (next && !(currentHost.ltg_address && currentHost.ltg_address.trim())) {
+    showAlert(alertEl(), 'Assign an RTG/LTG address before revealing this host to players.', true);
+    return;
+  }
+  try {
+    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_visible_to_players: next }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    const idx = hosts.findIndex(h => h.id === currentHost.id);
+    if (idx >= 0) hosts[idx] = updated;
+    currentHost = updated;
+    updateSummary();
+    renderHostRegistry();
+    showAlert(alertEl(),
+      next ? `"${currentHost.name}" is now visible to players.`
+           : `"${currentHost.name}" is hidden from players.`, false);
+  } catch (e) {
+    showAlert(alertEl(), 'Failed to update visibility: ' + e.message, true);
+  }
+}
+
+// ===== Matrix Hosts registry (second top-level view) ========================
+// Reuses the already-loaded `hosts` and `ltgCatalog`; `_mhRtgs` holds RTG codes for the
+// Unaffiliated assign row. Reveal/visibility is mirrored onto the org card server-side on PATCH.
+
+async function loadMhRtgs() {
+  try {
+    const res = await apiFetch('/rtgs/');
+    if (res.ok) _mhRtgs = await res.json();
+  } catch (_) {}
+}
+
+function switchMdView(view) {
+  _mhView = view;
+  const onHosts = view === 'hosts';
+  const dz = $('mdViewDesigner'), hz = $('mdViewHosts');
+  if (dz) dz.style.display = onHosts ? 'none' : '';
+  if (hz) hz.style.display = onHosts ? '' : 'none';
+  const td = $('viewTabDesigner'), th = $('viewTabHosts');
+  if (td) td.classList.toggle('active', !onHosts);
+  if (th) th.classList.toggle('active', onHosts);
+  const title = $('mdPageTitle'), sub = $('mdPageSub');
+  if (title) title.innerHTML = onHosts
+    ? '&gt;&gt; MATRIX HOSTS <em class="sep">//</em> VISIBILITY &amp; LTG REGISTRY'
+    : '&gt;&gt; MATRIX HOST DESIGNER <em class="sep">//</em> HOST SECURITY AND IC DESIGNER';
+  if (sub) sub.textContent = onHosts
+    ? 'REVEAL A HOST TO MAKE IT RUNNABLE // ORG-LINKED HOSTS SYNC WITH THE ORG CARD'
+    : 'LOADING PROGRAMS... // LOADING IC... // READY';
+  if (onHosts) renderHostRegistry();
+}
+
+function _mhHasAddr(h) { return !!(h.ltg_address && h.ltg_address.trim()); }
+
+// Registry inline editor: which unaffiliated host's address is currently being edited
+// (null = none). Toggling this re-renders just that row into RTG/LTG/ID inputs.
+let _mhEditingId = null;
+
+// "RTG LTG" -> { rtg, ltg }. The LTG is the final whitespace-separated token.
+function _mhParseAddr(addr) {
+  const parts = String(addr || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { rtg: '', ltg: '' };
+  const ltg = parts.pop();
+  return { rtg: parts.join(' '), ltg };
+}
+
+// Org-style colored address cell: "> RTG // LTG [ID]" (amber RTG, green LTG, purple ID).
+function _mhAddrDisplayHtml(rtg, ltg, idCode) {
+  return `<span class="mh-addr"><span class="text-amber">&#8250; ${esc(rtg)}</span>`
+    + `<span class="text-dim"> // </span><span class="mh-ltg">${esc(ltg)}</span>`
+    + `${idCode ? `<span class="mh-id"> [${esc(idCode)}]</span>` : ''}</span>`;
+}
+
+// Map a SAN access rating ("Blue-3") to the world-state rating color class (r-blue ...),
+// so the registry colors host ratings exactly like the org dossier card.
+function _mhRatingClass(r) {
+  const color = String(r || '').split('-')[0].toLowerCase();
+  return { blue: 'r-blue', green: 'r-green', orange: 'r-orange', red: 'r-red', black: 'r-black' }[color] || 'r-green';
+}
+
+// full_address ("RTG LTG") -> catalog entry {org_name, san_access_rating, ...}
+function _mhLtgIndex() {
+  const m = {};
+  ltgCatalog.forEach(e => { if (e.full_address) m[e.full_address] = e; });
+  return m;
+}
+
+function _mhGroupHosts(nested) {
+  const idx = _mhLtgIndex();
+  const groups = {};
+  const assigned = [];    // has an address, but not part of any org catalog
+  // Only matrix-addressed hosts that are NOT shown in the trap-door tree are top-level rows. Off-grid
+  // hosts (no LTG) and any host rendered indented under a reachable parent (`nested`) are skipped here
+  // -- the tree shows them once, so they don't also get a duplicate top-level row.
+  hosts.forEach(h => {
+    const addr = (h.ltg_address || '').trim();
+    if (!addr) return;
+    if (nested && nested.has(h.id)) return;
+    const entry = idx[addr];
+    if (entry) {
+      const key = entry.org_name || 'Unknown Organization';
+      (groups[key] = groups[key] || { org_name: key, rows: [] }).rows.push({ host: h, entry });
+    } else {
+      assigned.push({ host: h, entry: null });
+    }
+  });
+  return { groups, assigned };
+}
+
+// Build the trap-door parent->children adjacency from every host's trap_doors_json. Returns a map
+// of parentId -> [{child, sources[]}] (sources = the named Slave devices the door hangs off) plus
+// an inbound-reference count per child. Edges to the same child from one parent are merged.
+function _mhTrapTree() {
+  const byId = {};
+  hosts.forEach(h => { byId[h.id] = h; });
+  const childrenOf = {};   // parentId -> [{child, sources}]
+  const inbound = {};      // childId -> distinct-parent count
+  hosts.forEach(parent => {
+    const grouped = {};    // childId -> [source_piece]
+    (parent.trap_doors_json || []).forEach(td => {
+      const cid = td && td.destination_host_id;
+      if (cid == null || !byId[cid] || cid === parent.id) return;
+      (grouped[cid] = grouped[cid] || []).push(td.source_piece || '');
+    });
+    Object.entries(grouped).forEach(([cid, sources]) => {
+      const id = parseInt(cid, 10);
+      (childrenOf[parent.id] = childrenOf[parent.id] || []).push({ child: byId[id], sources });
+      inbound[id] = (inbound[id] || 0) + 1;
+    });
+  });
+  return { byId, childrenOf, inbound };
+}
+
+// Hosts that will be shown indented under a trap-door parent, so they must NOT also be listed as a
+// top-level row. Walk the tree from each ADDRESSED, non-child host (a reachable entry point) through
+// all descendants; cycle-guarded. A host reachable only from an off-grid/orphan root is intentionally
+// NOT counted here -- it keeps its own top-level row instead of vanishing.
+function _mhNestedSet(tree) {
+  const shown = new Set();
+  const walk = (pid, path) => {
+    (tree.childrenOf[pid] || []).forEach(({ child }) => {
+      shown.add(child.id);
+      if (!path.has(child.id)) {
+        path.add(child.id);
+        walk(child.id, path);
+        path.delete(child.id);
+      }
+    });
+  };
+  hosts.forEach(h => {
+    if ((h.ltg_address || '').trim() && !tree.inbound[h.id]) walk(h.id, new Set([h.id]));
+  });
+  return shown;
+}
+
+// One indented trap-door child row -- the SINGLE place a trap-door child appears (it is no longer
+// also listed as a top-level row). `depth` drives the indent. On-grid children show their address
+// plus an edit pencil + reveal so this one line both edits the host AND unlinks the door; off-grid
+// children show an "off-grid" tag. The unlink control rides on the "via" line for every child.
+function _mhChildRowHtml(child, parentId, sources, depth, isCycle) {
+  const addr = (child.ltg_address || '').trim();
+  let addrHtml, editBtn = '';
+  if (addr) {
+    const p = _mhParseAddr(child.ltg_address);
+    addrHtml = _mhAddrDisplayHtml(p.rtg, p.ltg, child.id_code || '');
+    editBtn = `<button class="mh-edit" onclick="mhEditAddr(${child.id})" title="Edit RTG / LTG / ID code" aria-label="Edit address">&#9998;</button>`;
+  } else {
+    addrHtml = '<span class="mh-trap-tag">off-grid</span>';
+  }
+  const san = child.san_rating || '';
+  const ratingHtml = san ? `<span class="ltg-rating ${_mhRatingClass(san)}">${esc(san)}</span>` : '';
+  const viaList = sources.filter(Boolean).map(s => `'${esc(s)}'`).join(', ');
+  const via = viaList ? `via ${viaList}` : 'trap door';
+  const cyc = isCycle ? ' <span class="mh-cycle" title="Trap-door loop -- already shown above">&#8635;</span>' : '';
+  const unlink = `<button class="mh-unlink" type="button" onclick="mhUnlinkTrap(${parentId}, ${child.id})" title="Remove this trap-door link" aria-label="Unlink trap door">unlink</button>`;
+  return `<div class="mh-host mh-child" style="--depth:${depth}">
+    <span class="mh-col-host"><span class="nm"><span class="mh-branch">&#8627;</span>${esc(child.name)}${cyc}</span><span class="mh-via">${via} ${unlink}</span></span>
+    <span class="mh-col-mid">${addrHtml}</span>
+    <span class="mh-col-rating">${ratingHtml}</span>
+    <span class="mh-col-edit">${editBtn}</span>
+    <span class="mh-col-rev">${_mhRevealHtml(child)}</span>
+  </div>`;
+}
+
+// Render a host's trap-door children indented beneath it, recursing into EVERY child (on-grid and
+// off-grid) so the child appears here once and only once -- it is no longer duplicated as a
+// top-level row. `path` guards against trap-door loops; `rendered` records every child shown so the
+// caller can surface anything left over as Unreachable.
+function _mhRenderSubtree(parentId, depth, tree, rendered, path) {
+  const kids = tree.childrenOf[parentId] || [];
+  let html = '';
+  kids.forEach(({ child, sources }) => {
+    if (path.has(child.id)) {
+      html += _mhChildRowHtml(child, parentId, sources, depth, true);
+      rendered.add(child.id);
+      return;
+    }
+    html += _mhChildRowHtml(child, parentId, sources, depth, false);
+    rendered.add(child.id);
+    path.add(child.id);
+    html += _mhRenderSubtree(child.id, depth + 1, tree, rendered, path);
+    path.delete(child.id);
+  });
+  return html;
+}
+
+function _mhRevealHtml(h) {
+  const vis = !!h.is_visible_to_players;
+  if (!vis && !_mhHasAddr(h)) {
+    return `<label class="mh-reveal" data-tip="Assign an RTG/LTG address before revealing">
+      <input type="checkbox" class="chk-reveal" disabled></label>`;
+  }
+  return `<label class="mh-reveal">
+    <input type="checkbox" class="chk-reveal" ${vis ? 'checked' : ''}
+      onchange="mhSetVisible(${h.id}, this.checked)"></label>`;
+}
+
+// Generate a 5-char hex LTG code that is unique against every already-assigned host address
+// and every org-catalog LTG -- mirrors the Organizations page generator.
+function _mhGenUniqueLtg() {
+  const hex = '0123456789ABCDEF';
+  const used = new Set();
+  hosts.forEach(h => {
+    const parts = (h.ltg_address || '').trim().split(/\s+/);
+    if (parts.length >= 2) used.add(parts[parts.length - 1].toUpperCase());
+  });
+  ltgCatalog.forEach(e => { if (e.ltg) used.add(String(e.ltg).toUpperCase()); });
+  let code = '';
+  do {
+    code = '';
+    for (let i = 0; i < 5; i++) code += hex[Math.floor(Math.random() * 16)];
+  } while (used.has(code));
+  return code;
+}
+
+// RTG <option> list, sorted by code, with `selected` applied to the current RTG (if any).
+function _mhRtgOptions(selected) {
+  return _mhRtgs.slice()
+    .sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')))
+    .map(r => {
+      const label = r.region ? `${r.code} -- ${r.region}` : String(r.code || '');
+      const sel = (String(r.code) === String(selected || '')) ? ' selected' : '';
+      return `<option value="${esc(r.code)}"${sel}>${esc(label)}</option>`;
+    }).join('');
+}
+
+// Modal-hosted RTG/LTG/ID editor for one unaffiliated host. Used for BOTH first-time assignment
+// (no current address -> a freshly generated LTG) and fixing an existing one. The LTG is
+// auto-generated and shown read-only (random allocation); ID code is capped at 8. A trap-door
+// destination that currently has an address also gets a Remove Address action to take it off grid.
+function _mhEditorHtml(h) {
+  const cur = _mhParseAddr(h.ltg_address);
+  const ltgVal = cur.ltg || _mhGenUniqueLtg();
+  const removeBtn = (h.is_trap_door_dest && _mhHasAddr(h))
+    ? `<button class="btn btn-sm mh-rmaddr" type="button" onclick="mhRemoveAddress(${h.id})" title="Take this trap-door host off the grid -- reachable only via a parent host's trap door" aria-label="Remove address">Remove Address</button>`
+    : '';
+  return `<div class="mh-assign">
+    <div class="mh-assign-fields">
+      <select id="mh-rtg-${h.id}" data-native><option value="">-- RTG --</option>${_mhRtgOptions(cur.rtg)}</select>
+      <input type="text" id="mh-ltg-${h.id}" value="${esc(ltgVal)}" maxlength="12" title="Auto-generated unique LTG code" readonly data-tip="Auto-generated unique LTG code">
+      <input type="text" id="mh-id-${h.id}" class="mh-idcode" maxlength="8" placeholder="ID Code" value="${esc(h.id_code || '')}">
+    </div>
+    <div class="mh-assign-actions">
+      ${removeBtn}
+      <button class="btn btn-green btn-sm" onclick="mhAssignAddress(${h.id})">Save</button>
+      <button class="btn btn-ghost btn-sm" onclick="mhCancelEdit()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function _mhHostRowHtml(row, kind) {
+  const h = row.host, entry = row.entry;
+  let addrHtml, ratingHtml = '', editBtn = '';
+  if (kind === 'org') {
+    // Org-linked: mirror the org world-state card -- prefer the catalog entry so an ID code
+    // set on the org card shows here too. Org addresses are managed on the org card (no pencil).
+    const idCode = (entry?.id_code) || h.id_code || '';
+    const san = entry?.san_access_rating || '';
+    addrHtml = _mhAddrDisplayHtml(entry?.rtg || '', entry?.ltg || '', idCode);
+    ratingHtml = san ? `<span class="ltg-rating ${_mhRatingClass(san)}">${esc(san)}</span>` : '';
+  } else if (kind === 'assigned') {
+    // Unaffiliated but addressed: read the SAVED address back (RTG // LTG [ID]) + edit pencil.
+    const p = _mhParseAddr(h.ltg_address);
+    const san = h.san_rating || '';
+    addrHtml = _mhAddrDisplayHtml(p.rtg, p.ltg, h.id_code || '');
+    ratingHtml = san ? `<span class="ltg-rating ${_mhRatingClass(san)}">${esc(san)}</span>` : '';
+    editBtn = `<button class="mh-edit" onclick="mhEditAddr(${h.id})" title="Edit RTG / LTG / ID code" aria-label="Edit address">&#9998;</button>`;
+  } else {
+    // Unassigned: no address yet. The pencil opens the same editor seeded with a new LTG.
+    addrHtml = '<span class="mh-noaddr text-dim">-- no address --</span>';
+    editBtn = `<button class="mh-edit" onclick="mhEditAddr(${h.id})" title="Assign RTG / LTG / ID code" aria-label="Assign address">&#9998;</button>`;
+  }
+
+  return `<div class="mh-host">
+    <span class="mh-col-host"><span class="nm">${esc(h.name)}</span></span>
+    <span class="mh-col-mid">${addrHtml}</span>
+    <span class="mh-col-rating">${ratingHtml}</span>
+    <span class="mh-col-edit">${editBtn}</span>
+    <span class="mh-col-rev">${_mhRevealHtml(h)}</span>
+  </div>`;
+}
+
+function _mhGroupHtml(title, rows, kind, tree, rendered) {
+  const isUnaff = (kind !== 'org');
+  const head = `<div class="mh-host mh-host-head">
+    <span class="mh-col-host">Host</span>
+    <span class="mh-col-mid">Address</span>
+    <span class="mh-col-rating">Rating</span>
+    <span class="mh-col-edit">${isUnaff ? 'Edit' : ''}</span>
+    <span class="mh-col-rev">Reveal</span>
+  </div>`;
+  const body = rows.length
+    ? head + rows.map(r => {
+        if (rendered) rendered.add(r.host.id);
+        // Only a reachable root (no inbound trap door) renders a child subtree. A stray addressed
+        // child kept at top level must not re-render its descendants (they keep their own rows).
+        const sub = (tree && rendered && !tree.inbound[r.host.id])
+          ? _mhRenderSubtree(r.host.id, 1, tree, rendered, new Set([r.host.id])) : '';
+        return _mhHostRowHtml(r, kind) + sub;
+      }).join('')
+    : '<div class="mh-empty">No hosts.</div>';
+  return `<div class="mh-group">
+    <div class="mh-group-head${isUnaff ? ' unaff' : ''}">
+      <span class="org">${esc(title)}</span>
+    </div>
+    ${body}
+  </div>`;
+}
+
+function renderHostRegistry() {
+  const wrap = $('hostGroups');
+  if (!wrap) return;
+  if (!hosts.length) {
+    wrap.innerHTML = '<div class="mh-empty">No Matrix hosts exist yet. Build one in the Host Designer tab.</div>';
+    return;
+  }
+  const tree = _mhTrapTree();
+  const nested = _mhNestedSet(tree);
+  const rendered = new Set();
+  const { groups, assigned } = _mhGroupHosts(nested);
+  const orgNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+  let html = orgNames.map(n => _mhGroupHtml(groups[n].org_name, groups[n].rows, 'org', tree, rendered)).join('');
+  if (assigned.length) html += _mhGroupHtml('Unaffiliated', assigned, 'assigned', tree, rendered);
+
+  // Unreachable: off-grid hosts (no address) that no matrix-reachable host drops into via a trap
+  // door -- orphans, or off-grid chains with no addressed root. Surface them so they can be wired
+  // (Slave-device trap door), given an address, or deleted. A host with neither is dead weight.
+  const unreachable = hosts
+    .filter(h => !(h.ltg_address || '').trim() && !rendered.has(h.id))
+    .map(h => ({ host: h, entry: null }));
+  if (unreachable.length) {
+    const head = `<div class="mh-host mh-host-head">
+      <span class="mh-col-host">Host</span>
+      <span class="mh-col-mid">Address</span>
+      <span class="mh-col-rating">Rating</span>
+      <span class="mh-col-edit">Assign</span>
+      <span class="mh-col-rev">Reveal</span>
+    </div>`;
+    html += `<div class="mh-group">
+      <div class="mh-group-head unreach">
+        <span class="org">&#9888; Unreachable &mdash; No Address or Trap Door</span>
+      </div>
+      ${head}${unreachable.map(r => _mhHostRowHtml(r, 'unassigned')).join('')}
+    </div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+// Remove a trap-door link: parent no longer drops into child. The backend re-derives the child's
+// is_trap_door_dest flag; an off-grid child left with no other inbound link moves to Unreachable.
+async function mhUnlinkTrap(parentId, childId) {
+  const parent = hosts.find(h => h.id === parentId);
+  const child  = hosts.find(h => h.id === childId);
+  if (!parent || !child) return;
+  const ok = await showConfirm(
+    `Unlink trap door? "${parent.name}" will no longer drop into "${child.name}".`,
+    'Unlink', 'btn-amber');
+  if (!ok) return;
+  const remaining = (parent.trap_doors_json || []).filter(td => td.destination_host_id !== childId);
+  try {
+    const res = await apiFetch(`/matrix-hosts/${parentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ trap_doors_json: remaining.length ? remaining : null }),
+    });
+    if (!res.ok) await apiThrow(res);
+    await Promise.all([loadHosts(), loadLtgCatalog()]);
+    // If the unlinked parent is open in the designer, resync its in-memory trap doors so the next
+    // autosave does not re-add the link we just removed.
+    if (currentHost && currentHost.id === parentId) {
+      const fresh = hosts.find(h => h.id === parentId);
+      if (fresh) {
+        currentHost = fresh;
+        trapDoors = Array.isArray(fresh.trap_doors_json) ? JSON.parse(JSON.stringify(fresh.trap_doors_json)) : [];
+        renderTrapDoors();
+        renderSubPieces('slave');
+      }
+    }
+    renderHostRegistry();
+    showAlert(alertEl(), 'Trap door unlinked.', false);
+  } catch (e) {
+    showAlert(alertEl(), '>> UPDATE FAILED // ' + e.message, true);
+  }
+}
+
+async function mhSetVisible(id, visible) {
+  try {
+    const res = await apiFetch(`/matrix-hosts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_visible_to_players: visible }),
+    });
+    if (!res.ok) await apiThrow(res);
+    showAlert(alertEl(), `Host ${visible ? 'revealed to' : 'hidden from'} players.`, false);
+    await Promise.all([loadHosts(), loadLtgCatalog()]);
+    renderHostRegistry();
+  } catch (e) {
+    showAlert(alertEl(), '>> UPDATE FAILED // ' + e.message, true);
+    await loadHosts();
+    renderHostRegistry();
+  }
+}
+
+// Open the address editor modal for one unaffiliated host (assign a new address or fix an
+// existing one).
+function mhEditAddr(id) {
+  const h = hosts.find(x => x.id === id);
+  if (!h) return;
+  _mhEditingId = id;
+  const hasAddr = !!(h.ltg_address || '').trim();
+  const hdr = $('mhEditHeader');
+  if (hdr) hdr.innerHTML = (hasAddr ? '&gt;&gt; Edit Grid Address &mdash; ' : '&gt;&gt; Assign Grid Address &mdash; ') + esc(h.name);
+  const body = $('mhEditBody');
+  if (body) body.innerHTML = _mhEditorHtml(h);
+  $('mhEditOverlay').classList.add('open');
+}
+function mhCancelEdit() { _mhEditingId = null; $('mhEditOverlay').classList.remove('open'); }
+
+// Take a trap-door destination off the grid: clear its LTG so it is reachable only through a
+// parent host's trap door. Disallowed for non-trap hosts -- every other system must stay
+// reachable from the Matrix (the backend enforces this too).
+async function mhRemoveAddress(id) {
+  const h = hosts.find(x => x.id === id);
+  if (!h) return;
+  if (!h.is_trap_door_dest) {
+    showAlert(alertEl(), 'Only a trap-door destination can be taken off the grid -- every other host must stay reachable from the Matrix.', true);
+    return;
+  }
+  if (!await showConfirm('Remove this host\'s grid address? It will be reachable only through a parent host\'s trap door.', 'Remove Address', 'btn-amber')) return;
+  try {
+    const res = await apiFetch(`/matrix-hosts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ltg_address: null, is_visible_to_players: false }),
+    });
+    if (!res.ok) await apiThrow(res);
+    _mhEditingId = null;
+    $('mhEditOverlay').classList.remove('open');
+    showAlert(alertEl(), 'Grid address removed -- host is now reachable only via a trap door.', false);
+    await Promise.all([loadHosts(), loadLtgCatalog()]);
+    renderHostRegistry();
+  } catch (e) {
+    showAlert(alertEl(), '>> UPDATE FAILED // ' + e.message, true);
+  }
+}
+
+async function mhAssignAddress(id) {
+  const rtg = ($(`mh-rtg-${id}`)?.value || '').trim();
+  const ltg = ($(`mh-ltg-${id}`)?.value || '').trim().toUpperCase();
+  const idCode = ($(`mh-id-${id}`)?.value || '').trim();
+  if (!rtg) {
+    showAlert(alertEl(), 'Select an RTG before saving.', true);
+    return;
+  }
+  if (!ltg) {
+    showAlert(alertEl(), 'Enter or generate an LTG code before saving.', true);
+    return;
+  }
+  if (idCode.length > 8) {
+    showAlert(alertEl(), 'ID code is limited to 8 characters.', true);
+    return;
+  }
+  try {
+    const res = await apiFetch(`/matrix-hosts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ltg_address: `${rtg} ${ltg}`, id_code: idCode || null }),
+    });
+    if (!res.ok) await apiThrow(res);
+    _mhEditingId = null;
+    $('mhEditOverlay').classList.remove('open');
+    showAlert(alertEl(), `Grid address set to ${rtg} ${ltg}${idCode ? ' (ID ' + idCode + ')' : ''}.`, false);
+    await Promise.all([loadHosts(), loadLtgCatalog()]);
+    renderHostRegistry();
+  } catch (e) {
+    showAlert(alertEl(), '>> UPDATE FAILED // ' + e.message, true);
+  }
+}
+
 function deepCloneSheaf(sheaf) {
   return JSON.parse(JSON.stringify(sheaf));
 }
@@ -1273,6 +1772,7 @@ function deepCloneSheaf(sheaf) {
 
 function onSecCodeChange() {
   const v = $('secCode').value;
+  cddSync($('secCode'));   // refresh custom-dropdown label after a programmatic .value= (e.g. host load)
   $('secCodeTip').textContent = v ? SEC_CODE_TIPS[v] || '' : '';
   updateSummary();
   renderSheaf();
@@ -1292,6 +1792,7 @@ function onSecValueChange() {
 
 function onDifficultyChange() {
   const d      = $('intrusionDifficulty').value;
+  cddSync($('intrusionDifficulty'));   // refresh custom-dropdown label after a programmatic .value= (e.g. host load)
   const range  = d ? DIFFICULTY_INFO[d]?.subsystem_range : null;
   for (const id of ['acifA', 'acifC', 'acifI', 'acifF', 'acifS']) {
     const el = $(id);
@@ -1322,6 +1823,7 @@ function onDifficultyChange() {
 
 function onOwnerTypeChange() {
   const v = $('ownerType').value;
+  cddSync($('ownerType'));   // refresh custom-dropdown label after a programmatic .value= (e.g. host load)
   $('ownerTypeTip').textContent = v ? OWNER_TYPE_TIPS[v] || '' : '';
 }
 
@@ -1744,9 +2246,32 @@ function _renameSubPiece(type, i, v) {
   renderScrambles();
 }
 
-// Named pieces rendered as prototype .tag-pc pills. Access pills inline-rename + remove;
-// Slave pills open the device Inspector (rename / Trap Door / destination / Follow / remove),
-// and show the [TRAP DOOR] flag when flagged.
+// Per-piece protection badges so the Step 3 cards surface the GM-relevant attached
+// IC (Scramble / Data Bomb) as chips. Trap-door status shows in the card header
+// ("Slave # (Trap Door)") + a destination line, not a chip.
+function _pieceScrambleBadge(type, name) {
+  const key = type === 'access' ? `access::piece::${name}` : `slave::piece::${name}`;
+  const sc = scrambles.find(s => s.target_key === key);
+  if (!sc) return '';
+  const v = sc.variant === 'poison' ? 'POISON' : 'EXPLODING';
+  return `<span class="pc-tag">${v} SCRAMBLE-${esc(String(sc.rating))}</span>`;
+}
+function _slaveDataBombBadge(name) {
+  const db = dataBombs.find(d => d.target === `${DB_TARGET_SLAVE_PREFIX}${name}`);
+  return db ? `<span class="pc-tag">DATA BOMB-${esc(String(db.rating))}</span>` : '';
+}
+function _slaveTrapDest(name) {
+  const td = trapDoors.find(t => t.source_piece === name);
+  if (!td) return '';
+  const dest = td.destination_label || td.destination_ltg
+    || (td.destination_host_id ? `Host #${td.destination_host_id}` : '');
+  return dest ? `<span class="pc-dest">&#8594; ${esc(dest)}</span>` : '';
+}
+
+// Named pieces rendered as numbered small cards inside a frame. Headers count up
+// ("Access 1", "Slave 2", "Slave 3 (Trap Door)"). Access cards inline-rename (click
+// name); both card types carry a quick remove (x). Slave cards also open the device
+// Inspector (rename / Trap Door / destination / Follow) on click.
 function renderSubPieces(type) {
   _scheduleAutoSave();
   const arr    = type === 'access' ? accessPieces : slavePieces;
@@ -1754,23 +2279,32 @@ function renderSubPieces(type) {
   const list   = $(listId);
   if (!list) return;
   if (arr.length === 0) {
-    list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None defined.</div>';
+    list.innerHTML = '<div class="piece-frame"><div class="piece-empty">None defined.</div></div>';
     return;
   }
-  const pills = arr.map((name, i) => {
+  const cards = arr.map((name, i) => {
     if (type === 'access') {
-      return `<span class="tag-pc">
-        <span class="nm editable" id="subpiece-access-${i}" data-tip="Click to rename" onclick="inlineRenameSubPiece('access',${i})">${esc(name)}</span>
-        <span class="x" onclick="removeSubPiece('access',${i})" data-tip="Remove">&times;</span>
-      </span>`;
+      const scr  = _pieceScrambleBadge('access', name);
+      const meta = scr ? `<div class="pc-meta">${scr}</div>` : '';
+      return `<div class="piece-card">
+        <span class="pc-x" onclick="removeSubPiece('access',${i})" data-tip="Remove">&times;</span>
+        <span class="pc-eyebrow">Access ${i + 1}</span>
+        <span class="pc-name editable" id="subpiece-access-${i}" data-tip="Click to rename" onclick="inlineRenameSubPiece('access',${i})">${esc(name)}</span>
+        ${meta}
+      </div>`;
     }
     const isTrap = slaveTrapPieces.includes(name);
-    const flag = isTrap ? '<span class="trapflag">[TRAP DOOR]</span>' : '';
-    return `<span class="tag-pc clickable${isTrap ? ' trap' : ''}" data-slave="${i}" data-tip="Edit device: rename, Trap Door, destination">
-      <span class="nm">${esc(name)}</span>${flag}
-    </span>`;
+    const dest   = isTrap ? _slaveTrapDest(name) : '';
+    const tags   = [_slaveDataBombBadge(name), _pieceScrambleBadge('slave', name)].filter(Boolean).join('');
+    const meta   = (tags ? `<div class="pc-meta">${tags}</div>` : '') + dest;
+    return `<div class="piece-card clickable${isTrap ? ' trap' : ''}" data-slave="${i}" data-tip="Edit device: rename, Trap Door, destination">
+      <span class="pc-x" onclick="event.stopPropagation();removeSubPiece('slave',${i})" data-tip="Remove">&times;</span>
+      <span class="pc-eyebrow">Slave ${i + 1}${isTrap ? ' (Trap Door)' : ''}</span>
+      <span class="pc-name">${esc(name)}</span>
+      ${meta}
+    </div>`;
   }).join('');
-  list.innerHTML = `<div class="tagrow">${pills}</div>`;
+  list.innerHTML = `<div class="piece-frame"><div class="piece-cards">${cards}</div></div>`;
 }
 
 function inlineRenameSubPiece(type, i) {
@@ -2048,38 +2582,44 @@ function removeWorm(i) {
 
 // --- Trap Doors ---------------------------------------------------------------
 
-// Option markup for a trap-door destination select (designed hosts + LTG catalog),
+// Option markup for a trap-door destination select (designed hosts + an inline "create new"),
 // with `selected` pre-chosen. Shared by the legacy Step-5 select and the slave-device Inspector.
 function _trapDoorDestOptionsHTML(selected) {
   selected = selected || '';
-  // Designed hosts (exclude current)
-  const designedOpts = hosts
-    .filter(h => currentHost ? h.id !== currentHost.id : true)
-    .map(h => {
-      const label = h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '');
-      const val = `host:${h.id}`;
-      return `<option value="${val}"${val === selected ? ' selected' : ''}>${esc(label)}</option>`;
-    }).join('');
+  // Any other host can be the endpoint a concealed port out of THIS host drops into. Off-grid
+  // hosts (no LTG) are the usual hidden targets, so list them first; matrix-addressed hosts follow.
+  // Being a trap-door destination is derived from the link itself now -- no pre-flag needed.
+  const others  = hosts.filter(h => !currentHost || h.id !== currentHost.id);
+  const offGrid = others.filter(h => !(h.ltg_address || '').trim());
+  const onGrid  = others.filter(h =>  (h.ltg_address || '').trim());
+  const optFor = h => {
+    const label = h.name + (h.ltg_address ? ` [${h.ltg_address}]` : ' [off-grid]');
+    const val = `host:${h.id}`;
+    return `<option value="${val}"${val === selected ? ' selected' : ''}>${esc(label)}</option>`;
+  };
+  let body = '';
+  if (offGrid.length) body += `<optgroup label="Off-grid Systems">${offGrid.map(optFor).join('')}</optgroup>`;
+  if (onGrid.length)  body += `<optgroup label="Matrix-addressed Hosts">${onGrid.map(optFor).join('')}</optgroup>`;
 
-  // LTG catalog (exclude current host's own LTG address)
-  const currentLtg = currentHost?.ltg_address || null;
-  const byOrg = {};
-  for (const e of ltgCatalog) {
-    if (currentLtg && e.full_address === currentLtg) continue;
-    (byOrg[e.org_name] = byOrg[e.org_name] || []).push(e);
+  // Keep an already-saved destination selectable even if it is a legacy LTG-address trap door so
+  // editing an existing trap door never silently drops its target.
+  let head = '';
+  if (selected && !others.some(h => `host:${h.id}` === selected)) {
+    let label = selected;
+    if (selected.startsWith('host:')) {
+      const h = hosts.find(x => `host:${x.id}` === selected);
+      label = h ? (h.name + (h.ltg_address ? ` [${h.ltg_address}]` : '')) : selected.slice(5);
+    } else if (selected.startsWith('ltg:')) {
+      const e = ltgCatalog.find(x => `ltg:${x.full_address}` === selected);
+      label = e ? `${e.full_address} -- ${e.description}` : selected.slice(4);
+    }
+    head = `<option value="${esc(selected)}" selected>${esc(label)} (current)</option>`;
   }
-  const ltgGroups = Object.entries(byOrg).map(([org, entries]) => {
-    const opts = entries.map(e => {
-      const label = `${e.full_address}${e.id_code ? ' [' + e.id_code + ']' : ''} -- ${e.description}`;
-      const val = `ltg:${e.full_address}`;
-      return `<option value="${esc(val)}"${val === selected ? ' selected' : ''}>${esc(label)}</option>`;
-    }).join('');
-    return `<optgroup label="${esc(org)}">${opts}</optgroup>`;
-  }).join('');
 
   return `<option value="">-- destination --</option>`
-    + (designedOpts ? `<optgroup label="Designed Hosts">${designedOpts}</optgroup>` : '')
-    + ltgGroups;
+    + head
+    + `<option value="__new__">+ New off-grid system...</option>`
+    + body;
 }
 
 function _rebuildTrapDoorDestOpts() {
@@ -2254,9 +2794,9 @@ async function saveConfig() {
     slave_trap_pieces: slaveTrapPieces.length > 0 ? slaveTrapPieces : null,
   };
 
-  // Use the dropdown value; if blank, preserve the host's existing address rather than clearing it.
-  // The user can only explicitly clear it by picking "-- None / Custom --" when an address IS in the dropdown.
-  const ltgAddress = ($('ltgAddressSelect')?.value || '').trim() || currentHost.ltg_address || null;
+  // The designer no longer edits the LTG link inline (custom hosts set it in the create modal;
+  // existing hosts are managed from the org page) -- always preserve the host's current address.
+  const ltgAddress = (currentHost.ltg_address || '').trim() || null;
 
   try {
     const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
@@ -2279,16 +2819,7 @@ async function saveConfig() {
     updateSummary();
     checkRunReady();
 
-    // Update the LTG dropdown cache and info line immediately.
     const newSanRating = `${code}-${sv}`;
-    const ltgSel  = $('ltgAddressSelect');
-    if (ltgSel && ltgSel.value) {
-      const opt = ltgSel.options[ltgSel.selectedIndex];
-      if (opt) opt.dataset.san = newSanRating;
-      const ltgEntry = ltgCatalog.find(e => e.full_address === ltgSel.value);
-      if (ltgEntry) ltgEntry.san_access_rating = newSanRating;
-      onLtgAddressChange();
-    }
 
     // Persist security rating to the org's LTG entry using the same catalog reference
     // that was used to read the value in the first place (org_id + rtg + ltg keys).
@@ -2306,12 +2837,6 @@ async function saveConfig() {
         });
         if (syncRes.ok) {
           ltgEntryForSync.san_access_rating = newSanRating;
-          const ltgSelPost = $('ltgAddressSelect');
-          if (ltgSelPost?.value) {
-            const opt = ltgSelPost.options[ltgSelPost.selectedIndex];
-            if (opt) opt.dataset.san = newSanRating;
-            onLtgAddressChange();
-          }
         } else {
           syncNote = ` (org sync error: HTTP ${syncRes.status})`;
         }
@@ -2392,7 +2917,7 @@ async function _autoSaveNow() {
   _autoSaveInFlight = true;
   try {
     const cfg = _buildConfigPayload();
-    const ltgAddress = ($('ltgAddressSelect')?.value || '').trim() || currentHost.ltg_address || null;
+    const ltgAddress = (currentHost.ltg_address || '').trim() || null;
     const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -3205,7 +3730,7 @@ document.addEventListener('click', (e) => {
   const td = e.target.closest('#trapDoorList .td-row[data-td]');
   if (td) { inspectTrapDoor(parseInt(td.dataset.td, 10)); return; }
   // slave named devices (trap-door source + destination + Follow live here)
-  const slave = e.target.closest('#slavePieceList .tag-pc[data-slave]');
+  const slave = e.target.closest('#slavePieceList .piece-card[data-slave]');
   if (slave) { inspectSlaveDevice(parseInt(slave.dataset.slave, 10)); return; }
 });
 
@@ -3555,7 +4080,7 @@ function inspectSlaveDevice(i) {
     ${trapSection}
     <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_inspRemoveSlave(${i})" style="color:var(--red)">Remove Device</button></div>`);
   _clearSelectedEvent();
-  const pill = document.querySelector(`#slavePieceList .tag-pc[data-slave="${i}"]`);
+  const pill = document.querySelector(`#slavePieceList .piece-card[data-slave="${i}"]`);
   if (pill) pill.classList.add('md3-sel');
 }
 // Toggle Trap Door immediately (mirrors toggleSlaveTrapPiece) and re-open the inspector.
@@ -3583,11 +4108,53 @@ function _slvSetName(i, val) {
     inspectSlaveDevice(i);
   }
 }
-function _slvSetDest(i, val) {
+async function _slvSetDest(i, val) {
   const name = slavePieces[i]; if (name == null) return;
+  if (val === '__new__') { await _createOffGridChildAndLink(name, i); return; }
   _setTrapDoorDestination(name, val);
   renderTrapDoors(); updateSummary();
   inspectSlaveDevice(i);   // refresh so the Follow button shows/hides for the new destination
+}
+// Inline trap-door child creation: spin up a brand-new off-grid host (no grid address) and wire
+// THIS slave device's trap door to it in one step. The off-grid child is reachable only through
+// this trap door -- the autosave persists the link, and the backend derives the child's
+// is_trap_door_dest flag from it. Collapses the old "create the child elsewhere, then come back
+// and pick it" two-step into a single action.
+async function _createOffGridChildAndLink(sourceName, slaveIndex) {
+  if (!currentHost) { inspectSlaveDevice(slaveIndex); return; }
+  const suggested = `${currentHost.name} :: ${sourceName}`;
+  const childName = await showPrompt(
+    'Name the new off-grid system this trap door drops into. It is created with no grid address -- reachable only through this trap door.',
+    suggested,
+    { title: '>> NEW OFF-GRID SYSTEM', okLabel: 'Create & Link', okClass: 'btn-green', placeholder: 'Host name' }
+  );
+  if (childName == null) { inspectSlaveDevice(slaveIndex); return; }   // cancelled
+  const nm = childName.trim();
+  if (!nm) { showAlert(alertEl(), 'Host name cannot be empty.', true); inspectSlaveDevice(slaveIndex); return; }
+  try {
+    const res = await apiFetch('/matrix-hosts/', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: nm,
+        ltg_address: null,
+        config_json: {},
+        topology_json: { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: '#398039' }] },
+        is_visible_to_players: false,
+      }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const child = await res.json();
+    hosts.unshift(child);
+    renderHostDropdown();
+    _setTrapDoorDestination(sourceName, `host:${child.id}`);
+    renderTrapDoors();   // schedules the autosave that persists trap_doors_json on this parent
+    updateSummary();
+    inspectSlaveDevice(slaveIndex);
+    showAlert(alertEl(), `Off-grid system "${nm}" created and wired to this trap door.`, false);
+  } catch (e) {
+    showAlert(alertEl(), 'Failed to create off-grid system: ' + e.message, true);
+    inspectSlaveDevice(slaveIndex);
+  }
 }
 function _inspRemoveSlave(i) {
   _inspCtx = null; _clearSelectedEvent(); inspectorReset();
@@ -4185,18 +4752,50 @@ function updateSummary() {
   const delBtn = $('deleteHostBtn');
   if (delBtn) delBtn.style.display = currentHost._autoCreated ? 'none' : '';
 
+  const visBtn = $('hostVisBtn');
+  if (visBtn) {
+    visBtn.style.display = currentHost._autoCreated ? 'none' : '';
+    const vis = !!currentHost.is_visible_to_players;
+    visBtn.textContent = vis ? '\u2299 Hide from Players' : '\u25cc Reveal to Players';
+  }
+
   checkRunReady();
   _scheduleAutoSave();   // catch-all: most mutations call updateSummary (self-guarded by _designerReady)
 }
 
 // --- Create Host -------------------------------------------------------------
 
-function toggleCreateForm() {
-  const form = $('createForm');
-  const btn  = $('createToggleBtn');
-  const visible = form.style.display !== 'none';
-  form.style.display = visible ? 'none' : '';
-  btn.textContent = visible ? '+ Create Custom Host' : 'x Cancel';
+function openCreateHostModal() {
+  _initCreateForm();
+  const cAlert = $('createHostAlert');
+  if (cAlert) { cAlert.className = 'alert'; cAlert.textContent = ''; }
+  const ov = $('createHostOverlay');
+  if (ov) ov.classList.add('open');
+  pausePoll();
+  setTimeout(() => $('newHostName')?.focus(), 0);
+}
+
+function closeCreateHostModal() {
+  const ov = $('createHostOverlay');
+  if (ov) ov.classList.remove('open');
+  resumePoll();
+}
+
+function wireCreateHostModal() {
+  const ov = $('createHostOverlay');
+  if (!ov) return;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && ov.classList.contains('open')) closeCreateHostModal();
+  });
+}
+
+// Seed the custom-host create form: fresh RTG list, a unique LTG, cleared ID. The grid address is
+// optional -- leaving it blank yields an off-grid host (reachable only via a trap door).
+function _initCreateForm() {
+  const rtgSel = $('newHostRtg');
+  if (rtgSel) rtgSel.innerHTML = '<option value="">-- RTG --</option>' + _mhRtgOptions('');
+  const ltg = $('newHostLtg'); if (ltg) ltg.value = _mhGenUniqueLtg();
+  const id = $('newHostId');  if (id) id.value = '';
 }
 
 // --- Wizard ------------------------------------------------------------------
@@ -4318,7 +4917,7 @@ function renderReview() {
   const sv    = $('secValue').value || '--';
   const owner = $('ownerType').value || '--';
   const diff  = $('intrusionDifficulty').value || 'Not set';
-  const ltg   = $('ltgAddressSelect')?.value || '';
+  const ltg   = currentHost?.ltg_address || '';
   const acifIds   = ['acifA', 'acifC', 'acifI', 'acifF', 'acifS'];
   const acifNames = ['Access', 'Control', 'Index', 'Files', 'Slave'];
   const acifVals  = acifIds.map((id, i) => {
@@ -4389,7 +4988,22 @@ function renderReview() {
 async function createHost() {
   const name  = $('newHostName').value.trim();
   const notes = $('newHostNotes').value.trim();
-  if (!name) { showAlert(alertEl(), 'Host name is required.', true); return; }
+  const rtg = ($('newHostRtg')?.value || '').trim();
+  const ltg = ($('newHostLtg')?.value || '').trim().toUpperCase();
+  const idCode = ($('newHostId')?.value || '').trim();
+  const cErr = $('createHostAlert');
+  if (!name) { showAlert(cErr, 'Host name is required.', true); return; }
+
+  const hasRtg = !!rtg, hasLtg = !!ltg;
+  // The grid address is optional: provide BOTH an RTG and LTG to put the host on the Matrix, or
+  // leave both blank for an off-grid host (it lands under Unreachable until a trap door wires it).
+  // A half address (one without the other) is the only invalid combination.
+  if ((hasRtg || hasLtg) && !(hasRtg && hasLtg)) {
+    showAlert(cErr, hasRtg ? 'Generate an LTG code, or clear the RTG to create an off-grid host.' : 'Select an RTG for the grid address.', true);
+    return;
+  }
+  if (idCode.length > 8) { showAlert(cErr, 'ID code is limited to 8 characters.', true); return; }
+  const ltgAddress = (hasRtg && hasLtg) ? `${rtg} ${ltg}` : null;
 
   try {
     const res = await apiFetch('/matrix-hosts/', {
@@ -4397,6 +5011,8 @@ async function createHost() {
       body: JSON.stringify({
         name,
         notes: notes || null,
+        ltg_address:   ltgAddress,
+        id_code:       idCode || null,
         config_json:   {},
         topology_json: { nodes: [], edges: [], subnets: [{ id: 'public', label: 'Public System', color: '#398039' }] },
         is_visible_to_players: false,
@@ -4415,19 +5031,22 @@ async function createHost() {
     _syncCurrentHostTab();   // show the new host as tab 1
     updateSummary();
     checkRunReady();
-    // Collapse the create form and reset it
-    $('createForm').style.display = 'none';
-    $('createToggleBtn').textContent = '+ Create Custom Host';
+    // Close the create modal and reset its fields
+    closeCreateHostModal();
     $('newHostName').value  = '';
     $('newHostNotes').value = '';
-    showAlert(alertEl(), `Host "${name}" created. Configure SR2 settings on the next steps.`, false);
+    if ($('newHostId'))  $('newHostId').value  = '';
+    const addrNote = ltgAddress ? `Address ${ltgAddress}.` : 'Off-grid -- wire a trap door to it from another host.';
+    showAlert(alertEl(), `Host "${name}" created. ${addrNote} Configure SR2 settings on the next steps.`, false);
     gotoStep(2);
     setTimeout(() => { _designerReady = true; _setSaveStatus('saved'); }, 0);   // enable auto-save
   } catch (e) {
-    showAlert(alertEl(), 'Create failed: ' + e.message, true);
+    showAlert(cErr, 'Create failed: ' + e.message, true);
   }
 }
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
 </body>
 </html>
 

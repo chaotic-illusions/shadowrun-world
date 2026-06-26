@@ -30,18 +30,20 @@
 
   <div id="alert" class="alert"></div>
 
-  <div class="flex-bar mb-16">
-    <div class="flex-row-10">
-      <input type="text" id="filterInput" placeholder="Filter by code, region, or political entity..." style="width:360px" oninput="applyFilter()">
-      <select id="filterContinent" onchange="applyFilter()" style="width:160px">
-        <option value="">All Continents</option>
-      </select>
+  <div id="viewRtgs">
+    <div class="flex-bar mb-16">
+      <div class="flex-row-10">
+        <input type="text" id="filterInput" placeholder="Filter by code, region, or political entity..." style="width:360px" oninput="applyFilter()">
+        <select id="filterContinent" onchange="applyFilter()" style="width:160px">
+          <option value="">All Continents</option>
+        </select>
+      </div>
+      <button class="btn btn-green gm-only" onclick="openModal()">+ New RTG</button>
     </div>
-    <button class="btn btn-green gm-only" onclick="openModal()">+ New RTG</button>
-  </div>
 
-  <div id="tableWrap">
-    <div class="loading">Loading RTGs</div>
+    <div id="tableWrap">
+      <div class="loading">Loading RTGs</div>
+    </div>
   </div>
 </main>
 
@@ -299,6 +301,7 @@ async function loadRTGs() {
   }
 }
 
+// Poll keeps the RTG table (and ambiance grid codes) fresh.
 bootstrapAuth().then(u => { if (u) { loadRTGs(); startPolling(loadRTGs); } });
 </script>
 <script src="ambiance.js"></script>
