@@ -32,6 +32,14 @@ class MatrixHost(Base):
     # SR universe linkage
     ltg_address: Mapped[str | None] = mapped_column(String(100), default=None)
 
+    # Optional host identifier code (e.g. "ID001"); parallels the org LTG entry id_code.
+    id_code: Mapped[str | None] = mapped_column(String(20), default=None)
+
+    # Whether this host can be chosen as a trap-door destination from another host. A host may be
+    # matrix-accessible (has ltg_address), a trap-door destination, or both; an off-grid host (no
+    # LTG) is reachable only by following another host's trap door.
+    is_trap_door_dest: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Trap doors to other hosts (list of dicts)
     trap_doors_json: Mapped[list | None] = mapped_column(JSON, default=None)
 
@@ -46,3 +54,15 @@ class MatrixHost(Base):
     location: Mapped[Location | None] = relationship(
         "Location", foreign_keys=[location_id]
     )
+
+    @property
+    def san_rating(self) -> str | None:
+        """System access rating ("Color-Value", e.g. "Orange-5") derived from config_json,
+        exposed on list summaries so the host registry can color a host's rating without
+        loading its full config. Mirrors the org catalog's san_access_rating."""
+        cfg = self.config_json or {}
+        code = cfg.get("security_code")
+        val = cfg.get("security_value")
+        if code and val is not None:
+            return f"{code}-{val}"
+        return str(code) if code else None

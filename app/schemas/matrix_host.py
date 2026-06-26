@@ -11,8 +11,10 @@ class MatrixHostCreate(BaseModel):
     topology_json: Optional[dict[str, Any]] = None
     notes: Optional[str] = None
     ltg_address: Optional[str] = Field(default=None, max_length=100)
+    id_code: Optional[str] = Field(default=None, max_length=8)
     trap_doors_json: Optional[list[dict[str, Any]]] = None
     is_visible_to_players: bool = False
+    is_trap_door_dest: bool = False
 
 
 class MatrixHostUpdate(BaseModel):
@@ -24,7 +26,9 @@ class MatrixHostUpdate(BaseModel):
     notes: Optional[str] = None
     is_visible_to_players: Optional[bool] = None
     ltg_address: Optional[str] = Field(default=None, max_length=100)
+    id_code: Optional[str] = Field(default=None, max_length=8)
     trap_doors_json: Optional[list[dict[str, Any]]] = None
+    is_trap_door_dest: Optional[bool] = None
 
 
 class MatrixHostRead(BaseModel):
@@ -37,7 +41,9 @@ class MatrixHostRead(BaseModel):
     notes: Optional[str] = None
     is_visible_to_players: bool = False
     ltg_address: Optional[str] = None
+    id_code: Optional[str] = None
     trap_doors_json: Optional[list[dict[str, Any]]] = None
+    is_trap_door_dest: bool = False
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -50,5 +56,9 @@ class MatrixHostSummary(BaseModel):
     location_id: Optional[int] = None
     is_visible_to_players: bool = False
     ltg_address: Optional[str] = None
+    id_code: Optional[str] = None
+    san_rating: Optional[str] = None
+    is_trap_door_dest: bool = False
+    trap_doors_json: Optional[list[dict[str, Any]]] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

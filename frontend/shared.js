@@ -33,11 +33,14 @@ function authHeaders(extra = {}) {
   return h;
 }
 
-// -- Matrix Run nav gate -------------------------------------------------------
-// Hides the Matrix Run nav link for players with no claimed PC that has deck skills,
-// matching the same access check used by the deck-workshop interrupt overlay.
+// -- Matrix decking nav gate ---------------------------------------------------
+// Hides the Deck Workshop and Matrix Run nav links for players with no claimed PC that has
+// deck skills, matching the same access check used by the deck-workshop interrupt overlay.
+// (RTGs and Hosts stay visible -- they are read-only topology references for everyone.)
+// Admins are exempt in BOTH views: an admin in runner view has no *claimed* PC (claiming
+// needs a user token), but the decking pages let them pick any eligible decker, so never hide.
 async function _applyMatrixRunNavGate() {
-  if (isAdminMode()) return;
+  if (isAdmin()) return;
   try {
     const [charRes, mineRes] = await Promise.all([
       apiFetch('/characters/'),
@@ -54,10 +57,77 @@ async function _applyMatrixRunNavGate() {
        (c.matrix_skill_enabled    && (c.matrix_skill_rating    || 0) >= 1))
     );
     if (!eligible.length) {
-      document.querySelectorAll('nav a[href="matrix-run.html"]')
+      document.querySelectorAll('nav a[href="matrix-run.html"], nav a[href="deck-workshop.html"]')
         .forEach(a => { a.style.display = 'none'; });
     }
   } catch (_) {}
+}
+
+// -- MATRIX nav group ----------------------------------------------------------
+// Folds the matrix-related flat nav links (RTGs, Hosts, Deck Workshop, Matrix Run and the
+// GM-only Matrix Designer) into a single "MATRIX" dropdown group. Built here -- rather than in
+// each page's static nav -- so every page shares one definition and the new Hosts link appears
+// even on pages whose static nav predates it. The menu reveals on hover/focus (CSS) or click.
+function _buildMatrixNavGroup() {
+  const nav = document.querySelector('header nav');
+  if (!nav || nav.querySelector('.nav-group')) return;
+
+  const childDefs = [
+    { href: 'manage-rtgs.html',     label: 'RTGs' },
+    { href: 'matrix-hosts.html',    label: 'Hosts' },
+    { href: 'deck-workshop.html',   label: 'Deck Workshop' },
+    { href: 'matrix-run.html',      label: 'Matrix Run' },
+    { href: 'matrix-designer.html', label: 'Matrix Designer', gmOnly: true },
+  ];
+
+  const here = window.location.pathname;
+  const onMatrixPage = childDefs.some(d => here.endsWith(d.href));
+
+  const group = document.createElement('div');
+  group.className = 'nav-group' + (onMatrixPage ? ' active' : '');
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'nav-group-toggle';
+  toggle.setAttribute('aria-haspopup', 'true');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = 'MATRIX <span class="nav-caret">&#9662;</span>';
+  const menu = document.createElement('div');
+  menu.className = 'nav-group-menu';
+  childDefs.forEach(d => {
+    const a = document.createElement('a');
+    a.href = d.href;
+    a.textContent = d.label;
+    let cls = d.gmOnly ? 'gm-only' : '';
+    if (here.endsWith(d.href)) cls += (cls ? ' ' : '') + 'active';
+    if (cls) a.className = cls;
+    menu.appendChild(a);
+  });
+  group.appendChild(toggle);
+  group.appendChild(menu);
+
+  // Click toggles the menu (CSS already opens it on hover / keyboard focus).
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = group.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!group.contains(e.target)) {
+      group.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Splice the group in where the first flat matrix link sat, then drop the flats.
+  const flats = childDefs
+    .map(d => nav.querySelector(`a[href="${d.href}"]`))
+    .filter(Boolean);
+  if (flats.length) {
+    nav.insertBefore(group, flats[0]);
+    flats.forEach(a => a.remove());
+  } else {
+    nav.appendChild(group);
+  }
 }
 
 // -- bootstrapAuth -------------------------------------------------------------
@@ -99,6 +169,7 @@ async function bootstrapAuth() {
       document.head.appendChild(style);
     }
 
+    _buildMatrixNavGroup();
     _applyMatrixRunNavGate();
 
     return _authCtx;
