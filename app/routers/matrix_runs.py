@@ -342,6 +342,19 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "storage_free_mp": decker.get("storage_free_mp", -1),
         "storage_used_mp": 0,
         "downloaded_files": [],   # [{name, size_mp, is_key, turn}] -- player-visible ledger
+        # Program memory: storage_programs are carried but NOT active at logon; Swap Memory loads
+        # one into active memory (decker.utilities) mid-run, optionally pushing an active program
+        # back to storage. program_sizes (util key -> Mp) and active_memory_cap let the engine
+        # enforce the active-memory ceiling on a swap-in. Active programs always keep a storage
+        # copy, so swapping only shifts *active* usage -- deck storage_free_mp is unaffected.
+        "active_memory_cap": int(decker.get("active_memory", 0) or 0),
+        "program_sizes": {str(k): int(v) for k, v in (decker.get("program_sizes") or {}).items()},
+        "storage_programs": [
+            {"name": str(p.get("name", "")), "rating": int(p.get("rating", 0) or 0),
+             "size": int(p.get("size", 0) or 0)}
+            for p in (decker.get("storage_programs") or [])
+            if isinstance(p, dict) and p.get("name")
+        ],
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
         "physical_trace_immune": bool(decker.get("physical_trace_immune", False)),  # SATLINK uplink
@@ -1139,18 +1152,19 @@ async def perform_action(
     if body.utility_rating > 0:
         tn_modifier -= body.utility_rating  # utility reduces TN
 
-    # Swap Memory (Simple Action, no test): reload a crashed/degraded program from storage,
-    # restoring its rating (recovery from Hog / Tar Baby / One-Shot / degraded Armor-Shield).
+    # Swap Memory (Simple Action, no test): move programs between storage and active memory.
+    # Active programs always keep a storage copy, so a swap only shifts *active* memory usage --
+    # deck storage_free_mp is unaffected. See _apply_swap_memory for the three resolution modes.
     if body.action_type == "swap_memory":
-        pd = state.setdefault("program_damage", {})
-        target = body.target_program or next((k for k, v in pd.items() if v > 0), None)
-        if target and pd.get(target, 0) > 0:
-            pd[target] = 0
-            desc = (f"Swap Memory -- reloaded {target.replace('_', ' ').title()} from storage; "
-                    "rating restored.")
-        else:
-            desc = "Swap Memory -- no crashed/degraded program to reload."
+        new_decker = copy.deepcopy(decker)
+        changed, desc = _apply_swap_memory(
+            state, new_decker,
+            target_program=body.target_program,
+            swap_out_program=body.swap_out_program,
+        )
         _append_event(state, {"type": "swap_memory", "description": desc})
+        if changed:
+            run.decker_json = new_decker
         run.state_json = state
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
@@ -2135,6 +2149,86 @@ async def attack_ic(
     return _serialize_run(run, auth)
 
 
+def _apply_swap_memory(
+    state: dict,
+    decker: dict,
+    *,
+    target_program: str,
+    swap_out_program: str,
+) -> tuple[bool, str]:
+    """Resolve a Swap Memory action (vr2, Simple Action, no test). Mutates ``state``
+    (storage_programs / program_sizes / program_damage) and ``decker`` (utilities) in place and
+    returns ``(decker_changed, description)``. Modes, in priority order:
+
+      1. Load a stored program into active memory (``target_program`` names a stored program),
+         optionally pushing ``swap_out_program`` from active back to storage to make room.
+      2. Push an active program to storage only (``swap_out_program`` set, no storage target).
+      3. Reload a crashed/degraded *active* program from its storage copy (restore its rating
+         after Hog / Tar Baby / One-Shot / degraded Armor-Shield).
+
+    Active programs always keep a storage copy, so a swap only shifts *active* memory usage;
+    deck storage_free_mp is unaffected. Raises 400 if a load would overflow the active cap and
+    no program is freed.
+    """
+    utils   = decker.setdefault("utilities", {})
+    storage = state.setdefault("storage_programs", [])
+    sizes   = state.setdefault("program_sizes", {})
+    pd      = state.setdefault("program_damage", {})
+    cap     = int(state.get("active_memory_cap", 0) or 0)
+
+    def _pretty(n: str) -> str:
+        return str(n).replace("_", " ").title()
+
+    def _active_used() -> int:
+        return sum(int(sizes.get(n, 0)) for n, r in utils.items() if (r or 0) > 0)
+
+    target   = (target_program or "").strip().lower()
+    swap_out = (swap_out_program or "").strip().lower()
+    store_entry = next((p for p in storage
+                        if str(p.get("name", "")).strip().lower() == target), None)
+
+    if store_entry:
+        # Mode 1: load a stored program into active memory.
+        in_size = int(store_entry.get("size", 0) or 0)
+        note = ""
+        if swap_out and (utils.get(swap_out, 0) or 0) > 0:
+            storage.append({"name": swap_out, "rating": int(utils.get(swap_out, 0) or 0),
+                            "size": int(sizes.get(swap_out, 0) or 0)})
+            utils[swap_out] = 0
+            pd.pop(swap_out, None)
+            note = f" (swapped {_pretty(swap_out)} out to storage)"
+        if cap > 0 and _active_used() + in_size > cap:
+            used = _active_used()
+            raise HTTPException(
+                400,
+                f"Not enough active memory to load {_pretty(target)}: needs {in_size} Mp but "
+                f"only {max(0, cap - used)} Mp free ({used}/{cap} Mp used). Swap a program out "
+                "to free active memory."
+            )
+        utils[target] = int(store_entry.get("rating", 0) or 0)
+        sizes[target] = in_size
+        pd.pop(target, None)   # fresh storage copy -- no accrued damage
+        storage.remove(store_entry)
+        return True, (f"Swap Memory -- loaded {_pretty(target)} (rating {utils[target]}) into "
+                      f"active memory{note}.")
+
+    if swap_out and (utils.get(swap_out, 0) or 0) > 0:
+        # Mode 2: push an active program to storage (no incoming program).
+        storage.append({"name": swap_out, "rating": int(utils.get(swap_out, 0) or 0),
+                        "size": int(sizes.get(swap_out, 0) or 0)})
+        utils[swap_out] = 0
+        pd.pop(swap_out, None)
+        return True, f"Swap Memory -- moved {_pretty(swap_out)} from active memory to storage."
+
+    # Mode 3: reload a crashed/degraded active program from its storage copy.
+    reload_target = target or next((k for k, v in pd.items() if v > 0), None)
+    if reload_target and pd.get(reload_target, 0) > 0:
+        pd[reload_target] = 0
+        return False, (f"Swap Memory -- reloaded {_pretty(reload_target)} from storage; "
+                       "rating restored.")
+    return False, "Swap Memory -- no program to load or reload."
+
+
 def _apply_graceful_logoff(
     state: dict,
     decker: dict,
@@ -2313,6 +2407,9 @@ async def trap_door_action(
 
     new_run = await _create_run(db, auth, dest_host, dict(run.decker_json or {}))
     return _serialize_run(new_run, auth)
+
+
+@router.post("/{run_id}/new-turn", response_model=MatrixRunRead)
 async def new_turn(
     run_id: int,
     auth: dict = Depends(get_any_token),

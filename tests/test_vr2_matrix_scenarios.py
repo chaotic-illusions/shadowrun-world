@@ -1031,3 +1031,107 @@ class TestLiveDetectionFactor:
         base = mr._effective_detection_factor(state, self._decker(6, 8))  # 7
         ic["suppressed"] = True
         assert mr._effective_detection_factor(state, self._decker(6, 8)) == base - 1
+
+
+class TestSwapMemory:
+    """vr2 Swap Memory -- move programs between storage and active memory mid-run."""
+
+    def _state_decker(self, active_cap=100):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+        decker = {
+            "masking": 4, "intelligence": 5, "mpcp": 6,
+            "active_memory": active_cap,
+            "utilities": {"read_write": 6, "attack": 5},
+            "program_sizes": {"read_write": 30, "attack": 20, "analyze": 18},
+            "storage_programs": [{"name": "analyze", "rating": 6, "size": 18}],
+        }
+        return mr._initial_state(decker, _Host()), decker
+
+    def test_initial_state_seeds_program_memory(self):
+        st, _ = self._state_decker(active_cap=60)
+        assert st["active_memory_cap"] == 60
+        assert st["program_sizes"]["analyze"] == 18
+        assert st["storage_programs"] == [{"name": "analyze", "rating": 6, "size": 18}]
+        # Program memory is the decker's own deck data -- player-visible, not GM-only.
+        assert "storage_programs" not in mr._GM_ONLY_STATE_KEYS
+
+    def test_load_storage_program_into_active(self):
+        st, decker = self._state_decker(active_cap=100)
+        changed, desc = mr._apply_swap_memory(
+            st, decker, target_program="analyze", swap_out_program="")
+        assert changed is True
+        assert decker["utilities"]["analyze"] == 6   # now active
+        assert st["storage_programs"] == []          # left storage
+        assert "loaded Analyze" in desc
+
+    def test_load_overflow_requires_swap_out(self):
+        # cap 50: read_write 30 + attack 20 = 50 used; loading analyze (18) overflows.
+        st, decker = self._state_decker(active_cap=50)
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
+        assert exc.value.status_code == 400
+        assert decker["utilities"].get("analyze", 0) == 0   # not loaded
+        assert st["storage_programs"][0]["name"] == "analyze"
+
+    def test_load_with_swap_out_frees_room(self):
+        st, decker = self._state_decker(active_cap=50)
+        changed, _ = mr._apply_swap_memory(
+            st, decker, target_program="analyze", swap_out_program="attack")
+        assert changed is True
+        assert decker["utilities"]["analyze"] == 6
+        assert decker["utilities"]["attack"] == 0           # pushed to storage
+        names = {p["name"] for p in st["storage_programs"]}
+        assert "attack" in names and "analyze" not in names
+
+    def test_unload_active_to_storage(self):
+        st, decker = self._state_decker(active_cap=100)
+        changed, _ = mr._apply_swap_memory(
+            st, decker, target_program="", swap_out_program="read_write")
+        assert changed is True
+        assert decker["utilities"]["read_write"] == 0
+        assert any(p["name"] == "read_write" for p in st["storage_programs"])
+
+    def test_reload_damaged_active_program(self):
+        st, decker = self._state_decker(active_cap=100)
+        st["program_damage"] = {"attack": 5}                # crashed by Hog
+        changed, desc = mr._apply_swap_memory(
+            st, decker, target_program="attack", swap_out_program="")
+        assert changed is False                             # decker utilities unchanged
+        assert st["program_damage"]["attack"] == 0          # rating restored
+        assert "reloaded Attack" in desc
+
+    def test_swap_in_grows_icon_bandwidth(self):
+        # Loading a stored program into active memory enlarges the live Icon Bandwidth (vr2):
+        # its rating now counts toward the active-memory footprint.
+        st, decker = self._state_decker(active_cap=100)
+        before = mr._live_icon_bandwidth(decker, st)
+        mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
+        assert mr._live_icon_bandwidth(decker, st) == before + 6
+
+    def test_swap_action_cost_is_simple(self):
+        assert mr._ACTION_COST["swap_memory"] == "Simple"
+
+
+class TestRouteRegistration:
+    """Guard against run-engine handlers losing their @router decorator.
+
+    Regression: the POST /{run_id}/new-turn handler was once left without its
+    @router.post(...) decorator, so the route never registered -- the client's
+    "New Turn" button (and any new-turn call) returned 404 while the function sat
+    dead in the module. import app.main still succeeded and no test exercised the
+    HTTP route, so the gap went unnoticed. These checks fail fast if it recurs.
+    """
+
+    def _paths(self):
+        return {getattr(r, "path", None) for r in mr.router.routes}
+
+    def test_new_turn_route_is_registered(self):
+        assert "/{run_id}/new-turn" in self._paths()
+
+    def test_core_run_routes_registered(self):
+        paths = self._paths()
+        for p in ("/{run_id}/action", "/{run_id}/attack", "/{run_id}/logoff",
+                  "/{run_id}/jack-out", "/{run_id}/new-turn", "/{run_id}/trap-door/{td_id}"):
+            assert p in paths, f"run-engine route not registered: {p}"
+
