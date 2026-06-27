@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import random
+import re
 import uuid
 from datetime import datetime, UTC
 from typing import Any
@@ -24,7 +25,7 @@ from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary,
     RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
     RunSuppressInput, RunEnemyDeckerInput, RunEnemyActInput, RunEnemyAttackInput,
-    SheaveSaveInput, SheafGenerateInput,
+    RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
 from app.services import matrix_rules as rules
@@ -35,13 +36,64 @@ router = APIRouter()
 # State keys removed entirely from state_json when serving a non-admin.
 # (Admin sees the full state.) lurking_ic is GM-only: reactive IC "lurks
 # silently" by the rules, so players must not see it exists at all.
-_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata", "data_bombs"}
+_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata", "data_bombs", "trap_doors"}
 
 # Maps crippler/ripper IC type names to the decker attribute they attack.
 _CRIPPLER_TARGET: dict[str, str] = {
     "Acid": "bod", "Binder": "evasion", "Jammer": "sensor", "Marker": "masking",
     "Acid-rip": "bod", "Bind-rip": "evasion", "Jam-rip": "sensor", "Mark-rip": "masking",
 }
+
+# The host designer labels cripplers/rippers as "Crippler (Marker)" / "Ripper (Acid-rip)"
+# for the GM, but IC_CATALOG and _CRIPPLER_TARGET are keyed by the bare inner token
+# ("Marker", "Acid-rip"). Strip the wrapper before any catalog/target lookup so the IC
+# resolves to its rules entry (otherwise it silently no-ops -- never attacks).
+_IC_WRAPPER_RE = re.compile(r"^(?:Crippler|Ripper)\s*\((.+)\)\s*$")
+
+
+def _canonical_ic_type(ic_type: str) -> str:
+    """Map a display IC type (e.g. "Crippler (Marker)") to its IC_CATALOG key ("Marker")."""
+    if not ic_type:
+        return ""
+    m = _IC_WRAPPER_RE.match(ic_type)
+    return m.group(1).strip() if m else ic_type
+
+
+def _target_file_name(target: str) -> str:
+    """Extract the bare file/piece name from a defense target key.
+
+    Defense targets are stored with inconsistent prefixes across features -- a file-level
+    data bomb as "files::<name>", a Files scramble as "files::file::<name>" -- while a
+    download addresses the bare "<name>". Compare on the trailing segment so the bomb/
+    scramble actually fires on the matching download.
+    """
+    return target.rsplit("::", 1)[-1].strip() if target else ""
+
+
+def _build_trap_doors(host: MatrixHost) -> list[dict]:
+    """Normalize a host's designer trap doors into GM-only run-state entries.
+
+    A trap door is a concealed comm port to another host, hidden on a subsystem (the designer
+    attaches it to a Slave device). Per vr2 it is found via an Analyze Subsystem operation on
+    the concealing subsystem -- so each entry starts undiscovered. The destination is redacted
+    from players (see _serialize_run) until they ENTER it: filing only records the door, and the
+    far host's LTG access can be learned only on the far side (logon + Analyze Access there).
+    """
+    out: list[dict] = []
+    for td in (getattr(host, "trap_doors_json", None) or []):
+        if not isinstance(td, dict):
+            continue
+        out.append({
+            "id": str(td.get("id")) if td.get("id") is not None else f"td{len(out) + 1}",
+            "source_piece": td.get("source_piece", ""),
+            "subsystem": (td.get("subsystem") or "slave"),   # concealing subsystem
+            "destination_host_id": td.get("destination_host_id"),
+            "destination_ltg": td.get("destination_ltg", ""),
+            "destination_label": td.get("destination_label", ""),
+            "discovered": False,
+            "filed": False,
+        })
+    return out
 
 
 # -- Helpers -------------------------------------------------------------------
@@ -92,8 +144,37 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
     data = MatrixRunRead.model_validate(run, from_attributes=True).model_dump()
     if not auth.get("is_admin"):
         state = dict(data.get("state_json") or {})
+        # Surface only the paydata the decker has actually LOCATED (name/size/key/downloaded) so
+        # the player can make storage decisions; the full GM paydata list is then redacted below.
+        located_paydata = [
+            {"name": p.get("name"),
+             "size_mp": max(0, int(p.get("density", 0) or 0)),
+             "is_key": bool(p.get("is_key")),
+             "downloaded": bool(p.get("downloaded")),
+             "destroyed": bool(p.get("destroyed"))}
+            for p in (state.get("paydata") or [])
+            if isinstance(p, dict) and p.get("located")
+        ]
+        # Surface only DISCOVERED trap doors, and even then without the destination -- the player
+        # knows a port to "another system" exists, not where it leads. Filing only records it for
+        # later (the destination is reachable ONLY through the door); the destination -- and
+        # whether it has LTG access -- stays unknown until the decker enters and analyzes it there.
+        discovered_trap_doors = [
+            {"id": d.get("id"),
+             "source_piece": d.get("source_piece", ""),
+             "subsystem": d.get("subsystem", "slave"),
+             "filed": bool(d.get("filed"))}
+            for d in (state.get("trap_doors") or [])
+            if isinstance(d, dict) and d.get("discovered")
+        ]
         for k in _GM_ONLY_STATE_KEYS:
             state.pop(k, None)
+        state["located_paydata"] = located_paydata
+        state["discovered_trap_doors"] = discovered_trap_doors
+        # The current host's LTG-access status is unknown to the decker until a successful
+        # Analyze Subsystem on Access reveals it (host_ltg_revealed). Hide it until then.
+        if not state.get("host_ltg_revealed"):
+            state.pop("host_has_ltg", None)
         if isinstance(state.get("active_ic"), list):
             redacted = [_redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)]
             state["active_ic"] = [ic for ic in redacted if ic is not None]
@@ -147,7 +228,7 @@ def _ic_detection_level(ic: dict) -> int:
     """
     level = ic.get("detection_level")
     if level is None:
-        is_reactive = rules.IC_CATALOG.get(ic.get("type", ""), {}).get("ic_type") == "reactive"
+        is_reactive = rules.IC_CATALOG.get(_canonical_ic_type(ic.get("type", "")), {}).get("ic_type") == "reactive"
         level = 0 if is_reactive else 1
     if ic.get("analyzed"):
         level = 3
@@ -193,8 +274,10 @@ _ACTION_COST.update({
 
 
 def _decker_reaction(decker: dict) -> int:
-    """VR2 Matrix Reaction = round-up average of Quickness and Intelligence."""
-    return -(-(decker.get("quickness", 4) + decker.get("intelligence", 4)) // 2)
+    """VR2 Matrix Reaction = round-up average of Quickness and Intelligence, plus any
+    jackpoint Reaction modifier (e.g. SATLINK -2). Clamped to a minimum of 1."""
+    base = -(-(decker.get("quickness", 4) + decker.get("intelligence", 4)) // 2)
+    return max(1, base + decker.get("reaction_modifier", 0))
 
 
 def _roll_decker_initiative(decker: dict) -> tuple[int, int]:
@@ -246,8 +329,22 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "scrambles": cfg.get("scrambles") or [],   # [{target_key, rating, variant}]
         "data_bombs": cfg.get("data_bombs") or [], # [{target, rating}]
         "defused_bombs": [],
+        # Concealed trap doors (GM-only until discovered via Analyze Subsystem; destinations
+        # stay redacted from players until entered or filed -- see _serialize_run).
+        "trap_doors": _build_trap_doors(host),
+        # This host's own LTG-access status. Unknown to the decker (host_has_ltg redacted) until a
+        # successful Analyze Subsystem on Access flips host_ltg_revealed -- the only way to learn
+        # whether a host reached through a trap door is also reachable from the regular grid.
+        "host_has_ltg": bool(getattr(host, "ltg_address", None)),
+        "host_ltg_revealed": False,
+        # Deck storage ledger for downloaded paydata (vr2 Mp). storage_free_mp < 0 = untracked/
+        # unlimited; >= 0 = real free capacity at jack-in (downloads consume it).
+        "storage_free_mp": decker.get("storage_free_mp", -1),
+        "storage_used_mp": 0,
+        "downloaded_files": [],   # [{name, size_mp, is_key, turn}] -- player-visible ledger
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
+        "physical_trace_immune": bool(decker.get("physical_trace_immune", False)),  # SATLINK uplink
         "base_bandwidth": decker.get("base_bandwidth", 0),     # jackpoint base BW for live BW Trace mod
         "linked_passcode": decker.get("linked_passcode", False),
         "enemy_deckers": [],   # security deckers injected by the GM (vr2 #5)
@@ -909,11 +1006,16 @@ async def start_run(
     if not auth.get("is_admin") and not host.is_visible_to_players:
         raise HTTPException(404, "Matrix host not found")
 
-    decker_dict = body.decker.model_dump()
-    state = _initial_state(decker_dict, host)
+    run = await _create_run(db, auth, host, body.decker.model_dump())
+    return _serialize_run(run, auth)
 
+
+async def _create_run(db: AsyncSession, auth: dict, host: MatrixHost, decker_dict: dict) -> MatrixRun:
+    """Persist a fresh run on ``host`` for the given decker. Shared by start_run and the
+    trap-door ENTER transit (which lands the decker on a new linked host)."""
+    state = _initial_state(decker_dict, host)
     run = MatrixRun(
-        host_id=body.host_id,
+        host_id=host.id,
         decker_json=decker_dict,
         state_json=state,
         status="active",
@@ -922,7 +1024,7 @@ async def start_run(
     db.add(run)
     await db.commit()
     await db.refresh(run)
-    return _serialize_run(run, auth)
+    return run
 
 
 @router.get("/{run_id}", response_model=MatrixRunRead)
@@ -982,6 +1084,42 @@ async def perform_action(
         raise HTTPException(400, "Run has already ended")
     if state.get("icon_crashed"):
         raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+
+    # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
+    # the shared helper and return -- mirroring POST /{run_id}/logoff. Without this the
+    # graceful_logoff action fell through to the generic test below and never actually ended
+    # the run.
+    if body.action_type == "graceful_logoff":
+        success = _apply_graceful_logoff(
+            state, decker,
+            hacking_pool_dice=body.hacking_pool_dice,
+            deception_utility=body.utility_rating,
+        )
+        if success:
+            run.status = "escaped"
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Storage pre-check: a Download cannot even be attempted if the named file would not fit the
+    # deck's remaining free storage (vr2 finite memory). Block before spending the action so the
+    # player isn't charged a pass for an impossible download. storage_free_mp < 0 = untracked.
+    if body.action_type == "download_data" and body.target_file:
+        free = state.get("storage_free_mp", -1)
+        if free is not None and free >= 0:
+            tgt_name = body.target_file.strip().lower()
+            pd = next((p for p in (state.get("paydata") or [])
+                       if str(p.get("name", "")).strip().lower() == tgt_name), None)
+            if pd is not None and not pd.get("downloaded"):
+                size_mp = max(0, int(pd.get("density", 0) or 0))
+                remaining = max(0, free - state.get("storage_used_mp", 0))
+                if size_mp > remaining:
+                    raise HTTPException(
+                        400,
+                        f"Not enough deck storage: \"{pd.get('name')}\" is {size_mp} Mp but only "
+                        f"{remaining} Mp free. Purge stored files or free storage memory first."
+                    )
 
     # Action economy: spend this action's cost from the current initiative pass (auto-advances
     # passes; blocks when all passes are spent -> New Turn). vr2: 2 Simple OR 1 Complex + 1 Free.
@@ -1112,8 +1250,10 @@ async def perform_action(
     if (body.action_type in ("download_data", "edit_file", "upload_data")
             and body.target_file and armed_bombs):
         defused = set(state.get("defused_bombs") or [])
+        tgt_name = body.target_file.strip().lower()
         bomb = next((b for b in armed_bombs
-                     if b.get("target") == body.target_file and b.get("target") not in defused),
+                     if _target_file_name(b.get("target", "")).lower() == tgt_name
+                     and b.get("target") not in defused),
                     None)
         if bomb is not None:
             btarget = bomb.get("target")
@@ -1214,6 +1354,45 @@ async def perform_action(
                 "description": f"IC analyzed: {target['type']} Rating {target['rating']} revealed.",
             })
 
+    # Analyze Subsystem: a successful analysis of the concealing subsystem reveals any trap
+    # door hidden on it. Per vr2 the decker learns a port to ANOTHER system exists, but the
+    # Analyze Subsystem: a successful analysis of the concealing subsystem reveals any trap
+    # door hidden on it. Per vr2 the decker learns a port to ANOTHER system exists, but the
+    # destination stays hidden until they enter it (revealed on arrival). Separately, a
+    # successful Analyze Subsystem on ACCESS reveals THIS host's LTG-access status -- the only
+    # way to learn whether a host reached via a trap door is also reachable from the grid.
+    if body.action_type == "analyze_subsystem" and test["success"]:
+        sub = body.subsystem
+        newly = [d for d in (state.get("trap_doors") or [])
+                 if not d.get("discovered") and (d.get("subsystem", "slave") == sub)]
+        for d in newly:
+            d["discovered"] = True
+            src = d.get("source_piece") or ""
+            _append_event(state, {
+                "type": "trap_door_found",
+                "trap_door_id": d.get("id"),
+                "subsystem": sub,
+                "source_piece": src,
+                "description": (
+                    f"Concealed port detected on the {sub.capitalize()} subsystem"
+                    + (f" ({src})" if src else "")
+                    + " -- it links to another system. Destination unknown until you enter or file it."
+                ),
+            })
+        if sub == "access" and not state.get("host_ltg_revealed"):
+            state["host_ltg_revealed"] = True
+            has_ltg = bool(state.get("host_has_ltg"))
+            _append_event(state, {
+                "type": "host_ltg_revealed",
+                "has_ltg": has_ltg,
+                "description": (
+                    "Access subsystem analyzed -- this host "
+                    + ("HAS dedicated LTG access (reachable from the regular grid)."
+                       if has_ltg else
+                       "has NO LTG access (reachable only via a direct line or trap door).")
+                ),
+            })
+
     # Validate Passcode: grant Legitimate status (IC uses Legitimate TN column)
     if body.action_type == "validate_passcode" and test["success"]:
         state["has_legitimate_status"] = True
@@ -1270,6 +1449,72 @@ async def perform_action(
             "redirects_total": state["redirects_placed"],
         })
 
+    # Locate Paydata: a successful search reveals what files are present (name + size) so the
+    # player can choose what to download against finite deck storage. Found files are surfaced
+    # to the player via _serialize_run (located_paydata); the full paydata list stays GM-only.
+    if body.action_type == "locate_paydata" and test["success"]:
+        newly = [p for p in (state.get("paydata") or [])
+                 if not p.get("located") and not p.get("destroyed")]
+        for p in newly:
+            p["located"] = True
+        if newly:
+            _append_event(state, {
+                "type": "paydata_located",
+                "description": "Paydata located: " + ", ".join(
+                    f"{p.get('name', '?')} ({max(0, int(p.get('density', 0) or 0))} Mp)" for p in newly
+                ) + ".",
+                "files": [{"name": p.get("name"),
+                           "size_mp": max(0, int(p.get("density", 0) or 0)),
+                           "is_key": bool(p.get("is_key"))} for p in newly],
+            })
+        else:
+            _append_event(state, {
+                "type": "paydata_located",
+                "description": "Search complete -- no further paydata found.",
+            })
+
+    # Download Data: on success, pull the named file -- record it in the player-visible ledger
+    # (downloaded_files) and consume finite deck storage. The pre-check above guarantees it fits.
+    if body.action_type == "download_data" and test["success"] and body.target_file:
+        tgt_name = body.target_file.strip().lower()
+        pd = next((p for p in (state.get("paydata") or [])
+                   if str(p.get("name", "")).strip().lower() == tgt_name and not p.get("destroyed")),
+                  None)
+        if pd is not None and not pd.get("downloaded"):
+            pd["downloaded"] = True
+            pd["located"] = True
+            size_mp = max(0, int(pd.get("density", 0) or 0))
+            state["storage_used_mp"] = state.get("storage_used_mp", 0) + size_mp
+            state.setdefault("downloaded_files", []).append({
+                "name": pd.get("name"),
+                "size_mp": size_mp,
+                "is_key": bool(pd.get("is_key")),
+                "turn": state.get("current_turn", 1),
+            })
+            free = state.get("storage_free_mp", -1)
+            tracked = free is not None and free >= 0
+            remaining = max(0, free - state["storage_used_mp"]) if tracked else None
+            _append_event(state, {
+                "type": "data_downloaded",
+                "file_name": pd.get("name"),
+                "size_mp": size_mp,
+                "is_key": bool(pd.get("is_key")),
+                "storage_used_mp": state["storage_used_mp"],
+                "storage_remaining_mp": remaining,
+                "description": (
+                    f"Downloaded \"{pd.get('name')}\" ({size_mp} Mp"
+                    f"{', KEY DATA' if pd.get('is_key') else ''}). "
+                    f"Storage used {state['storage_used_mp']} Mp"
+                    + (f"; {remaining} Mp free." if tracked else ".")
+                ),
+            })
+        elif pd is not None:
+            _append_event(state, {
+                "type": "data_downloaded",
+                "file_name": pd.get("name"),
+                "description": f"\"{pd.get('name')}\" already downloaded -- no additional storage used.",
+            })
+
     # Check sheaf triggers
     _check_and_activate_sheaf(state, sec_code)
 
@@ -1305,7 +1550,7 @@ async def perform_action(
     for ic in sorted(state.get("active_ic", []), key=lambda x: x.get("initiative", 0), reverse=True):
         if ic["status"] != "active" or ic.get("suppressed"):
             continue
-        ic_info = rules.IC_CATALOG.get(ic["type"], {})
+        ic_info = rules.IC_CATALOG.get(_canonical_ic_type(ic["type"]), {})
         ic_category = ic_info.get("category", "white")
         ic_subtype = ic_info.get("subtype", "")
 
@@ -1368,15 +1613,28 @@ async def perform_action(
                     triggered_action = ic_info.get("triggered_action", "report")
                     if triggered_action == "report":
                         ic["status"] = "triggered"
-                        _append_event(state, {
-                            "type": "ic_attack",
-                            "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
-                            "description": (
-                                f"{ic['type']}: Jackpoint TRACED -- physical location "
-                                f"reported to system operator."
-                            ),
-                            "trace_action": "report",
-                        })
+                        if state.get("physical_trace_immune"):
+                            _append_event(state, {
+                                "type": "ic_attack",
+                                "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
+                                "description": (
+                                    f"{ic['type']}: Satellite jackpoint located, but the decker's "
+                                    f"PHYSICAL LOCATION is protected (satellite uplink) -- no physical "
+                                    f"security can be dispatched."
+                                ),
+                                "trace_action": "report",
+                                "physical_trace_immune": True,
+                            })
+                        else:
+                            _append_event(state, {
+                                "type": "ic_attack",
+                                "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
+                                "description": (
+                                    f"{ic['type']}: Jackpoint TRACED -- physical location "
+                                    f"reported to system operator."
+                                ),
+                                "trace_action": "report",
+                            })
                     elif triggered_action == "dump":
                         ds = _apply_dump_shock(state, decker, sec_code, sec_value)
                         state["run_ended"] = True
@@ -1459,7 +1717,7 @@ async def perform_action(
 
         # -- Crippler / Ripper: opposed test, reduces BEMS attributes ---------
         if ic_subtype in ("crippler", "ripper"):
-            attr_key = _CRIPPLER_TARGET.get(ic["type"], "bod")
+            attr_key = _CRIPPLER_TARGET.get(_canonical_ic_type(ic["type"]), "bod")
             target_attr = eff.get(attr_key, 4)
             result = eng.crippler_attack(
                 security_value=sec_value,
@@ -1877,21 +2135,19 @@ async def attack_ic(
     return _serialize_run(run, auth)
 
 
-@router.post("/{run_id}/logoff", response_model=MatrixRunRead)
-async def graceful_logoff(
-    run_id: int,
-    body: RunLogoffInput,
-    auth: dict = Depends(get_any_token),
-    db: AsyncSession = Depends(get_db),
-):
-    """Attempt graceful logoff. Clears traces on success; dump shock on failure."""
-    run = await _get_run_or_404(db, run_id)
-    _assert_run_access(run, auth)
-    if run.status != "active":
-        raise HTTPException(400, "Run is not active")
-
-    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
-    decker = run.decker_json
+def _apply_graceful_logoff(
+    state: dict,
+    decker: dict,
+    *,
+    hacking_pool_dice: int,
+    deception_utility: int,
+) -> bool:
+    """Resolve a Graceful Logoff Access Test (vr2). Mutates ``state`` in place and returns
+    True on success. On success the run is marked ended with all traces cleared; on failure
+    the security tally rises and the sheaf may activate. Shared by the POST /{run_id}/logoff
+    endpoint and the ``graceful_logoff`` action on POST /{run_id}/action so both behave
+    identically (the /action path was previously a no-op).
+    """
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
 
@@ -1899,7 +2155,6 @@ async def graceful_logoff(
     access_rating = _subsystem_rating(state, "access")
     det_factor = _effective_detection_factor(state, decker)
     state["detection_factor"] = det_factor
-    deception = body.deception_utility
 
     # Check for active trace IC -- adds its rating to TN
     trace_tn_bonus = 0
@@ -1907,8 +2162,8 @@ async def graceful_logoff(
         if ic["status"] == "active" and "Trace" in ic.get("type", ""):
             trace_tn_bonus = max(trace_tn_bonus, ic["rating"])
 
-    _spend_hp(state, body.hacking_pool_dice)
-    pool = decker.get("computer_skill", 4) + body.hacking_pool_dice
+    _spend_hp(state, hacking_pool_dice)
+    pool = decker.get("computer_skill", 4) + hacking_pool_dice
     # Console access halves the host Security Value for this Access Test (vr2).
     logoff_sec_value = -(-sec_value // 2) if state.get("console_access") else sec_value
     test = eng.system_test(
@@ -1916,7 +2171,7 @@ async def graceful_logoff(
         subsystem_rating=access_rating,
         security_value=logoff_sec_value,
         det_factor=det_factor,
-        extra_tn_modifier=(-deception + trace_tn_bonus),
+        extra_tn_modifier=(-deception_utility + trace_tn_bonus),
     )
 
     tally_increase = test["tally_increase"]
@@ -1928,7 +2183,6 @@ async def graceful_logoff(
         state.pop("has_legitimate_status", None)  # Host deletes passcode on logoff
         state["decoy_successes"] = 0
         state["decoy_hp"] = 0
-        run.status = "escaped"
         _append_event(state, {
             "type": "logoff_success",
             "description": "Graceful logoff successful. All traces cleared. Run complete.",
@@ -1949,13 +2203,116 @@ async def graceful_logoff(
         })
         _check_and_activate_sheaf(state, sec_code)
 
+    return bool(test["success"])
+
+
+@router.post("/{run_id}/logoff", response_model=MatrixRunRead)
+async def graceful_logoff(
+    run_id: int,
+    body: RunLogoffInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attempt graceful logoff. Clears traces on success; dump shock on failure."""
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
+    decker = run.decker_json
+    success = _apply_graceful_logoff(
+        state, decker,
+        hacking_pool_dice=body.hacking_pool_dice,
+        deception_utility=body.deception_utility,
+    )
+    if success:
+        run.status = "escaped"
+
     run.state_json = state
     await db.commit()
     await db.refresh(run)
     return _serialize_run(run, auth)
 
 
-@router.post("/{run_id}/new-turn", response_model=MatrixRunRead)
+@router.post("/{run_id}/trap-door/{td_id}", response_model=MatrixRunRead)
+async def trap_door_action(
+    run_id: int,
+    td_id: str,
+    body: RunTrapDoorInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Act on a DISCOVERED trap door (vr2). ``action="file"`` records it for later -- the
+    destination is reachable ONLY through this door (you have no LTG address for it), so filing
+    just keeps it on the books; it does NOT reveal where it leads or whether the far host has LTG
+    access. ``action="enter"`` resolves the SR2 transit: a Graceful Logoff through the concealing
+    subsystem, then -- on success -- a fresh linked run on the destination host (returned), where
+    the decker must Logon to Host (and can Analyze its Access subsystem to learn its LTG status).
+    The destination is never sent to a player before arrival."""
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
+    if state.get("run_ended"):
+        raise HTTPException(400, "Run has already ended")
+    door = next((d for d in (state.get("trap_doors") or []) if str(d.get("id")) == str(td_id)), None)
+    if door is None:
+        raise HTTPException(404, "Trap door not found")
+    if not door.get("discovered"):
+        raise HTTPException(400, "Trap door has not been discovered yet (Analyze Subsystem first)")
+
+    # FILE: record the door for later. The destination stays unknown -- reachable only by entering
+    # the door; its LTG access can only be learned on the far side (logon + Analyze Access).
+    if body.action == "file":
+        door["filed"] = True
+        _append_event(state, {
+            "type": "trap_door_filed",
+            "trap_door_id": door.get("id"),
+            "description": (
+                "Trap door filed. The destination is reachable only through this door -- "
+                "enter it and analyze its Access subsystem to learn whether it has LTG access."
+            ),
+        })
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # ENTER: graceful logoff through the concealing subsystem, then arrive on the destination.
+    dest_id = door.get("destination_host_id")
+    if not dest_id:
+        raise HTTPException(400, "This trap door has no linked destination host (LTG-only). File it for intel instead.")
+    dest_host = await _get_host_or_404(db, dest_id)
+
+    success = _apply_graceful_logoff(
+        state, run.decker_json,
+        hacking_pool_dice=body.hacking_pool_dice,
+        deception_utility=body.deception_utility,
+    )
+    if not success:
+        # Logoff failed -- still logged on to the current host; transit aborted.
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Logoff succeeded -- exit this host through the trap door and land on the destination.
+    run.status = "escaped"
+    state["end_reason"] = "trap_door_transit"
+    _append_event(state, {
+        "type": "trap_door_entered",
+        "trap_door_id": door.get("id"),
+        "destination_host_id": dest_id,
+        "description": f"Entered trap door -- arrived at host \"{dest_host.name}\". Logon to continue.",
+    })
+    run.state_json = state
+    await db.commit()
+
+    new_run = await _create_run(db, auth, dest_host, dict(run.decker_json or {}))
+    return _serialize_run(new_run, auth)
 async def new_turn(
     run_id: int,
     auth: dict = Depends(get_any_token),

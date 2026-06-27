@@ -873,8 +873,43 @@ class TestScramblePaydata:
         assert st["data_bombs"][0]["rating"] == 6
         assert st["defused_bombs"] == []
 
+    def test_initial_state_loads_trap_doors_undiscovered(self):
+        # vr2 trap door: concealed on a subsystem, undiscovered until Analyze Subsystem; the
+        # destination is seeded but stays GM-only until entered (see _serialize_run).
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+            ltg_address = None
+            trap_doors_json = [{
+                "id": 12345, "source_piece": "Maglock Controller", "subsystem": "slave",
+                "destination_host_id": 4, "destination_ltg": "LTG 2207",
+                "destination_label": "Shiseki Clan Host",
+            }]
+        st = mr._initial_state({"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}}, _Host())
+        door = st["trap_doors"][0]
+        assert door["id"] == "12345"            # normalized to str for path round-trip
+        assert door["subsystem"] == "slave"
+        assert door["discovered"] is False and door["filed"] is False
+        assert door["destination_label"] == "Shiseki Clan Host"
+
+    def test_initial_state_host_ltg_hidden_until_revealed(self):
+        # The host's own LTG-access status is seeded but stays unrevealed until a successful
+        # Analyze Subsystem on Access -- the only way to learn it for a trap-door destination.
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+            ltg_address = "LTG 4080"
+        st = mr._initial_state({"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}}, _Host())
+        assert st["host_has_ltg"] is True
+        assert st["host_ltg_revealed"] is False
+
+    def test_initial_state_trap_doors_default_empty(self):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+        st = mr._initial_state({"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}}, _Host())
+        assert st["trap_doors"] == []
+        assert st["host_has_ltg"] is False
+
     def test_secret_state_keys_are_gm_only(self):
-        for k in ("scrambles", "paydata", "data_bombs"):
+        for k in ("scrambles", "paydata", "data_bombs", "trap_doors"):
             assert k in mr._GM_ONLY_STATE_KEYS
 
 
