@@ -33,6 +33,14 @@ class DeckerUtilities(BaseModel):
     lock_on:    int = Field(0, ge=0)
 
 
+class MemoryProgram(BaseModel):
+    """A program the decker carries that Swap Memory can move between storage and active
+    memory mid-run. size is its active-memory footprint in Mp."""
+    name:   str = Field("", max_length=40)   # utility key, e.g. "analyze", "read_write"
+    rating: int = Field(0, ge=0, le=50)
+    size:   int = Field(0, ge=0)
+
+
 class DeckerStats(BaseModel):
     name: str = "Ghost"
     # Deck persona programs
@@ -73,6 +81,12 @@ class DeckerStats(BaseModel):
     persona_mode:      Literal["none", "bod", "evasion", "masking", "sensor"] = "none"
     linked_passcode:   bool = False   # stolen linked passcode: -2 TN to Logon w/ Deception (vr2)
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
+    # Programs sitting in storage memory (NOT active at logon). Swap Memory can load one of
+    # these into active memory mid-run (and push an active program back to storage).
+    storage_programs:  list[MemoryProgram] = Field(default_factory=list)
+    # util key -> active-memory size (Mp) for every program carried (active + storage), so the
+    # engine can enforce the active-memory cap when swapping a program in.
+    program_sizes:     dict[str, int] = Field(default_factory=dict)
 
 
 # -- Run creation ---------------------------------------------------------------
@@ -109,6 +123,7 @@ class RunActionInput(BaseModel):
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
     target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key (blank = first relevant)
+    swap_out_program: str = Field("", max_length=40)  # Swap Memory: active program to push to storage to free memory
 
 
 class RunAttackInput(BaseModel):
