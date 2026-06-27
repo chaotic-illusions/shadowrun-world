@@ -62,6 +62,14 @@ class DeckerStats(BaseModel):
     # Workstation -4 / Remote +4. Console halves Access Rating & Security Value.
     access_modifier:   int = Field(0, ge=-6, le=6)
     console_access:    bool = False
+    # Satellite uplink (SATLINK): -2 Reaction (slower initiative) but the decker's physical
+    # location cannot be physically traced. reaction_modifier feeds _decker_reaction;
+    # physical_trace_immune is checked by the Trace IC report branch.
+    reaction_modifier:     int = Field(0, ge=-6, le=6)
+    physical_trace_immune: bool = False
+    # Free deck storage (Mp) for downloaded paydata. -1 = untracked/unlimited (legacy default);
+    # 0 = a real cap that is full (blocks all downloads); >0 = that many free Mp.
+    storage_free_mp:       int = Field(-1, ge=-1)
     persona_mode:      Literal["none", "bod", "evasion", "masking", "sensor"] = "none"
     linked_passcode:   bool = False   # stolen linked passcode: -2 TN to Logon w/ Deception (vr2)
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
@@ -115,6 +123,15 @@ class RunAttackInput(BaseModel):
 class RunLogoffInput(BaseModel):
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     deception_utility: int = Field(0, ge=0, le=50)
+
+
+class RunTrapDoorInput(BaseModel):
+    # "enter": graceful logoff through the concealing subsystem, then arrive on the destination
+    # host (a fresh linked run; destination revealed only on arrival).
+    # "file":  record the door for intel -- reveals only whether the destination has LTG access.
+    action: Literal["enter", "file"]
+    hacking_pool_dice: int = Field(0, ge=0, le=40)   # enter only: dice for the logoff Access Test
+    deception_utility: int = Field(0, ge=0, le=50)   # enter only: Deception utility for the logoff
 
 
 class RunReactiveInput(BaseModel):

@@ -406,6 +406,12 @@
           <div id="run-key-paydata-list"></div>
         </div>
 
+        <!-- Paydata downloads / deck storage -->
+        <div class="mr-panel" id="run-downloads-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; PAYDATA / STORAGE</div>
+          <div id="run-downloads-body"></div>
+        </div>
+
         <!-- Enemy deckers -->
         <div class="mr-panel" id="run-enemy-decker-panel" style="display:none">
           <div class="panel-title" style="color:var(--red)">&gt;&gt; HOSTILE DECKERS <em style="float:right;font-size:0.58rem;color:var(--red)">THREAT</em></div>
@@ -533,8 +539,7 @@ let _hosts    = [];
 let _run      = null;   // current MatrixRunRead
 let _attackTargetId   = null;
 let _reactiveTargetId = null;
-let _hostTrapDoors  = [];        // trap_doors_json from the host
-let _trapDoorsFound = new Set(); // ids the GM has marked as found
+let _hostTrapDoors  = [];        // cache of the current run's trap doors (admin: full; player: discovered-only) for enter/file lookup
 let _hostKeyPaydata = [];        // key paydata files from host config_json
 let _hostHasTapeworm = false;    // true if host has a Tapeworm worm
 let _retrievedKeyFiles = new Set(); // file names the decker has retrieved
@@ -1655,15 +1660,16 @@ function updateComputedStats() {
 }
 
 // Jackpoint types (vr2_rules.md L201-222). traceMod = the Trace Factor column; baseBW = Base
-// Bandwidth (0 = unlimited -> no bandwidth trace penalty). The jackpoint is a per-run choice
-// (where the decker physically jacks in), NOT a deck stat, so it can't be derived from the deck.
+// Bandwidth (0 = unlimited -> no bandwidth trace penalty). reactionMod = Matrix Reaction delta
+// (satellite uplink lags -2). The jackpoint is a per-run choice (where the decker physically
+// jacks in), NOT a deck stat, so it can't be derived from the deck.
 const JACKPOINTS = {
-  legal:       { traceMod: -2, accessMod: -2, baseBW: 20 },
-  illegal:     { traceMod:  0, accessMod:  0, baseBW: 20 },
-  workstation: { traceMod: -4, accessMod: -4, baseBW: 50 },
-  remote:      { traceMod:  4, accessMod:  4, baseBW: 20 },
-  console:     { traceMod: -6, accessMod:  0, baseBW: 0  },
-  satellite:   { traceMod:  0, accessMod:  2, baseBW: 50 },
+  legal:       { traceMod: -2, accessMod: -2, baseBW: 20, reactionMod:  0 },
+  illegal:     { traceMod:  0, accessMod:  0, baseBW: 20, reactionMod:  0 },
+  workstation: { traceMod: -4, accessMod: -4, baseBW: 50, reactionMod:  0 },
+  remote:      { traceMod:  4, accessMod:  4, baseBW: 20, reactionMod:  0 },
+  console:     { traceMod: -6, accessMod:  0, baseBW: 0,  reactionMod:  0 },
+  satellite:   { traceMod:  0, accessMod:  2, baseBW: 50, reactionMod: -2 },
 };
 
 // The Satellite Uplink jackpoint requires a Satlink Interface built into the deck (you can't
@@ -1845,6 +1851,15 @@ async function startRun() {
   const ioSpeed  = gn('cfg-io-speed');
   const iccm     = gi('cfg-iccm').checked;
 
+  // Free deck storage (Mp) available for downloaded paydata this run = offline storage cap
+  // minus what the load-out already keeps in storage memory. -1 = deck has no tracked storage
+  // cap (unlimited); a tracked-but-full deck reports 0 and can download nothing.
+  const _stCaps  = laoCaps();
+  const _stUsage = computeLoadoutUsage(getEffectiveLoadout()?.items || []);
+  const storageFreeMp = _stCaps.storageCap > 0
+    ? Math.max(0, _stCaps.storageCap - _stUsage.storageUsed)
+    : -1;
+
   const utilities = {
     // Stealth
     sleaze:     gn('cfg-u-sleaze'),
@@ -1885,6 +1900,9 @@ async function startRun() {
     base_bandwidth: jp.baseBW,
     access_modifier: jp.accessMod,
     console_access: jpKey === 'console',
+    reaction_modifier: jp.reactionMod || 0,
+    physical_trace_immune: jpKey === 'satellite',
+    storage_free_mp: storageFreeMp,
     active_memory: actMem,
     io_speed: ioSpeed,
     iccm,
@@ -1924,8 +1942,6 @@ async function showRunView(run) {
       const res = await apiFetch(`${API}/matrix-hosts/${run.host_id}`);
       if (res.ok) {
         const host = await res.json();
-        _hostTrapDoors = Array.isArray(host.trap_doors_json) ? host.trap_doors_json : [];
-        renderTrapDoorsPanel();
         const cfg = host.config_json || {};
         _hostKeyPaydata  = (Array.isArray(cfg.paydata) ? cfg.paydata : []).filter(p => p.is_key);
         _hostHasTapeworm = (Array.isArray(cfg.worms) ? cfg.worms : []).some(w => w.variant === 'tapeworm');
@@ -1940,43 +1956,60 @@ function renderTrapDoorsPanel() {
   const panel = document.getElementById('run-trap-door-panel');
   const list  = document.getElementById('run-trap-door-list');
   if (!panel || !list) return;
-  if (_hostTrapDoors.length === 0) { panel.style.display = 'none'; return; }
+
+  const state = (_run && _run.state_json) || {};
+  const admin = isAdmin();
+  // Admin sees the full trap-door list (undiscovered doors + destinations); a player sees only
+  // DISCOVERED doors with the destination redacted server-side (no leak of where it leads).
+  const doors = admin
+    ? (Array.isArray(state.trap_doors) ? state.trap_doors : [])
+    : (Array.isArray(state.discovered_trap_doors) ? state.discovered_trap_doors : []);
+  _hostTrapDoors = doors;   // cache for enter/file lookup
+  if (!doors.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  const admin = isAdmin();
-  list.innerHTML = _hostTrapDoors.map(td => {
-    const found  = _trapDoorsFound.has(td.id);
-    const hidden = !!td.hidden;
-    const destLabel = td.destination_label || td.destination_ltg
-      || (td.destination_host_id ? `Host #${td.destination_host_id}` : '???');
+  const runActive = !state.run_ended;
 
-    if (hidden && !found) {
-      // Concealed -- GM sees a "Mark Found" button; player sees nothing
-      if (!admin) return '';
+  list.innerHTML = doors.map(td => {
+    const src = td.source_piece ? esc(String(td.source_piece)) : '';
+    const sub = esc(String(td.subsystem || 'slave'));
+    const discovered = admin ? !!td.discovered : true;
+    const srcBadge = `<span style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px">[${sub}${src ? ' / ' + src : ''}]</span>`;
+
+    // Admin-only: undiscovered door (GM intel) -- show destination, no transit controls yet.
+    if (admin && !discovered) {
+      const dest = td.destination_label || td.destination_ltg
+        || (td.destination_host_id ? `Host #${td.destination_host_id}` : '???');
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-        <span style="font-size:.65rem;letter-spacing:1px;color:var(--text-dim)">[HIDDEN] ??? -> ???</span>
-        <button class="btn btn-ghost btn-sm" onclick="markTrapDoorFound(${td.id})" style="padding:2px 8px;font-size:.62rem">Mark Found</button>
+        <span style="font-size:.58rem;letter-spacing:1px;color:var(--text-dim)">[HIDDEN]</span>
+        ${srcBadge}
+        <span style="font-size:.66rem;color:var(--text-dim)">-&gt; ${esc(String(dest))}</span>
       </div>`;
     }
 
-    const enterBtn = admin
-      ? `<button class="btn btn-ghost btn-sm" onclick="enterTrapDoor(${td.id})"
-           style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -></button>`
+    // Discovered door -- transit controls. Player never sees the destination until arrival.
+    const filed = !!td.filed;
+    const destLine = admin
+      ? `<span style="font-size:.72rem;color:var(--cyan)">-&gt; ${esc(String(td.destination_label || td.destination_ltg || (td.destination_host_id ? 'Host #' + td.destination_host_id : '???')))}</span>`
+      : `<span style="font-size:.72rem;color:var(--cyan)">-&gt; concealed port to another system</span>`;
+    const intel = filed
+      ? `<span style="font-size:.58rem;letter-spacing:1px;color:var(--amber)">FILED &mdash; via trap door only</span>`
       : '';
-    const foundBadge = hidden
-      ? `<span style="font-size:.58rem;color:var(--cyan);letter-spacing:1px">[FOUND]</span>`
+    const idArg = esc(String(td.id));
+    const enterBtn = runActive
+      ? `<button class="btn btn-ghost btn-sm" onclick="enterTrapDoor('${idArg}')" style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -&gt;</button>`
+      : '';
+    const fileBtn = (runActive && !filed)
+      ? `<button class="btn btn-ghost btn-sm" onclick="fileTrapDoor('${idArg}')" style="padding:2px 8px;font-size:.62rem">File Away</button>`
       : '';
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-      ${foundBadge}
-      <span style="font-size:.72rem;color:var(--cyan)">-> ${esc(destLabel)}</span>
+      ${srcBadge}
+      ${destLine}
       ${enterBtn}
+      ${fileBtn}
+      ${intel}
     </div>`;
   }).join('');
-}
-
-function markTrapDoorFound(id) {
-  _trapDoorsFound.add(id);
-  renderTrapDoorsPanel();
 }
 
 // -- Enemy deckers (vr2 #5) --------------------------------------------------
@@ -2048,6 +2081,79 @@ function renderKeyPaydataPanel() {
   }).join('');
 }
 
+// Player-facing paydata + finite-storage summary: located files (what the decker has found)
+// plus the download ledger and storage meter. Driven entirely by engine state
+// (located_paydata / downloaded_files / storage_*_mp), so it also serves as the after-action
+// report of exactly what was pulled down and how much deck memory it cost.
+function renderDownloadsPanel() {
+  const panel = document.getElementById('run-downloads-panel');
+  const body  = document.getElementById('run-downloads-body');
+  if (!panel || !body) return;
+  const state = _run?.state_json || {};
+  const located    = Array.isArray(state.located_paydata) ? state.located_paydata : [];
+  const downloaded = Array.isArray(state.downloaded_files) ? state.downloaded_files : [];
+  // Players see only located_paydata (what they've found); admins also have the full GM paydata
+  // list, so fall back to it on the GM side to keep the panel useful for both.
+  const gmPaydata = (isAdmin() && Array.isArray(state.paydata)) ? state.paydata : [];
+  if (!located.length && !downloaded.length && !gmPaydata.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+
+  const used    = Math.max(0, parseInt(state.storage_used_mp, 10) || 0);
+  const free    = state.storage_free_mp;
+  const tracked = typeof free === 'number' && free >= 0;
+  const remaining = tracked ? Math.max(0, free - used) : null;
+
+  let html = '';
+  if (tracked) {
+    const pct = free > 0 ? Math.min(100, Math.round((used / free) * 100)) : 0;
+    const meterColor = remaining === 0 ? 'var(--red)' : (pct >= 80 ? 'var(--amber)' : 'var(--green)');
+    html += `<div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">`
+      + `STORAGE <span style="color:${meterColor}">${used} / ${free} Mp</span> -- ${remaining} Mp free</div>`
+      + `<div style="height:6px;background:#0a0a0a;border:1px solid #222;border-radius:3px;margin-bottom:10px;overflow:hidden">`
+      + `<div style="height:100%;width:${pct}%;background:${meterColor}"></div></div>`;
+  } else {
+    html += `<div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:10px">`
+      + `STORAGE <span style="color:var(--green)">${used} Mp used</span> -- untracked (unlimited)</div>`;
+  }
+
+  const rows = located.length ? located : gmPaydata.map(p => ({
+    name: p.name, size_mp: p.density || 0, is_key: !!p.is_key,
+    downloaded: !!p.downloaded, destroyed: !!p.destroyed,
+  }));
+  if (rows.length) {
+    html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">LOCATED FILES</div>`;
+    html += rows.map(p => {
+      const color  = p.destroyed ? 'var(--red)' : (p.downloaded ? 'var(--green)' : 'var(--amber)');
+      const tag    = p.destroyed ? '[DESTROYED]' : (p.downloaded ? '[DOWNLOADED]' : '');
+      const struck = p.destroyed ? 'text-decoration:line-through' : '';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">`
+        + `<span style="font-size:.72rem;color:${color};${struck}">${esc(p.name || '?')}</span>`
+        + `<span style="font-size:.58rem;color:var(--text-dim)">${parseInt(p.size_mp, 10) || 0}Mp</span>`
+        + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
+        + (tag ? `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>` : '')
+        + `</div>`;
+    }).join('');
+  }
+
+  if (downloaded.length) {
+    const total    = downloaded.reduce((s, f) => s + (parseInt(f.size_mp, 10) || 0), 0);
+    const keyCount = downloaded.filter(f => f.is_key).length;
+    html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin:10px 0 4px">`
+      + `DOWNLOADED (${downloaded.length} file${downloaded.length === 1 ? '' : 's'}, ${total} Mp`
+      + (keyCount ? `, ${keyCount} key` : '') + `)</div>`;
+    html += downloaded.map(f =>
+      `<div style="font-size:.66rem;color:var(--green);margin-bottom:3px">`
+      + `&#10003; ${esc(f.name || '?')} <span style="color:var(--text-dim)">${parseInt(f.size_mp, 10) || 0}Mp`
+      + (f.is_key ? ' -- KEY' : '') + `</span></div>`
+    ).join('');
+  }
+
+  body.innerHTML = html;
+}
+
 function markKeyFileRetrieved(i) {
   const p = _hostKeyPaydata[i];
   if (!p || _retrievedKeyFiles.has(p.name)) return;
@@ -2072,83 +2178,65 @@ function markKeyFileRetrieved(i) {
 }
 
 async function enterTrapDoor(id) {
-  const td = _hostTrapDoors.find(t => t.id === id);
-  if (!td) return;
-  const dest = td.destination_label || td.destination_ltg || `Host #${td.destination_host_id}`;
-  const source = td.source_piece || 'trap device';
+  if (!_run) return;
+  const ok = await showConfirm(
+    'Enter this trap door? This resolves a Graceful Logoff through the concealing subsystem. '
+    + 'On success you arrive on the linked host (its identity is revealed only on arrival) and must Log On to continue.',
+    'Enter', 'btn-cyan'
+  );
+  if (!ok) return;
 
-  if (td.destination_host_id) {
-    const ok = await showConfirm(
-      `Enter trap door from "${source}" to "${dest}"? This runs two separate checks: graceful logoff on this host, then logon on the destination host.`,
-      'Enter', 'btn-cyan'
-    );
-    if (!ok) return;
+  try {
+    // VR2: the logoff out through a trap door uses the decker's loaded Deception utility by default.
+    const deception = parseInt(_run?.decker_json?.utilities?.deception, 10) || 0;
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/trap-door/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'enter', hacking_pool_dice: 0, deception_utility: deception }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const result = await res.json();
 
-    try {
-      // Check 1: graceful logoff on the current host (uses decker's loaded Deception utility by default).
-      const deception = parseInt(_run?.decker_json?.utilities?.deception, 10) || 0;
-      const logoffRes = await apiFetch(`${API}/matrix-runs2/${_run.id}/logoff`, {
-        method: 'POST',
-        body: JSON.stringify({ hacking_pool_dice: 0, deception_utility: deception }),
-      });
-      if (!logoffRes.ok) await apiThrow(logoffRes);
-      const loggedOffRun = await logoffRes.json();
-      renderRunState(loggedOffRun);
-
-      const ended = !!loggedOffRun?.state_json?.run_ended;
-      const graceful = loggedOffRun?.state_json?.end_reason === 'graceful_logoff';
-      if (!ended || !graceful) {
-        showAlert(
-          document.getElementById('runAlert'),
-          'Trap-door transit aborted: graceful logoff failed on the current host.',
-          true
-        );
-        return;
-      }
-
-      // Check 2: start linked run and perform logon on destination host.
-      const createRes = await apiFetch(`${API}/matrix-runs2/`, {
-        method: 'POST',
-        body: JSON.stringify({
-          host_id: td.destination_host_id,
-          decker: loggedOffRun.decker_json || _run.decker_json,
-        }),
-      });
-      if (!createRes.ok) await apiThrow(createRes);
-      const linkedRun = await createRes.json();
-
-      const logonRes = await apiFetch(`${API}/matrix-runs2/${linkedRun.id}/action`, {
-        method: 'POST',
-        body: JSON.stringify({
-          action_type: 'logon_to_host',
-          subsystem: 'access',
-          // VR2: Logon to Host uses the Deception utility to reduce the Access TN.
-          utility_rating: (linkedRun.decker_json && linkedRun.decker_json.utilities && linkedRun.decker_json.utilities.deception) || 0,
-          hacking_pool_dice: 0,
-        }),
-      });
-      if (!logonRes.ok) await apiThrow(logonRes);
-      const linkedRunAfterLogon = await logonRes.json();
-
-      sessionStorage.setItem('active_run_id', linkedRunAfterLogon.id);
-      await showRunView(linkedRunAfterLogon);
+    if (result.id !== _run.id) {
+      // Transit succeeded -- the server returned a BRAND-NEW run on the destination host.
+      sessionStorage.setItem('active_run_id', result.id);
+      await showRunView(result);
       showAlert(
         document.getElementById('pageAlert'),
-        `Trap-door transit complete: ${source} -> ${dest}.`,
+        `Trap-door transit complete -- arrived at host #${result.host_id}. Log on to continue.`,
         false
       );
-    } catch (e) {
+    } else {
+      // Same run id -- the graceful logoff failed; still logged on to the current host.
+      renderRunState(result);
       showAlert(
-        document.getElementById('runAlert') || document.getElementById('pageAlert'),
-        `Trap-door transit failed: ${e.message}`,
+        document.getElementById('runAlert'),
+        'Trap-door transit aborted: graceful logoff failed. Still logged on -- try again.',
         true
       );
     }
-  } else {
-    // LTG-only destination -- surface the address for the GM
-    await showConfirm(
-      `Trap door leads to: ${dest}\n\nNo designed host is linked. Navigate to this LTG manually or create a host for it in the Matrix Designer.`,
-      'OK', 'btn-ghost'
+  } catch (e) {
+    showAlert(
+      document.getElementById('runAlert') || document.getElementById('pageAlert'),
+      `Trap-door transit failed: ${e.message}`,
+      true
+    );
+  }
+}
+
+async function fileTrapDoor(id) {
+  if (!_run) return;
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/trap-door/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'file' }),
+    });
+    if (!res.ok) await apiThrow(res);
+    renderRunState(await res.json());
+  } catch (e) {
+    showAlert(
+      document.getElementById('runAlert') || document.getElementById('pageAlert'),
+      `Filing trap door failed: ${e.message}`,
+      true
     );
   }
 }
@@ -2270,6 +2358,7 @@ function renderRunState(run) {
     }
   });
   renderKeyPaydataPanel();
+  renderDownloadsPanel();
 
   // Turn badge
   const lastEvent = (state.event_log || []).slice(-1)[0];
@@ -2559,6 +2648,36 @@ function renderEventEntry(ev) {
       cls = 'ev-neutral';
       badgeColor = 'var(--cyan)';
       badgeText = 'REDIRECT';
+      break;
+    case 'paydata_located':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'PAYDATA FOUND';
+      break;
+    case 'data_downloaded':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--green)';
+      badgeText = 'DOWNLOAD';
+      break;
+    case 'trap_door_found':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'TRAP DOOR';
+      break;
+    case 'trap_door_filed':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--amber)';
+      badgeText = 'TRAP FILED';
+      break;
+    case 'trap_door_entered':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'TRAP TRANSIT';
+      break;
+    case 'host_ltg_revealed':
+      cls = 'ev-action-ok';
+      badgeColor = ev.has_ltg ? 'var(--green)' : 'var(--text-dim)';
+      badgeText = ev.has_ltg ? 'LTG: YES' : 'LTG: NO';
       break;
     case 'decrypt':
       cls = ev.success ? 'ev-action-ok' : 'ev-crash';
