@@ -80,6 +80,30 @@ async def _ensure_matrix_run_version_column():
         print("[startup] Added matrix_runs.version column")
 
 
+async def _ensure_matrix_run_owner_token_hash_column():
+    """Startup safety migration for the matrix_runs owner_token_hash column.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    matrix_runs table. A DB created before owner-scoping was added lacks this column,
+    and since the model selects it on every query, EVERY matrix-run request 500s until
+    it exists. Add the column (and its declared index) in place, idempotently.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "owner_token_hash" not in cols:
+            await conn.exec_driver_sql(
+                "ALTER TABLE matrix_runs ADD COLUMN owner_token_hash VARCHAR(64)"
+            )
+            print("[startup] Added matrix_runs.owner_token_hash column")
+        # The model declares this column indexed; mirror that so reflection/create_all and
+        # owner lookups match the ORM intent (idempotent via IF NOT EXISTS).
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_matrix_runs_owner_token_hash "
+            "ON matrix_runs (owner_token_hash)"
+        )
+
+
 async def _ensure_matrix_host_id_code_column():
     """Startup safety migration for matrix_hosts.id_code on SQLite deployments.
 
@@ -161,6 +185,10 @@ async def lifespan(app: FastAPI):
         await _ensure_matrix_run_version_column()
     except Exception:
         logging.getLogger(__name__).exception("matrix-run version-column migration failed")
+    try:
+        await _ensure_matrix_run_owner_token_hash_column()
+    except Exception:
+        logging.getLogger(__name__).exception("matrix-run owner-token-hash-column migration failed")
     try:
         await _ensure_matrix_host_id_code_column()
     except Exception:
