@@ -412,6 +412,12 @@
           <div id="run-downloads-body"></div>
         </div>
 
+        <!-- Program memory (Swap Memory: active <-> storage) -->
+        <div class="mr-panel" id="run-memory-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; PROGRAM MEMORY</div>
+          <div id="run-memory-body"></div>
+        </div>
+
         <!-- Enemy deckers -->
         <div class="mr-panel" id="run-enemy-decker-panel" style="display:none">
           <div class="panel-title" style="color:var(--red)">&gt;&gt; HOSTILE DECKERS <em style="float:right;font-size:0.58rem;color:var(--red)">THREAT</em></div>
@@ -1855,10 +1861,26 @@ async function startRun() {
   // minus what the load-out already keeps in storage memory. -1 = deck has no tracked storage
   // cap (unlimited); a tracked-but-full deck reports 0 and can download nothing.
   const _stCaps  = laoCaps();
-  const _stUsage = computeLoadoutUsage(getEffectiveLoadout()?.items || []);
+  const _loadoutItems = getEffectiveLoadout()?.items || [];
+  const _stUsage = computeLoadoutUsage(_loadoutItems);
   const storageFreeMp = _stCaps.storageCap > 0
     ? Math.max(0, _stCaps.storageCap - _stUsage.storageUsed)
     : -1;
+
+  // Program memory: storage-only inventory + per-program active-memory sizes, so Swap Memory can
+  // move a stored program into active memory mid-run and the engine can police the active cap.
+  // Active programs always keep a storage copy, so a swap only shifts active usage.
+  const program_sizes = {};
+  const storage_programs = [];
+  _loadoutItems.forEach(item => {
+    const ident = parseProgramIdentity(item);
+    if (!ident.typeKey || ident.baseRating < 1) return;
+    const size = parseInt(item.actualSize, 10) || 0;
+    program_sizes[ident.typeKey] = Math.max(program_sizes[ident.typeKey] || 0, size);
+    if ((item?.target || 'active') === 'storage') {
+      storage_programs.push({ name: ident.typeKey, rating: ident.baseRating, size });
+    }
+  });
 
   const utilities = {
     // Stealth
@@ -1907,6 +1929,8 @@ async function startRun() {
     io_speed: ioSpeed,
     iccm,
     utilities,
+    storage_programs,
+    program_sizes,
   };
 
   const btn = document.getElementById('startRunBtn');
@@ -2154,6 +2178,101 @@ function renderDownloadsPanel() {
   body.innerHTML = html;
 }
 
+// Title-case a utility key ("read_write" -> "Read Write") for the memory panel.
+function prettyProg(name) {
+  return String(name || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Program Memory panel: active utilities (with their active-memory footprint vs the deck cap)
+// and the programs sitting in storage. Swap Memory loads a stored program into active memory
+// (a Simple Action) and can push an active program out to storage in the same swap to free room.
+function renderMemoryPanel() {
+  const panel  = document.getElementById('run-memory-panel');
+  const bodyEl = document.getElementById('run-memory-body');
+  if (!panel || !bodyEl) return;
+  const state   = _run?.state_json || {};
+  const decker  = _run?.decker_json || {};
+  const utils   = decker.utilities || {};
+  const sizes   = state.program_sizes || {};
+  const storage = Array.isArray(state.storage_programs) ? state.storage_programs : [];
+  const cap     = parseInt(state.active_memory_cap, 10) || 0;
+  const ended   = !!state.run_ended || (_run?.status && _run.status !== 'active');
+
+  const active = Object.keys(utils)
+    .filter(k => (parseInt(utils[k], 10) || 0) > 0)
+    .map(k => ({ name: k, rating: parseInt(utils[k], 10) || 0, size: parseInt(sizes[k], 10) || 0 }));
+  const used = active.reduce((s, p) => s + p.size, 0);
+
+  // Nothing to manage if the deck reported no program sizes and carries no storage inventory.
+  if (!active.length && !storage.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const capCol = used > cap ? 'var(--red)' : (cap > 0 && used >= cap * 0.8 ? 'var(--amber)' : 'var(--green)');
+  const capTxt = cap > 0
+    ? `<span style="color:${capCol}">${used} / ${cap} Mp</span>`
+    : `<span style="color:var(--green)">${used} Mp used</span> -- untracked`;
+
+  let html = `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">ACTIVE MEMORY ${capTxt}</div>`;
+  if (cap > 0) {
+    const pct = Math.min(100, Math.round((used / cap) * 100));
+    html += `<div style="height:6px;background:#0a0a0a;border:1px solid #222;border-radius:3px;margin-bottom:8px;overflow:hidden">`
+      + `<div style="height:100%;width:${pct}%;background:${capCol}"></div></div>`;
+  }
+  if (active.length) {
+    html += active.map(p =>
+      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">`
+      + `<span style="font-size:.72rem;color:var(--text-bright)">${esc(prettyProg(p.name))}</span>`
+      + `<span style="font-size:.58rem;color:var(--cyan)">R${p.rating}</span>`
+      + `<span style="font-size:.58rem;color:var(--text-dim)">${p.size}Mp</span>`
+      + (ended ? '' : `<button class="btn btn-sm" style="margin-left:auto;color:var(--amber);border-color:#443300" onclick="memorySwap('', '${esc(p.name)}')">Unload &gt;</button>`)
+      + `</div>`).join('');
+  } else {
+    html += `<div class="empty-msg" style="font-size:.62rem">No active utilities</div>`;
+  }
+
+  html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin:10px 0 4px;padding-top:8px;border-top:1px solid #1a2a1a">STORAGE (load into active)</div>`;
+  if (storage.length) {
+    // Optional swap-out picker so a load that would overflow active memory can free room in the
+    // same Simple Action (Swap Memory swaps one program for another).
+    if (!ended && active.length && cap > 0) {
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`
+        + `<label style="font-size:.58rem;color:var(--text-dim)">Swap out:</label>`
+        + `<select id="mem-swap-out" style="font-size:.62rem;background:#0a0a0a;color:var(--text);border:1px solid #1a2a1a;padding:2px 4px">`
+        + `<option value="">(none)</option>`
+        + active.map(p => `<option value="${esc(p.name)}">${esc(prettyProg(p.name))} (${p.size}Mp)</option>`).join('')
+        + `</select></div>`;
+    }
+    html += storage.map(p => {
+      const nm = String(p.name || '');
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">`
+        + `<span style="font-size:.72rem;color:var(--amber)">${esc(prettyProg(nm))}</span>`
+        + `<span style="font-size:.58rem;color:var(--cyan)">R${parseInt(p.rating, 10) || 0}</span>`
+        + `<span style="font-size:.58rem;color:var(--text-dim)">${parseInt(p.size, 10) || 0}Mp</span>`
+        + (ended ? '' : `<button class="btn btn-sm" style="margin-left:auto;color:var(--green);border-color:#004400" onclick="memorySwap('${esc(nm)}', document.getElementById('mem-swap-out') ? document.getElementById('mem-swap-out').value : '')">&lt; Load</button>`)
+        + `</div>`;
+    }).join('');
+  } else {
+    html += `<div class="empty-msg" style="font-size:.62rem">No programs in storage</div>`;
+  }
+
+  bodyEl.innerHTML = html;
+}
+
+// Swap Memory (Simple Action). targetName = program to load from storage into active memory;
+// swapOutName = active program to push to storage (either may be blank for a one-way move).
+async function memorySwap(targetName, swapOutName) {
+  if (!_run) return;
+  const body = {
+    action_type: 'swap_memory',
+    subsystem: 'control',
+    utility_rating: 0,
+    hacking_pool_dice: 0,
+  };
+  if (targetName)  body.target_program   = targetName;
+  if (swapOutName) body.swap_out_program = swapOutName;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, body);
+}
+
 function markKeyFileRetrieved(i) {
   const p = _hostKeyPaydata[i];
   if (!p || _retrievedKeyFiles.has(p.name)) return;
@@ -2359,6 +2478,7 @@ function renderRunState(run) {
   });
   renderKeyPaydataPanel();
   renderDownloadsPanel();
+  renderMemoryPanel();
 
   // Turn badge
   const lastEvent = (state.event_log || []).slice(-1)[0];
@@ -2468,7 +2588,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       </div>
       <div class="ic-meta">
         <span>Initiative: <span>${ic.initiative || '--'}</span></span>
-        <span>Status: <span style="color:${isCrashed ? 'var(--text-dim)' : 'var(--red)'}">${isCrashed ? 'CRASHED' : 'ACTIVE'}</span></span>
+        <span>Status: <span style="color:${isCrashed ? 'var(--text-dim)' : (ic.suppressed ? 'var(--amber)' : 'var(--red)')}">${isCrashed ? 'CRASHED' : (ic.suppressed ? 'SUPPRESSED' : 'ACTIVE')}</span></span>
       </div>
       ${constructDetails}
       <div class="cond-row" style="margin-bottom:6px">
@@ -2476,7 +2596,13 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
         <div style="display:flex;gap:3px;flex:1">${boxes}</div>
         <div class="cond-count">${ic.boxes || 0}/10</div>
       </div>
-      ${canAtk ? `<button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>` : ''}
+      ${canAtk ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>
+        ${ic.suppressed
+          ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="toggleSuppress('${esc(ic.id)}', true)" data-tip="Release suppression: restores 1 Detection Factor but adds this IC's rating to the security tally (may trigger the sheaf)">&gt;&gt; Release</button>`
+          : `<button class="btn btn-sm" style="color:var(--cyan);border-color:#004455" onclick="toggleSuppress('${esc(ic.id)}', false)" data-tip="Suppress this IC: silences it for 1 Detection Factor, with no tally increase">&gt;&gt; Suppress</button>`}
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -2931,6 +3057,23 @@ async function doJackOut() {
   );
   if (!ok) return;
   await postAction(`${API}/matrix-runs2/${_run.id}/jack-out`, {});
+}
+
+// -- Suppress / release IC --------------------------------------------------
+// Suppress trades 1 Detection Factor to silence an IC (no tally cost). Release restores
+// the Detection Factor but dumps the IC's rating into the security tally, so confirm it.
+async function toggleSuppress(icId, release) {
+  if (!_run) return;
+  if (release) {
+    const ok = await showConfirm(
+      "Releasing this IC restores your Detection Factor but adds the IC's rating to the "
+      + "security tally, which may trigger the security sheaf. Continue?",
+      'Release IC',
+      'btn-amber'
+    );
+    if (!ok) return;
+  }
+  await postAction(`${API}/matrix-runs2/${_run.id}/suppress`, { ic_id: icId, release: !!release });
 }
 
 // -- Attack modal -----------------------------------------------------------
