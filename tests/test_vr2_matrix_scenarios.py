@@ -399,6 +399,38 @@ class TestDataBombAndWorm:
         assert r["tn"] == 2
         assert r["defused"] is False
 
+    def test_data_bomb_defuse_higher_defuse_is_easier(self, scripted):
+        # Carrying a stronger Defuse utility lowers the TN to disarm the same bomb.
+        scripted([3])
+        weak = eng.data_bomb_defuse(decker_pool=6, subsystem_rating=9, defuse_utility=2)
+        scripted([3])
+        strong = eng.data_bomb_defuse(decker_pool=6, subsystem_rating=9, defuse_utility=6)
+        assert weak["tn"] == 7 and strong["tn"] == 3       # 9-2 vs 9-6
+        assert weak["defused"] is False                    # 3 < 7
+        assert strong["defused"] is True                   # 3 (with rule-of-6) clears TN 3
+
+    def test_data_bomb_defuse_success_is_not_a_crash(self, scripted):
+        # A successful defuse never reports a security-tally increase -- it is not a crash.
+        scripted([6])
+        r = eng.data_bomb_defuse(decker_pool=6, subsystem_rating=6, defuse_utility=2)
+        assert r["defused"] is True
+        assert r["detonated"] is False
+        assert "tally_increase" not in r                   # caller adds NO tally on success
+
+    def test_data_bomb_defuse_all_ones_detonates(self, scripted):
+        # Botch: every die a 1 sets the bomb off mid-defuse.
+        scripted([1])
+        r = eng.data_bomb_defuse(decker_pool=3, subsystem_rating=8, defuse_utility=0)
+        assert r["defused"] is False
+        assert r["detonated"] is True
+
+    def test_data_bomb_defuse_plain_failure_leaves_primed(self, scripted):
+        # An ordinary failure (no successes, but not all 1s) does NOT detonate -- bomb stays primed.
+        scripted([2])
+        r = eng.data_bomb_defuse(decker_pool=3, subsystem_rating=8, defuse_utility=0)
+        assert r["defused"] is False
+        assert r["detonated"] is False
+
     def test_data_bomb_detonate_tally_equals_rating(self, scripted):
         scripted([1, 1, 1])  # poor resist
         r = eng.data_bomb_detonate(ic_rating=6, target_bod=6)
@@ -628,6 +660,17 @@ class TestActionEconomyEnforcement:
         mr._spend_pass_action(s, "analyze_host")  # no-op, no raise
         assert "pass_action_points" not in s
 
+    def test_hacking_pool_refreshes_each_pass(self):
+        # SR2 RAW: pool refills at the start of each of the decker's passes. Spending it down then
+        # advancing a pass restores it to full.
+        s = self._state(passes=2)
+        s.update({"hackingPool_total": 8, "hackingPool_remaining": 8})
+        mr._spend_hp(s, 8)                       # drain pool on pass 1
+        assert s["hackingPool_remaining"] == 0
+        mr._spend_pass_action(s, "analyze_host")  # pass1: 2->0
+        mr._spend_pass_action(s, "analyze_host")  # advance to pass2 -> pool refreshed
+        assert s["current_pass"] == 2 and s["hackingPool_remaining"] == 8
+
 
 class TestInitiativeFoundation:
     """Gap D (foundation) -- Matrix initiative + action passes tracked; action costs surfaced.
@@ -641,7 +684,7 @@ class TestInitiativeFoundation:
         scripted([5])  # reaction + 1d6 ~ small -> 1 pass; exact value not asserted
         init, passes = mr._roll_decker_initiative(
             {"quickness": 4, "intelligence": 5, "response_increase": 0, "deck_mode": "cool"})
-        assert passes == max(1, (init // 10) + 1)
+        assert passes == max(1, -(-init // 10))  # ceil(init/10)
 
     def test_action_cost_map_from_rules(self):
         assert mr._ACTION_COST["analyze_host"] == "Complex"
@@ -782,6 +825,322 @@ class TestEnemyLocateAndIntent:
         assert red["condition_monitor"]["persona_boxes"] == 4
         for secret in ("computer_skill", "mpcp", "utilities", "detection_factor"):
             assert secret not in red
+
+
+class TestPCCripplerStrikeBack:
+    """vr2 -- the PC's Poison / Restrict / Reveal offensive cripplers vs an enemy decker,
+    fired through the Strike Back endpoint. Poison->Bod, Restrict->Evasion, Reveal->Masking;
+    the attacker's net successes // 2 reduce the targeted attribute, floored at 1; a miss does
+    nothing. Cripplers target enemy DECKERS only (the endpoint never touches IC)."""
+
+    def _decker(self):
+        return {"name": "Ghost", "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "mpcp": 6, "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                "utilities": {"attack": 6, "poison": 6, "restrict": 6, "reveal": 6}}
+
+    def _enemy(self, **over):
+        e = {"id": "ed1", "name": "Red Decker", "tier": "Red", "status": "active",
+             "revealed": True, "intent": "dump",
+             "bod": 5, "evasion": 5, "masking": 5, "sensor": 5,
+             "computer_skill": 8, "detection_factor": 4,
+             "utilities": {"sleaze": 5}, "condition_monitor": {"persona_boxes": 0}}
+        e.update(over)
+        return e
+
+    def _strike(self, monkeypatch, *, program, enemy, reduction, attack_pool=6, extra_ic=None):
+        import asyncio
+        from app.schemas.matrix_run import RunEnemyAttackInput
+
+        # Deterministic crippler resolution: drive the engine's reduction directly so the test
+        # exercises the router (attribute mapping / floor / event), not the dice.
+        def _fake_attr(**kw):
+            return {"attack_roll": {"successes": reduction * 2, "ones": 0},
+                    "resist_roll": {"successes": 0}, "net": reduction * 2,
+                    "reduction": reduction, "shield_successes": 0}
+        monkeypatch.setattr(eng, "decker_attribute_attack", _fake_attr)
+
+        decker = self._decker()
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["hackingPool_remaining"] = 10
+        state["enemy_deckers"] = [enemy]
+        if extra_ic is not None:
+            state["active_ic"] = [extra_ic]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunEnemyAttackInput(enemy_id="ed1", attack_pool=attack_pool,
+                                  hacking_pool_dice=0, program=program)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_enemy_decker(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def _last_crippled(self, state):
+        evs = [x for x in state["event_log"] if x.get("type") == "decker_crippled"]
+        assert evs, "no decker_crippled event emitted"
+        return evs[-1]
+
+    def test_poison_reduces_bod_by_net_over_two(self, monkeypatch):
+        state = self._strike(monkeypatch, program="poison", enemy=self._enemy(bod=5), reduction=2)
+        e = state["enemy_deckers"][0]
+        assert e["bod"] == 3                       # 5 - (net // 2 = 2)
+        ev = self._last_crippled(state)
+        assert ev["attribute"] == "bod" and ev["reduction"] == 2
+        assert ev["success"] is True and ev["enemy_attr_value"] == 3
+
+    def test_restrict_reduces_evasion(self, monkeypatch):
+        state = self._strike(monkeypatch, program="restrict", enemy=self._enemy(evasion=5), reduction=2)
+        assert state["enemy_deckers"][0]["evasion"] == 3
+        assert self._last_crippled(state)["attribute"] == "evasion"
+
+    def test_reveal_reduces_masking_and_recomputes_detection_factor(self, monkeypatch):
+        enemy = self._enemy(masking=6, detection_factor=7, utilities={"sleaze": 4})
+        state = self._strike(monkeypatch, program="reveal", enemy=enemy, reduction=2)
+        e = state["enemy_deckers"][0]
+        assert e["masking"] == 4                   # 6 - 2
+        # Reveal lowers Masking -> Detection Factor recomputed = ceil((4 + 4 sleaze) / 2) = 4.
+        assert e["detection_factor"] == 4
+        assert self._last_crippled(state)["attribute"] == "masking"
+
+    def test_reduction_floors_attribute_at_one(self, monkeypatch):
+        state = self._strike(monkeypatch, program="poison", enemy=self._enemy(bod=2), reduction=9)
+        e = state["enemy_deckers"][0]
+        assert e["bod"] == 1                        # never below 1
+        ev = self._last_crippled(state)
+        assert ev["reduction"] == 1 and ev["enemy_attr_value"] == 1   # only 2->1 was possible
+
+    def test_miss_does_nothing(self, monkeypatch):
+        state = self._strike(monkeypatch, program="restrict", enemy=self._enemy(evasion=5), reduction=0)
+        assert state["enemy_deckers"][0]["evasion"] == 5   # unchanged
+        ev = self._last_crippled(state)
+        assert ev["success"] is False and ev["reduction"] == 0
+
+    def test_three_programs_map_to_bems_attributes(self, monkeypatch):
+        for program, attr in (("poison", "bod"), ("restrict", "evasion"), ("reveal", "masking")):
+            state = self._strike(monkeypatch, program=program, enemy=self._enemy(), reduction=1)
+            e = state["enemy_deckers"][0]
+            assert e[attr] == 4                     # 5 - 1, the targeted attribute
+            for other in ("bod", "evasion", "masking"):
+                if other != attr:
+                    assert e[other] == 5            # the other attributes are untouched
+
+    def test_crippler_targets_decker_not_ic(self, monkeypatch):
+        ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "bod": 9}
+        state = self._strike(monkeypatch, program="poison", enemy=self._enemy(bod=5),
+                             reduction=2, extra_ic=ic)
+        assert state["active_ic"] == [ic]                  # IC is irrelevant to a crippler strike
+        assert state["enemy_deckers"][0]["bod"] == 3       # only the enemy decker was hit
+
+
+class _QueueRoll:
+    """Fake eng.roll_dice: returns scripted result dicts in order, recording (pool, tn) per call.
+
+    Lets a test drive the lethal-strike to-hit and the post-crash MPCP-burn rolls independently
+    and assert the dice pools (e.g. that the MPCP test rolls at DOUBLE the program rating)."""
+
+    def __init__(self, results):
+        self.results = list(results)
+        self.calls = []
+
+    def __call__(self, pool, tn=4):
+        self.calls.append((pool, tn))
+        r = self.results.pop(0) if self.results else {}
+        out = {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
+        out.update(r)
+        out["tn"] = tn
+        return out
+
+
+class TestPCLethalStrikeBack:
+    """vr2 -- the PC's lethal offensive programs Black Hammer (Physical) / Killjoy (Stun) vs an
+    enemy decker, fired through the Strike Back endpoint. They "function like black IC but from a
+    decker": a hard icon hit (resisted with the enemy's Bod) that, on an icon CRASH, burns the
+    enemy's MPCP via a blaster-style test at DOUBLE the program rating and takes the hostile
+    decker out. The effective rating is capped at ceil(Computer skill / 2). For an NPC enemy the
+    Physical/Stun distinction is narrative only (same icon crash). Deckers only -- never IC."""
+
+    def _enemy(self, **over):
+        e = {"id": "ed1", "name": "Black Decker", "tier": "Black", "status": "active",
+             "revealed": True, "intent": "kill",
+             "bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 8,
+             "computer_skill": 10, "hardening": 1, "detection_factor": 4,
+             "utilities": {"sleaze": 6},
+             "condition_monitor": {"persona_boxes": 0, "mpcp_damage": 0}}
+        e.update(over)
+        return e
+
+    def _strike(self, monkeypatch, *, program, enemy, boxes, mpcp_succ=0,
+                attack_pool=6, computer=10, carried=None, extra_ic=None):
+        import asyncio
+        from app.schemas.matrix_run import RunEnemyAttackInput
+
+        captured = {}
+
+        # Drive the icon-damage result directly so the test exercises the router (crash logic,
+        # MPCP burn, rating clamp, event shape), not the resistance dice. Capture the effective
+        # power (= the clamped program rating) the branch passes in.
+        def _fake_dr(**kw):
+            captured["power"] = kw["power"]
+            captured["base"] = kw["base_damage_level"]
+            captured["bod"] = kw["bod"]
+            return {"boxes": boxes, "final_damage_level": "Serious", "effective_power": kw["power"],
+                    "attacker_successes": kw["attacker_successes"], "resist_roll": {"successes": 0}}
+        monkeypatch.setattr(eng, "damage_resistance", _fake_dr)
+
+        # roll_dice: call 0 = the to-hit; call 1 (crash only) = the MPCP burn (rating*2 dice).
+        roller = _QueueRoll([{"successes": 2}, {"successes": mpcp_succ * 2}])
+        monkeypatch.setattr(eng, "roll_dice", roller)
+
+        util = {"attack": 6}
+        if carried is not None:
+            util[program] = carried
+        decker = {"name": "Ghost", "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "mpcp": 6, "computer_skill": computer, "intelligence": 5, "body": 5,
+                  "hardening": 0, "utilities": util}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["hackingPool_remaining"] = 10
+        state["enemy_deckers"] = [enemy]
+        if extra_ic is not None:
+            state["active_ic"] = [extra_ic]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunEnemyAttackInput(enemy_id="ed1", attack_pool=attack_pool,
+                                  hacking_pool_dice=0, program=program)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_enemy_decker(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json, captured, roller
+
+    def _events(self, state, outcome=None):
+        evs = [x for x in state["event_log"] if x.get("type") == "decker_lethal"]
+        if outcome is not None:
+            evs = [x for x in evs if x.get("outcome") == outcome]
+        return evs
+
+    def test_hit_damages_enemy_icon_without_crash(self, monkeypatch):
+        state, _cap, _r = self._strike(monkeypatch, program="black_hammer",
+                                       enemy=self._enemy(), boxes=3, carried=5)
+        e = state["enemy_deckers"][0]
+        assert e["condition_monitor"]["persona_boxes"] == 3   # icon took the hit
+        assert e["status"] == "active"                        # not yet crashed
+        hit = self._events(state, "hit")
+        assert len(hit) == 1 and hit[0]["success"] is True
+        assert not self._events(state, "crash")               # no crash event below 10 boxes
+
+    def test_black_hammer_is_physical_killjoy_is_stun(self, monkeypatch):
+        bh, _c, _r = self._strike(monkeypatch, program="black_hammer",
+                                  enemy=self._enemy(), boxes=3, carried=5)
+        kj, _c2, _r2 = self._strike(monkeypatch, program="killjoy",
+                                    enemy=self._enemy(), boxes=3, carried=5)
+        bh_hit = self._events(bh, "hit")[0]
+        kj_hit = self._events(kj, "hit")[0]
+        assert bh_hit["program"] == "black_hammer" and bh_hit["damage_kind"] == "Physical"
+        assert kj_hit["program"] == "killjoy" and kj_hit["damage_kind"] == "Stun"
+
+    def test_crash_burns_mpcp_at_double_rating_and_removes_enemy(self, monkeypatch):
+        # computer 10 -> cap 5; carried 5 -> effective rating 5. boxes 10 -> icon crashes.
+        # mpcp_succ 2 -> the MPCP roll returns 4 successes -> 4 // 2 = 2 MPCP burned.
+        enemy = self._enemy(mpcp=8, hardening=1)
+        state, _cap, roller = self._strike(monkeypatch, program="black_hammer",
+                                           enemy=enemy, boxes=10, mpcp_succ=2, carried=5)
+        e = state["enemy_deckers"][0]
+        assert e["status"] == "crashed"                       # enemy taken out of the run
+        assert e["condition_monitor"]["mpcp_damage"] == 2     # permanent MPCP burn
+        assert e["mpcp"] == 8                                 # raw MPCP intact (effective = 8-2)
+        # The 2nd roll_dice call is the MPCP burn: rating(5) * 2 = 10 dice vs mpcp(8)+hardening(1).
+        assert roller.calls[1] == (10, 9)
+        crash = self._events(state, "crash")
+        assert len(crash) == 1 and crash[0]["mpcp_reduction"] == 2
+
+    def test_rating_clamped_to_ceil_computer_over_two(self, monkeypatch):
+        # computer 8 -> cap ceil(8/2)=4; carried 10 is above the cap -> clamped to 4.
+        state, captured, _r = self._strike(monkeypatch, program="black_hammer",
+                                           enemy=self._enemy(), boxes=2, computer=8, carried=10)
+        assert captured["power"] == 4                          # damage_resistance got the clamped rating
+        hit = self._events(state, "hit")[0]
+        assert hit["program_rating"] == 4
+        assert "clamp" in hit["description"].lower()
+
+    def test_odd_computer_skill_rounds_cap_up(self, monkeypatch):
+        # computer 7 -> ceil(7/2)=4 (round up); carried 6 is above 4 -> clamped to 4.
+        state, captured, _r = self._strike(monkeypatch, program="killjoy",
+                                           enemy=self._enemy(), boxes=2, computer=7, carried=6)
+        assert captured["power"] == 4
+
+    def test_carried_rating_at_or_below_cap_is_used_unclamped(self, monkeypatch):
+        # computer 10 -> cap 5; carried 3 (<= cap) -> used as-is, no clamp note.
+        state, captured, _r = self._strike(monkeypatch, program="black_hammer",
+                                           enemy=self._enemy(), boxes=2, computer=10, carried=3)
+        assert captured["power"] == 3
+        assert "clamp" not in self._events(state, "hit")[0]["description"].lower()
+
+    def test_lethal_uses_serious_base_level(self, monkeypatch):
+        state, captured, _r = self._strike(monkeypatch, program="black_hammer",
+                                           enemy=self._enemy(), boxes=2, carried=5)
+        assert captured["base"] == "Serious"                  # fixed lethal base, not host code
+        assert captured["bod"] == 6                           # enemy resists icon damage with Bod
+
+    def test_lethal_targets_decker_not_ic(self, monkeypatch):
+        ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "bod": 9}
+        state, _cap, _r = self._strike(monkeypatch, program="killjoy",
+                                       enemy=self._enemy(), boxes=10, mpcp_succ=2,
+                                       carried=5, extra_ic=ic)
+        assert state["active_ic"] == [ic]                     # IC untouched by a lethal strike
+        assert state["enemy_deckers"][0]["status"] == "crashed"
+
+    def test_roll_enemy_mpcp_damage_doubles_rating_and_accrues(self, monkeypatch):
+        # Direct unit test of the helper: rating 4 -> 4*2 = 8 dice vs mpcp(8)+hardening(2)=10.
+        roller = _QueueRoll([{"successes": 5}])
+        monkeypatch.setattr(eng, "roll_dice", roller)
+        enemy = {"mpcp": 8, "hardening": 2, "condition_monitor": {"mpcp_damage": 0}}
+        hits, _roll = mr._roll_enemy_mpcp_damage(enemy, 4, pool_multiplier=2)
+        assert roller.calls == [(8, 10)]                      # double rating dice vs MPCP+Hardening
+        assert hits == 2                                      # 5 successes // 2
+        assert enemy["condition_monitor"]["mpcp_damage"] == 2
+        assert enemy["mpcp"] == 8                             # raw MPCP left intact (mirror PC side)
 
 
 class TestPersonaModes:
@@ -1016,6 +1375,17 @@ class TestLiveDetectionFactor:
         # base 7 - 2 suppressed = 5
         assert mr._effective_detection_factor(state, self._decker(6, 8)) == 5
 
+    def test_crashed_ic_still_costs_df_while_suppressed(self):
+        # vr2: a suppressed IC stays crashed but keeps draining DF until released
+        state = _fresh_state()
+        state["condition_monitor"] = {"persona_damage": {"masking": 0}, "mpcp_damage": 0}
+        state["active_ic"] = [
+            {"status": "crashed", "suppressed": True},   # crashed + suppressed -> still -1
+            {"status": "crashed", "suppressed": False, "suppression_released": True},  # released -> no cost
+        ]
+        # base 7 - 1 (only the un-released crash) = 6
+        assert mr._effective_detection_factor(state, self._decker(6, 8)) == 6
+
     def test_detection_factor_floored_at_one(self):
         state = _fresh_state()
         state["condition_monitor"] = {"persona_damage": {"masking": 5}, "mpcp_damage": 0}
@@ -1134,4 +1504,2616 @@ class TestRouteRegistration:
         for p in ("/{run_id}/action", "/{run_id}/attack", "/{run_id}/logoff",
                   "/{run_id}/jack-out", "/{run_id}/new-turn", "/{run_id}/trap-door/{td_id}"):
             assert p in paths, f"run-engine route not registered: {p}"
+
+
+class TestShieldDefenseRunLayer:
+    """vr2 Shield on DEFENSE -- the run engine applies the decker's Shield against incoming
+    persona attacks, degrades it 1 Rating Point per use, stops parrying once worn out, and
+    treats a Swap Memory reload (which clears program_damage['shield']) as a fresh copy."""
+
+    def _decker(self, shield=4):
+        return {"utilities": {"shield": shield, "armor": 0}, "computer_skill": 5,
+                "bod": 4, "evasion": 4, "masking": 4, "sensor": 4, "mpcp": 4}
+
+    def _state(self):
+        s = _fresh_state()
+        s["event_log"] = []
+        return s
+
+    def test_effective_shield_subtracts_wear_and_floors_at_zero(self):
+        decker = self._decker(shield=4)
+        state = self._state()
+        assert mr._effective_shield(decker, state) == 4
+        state["program_damage"] = {"shield": 1}
+        assert mr._effective_shield(decker, state) == 3
+        state["program_damage"] = {"shield": 9}        # cannot go negative
+        assert mr._effective_shield(decker, state) == 0
+
+    def test_no_shield_loaded_is_zero(self):
+        decker = {"utilities": {"armor": 4}, "computer_skill": 5}
+        assert mr._effective_shield(decker, self._state()) == 0
+
+    def test_shield_parry_degrades_one_per_use_and_emits_event(self, scripted):
+        scripted([6, 6, 1, 1])             # Shield-4 vs TN 5 -> 6,6 hit -> 2 successes
+        decker = self._decker(shield=4)
+        state = self._state()
+        succ = mr._shield_parry(state, decker, attacker_skill=5, context="Killer")
+        assert succ == 2
+        assert state["program_damage"]["shield"] == 1          # -1 Rating Point per use
+        assert mr._effective_shield(decker, state) == 3
+        ev = state["event_log"][-1]
+        assert ev["type"] == "shield_parry"
+        assert ev["successes"] == 2
+        assert ev["shield_remaining"] == 3
+        assert ev["context"] == "Killer"
+
+    def test_shield_wears_out_then_stops_parrying(self, scripted):
+        scripted([6])                      # Shield-1 -> 1 die, hits
+        decker = self._decker(shield=1)
+        state = self._state()
+        first = mr._shield_parry(state, decker, attacker_skill=4, context="Killer")
+        assert first == 1
+        assert state["program_damage"]["shield"] == 1
+        assert mr._effective_shield(decker, state) == 0
+        events_after_first = len(state["event_log"])
+        # Second use: worn out -> no test, no further wear, no event, returns 0
+        second = mr._shield_parry(state, decker, attacker_skill=4, context="Killer")
+        assert second == 0
+        assert state["program_damage"]["shield"] == 1          # unchanged
+        assert len(state["event_log"]) == events_after_first   # no new event emitted
+
+    def test_swap_memory_reload_restores_a_fresh_shield(self, scripted):
+        scripted([6, 6, 6])
+        decker = self._decker(shield=3)
+        state = self._state()
+        mr._shield_parry(state, decker, attacker_skill=4, context="Killer")
+        assert mr._effective_shield(decker, state) == 2
+        # Swap Memory Mode-3 reloads a fresh copy: it clears the shield's program_damage slot.
+        changed, desc = mr._apply_swap_memory(
+            state, decker, target_program="shield", swap_out_program="")
+        assert state["program_damage"]["shield"] == 0
+        assert mr._effective_shield(decker, state) == 3        # back to full rating
+        assert "reloaded Shield" in desc
+
+
+class TestMedicRunLayer:
+    """vr2 Medic on the run engine: the /action 'medic' path heals persona/icon Condition Monitor
+    boxes (1 per Medic Test success, TN by current wound level), degrades the Medic 1 Rating Point
+    per use regardless of outcome, stops healing once worn out / not loaded, caps the heal at the
+    current damage, and treats a Swap Memory reload (which clears program_damage['medic']) as a
+    fresh copy. _apply_medic is exactly what the /action medic handler invokes before the generic
+    subsystem test, so it never logs a bogus system_test result."""
+
+    def _decker(self, medic=4):
+        return {"utilities": {"medic": medic}, "computer_skill": 5,
+                "bod": 4, "evasion": 4, "masking": 4, "sensor": 4, "mpcp": 4}
+
+    def _state(self, persona_boxes=0):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["condition_monitor"] = {
+            "persona_boxes": persona_boxes, "mpcp_damage": 0, "physical_boxes": 0,
+            "persona_damage": {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0},
+        }
+        return s
+
+    def test_medic_action_is_complex_and_validates(self):
+        from app.schemas.matrix_run import RunActionInput
+        assert mr._ACTION_COST.get("medic") == "Complex"
+        inp = RunActionInput(action_type="medic", subsystem="control")
+        assert inp.action_type == "medic"
+
+    def test_effective_medic_subtracts_wear_and_floors_at_zero(self):
+        decker = self._decker(medic=4)
+        state = self._state()
+        assert mr._effective_medic(decker, state) == 4
+        state["program_damage"] = {"medic": 1}
+        assert mr._effective_medic(decker, state) == 3
+        state["program_damage"] = {"medic": 9}        # cannot go negative
+        assert mr._effective_medic(decker, state) == 0
+
+    def test_no_medic_loaded_is_zero(self):
+        decker = {"utilities": {"armor": 4}, "computer_skill": 5}
+        assert mr._effective_medic(decker, self._state()) == 0
+
+    def test_current_wound_level_by_filled_boxes(self):
+        # vr2 Condition Monitor Table floors: Light >=1, Moderate >=2, Serious >=3 boxes. The
+        # Deadly box-range (up to the 10-box crash) still reports Serious for Medic TN purposes.
+        assert mr._current_icon_wound_level(self._state(persona_boxes=0)) is None
+        assert mr._current_icon_wound_level(self._state(persona_boxes=1)) == "Light"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=2)) == "Moderate"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=3)) == "Serious"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=7)) == "Serious"
+
+    def test_medic_reduces_persona_damage_and_emits_event(self, scripted):
+        # 3 boxes filled -> Serious -> TN 6. Medic-4 rolls [6,6,6,1] -> 3 successes -> 3 healed.
+        scripted([6, 6, 6, 1])
+        decker = self._decker(medic=4)
+        state = self._state(persona_boxes=3)
+        mr._apply_medic(state, decker)
+        assert state["condition_monitor"]["persona_boxes"] == 0     # 3 - 3 healed
+        assert state["program_damage"]["medic"] == 1               # -1 Rating Point per use
+        assert mr._effective_medic(decker, state) == 3
+        ev = state["event_log"][-1]
+        assert ev["type"] == "medic_heal"
+        assert ev["wound_level"] == "Serious"
+        assert ev["healed"] == 3
+        assert ev["persona_boxes"] == 0
+        assert ev["medic_remaining"] == 3
+
+    def test_medic_heal_capped_by_current_damage(self, scripted):
+        # 1 box filled -> Light -> TN 4. Medic-3 rolls 3 successes but only 1 box of damage exists.
+        scripted([4, 4, 4])
+        decker = self._decker(medic=3)
+        state = self._state(persona_boxes=1)
+        mr._apply_medic(state, decker)
+        assert state["condition_monitor"]["persona_boxes"] == 0     # capped at the 1 box
+        assert state["program_damage"]["medic"] == 1
+        ev = state["event_log"][-1]
+        assert ev["wound_level"] == "Light"
+        assert ev["healed"] == 1                                   # not 3
+
+    def test_medic_degrades_even_on_a_failed_heal(self, scripted):
+        # Moderate wound (TN 5); Medic-2 rolls [4,4] -> 0 successes -> 0 healed, but still wears.
+        scripted([4, 4])
+        decker = self._decker(medic=2)
+        state = self._state(persona_boxes=2)
+        mr._apply_medic(state, decker)
+        assert state["condition_monitor"]["persona_boxes"] == 2     # nothing healed
+        assert state["program_damage"]["medic"] == 1               # -1 Rating Point regardless
+        ev = state["event_log"][-1]
+        assert ev["wound_level"] == "Moderate"
+        assert ev["healed"] == 0
+
+    def test_undamaged_icon_is_a_noop(self, scripted):
+        scripted([6, 6, 6, 6])             # dice must NOT be consumed -- no heal happens
+        decker = self._decker(medic=4)
+        state = self._state(persona_boxes=0)
+        mr._apply_medic(state, decker)
+        assert state["condition_monitor"]["persona_boxes"] == 0
+        assert state.get("program_damage", {}).get("medic", 0) == 0  # no degrade on a no-op
+        ev = state["event_log"][-1]
+        assert ev["type"] == "medic_heal"
+        assert ev["healed"] == 0
+        assert "undamaged" in ev["description"]
+
+    def test_worn_out_medic_heals_nothing_and_does_not_degrade_further(self, scripted):
+        scripted([6, 6, 6, 6])             # would-be successes -- must NOT be rolled
+        decker = self._decker(medic=2)
+        state = self._state(persona_boxes=4)            # Serious damage remains
+        state["program_damage"] = {"medic": 2}          # already worn to effective 0
+        assert mr._effective_medic(decker, state) == 0
+        mr._apply_medic(state, decker)
+        assert state["condition_monitor"]["persona_boxes"] == 4   # unchanged -- no heal
+        assert state["program_damage"]["medic"] == 2             # no further wear
+        ev = state["event_log"][-1]
+        assert ev["type"] == "medic_heal"
+        assert ev["healed"] == 0
+        assert "offline" in ev["description"].lower()
+
+    def test_swap_memory_reload_restores_a_fresh_medic(self, scripted):
+        scripted([4, 4, 4])
+        decker = self._decker(medic=3)
+        state = self._state(persona_boxes=1)
+        mr._apply_medic(state, decker)
+        assert state["program_damage"]["medic"] == 1
+        assert mr._effective_medic(decker, state) == 2
+        # Swap Memory Mode-3 reloads a fresh copy: it clears the medic's program_damage slot.
+        changed, desc = mr._apply_swap_memory(
+            state, decker, target_program="medic", swap_out_program="")
+        assert state["program_damage"]["medic"] == 0
+        assert mr._effective_medic(decker, state) == 3           # back to full rating
+        assert "reloaded Medic" in desc
+
+
+class TestRestoreRunLayer:
+    """vr2 Restore on the run engine: the /action 'restore' path repairs the TEMPORARY crippler
+    reductions to the icon's persona attributes (Bod/Evasion/Masking/Sensor). Restore Test TN =
+    the highest rating of the crippler program(s) that caused the targeted attribute's current
+    damage; every 2 successes repairs 1 point, capped by the repairable damage. Unlike Medic,
+    Restore does NOT degrade per use, and it CANNOT touch permanent Persona-chip damage (Rippers).
+    _apply_restore is exactly what the /action restore handler invokes before the generic subsystem
+    test, so it never logs a bogus system_test result."""
+
+    def _decker(self, restore=4):
+        return {"utilities": {"restore": restore}, "computer_skill": 5,
+                "bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 4}
+
+    def _state(self, persona_damage=None, chip=None, ratings=None):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["condition_monitor"] = {
+            "persona_boxes": 0, "mpcp_damage": 0, "physical_boxes": 0,
+            "persona_damage": persona_damage or {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0},
+            "persona_chip_damage": chip or {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0},
+            "crippler_rating": ratings or {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0},
+        }
+        return s
+
+    def test_restore_action_is_complex_and_validates(self):
+        from app.schemas.matrix_run import RunActionInput
+        assert mr._ACTION_COST.get("restore") == "Complex"
+        inp = RunActionInput(action_type="restore", subsystem="control")
+        assert inp.action_type == "restore"
+
+    def test_effective_restore_subtracts_crash_wear_and_floors_at_zero(self):
+        decker = self._decker(restore=4)
+        state = self._state()
+        assert mr._effective_restore(decker, state) == 4
+        state["program_damage"] = {"restore": 1}      # e.g. Tar Baby / Hog crash
+        assert mr._effective_restore(decker, state) == 3
+        state["program_damage"] = {"restore": 9}       # cannot go negative
+        assert mr._effective_restore(decker, state) == 0
+
+    def test_no_restore_loaded_is_zero(self):
+        decker = {"utilities": {"armor": 4}, "computer_skill": 5}
+        assert mr._effective_restore(decker, self._state()) == 0
+
+    def test_record_crippler_rating_keeps_the_highest(self):
+        state = self._state(persona_damage={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._record_crippler_rating(state, "bod", 4)
+        mr._record_crippler_rating(state, "bod", 7)    # higher -> wins
+        mr._record_crippler_rating(state, "bod", 5)    # lower -> ignored
+        assert state["condition_monitor"]["crippler_rating"]["bod"] == 7
+
+    def test_restore_repairs_most_damaged_attribute_and_emits_event(self, scripted):
+        # Default target = the most-damaged repairable attribute (Masking, 3). It was crippled by a
+        # rating-5 program -> Restore Test TN 5. Restore-6 rolls [5,5,5,5,1,1] -> 4 successes -> 2
+        # points repaired. Bod (less damaged) is left alone.
+        scripted([5, 5, 5, 5, 1, 1])
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 1, "evasion": 0, "masking": 3, "sensor": 0},
+            ratings={"bod": 4, "evasion": 0, "masking": 5, "sensor": 0})
+        mr._apply_restore(state, decker)
+        pd = state["condition_monitor"]["persona_damage"]
+        assert pd["masking"] == 1            # 3 - 2 repaired
+        assert pd["bod"] == 1                # untouched
+        assert state.get("program_damage", {}).get("restore", 0) == 0   # NO degradation
+        ev = state["event_log"][-1]
+        assert ev["type"] == "restore_repair"
+        assert ev["attribute"] == "masking"
+        assert ev["causing_rating"] == 5
+        assert ev["decker_roll"]["tn"] == 5
+        assert ev["repaired"] == 2
+        assert ev["attribute_damage"] == 1
+
+    def test_restore_uses_the_highest_causing_rating_for_tn(self, scripted):
+        # Two programs hit Bod (ratings 4 and 7) -> TN = 7 (the highest), per the rule.
+        scripted([6, 5, 4, 1])             # cycled; only the TN/causing_rating is asserted
+        state = self._state(persona_damage={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._record_crippler_rating(state, "bod", 4)
+        mr._record_crippler_rating(state, "bod", 7)
+        decker = self._decker(restore=4)
+        mr._apply_restore(state, decker, target="bod")
+        ev = state["event_log"][-1]
+        assert ev["causing_rating"] == 7
+        assert ev["decker_roll"]["tn"] == 7
+
+    def test_restore_capped_by_repairable_damage_and_clears_causing_rating(self, scripted):
+        # Bod has 1 temp damage; Restore rolls 6 successes (3 points) but caps at the 1 present.
+        scripted([4, 4, 4, 4, 4, 4])
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 1, "evasion": 0, "masking": 0, "sensor": 0},
+            ratings={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._apply_restore(state, decker, target="bod")
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 0
+        ev = state["event_log"][-1]
+        assert ev["repaired"] == 1
+        # Fully repaired -> the causing rating is no longer relevant.
+        assert state["condition_monitor"]["crippler_rating"]["bod"] == 0
+
+    def test_restore_does_not_degrade_on_repeated_use(self, scripted):
+        # The KEY difference from Medic: Restore keeps its full rating no matter how often it runs.
+        scripted([4, 4, 4, 4, 4, 4])
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 6, "evasion": 0, "masking": 0, "sensor": 0},
+            ratings={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._apply_restore(state, decker, target="bod")          # 6 successes -> 3 points
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 3
+        assert state.get("program_damage", {}).get("restore", 0) == 0   # no wear
+        assert mr._effective_restore(decker, state) == 6                 # full rating retained
+        mr._apply_restore(state, decker, target="bod")          # again -> 3 more
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 0
+        assert state.get("program_damage", {}).get("restore", 0) == 0   # still no wear
+        assert mr._effective_restore(decker, state) == 6
+
+    def test_restore_cannot_repair_permanent_chip_damage(self, scripted):
+        # All 4 points of Bod damage are permanent Ripper chip -> nothing is repairable.
+        scripted([6, 6, 6, 6])             # dice must NOT be consumed for a repair
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0},
+            chip={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0},
+            ratings={"bod": 6, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._apply_restore(state, decker, target="bod")
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 4   # permanent, untouched
+        ev = state["event_log"][-1]
+        assert ev["repaired"] == 0
+        assert "permanent" in ev["description"].lower()
+
+    def test_restore_stops_at_the_permanent_chip_floor(self, scripted):
+        # Bod = 2 permanent chip + 3 temporary. Restore repairs the 3 temp and stops at 2.
+        scripted([4, 4, 4, 4, 4, 4])       # Restore-6 vs TN 4 -> 6 successes -> 3 points
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 5, "evasion": 0, "masking": 0, "sensor": 0},
+            chip={"bod": 2, "evasion": 0, "masking": 0, "sensor": 0},
+            ratings={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        mr._apply_restore(state, decker, target="bod")
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 2   # floored at the chip
+        ev = state["event_log"][-1]
+        assert ev["repaired"] == 3
+        assert ev["attribute_damage"] == 2
+
+    def test_undamaged_icon_is_a_noop(self, scripted):
+        scripted([6, 6, 6, 6])             # must NOT be rolled
+        decker = self._decker(restore=4)
+        state = self._state()              # all attributes at 0
+        mr._apply_restore(state, decker)
+        assert state["condition_monitor"]["persona_damage"] == {
+            "bod": 0, "evasion": 0, "masking": 0, "sensor": 0}
+        assert state.get("program_damage", {}).get("restore", 0) == 0
+        ev = state["event_log"][-1]
+        assert ev["type"] == "restore_repair"
+        assert ev["repaired"] == 0
+        assert "no temporary" in ev["description"].lower()
+
+    def test_offline_restore_repairs_nothing(self, scripted):
+        scripted([6, 6, 6, 6])             # would-be successes -- must NOT be rolled
+        decker = self._decker(restore=4)
+        state = self._state(
+            persona_damage={"bod": 3, "evasion": 0, "masking": 0, "sensor": 0},
+            ratings={"bod": 4, "evasion": 0, "masking": 0, "sensor": 0})
+        state["program_damage"] = {"restore": 4}        # crashed to effective 0
+        assert mr._effective_restore(decker, state) == 0
+        mr._apply_restore(state, decker, target="bod")
+        assert state["condition_monitor"]["persona_damage"]["bod"] == 3   # unchanged
+        ev = state["event_log"][-1]
+        assert ev["repaired"] == 0
+        assert "offline" in ev["description"].lower()
+
+    def test_explicit_target_overrides_the_most_damaged_default(self, scripted):
+        # Masking is the most-damaged, but the player explicitly targets Sensor.
+        scripted([4, 4, 4, 4, 4, 4])
+        decker = self._decker(restore=6)
+        state = self._state(
+            persona_damage={"bod": 0, "evasion": 0, "masking": 4, "sensor": 2},
+            ratings={"bod": 0, "evasion": 0, "masking": 3, "sensor": 4})
+        mr._apply_restore(state, decker, target="sensor")
+        pd = state["condition_monitor"]["persona_damage"]
+        assert pd["sensor"] == 0            # 2 repaired (capped at the 2 present)
+        assert pd["masking"] == 4           # the most-damaged attr is left untouched
+        ev = state["event_log"][-1]
+        assert ev["attribute"] == "sensor"
+        assert ev["causing_rating"] == 4    # sensor's causing rating, not masking's
+
+
+class TestDisinfect:
+    """vr2 Disinfect: the carried Disinfect utility defends against worm infection automatically
+    (raises the Worm Infection Test TN), and the active Disinfect operation (Complex) makes a
+    System Test against the worm's host subsystem to DESTROY the worm -- no security-tally cost
+    (it is a Disinfect, not a cybercombat crash) -- with a failed sweep risking the MPCP infection.
+    _apply_disinfect is exactly what the /action 'disinfect' handler invokes before the generic
+    subsystem test, so it never logs a bogus system_test result."""
+
+    def _decker(self, disinfect=6, mpcp=4, hardening=0):
+        return {"utilities": {"disinfect": disinfect}, "computer_skill": 6, "mpcp": mpcp,
+                "hardening": hardening, "bod": 4, "evasion": 4, "masking": 4, "sensor": 4}
+
+    def _state_with_worm(self, rating=5, worm_id="lc_worm1", tally=7):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["security_tally"] = tally
+        s["lurking_ic"] = [{"id": worm_id, "type": "Worm", "rating": rating, "status": "lurking"}]
+        return s
+
+    # -- schema / wiring -------------------------------------------------------
+
+    def test_schema_accepts_disinfect_utility_and_action(self):
+        from app.schemas.matrix_run import DeckerUtilities, RunActionInput
+        assert DeckerUtilities().disinfect == 0                 # default
+        assert DeckerUtilities(disinfect=4).disinfect == 4
+        inp = RunActionInput(action_type="disinfect", subsystem="files")
+        assert inp.action_type == "disinfect"
+        assert mr._ACTION_COST.get("disinfect") == "Complex"    # Disinfect is a Complex Action
+
+    def test_effective_disinfect_reads_carried_and_subtracts_wear(self):
+        decker = self._decker(disinfect=5)
+        state = _fresh_state()
+        assert mr._effective_disinfect(decker, state) == 5
+        state["program_damage"] = {"disinfect": 2}              # e.g. Tar Baby / Hog crash
+        assert mr._effective_disinfect(decker, state) == 3
+        state["program_damage"] = {"disinfect": 9}              # cannot go negative
+        assert mr._effective_disinfect(decker, state) == 0
+        # Not loaded -> 0 (decker carries no anti-worm defense).
+        assert mr._effective_disinfect({"utilities": {"armor": 4}}, _fresh_state()) == 0
+
+    # -- carried Disinfect = passive infection defense -------------------------
+
+    def test_worm_defense_uses_carried_disinfect(self, scripted):
+        # The SAME Worm roll infects bare (TN 4) but is repelled when the deck carries Disinfect-4
+        # (TN raised to 8) -- higher Disinfect makes infection less likely.
+        scripted([4, 4, 4, 4])
+        bare = eng.worm_attack(ic_rating=4, mpcp_rating=4)
+        assert bare["tn"] == 4 and bare["mpcp_infected"] is True
+        scripted([4, 4, 4, 4])
+        guarded = eng.worm_attack(ic_rating=4, mpcp_rating=4, disinfect_utility=4)
+        assert guarded["tn"] == 8 and guarded["mpcp_infected"] is False
+
+    # -- active Disinfect operation -------------------------------------------
+
+    def test_disinfect_test_tn_reduced_by_utility_and_floored(self, scripted):
+        scripted([6])
+        r = eng.disinfect_test(decker_pool=8, subsystem_rating=9, disinfect_utility=4)
+        assert r["tn"] == 5                                     # 9 - 4
+        assert r["worm_destroyed"] is True                     # all 6s vs TN 5
+        scripted([1])
+        r2 = eng.disinfect_test(decker_pool=4, subsystem_rating=3, disinfect_utility=9)
+        assert r2["tn"] == 2                                    # floored at 2
+        assert r2["worm_destroyed"] is False
+
+    def test_disinfect_destroys_worm_on_success_no_tally_add(self, scripted):
+        # System Test vs files-8 reduced by Disinfect-6 -> TN 2; pool rolls 6 successes.
+        scripted([4, 4, 4, 4, 4, 4])
+        decker = self._decker(disinfect=6)
+        state = self._state_with_worm(rating=5, tally=7)
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
+                            decker_pool=6, target_ic_id="")
+        assert state["lurking_ic"] == []                       # worm destroyed + removed
+        assert state["security_tally"] == 7                    # NO tally add (not a crash)
+        assert not state.get("mpcp_infected")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "worm_disinfected"
+        assert ev["destroyed"] is True
+        assert ev["ic_type"] == "Worm"
+
+    def test_disinfect_targets_named_worm(self, scripted):
+        scripted([4, 4, 4, 4, 4, 4])
+        decker = self._decker(disinfect=6)
+        state = _fresh_state(); state["event_log"] = []
+        state["lurking_ic"] = [
+            {"id": "lc_a", "type": "Worm", "rating": 4, "status": "lurking"},
+            {"id": "lc_b", "type": "Worm", "rating": 5, "status": "lurking"},
+        ]
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
+                            decker_pool=6, target_ic_id="lc_b")
+        assert [ic["id"] for ic in state["lurking_ic"]] == ["lc_a"]   # only the named worm removed
+        ev = state["event_log"][-1]
+        assert ev["ic_id"] == "lc_b" and ev["destroyed"] is True
+
+    def test_failed_disinfect_can_infect_mpcp(self, scripted):
+        # Disinfect fails (TN 5, rolls 1s) -> Worm Infection Test (TN 4+1=5, rolls 6s) infects.
+        scripted([1, 1, 6, 6])
+        decker = self._decker(disinfect=1, mpcp=4)
+        state = self._state_with_worm(rating=2, worm_id="lc_w")
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=6,
+                            decker_pool=2, target_ic_id="")
+        assert state.get("mpcp_infected") is True
+        assert state.get("chip_replacement_required") is True
+        assert state["lurking_ic"] == []                       # infected worm removed
+        ev = state["event_log"][-1]
+        assert ev["type"] == "worm_resolved"
+        assert ev["outcome"] == "mpcp_infected"
+
+    def test_failed_disinfect_without_infection_leaves_worm_lurking(self, scripted):
+        # Disinfect fails (TN 2) but carried Disinfect-6 holds off the infection (TN 10) -> worm survives.
+        scripted([1, 1, 1, 1])
+        decker = self._decker(disinfect=6, mpcp=4)
+        state = self._state_with_worm(rating=2, worm_id="lc_w", tally=7)
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
+                            decker_pool=2, target_ic_id="")
+        assert not state.get("mpcp_infected")
+        assert len(state["lurking_ic"]) == 1                   # worm survived, still lurking
+        assert state["security_tally"] == 7                    # no tally add either way
+        ev = state["event_log"][-1]
+        assert ev["type"] == "worm_disinfected"
+        assert ev["destroyed"] is False
+
+    def test_disinfect_no_worm_reports_clean(self, scripted):
+        scripted([6, 6, 6, 6])             # dice must NOT be consumed -- no worm to test
+        decker = self._decker(disinfect=6)
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 3
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
+                            decker_pool=6, target_ic_id="")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "worm_disinfected"
+        assert ev["destroyed"] is False
+        assert "clean" in ev["description"].lower()
+        assert state["security_tally"] == 3
+
+    def test_offline_disinfect_does_nothing(self, scripted):
+        scripted([6, 6, 6, 6])             # would-be successes -- must NOT be rolled
+        decker = {"utilities": {"armor": 4}, "computer_skill": 6, "mpcp": 4, "hardening": 0}
+        state = self._state_with_worm(rating=5)
+        mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
+                            decker_pool=6, target_ic_id="")
+        assert len(state["lurking_ic"]) == 1                   # worm untouched (no Disinfect loaded)
+        ev = state["event_log"][-1]
+        assert ev["type"] == "worm_disinfected"
+        assert "offline" in ev["description"].lower()
+
+
+class TestSteamroller:
+    """vr2_rules.md L1581-1585 -- Steamroller is the dedicated anti-tar weapon. The active
+    Steamroller operation (Complex) inflicts (Rating)D on a Tar Baby / Tar Pit lurking-IC and is
+    IMMUNE to the tar crash-backlash: unlike every other utility that touches a tar IC, it NEVER
+    runs the opposed tar crash test, so the decker's loaded utilities are never crashed or
+    corrupted (a Tar Pit's "corrupt all copies" path can therefore never fire). Crashing the tar
+    adds its rating to the security tally UNLESS the Steamroller carries the Stealth/Skulk option
+    (which reduces the bump, mirroring the Attack-utility skulk rule) or the tar is suppressed
+    (no tally at all). Steamroller targets ONLY tar IC -- a non-tar target is rejected.
+
+    _apply_steamroller is exactly what the /action 'steamroller' handler invokes before the
+    generic subsystem test, so it is unit-tested directly (mirrors TestDisinfect)."""
+
+    def _decker(self, steamroller=6, **opts):
+        d = {"utilities": {"steamroller": steamroller, "attack": 5, "analyze": 4},
+             "computer_skill": 6, "mpcp": 4, "hardening": 0,
+             "bod": 4, "evasion": 4, "masking": 4, "sensor": 4}
+        if opts:
+            d["program_options"] = {"steamroller": dict(opts)}
+        return d
+
+    def _state_with_tar(self, rating=6, tar_id="lc_tar1", tar_type="Tar Baby",
+                        tally=4, suppressed=False):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["security_tally"] = tally
+        ic = {"id": tar_id, "type": tar_type, "rating": rating, "status": "lurking"}
+        if suppressed:
+            ic["suppressed"] = True
+        s["lurking_ic"] = [ic]
+        return s
+
+    # -- schema / wiring -------------------------------------------------------
+
+    def test_schema_accepts_steamroller_utility_and_action(self):
+        from app.schemas.matrix_run import DeckerUtilities, RunActionInput
+        assert DeckerUtilities().steamroller == 0                 # default
+        assert DeckerUtilities(steamroller=6).steamroller == 6
+        inp = RunActionInput(action_type="steamroller", subsystem="control",
+                             target_ic_id="lc_tar1")
+        assert inp.action_type == "steamroller"
+        assert inp.target_ic_id == "lc_tar1"
+        assert mr._ACTION_COST.get("steamroller") == "Complex"    # Steamroller is a Complex Action
+
+    def test_effective_steamroller_reads_carried_and_subtracts_wear(self):
+        decker = self._decker(steamroller=6)
+        state = _fresh_state()
+        assert mr._effective_steamroller(decker, state) == 6
+        # Steamroller is immune to tar, but a Hog drain can still wear it (program_damage).
+        state["program_damage"] = {"steamroller": 2}
+        assert mr._effective_steamroller(decker, state) == 4
+        state["program_damage"] = {"steamroller": 9}              # cannot go negative
+        assert mr._effective_steamroller(decker, state) == 0
+        # Not loaded -> 0 (the decker carries no anti-tar weapon).
+        assert mr._effective_steamroller({"utilities": {"armor": 4}}, _fresh_state()) == 0
+
+    # -- crash + removal + tally ----------------------------------------------
+
+    def test_steamroller_crashes_tar_and_removes_it(self, scripted):
+        # Tar rolls all 1s (resists nothing) -> the (Rating)D Deadly hit stands and crashes it.
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = self._state_with_tar(rating=5, tally=4)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert state["lurking_ic"] == []                          # tar destroyed + removed
+        assert state["security_tally"] == 9                       # +5 (tar rating), no mask
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled"
+        assert ev["destroyed"] is True
+        assert ev["ic_type"] == "Tar Baby"
+        assert ev["tally_increase"] == 5
+
+    def test_steamroller_targets_named_tar(self, scripted):
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 0
+        state["lurking_ic"] = [
+            {"id": "lc_a", "type": "Tar Baby", "rating": 4, "status": "lurking"},
+            {"id": "lc_b", "type": "Tar Pit", "rating": 6, "status": "lurking"},
+        ]
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_b")
+        assert [ic["id"] for ic in state["lurking_ic"]] == ["lc_a"]   # only the named tar removed
+        ev = state["event_log"][-1]
+        assert ev["ic_id"] == "lc_b" and ev["destroyed"] is True
+
+    def test_unnamed_target_picks_a_lurking_tar_over_other_ic(self, scripted):
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 0
+        state["lurking_ic"] = [
+            {"id": "lc_worm", "type": "Worm", "rating": 4, "status": "lurking"},
+            {"id": "lc_tar", "type": "Tar Baby", "rating": 5, "status": "lurking"},
+        ]
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6, target_ic_id="")
+        # The worm is skipped (not a tar); the Tar Baby is crushed.
+        assert [ic["id"] for ic in state["lurking_ic"]] == ["lc_worm"]
+        ev = state["event_log"][-1]
+        assert ev["ic_id"] == "lc_tar" and ev["destroyed"] is True
+
+    # -- IMMUNITY: no tar crash-backlash --------------------------------------
+
+    def test_steamroller_immune_no_utility_backlash(self, scripted):
+        # The tar is crushed, but because tar_baby_test is NEVER run the decker's loaded utilities
+        # are untouched and no program_damage (crash wear) accrues.
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        before = dict(decker["utilities"])
+        state = self._state_with_tar(rating=6)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert decker["utilities"] == before                     # no utility crashed
+        assert not state.get("program_damage")                   # no crash wear from the tar
+        assert not state.get("mpcp_infected")
+
+    def test_tar_pit_corruption_path_is_bypassed(self, scripted):
+        # Crushing a Tar Pit with Steamroller does NOT trigger its "corrupt all copies" backlash
+        # (immunity): the decker's programs survive and no tar_pit_corruption event is logged.
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = self._state_with_tar(rating=6, tar_type="Tar Pit", tally=4)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert state["lurking_ic"] == []                         # Tar Pit crushed
+        assert decker["utilities"]["attack"] == 5                # no copies corrupted
+        assert not any(e["type"] == "tar_pit_corruption" for e in state["event_log"])
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled" and ev["destroyed"] is True
+
+    # -- tally masking: Stealth/Skulk + suppression ---------------------------
+
+    def test_crash_tally_reduced_by_steamroller_skulk(self, scripted):
+        # The Steamroller's Stealth/Skulk option masks the crash: tally += max(0, rating - skulk).
+        scripted([1])
+        decker = self._decker(steamroller=6, skulk=2)
+        state = self._state_with_tar(rating=5, tally=4)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert state["security_tally"] == 7                      # +max(0, 5 - 2) = +3
+        ev = state["event_log"][-1]
+        assert ev["tally_increase"] == 3
+        assert "skulk" in ev["description"].lower()
+
+    def test_high_skulk_zeroes_the_tally(self, scripted):
+        scripted([1])
+        decker = self._decker(steamroller=6, skulk=9)            # skulk >= rating -> no leak
+        state = self._state_with_tar(rating=5, tally=4)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert state["lurking_ic"] == []                         # still crushed
+        assert state["security_tally"] == 4                      # fully masked -> no tally add
+        assert state["event_log"][-1]["tally_increase"] == 0
+
+    def test_suppressed_tar_adds_no_tally(self, scripted):
+        # "...unless the decker suppresses the IC" -- a suppressed tar crash adds no tally at all.
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = self._state_with_tar(rating=5, tally=4, suppressed=True)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert state["lurking_ic"] == []                         # still crushed
+        assert state["security_tally"] == 4                      # NO tally add (suppressed)
+        ev = state["event_log"][-1]
+        assert ev["tally_increase"] == 0
+        assert ev["destroyed"] is True
+        assert "suppress" in ev["description"].lower()
+
+    # -- target validation -----------------------------------------------------
+
+    def test_non_tar_target_is_rejected(self, scripted):
+        from fastapi import HTTPException
+        scripted([1])                      # must NOT matter -- rejected before any roll
+        decker = self._decker(steamroller=6)
+        state = _fresh_state(); state["event_log"] = []
+        state["lurking_ic"] = [{"id": "lc_worm", "type": "Worm", "rating": 5, "status": "lurking"}]
+        with pytest.raises(HTTPException) as exc:
+            mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                                  target_ic_id="lc_worm")
+        assert exc.value.status_code == 400
+        assert "tar" in exc.value.detail.lower()
+        assert len(state["lurking_ic"]) == 1                     # worm untouched
+
+    # -- failure / no-op paths -------------------------------------------------
+
+    def test_low_steamroller_fails_tar_stays_lurking(self, scripted):
+        # Low Power -> the tar stages the Deadly hit down to a graze: it survives, takes some
+        # boxes, and NO tally is added (no crash).
+        scripted([4])
+        decker = self._decker(steamroller=1)
+        state = self._state_with_tar(rating=6, tally=4)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert len(state["lurking_ic"]) == 1                     # tar survived, still lurking
+        assert state["lurking_ic"][0]["boxes"] >= 1              # accumulated damage
+        assert state["security_tally"] == 4                      # no crash -> no tally
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled" and ev["destroyed"] is False
+
+    def test_no_tar_present_reports_miss(self, scripted):
+        scripted([1])
+        decker = self._decker(steamroller=6)
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 3
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6, target_ic_id="")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled" and ev["destroyed"] is False
+        assert state["security_tally"] == 3                      # untouched (nothing to crush)
+
+    def test_offline_steamroller_does_nothing(self, scripted):
+        scripted([1])                      # would-be crash -- must NOT be rolled
+        decker = {"utilities": {"armor": 4}, "computer_skill": 6, "mpcp": 4, "hardening": 0}
+        state = self._state_with_tar(rating=6)
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar1")
+        assert len(state["lurking_ic"]) == 1                     # tar untouched (no Steamroller)
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled"
+        assert "offline" in ev["description"].lower()
+
+
+class TestDefuseDataBomb:
+    """vr2 Defuse Data Bomb (vr2_rules.md L463-480): the carried Defuse utility reduces the TN of
+    the deliberate Defuse operation (Computer Test vs the controlling Files/Slave rating - Defuse).
+    A success disarms the bomb with NO security-tally cost (a defuse is not a crash); an all-1s
+    botch detonates it; any other failure leaves it primed. A still-armed bomb only goes off when
+    the decker SUCCESSFULLY accesses the protected target (failed access does not trigger it).
+
+    _apply_defuse_bomb / _trigger_access_data_bomb are exactly what the /action handler and the
+    post-success access path invoke, so they are unit-tested directly (no async endpoint needed)."""
+
+    def _decker(self, defuse=4):
+        return {"utilities": {"defuse": defuse}, "computer_skill": 6, "mpcp": 4,
+                "hardening": 0, "bod": 4, "evasion": 4, "masking": 4, "sensor": 4}
+
+    def _eff(self):
+        return {"bod": 4}
+
+    def _state_with_bomb(self, *, target="files::Secret Files", rating=6, tally=2):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["security_tally"] = tally
+        s["data_bombs"] = [{"target": target, "rating": rating}]
+        s["defused_bombs"] = []
+        return s
+
+    # -- schema / wiring -------------------------------------------------------
+
+    def test_schema_accepts_defuse_utility_and_action(self):
+        from app.schemas.matrix_run import DeckerUtilities, RunActionInput
+        assert DeckerUtilities().defuse == 0                       # default
+        assert DeckerUtilities(defuse=4).defuse == 4
+        inp = RunActionInput(action_type="defuse_data_bomb", subsystem="files")
+        assert inp.action_type == "defuse_data_bomb"
+        assert mr._ACTION_COST.get("defuse_data_bomb") == "Complex"  # Defuse is a Complex Action
+
+    def test_effective_defuse_reads_carried_and_subtracts_wear(self):
+        decker = self._decker(defuse=5)
+        state = _fresh_state()
+        assert mr._effective_defuse(decker, state) == 5
+        state["program_damage"] = {"defuse": 2}                   # e.g. Tar Baby / Hog crash wear
+        assert mr._effective_defuse(decker, state) == 3
+        state["program_damage"] = {"defuse": 9}                   # cannot go negative
+        assert mr._effective_defuse(decker, state) == 0
+        # Not loaded -> 0 (no Defuse carried, so no TN reduction).
+        assert mr._effective_defuse({"utilities": {"armor": 4}}, _fresh_state()) == 0
+
+    # -- deliberate Defuse operation ------------------------------------------
+
+    def test_defuse_success_disarms_with_no_tally(self, scripted):
+        # Computer Test vs Files-8 reduced by carried Defuse-4 -> TN 4; pool rolls 6s -> disarmed.
+        scripted([6, 6, 6])
+        state = self._state_with_bomb(rating=6, tally=5)
+        decker = self._decker(defuse=4)
+        mr._apply_defuse_bomb(state, decker, self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=6, sec_value=6, sec_code="Green")
+        assert state["data_bombs"] == []                          # bomb removed
+        assert state["defused_bombs"] == ["files::Secret Files"]  # recorded as inert
+        assert state["security_tally"] == 5                       # NO tally add (defuse is not a crash)
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb" and ev["outcome"] == "defused"
+        assert "TN 4" in ev["description"] and "Defuse 4" in ev["description"]  # carried Defuse reduced TN
+
+    def test_carried_defuse_reduces_the_tn(self, scripted):
+        # Same bomb, same dice: bare decker fails (TN 8) but a Defuse-6 deck clears it (TN 2).
+        scripted([3, 3, 3])
+        bare = self._state_with_bomb(rating=6)
+        mr._apply_defuse_bomb(bare, self._decker(defuse=0), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=3, sec_value=6, sec_code="Green")
+        assert len(bare["data_bombs"]) == 1                       # TN 8 -- 3s miss, still primed
+        assert bare["event_log"][-1]["outcome"] == "primed"
+        scripted([3, 3, 3])
+        armed = self._state_with_bomb(rating=6)
+        mr._apply_defuse_bomb(armed, self._decker(defuse=6), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=3, sec_value=6, sec_code="Green")
+        assert armed["data_bombs"] == []                          # TN 2 -- 3s clear it, disarmed
+        assert armed["event_log"][-1]["outcome"] == "defused"
+
+    def test_defuse_plain_failure_leaves_bomb_primed(self, scripted):
+        # Ordinary miss (no successes, not all 1s) -> bomb stays primed for another attempt; no tally.
+        scripted([2, 2, 2])
+        state = self._state_with_bomb(rating=6, tally=4)
+        mr._apply_defuse_bomb(state, self._decker(defuse=0), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=3, sec_value=6, sec_code="Green")
+        assert len(state["data_bombs"]) == 1                      # still armed
+        assert state["defused_bombs"] == []
+        assert state["security_tally"] == 4                       # primed is not a crash either
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb" and ev["outcome"] == "primed"
+
+    def test_defuse_all_ones_botch_detonates(self, scripted):
+        # Every die a 1 -> the bomb goes off mid-defuse: removed, blast damage, tally += rating.
+        scripted([1])
+        state = self._state_with_bomb(rating=6, tally=2)
+        mr._apply_defuse_bomb(state, self._decker(defuse=0), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=3, sec_value=6, sec_code="Green")
+        assert state["data_bombs"] == []                          # one-shot, consumed
+        assert state["defused_bombs"] == []                       # never disarmed
+        assert state["security_tally"] == 8                       # 2 + rating 6
+        assert state["condition_monitor"]["persona_boxes"] > 0    # took the blast
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb" and ev["outcome"] == "detonated"
+
+    def test_defuse_targets_named_bomb(self, scripted):
+        scripted([6, 6, 6])
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 0
+        state["data_bombs"] = [
+            {"target": "files::Alpha", "rating": 5},
+            {"target": "files::Bravo", "rating": 6},
+        ]
+        state["defused_bombs"] = []
+        mr._apply_defuse_bomb(state, self._decker(defuse=4), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=6, sec_value=6, sec_code="Green",
+                              target_file="Bravo")
+        assert [b["target"] for b in state["data_bombs"]] == ["files::Alpha"]  # only Bravo disarmed
+        assert state["defused_bombs"] == ["files::Bravo"]
+
+    def test_defuse_no_target_reports_clean(self, scripted):
+        scripted([6, 6, 6])                                       # dice must NOT be consumed
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 3
+        state["data_bombs"] = []; state["defused_bombs"] = []
+        mr._apply_defuse_bomb(state, self._decker(defuse=4), self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=6, sec_value=6, sec_code="Green")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb" and ev["outcome"] == "no_target"
+        assert state["security_tally"] == 3
+
+    # -- access trigger (the only way a still-armed bomb goes off) -------------
+
+    def test_successful_access_detonates_armed_bomb(self, scripted):
+        scripted([1])                                            # poor blast resist
+        state = self._state_with_bomb(target="files::Payroll", rating=6, tally=2)
+        triggered = mr._trigger_access_data_bomb(
+            state, self._decker(), self._eff(), action_type="download_data",
+            target_file="Payroll", test_success=True, sec_value=6, sec_code="Green")
+        assert triggered is True
+        assert state["data_bombs"] == []                         # one-shot, consumed
+        assert state["security_tally"] == 8                      # 2 + rating 6
+        assert state["event_log"][-1]["outcome"] == "detonated"
+
+    def test_failed_access_does_not_trigger_bomb(self, scripted):
+        scripted([1])
+        state = self._state_with_bomb(target="files::Payroll", rating=6, tally=2)
+        triggered = mr._trigger_access_data_bomb(
+            state, self._decker(), self._eff(), action_type="download_data",
+            target_file="Payroll", test_success=False, sec_value=6, sec_code="Green")
+        assert triggered is False
+        assert len(state["data_bombs"]) == 1                     # bomb survives -- defuse it first
+        assert state["security_tally"] == 2                      # untouched
+
+    def test_defused_bomb_is_inert_on_access(self, scripted):
+        scripted([1])
+        state = self._state_with_bomb(target="files::Payroll", rating=6, tally=2)
+        state["defused_bombs"] = ["files::Payroll"]              # already disarmed
+        triggered = mr._trigger_access_data_bomb(
+            state, self._decker(), self._eff(), action_type="download_data",
+            target_file="Payroll", test_success=True, sec_value=6, sec_code="Green")
+        assert triggered is False
+        assert state["security_tally"] == 2                      # no blast
+
+    def test_non_access_action_does_not_trigger_bomb(self, scripted):
+        scripted([1])
+        state = self._state_with_bomb(target="files::Payroll", rating=6, tally=2)
+        triggered = mr._trigger_access_data_bomb(
+            state, self._decker(), self._eff(), action_type="analyze_icon",
+            target_file="Payroll", test_success=True, sec_value=6, sec_code="Green")
+        assert triggered is False
+        assert len(state["data_bombs"]) == 1
+
+    def test_access_to_unbombed_file_is_safe(self, scripted):
+        scripted([1])
+        state = self._state_with_bomb(target="files::Payroll", rating=6, tally=2)
+        triggered = mr._trigger_access_data_bomb(
+            state, self._decker(), self._eff(), action_type="download_data",
+            target_file="Some Other File", test_success=True, sec_value=6, sec_code="Green")
+        assert triggered is False
+        assert len(state["data_bombs"]) == 1
+
+    def test_failed_defuse_then_successful_access_detonates(self, scripted):
+        # The headline scenario: fail to defuse (bomb stays primed), then a SUCCESSFUL access of
+        # the protected file sets it off.
+        state = self._state_with_bomb(target="files::Vault", rating=6, tally=2)
+        decker = self._decker(defuse=0)
+        scripted([2, 2, 2])                                      # defuse miss (not a botch)
+        mr._apply_defuse_bomb(state, decker, self._eff(), subsystem="files",
+                              subsystem_rating=8, decker_pool=3, sec_value=6, sec_code="Green")
+        assert len(state["data_bombs"]) == 1                     # primed
+        assert state["security_tally"] == 2                      # no tally for a primed bomb
+        scripted([1])                                            # now the blast resist
+        triggered = mr._trigger_access_data_bomb(
+            state, decker, self._eff(), action_type="download_data", target_file="Vault",
+            test_success=True, sec_value=6, sec_code="Green")
+        assert triggered is True
+        assert state["data_bombs"] == []
+        assert state["security_tally"] == 8                      # 2 + rating 6
+        assert state["event_log"][-1]["outcome"] == "detonated"
+
+    def test_offline_defuse_still_attempts_at_bare_tn(self, scripted):
+        # No Defuse loaded -> TN is the full Files rating (no reduction), but the operation still runs.
+        scripted([6, 6, 6])
+        state = self._state_with_bomb(rating=6, tally=0)
+        mr._apply_defuse_bomb(state, self._decker(defuse=0), self._eff(), subsystem="files",
+                              subsystem_rating=6, decker_pool=6, sec_value=6, sec_code="Green")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb"
+        assert "Defuse 0" in ev["description"]                   # bare TN, no carried reduction
+
+
+class TestDumpLog:
+    """vr2 Dump Log (Validate / Control): a Complex Control System Test that reads the host's
+    access logs. Unlike the self-targeted ops (Medic/Restore/Disinfect), Dump Log is NOT an
+    early-return helper -- it runs through the generic ``system_test`` (Validate reduces the TN)
+    and then fires a SUCCESS HANDLER (beside Analyze Host / Analyze Security) that reveals a
+    player-visible access-log summary, including whether the decker's OWN intrusion is currently
+    on record (cleared by a Graceful Logoff). Flavor is drawn from a LOCAL ``random.Random``
+    seeded by host id + run id -- never the global RNG -- so repeated dumps are stable."""
+
+    # -- fixtures / helpers ----------------------------------------------------
+
+    def _decker(self, validate=6):
+        return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "computer_skill": 6, "intelligence": 6, "quickness": 4, "willpower": 4, "body": 4,
+                "utilities": {"validate_pgm": validate}}
+
+    class _Host:
+        config_json = {"security_code": "Orange", "security_value": 8,
+                       "acifs": [11, 12, 11, 12, 11]}
+        ltg_address = None
+        trap_doors_json = None
+
+    class _FixedRng:
+        """Deterministic rng double: ``randint`` clamps a fixed value into range; ``sample``
+        returns the first k of the pool. Lets us assert the log-size MULTIPLIER exactly."""
+        def __init__(self, val=3):
+            self.val = val
+
+        def randint(self, a, b):
+            return max(a, min(b, self.val))
+
+        def sample(self, population, k):
+            return list(population)[:k]
+
+    def _dump_state(self, *, legit_status=False):
+        state = _fresh_state(sec_code="Orange", sec_value=8)
+        state["event_log"] = []
+        state["has_legitimate_status"] = legit_status
+        state["access_log_dumped"] = None
+        return state
+
+    # -- engine helper: deterministic, difficulty-scaled summary ---------------
+
+    def test_build_summary_is_deterministic_for_a_fixed_seed(self):
+        import random
+        a = eng.build_access_log_summary(security_code="Orange", security_value=8,
+                                         intrusion_logged=True, rng=random.Random(1234))
+        b = eng.build_access_log_summary(security_code="Orange", security_value=8,
+                                         intrusion_logged=True, rng=random.Random(1234))
+        assert a == b                                            # same seed -> identical readout
+        assert a["legitimate_users"] >= 1
+        assert a["files_accessed"] and a["programs_run"]
+        assert a["intrusion_logged"] is True
+        assert a["period_hours"] == 24
+
+    def test_build_summary_log_size_multiplier_by_difficulty(self):
+        # With a fixed rng draw (2D6 -> 6), only the per-tier multiplier (5 / 2 / 1) differs.
+        easy = eng.build_access_log_summary(security_code="Green", security_value=4,
+                                            intrusion_logged=False, rng=self._FixedRng(3))
+        avg = eng.build_access_log_summary(security_code="Orange", security_value=8,
+                                           intrusion_logged=False, rng=self._FixedRng(3))
+        hard = eng.build_access_log_summary(security_code="Red", security_value=10,
+                                            intrusion_logged=False, rng=self._FixedRng(3))
+        assert (easy["difficulty"], avg["difficulty"], hard["difficulty"]) == \
+            ("Easy", "Average", "Hard")
+        assert easy["log_size_mp"] == 30                         # 2D6(6) x5
+        assert avg["log_size_mp"] == 12                          # 2D6(6) x2
+        assert hard["log_size_mp"] == 6                          # 2D6(6) x1
+
+    def test_host_difficulty_tier_mapping(self):
+        assert eng.host_difficulty_tier("Blue") == "Easy"
+        assert eng.host_difficulty_tier("Green") == "Easy"
+        assert eng.host_difficulty_tier("Orange") == "Average"
+        assert eng.host_difficulty_tier("Red") == "Hard"
+        assert eng.host_difficulty_tier("Black") == "Hard"
+
+    # -- success handler: _apply_dump_log -------------------------------------
+
+    def test_apply_dump_log_populates_state_and_emits_event(self):
+        state = self._dump_state(legit_status=False)
+        mr._apply_dump_log(state, self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        log = state["access_log_dumped"]
+        assert log is not None
+        assert log["legitimate_users"] >= 1
+        assert log["files_accessed"] and log["programs_run"]
+        assert log["intrusion_logged"] is True                  # no legit status -> on record
+        ev = state["event_log"][-1]
+        assert ev["type"] == "log_dumped"
+        assert ev["intrusion_logged"] is True
+        assert "Dump Log" in ev["description"]
+        assert "Graceful Logoff" in ev["description"]           # ties to the trace-clearing op
+
+    def test_intrusion_not_logged_when_decker_reads_as_legitimate(self):
+        state = self._dump_state(legit_status=True)
+        mr._apply_dump_log(state, self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        assert state["access_log_dumped"]["intrusion_logged"] is False
+        assert "legitimate user" in state["event_log"][-1]["description"]
+
+    def test_repeated_dumps_of_same_run_are_stable(self):
+        # LOCAL rng seeded by host id + run id -> identical summary every time (no global seed).
+        s1 = self._dump_state()
+        mr._apply_dump_log(s1, self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        s2 = self._dump_state()
+        mr._apply_dump_log(s2, self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        assert s1["access_log_dumped"] == s2["access_log_dumped"]
+
+    def test_different_runs_yield_different_readouts(self):
+        s1 = self._dump_state()
+        mr._apply_dump_log(s1, self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        s2 = self._dump_state()
+        mr._apply_dump_log(s2, self._decker(), host_id=3, run_id=99,
+                           sec_code="Orange", sec_value=8)
+        assert s1["access_log_dumped"] != s2["access_log_dumped"]
+
+    def test_global_rng_is_untouched_by_a_dump(self):
+        # The op must NOT reseed the process-wide RNG (that would make later rolls predictable).
+        import random
+        random.seed(0)
+        before = random.random()
+        random.seed(0)
+        mr._apply_dump_log(self._dump_state(), self._decker(), host_id=3, run_id=7,
+                           sec_code="Orange", sec_value=8)
+        after = random.random()
+        assert before == after                                  # global stream undisturbed
+
+    # -- full /action path: routing + success gating --------------------------
+
+    def _drive_action(self, monkeypatch, *, success):
+        import asyncio
+        from app.schemas.matrix_run import RunActionInput
+
+        decker = self._decker()
+        state = mr._initial_state(decker, self._Host())
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            if success:
+                return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                        "host_roll": {"successes": 0}, "decker_net_successes": 3,
+                        "tally_increase": 0}
+            return {"success": False, "decker_roll": {"successes": 0, "ones": 0},
+                    "host_roll": {"successes": 3}, "decker_net_successes": -3,
+                    "tally_increase": 3}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunActionInput(action_type="dump_log", subsystem="control", utility_rating=6)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_action_dump_log_success_reveals_the_log(self, monkeypatch):
+        state = self._drive_action(monkeypatch, success=True)
+        assert state["access_log_dumped"] is not None
+        assert state["access_log_dumped"]["legitimate_users"] >= 1
+        assert any(e.get("type") == "log_dumped" for e in state["event_log"])
+
+    def test_action_dump_log_failure_reveals_nothing(self, monkeypatch):
+        state = self._drive_action(monkeypatch, success=False)
+        assert state["access_log_dumped"] is None
+        assert not any(e.get("type") == "log_dumped" for e in state["event_log"])
+
+
+# -- Slow (cripple proactive IC) -----------------------------------------------
+
+class TestSlow:
+    """vr2_rules.md L1572-1578 -- Slow reduces a PROACTIVE IC's execution speed. ``_apply_slow`` is
+    exactly what the /action 'slow' handler invokes (an early-return action, before the generic
+    test), so it is unit-tested directly (mirrors TestSteamroller): a to-hit Computer Test
+    (Computer + Hacking Pool vs the host combat TN, eased -2 by the Targeting option) must land,
+    then an opposed Resistance (Slow Rating) Test is rolled for the IC. On a win the IC loses one
+    action per 2 net successes (>= 1 on a win) and HANGS once its passes are gone. Reactive IC are
+    immune; a trace IC is only vulnerable during its Hunt Cycle (both rejected with 400)."""
+
+    def _decker(self, slow=4, **opts):
+        d = {"utilities": {"slow": slow, "analyze": 4}, "computer_skill": 6, "mpcp": 4,
+             "hardening": 0, "bod": 4, "evasion": 4, "masking": 4, "sensor": 4}
+        if opts:
+            d["program_options"] = {"slow": dict(opts)}
+        return d
+
+    def _state_with_ic(self, *, ic_type="Killer", rating=2, initiative=10, ic_id="ic1",
+                       trace_phase=None, suppressed=False):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["current_turn"] = 1
+        ic = {"id": ic_id, "type": ic_type, "rating": rating, "status": "active",
+              "initiative": initiative}
+        if trace_phase:
+            ic["trace_phase"] = trace_phase
+        if suppressed:
+            ic["suppressed"] = True
+        s["active_ic"] = [ic]
+        return s
+
+    # -- schema / wiring -------------------------------------------------------
+
+    def test_schema_accepts_slow_utility_and_action(self):
+        from app.schemas.matrix_run import DeckerUtilities, RunActionInput
+        assert DeckerUtilities().slow == 0                       # default: not carried
+        assert DeckerUtilities(slow=6).slow == 6
+        inp = RunActionInput(action_type="slow", subsystem="control", target_ic_id="ic1")
+        assert inp.action_type == "slow" and inp.target_ic_id == "ic1"
+        assert mr._ACTION_COST.get("slow") == "Complex"          # a full Complex action
+
+    def test_effective_slow_reads_carried_and_subtracts_wear(self):
+        decker = self._decker(slow=6)
+        state = _fresh_state()
+        assert mr._effective_slow(decker, state) == 6
+        state["program_damage"] = {"slow": 2}                   # crash wear lowers it
+        assert mr._effective_slow(decker, state) == 4
+        state["program_damage"] = {"slow": 9}                   # worn past zero -> offline
+        assert mr._effective_slow(decker, state) == 0
+        assert mr._effective_slow({"utilities": {"armor": 4}}, _fresh_state()) == 0  # not loaded
+
+    # -- offline / no target ---------------------------------------------------
+
+    def test_no_slow_loaded_emits_offline(self):
+        state = self._state_with_ic()
+        mr._apply_slow(state, {"utilities": {}}, sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "ic_slowed" and ev["outcome"] == "offline"
+        assert "actions_lost" not in state["active_ic"][0]      # IC untouched
+
+    def test_no_eligible_target_emits_no_target(self):
+        # Only a reactive Probe is present and no id is named -> the auto-pick finds nothing.
+        state = self._state_with_ic(ic_type="Probe", rating=4, ic_id="pr1")
+        mr._apply_slow(state, self._decker(), sec_code="Green", decker_pool=6, target_ic_id="")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "ic_slowed" and ev["outcome"] == "no_target"
+
+    # -- target eligibility (rejections, no dice rolled) ----------------------
+
+    def test_reactive_ic_is_immune(self):
+        import fastapi
+        state = self._state_with_ic(ic_type="Probe", rating=4, ic_id="pr1")
+        with pytest.raises(fastapi.HTTPException) as exc:
+            mr._apply_slow(state, self._decker(), sec_code="Green", decker_pool=6,
+                           target_ic_id="pr1")
+        assert exc.value.status_code == 400
+        assert "reactive" in str(exc.value.detail).lower()
+
+    def test_location_cycle_trace_is_rejected(self):
+        import fastapi
+        state = self._state_with_ic(ic_type="Trace", rating=5, ic_id="tr1", trace_phase="locate")
+        with pytest.raises(fastapi.HTTPException) as exc:
+            mr._apply_slow(state, self._decker(), sec_code="Green", decker_pool=6,
+                           target_ic_id="tr1")
+        assert exc.value.status_code == 400
+        assert "location cycle" in str(exc.value.detail).lower()
+
+    # -- to-hit + opposed test outcomes ---------------------------------------
+
+    def test_missed_to_hit_leaves_ic_untouched(self, scripted):
+        # to-hit: 6 dice all 1 vs Green-legitimate TN 4 -> 0 hits -> missed (no opposed test).
+        scripted([1, 1, 1, 1, 1, 1])
+        state = self._state_with_ic(ic_type="Killer", rating=4, initiative=10)
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ev = state["event_log"][-1]
+        assert ev["outcome"] == "missed"
+        assert "actions_lost" not in state["active_ic"][0]
+
+    def test_opposed_test_resisted_no_effect(self, scripted):
+        # to-hit hits (six 6s); but the IC wins the opposed test (decker 0 vs IC 4) -> no effect.
+        scripted([6, 6, 6, 6, 6, 6] + [1, 1, 1, 1] + [6, 6, 6, 6])
+        state = self._state_with_ic(ic_type="Killer", rating=4, initiative=10)
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ev = state["event_log"][-1]
+        assert ev["outcome"] == "resisted" and ev["net_successes"] == -4
+        assert "actions_lost" not in state["active_ic"][0]
+
+    def test_win_reduces_actions_without_hanging(self, scripted):
+        # to-hit hits; opposed net 2 -> 1 action lost. IC has 2 passes (init 12) -> slowed, 1 left.
+        scripted([6, 6, 6, 6, 6, 6] + [6, 6, 1, 1] + [1, 1])
+        state = self._state_with_ic(ic_type="Killer", rating=2, initiative=12)
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ic = state["active_ic"][0]
+        ev = state["event_log"][-1]
+        assert ev["outcome"] == "slowed" and ev["hung"] is False and ev["actions_lost"] == 1
+        assert ic["actions_lost"] == 1 and ic["slow_turn"] == 1 and "hung_turn" not in ic
+
+    def test_win_hangs_ic_when_actions_exhausted(self, scripted):
+        # Same net 2 -> 1 action lost, but the IC has only 1 pass (init 5) -> HANGS for the turn.
+        scripted([6, 6, 6, 6, 6, 6] + [6, 6, 1, 1] + [1, 1])
+        state = self._state_with_ic(ic_type="Killer", rating=2, initiative=5)
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ic = state["active_ic"][0]
+        ev = state["event_log"][-1]
+        assert ev["outcome"] == "hung" and ev["hung"] is True
+        assert ic["actions_lost"] == 1 and ic["hung_turn"] == 1
+
+    def test_hunt_cycle_trace_can_be_slowed(self, scripted):
+        # A trace IC in its Hunt Cycle IS a legal Slow target (it acts proactively). net 2 -> slowed.
+        scripted([6, 6, 6, 6, 6, 6] + [6, 6, 1, 1] + [1, 1, 1, 1])
+        state = self._state_with_ic(ic_type="Trace", rating=4, initiative=12, ic_id="tr1",
+                                    trace_phase="hunt")
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="tr1")
+        ic = state["active_ic"][0]
+        assert state["event_log"][-1]["outcome"] == "slowed"
+        assert ic["actions_lost"] == 1
+
+    def test_accumulates_within_a_turn_then_hangs(self, scripted):
+        # Two Slow strikes the same Combat Turn stack actions_lost up to the IC's pass count, then
+        # HANG -- proving the slow_turn-scoped accumulation.
+        state = self._state_with_ic(ic_type="Killer", rating=2, initiative=12)  # 2 passes
+        scripted([6, 6, 6, 6, 6, 6] + [6, 6, 1, 1] + [1, 1])   # net 2 -> 1 lost (slowed)
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        assert state["active_ic"][0]["actions_lost"] == 1
+        assert state["event_log"][-1]["outcome"] == "slowed"
+        scripted([6, 6, 6, 6, 6, 6] + [6, 6, 1, 1] + [1, 1])   # +1 -> 2 == passes -> HANG
+        mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                       target_ic_id="ic1")
+        ic = state["active_ic"][0]
+        assert ic["actions_lost"] == 2 and ic["hung_turn"] == 1
+        assert state["event_log"][-1]["outcome"] == "hung"
+
+
+class TestSlowHangLoop:
+    """Definition-of-Done clause 2: the proactive-IC loop INSIDE ``perform_action`` must RESPECT the
+    hang. Proven against the REAL handler with a Trace IC in its Hunt Cycle (which acts every Combat
+    Turn on its initiative and -- in either hunt outcome -- emits an ``ic_attack`` event): with no
+    actions lost it acts; once ``actions_lost`` has drained its passes it is SKIPPED and stays
+    silent. The player's own action's System Test is stubbed so only the IC loop drives the result."""
+
+    class _Host:
+        config_json = {"security_code": "Green", "security_value": 6}
+        ltg_address = None
+
+    def _decker(self):
+        return {"name": "Ghost", "mpcp": 6, "bod": 5, "evasion": 5, "masking": 5, "sensor": 5,
+                "computer_skill": 6, "intelligence": 5, "quickness": 5, "willpower": 4, "body": 5,
+                "hardening": 0, "deck_mode": "cool", "utilities": {"sleaze": 4, "deception": 4}}
+
+    def _drive(self, monkeypatch, *, actions_lost):
+        import asyncio
+        from app.schemas.matrix_run import RunActionInput
+
+        decker = self._decker()
+        state = mr._initial_state(decker, self._Host())
+        state["logon_complete"] = True
+        state["has_legitimate_status"] = True
+        state["current_pass"] = 1
+        state["initiative_passes"] = 4
+        state["pass_action_points"] = 2
+        state["pass_free"] = 1
+        # init 30 -> 4 passes, so the un-slowed IC acts regardless of which pass we land on; the
+        # hung case drains all 4 so its effective passes are 0.
+        ic = {"id": "trace1", "type": "Trace", "rating": 5, "status": "active",
+              "initiative": 30, "trace_phase": "hunt"}
+        if actions_lost:
+            ic["actions_lost"] = actions_lost
+            ic["slow_turn"] = state["current_turn"]
+        state["active_ic"] = [ic]
+
+        class _StubRun:
+            id = 11
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                    "host_roll": {"successes": 0}, "decker_net_successes": 3, "tally_increase": 0}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([3]))   # deterministic trace hunt roll
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunActionInput(action_type="dump_log", subsystem="control", utility_rating=6)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=11, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_active_trace_ic_acts_when_not_hung(self, monkeypatch):
+        st = self._drive(monkeypatch, actions_lost=0)
+        assert any(e.get("type") == "ic_attack" and e.get("ic_id") == "trace1"
+                   for e in st["event_log"]), "a non-hung trace IC must take its hunt action"
+
+    def test_hung_ic_is_skipped_by_the_loop(self, monkeypatch):
+        # actions_lost 4 == its 4 passes -> effective passes 0 -> HANGS: the loop takes no action.
+        st = self._drive(monkeypatch, actions_lost=4)
+        assert not any(e.get("type") == "ic_attack" and e.get("ic_id") == "trace1"
+                       for e in st["event_log"]), "a hung IC must take NO action this turn"
+
+
+class TestSlowResume:
+    """vr2_rules.md L1578 -- a hung/slowed IC RESUMES at the start of the next Combat Turn UNLESS it
+    is still suppressed. ``new_turn`` clears the per-turn slow markers (actions_lost / slow_turn /
+    hung_turn) for every NON-suppressed active IC and LEAVES them on a suppressed IC (which stays
+    out of play until released). Driven against the real ``new_turn`` endpoint."""
+
+    class _Host:
+        config_json = {"security_code": "Green", "security_value": 6}
+        ltg_address = None
+
+    def _decker(self):
+        return {"name": "Ghost", "mpcp": 6, "bod": 5, "evasion": 5, "masking": 5, "sensor": 5,
+                "computer_skill": 6, "intelligence": 5, "quickness": 5, "willpower": 4, "body": 5,
+                "hardening": 0, "deck_mode": "cool", "utilities": {"sleaze": 4}}
+
+    def _drive(self, monkeypatch):
+        import asyncio
+        decker = self._decker()
+        state = mr._initial_state(decker, self._Host())
+        state["active_ic"] = [
+            {"id": "free", "type": "Killer", "rating": 5, "status": "active",
+             "initiative": 12, "actions_lost": 2, "slow_turn": 1, "hung_turn": 1},
+            {"id": "supp", "type": "Killer", "rating": 5, "status": "active", "suppressed": True,
+             "initiative": 12, "actions_lost": 2, "slow_turn": 1, "hung_turn": 1},
+        ]
+
+        class _StubRun:
+            id = 12
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.new_turn(run_id=12, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_non_suppressed_ic_resumes_next_turn(self, monkeypatch):
+        st = self._drive(monkeypatch)
+        ic = next(i for i in st["active_ic"] if i["id"] == "free")
+        assert "actions_lost" not in ic and "slow_turn" not in ic and "hung_turn" not in ic
+
+    def test_suppressed_ic_stays_hung(self, monkeypatch):
+        st = self._drive(monkeypatch)
+        ic = next(i for i in st["active_ic"] if i["id"] == "supp")
+        assert ic.get("actions_lost") == 2 and ic.get("hung_turn") == 1
+
+
+# -- #12 Compressor (halve a downloaded file's stored footprint) ----------------
+
+class TestCompressor:
+    """vr2_rules.md L1512-1515 -- the Compressor utility "reduces size of data being transferred
+    by 50%" up to a "max file size [of] Program Rating * 100 Mp"; the file "must be decompressed
+    before being able to read or use [it]" and the deck must hold the uncompressed size to expand
+    it. Compressor is a passive data tool that never wears (no program_damage read), so a download
+    always stores at half size when within the cap. The download storage pre-check and the success
+    handler share ``_compressed_store_size`` as one source of truth, and Decompress File is a
+    no-test storage action (like Swap Memory) that expands a chosen compressed file back to full."""
+
+    # -- schema / wiring -------------------------------------------------------
+
+    def test_schema_accepts_compressor_utility_and_action(self):
+        from app.schemas.matrix_run import DeckerUtilities, RunActionInput
+        assert DeckerUtilities().compressor == 0                 # default: not carried
+        assert DeckerUtilities(compressor=6).compressor == 6
+        inp = RunActionInput(action_type="decompress_file", subsystem="files", target_file="Vault")
+        assert inp.action_type == "decompress_file" and inp.target_file == "Vault"
+        assert mr._ACTION_COST.get("decompress_file") == "Complex"   # a full Complex action
+
+    # -- _effective_compressor: carried rating, never wears --------------------
+
+    def test_effective_compressor_reads_carried_no_wear(self):
+        assert mr._effective_compressor({"utilities": {"compressor": 6}}) == 6
+        assert mr._effective_compressor({"utilities": {}}) == 0
+        assert mr._effective_compressor({}) == 0
+        # Unlike Slow / Steamroller a crash record never lowers it (no program_damage subtraction).
+        assert mr._effective_compressor(
+            {"utilities": {"compressor": 4}, "program_damage": {"compressor": 3}}) == 4
+
+    # -- _compressed_store_size: halving, round-up, Rating*100 cap -------------
+
+    def test_compressed_store_size_halves_within_cap(self):
+        assert mr._compressed_store_size(6, 100) == (50, True)   # 100 <= 600 -> half
+        assert mr._compressed_store_size(3, 300) == (150, True)  # exactly at the Rating*100 cap
+
+    def test_compressed_store_size_rounds_up_so_one_mp_survives(self):
+        assert mr._compressed_store_size(6, 1) == (1, True)      # (1+1)//2 = 1, never collapses to 0
+        assert mr._compressed_store_size(6, 7) == (4, True)      # (7+1)//2 = 4
+
+    def test_compressed_store_size_over_cap_stores_full(self):
+        assert mr._compressed_store_size(3, 301) == (301, False)  # 301 > 300 cap -> not compressed
+
+    def test_compressed_store_size_without_compressor_stores_full(self):
+        assert mr._compressed_store_size(0, 100) == (100, False)
+
+    # -- _apply_decompress: expand, clear flag, storage math ------------------
+
+    def _compressed_state(self, *, storage_free=-1, storage_used=50, stored=50, full=100):
+        state = _fresh_state()
+        state["event_log"] = []
+        state["storage_free_mp"] = storage_free
+        state["storage_used_mp"] = storage_used
+        state["downloaded_files"] = [{"name": "Vault", "size_mp": stored, "is_key": True,
+                                      "turn": 1, "compressed": True, "full_size_mp": full}]
+        state["paydata"] = [{"name": "Vault", "density": full, "is_key": True,
+                             "downloaded": True, "compressed": True}]
+        return state
+
+    def test_decompress_expands_and_clears_flag(self):
+        state = self._compressed_state(storage_free=200, storage_used=50, stored=50, full=100)
+        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
+        entry = state["downloaded_files"][0]
+        assert entry["size_mp"] == 100 and entry["compressed"] is False
+        assert state["paydata"][0]["compressed"] is False        # readable/usable now
+        assert state["storage_used_mp"] == 100                   # +50 to hold the full size
+        ev = state["event_log"][-1]
+        assert ev["type"] == "file_decompressed" and ev["outcome"] == "expanded"
+        assert ev["size_mp"] == 100
+
+    def test_decompress_blocked_when_storage_full(self):
+        # 60 free, 50 used -> only 10 free; expanding needs +50 -> rejected, nothing changes.
+        state = self._compressed_state(storage_free=60, storage_used=50, stored=50, full=100)
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
+        assert exc.value.status_code == 400
+        assert state["downloaded_files"][0]["compressed"] is True   # untouched
+        assert state["storage_used_mp"] == 50
+
+    def test_decompress_untracked_storage_skips_math(self):
+        state = self._compressed_state(storage_free=-1, storage_used=50, stored=50, full=100)
+        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
+        entry = state["downloaded_files"][0]
+        assert entry["compressed"] is False and entry["size_mp"] == 100
+        assert state["event_log"][-1]["outcome"] == "expanded"
+
+    def test_decompress_no_target_is_noop_event(self):
+        state = self._compressed_state(storage_free=200)
+        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="")
+        assert state["event_log"][-1]["outcome"] == "no_target"
+        assert state["downloaded_files"][0]["compressed"] is True    # nothing expanded
+
+    def test_decompress_unknown_file_is_noop_event(self):
+        state = self._compressed_state(storage_free=200)
+        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Ghost")
+        assert state["event_log"][-1]["outcome"] == "no_target"
+
+    def test_decompress_already_expanded_is_noop(self):
+        state = self._compressed_state(storage_free=200)
+        state["downloaded_files"][0]["compressed"] = False           # already readable
+        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
+        assert state["event_log"][-1]["outcome"] == "no_target"
+
+    # -- full /action download path: shared storage footprint -----------------
+
+    def _host(self, *, density=100, name="Paydata", is_key=False):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6,
+                           "paydata": [{"name": name, "density": density, "is_key": is_key}]}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _decker(self, *, compressor=0, storage_free=-1):
+        return {"masking": 4, "intelligence": 5, "mpcp": 6, "sensor": 4, "evasion": 4, "bod": 4,
+                "computer_skill": 6, "storage_free_mp": storage_free,
+                "utilities": {"read_write": 6, "compressor": compressor}}
+
+    def _drive(self, monkeypatch, *, decker, host, action, state=None, success=True):
+        import asyncio
+
+        if state is None:
+            state = mr._initial_state(decker, host)
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            if success:
+                return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                        "host_roll": {"successes": 0}, "decker_net_successes": 3,
+                        "tally_increase": 0}
+            return {"success": False, "decker_roll": {"successes": 0, "ones": 0},
+                    "host_roll": {"successes": 3}, "decker_net_successes": -3, "tally_increase": 3}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=action, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_download_with_compressor_halves_stored_size(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=6, storage_free=500)
+        action = RunActionInput(action_type="download_data", subsystem="files",
+                                target_file="Paydata")
+        state = self._drive(monkeypatch, decker=decker, host=self._host(density=100), action=action)
+        f = state["downloaded_files"][0]
+        assert f["compressed"] is True and f["size_mp"] == 50 and f["full_size_mp"] == 100
+        assert state["storage_used_mp"] == 50
+        ev = next(e for e in state["event_log"] if e.get("type") == "data_downloaded")
+        assert ev["compressed"] is True and ev["size_mp"] == 50
+
+    def test_download_over_cap_stores_full_not_compressed(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=3, storage_free=1000)   # cap = 300 Mp
+        action = RunActionInput(action_type="download_data", subsystem="files",
+                                target_file="Paydata")
+        state = self._drive(monkeypatch, decker=decker, host=self._host(density=400), action=action)
+        f = state["downloaded_files"][0]
+        assert f["compressed"] is False and f["size_mp"] == 400
+        assert state["storage_used_mp"] == 400
+
+    def test_download_without_compressor_stores_full(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=0, storage_free=500)
+        action = RunActionInput(action_type="download_data", subsystem="files",
+                                target_file="Paydata")
+        state = self._drive(monkeypatch, decker=decker, host=self._host(density=100), action=action)
+        f = state["downloaded_files"][0]
+        assert f["compressed"] is False and f["size_mp"] == 100
+        assert state["storage_used_mp"] == 100
+
+    def test_precheck_lets_a_file_fit_compressed(self, monkeypatch):
+        # 60 Mp free; a 100 Mp file stores at 50 with the Compressor, so the download is allowed.
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=6, storage_free=60)
+        action = RunActionInput(action_type="download_data", subsystem="files",
+                                target_file="Paydata")
+        state = self._drive(monkeypatch, decker=decker, host=self._host(density=100), action=action)
+        assert state["downloaded_files"][0]["size_mp"] == 50
+        assert state["storage_used_mp"] == 50
+
+    def test_precheck_blocks_same_file_without_compressor(self, monkeypatch):
+        # Same 60 Mp free, same 100 Mp file, but NO Compressor -> full size won't fit -> 400.
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=0, storage_free=60)
+        action = RunActionInput(action_type="download_data", subsystem="files",
+                                target_file="Paydata")
+        with pytest.raises(mr.HTTPException) as exc:
+            self._drive(monkeypatch, decker=decker, host=self._host(density=100), action=action)
+        assert exc.value.status_code == 400
+
+    # -- full /action decompress path ------------------------------------------
+
+    def test_action_decompress_expands_via_perform_action(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=6, storage_free=200)
+        host = self._host(density=100)
+        state = mr._initial_state(decker, host)
+        state["storage_used_mp"] = 50
+        state["downloaded_files"] = [{"name": "Paydata", "size_mp": 50, "is_key": False,
+                                      "turn": 1, "compressed": True, "full_size_mp": 100}]
+        for p in state["paydata"]:
+            if p["name"] == "Paydata":
+                p["downloaded"] = True
+                p["compressed"] = True
+        action = RunActionInput(action_type="decompress_file", subsystem="files",
+                                target_file="Paydata")
+        state2 = self._drive(monkeypatch, decker=decker, host=host, action=action, state=state)
+        f = state2["downloaded_files"][0]
+        assert f["compressed"] is False and f["size_mp"] == 100
+        assert state2["storage_used_mp"] == 100
+        assert any(e.get("type") == "file_decompressed" and e.get("outcome") == "expanded"
+                   for e in state2["event_log"])
+
+    def test_action_decompress_blocked_does_not_spend(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker(compressor=6, storage_free=60)
+        host = self._host(density=100)
+        state = mr._initial_state(decker, host)
+        state["storage_used_mp"] = 50                            # only 10 free; expand needs +50
+        state["downloaded_files"] = [{"name": "Paydata", "size_mp": 50, "is_key": False,
+                                      "turn": 1, "compressed": True, "full_size_mp": 100}]
+        ap_before = state.get("pass_action_points")
+        action = RunActionInput(action_type="decompress_file", subsystem="files",
+                                target_file="Paydata")
+        with pytest.raises(mr.HTTPException) as exc:
+            self._drive(monkeypatch, decker=decker, host=host, action=action, state=state)
+        assert exc.value.status_code == 400
+        # perform_action mutates a deepcopy, so the original run state is pristine -- NOT spent.
+        assert state["downloaded_files"][0]["compressed"] is True
+        assert state.get("pass_action_points") == ap_before
+
+
+# -- #15 One-Shot program option (single-use; Tar IC wipes every copy) ----------
+
+class TestOneShot:
+    """vr2_rules.md L1667 -- One-Shot is a single-use program OPTION: the utility executes ONCE
+    then "vanishes from active memory"; the decker must Swap Memory a fresh copy to use it again.
+    A Tar Baby / Tar Pit crash wipes ALL copies of a one-shot program on the deck (it can never be
+    reloaded for the rest of the run).
+
+    "Spent" is expressed through state['program_damage'][util] == its base rating, so a spent
+    one-shot reads as effective-0 -- the same gate every _effective_<util> helper already uses --
+    and a Swap Memory reload clears it. The helpers/handlers are unit-tested directly (mirrors
+    TestSteamroller); the tar-wipe wiring is driven through the live resolve_reactive_ic handler."""
+
+    def _decker(self, util, rating=6, one_shot=True, **utils):
+        return {"utilities": {util: rating, **utils},
+                "program_options": {util: {"one_shot": one_shot}},
+                "computer_skill": 6, "mpcp": 4, "hardening": 0,
+                "bod": 4, "evasion": 4, "masking": 4, "sensor": 4}
+
+    def _damaged_state(self, boxes=3):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["condition_monitor"] = {"persona_boxes": boxes}
+        return s
+
+    # -- (f) _is_one_shot reads program_options -------------------------------
+
+    def test_is_one_shot_reads_program_options(self):
+        decker = {"utilities": {"attack": 6, "medic": 5},
+                  "program_options": {"attack": {"one_shot": True},
+                                      "medic": {"one_shot": False}}}
+        assert mr._is_one_shot(decker, "attack") is True
+        assert mr._is_one_shot(decker, "medic") is False
+        assert mr._is_one_shot(decker, "shield") is False        # no option entry at all
+        # Spaced / cased names normalize to the stored underscore key.
+        decker["program_options"]["black_hammer"] = {"one_shot": True}
+        assert mr._is_one_shot(decker, "Black Hammer") is True
+
+    # -- (a) consumed once, then effective-0 (hard gate via _effective_*) ------
+
+    def test_one_shot_medic_spent_after_one_use(self, scripted):
+        scripted([6])                                            # all dice succeed
+        decker = self._decker("medic", rating=6, one_shot=True)
+        state = self._damaged_state()
+        assert mr._effective_medic(decker, state) == 6
+        mr._apply_medic(state, decker)
+        assert mr._effective_medic(decker, state) == 0          # spent -> vanished from memory
+        assert state["program_damage"]["medic"] == 6
+        assert any(e["type"] == "one_shot_spent" and e["utility"] == "medic"
+                   for e in state["event_log"])
+
+    def test_one_shot_steamroller_offline_on_second_strike(self, scripted):
+        scripted([1])                                           # tar resists nothing -> crush
+        decker = self._decker("steamroller", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 0
+        state["lurking_ic"] = [{"id": "lc_tar", "type": "Tar Baby", "rating": 5,
+                                "status": "lurking"}]
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar")
+        assert mr._effective_steamroller(decker, state) == 0    # one-shot spent
+        assert any(e["type"] == "one_shot_spent" for e in state["event_log"])
+        # A second strike finds the Steamroller offline (the _effective_* gate refuses it).
+        state["lurking_ic"] = [{"id": "lc_tar2", "type": "Tar Baby", "rating": 5,
+                                "status": "lurking"}]
+        mr._apply_steamroller(state, decker, sec_code="Green", decker_pool=6,
+                              target_ic_id="lc_tar2")
+        ev = state["event_log"][-1]
+        assert ev["type"] == "tar_steamrolled" and ev["destroyed"] is False
+        assert "offline" in ev["description"].lower()
+        assert state["lurking_ic"][0]["id"] == "lc_tar2"        # second tar untouched
+
+    # -- (b) a non-one-shot copy of the same utility is unaffected -------------
+
+    def test_non_one_shot_medic_only_degrades_by_one(self, scripted):
+        scripted([6])
+        decker = self._decker("medic", rating=6, one_shot=False)
+        state = self._damaged_state()
+        mr._apply_medic(state, decker)
+        assert mr._effective_medic(decker, state) == 5          # normal -1 wear, NOT spent
+        assert not any(e["type"] == "one_shot_spent" for e in state["event_log"])
+
+    def test_spend_one_shot_is_idempotent(self):
+        decker = self._decker("slow", rating=5, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        mr._spend_one_shot(state, decker, "slow")
+        mr._spend_one_shot(state, decker, "slow")               # already spent -> no 2nd event
+        spent = [e for e in state["event_log"] if e["type"] == "one_shot_spent"]
+        assert len(spent) == 1
+        assert state["program_damage"]["slow"] == 5
+
+    def test_spend_one_shot_noop_for_non_one_shot(self):
+        decker = self._decker("slow", rating=5, one_shot=False)
+        state = _fresh_state(); state["event_log"] = []
+        mr._spend_one_shot(state, decker, "slow")
+        assert not state.get("program_damage")                  # untouched
+        assert state["event_log"] == []
+
+    # -- (c) Swap Memory reloads a spent one-shot -----------------------------
+
+    def test_swap_memory_reloads_spent_one_shot(self, scripted):
+        scripted([6])
+        decker = self._decker("medic", rating=6, one_shot=True)
+        state = self._damaged_state()
+        mr._apply_medic(state, decker)
+        assert mr._effective_medic(decker, state) == 0          # spent
+        mr._apply_swap_memory(state, decker, target_program="medic", swap_out_program="")
+        assert mr._effective_medic(decker, state) == 6          # fresh copy reloaded
+        assert state["program_damage"].get("medic", 0) == 0
+
+    # -- (d) Tar IC wipes EVERY copy ------------------------------------------
+
+    def test_tar_wipe_corrupts_all_copies_and_clears_storage(self):
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state["storage_programs"] = [{"name": "attack", "rating": 6, "size": 4},
+                                     {"name": "medic", "rating": 5, "size": 3}]
+        mr._wipe_one_shot(state, decker, "Attack")              # spaced/cased name normalizes
+        assert "attack" in state["one_shot_wiped"]
+        assert state["program_damage"]["attack"] == 6
+        # The wiped one-shot's storage copy is gone; the unrelated program survives.
+        assert [p["name"] for p in state["storage_programs"]] == ["medic"]
+        assert any(e["type"] == "one_shot_wiped" and e["utility"] == "attack"
+                   for e in state["event_log"])
+
+    def test_tar_wipe_noop_for_non_one_shot(self):
+        decker = self._decker("attack", rating=6, one_shot=False)
+        state = _fresh_state(); state["event_log"] = []
+        mr._wipe_one_shot(state, decker, "attack")
+        assert not state.get("one_shot_wiped")
+        assert not state.get("program_damage")
+        assert state["event_log"] == []
+
+    def test_reactive_tar_resolution_wipes_one_shot(self, monkeypatch):
+        # The live resolve_reactive_ic handler must call _wipe_one_shot when the tar wins: a
+        # one-shot utility used against the tar is corrupted on every copy and cannot be reloaded.
+        import asyncio
+        from app.schemas.matrix_run import RunReactiveInput
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state["storage_programs"] = [{"name": "attack", "rating": 6, "size": 4}]
+        state["lurking_ic"] = [{"id": "lc_tar", "type": "Tar Baby", "rating": 8,
+                                "status": "lurking"}]
+
+        class _StubRun:
+            id = 9
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_tar(**kw):
+            return {"ic_wins": True, "ic_roll": {"successes": 3},
+                    "util_roll": {"successes": 0}, "all_copies_corrupted": False}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "tar_baby_test", _fake_tar)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        body = RunReactiveInput(ic_id="lc_tar", utility_name="attack", utility_rating=6)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        result = asyncio.run(
+            mr.resolve_reactive_ic(run_id=9, body=body, auth=auth, db=_FakeDB()))
+        assert "attack" in result["one_shot_wiped"]
+        assert result["program_damage"]["attack"] == 6
+        assert result["storage_programs"] == []                 # storage copy wiped
+        assert any(e["type"] == "one_shot_wiped" for e in result["event_log"])
+
+    # -- (e) Swap Memory refuses to reload a tar-wiped one-shot ---------------
+
+    def test_swap_memory_refuses_tar_wiped_reload(self):
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state["one_shot_wiped"] = ["attack"]
+        state["program_damage"] = {"attack": 6}
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._apply_swap_memory(state, decker, target_program="attack", swap_out_program="")
+        assert exc.value.status_code == 400
+        assert "tar" in exc.value.detail.lower()
+
+    # -- (g) OFFENSIVE hard-gate: the attack/strike endpoints refuse a spent one-shot ----
+    # The offensive endpoints (attack_ic / attack_enemy_decker) read the carried rating
+    # directly, so they cannot lean on an _effective_* helper -- _one_shot_block enforces
+    # "executes ONCE" for them explicitly (a spent / tar-wiped copy is refused before any roll).
+
+    def test_one_shot_block_unit(self):
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        mr._one_shot_block(state, decker, "attack")             # not yet spent -> no block
+        state["program_damage"] = {"attack": 6}                 # spent (== base rating)
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._one_shot_block(state, decker, "attack")
+        assert exc.value.status_code == 400
+        assert "spent" in exc.value.detail.lower()
+        state["one_shot_wiped"] = ["attack"]                    # tar-wiped takes priority
+        with pytest.raises(mr.HTTPException) as exc2:
+            mr._one_shot_block(state, decker, "attack")
+        assert exc2.value.status_code == 400
+        assert "tar" in exc2.value.detail.lower()
+        # A non-one-shot copy is never blocked, even when fully "spent".
+        plain = self._decker("attack", rating=6, one_shot=False)
+        s2 = _fresh_state(); s2["program_damage"] = {"attack": 6}
+        mr._one_shot_block(s2, plain, "attack")                 # no raise
+
+    def test_one_shot_attack_refused_on_second_enemy_strike(self, monkeypatch):
+        import asyncio
+        from app.schemas.matrix_run import RunEnemyAttackInput
+        # Plain-attack resolution returns 0 boxes so the enemy stays active+revealed between strikes.
+        monkeypatch.setattr(eng, "cybercombat_attack", lambda **kw: {
+            "attack_roll": {"successes": 0, "ones": 0},
+            "resistance": {"boxes": 0, "final_damage_level": "None"}})
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(sec_code="Green", sec_value=4)
+        state["event_log"] = []
+        state["enemy_deckers"] = [{"id": "ed1", "name": "Red Decker", "status": "active",
+                                   "revealed": True, "bod": 5,
+                                   "condition_monitor": {"persona_boxes": 0}}]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunEnemyAttackInput(enemy_id="ed1", attack_pool=6, hacking_pool_dice=0,
+                                  program="attack")
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        # First strike fires and spends the one-shot Attack.
+        asyncio.run(mr.attack_enemy_decker(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        assert run.state_json["program_damage"]["attack"] == 6
+        assert any(e["type"] == "one_shot_spent" for e in run.state_json["event_log"])
+        # Second strike is hard-refused before any roll -- the copy is gone from active memory.
+        with pytest.raises(mr.HTTPException) as exc:
+            asyncio.run(mr.attack_enemy_decker(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        assert exc.value.status_code == 400
+        assert "spent" in exc.value.detail.lower()
+
+    def test_one_shot_attack_refused_on_second_ic_strike(self, monkeypatch):
+        # Same one-shot enforcement on the IC-attack endpoint (attack_ic, util="attack"): the
+        # cybercombat deals 0 boxes so the IC stays active between strikes, isolating the gate.
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+        monkeypatch.setattr(eng, "cybercombat_attack", lambda **kw: {
+            "attack_roll": {"successes": 0, "ones": 0},
+            "resistance": {"boxes": 0, "final_damage_level": "None"}})
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(sec_code="Green", sec_value=4)
+        state["event_log"] = []
+        state["active_ic"] = [{"id": "ic1", "type": "Construct", "rating": 4,
+                               "status": "active", "boxes": 0, "cluster_id": None}]
+
+        class _StubRun:
+            id = 8
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=6, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        # First strike fires and spends the one-shot Attack.
+        asyncio.run(mr.attack_ic(run_id=8, body=inp, auth=auth, db=_FakeDB()))
+        assert run.state_json["program_damage"]["attack"] == 6
+        assert any(e["type"] == "one_shot_spent" for e in run.state_json["event_log"])
+        # Second strike is hard-refused before any roll -- reload via Swap Memory required.
+        with pytest.raises(mr.HTTPException) as exc:
+            asyncio.run(mr.attack_ic(run_id=8, body=inp, auth=auth, db=_FakeDB()))
+        assert exc.value.status_code == 400
+        assert "spent" in exc.value.detail.lower()
+
+
+# -- DINAB ("Decker In A Box") program option (operational + offensive) ----------
+
+class TestDINAB:
+    """vr2_rules.md L1665 -- DINAB equips a utility with a built-in Computer skill = its DINAB
+    rating, so the decker spends one Free Action to fire that ONE program autonomously (a "second
+    ally") at skill = effective DINAB rating, alongside their own pass. Operational programs run a
+    generic System Test; the six offensive utilities reuse cybercombat / crippler resolution. A
+    failed run degrades DINAB (-1); a failed all-1s run CRASHES it (program_damage = base; reload
+    via Swap Memory). Player-triggered, one run per trigger -- never a background auto-loop."""
+
+    def _host(self):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6, "paydata": []}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _decker(self, *, deception_dinab=4, attack_dinab=4):
+        return {"masking": 4, "intelligence": 5, "mpcp": 6, "sensor": 4, "evasion": 4, "bod": 4,
+                "computer_skill": 6, "hardening": 0, "storage_free_mp": -1,
+                "utilities": {"deception": 5, "attack": 5, "analyze": 5},
+                "program_options": {"deception": {"dinab": deception_dinab},
+                                    "attack": {"dinab": attack_dinab}}}
+
+    def _state(self, decker, *, active_ic=None, enemy_deckers=None):
+        state = mr._initial_state(decker, self._host())
+        state["logon_complete"] = True
+        state["active_ic"] = active_ic or []
+        state["enemy_deckers"] = enemy_deckers or []
+        return state
+
+    def _drive(self, monkeypatch, *, decker, state, action, op_success=True, all_ones=False):
+        import asyncio
+
+        def _fake_test(**kw):
+            if op_success:
+                return {"success": True, "decker_roll": {"successes": 3, "ones": 0, "pool": 4},
+                        "host_roll": {"successes": 0}, "decker_net_successes": 3, "tally_increase": 0}
+            dr = {"successes": 0, "ones": 4 if all_ones else 0, "pool": 4}
+            return {"success": False, "decker_roll": dr, "host_roll": {"successes": 1},
+                    "decker_net_successes": -1, "tally_increase": 1}
+
+        def _fake_roll(pool, tn=4):
+            ones = pool if all_ones else 0
+            return {"successes": 0, "ones": ones, "pool": pool, "tn": tn, "rolls": []}
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=action, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    # -- effective rating gate -------------------------------------------------
+
+    def test_effective_dinab_subtracts_wear_and_gates_offline(self):
+        decker = self._decker()
+        assert mr._effective_dinab(decker, {}, "attack") == 4
+        assert mr._effective_dinab(decker, {"dinab_damage": {"attack": 2}}, "attack") == 2
+        # Crashed program (program_damage >= base utility 5) -> DINAB cannot run it.
+        assert mr._effective_dinab(decker, {"program_damage": {"attack": 5}}, "attack") == 0
+        # Not DINAB-equipped utility -> 0.
+        assert mr._effective_dinab(decker, {}, "analyze") == 0
+
+    def test_offline_program_rejected(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="analyze")
+        with pytest.raises(mr.HTTPException) as exc:
+            self._drive(monkeypatch, decker=decker, state=state, action=act)
+        assert exc.value.status_code == 400
+
+    # -- free action economy ---------------------------------------------------
+
+    def test_dinab_is_free_action(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        ap = state["pass_action_points"]
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act)
+        assert st["pass_action_points"] == ap          # Complex/Simple budget untouched
+        assert st["pass_free"] == 0                     # only the Free was spent
+
+    # -- operational route -----------------------------------------------------
+
+    def test_operational_success_no_wear(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, op_success=True)
+        assert not st.get("dinab_damage")
+        assert any(e["type"] == "dinab_op" and e["success"] for e in st["event_log"])
+
+    def test_operational_fail_degrades(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, op_success=False)
+        assert st["dinab_damage"]["deception"] == 1
+        assert any(e["type"] == "dinab_degraded" for e in st["event_log"])
+
+    def test_operational_fail_all_ones_crashes(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act,
+                         op_success=False, all_ones=True)
+        assert st["program_damage"]["deception"] == 5          # base -> effective-0
+        assert "deception" not in st.get("dinab_damage", {})
+        assert any(e["type"] == "dinab_crashed" for e in st["event_log"])
+
+    # -- offensive route -------------------------------------------------------
+
+    def test_offensive_attack_degrades_on_miss(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        ic = {"id": "ic1", "type": "Killer", "rating": 5, "status": "active", "boxes": 0}
+        state = self._state(decker, active_ic=[ic])
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="attack")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, all_ones=False)
+        assert st["dinab_damage"]["attack"] == 1
+        assert any(e["type"] == "dinab_attack" for e in st["event_log"])
+
+    def test_offensive_attack_all_ones_crashes(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        ic = {"id": "ic1", "type": "Killer", "rating": 5, "status": "active", "boxes": 0}
+        state = self._state(decker, active_ic=[ic])
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="attack")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, all_ones=True)
+        assert st["program_damage"]["attack"] == 5
+        assert any(e["type"] == "dinab_crashed" for e in st["event_log"])
+
+    def test_offensive_attack_crashes_ic_and_bumps_tally(self, monkeypatch):
+        """A hit that pushes the IC to 10 boxes CRASHES it: removed from play, tally rises, no
+        DINAB wear (a success leaves the rating intact)."""
+        decker = self._decker(attack_dinab=4)
+        ic = {"id": "ic1", "type": "Killer", "rating": 5, "status": "active", "boxes": 9}
+        state = self._state(decker, active_ic=[ic])
+        monkeypatch.setattr(eng, "roll_dice", lambda pool, tn=4: {
+            "successes": 6, "ones": 0, "pool": pool, "tn": tn, "rolls": []})
+        before = state.get("security_tally", 0)
+        failed, all_ones = mr._dinab_attack_ic(state, decker, ic, 4, "Green")
+        assert (failed, all_ones) == (False, False)
+        assert ic["status"] == "crashed"
+        assert state["security_tally"] > before          # crash adds the IC rating to tally
+        assert not state.get("dinab_damage")             # success: no degrade
+
+    def test_crash_reloads_via_swap_memory(self, monkeypatch):
+        """vr2: a crashed DINAB program reloads via Swap Memory. The crash sets program_damage to
+        base (effective DINAB -> 0); a Mode-3 reload clears it and the autonomous skill returns."""
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        state = self._state(decker)
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act,
+                         op_success=False, all_ones=True)
+        assert mr._effective_dinab(decker, st, "deception") == 0   # crashed
+        mr._apply_swap_memory(st, decker, target_program="deception", swap_out_program="")
+        assert st["program_damage"].get("deception", 0) == 0       # fresh copy
+        assert mr._effective_dinab(decker, st, "deception") == 4   # DINAB restored
+
+
+class TestSkulkCrashTally:
+    """vr2_rules.md L1671 -- the Skulk option (book "Stealth") on the Attack utility reduces the
+    security-tally increase from crashing IC: tally_increase = max(0, ic_rating - skulk). It is
+    read automatically from decker.program_options['attack'].skulk (no manual entry). There is NO
+    "Skulk>=6 -> 0" rule: a high-rating IC still leaks tally past the masking. Drives the real
+    /attack crash path in app.routers.matrix_runs.attack_ic."""
+
+    def _crash(self, monkeypatch, *, rating, skulk=None, attack_pool=12):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        # Deterministic crash: attacker rolls a huge stage-up (-> Deadly = 6 boxes), IC resists
+        # nothing. The IC starts at 5 boxes so the single Deadly hit reaches 11 >= 10 = crash.
+        # The resist pool (Security Value 9) is < attack_pool, so it scores 0.
+        def _fake_roll(pool, tn=4):
+            return {"successes": 30 if pool >= attack_pool else 0, "ones": 0,
+                    "rolls": [], "pool": pool, "tn": tn}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                  "utilities": {"attack": 6}}
+        if skulk is not None:
+            decker["program_options"] = {"attack": {"skulk": skulk}}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["active_ic"] = [{"id": "ic1", "type": "Killer", "rating": rating,
+                               "status": "active", "boxes": 5}]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=attack_pool, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        ev = [e for e in run.state_json["event_log"] if e["type"] == "ic_crashed"][-1]
+        return run.state_json, ev
+
+    def test_skulk_reduces_tally_by_rating(self, monkeypatch):
+        # Rating-10 IC, Skulk-8 -> tally +2 (not zeroed), masking note present.
+        state, ev = self._crash(monkeypatch, rating=10, skulk=8)
+        assert state["security_tally"] == 2
+        assert ev["tally_increase"] == 2
+        assert "Skulk-8 masked the crash" in ev["description"]
+
+    def test_no_zeroing_at_six(self, monkeypatch):
+        # NO "Skulk>=6 -> 0" bug: Rating-10 IC, Skulk-6 -> +4, the 6 does not eliminate the tally.
+        state, ev = self._crash(monkeypatch, rating=10, skulk=6)
+        assert ev["tally_increase"] == 4
+
+    def test_skulk_floors_at_zero_never_negative(self, monkeypatch):
+        # Skulk above the IC rating fully masks (0), never below zero.
+        state, ev = self._crash(monkeypatch, rating=4, skulk=8)
+        assert ev["tally_increase"] == 0
+        assert state["security_tally"] == 0
+
+    def test_no_skulk_adds_full_rating(self, monkeypatch):
+        # No program_options at all -> full IC rating, no masking note.
+        state, ev = self._crash(monkeypatch, rating=6, skulk=None)
+        assert ev["tally_increase"] == 6
+        assert "masked the crash" not in ev["description"]
+
+
+class TestTargetingToHitTN:
+    """vr2_rules.md L1673 -- the Targeting option gives -2 TN on attacks made with that utility.
+    Read automatically from decker.program_options['attack'].targeting. It must lower ONLY the
+    attacker's to-hit TN (not the IC's resist TN), clamp at 2 (rule-of-6 minimum), and not bleed
+    into any other utility. Drives the real /attack path in app.routers.matrix_runs.attack_ic and
+    captures the TN handed to each eng.roll_dice call (attack_pool=12 = to-hit, pool=9 = resist)."""
+
+    def _attack(self, monkeypatch, *, targeting):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        calls = []  # (pool, tn) per roll: pool 12 = to-hit, pool 9 = IC resist
+        def _fake_roll(pool, tn=4):
+            calls.append((pool, tn))
+            return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                  "utilities": {"attack": 6}}
+        if targeting:
+            decker["program_options"] = {"attack": {"targeting": True}}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["active_ic"] = [{"id": "ic1", "type": "Killer", "rating": 6,
+                               "status": "active", "boxes": 0}]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        resist_tn = next(tn for pool, tn in calls if pool == 9)
+        return to_hit_tn, resist_tn
+
+    def test_targeting_lowers_attacker_to_hit_by_two(self, monkeypatch):
+        to_hit, _ = self._attack(monkeypatch, targeting=True)
+        # without targeting the to-hit TN equals the resist TN; with targeting it is exactly 2 lower
+        plain_hit, plain_resist = self._attack(monkeypatch, targeting=False)
+        assert plain_hit == plain_resist
+        assert to_hit == plain_hit - 2
+
+    def test_targeting_does_not_touch_ic_resist(self, monkeypatch):
+        _, resist_on = self._attack(monkeypatch, targeting=True)
+        _, resist_off = self._attack(monkeypatch, targeting=False)
+        assert resist_on == resist_off
+
+    def test_no_targeting_to_hit_equals_resist(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, targeting=False)
+        assert to_hit == resist
+
+    def test_to_hit_tn_floors_at_two(self, monkeypatch):
+        to_hit, _ = self._attack(monkeypatch, targeting=True)
+        assert to_hit >= 2
+
+
+class TestPenetrationVsShield:
+    """vr2_rules.md L681-682, L1668 -- the Penetration option defeats an IC's Shield (no +2 to-hit
+    penalty), and Shift is EXTRA-effective against Penetration (+4 instead of +2). Read automatically
+    from decker.program_options['attack'].penetration. Must change ONLY the attacker's to-hit TN
+    (not the IC's resist TN). Drives the real /attack path (app.routers.matrix_runs.attack_ic) and
+    captures the TN handed to each eng.roll_dice (attack_pool=12 = to-hit, sec_value=9 = resist)."""
+
+    def _attack(self, monkeypatch, *, defense, penetration):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        calls = []  # (pool, tn) per roll: pool 12 = to-hit, pool 9 = IC resist
+        def _fake_roll(pool, tn=4):
+            calls.append((pool, tn))
+            return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                  "utilities": {"attack": 6}}
+        if penetration:
+            decker["program_options"] = {"attack": {"penetration": True}}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "boxes": 0}
+        ic[defense] = True  # "shield" or "shift"
+        state["active_ic"] = [ic]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        resist_tn = next(tn for pool, tn in calls if pool == 9)
+        return to_hit_tn, resist_tn
+
+    def test_shield_adds_two_without_penetration(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shield", penetration=False)
+        assert to_hit == resist + 2
+
+    def test_penetration_negates_shield_penalty(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shield", penetration=True)
+        assert to_hit == resist
+
+    def test_penetration_is_extra_effective_against_shift(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shift", penetration=True)
+        assert to_hit == resist + 4
+
+    def test_shift_adds_two_without_penetration(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shift", penetration=False)
+        assert to_hit == resist + 2
+
+
+class TestChaserVsShift:
+    """vr2_rules.md L681-682, L1664 -- the Chaser option defeats an IC's Shift (negates the +2
+    to-hit penalty), while Shield is EXTRA-effective vs Chaser (+4 instead of +2). Cannot combine
+    with Penetration. Read automatically from decker.program_options['attack'].chaser. Must change
+    ONLY the attacker's to-hit TN, not the IC's resist TN. Drives the real /attack path
+    (app.routers.matrix_runs.attack_ic): attack_pool=12 = to-hit, sec_value=9 = IC resist."""
+
+    def _attack(self, monkeypatch, *, defense, chaser, penetration=False):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        calls = []  # (pool, tn): pool 12 = to-hit, pool 9 = IC resist
+        def _fake_roll(pool, tn=4):
+            calls.append((pool, tn))
+            return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                  "utilities": {"attack": 6}}
+        atk = {}
+        if chaser: atk["chaser"] = True
+        if penetration: atk["penetration"] = True
+        if atk: decker["program_options"] = {"attack": atk}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "boxes": 0}
+        ic[defense] = True
+        state["active_ic"] = [ic]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        resist_tn = next(tn for pool, tn in calls if pool == 9)
+        return to_hit_tn, resist_tn
+
+    def test_chaser_negates_shift_penalty(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shift", chaser=True)
+        assert to_hit == resist
+
+    def test_shift_adds_two_without_chaser(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shift", chaser=False)
+        assert to_hit == resist + 2
+
+    def test_chaser_makes_shield_extra_effective(self, monkeypatch):
+        to_hit, resist = self._attack(monkeypatch, defense="shield", chaser=True)
+        assert to_hit == resist + 4
+
+    def test_both_set_runtime_sane_shield_pen_wins(self, monkeypatch):
+        # Defensive: if a legacy program somehow sends both, Penetration wins vs Shield (negates).
+        to_hit, resist = self._attack(monkeypatch, defense="shield", chaser=True, penetration=True)
+        assert to_hit == resist
+
+
+class TestAreaClusterToHit:
+    """vr2_rules.md L1659-1670 -- the Area option lets one Attack Test cope with an IC cluster.
+    In this single-target engine it offsets the cluster's to-hit penalty up to the Area rating
+    (easing the attacker only); the IC's resist TN keeps the FULL cluster penalty. Read from
+    decker.program_options['attack'].area. vr2 also makes Armor extra-effective vs an Area utility
+    (+2 effective Armor). Drives the real /attack path (attack_pool=12 = to-hit, sec_value=9 = resist)."""
+
+    def _attack(self, monkeypatch, *, area, cluster=2, armor=False):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        calls = []  # (pool, tn): pool 12 = to-hit, pool 9 = IC resist
+        def _fake_roll(pool, tn=4):
+            calls.append((pool, tn))
+            return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                  "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                  "utilities": {"attack": 6}}
+        if area:
+            decker["program_options"] = {"attack": {"area": area}}
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        cid = "c1" if cluster > 1 else None
+        ic1 = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "boxes": 0,
+               "cluster_id": cid}
+        if armor:
+            ic1["options"] = ["Armor"]
+        ics = [ic1]
+        for n in range(1, cluster):
+            ics.append({"id": f"ic{n+1}", "type": "Killer", "rating": 6, "status": "active",
+                        "boxes": 0, "cluster_id": cid})
+        state["active_ic"] = ics
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        resist_tn = next(tn for pool, tn in calls if pool == 9)
+        return to_hit_tn, resist_tn
+
+    def test_area_offsets_cluster_to_hit_penalty(self, monkeypatch):
+        # 2-IC cluster (+2 to-hit). Area-2 fully offsets it: to-hit drops back to the resist base.
+        on_hit, on_resist = self._attack(monkeypatch, area=2, cluster=2)
+        off_hit, off_resist = self._attack(monkeypatch, area=0, cluster=2)
+        assert off_hit == off_resist            # no Area: cluster penalty hits both sides
+        assert on_hit == off_hit - 2            # Area-2 removes the +2 to-hit penalty
+
+    def test_area_caps_at_rating(self, monkeypatch):
+        # Area-1 only buys back 1 of the 2-IC cluster penalty.
+        on_hit, on_resist = self._attack(monkeypatch, area=1, cluster=2)
+        assert on_hit == on_resist - 1
+
+    def test_resist_tn_keeps_full_cluster_penalty(self, monkeypatch):
+        on_resist = self._attack(monkeypatch, area=2, cluster=2)[1]
+        off_resist = self._attack(monkeypatch, area=0, cluster=2)[1]
+        assert on_resist == off_resist          # Area eases attacker only, never the IC resist
+
+    def test_single_target_no_op_no_error(self, monkeypatch):
+        # No cluster -> penalty 0; a high Area rating is a harmless no-op (no crash, no negative TN).
+        to_hit, resist = self._attack(monkeypatch, area=4, cluster=1)
+        assert to_hit == resist
+        assert to_hit >= 2
+
+    def test_armor_extra_effective_vs_area(self, monkeypatch):
+        with_area = self._attack(monkeypatch, area=2, cluster=2, armor=True)[1]
+        no_area = self._attack(monkeypatch, area=0, cluster=2, armor=True)[1]
+        assert with_area == no_area - 2         # Area-armed strike resists 2 deeper vs Armor
+
+
+
+
 

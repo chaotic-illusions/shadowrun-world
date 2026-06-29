@@ -218,11 +218,6 @@
           <span class="tip">Logon / Logoff TN reduction.</span>
         </div>
         <div class="mr-field">
-          <label>Browse</label>
-          <input type="number" id="cfg-u-browse" min="0" max="50" value="0">
-          <span class="tip">Locate File / Slave / Access Node.</span>
-        </div>
-        <div class="mr-field">
           <label>Analyze</label>
           <input type="number" id="cfg-u-analyze" min="0" max="50" value="0">
           <span class="tip">Analyze IC / Host / Security. Locate IC.</span>
@@ -238,6 +233,11 @@
           <span class="tip">Defeat scramble IC.</span>
         </div>
         <div class="mr-field">
+          <label>Defuse</label>
+          <input type="number" id="cfg-u-defuse" min="0" max="50" value="0">
+          <span class="tip">Reduces the TN to defuse data bombs (Files/Slave rating &minus; Defuse).</span>
+        </div>
+        <div class="mr-field">
           <label>Crash</label>
           <input type="number" id="cfg-u-crash" min="0" max="50" value="0">
           <span class="tip">Crash application or host.</span>
@@ -250,17 +250,12 @@
         <div class="mr-field">
           <label>Validate</label>
           <input type="number" id="cfg-u-validate" min="0" max="50" value="0">
-          <span class="tip">Validate / Invalidate Passcode. Dump Log.</span>
+          <span class="tip">Validate Passcode. Dump Log.</span>
         </div>
         <div class="mr-field">
           <label>Read/Write</label>
           <input type="number" id="cfg-u-read-write" min="0" max="50" value="0">
           <span class="tip">Download / Edit / Upload files.</span>
-        </div>
-        <div class="mr-field">
-          <label>Spoof</label>
-          <input type="number" id="cfg-u-spoof" min="0" max="50" value="0">
-          <span class="tip">Control / Edit / Monitor slave systems.</span>
         </div>
         <div class="mr-field">
           <label>Relocate</label>
@@ -273,6 +268,41 @@
           <label>Attack</label>
           <input type="number" id="cfg-u-attack" min="0" max="50" value="0">
           <span class="tip">Offensive cybercombat pool.</span>
+        </div>
+        <div class="mr-field">
+          <label>Poison</label>
+          <input type="number" id="cfg-u-poison" min="0" max="50" value="0">
+          <span class="tip">Offensive crippler vs an enemy decker's Bod (Strike Back).</span>
+        </div>
+        <div class="mr-field">
+          <label>Restrict</label>
+          <input type="number" id="cfg-u-restrict" min="0" max="50" value="0">
+          <span class="tip">Offensive crippler vs an enemy decker's Evasion (Strike Back).</span>
+        </div>
+        <div class="mr-field">
+          <label>Reveal</label>
+          <input type="number" id="cfg-u-reveal" min="0" max="50" value="0">
+          <span class="tip">Offensive crippler vs an enemy decker's Masking (Strike Back).</span>
+        </div>
+        <div class="mr-field">
+          <label>Black Hammer</label>
+          <input type="number" id="cfg-u-black-hammer" min="0" max="50" value="0">
+          <span class="tip">Lethal offensive (Physical) vs enemy deckers. Max rating = ceil(Computer/2); crash burns enemy MPCP.</span>
+        </div>
+        <div class="mr-field">
+          <label>Killjoy</label>
+          <input type="number" id="cfg-u-killjoy" min="0" max="50" value="0">
+          <span class="tip">Lethal offensive (Stun) vs enemy deckers. Max rating = ceil(Computer/2); crash burns enemy MPCP.</span>
+        </div>
+        <div class="mr-field">
+          <label>Steamroller</label>
+          <input type="number" id="cfg-u-steamroller" min="0" max="50" value="0">
+          <span class="tip">Anti-tar weapon: inflicts (Rating)D on a Tar Baby / Tar Pit IC. Immune to the tar crash-backlash.</span>
+        </div>
+        <div class="mr-field">
+          <label>Slow</label>
+          <input type="number" id="cfg-u-slow" min="0" max="50" value="0">
+          <span class="tip">Anti-proactive-IC: opposed test makes a proactive IC lose actions (1 per 2 net); HANGS at 0 actions. Reactive IC immune.</span>
         </div>
         <div class="mr-field">
           <label>Armor</label>
@@ -295,14 +325,19 @@
           <span class="tip">Heals persona CM boxes. Loses 1 rating per use.</span>
         </div>
         <div class="mr-field">
-          <label>Cloak</label>
-          <input type="number" id="cfg-u-cloak" min="0" max="50" value="0">
-          <span class="tip">Evasion maneuver TN reduction.</span>
+          <label>Disinfect</label>
+          <input type="number" id="cfg-u-disinfect" min="0" max="50" value="0">
+          <span class="tip">Destroys worm IC (Complex). Also raises the worm-infection TN as passive defense.</span>
         </div>
         <div class="mr-field">
-          <label>Lock On</label>
-          <input type="number" id="cfg-u-lock-on" min="0" max="50" value="0">
-          <span class="tip">Sensor maneuver targeting aid.</span>
+          <label>Scanner</label>
+          <input type="number" id="cfg-u-scanner" min="0" max="50" value="0">
+          <span class="tip">Locate Decker: Sensor-aided search for a hidden hostile decker (reduces the scan TN).</span>
+        </div>
+        <div class="mr-field">
+          <label>Compressor</label>
+          <input type="number" id="cfg-u-compressor" min="0" max="50" value="0">
+          <span class="tip">Halves a downloaded file's stored size (max file = Rating&times;100 Mp). Decompress before the file can be read or used.</span>
         </div>
         </div><!-- /cfgInputs -->
 
@@ -381,7 +416,11 @@
           <div class="sec-code-display">Security: <span class="sec-code-value" id="run-sec-code">--</span> // Value <span class="sec-code-value" id="run-sec-value">--</span></div>
           <div id="run-alert-badge" class="alert-badge alert-none">NONE</div>
           <div id="run-status-badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="tally-display" id="run-sec-known"></div>
           <div class="tally-display gm-only" id="run-tally-gm"></div>
+          <div class="tally-display" id="run-host-ratings"></div>
+          <div class="tally-display" id="run-access-log"></div>
+          <div id="run-crash-countdown"></div>
         </div>
       </div>
 
@@ -461,6 +500,9 @@
         <label>Armor Utility Rating</label>
         <input type="number" id="atk-armor" min="0" max="50" value="0">
         <span class="tip">Your deck's Armor utility rating.</span>
+      </div>
+      <div class="mr-field span2">
+        <span class="tip">Attack options (Skulk, Penetration, Chaser, Targeting, Area) are read automatically from your loaded Attack program.</span>
       </div>
     </div>
     <div class="mr-modal-actions">
@@ -571,23 +613,30 @@ const UTIL_FIELD_MAP = {
   sleaze: 'cfg-u-sleaze',
   camo: 'cfg-u-camo',
   deception: 'cfg-u-deception',
-  browse: 'cfg-u-browse',
   analyze: 'cfg-u-analyze',
   evaluate: 'cfg-u-evaluate',
   decrypt: 'cfg-u-decrypt',
+  defuse: 'cfg-u-defuse',
   crash: 'cfg-u-crash',
   mirrors: 'cfg-u-mirrors',
   validate: 'cfg-u-validate',
   'read/write': 'cfg-u-read-write',
-  spoof: 'cfg-u-spoof',
   relocate: 'cfg-u-relocate',
   attack: 'cfg-u-attack',
+  poison: 'cfg-u-poison',
+  restrict: 'cfg-u-restrict',
+  reveal: 'cfg-u-reveal',
+  black_hammer: 'cfg-u-black-hammer',
+  killjoy: 'cfg-u-killjoy',
+  steamroller: 'cfg-u-steamroller',
+  slow: 'cfg-u-slow',
   armor: 'cfg-u-armor',
   shield: 'cfg-u-shield',
   restore: 'cfg-u-restore',
   medic: 'cfg-u-medic',
-  cloak: 'cfg-u-cloak',
-  'lock-on': 'cfg-u-lock-on',
+  disinfect: 'cfg-u-disinfect',
+  scanner: 'cfg-u-scanner',
+  compressor: 'cfg-u-compressor',
 };
 
 function _parseStoreSafely(raw) {
@@ -651,7 +700,6 @@ function normalizeUtilityName(rawName) {
   const raw = String(rawName || '').trim().toLowerCase();
   if (!raw) return '';
   if (raw === 'read_write' || raw === 'read/write') return 'read/write';
-  if (raw === 'lock_on' || raw === 'lock-on' || raw === 'lock on') return 'lock-on';
   return raw;
 }
 
@@ -659,7 +707,6 @@ function getProgramTypeKey(rawName) {
   const norm = normalizeUtilityName(rawName);
   if (!norm) return '';
   if (norm === 'read/write') return 'read_write';
-  if (norm === 'lock-on') return 'lock_on';
   return norm.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
@@ -681,6 +728,29 @@ function parseProgramIdentity(item) {
 function isOneShotItem(item) {
   if (!!item?.isOneShot) return true;
   return /\bone-shot\b/i.test(String(item?.mods || '')) || /\bone-shot\b/i.test(String(item?.label || ''));
+}
+
+// Parse a program's mods string (e.g. "Area 3, Penetration, Targeting") into the run-relevant
+// option subset the engine reads (ProgramOptions). Numeric options are clamped to the base
+// rating. Returns null when no run-relevant option is set, so we don't bloat the payload.
+function parseRunProgramOpts(modsText, baseRating) {
+  const max = Math.max(0, parseInt(baseRating, 10) || 0);
+  const opts = { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false };
+  String(modsText || '').split(',').map(s => s.trim()).filter(Boolean).forEach(part => {
+    let m = part.match(/^Area\s+(\d+)$/i);
+    if (m) { opts.area = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
+    m = part.match(/^DINAB\s+(\d+)$/i);
+    if (m) { opts.dinab = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
+    m = part.match(/^Skulk\s+(\d+)$/i);
+    if (m) { opts.skulk = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
+    if (/^Targeting$/i.test(part))   { opts.targeting = true; return; }
+    if (/^Penetration$/i.test(part)) { opts.penetration = true; return; }
+    if (/^Chaser$/i.test(part))      { opts.chaser = true; return; }
+    if (/^One-Shot$/i.test(part))    { opts.one_shot = true; return; }
+  });
+  if (opts.penetration && opts.chaser) opts.chaser = false;  // mutually exclusive (vr2); Penetration wins
+  const any = opts.skulk || opts.area || opts.dinab || opts.targeting || opts.penetration || opts.chaser || opts.one_shot;
+  return any ? opts : null;
 }
 
 function validateLoadoutRules(loadout) {
@@ -722,6 +792,9 @@ function setUtilityFieldsFromLoadout(loadout) {
     if (!targetUsesActive(target)) return;
     const parsed = parseProgramIdentity(item);
     if (!parsed.utilName || parsed.baseRating < 1) return;
+    // Limit option is BUILD/BUY-only: it shrinks the program's size + cost (restricted to one
+    // target type, GM-enforced) but the program still RUNS at its full base rating. So the
+    // rating that carries into the run is unchanged -- Limit is NOT applied here.
     bestRatings[parsed.utilName] = Math.max(bestRatings[parsed.utilName] || 0, parsed.baseRating);
   });
 
@@ -880,7 +953,7 @@ function renderLoadoutDraftEditor() {
 // program, and a hard space check that REFUSES any move which would overflow a pool.
 const LAO_CAT = {
   attack: 'off', crash: 'off',
-  armor: 'def', shield: 'def', restore: 'def', medic: 'def', cloak: 'def', 'lock-on': 'def',
+  armor: 'def', shield: 'def', restore: 'def', medic: 'def',
   sleaze: 'spc', camo: 'spc',
 };
 const _LAO_ORDER = { off: 0, def: 1, ops: 2, spc: 3 };
@@ -1483,23 +1556,28 @@ const ACTION_SUBSYSTEM = {
   analyze_ic:        'control',
   analyze_security:  'control',
   analyze_subsystem: 'control',
-  locate_file:       'index',
   locate_paydata:    'index',
   locate_ic:         'index',
-  locate_slave:      'index',
+  locate_decker:     'index',
   download_data:     'files',
   edit_file:         'files',
   upload_data:       'files',
-  control_slave:     'slave',
-  monitor_slave:     'slave',
+  decompress_file:   'files',
   null_operation:      'control',
   crash_host:          'control',
   decrypt_file:        'files',
+  defuse_data_bomb:    'files',
   validate_passcode:   'control',
-  invalidate_passcode: 'control',
+  dump_log:            'control',
   decoy:               'control',
   redirect_datatrail:  'control',
   relocate:            'control',
+  medic:               'control',
+  restore:             'control',
+  disinfect:           'files',
+  steamroller:         'control',
+  slow:                'control',
+  dinab:               'control',
 };
 
 // Default utility (decker_json.utilities key) per operation -- VR2 System Operations Summary.
@@ -1508,12 +1586,19 @@ const ACTION_SUBSYSTEM = {
 const ACTION_UTILITY = {
   logon_to_host: 'deception', logon_to_ltg: 'deception', graceful_logoff: 'deception',
   analyze_host: 'analyze', analyze_ic: 'analyze', analyze_security: 'analyze', analyze_subsystem: 'analyze',
-  locate_file: 'browse', locate_paydata: 'evaluate', locate_ic: 'analyze', locate_slave: 'analyze',
+  locate_paydata: 'evaluate', locate_ic: 'analyze', locate_decker: 'scanner',
   download_data: 'read_write', edit_file: 'read_write', upload_data: 'read_write',
-  control_slave: 'spoof', monitor_slave: 'spoof', edit_slave: 'spoof',
+  decompress_file: 'compressor',
   null_operation: 'deception', crash_host: 'crash', validate_passcode: 'validate_pgm',
-  invalidate_passcode: 'validate_pgm', decoy: 'mirrors', redirect_datatrail: 'camo',
+  dump_log: 'validate_pgm',
+  decoy: 'mirrors', redirect_datatrail: 'camo',
   relocate: 'relocate', decrypt_file: 'decrypt',
+  defuse_data_bomb: 'defuse',
+  medic: 'medic',
+  restore: 'restore',
+  disinfect: 'disinfect',
+  steamroller: 'steamroller',
+  slow: 'slow',
 };
 
 // -- Boot -------------------------------------------------------------------
@@ -1872,6 +1957,8 @@ async function startRun() {
   // Active programs always keep a storage copy, so a swap only shifts active usage.
   const program_sizes = {};
   const storage_programs = [];
+  const program_options = {};
+  const _optRank = {};   // typeKey -> rank of the chosen source (2 = active-loaded, 1 = storage)
   _loadoutItems.forEach(item => {
     const ident = parseProgramIdentity(item);
     if (!ident.typeKey || ident.baseRating < 1) return;
@@ -1880,32 +1967,49 @@ async function startRun() {
     if ((item?.target || 'active') === 'storage') {
       storage_programs.push({ name: ident.typeKey, rating: ident.baseRating, size });
     }
+    // Carry run-relevant program options, preferring the active-loaded copy when a type has
+    // both an active and a storage entry (the active program is the one actually in play).
+    const opts = parseRunProgramOpts(item?.mods, ident.baseRating);
+    if (opts) {
+      const rank = targetUsesActive(item?.target || 'active') ? 2 : 1;
+      if (program_options[ident.typeKey] === undefined || rank > (_optRank[ident.typeKey] || 0)) {
+        program_options[ident.typeKey] = opts;
+        _optRank[ident.typeKey] = rank;
+      }
+    }
   });
 
   const utilities = {
     // Stealth
     sleaze:     gn('cfg-u-sleaze'),
     camo:       gn('cfg-u-camo'),
+    scanner:    gn('cfg-u-scanner'),
     // Operations
     deception:  gn('cfg-u-deception'),
-    browse:     gn('cfg-u-browse'),
     analyze:    gn('cfg-u-analyze'),
     evaluate:   gn('cfg-u-evaluate'),
     decrypt:    gn('cfg-u-decrypt'),
+    defuse:     gn('cfg-u-defuse'),
     crash:      gn('cfg-u-crash'),
     mirrors:    gn('cfg-u-mirrors'),
     validate_pgm: gn('cfg-u-validate'),
     read_write: gn('cfg-u-read-write'),
-    spoof:      gn('cfg-u-spoof'),
     relocate:   gn('cfg-u-relocate'),
     // Combat
     attack:     gn('cfg-u-attack'),
+    poison:     gn('cfg-u-poison'),
+    restrict:   gn('cfg-u-restrict'),
+    reveal:     gn('cfg-u-reveal'),
+    black_hammer: gn('cfg-u-black-hammer'),
+    killjoy:    gn('cfg-u-killjoy'),
+    steamroller: gn('cfg-u-steamroller'),
+    slow:       gn('cfg-u-slow'),
     armor:      gn('cfg-u-armor'),
     shield:     gn('cfg-u-shield'),
     restore:    gn('cfg-u-restore'),
     medic:      gn('cfg-u-medic'),
-    cloak:      gn('cfg-u-cloak'),
-    lock_on:    gn('cfg-u-lock-on'),
+    disinfect:  gn('cfg-u-disinfect'),
+    compressor: gn('cfg-u-compressor'),
   };
 
   const decker = {
@@ -1931,6 +2035,7 @@ async function startRun() {
     utilities,
     storage_programs,
     program_sizes,
+    program_options,
   };
 
   const btn = document.getElementById('startRunBtn');
@@ -2063,16 +2168,53 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
       <div class="cond-row" style="margin:6px 0"><div class="cond-label">Icon</div>
         <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(boxes, 10, 'ic')}</div>
         <div class="cond-count">${boxes}/10</div></div>
-      ${canHit ? `<button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')">&gt;&gt; Strike Back</button>` : ''}
+      ${canHit ? `
+      <div class="enemy-strike-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">
+        <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">
+          <option value="attack">Attack (crash icon)</option>
+          <option value="poison">Poison (vs Bod)</option>
+          <option value="restrict">Restrict (vs Evasion)</option>
+          <option value="reveal">Reveal (vs Masking)</option>
+          <option value="black_hammer">Black Hammer (lethal Physical)</option>
+          <option value="killjoy">Killjoy (lethal Stun)</option>
+        </select>
+        <button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')">&gt;&gt; Strike Back</button>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
 
 async function strikeEnemyDecker(eid) {
   if (!_run) return;
-  const pool = parseInt(prompt('Attack dice pool (Attack utility + Hacking Pool):', '12')) || 0;
+  const sel = document.getElementById('strike-pgm-' + eid);
+  const program = (sel && sel.value) || 'attack';
+  const labels = {
+    attack: 'Attack (crash icon)', poison: 'Poison (vs Bod)',
+    restrict: 'Restrict (vs Evasion)', reveal: 'Reveal (vs Masking)',
+    black_hammer: 'Black Hammer (lethal Physical)', killjoy: 'Killjoy (lethal Stun)',
+  };
+  const carried = _carriedStrikeRating(program);
+  const def = carried > 0 ? String(carried) : '12';
+  const src = program === 'attack' ? 'Attack utility' : program.replace('_', ' ') + ' rating';
+  const raw = prompt('Dice pool for ' + (labels[program] || program) + ' -- ' + src + ' + Hacking Pool:', def);
+  if (raw === null) return;
+  const pool = parseInt(raw, 10) || 0;
   if (pool < 1) return;
-  await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`, { enemy_id: eid, attack_pool: pool, hacking_pool_dice: 0 });
+  await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`,
+    { enemy_id: eid, attack_pool: pool, hacking_pool_dice: 0, program });
+}
+
+// Carried rating for a Strike Back program (Attack / Poison / Restrict / Reveal): prefer the
+// decker's loaded utility, else fall back to the deck-config field, so the pool prompt
+// defaults to the chosen program's rating.
+function _carriedStrikeRating(program) {
+  const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
+  let v = parseInt(u[program], 10);
+  if (!Number.isFinite(v) || v <= 0) {
+    const fld = document.getElementById(UTIL_FIELD_MAP[program] || '');
+    v = fld ? (parseInt(fld.value, 10) || 0) : 0;
+  }
+  return v > 0 ? v : 0;
 }
 
 // -- Key Paydata panel -------------------------------------------------------
@@ -2165,14 +2307,23 @@ function renderDownloadsPanel() {
   if (downloaded.length) {
     const total    = downloaded.reduce((s, f) => s + (parseInt(f.size_mp, 10) || 0), 0);
     const keyCount = downloaded.filter(f => f.is_key).length;
+    const ended    = !!state.run_ended || (_run?.status && _run.status !== 'active');
     html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin:10px 0 4px">`
       + `DOWNLOADED (${downloaded.length} file${downloaded.length === 1 ? '' : 's'}, ${total} Mp`
       + (keyCount ? `, ${keyCount} key` : '') + `)</div>`;
-    html += downloaded.map(f =>
-      `<div style="font-size:.66rem;color:var(--green);margin-bottom:3px">`
-      + `&#10003; ${esc(f.name || '?')} <span style="color:var(--text-dim)">${parseInt(f.size_mp, 10) || 0}Mp`
-      + (f.is_key ? ' -- KEY' : '') + `</span></div>`
-    ).join('');
+    html += downloaded.map((f, i) => {
+      const compressed = !!f.compressed;
+      const full = parseInt(f.full_size_mp, 10) || 0;
+      const sz   = parseInt(f.size_mp, 10) || 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">`
+        + `<span style="font-size:.66rem;color:var(--green)">&#10003; ${esc(f.name || '?')}</span>`
+        + `<span style="font-size:.58rem;color:var(--text-dim)">${sz}Mp${f.is_key ? ' -- KEY' : ''}</span>`
+        + (compressed
+            ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)" title="Stored compressed (full ${full} Mp) -- decompress before the file can be read or used">COMPRESSED</span>`
+              + (ended ? '' : `<button class="btn btn-sm" style="margin-left:auto;color:var(--cyan);border-color:#024a4a" onclick="decompressFile(${i})">Decompress</button>`)
+            : '')
+        + `</div>`;
+    }).join('');
   }
 
   body.innerHTML = html;
@@ -2439,7 +2590,10 @@ function renderRunState(run) {
   // Host status
   document.getElementById('run-sec-code').textContent  = state.host_security_code  || '--';
   document.getElementById('run-sec-value').textContent = state.host_security_value || '--';
-  renderAlertBadge(state.alert_status || 'none');
+  // Alert status is GM-only; players see only what their last Analyze Security revealed.
+  renderAlertBadge(isAdmin()
+    ? (state.alert_status || 'none')
+    : (state.security_known ? (state.security_known.alert || 'none') : 'unknown'));
 
   // Status badges: Validate Passcode + Decoy
   const badgeEl = document.getElementById('run-status-badges');
@@ -2456,11 +2610,27 @@ function renderRunState(run) {
     badgeEl.innerHTML = badges.join('');
   }
 
-  // GM-only tally
+  // Security tally is GM-only; players see only what their last Analyze Security revealed.
+  const tallyGm = document.getElementById('run-tally-gm');
+  const secKnown = document.getElementById('run-sec-known');
   if (isAdmin()) {
-    document.getElementById('run-tally-gm').innerHTML =
-      `Security Tally: <span>${state.security_tally ?? '--'}</span>`;
+    if (tallyGm) tallyGm.innerHTML = `Security Tally: <span>${state.security_tally ?? '--'}</span>`;
+    if (secKnown) secKnown.innerHTML = '';
+  } else if (secKnown) {
+    const sk = state.security_known;
+    secKnown.innerHTML = sk
+      ? `Last Scan -- Tally <span>${esc(String(sk.tally))}</span>, Alert <span>${esc(String(sk.alert || 'none').toUpperCase())}</span> <span class="text-dim">(turn ${esc(String(sk.turn))})</span>`
+      : `Security intel: <span class="text-dim">unknown -- run Analyze Security</span>`;
   }
+
+  // Revealed host subsystem (ACIFS) ratings from Analyze Host
+  renderHostRatings(state.host_ratings_revealed || {});
+
+  // Host access-log summary from the last successful Dump Log (vr2 Validate)
+  renderAccessLog(state.access_log_dumped);
+
+  // Crash Host countdown banner (visible once the decker initiates a crash)
+  renderCrashCountdown(state.crash_host_countdown);
 
   // Active IC (including lurking reactive IC)
   renderActiveIC(state.active_ic || [], state.lurking_ic || [], state.run_ended, crashed);
@@ -2514,10 +2684,54 @@ function renderAlertBadge(status) {
   } else if (status === 'passive') {
     el.classList.add('alert-passive');
     el.textContent = 'PASSIVE ALERT';
+  } else if (status === 'unknown') {
+    el.classList.add('alert-none');
+    el.textContent = 'ALERT: UNKNOWN';
   } else {
     el.classList.add('alert-none');
     el.textContent = 'NONE';
   }
+}
+
+function renderHostRatings(revealed) {
+  const el = document.getElementById('run-host-ratings');
+  if (!el) return;
+  const order = [['access','Access'],['control','Control'],['index','Index'],['files','Files'],['slave','Slave']];
+  const known = order.filter(([k]) => revealed && revealed[k] != null);
+  if (!known.length) {
+    el.innerHTML = `Subsystems: <span class="text-dim">unknown -- run Analyze Host</span>`;
+    return;
+  }
+  el.innerHTML = 'Subsystems -- ' + known.map(([k, lbl]) =>
+    `${lbl}: <span>${esc(String(revealed[k]))}</span>`
+  ).join(', ');
+}
+
+function renderAccessLog(log) {
+  const el = document.getElementById('run-access-log');
+  if (!el) return;
+  if (!log) {
+    el.innerHTML = `Access log: <span class="text-dim">not dumped -- run Dump Log</span>`;
+    return;
+  }
+  const files = (log.files_accessed || []).map(f => esc(String(f))).join(', ') || 'none';
+  const progs = (log.programs_run || []).map(p => esc(String(p))).join(', ') || 'none';
+  const intr = log.intrusion_logged
+    ? `<span class="text-red">YOUR intrusion is LOGGED &mdash; Graceful Logoff clears it</span>`
+    : `<span class="text-green">your access reads as legitimate</span>`;
+  el.innerHTML = `Access Log &mdash; <span>${esc(String(log.legitimate_users ?? '?'))}</span> legal user(s); `
+    + `files: <span class="text-dim">${files}</span>; programs: <span class="text-dim">${progs}</span>; `
+    + `24h log <span>${esc(String(log.log_size_mp ?? '?'))}</span> Mp; ${intr}`;
+}
+
+function renderCrashCountdown(cd) {
+  const el = document.getElementById('run-crash-countdown');
+  if (!el) return;
+  const t = cd && cd.turns_remaining;
+  if (!cd || (t ?? 0) <= 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="font-size:.62rem;letter-spacing:1px;margin-top:6px;padding:3px 7px;`
+    + `background:rgba(255,40,40,.14);border:1px solid var(--red);color:var(--red);border-radius:3px">`
+    + `HOST CRASH: ${esc(String(t))} turn${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each turn</div>`;
 }
 
 // -- Active IC --------------------------------------------------------------
@@ -2599,9 +2813,11 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       ${canAtk ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>
-        ${ic.suppressed
-          ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="toggleSuppress('${esc(ic.id)}', true)" data-tip="Release suppression: restores 1 Detection Factor but adds this IC's rating to the security tally (may trigger the sheaf)">&gt;&gt; Release</button>`
-          : `<button class="btn btn-sm" style="color:var(--cyan);border-color:#004455" onclick="toggleSuppress('${esc(ic.id)}', false)" data-tip="Suppress this IC: silences it for 1 Detection Factor, with no tally increase">&gt;&gt; Suppress</button>`}
+        ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this turn (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
+      </div>` : ''}
+      ${isCrashed && ic.suppressed && !ic.suppression_released ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="toggleSuppress('${esc(ic.id)}', true)" data-tip="Release suppression: restores 1 Detection Factor but adds this IC's rating to the security tally (may trigger the sheaf). One-way -- it cannot be suppressed again.">&gt;&gt; Release</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -2611,6 +2827,8 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Lurking -- Reactive</div>`;
     html += lurkingList.map(ic => {
       const canResolve = gm && !runEnded && !crashed;
+      const isTar = ic.type === 'Tar Baby' || ic.type === 'Tar Pit';
+      const canSteamroll = canResolve && isTar;
       return `
       <div class="ic-card ic-lurking">
         <div class="ic-head">
@@ -2620,7 +2838,10 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
         <div class="ic-meta">
           <span style="color:var(--amber)">Triggers on utility use</span>
         </div>
-        ${canResolve ? `<button class="btn btn-amber btn-sm" onclick="openReactiveModal('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})">&gt;&gt; Resolve (GM)</button>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${canResolve ? `<button class="btn btn-amber btn-sm" onclick="openReactiveModal('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})">&gt;&gt; Resolve (GM)</button>` : ''}
+          ${canSteamroll ? `<button class="btn btn-red btn-sm" onclick="steamrollTar('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})" data-tip="Crush this tar IC with the Steamroller utility ((Rating)D damage, immune to the tar crash-backlash)">&gt;&gt; Steamroll</button>` : ''}
+        </div>
       </div>`;
     }).join('');
   }
@@ -2680,6 +2901,18 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--blue)';
       badgeText = 'ATTACK';
       break;
+    case 'decker_crippled':
+      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
+      badgeText = (ev.program || 'cripple').toUpperCase();
+      break;
+    case 'decker_lethal':
+      // PC Black Hammer / Killjoy vs an enemy decker. The crash (enemy dumped + MPCP burn)
+      // reads as a win (green); a plain hit is a lethal strike in progress (red).
+      cls = ev.outcome === 'crash' ? 'ev-ic-crashed' : 'ev-decker-atk';
+      badgeColor = ev.outcome === 'crash' ? 'var(--green)' : 'var(--red)';
+      badgeText = ev.program === 'killjoy' ? 'KILLJOY' : 'BLACK HAMMER';
+      break;
     case 'ic_crashed':
       cls = 'ev-ic-crashed';
       badgeColor = 'var(--green)';
@@ -2689,6 +2922,33 @@ function renderEventEntry(ev) {
       cls = 'ev-alert';
       badgeColor = 'var(--amber)';
       badgeText = 'ALERT';
+      break;
+    case 'host_analyzed':
+    case 'security_analyzed':
+      cls = 'ev-logon';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'INTEL';
+      break;
+    case 'log_dumped':
+      cls = 'ev-logon';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'LOG';
+      break;
+    case 'crash_host_started':
+    case 'crash_host_tick':
+      cls = 'ev-ic-attack';
+      badgeColor = 'var(--red)';
+      badgeText = 'CRASH';
+      break;
+    case 'crash_host_aborted':
+      cls = 'ev-action-fail';
+      badgeColor = 'var(--amber)';
+      badgeText = 'ABORTED';
+      break;
+    case 'crash_host_complete':
+      cls = 'ev-ic-crashed';
+      badgeColor = 'var(--green)';
+      badgeText = 'HOST DOWN';
       break;
     case 'logon':
       cls = 'ev-logon';
@@ -2750,6 +3010,16 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--red)';
       badgeText = 'TAR PIT';
       break;
+    case 'tar_steamrolled':
+      cls = ev.destroyed ? 'ev-ic-crashed' : 'ev-neutral';
+      badgeColor = ev.destroyed ? 'var(--green)' : 'var(--amber)';
+      badgeText = 'STEAMROLLER';
+      break;
+    case 'ic_slowed':
+      cls = (ev.outcome === 'hung' || ev.outcome === 'slowed') ? 'ev-ic-crashed' : 'ev-neutral';
+      badgeColor = ev.outcome === 'hung' ? 'var(--green)' : (ev.outcome === 'slowed' ? 'var(--cyan)' : 'var(--amber)');
+      badgeText = 'SLOW';
+      break;
     case 'validate_passcode':
       cls = 'ev-action-ok';
       badgeColor = 'var(--green-dim)';
@@ -2785,6 +3055,11 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--green)';
       badgeText = 'DOWNLOAD';
       break;
+    case 'file_decompressed':
+      cls = ev.outcome === 'expanded' ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = ev.outcome === 'expanded' ? 'var(--cyan)' : 'var(--amber)';
+      badgeText = ev.outcome === 'expanded' ? 'DECOMPRESS' : 'NO TARGET';
+      break;
     case 'trap_door_found':
       cls = 'ev-action-ok';
       badgeColor = 'var(--cyan)';
@@ -2811,9 +3086,15 @@ function renderEventEntry(ev) {
       badgeText = ev.success ? 'DECRYPT' : (ev.key_data_lost ? 'KEY DATA LOST' : 'DATA WIPED');
       break;
     case 'data_bomb':
-      cls = ev.outcome === 'defused' ? 'ev-action-ok' : 'ev-crash';
-      badgeColor = ev.outcome === 'defused' ? 'var(--green)' : 'var(--red)';
-      badgeText = ev.outcome === 'defused' ? 'BOMB DEFUSED' : 'DATA BOMB';
+      if (ev.outcome === 'defused') {
+        cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'BOMB DEFUSED';
+      } else if (ev.outcome === 'primed') {
+        cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'BOMB PRIMED';
+      } else if (ev.outcome === 'no_target') {
+        cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'NO BOMB';
+      } else {
+        cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'DATA BOMB';
+      }
       break;
     case 'worm_resolved':
       cls = ev.outcome === 'mpcp_infected' ? 'ev-crash' : 'ev-ic-crashed';
@@ -2839,10 +3120,43 @@ function renderEventEntry(ev) {
       const oc = ev.outcome || '';
       if (oc === 'hunting') { cls = 'ev-alert'; badgeColor = 'var(--amber)'; badgeText = 'DECKER HUNT'; }
       else if (oc === 'located') { cls = 'ev-ic-activate'; badgeColor = 'var(--red)'; badgeText = 'PC LOCATED'; }
+      else if (oc === 'scan_hit') { cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'DECKER FOUND'; }
+      else if (oc === 'scan_clear') { cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'SCAN CLEAR'; }
+      else if (oc === 'scan_fail') { cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'SCAN FAIL'; }
       else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = (ev.program || 'BLACK HAMMER').toUpperCase(); }
       else { cls = 'ev-ic-attack'; badgeColor = '#ff7700'; badgeText = 'ENEMY DECKER'; }
       break;
     }
+    case 'shield_parry':
+      cls = (ev.successes || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = (ev.shield_remaining || 0) > 0 ? 'var(--cyan)' : 'var(--amber)';
+      badgeText = 'SHIELD';
+      break;
+    case 'medic_heal':
+      cls = (ev.healed || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = (ev.healed || 0) > 0 ? 'var(--green)' : 'var(--amber)';
+      badgeText = 'MEDIC';
+      break;
+    case 'restore_repair':
+      cls = (ev.repaired || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = (ev.repaired || 0) > 0 ? 'var(--green)' : 'var(--amber)';
+      badgeText = 'RESTORE';
+      break;
+    case 'worm_disinfected':
+      cls = ev.destroyed ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = ev.destroyed ? 'var(--green)' : 'var(--amber)';
+      badgeText = 'DISINFECT';
+      break;
+    case 'one_shot_spent':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--amber)';
+      badgeText = '1-SHOT SPENT';
+      break;
+    case 'one_shot_wiped':
+      cls = 'ev-crash';
+      badgeColor = 'var(--red)';
+      badgeText = '1-SHOT WIPED';
+      break;
   }
 
   // Dice summary
@@ -2927,33 +3241,37 @@ function renderActionArea(state, decker, crashed) {
             <option value="analyze_ic">Analyze IC</option>
             <option value="analyze_security">Analyze Security</option>
             <option value="analyze_subsystem">Analyze Subsystem</option>
+            <option value="dump_log">Dump Log (Read Access Logs)</option>
           </optgroup>
           <optgroup label="Locate">
-            <option value="locate_file">Locate File</option>
             <option value="locate_paydata">Locate Paydata</option>
             <option value="locate_ic">Locate IC</option>
-            <option value="locate_slave">Locate Slave</option>
+            <option value="locate_decker">Locate Decker</option>
           </optgroup>
           <optgroup label="Files">
             <option value="download_data">Download Data</option>
             <option value="edit_file">Edit File</option>
             <option value="upload_data">Upload Data</option>
+            <option value="decompress_file">Decompress File</option>
             <option value="decrypt_file">Decrypt File</option>
-          </optgroup>
-          <optgroup label="Slave">
-            <option value="control_slave">Control Slave</option>
-            <option value="monitor_slave">Monitor Slave</option>
-            <option value="edit_slave">Edit Slave</option>
+            <option value="defuse_data_bomb">Defuse Data Bomb</option>
           </optgroup>
           <optgroup label="Stealth / Counter-Trace">
             <option value="redirect_datatrail">Redirect Datatrail</option>
             <option value="relocate">Relocate (vs Trace IC)</option>
           </optgroup>
+          <optgroup label="Defense / Recovery">
+            <option value="medic">Medic (Heal Icon)</option>
+            <option value="restore">Restore (Repair Attributes)</option>
+            <option value="disinfect">Disinfect (Destroy Worm)</option>
+            <option value="steamroller">Steamroller (Crush Tar IC)</option>
+            <option value="slow">Slow (Cripple Proactive IC)</option>
+            <option value="dinab">DINAB (Run Program Free)</option>
+          </optgroup>
           <optgroup label="Misc">
             <option value="null_operation">Null Operation</option>
             <option value="crash_host">Crash Host</option>
             <option value="validate_passcode">Validate Passcode</option>
-            <option value="invalidate_passcode">Invalidate Passcode</option>
             <option value="decoy">Decoy</option>
           </optgroup>
         </select>
@@ -2990,6 +3308,16 @@ function onActionTypeChange() {
   if (!actionSel || !subSel) return;
   const sub = ACTION_SUBSYSTEM[actionSel.value] || 'access';
   subSel.value = sub;
+  // Steamroller crushes a named tar lurking-IC and Slow targets a named proactive IC -- hint that
+  // the Target field takes the IC id for those actions.
+  const tgtField = document.getElementById('actionTargetFile');
+  if (tgtField) {
+    if (actionSel.value === 'steamroller') tgtField.placeholder = '-- tar IC id --';
+    else if (actionSel.value === 'slow') tgtField.placeholder = '-- proactive IC id --';
+    else if (actionSel.value === 'decompress_file') tgtField.placeholder = '-- compressed file name --';
+    else if (actionSel.value === 'dinab') tgtField.placeholder = '-- DINAB program (e.g. attack) --';
+    else tgtField.placeholder = '-- optional --';
+  }
   // Auto-fill the per-action utility rating from the decker's load-out (editable override).
   const utilField = document.getElementById('actionUtilRating');
   const utilKey = ACTION_UTILITY[actionSel.value];
@@ -3018,9 +3346,92 @@ async function performAction() {
     hacking_pool_dice: hpDice,
   };
   const tgt = (document.getElementById('actionTargetFile')?.value || '').trim();
-  if (tgt) body.target_file = tgt;
+  if (tgt) {
+    // Steamroller crushes a named tar lurking-IC and Slow targets a named proactive IC, so the
+    // Target field carries the IC id (not a file/slave name) for those actions.
+    if (actionType === 'steamroller' || actionType === 'slow') body.target_ic_id = tgt;
+    else if (actionType === 'dinab') body.target_program = tgt;
+    else body.target_file = tgt;
+  }
 
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, body);
+}
+
+// Crush a lurking Tar Baby / Tar Pit with the loaded Steamroller utility ((Rating)D, immune to
+// the tar crash-backlash). Reads the Steamroller rating from the decker's load-out and targets
+// the named tar lurking-IC.
+async function steamrollTar(id, type, rating) {
+  if (!_run) return;
+  const sr = (_run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities.steamroller) || 0;
+  const alertBox = document.getElementById('runAlert');
+  if (sr <= 0) {
+    showAlert(alertBox, '>> No Steamroller utility loaded -- carry one to crush tar IC.', true);
+    return;
+  }
+  const ok = await showConfirm(
+    `Crush ${type}-${rating} with Steamroller-${sr}? It inflicts (Rating)D and is immune to the tar crash-backlash.`);
+  if (!ok) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'steamroller',
+    subsystem: 'control',
+    utility_rating: sr,
+    hacking_pool_dice: 0,
+    target_ic_id: id,
+  });
+}
+
+// Carried Slow rating: prefer the decker's loaded utility, else the deck-config field so the
+// Slow button can appear before a run is started.
+function _carriedSlow() {
+  const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
+  let v = parseInt(u.slow, 10);
+  if (!Number.isFinite(v) || v <= 0) {
+    const fld = document.getElementById('cfg-u-slow');
+    v = fld ? (parseInt(fld.value, 10) || 0) : 0;
+  }
+  return v > 0 ? v : 0;
+}
+
+// Slow a proactive IC with the loaded Slow utility: a to-hit roll then an opposed Resistance
+// (Slow Rating) Test. On a win the IC loses actions or HANGS for the turn (it resumes next turn
+// unless suppressed). Reactive IC are immune and a trace IC is vulnerable only during its hunt
+// cycle -- the backend rejects an ineligible target with a clear message.
+async function slowIC(id, type, rating) {
+  if (!_run) return;
+  const slow = _carriedSlow();
+  const alertBox = document.getElementById('runAlert');
+  if (slow <= 0) {
+    showAlert(alertBox, '>> No Slow utility loaded -- carry one to slow a proactive IC.', true);
+    return;
+  }
+  const raw = prompt(
+    `Hacking Pool dice to add to the Slow-${slow} to-hit roll vs ${type}-${rating} (0 = none):`, '0');
+  if (raw === null) return;
+  const hp = Math.max(0, parseInt(raw, 10) || 0);
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'slow',
+    subsystem: 'control',
+    utility_rating: slow,
+    hacking_pool_dice: hp,
+    target_ic_id: id,
+  });
+}
+
+// Decompress a stored COMPRESSED downloaded file back to full size (Complex Action, no test --
+// pure storage bookkeeping). The deck must have room for the uncompressed file; the backend
+// rejects it with a clear message when storage is too full. idx indexes state.downloaded_files.
+async function decompressFile(idx) {
+  if (!_run) return;
+  const ledger = (_run.state_json && _run.state_json.downloaded_files) || [];
+  const f = ledger[idx];
+  if (!f || !f.compressed) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'decompress_file',
+    subsystem: 'files',
+    utility_rating: 0,
+    hacking_pool_dice: 0,
+    target_file: f.name || '',
+  });
 }
 
 async function doLogon() {
@@ -3104,19 +3515,34 @@ async function submitAttack() {
 
   const btn = document.getElementById('attackConfirmBtn');
   btn.disabled = true;
+  const targetId = _attackTargetId;
   try {
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/attack`, {
       method: 'POST',
       body: JSON.stringify({
-        target_ic_id:     _attackTargetId,
+        target_ic_id:     targetId,
         attack_pool:      attackPool,
         hacking_pool_dice:hpDice,
         armor_utility:    armor,
       }),
     });
     if (!res.ok) await apiThrow(res);
-    const updated = await res.json();
+    let updated = await res.json();
     closeAttackModal();
+    // vr2: suppression must be declared the moment the IC crashes. If this strike crashed the
+    // target, offer to suppress it (refunds the crash tally for 1 Detection Factor) before render.
+    const tgt = (updated.state_json?.active_ic || []).find(c => c.id === targetId);
+    if (tgt && tgt.status === 'crashed' && !tgt.suppressed && !tgt.suppression_released) {
+      const supp = await showConfirm(
+        "IC CRASHED. Suppress it? You absorb 1 Detection Factor instead of adding the IC's rating "
+        + "to the security tally. Releasing it later (Free Action) is one-way and adds the tally back.",
+        'Suppress crashed IC', 'btn-cyan');
+      if (supp) {
+        const r2 = await apiFetch(`${API}/matrix-runs2/${_run.id}/suppress`,
+          { method: 'POST', body: JSON.stringify({ ic_id: targetId, release: false }) });
+        if (r2.ok) updated = await r2.json();
+      }
+    }
     renderRunState(updated);
   } catch(e) {
     showAlert(document.getElementById('attackModalAlert'), e.message, true);
