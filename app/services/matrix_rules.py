@@ -48,6 +48,14 @@ DAMAGE_BOXES: dict[str, int] = {
 
 DAMAGE_LEVELS: list[str] = ["Light", "Moderate", "Serious", "Deadly"]
 
+# Medic utility target numbers by the icon's current wound level (vr2 Medic Target Numbers
+# Table). The Medic Test rolls the program's effective rating against this TN and heals 1
+# Condition Monitor box per success. The table tops out at Serious -- a Deadly-range icon still
+# treats its wounds as Serious for healing purposes.
+MEDIC_TN: dict[str, int] = {
+    "Light": 4, "Moderate": 5, "Serious": 6,
+}
+
 #  Sheaf trigger intervals by security code 
 # interval_range = (min_increment, max_increment) between trigger steps
 # first_range = (min, max) for first trigger threshold
@@ -364,16 +372,12 @@ SYSTEM_OPERATIONS: list[dict] = [
      "tip": "Identifies IC type, rating, options. For trace IC: reveals phase and turns remaining."},
     {"name": "Analyze Security",    "subsystem": "control", "utility": "Analyze",   "action": "Simple",
      "tip": "Reveals current security rating, your tally, and alert status. GM includes tally from this test."},
-    {"name": "Locate File",         "subsystem": "index",   "utility": "Browse",    "action": "Complex",
-     "tip": "Interrogation operation: accumulate 5+ successes to find the file address."},
     {"name": "Locate Paydata",      "subsystem": "index",   "utility": "Evaluate",  "action": "Complex",
      "tip": "Ongoing op. Each net success = 1 Paydata Point. Must download once located."},
     {"name": "Download Data",       "subsystem": "files",   "utility": "Read/Write","action": "Simple",
      "tip": "Ongoing op. Copies file to deck at I/O bandwidth. Terminating early corrupts the copy."},
     {"name": "Edit File",           "subsystem": "files",   "utility": "Read/Write","action": "Simple",
      "tip": "Create/modify/erase a datafile. Computer Test (TN = Files -- 2 + Masking) to hide edits."},
-    {"name": "Control Slave",       "subsystem": "slave",   "utility": "Spoof",     "action": "Complex",
-     "tip": "Monitored op. Takes control of a remote device. Must maintain with a Free Action every action."},
     {"name": "Null Operation",      "subsystem": "control", "utility": "Deception", "action": "Complex",
      "tip": "Idle wait. Security Value modifier increases with time: <10s base; <1m +1; <1h +2; <12h +4."},
     {"name": "Graceful Logoff",     "subsystem": "access",  "utility": "Deception", "action": "Complex",
@@ -414,7 +418,7 @@ SUBSYSTEM_INFO: dict[str, dict] = {
     "Files": {
         "label": "Files (F)",
         "summary": "Resists unauthorized reading, writing, or deletion of data.",
-        "tip": "Higher = harder to download/edit files and tap comcalls.",
+        "tip": "Higher = harder to download/edit files.",
     },
     "Slave": {
         "label": "Slave (S)",
