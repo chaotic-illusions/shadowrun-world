@@ -11,26 +11,33 @@ class DeckerUtilities(BaseModel):
     # Stealth / detection
     sleaze:     int = Field(0, ge=0)
     camo:       int = Field(0, ge=0)
+    scanner:    int = Field(0, ge=0)   # Locate Decker: Sensor-aided search for hostile deckers
     # Operations
     deception:  int = Field(0, ge=0)
-    browse:     int = Field(0, ge=0)
     analyze:    int = Field(0, ge=0)
     evaluate:   int = Field(0, ge=0)
     decrypt:    int = Field(0, ge=0)
+    defuse:     int = Field(0, ge=0)   # reduces the TN to defuse data bombs (Files/Slave rating - Defuse)
     crash:      int = Field(0, ge=0)
     mirrors:    int = Field(0, ge=0)
     validate_pgm: int = Field(0, ge=0)
     read_write: int = Field(0, ge=0)
-    spoof:      int = Field(0, ge=0)
     relocate:   int = Field(0, ge=0)
     # Combat / defense
     attack:     int = Field(0, ge=0)
+    poison:     int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Bod (Acid analog)
+    restrict:   int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Evasion (Binder analog)
+    reveal:     int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Masking (Marker analog)
+    black_hammer: int = Field(0, ge=0) # lethal offensive (Physical) vs enemy deckers; max rating = ceil(Computer/2)
+    killjoy:    int = Field(0, ge=0)   # lethal offensive (Stun) vs enemy deckers; max rating = ceil(Computer/2)
+    steamroller: int = Field(0, ge=0)  # anti-tar: inflicts (Rating)D to a Tar Baby/Tar Pit IC; immune to the tar crash-backlash
+    slow:       int = Field(0, ge=0)   # anti-proactive-IC: opposed test makes a proactive IC lose actions / HANG for the turn
     armor:      int = Field(0, ge=0)
     shield:     int = Field(0, ge=0)
     restore:    int = Field(0, ge=0)
     medic:      int = Field(0, ge=0)
-    cloak:      int = Field(0, ge=0)
-    lock_on:    int = Field(0, ge=0)
+    disinfect:  int = Field(0, ge=0)   # anti-worm: destroys worm IC; raises the worm-infection TN (passive defense)
+    compressor: int = Field(0, ge=0)   # special: halves a downloaded file's stored size (cap Rating*100 Mp); decompress before use
 
 
 class MemoryProgram(BaseModel):
@@ -39,6 +46,19 @@ class MemoryProgram(BaseModel):
     name:   str = Field("", max_length=40)   # utility key, e.g. "analyze", "read_write"
     rating: int = Field(0, ge=0, le=50)
     size:   int = Field(0, ge=0)
+
+
+class ProgramOptions(BaseModel):
+    """Run-relevant program options carried from the Deck Workshop into a run, keyed by
+    utility type (e.g. "attack"). Build-time-only options (Optimization / Squeeze / Limit)
+    affect size/cost in the workshop and are intentionally NOT carried here."""
+    skulk:       int = Field(0, ge=0, le=50)   # crashing IC: reduce the tally increase by this
+    area:        int = Field(0, ge=0, le=50)   # attack copes with an IC cluster (offsets its TN penalty)
+    dinab:       int = Field(0, ge=0, le=50)   # "Decker In A Box": Free action runs this program autonomously at skill = rating
+    targeting:   bool = False                  # -2 to-hit TN on attacks made with this utility
+    penetration: bool = False                  # defeats Shield (Shift then adds +2)
+    chaser:      bool = False                  # defeats Shift (Shield then adds +2)
+    one_shot:    bool = False                  # single-use copy: consumed on use (reload via Swap Memory; Tar IC wipes every copy)
 
 
 class DeckerStats(BaseModel):
@@ -87,6 +107,9 @@ class DeckerStats(BaseModel):
     # util key -> active-memory size (Mp) for every program carried (active + storage), so the
     # engine can enforce the active-memory cap when swapping a program in.
     program_sizes:     dict[str, int] = Field(default_factory=dict)
+    # util key -> run-relevant program options (Skulk / Targeting / Penetration / Chaser / Area
+    # / etc.), read automatically by the engine instead of asking the player each action.
+    program_options:   dict[str, ProgramOptions] = Field(default_factory=dict)
 
 
 # -- Run creation ---------------------------------------------------------------
@@ -101,13 +124,14 @@ class MatrixRunCreate(BaseModel):
 ActionType = Literal[
     "logon_to_host", "logon_to_ltg",
     "analyze_host", "analyze_ic", "analyze_security", "analyze_subsystem",
-    "locate_file", "locate_paydata", "locate_ic", "locate_slave",
+    "locate_paydata", "locate_ic", "locate_decker",
     "download_data", "edit_file", "upload_data",
-    "control_slave", "monitor_slave", "edit_slave",
     "null_operation", "graceful_logoff", "crash_host",
-    "validate_passcode", "invalidate_passcode", "decoy",
+    "validate_passcode", "dump_log", "decoy",
     "redirect_datatrail", "relocate", "decrypt_file",
-    "swap_memory", "purge_hog",
+    "swap_memory", "purge_hog", "medic", "restore", "disinfect",
+    "defuse_data_bomb", "steamroller", "slow", "decompress_file",
+    "dinab",
 ]
 
 SubsystemType = Literal["access", "control", "index", "files", "slave"]
@@ -122,7 +146,7 @@ class RunActionInput(BaseModel):
     note: str = Field("", max_length=500)
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
-    target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key (blank = first relevant)
+    target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key; Restore: BEMS attribute to repair (blank = first relevant / most-damaged)
     swap_out_program: str = Field("", max_length=40)  # Swap Memory: active program to push to storage to free memory
 
 
@@ -131,8 +155,8 @@ class RunAttackInput(BaseModel):
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     armor_utility: int = Field(0, ge=0, le=50)
-    penetration: bool = Field(False)  # defeats Shield; extra-effective vs Shift
-    chaser: bool = Field(False)       # defeats Shift; extra-effective vs Shield
+    # Penetration / Chaser / Skulk / Targeting / Area are now read automatically from the
+    # Attack program's options (decker.program_options["attack"]) -- no manual entry.
 
 
 class RunLogoffInput(BaseModel):
@@ -160,20 +184,17 @@ class RunSuppressInput(BaseModel):
     release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
 
 
-class RunEnemyDeckerInput(BaseModel):
-    name: str = Field("", max_length=80)
-    intent: Literal["", "boot", "dump", "kill"] = ""  # blank = use the tier default
-
-
-class RunEnemyActInput(BaseModel):
-    enemy_id: str = Field(..., max_length=64)
-    program: str = Field("", max_length=32)  # force a program (Attack/Hog/Poison/Restrict/Reveal/Black Hammer/Killjoy); blank = intent default
-
-
 class RunEnemyAttackInput(BaseModel):
     enemy_id: str = Field(..., max_length=64)
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
+    # "attack" (default) crashes the enemy icon; the three cripplers attack the enemy's
+    # Bod / Evasion / Masking respectively (Poison / Restrict / Reveal). Black Hammer
+    # (lethal Physical) / Killjoy (lethal Stun) "function like black IC but from a decker":
+    # on an icon crash they burn the enemy's MPCP (blaster at DOUBLE the program rating).
+    # All of these target enemy DECKERS only -- never routed through IC.
+    program: Literal["attack", "poison", "restrict", "reveal",
+                     "black_hammer", "killjoy"] = "attack"
 
 
 # -- Sheaf + Host designer -----------------------------------------------------
