@@ -123,15 +123,17 @@ class MatrixRunCreate(BaseModel):
 
 ActionType = Literal[
     "logon_to_host", "logon_to_ltg",
-    "analyze_host", "analyze_ic", "analyze_security", "analyze_subsystem",
+    "analyze_host", "analyze_ic", "analyze_icon", "analyze_security", "analyze_subsystem",
     "locate_paydata", "locate_ic", "locate_decker",
-    "download_data", "edit_file", "upload_data",
+    "download_data", "edit_file",
     "null_operation", "graceful_logoff", "crash_host",
-    "validate_passcode", "dump_log", "decoy",
+    "validate_passcode", "decoy",
     "redirect_datatrail", "relocate", "decrypt_file",
     "swap_memory", "purge_hog", "medic", "restore", "disinfect",
     "defuse_data_bomb", "steamroller", "slow", "decompress_file",
     "dinab",
+    # Combat maneuvers (vr2 L1982) -- Simple Actions, opposed Evasion/Sensor tests
+    "evade_detection", "parry_attack", "position_attack",
 ]
 
 SubsystemType = Literal["access", "control", "index", "files", "slave"]
@@ -148,6 +150,12 @@ class RunActionInput(BaseModel):
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
     target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key; Restore: BEMS attribute to repair (blank = first relevant / most-damaged)
     swap_out_program: str = Field("", max_length=40)  # Swap Memory: active program to push to storage to free memory
+    # Combat maneuvers: which opposing icon to maneuver against (active IC id or revealed
+    # enemy-decker id); blank = first eligible target.
+    maneuver_target: str = Field("", max_length=64)
+    # Position Attack only: "tn" (reduce next-attack TN) or "power" (raise next-attack Power).
+    # Anything other than "power" is treated as "tn" by the router.
+    position_choice: str = Field("tn", max_length=8)
 
 
 class RunAttackInput(BaseModel):
@@ -182,6 +190,13 @@ class RunReactiveInput(BaseModel):
 class RunSuppressInput(BaseModel):
     ic_id: str = Field(..., max_length=64)
     release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
+
+
+class RunRevealHostRatingsInput(BaseModel):
+    # Two-phase Analyze Host: when a successful Analyze Host banked fewer net successes than there
+    # are still-hidden ACIFS ratings, the decker chooses which subsystems to reveal (one per banked
+    # credit). subsystems = the chosen ACIFS names ("access"/"control"/"index"/"files"/"slave").
+    subsystems: list[str] = Field(..., min_length=1, max_length=5)
 
 
 class RunEnemyAttackInput(BaseModel):

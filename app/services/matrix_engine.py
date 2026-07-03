@@ -633,92 +633,6 @@ def _generate_sheaf_impl(
     return sheaf
 
 
-# -- Dump Log (Validate operation) ---------------------------------------------
-
-# 24-hour access-log size by host difficulty (vr2 Dump Log): a busy public ("Easy") host keeps
-# far larger logs than a locked-down ("Hard") one. Size = 2D6 x this multiplier (Mp).
-_LOG_SIZE_MULTIPLIER: dict[str, int] = {"Easy": 5, "Average": 2, "Hard": 1}
-
-# Plausible flavour pools for a generated host access-log summary. No per-host log data is
-# stored, so Dump Log fabricates a STABLE, deterministic readout drawn from the injected RNG.
-_LOG_USER_HANDLES: tuple[str, ...] = (
-    "sysadmin", "j.tanaka", "nightjar", "payroll_svc", "k.oyabun", "audit_bot",
-    "r.delgado", "maint_03", "h.weiss", "secops", "backup_daemon", "l.marrone",
-    "facilities", "m.chen", "contractor_77",
-)
-_LOG_FILE_NAMES: tuple[str, ...] = (
-    "payroll_2054.db", "access_roster.dat", "maint_log.txt", "client_index.db",
-    "security_cams.cfg", "shipping_manifest.xls", "rnd_notes.doc", "budget_q3.xls",
-    "personnel.db", "door_schedule.cfg", "vendor_list.dat", "incident_report.txt",
-)
-_LOG_PROGRAMS: tuple[str, ...] = (
-    "Browse", "Read/Write", "Analyze", "Evaluate", "Validate", "Scanner",
-    "Commlink", "Edit", "Compactor", "Backup", "Defrag",
-)
-
-
-def host_difficulty_tier(security_code: str) -> str:
-    """Map a host Security Code colour to the vr2 host-difficulty tier used for log sizing:
-    Blue/Green = Easy, Orange = Average, Red/Black = Hard (unknown codes default to Easy)."""
-    order = {"Blue": 0, "Green": 1, "Orange": 2, "Red": 3, "Black": 4}.get(security_code, 1)
-    if order <= 1:
-        return "Easy"
-    if order == 2:
-        return "Average"
-    return "Hard"
-
-
-def build_access_log_summary(
-    *,
-    security_code: str,
-    security_value: int,
-    intrusion_logged: bool,
-    rng: random.Random,
-) -> dict[str, Any]:
-    """Build a deterministic host access-log summary for a Dump Log operation (vr2 Validate).
-
-    PURE: every random choice is drawn from the injected ``rng`` (a local ``random.Random`` the
-    caller seeds from a stable key such as host id + run id), so repeated dumps of the same
-    host/run are byte-identical and the global RNG is never touched. The returned dict is fully
-    player-visible -- it is the decker's own read of the logs.
-
-    Reports the count of legitimate users, a sample of recently accessed files and programs run,
-    how many intrusions are already on record, whether the DECKER'S OWN intrusion is currently
-    logged (cleared by a Graceful Logoff), and the 24-hour downloadable log size in Mp.
-    """
-    tier = host_difficulty_tier(security_code)
-    # A busier (Easier / public) host carries more legitimate traffic in its logs.
-    user_ranges = {"Easy": (8, 18), "Average": (4, 11), "Hard": (1, 5)}
-    lo, hi = user_ranges[tier]
-    legit_users = rng.randint(lo, hi)
-
-    def _sample(pool: tuple[str, ...], k: int) -> list[str]:
-        k = max(1, min(k, len(pool)))
-        return rng.sample(list(pool), k)
-
-    files = _sample(_LOG_FILE_NAMES, rng.randint(2, 4))
-    programs = _sample(_LOG_PROGRAMS, rng.randint(2, 3))
-    recent_users = _sample(_LOG_USER_HANDLES, min(3, legit_users))
-    # Other intrusions already on record (prior runners / probes), independent of this decker.
-    intrusions_on_record = rng.randint(0, 2)
-
-    # 24-hour log size = 2D6 x difficulty multiplier (Mp). Local RNG keeps it stable per host/run.
-    log_2d6 = rng.randint(1, 6) + rng.randint(1, 6)
-    log_size_mp = log_2d6 * _LOG_SIZE_MULTIPLIER[tier]
-
-    return {
-        "difficulty": tier,
-        "legitimate_users": legit_users,
-        "recent_users": recent_users,
-        "files_accessed": files,
-        "programs_run": programs,
-        "intrusions_on_record": intrusions_on_record,
-        "intrusion_logged": bool(intrusion_logged),
-        "log_size_mp": log_size_mp,
-        "period_hours": 24,
-    }
-
-
 # -- Probe IC test -------------------------------------------------------------
 
 def probe_test(ic_rating: int, det_factor: int) -> dict[str, Any]:
@@ -763,6 +677,7 @@ def crippler_attack(
     mpcp_rating: int = 0,
     hardening: int = 0,
     shield_successes: int = 0,
+    tn_modifier: int = 0,
 ) -> dict[str, Any]:
     """
     Crippler/Ripper opposed attack sequence.
@@ -772,8 +687,10 @@ def crippler_attack(
     - Reduction = max(0, net_successes) // 2 (persists until logoff for cripplers)
     - Ripper: on any damage, also makes ic_rating dice vs (mpcp_rating + hardening)
       -> reduces the targeted attribute chip by 1 per success (permanent)
+    - tn_modifier: combat-maneuver adjustment to the attack TN (Parry raises it, Position
+      lowers it); defaults to 0 so existing callers are unaffected.
     """
-    attack_tn = COMBAT_TN[security_code][target_status]
+    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
     attack_roll = roll_dice(security_value, attack_tn)
     defense_roll = roll_dice(target_attribute_rating, ic_rating)
     shield_successes = max(0, shield_successes)
@@ -1212,19 +1129,20 @@ def pc_locate_decker_test(
     *,
     sensor_rating: int,
     scanner_rating: int,
-    enemy_detection_factor: int,
+    enemy_mask_sleaze: int,
     enemy_evasion: int,
 ) -> dict[str, Any]:
     """One PC attempt to locate a hidden enemy decker -- the mirror image of enemy_locate_test.
 
-    Opposed: the PC rolls Sensor dice vs (enemy Detection Factor - PC Scanner utility); the
+    Opposed: the PC rolls Sensor dice vs (enemy full Masking + Sleaze - PC Scanner utility); the
     enemy resists with Evasion dice vs the PC's Sensor. Any net PC success pinpoints the enemy
-    (it becomes revealed and the PC can Strike Back). The enemy's Detection Factor already
-    folds in its Masking + Sleaze, so a sleazier security decker is correspondingly harder to
-    find. Unlike the enemy's cumulative hunt, the PC -- who spends a deliberate action to scan
+    (it becomes revealed and the PC can Strike Back). The TN is the enemy's FULL Masking + Sleaze
+    (vr2 L1880: Masking, plus the target's Sleaze rating added in) -- NOT the halved Detection
+    Factor a decker computes for its own persona -- so a sleazier security decker is even harder
+    to find. Unlike the enemy's cumulative hunt, the PC -- who spends a deliberate action to scan
     -- pinpoints on any single net success.
     """
-    target_tn = max(2, enemy_detection_factor - scanner_rating)
+    target_tn = max(2, enemy_mask_sleaze - scanner_rating)
     pc_roll = roll_dice(sensor_rating, target_tn)
     enemy_roll = roll_dice(enemy_evasion, sensor_rating)
     net_successes = max(0, pc_roll["successes"] - enemy_roll["successes"])
@@ -1234,6 +1152,47 @@ def pc_locate_decker_test(
         "target_tn": target_tn,
         "net_successes": net_successes,
         "located": net_successes > 0,
+    }
+
+
+def maneuver_test(
+    *,
+    maneuvering_evasion_dice: int,
+    maneuvering_evasion_rating: int,
+    opposing_sensor_dice: int,
+    opposing_sensor_rating: int,
+    cloak: int = 0,
+    lock_on: int = 0,
+) -> dict[str, Any]:
+    """SR2/VR2 combat-maneuver opposed test (vr2 L1982) -- shared by Evade Detection,
+    Parry Attack and Position Attack.
+
+    The maneuvering icon makes an Evasion Test: Evasion dice vs the opposing icon's Sensor
+    Rating (a Cloak utility lowers that TN). The opposing icon makes a Sensor Test: Sensor
+    dice vs the maneuvering icon's Evasion Rating (a Lock-On utility lowers that TN). The
+    maneuvering icon must roll STRICTLY more successes to succeed; the net successes
+    (maneuvering - opposing) are the maneuver's magnitude. A tie or an opposing win is a
+    failure (net_successes 0).
+
+    Dice/rating source is the caller's responsibility so the same engine serves every actor:
+      - decker (PC or enemy): Evasion dice/Rating = Evasion attribute; Sensor dice/Rating =
+        Sensor attribute.
+      - IC: rolls Security Value dice for BOTH tests, and uses its rating as BOTH its Evasion
+        Rating and its Sensor Rating (the TN an opponent rolls against it).
+    Cloak / Lock-On default to 0 (not modeled in this app).
+    """
+    maneuvering_tn = max(2, opposing_sensor_rating - cloak)
+    opposing_tn = max(2, maneuvering_evasion_rating - lock_on)
+    maneuvering_roll = roll_dice(maneuvering_evasion_dice, maneuvering_tn)
+    opposing_roll = roll_dice(opposing_sensor_dice, opposing_tn)
+    net = maneuvering_roll["successes"] - opposing_roll["successes"]
+    return {
+        "maneuvering_roll": maneuvering_roll,
+        "opposing_roll": opposing_roll,
+        "maneuvering_tn": maneuvering_tn,
+        "opposing_tn": opposing_tn,
+        "net_successes": max(0, net),
+        "success": net > 0,
     }
 
 
@@ -1291,13 +1250,15 @@ def decker_attribute_attack(
     program_rating: int,
     target_attribute_rating: int,
     shield_successes: int = 0,
+    tn_modifier: int = 0,
 ) -> dict[str, Any]:
     """Poison / Restrict / Reveal (vr2): the decker versions of the Acid / Binder / Marker
     cripplers. Attack to hit, then the target resists with the targeted attribute (dice)
     vs the program rating; the attacker's net successes // 2 reduce that attribute (until
     logoff). Poison->Bod, Restrict->Evasion, Reveal->Masking. A defending Shield adds its
-    parry successes to the target's resistance side."""
-    attack_tn = COMBAT_TN[security_code][target_status]
+    parry successes to the target's resistance side. ``tn_modifier`` is the combat-maneuver
+    adjustment to the attack TN (Parry raises it, Position lowers it); defaults to 0."""
+    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
     attack_roll = roll_dice(attacker_pool, attack_tn)
     resist_roll = roll_dice(target_attribute_rating, program_rating)
     shield_successes = max(0, shield_successes)

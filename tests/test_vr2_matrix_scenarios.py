@@ -22,6 +22,7 @@ import pytest
 from app.services import matrix_engine as eng
 from app.services import matrix_rules as rules
 from app.routers import matrix_runs as mr
+from fastapi import HTTPException
 
 
 # -- Deterministic dice helper (mirrors test_matrix_engine._ScriptedRandom) -----
@@ -693,14 +694,28 @@ class TestInitiativeFoundation:
         assert mr._ACTION_COST["swap_memory"] == "Simple"
         assert mr._ACTION_COST["purge_hog"] == "Complex"
 
-    def test_initial_state_rolls_initiative(self):
+    # Standard Shadowrun / VR2 initiative (vr2_rules.md L1913): a decker acts on their score, then
+    # subtracts 10 and acts again while it stays ABOVE 0 -- so passes = ceil(score / 10). A score
+    # landing exactly on a multiple of 10 (10, 20) does NOT grant a phantom extra pass "on 0"
+    # (10 -> 1 pass, 20 -> 2 passes). This is the boundary an earlier `(score//10)+1` formula got
+    # wrong. Cover the 9..21 band: single pass (9, 10), two passes (11..20 incl. the 20 boundary),
+    # three passes (21). The initiative roll is pinned so the test is deterministic (not flaky).
+    @pytest.mark.parametrize("score, expected_passes", [
+        (9, 1), (10, 1),                       # <= 10 -> a single action pass
+        (11, 2), (15, 2), (19, 2), (20, 2),    # 11..20 -> two passes (20 = 20/10, no pass "on 0")
+        (21, 3),                               # 21 -> three passes (21/11/1)
+    ])
+    def test_initial_state_rolls_initiative(self, monkeypatch, score, expected_passes):
+        monkeypatch.setattr(eng, "decker_initiative_roll", lambda *a, **k: score)
+
         class _Host:
             config_json = {"security_code": "Blue", "security_value": 4}
         st = mr._initial_state(
             {"quickness": 4, "intelligence": 5, "mpcp": 6, "masking": 4,
              "deck_mode": "hot", "utilities": {}}, _Host())
-        assert st["decker_initiative"] >= 1
-        assert st["initiative_passes"] == max(1, (st["decker_initiative"] // 10) + 1)
+        assert st["decker_initiative"] == score
+        assert st["initiative_passes"] == expected_passes
+        assert st["initiative_passes"] == max(1, -(-score // 10))   # ceil(score/10) cross-check
         assert st["current_pass"] == 1 and st["actions_this_turn"] == 0
 
 
@@ -763,6 +778,17 @@ class TestEnemyLocateAndIntent:
         r = eng.enemy_locate_test(computer_skill=4, scanner_rating=0,
                                   sensor_rating=6, pc_detection_factor=8, pc_evasion=6)
         assert r["progress_gain"] == 0
+
+    def test_pc_locate_decker_tn_is_full_mask_plus_sleaze(self, scripted):
+        # Correction #6 (vr2 L1880): the PC's Sensor Test TN is the enemy's FULL Masking +
+        # Sleaze minus Scanner -- NOT the halved Detection Factor. mask 5 + sleaze 3 - scanner 2
+        # = 6; the old halved Detection-Factor basis would have been only ceil(8/2) - 2 = 2.
+        scripted([6, 6, 1, 1, 1, 1, 1, 1])  # PC: two 6s vs TN6 -> 2 successes; enemy resist whiffs
+        r = eng.pc_locate_decker_test(sensor_rating=5, scanner_rating=2,
+                                      enemy_mask_sleaze=5 + 3, enemy_evasion=3)
+        assert r["target_tn"] == 6                              # full mask+sleaze (8) - scanner (2)
+        assert r["target_tn"] > eng.detection_factor(5, 3) - 2  # strictly harder than the old halved basis
+        assert r["located"] is True and r["net_successes"] == 2
 
     def test_intent_escalates_with_tally(self):
         # A 'dump' decker turns lethal once the alarm is high; 'kill' stays 'kill'.
@@ -1270,6 +1296,192 @@ class TestScramblePaydata:
     def test_secret_state_keys_are_gm_only(self):
         for k in ("scrambles", "paydata", "data_bombs", "trap_doors"):
             assert k in mr._GM_ONLY_STATE_KEYS
+
+
+class TestScrambleDiscovery:
+    """vr2 #17 -- Decrypt File requires the protecting Scramble IC to be DISCOVERED first, via an
+    Analyze Subsystem on the Files/Slave subsystem that holds it (vr2 L1864). Discovery flips the
+    scramble's ``discovered`` flag + emits ``scramble_found``; ``_serialize_run`` exposes only the
+    discovered ones (target_key/subsystem/label -- never rating/variant); and Decrypt File matches
+    the scramble by its full target_key (never silently falling back to ``scrambles[0]``), refusing
+    the op outright when no discovered scramble matches (no test, no tally)."""
+
+    FILES_KEY = "files::file::Lone Star IC Design"
+    SLAVE_KEY = "slave::piece::LAN to Payroll"
+
+    def _decker(self):
+        return {"name": "Static", "mpcp": 8, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "computer_skill": 6, "intelligence": 6, "utilities": {"decrypt": 4}}
+
+    def _host(self, scrambles):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6,
+                           "acifs": [8, 9, 8, 10, 10], "scrambles": scrambles}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _state(self, scrambles):
+        st = mr._initial_state(self._decker(), self._host(scrambles))
+        st["logon_complete"] = True
+        return st
+
+    class _FakeDB:
+        async def commit(self):
+            pass
+
+        async def refresh(self, obj):
+            pass
+
+    def _drive(self, monkeypatch, state, *, action_type, subsystem="files",
+               target_file="", system_success=True, decrypt_result=None):
+        """Run the REAL ``perform_action`` (analyze_subsystem discovery + decrypt are both inline in
+        it) against a stub run, mirroring the other /action drive helpers. Returns (final_state, decrypt_calls)."""
+        import asyncio
+        from app.schemas.matrix_run import RunActionInput
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = self._decker()
+        run.state_json = state
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            if system_success:
+                return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                        "host_roll": {"successes": 0}, "decker_net_successes": 3, "tally_increase": 0}
+            return {"success": False, "decker_roll": {"successes": 0, "ones": 0},
+                    "host_roll": {"successes": 3}, "decker_net_successes": -3, "tally_increase": 0}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        calls = []
+        if decrypt_result is not None:
+            def _fake_decrypt(**kw):
+                calls.append(kw)
+                return decrypt_result
+            monkeypatch.setattr(eng, "scramble_decrypt_test", _fake_decrypt)
+
+        inp = RunActionInput(action_type=action_type, subsystem=subsystem,
+                             utility_rating=0, hacking_pool_dice=0, target_file=target_file)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=self._FakeDB()))
+        return run.state_json, calls
+
+    # -- Analyze Subsystem discovery ------------------------------------------
+
+    def test_analyze_files_discovers_only_the_files_scramble(self, monkeypatch):
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]
+        out, _ = self._drive(monkeypatch, self._state(scr),
+                             action_type="analyze_subsystem", subsystem="files")
+        by_key = {s["target_key"]: s for s in out["scrambles"]}
+        assert by_key[self.FILES_KEY]["discovered"] is True
+        assert by_key[self.SLAVE_KEY].get("discovered") in (None, False)
+        found = [e for e in out["event_log"] if e["type"] == "scramble_found"]
+        assert len(found) == 1 and found[0]["subsystem"] == "files"
+        assert found[0]["target_key"] == self.FILES_KEY
+
+    def test_analyze_slave_discovers_only_the_slave_scramble(self, monkeypatch):
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]
+        out, _ = self._drive(monkeypatch, self._state(scr),
+                             action_type="analyze_subsystem", subsystem="slave")
+        by_key = {s["target_key"]: s for s in out["scrambles"]}
+        assert by_key[self.SLAVE_KEY]["discovered"] is True
+        assert by_key[self.FILES_KEY].get("discovered") in (None, False)
+        found = [e for e in out["event_log"] if e["type"] == "scramble_found"]
+        assert len(found) == 1 and found[0]["subsystem"] == "slave"
+
+    # -- Serializer redaction --------------------------------------------------
+
+    def test_serialize_redacts_scrambles_but_exposes_discovered(self):
+        from types import SimpleNamespace
+        from datetime import datetime, UTC
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]  # undiscovered
+        run = SimpleNamespace(id=1, host_id=3, status="active",
+                              decker_json=self._decker(), state_json=self._state(scr),
+                              created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        out = mr._serialize_run(run, {"is_admin": False, "is_user": True, "user_token": None})
+        st = out["state_json"]
+        assert "scrambles" not in st                       # raw scrambles fully redacted for players
+        ds = st["discovered_scrambles"]
+        assert len(ds) == 1                                # only the DISCOVERED one is surfaced
+        entry = ds[0]
+        assert entry["target_key"] == self.FILES_KEY
+        assert entry["subsystem"] == "files"
+        assert entry["label"] == "File: Lone Star IC Design"
+        assert "rating" not in entry and "variant" not in entry   # never leak the GM-only bits
+
+    def test_serialize_admin_view_keeps_raw_scrambles(self):
+        from types import SimpleNamespace
+        from datetime import datetime, UTC
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True}]
+        run = SimpleNamespace(id=1, host_id=3, status="active",
+                              decker_json=self._decker(), state_json=self._state(scr),
+                              created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
+        out = mr._serialize_run(run, {"is_admin": True, "is_user": False, "user_token": None})
+        assert out["state_json"]["scrambles"][0]["variant"] == "poison"   # GM keeps full detail
+
+    # -- Decrypt File target matching -----------------------------------------
+
+    def test_decrypt_targets_scramble_by_key_removes_the_correct_one(self, monkeypatch):
+        # Two discovered scrambles; target the SECOND by its full key -> only it is removed, and the
+        # decrypt runs vs ITS rating (5) -- proving no silent fallback to scrambles[0] (rating 6).
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard", "discovered": True}]
+        out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
+                                 subsystem="files", target_file=self.SLAVE_KEY,
+                                 decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
+        remaining = [s["target_key"] for s in out["scrambles"]]
+        assert self.SLAVE_KEY not in remaining             # the TARGETED scramble was removed
+        assert self.FILES_KEY in remaining                 # the other stays untouched
+        assert calls and calls[0]["scramble_rating"] == 5  # decrypt ran vs the slave scramble
+        assert any(e["type"] == "decrypt" and e.get("success") for e in out["event_log"])
+
+    def test_decrypt_matches_discovered_scramble_by_bare_name(self, monkeypatch):
+        # A bare, differently-cased name still matches the discovered scramble by its trailing segment.
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True}]
+        out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
+                                 subsystem="files", target_file="lone star ic design",
+                                 decrypt_result={"decrypted": True, "roll": {"successes": 4, "ones": 0}})
+        assert calls and calls[0]["scramble_rating"] == 6
+        assert out["scrambles"] == []                      # matched via bare-name fallback + removed
+
+    def test_decrypt_undiscovered_scramble_is_refused(self, monkeypatch):
+        # The protecting scramble exists but has NOT been discovered: decrypt must not run the test,
+        # must not remove any scramble, and must emit the "No discovered scramble" guard event.
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"}]  # discovered=False
+        out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
+                                 subsystem="files", target_file=self.FILES_KEY,
+                                 decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
+        assert calls == []                                 # the decrypt test never ran
+        assert len(out["scrambles"]) == 1                  # nothing removed
+        assert out["scrambles"][0].get("discovered") in (None, False)
+        guard = [e for e in out["event_log"] if e["type"] == "decrypt"][-1]
+        assert guard["success"] is False
+        assert "No discovered scramble" in guard["description"]
+        assert "decker_roll" not in guard                  # guard event carries no roll
+
+    def test_decrypt_wrong_target_among_discovered_is_refused(self, monkeypatch):
+        # A discovered scramble exists, but the requested target matches none of the discovered keys.
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True}]
+        out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
+                                 subsystem="files", target_file="slave::piece::Nonexistent",
+                                 decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
+        assert calls == []                                 # no matching discovered scramble -> no test
+        assert len(out["scrambles"]) == 1                  # the discovered one is untouched
 
 
 class TestAnalyzeGatedICReveal:
@@ -2462,194 +2674,440 @@ class TestDefuseDataBomb:
         assert ev["type"] == "data_bomb"
         assert "Defuse 0" in ev["description"]                   # bare TN, no carried reduction
 
+    # -- slave-device bombs (hardened path) -----------------------------------
 
-class TestDumpLog:
-    """vr2 Dump Log (Validate / Control): a Complex Control System Test that reads the host's
-    access logs. Unlike the self-targeted ops (Medic/Restore/Disinfect), Dump Log is NOT an
-    early-return helper -- it runs through the generic ``system_test`` (Validate reduces the TN)
-    and then fires a SUCCESS HANDLER (beside Analyze Host / Analyze Security) that reveals a
-    player-visible access-log summary, including whether the decker's OWN intrusion is currently
-    on record (cleared by a Graceful Logoff). Flavor is drawn from a LOCAL ``random.Random``
-    seeded by host id + run id -- never the global RNG -- so repeated dumps are stable."""
+    def test_defuse_target_subsystem_picks_slave_for_device_bomb(self):
+        # The caller derives the controlling subsystem from the bomb's scope, so a device bomb is
+        # tested against the Slave rating (vr2 L463-471), not whatever the client sent.
+        state = self._state_with_bomb(target="slave::Maglock")
+        assert mr._defuse_target_subsystem(state, "Maglock") == "slave"
 
-    # -- fixtures / helpers ----------------------------------------------------
+    def test_defuse_target_subsystem_picks_files_for_file_bomb(self):
+        state = self._state_with_bomb(target="files::Vault")
+        assert mr._defuse_target_subsystem(state, "Vault") == "files"
 
-    def _decker(self, validate=6):
-        return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
-                "computer_skill": 6, "intelligence": 6, "quickness": 4, "willpower": 4, "body": 4,
-                "utilities": {"validate_pgm": validate}}
+    def test_defuse_target_subsystem_handles_legacy_slave_token(self):
+        # The legacy "__slave__" encoding still resolves to the Slave subsystem + "Slave device".
+        state = self._state_with_bomb(target="__slave__")
+        assert mr._defuse_target_subsystem(state, "Slave device") == "slave"
 
-    class _Host:
-        config_json = {"security_code": "Orange", "security_value": 8,
-                       "acifs": [11, 12, 11, 12, 11]}
-        ltg_address = None
-        trap_doors_json = None
+    def test_defuse_target_subsystem_none_when_unmatched(self):
+        state = self._state_with_bomb(target="files::Vault")
+        assert mr._defuse_target_subsystem(state, "Nonexistent") is None
 
-    class _FixedRng:
-        """Deterministic rng double: ``randint`` clamps a fixed value into range; ``sample``
-        returns the first k of the pool. Lets us assert the log-size MULTIPLIER exactly."""
-        def __init__(self, val=3):
-            self.val = val
+    def test_defuse_matches_slave_bomb_by_device_name(self, scripted):
+        # A device bomb is defused against the Slave rating the caller derived (here passed in).
+        scripted([6, 6, 6])
+        state = self._state_with_bomb(target="slave::Maglock", rating=6, tally=0)
+        mr._apply_defuse_bomb(state, self._decker(defuse=4), self._eff(), subsystem="slave",
+                              subsystem_rating=8, decker_pool=6, sec_value=6, sec_code="Green",
+                              target_file="Maglock")
+        assert state["data_bombs"] == []
+        assert state["defused_bombs"] == ["slave::Maglock"]
+        assert "slave 8" in state["event_log"][-1]["description"]   # tested vs the Slave rating
 
-        def randint(self, a, b):
-            return max(a, min(b, self.val))
+    def test_defuse_matches_legacy_slave_token_by_display_name(self, scripted):
+        # Regression: the legacy "__slave__" encoding surfaces as "Slave device"; the defuse must
+        # match that display name (previously _target_file_name returned "__slave__" -> no match).
+        scripted([6, 6, 6])
+        state = self._state_with_bomb(target="__slave__", rating=6, tally=0)
+        mr._apply_defuse_bomb(state, self._decker(defuse=4), self._eff(), subsystem="slave",
+                              subsystem_rating=8, decker_pool=6, sec_value=6, sec_code="Green",
+                              target_file="Slave device")
+        assert state["data_bombs"] == []
+        assert state["defused_bombs"] == ["__slave__"]
 
-        def sample(self, population, k):
-            return list(population)[:k]
 
-    def _dump_state(self, *, legit_status=False):
-        state = _fresh_state(sec_code="Orange", sec_value=8)
-        state["event_log"] = []
-        state["has_legitimate_status"] = legit_status
-        state["access_log_dumped"] = None
-        return state
+class TestAnalyzeIcon:
+    """vr2 Analyze Icon (Control test, Analyze utility, Free): the targeted scan that DETECTS a
+    data bomb on the protected file or device (vr2 L463). It is the ONLY discovery path -- a broad
+    Analyze Subsystem no longer reveals bombs. ``_apply_analyze_icon`` is exactly what the /action
+    success handler invokes, so it is unit-tested directly (no async endpoint needed)."""
 
-    # -- engine helper: deterministic, difficulty-scaled summary ---------------
+    def _state(self, bombs):
+        s = _fresh_state()
+        s["event_log"] = []
+        s["data_bombs"] = bombs
+        return s
 
-    def test_build_summary_is_deterministic_for_a_fixed_seed(self):
-        import random
-        a = eng.build_access_log_summary(security_code="Orange", security_value=8,
-                                         intrusion_logged=True, rng=random.Random(1234))
-        b = eng.build_access_log_summary(security_code="Orange", security_value=8,
-                                         intrusion_logged=True, rng=random.Random(1234))
-        assert a == b                                            # same seed -> identical readout
-        assert a["legitimate_users"] >= 1
-        assert a["files_accessed"] and a["programs_run"]
-        assert a["intrusion_logged"] is True
-        assert a["period_hours"] == 24
-
-    def test_build_summary_log_size_multiplier_by_difficulty(self):
-        # With a fixed rng draw (2D6 -> 6), only the per-tier multiplier (5 / 2 / 1) differs.
-        easy = eng.build_access_log_summary(security_code="Green", security_value=4,
-                                            intrusion_logged=False, rng=self._FixedRng(3))
-        avg = eng.build_access_log_summary(security_code="Orange", security_value=8,
-                                           intrusion_logged=False, rng=self._FixedRng(3))
-        hard = eng.build_access_log_summary(security_code="Red", security_value=10,
-                                            intrusion_logged=False, rng=self._FixedRng(3))
-        assert (easy["difficulty"], avg["difficulty"], hard["difficulty"]) == \
-            ("Easy", "Average", "Hard")
-        assert easy["log_size_mp"] == 30                         # 2D6(6) x5
-        assert avg["log_size_mp"] == 12                          # 2D6(6) x2
-        assert hard["log_size_mp"] == 6                          # 2D6(6) x1
-
-    def test_host_difficulty_tier_mapping(self):
-        assert eng.host_difficulty_tier("Blue") == "Easy"
-        assert eng.host_difficulty_tier("Green") == "Easy"
-        assert eng.host_difficulty_tier("Orange") == "Average"
-        assert eng.host_difficulty_tier("Red") == "Hard"
-        assert eng.host_difficulty_tier("Black") == "Hard"
-
-    # -- success handler: _apply_dump_log -------------------------------------
-
-    def test_apply_dump_log_populates_state_and_emits_event(self):
-        state = self._dump_state(legit_status=False)
-        mr._apply_dump_log(state, self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        log = state["access_log_dumped"]
-        assert log is not None
-        assert log["legitimate_users"] >= 1
-        assert log["files_accessed"] and log["programs_run"]
-        assert log["intrusion_logged"] is True                  # no legit status -> on record
+    def test_analyze_file_reveals_file_bomb(self):
+        state = self._state([{"target": "files::Monthly Payroll", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="files::Monthly Payroll")
+        assert state["data_bombs"][0]["discovered"] is True
         ev = state["event_log"][-1]
-        assert ev["type"] == "log_dumped"
-        assert ev["intrusion_logged"] is True
-        assert "Dump Log" in ev["description"]
-        assert "Graceful Logoff" in ev["description"]           # ties to the trace-clearing op
+        assert ev["type"] == "data_bomb_found" and ev["subsystem"] == "files"
+        assert "Monthly Payroll" in ev["description"]
 
-    def test_intrusion_not_logged_when_decker_reads_as_legitimate(self):
-        state = self._dump_state(legit_status=True)
-        mr._apply_dump_log(state, self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        assert state["access_log_dumped"]["intrusion_logged"] is False
-        assert "legitimate user" in state["event_log"][-1]["description"]
+    def test_analyze_clean_file_reports_clear(self):
+        # Scanning a DIFFERENT file does not reveal the Other-file bomb; it reports the icon clear.
+        state = self._state([{"target": "files::Other", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="files::Payroll")
+        assert "discovered" not in state["data_bombs"][0]
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb_clear" and ev["subsystem"] == "files"
 
-    def test_repeated_dumps_of_same_run_are_stable(self):
-        # LOCAL rng seeded by host id + run id -> identical summary every time (no global seed).
-        s1 = self._dump_state()
-        mr._apply_dump_log(s1, self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        s2 = self._dump_state()
-        mr._apply_dump_log(s2, self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        assert s1["access_log_dumped"] == s2["access_log_dumped"]
+    def test_analyze_slave_device_reveals_slave_bomb(self):
+        state = self._state([{"target": "slave::Maglock", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="slave::__device__")
+        assert state["data_bombs"][0]["discovered"] is True
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb_found" and ev["subsystem"] == "slave"
+        assert "Slave device" in ev["description"]
 
-    def test_different_runs_yield_different_readouts(self):
-        s1 = self._dump_state()
-        mr._apply_dump_log(s1, self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        s2 = self._dump_state()
-        mr._apply_dump_log(s2, self._decker(), host_id=3, run_id=99,
-                           sec_code="Orange", sec_value=8)
-        assert s1["access_log_dumped"] != s2["access_log_dumped"]
+    def test_analyze_slave_reveals_legacy_token_bomb(self):
+        # The single Slave-device scan matches any slave-scoped bomb, incl. the legacy token.
+        state = self._state([{"target": "__slave__", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="slave::__device__")
+        assert state["data_bombs"][0]["discovered"] is True
+        assert state["event_log"][-1]["type"] == "data_bomb_found"
 
-    def test_global_rng_is_untouched_by_a_dump(self):
-        # The op must NOT reseed the process-wide RNG (that would make later rolls predictable).
-        import random
-        random.seed(0)
-        before = random.random()
-        random.seed(0)
-        mr._apply_dump_log(self._dump_state(), self._decker(), host_id=3, run_id=7,
-                           sec_code="Orange", sec_value=8)
-        after = random.random()
-        assert before == after                                  # global stream undisturbed
+    def test_analyze_slave_with_no_slave_bomb_reports_clear(self):
+        # A file bomb is NOT surfaced by scanning the Slave device (scope mismatch).
+        state = self._state([{"target": "files::Payroll", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="slave::__device__")
+        assert "discovered" not in state["data_bombs"][0]
+        assert state["event_log"][-1]["type"] == "data_bomb_clear"
 
-    # -- full /action path: routing + success gating --------------------------
+    def test_analyze_skips_already_discovered_bomb(self):
+        # Re-scanning a known-bombed icon finds nothing NEW (the bomb is already on record).
+        state = self._state([{"target": "files::Payroll", "rating": 6, "discovered": True}])
+        mr._apply_analyze_icon(state, target_file="files::Payroll")
+        assert state["event_log"][-1]["type"] == "data_bomb_clear"
 
-    def _drive_action(self, monkeypatch, *, success):
+    def test_analyze_named_slave_device_reveals_only_that_device(self):
+        # Two bombed slave devices: scanning ONE names it and leaves the OTHER undiscovered, so the
+        # decker can tell a honeypot terminal apart from bombed security cameras (user scenario).
+        state = self._state([
+            {"target": "slave::Honeypot Terminal", "rating": 6},
+            {"target": "slave::Security Cameras", "rating": 8},
+        ])
+        mr._apply_analyze_icon(state, target_file="slave::Security Cameras")
+        by_target = {b["target"]: b for b in state["data_bombs"]}
+        assert by_target["slave::Security Cameras"]["discovered"] is True
+        assert "discovered" not in by_target["slave::Honeypot Terminal"]
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb_found" and ev["subsystem"] == "slave"
+        assert "Security Cameras" in ev["description"]
+
+    def test_analyze_named_slave_device_clean_reports_clear(self):
+        # Scanning a DIFFERENT device does not reveal the bomb on the other one.
+        state = self._state([{"target": "slave::Security Cameras", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="slave::Honeypot Terminal")
+        assert "discovered" not in state["data_bombs"][0]
+        assert state["event_log"][-1]["type"] == "data_bomb_clear"
+
+    def test_analyze_generic_slave_scan_matches_any_device(self):
+        # The generic "Slave device" option (hosts with no named devices) still finds a slave bomb.
+        state = self._state([{"target": "slave::Security Cameras", "rating": 6}])
+        mr._apply_analyze_icon(state, target_file="slave::__device__")
+        assert state["data_bombs"][0]["discovered"] is True
+        ev = state["event_log"][-1]
+        assert ev["type"] == "data_bomb_found" and "Slave device" in ev["description"]
+
+
+class TestAnalyzeHostReveal:
+    """vr2 Analyze Host (Control test, Analyze utility), USER OVERRIDE: successes reveal the host's
+    ACIFS subsystem ratings; 5+ net successes (or enough to cover every still-hidden rating) reveals
+    ALL, otherwise the credits are banked and the decker CHOOSES which hidden ratings to reveal in a
+    second phase. VM status / Security Rating are NOT part of the reveal set in this app.
+    ``_apply_analyze_host`` / ``_reveal_host_ratings`` are exactly what the /action handler and the
+    /reveal-host-ratings endpoint invoke, so they are unit-tested directly (no dice needed)."""
+
+    ACIFS = [8, 9, 8, 10, 10]  # access, control, index, files, slave
+
+    def _state(self, revealed=None):
+        s = _fresh_state(acifs=list(self.ACIFS))
+        s["event_log"] = []
+        s["current_turn"] = 1
+        s["host_ratings_revealed"] = dict(revealed or {})
+        return s
+
+    def test_five_plus_reveals_all(self):
+        # net >= 5 auto-reveals every ACIFS rating and banks no pending.
+        state = self._state()
+        out = mr._apply_analyze_host(state, 5)
+        assert set(state["host_ratings_revealed"]) == {"access", "control", "index", "files", "slave"}
+        assert state["host_ratings_revealed"]["files"] == 10
+        assert state["host_ratings_revealed"]["control"] == 9
+        assert "host_analyze_pending" not in state
+        assert out["pending"] == 0 and len(out["revealed"]) == 5
+        assert state["event_log"][-1]["type"] == "host_analyzed"
+
+    def test_partial_success_banks_pending_and_reveals_nothing(self):
+        # net=2 with all 5 hidden: bank 2 credits, reveal NOTHING yet (a genuine choice exists).
+        state = self._state()
+        out = mr._apply_analyze_host(state, 2)
+        assert state["host_ratings_revealed"] == {}
+        assert state["host_analyze_pending"]["credits"] == 2
+        assert state["host_analyze_pending"]["turn"] == 1
+        assert out["pending"] == 2 and out["revealed"] == []
+        ev = state["event_log"][-1]
+        assert ev["type"] == "host_analyzed" and "choose 2" in ev["description"]
+
+    def test_reveal_chosen_ratings_clears_pending(self):
+        # After banking 2 credits, revealing Files + Slave yields their true ACIFS ratings and
+        # clears the banked pending.
+        state = self._state()
+        mr._apply_analyze_host(state, 2)
+        result = mr._reveal_host_ratings(state, ["files", "slave"])
+        assert dict(result) == {"files": 10, "slave": 10}
+        assert state["host_ratings_revealed"] == {"files": 10, "slave": 10}
+        assert "host_analyze_pending" not in state
+        ev = state["event_log"][-1]
+        assert ev["type"] == "host_analyzed"
+        assert {"subsystem": "files", "rating": 10} in ev["revealed"]
+
+    def test_reveal_wrong_count_raises(self):
+        # Banked 2 credits but only 1 pick supplied -> reject (must reveal exactly 2).
+        state = self._state()
+        mr._apply_analyze_host(state, 2)
+        with pytest.raises(HTTPException):
+            mr._reveal_host_ratings(state, ["files"])
+
+    def test_reveal_unknown_subsystem_raises(self):
+        state = self._state()
+        mr._apply_analyze_host(state, 2)
+        with pytest.raises(HTTPException):
+            mr._reveal_host_ratings(state, ["files", "cpu"])
+
+    def test_reveal_already_revealed_subsystem_raises(self):
+        # Files is already known; picking it again is rejected.
+        state = self._state(revealed={"files": 10})
+        mr._apply_analyze_host(state, 2)
+        with pytest.raises(HTTPException):
+            mr._reveal_host_ratings(state, ["files", "slave"])
+
+    def test_reveal_without_pending_raises(self):
+        # No Analyze Host has banked anything -> nothing to spend.
+        state = self._state()
+        with pytest.raises(HTTPException):
+            mr._reveal_host_ratings(state, ["files"])
+
+    def test_net_at_least_hidden_count_reveals_all_remaining(self):
+        # net=3 with only 2 ratings still hidden (net >= U): auto-reveal both, bank no pending.
+        state = self._state(revealed={"access": 8, "control": 9, "index": 8})
+        out = mr._apply_analyze_host(state, 3)
+        assert set(state["host_ratings_revealed"]) == {"access", "control", "index", "files", "slave"}
+        assert "host_analyze_pending" not in state
+        assert out["pending"] == 0
+        assert {"subsystem": "files", "rating": 10} in out["revealed"]
+        assert {"subsystem": "slave", "rating": 10} in out["revealed"]
+
+
+class TestValidatePasscode:
+    """vr2 house rule for Validate Passcode (correction #7): the plant test itself is +2 TN; a
+    NET success grants Legitimate status AND a run-long -2 TN to every OTHER System Test
+    (``passcode_tn_bonus``); a FAILED plant is a one-shot (``validate_passcode_attempted`` -> no
+    retry) and still raises the security tally by the host's opposed successes (the normal generic
+    tally bump). Drives the REAL ``perform_action`` so the inline TN math + success/fail handlers
+    are exercised end to end."""
+
+    def _decker(self):
+        return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "computer_skill": 6, "intelligence": 6, "quickness": 4, "willpower": 4,
+                "body": 4, "utilities": {}}
+
+    def _host(self):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6,
+                           "acifs": [8, 9, 8, 10, 10]}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _state(self):
+        st = mr._initial_state(self._decker(), self._host())
+        st["logon_complete"] = True
+        return st
+
+    class _FakeDB:
+        async def commit(self):
+            pass
+
+        async def refresh(self, obj):
+            pass
+
+    def _drive(self, monkeypatch, state, *, action_type, subsystem="access",
+               system_success=True, host_succ=2):
+        """Run the REAL ``perform_action`` against a stub run with a scripted ``system_test`` that
+        records the kwargs it was called with (so we can assert the exact ``extra_tn_modifier``).
+        NOTE: ``perform_action`` deepcopies ``run.state_json``, so callers that chain drives must
+        feed the RETURNED state into the next drive. Returns (final_state, captured_kwargs)."""
         import asyncio
         from app.schemas.matrix_run import RunActionInput
-
-        decker = self._decker()
-        state = mr._initial_state(decker, self._Host())
 
         class _StubRun:
             id = 7
             host_id = 3
             status = "active"
             owner_token_hash = None
-            decker_json = decker
-            state_json = state
+            decker_json = None
+            state_json = None
 
         run = _StubRun()
+        run.decker_json = self._decker()
+        # Guarantee the per-pass action economy never interferes (we test the house rule, not AP).
+        state["pass_action_points"] = 4
+        state["pass_free"] = 4
+        state["initiative_passes"] = 4
+        state["current_pass"] = 1
+        run.state_json = state
 
         async def _fake_get_run(db, run_id):
             return run
 
+        captured: dict = {}
+
         def _fake_test(**kw):
-            if success:
+            captured.clear()
+            captured.update(kw)
+            if system_success:
                 return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
-                        "host_roll": {"successes": 0}, "decker_net_successes": 3,
-                        "tally_increase": 0}
+                        "host_roll": {"successes": host_succ},
+                        "decker_net_successes": 3, "tally_increase": host_succ}
             return {"success": False, "decker_roll": {"successes": 0, "ones": 0},
-                    "host_roll": {"successes": 3}, "decker_net_successes": -3,
-                    "tally_increase": 3}
+                    "host_roll": {"successes": host_succ},
+                    "decker_net_successes": -host_succ, "tally_increase": host_succ}
 
         monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
         monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
         monkeypatch.setattr(eng, "system_test", _fake_test)
 
-        class _FakeDB:
-            async def commit(self):
-                pass
-
-            async def refresh(self, obj):
-                pass
-
-        inp = RunActionInput(action_type="dump_log", subsystem="control", utility_rating=6)
+        inp = RunActionInput(action_type=action_type, subsystem=subsystem,
+                             utility_rating=0, hacking_pool_dice=0, target_file="")
         auth = {"is_admin": True, "is_user": False, "user_token": None}
-        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=_FakeDB()))
-        return run.state_json
+        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=self._FakeDB()))
+        return run.state_json, captured
 
-    def test_action_dump_log_success_reveals_the_log(self, monkeypatch):
-        state = self._drive_action(monkeypatch, success=True)
-        assert state["access_log_dumped"] is not None
-        assert state["access_log_dumped"]["legitimate_users"] >= 1
-        assert any(e.get("type") == "log_dumped" for e in state["event_log"])
+    def test_validate_test_is_plus_two_tn(self, monkeypatch):
+        _out, cap = self._drive(monkeypatch, self._state(),
+                                action_type="validate_passcode", system_success=True)
+        assert cap["extra_tn_modifier"] == 2
 
-    def test_action_dump_log_failure_reveals_nothing(self, monkeypatch):
-        state = self._drive_action(monkeypatch, success=False)
-        assert state["access_log_dumped"] is None
-        assert not any(e.get("type") == "log_dumped" for e in state["event_log"])
+    def test_success_sets_legitimate_status_and_buff(self, monkeypatch):
+        out, _ = self._drive(monkeypatch, self._state(),
+                             action_type="validate_passcode", system_success=True)
+        assert out["has_legitimate_status"] is True
+        assert out["passcode_tn_bonus"] is True
+
+    def test_buff_gives_minus_two_to_other_system_tests(self, monkeypatch):
+        st1, _ = self._drive(monkeypatch, self._state(),
+                             action_type="validate_passcode", system_success=True)
+        assert st1["passcode_tn_bonus"] is True
+        # A subsequent System Test now rolls at -2 TN (the buff), not the validate test's +2.
+        _out, cap = self._drive(monkeypatch, st1, action_type="analyze_host",
+                                subsystem="control", system_success=True)
+        assert cap["extra_tn_modifier"] == -2
+
+    def test_buff_never_helps_the_validate_test_itself(self, monkeypatch):
+        st = self._state()
+        st["passcode_tn_bonus"] = True            # pretend a prior validate already set the buff
+        st["validate_passcode_attempted"] = False
+        st["has_legitimate_status"] = False
+        _out, cap = self._drive(monkeypatch, st, action_type="validate_passcode",
+                                system_success=True)
+        assert cap["extra_tn_modifier"] == 2      # +2, never +2-2=0
+
+    def test_failure_sets_one_shot_lockout_and_raises_tally(self, monkeypatch):
+        st0 = self._state()
+        tally0 = st0["security_tally"]
+        out, _ = self._drive(monkeypatch, st0, action_type="validate_passcode",
+                             system_success=False, host_succ=3)
+        assert out["validate_passcode_attempted"] is True
+        assert out.get("passcode_tn_bonus") in (None, False)
+        assert out.get("has_legitimate_status") in (None, False)
+        assert out["security_tally"] == tally0 + 3    # tally += host (opposed) successes
+
+    def test_failed_validate_cannot_be_retried(self, monkeypatch):
+        st1, _ = self._drive(monkeypatch, self._state(),
+                             action_type="validate_passcode", system_success=False, host_succ=2)
+        assert st1["validate_passcode_attempted"] is True
+        with pytest.raises(HTTPException):
+            self._drive(monkeypatch, st1, action_type="validate_passcode", system_success=True)
+
+
+class TestDecoyIntercept:
+    """vr2 Decoy redirect + Condition Monitor (correction #8, user-amended: at most ONE decoy, and
+    ties go to the decoy so the redirect roll is 1D6 <= successes, not <). Drives the extracted
+    `_decoy_intercept` helper with a FIXED d6 (mr.random) and scripted cybercombat dice
+    (eng.random -> all 1s -> 0 attack successes -> base Moderate = 2 boxes on a Green host). The
+    decoy takes full staged damage with no resistance roll, accrues its own 10-box CM, and is
+    removed when the CM fills. (Trace-IC exclusion is a caller-side placement invariant -- the IC
+    loop skips this helper for trace IC -- so it is not re-tested at the helper level.)"""
+
+    def _ic(self, ic_type="Killer", rating=6):
+        return {"id": "ic1", "type": ic_type, "rating": rating, "status": "active",
+                "initiative": 10}
+
+    def _state(self, *, successes=3, hp=0, sec_code="Green", sec_value=6):
+        st = _fresh_state(sec_code=sec_code, sec_value=sec_value)
+        st["event_log"] = []
+        st["decoy_successes"] = successes
+        st["decoy_hp"] = hp
+        st["has_legitimate_status"] = False        # intruding TN column
+        return st
+
+    def _fix_d6(self, monkeypatch, val):
+        class _FixedD6:
+            def randint(self, a, b):
+                return val
+        monkeypatch.setattr(mr, "random", _FixedD6())
+
+    def test_tie_redirects_to_decoy(self, monkeypatch, scripted):
+        scripted([1])                              # decoy attack -> 0 successes -> Moderate (2 boxes)
+        self._fix_d6(monkeypatch, 3)               # d6 == decoy_successes (3): a TIE -> decoy (<=)
+        st = self._state(successes=3, hp=0)
+        hit = mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                                  ic_target_status="intruding")
+        assert hit is True
+        assert st["decoy_hp"] == 2                 # base Moderate = 2 boxes accrued
+        ev = st["event_log"][-1]
+        assert ev["type"] == "decoy_intercepted"
+        assert ev["d6"] == 3
+
+    def test_roll_above_successes_hits_decker(self, monkeypatch, scripted):
+        scripted([1])
+        self._fix_d6(monkeypatch, 4)               # d6 (4) > successes (3) -> decker, not decoy
+        st = self._state(successes=3, hp=0)
+        hit = mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                                  ic_target_status="intruding")
+        assert hit is False
+        assert st["decoy_hp"] == 0
+        assert st["event_log"] == []
+
+    def test_no_decoy_present_is_no_intercept(self, monkeypatch, scripted):
+        scripted([1])
+        self._fix_d6(monkeypatch, 1)
+        st = self._state(successes=0, hp=0)
+        assert mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                                   ic_target_status="intruding") is False
+
+    def test_full_cm_no_longer_intercepts(self, monkeypatch, scripted):
+        scripted([1])
+        self._fix_d6(monkeypatch, 1)               # would tie, but the CM is already full
+        st = self._state(successes=3, hp=10)
+        assert mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                                   ic_target_status="intruding") is False
+
+    def test_damage_accrues_on_the_decoy_cm(self, monkeypatch, scripted):
+        scripted([1])
+        self._fix_d6(monkeypatch, 2)               # <= 3 -> hit
+        st = self._state(successes=3, hp=2)
+        mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                            ic_target_status="intruding")
+        assert st["decoy_hp"] == 4                 # 2 existing + 2 (Moderate)
+
+    def test_decoy_removed_when_cm_fills(self, monkeypatch, scripted):
+        scripted([1])
+        self._fix_d6(monkeypatch, 3)               # tie -> hit; 9 + 2 = 11 >= 10 -> destroyed
+        st = self._state(successes=3, hp=9)
+        mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
+                            ic_target_status="intruding")
+        assert st["decoy_successes"] == 0          # decoy removed
+        assert st["decoy_hp"] == 0
+        ev = st["event_log"][-1]
+        assert ev["decoy_destroyed"] is True
+        assert "DECOY DESTROYED" in ev["description"]
 
 
 # -- Slow (cripple proactive IC) -----------------------------------------------
@@ -2879,7 +3337,7 @@ class TestSlowHangLoop:
             async def refresh(self, obj):
                 pass
 
-        inp = RunActionInput(action_type="dump_log", subsystem="control", utility_rating=6)
+        inp = RunActionInput(action_type="null_operation", subsystem="control", utility_rating=6)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.perform_action(run_id=11, body=inp, auth=auth, db=_FakeDB()))
         return run.state_json
@@ -3213,6 +3671,130 @@ class TestCompressor:
         # perform_action mutates a deepcopy, so the original run state is pristine -- NOT spent.
         assert state["downloaded_files"][0]["compressed"] is True
         assert state.get("pass_action_points") == ap_before
+
+
+# -- #4 Locate Paydata: 1 random paydata point per NET success ------------------
+
+class TestLocatePaydata:
+    """vr2_rules.md "Locate Paydata" (ongoing operation): each NET success locates ONE Paydata
+    Point, chosen at RANDOM. Corrects the prior bug where a single success revealed EVERY
+    undiscovered file at once. The reveal uses a LOCAL random.Random seeded from
+    run id + turn + security tally + count-already-located, so it is reproducible for fixed
+    inputs yet reveals different files as the run progresses; repeatable until all paydata found.
+    """
+
+    def _decker(self):
+        return {"masking": 4, "intelligence": 5, "mpcp": 6, "sensor": 4, "evasion": 4, "bod": 4,
+                "computer_skill": 6, "utilities": {"browse": 6}}
+
+    def _host(self, paydata):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6,
+                           "paydata": [dict(p) for p in paydata]}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _paydata(self, n):
+        return [{"name": f"File{i}", "density": 10 * (i + 1), "is_key": (i == 0)}
+                for i in range(n)]
+
+    def _action(self):
+        from app.schemas.matrix_run import RunActionInput
+        return RunActionInput(action_type="locate_paydata", subsystem="index")
+
+    def _last_locate_event(self, state):
+        return next(e for e in reversed(state["event_log"])
+                    if e.get("type") == "paydata_located")
+
+    def _drive(self, monkeypatch, *, decker, host, action, state=None, net=3):
+        import asyncio
+
+        if state is None:
+            state = mr._initial_state(decker, host)
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            return {"success": True, "decker_roll": {"successes": net, "ones": 0},
+                    "host_roll": {"successes": 0}, "decker_net_successes": net,
+                    "tally_increase": 0}
+
+        # Isolate the reveal logic from the action-economy / turn machinery (covered by
+        # TestActionEconomyEnforcement): a no-op pass spend keeps current_turn + security_tally
+        # fixed across sequential locates, so the only changing seed input is count-already-located.
+        monkeypatch.setattr(mr, "_spend_pass_action", lambda *a, **k: None)
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=action, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_reveals_one_file_per_net_success(self, monkeypatch):
+        state = self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(5)),
+                            action=self._action(), net=3)
+        located = [p for p in state["paydata"] if p.get("located")]
+        assert len(located) == 3                             # 3 net successes -> 3 files
+        ev = self._last_locate_event(state)
+        assert len(ev["files"]) == 3
+        # The emitted event lists ONLY the newly revealed files.
+        assert {f["name"] for f in ev["files"]} == {p["name"] for p in located}
+
+    def test_reveal_caps_at_remaining_pool(self, monkeypatch):
+        state = self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(2)),
+                            action=self._action(), net=5)
+        located = [p for p in state["paydata"] if p.get("located")]
+        assert len(located) == 2                             # min(5 successes, 2 remaining) = 2
+        assert len(self._last_locate_event(state)["files"]) == 2
+
+    def test_single_net_success_reveals_exactly_one(self, monkeypatch):
+        state = self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(5)),
+                            action=self._action(), net=1)
+        assert sum(1 for p in state["paydata"] if p.get("located")) == 1
+
+    def test_reproducible_for_fixed_inputs(self, monkeypatch):
+        # Identical run id / turn / tally / already-located -> the LOCAL seeded RNG picks the SAME
+        # set (deterministic given fixed inputs).
+        names1 = sorted(f["name"] for f in self._last_locate_event(
+            self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(5)),
+                        action=self._action(), net=3))["files"])
+        names2 = sorted(f["name"] for f in self._last_locate_event(
+            self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(5)),
+                        action=self._action(), net=3))["files"])
+        assert names1 == names2 and len(names1) == 3
+
+    def test_repeatable_until_all_found_then_reports_empty(self, monkeypatch):
+        decker, host = self._decker(), self._host(self._paydata(3))
+        state = self._drive(monkeypatch, decker=decker, host=host, action=self._action(), net=2)
+        assert sum(1 for p in state["paydata"] if p.get("located")) == 2
+        # Second locate drains the last remaining file (min(2, 1) = 1).
+        state = self._drive(monkeypatch, decker=decker, host=host, action=self._action(),
+                            state=state, net=2)
+        assert sum(1 for p in state["paydata"] if p.get("located")) == 3
+        # Third locate finds nothing left -> empty-pool branch.
+        state = self._drive(monkeypatch, decker=decker, host=host, action=self._action(),
+                            state=state, net=2)
+        assert "no further paydata found" in self._last_locate_event(state)["description"]
 
 
 # -- #15 One-Shot program option (single-use; Tar IC wipes every copy) ----------
@@ -4112,6 +4694,1034 @@ class TestAreaClusterToHit:
         with_area = self._attack(monkeypatch, area=2, cluster=2, armor=True)[1]
         no_area = self._attack(monkeypatch, area=0, cluster=2, armor=True)[1]
         assert with_area == no_area - 2         # Area-armed strike resists 2 deeper vs Armor
+
+
+class TestHungIcSuppression:
+    """Correction #16 (vr2_rules.md L1578) -- a proactive IC that HANGS from a Slow strike (its
+    passes drained to 0 for the turn; status stays "active" with a ``hung_turn`` marker) may be
+    SUPPRESSED by the standard suppression rules, exactly like a crashed IC. Unlike a crash, a hang
+    adds NO security tally, so suppressing OR releasing a hung IC must leave the tally untouched (the
+    "appropriate amount" to defer / refund for a hang is 0). Suppressing a crashed IC must still
+    refund its rating (regression guard). Drives the extracted pure helper
+    ``mr._toggle_ic_suppression`` directly -- suppression never rolls dice, so no ``scripted`` fixture
+    is needed."""
+
+    def _decker(self):
+        # Only what _effective_detection_factor reads (masking + sleaze); everything else defaults.
+        return {"utilities": {"sleaze": 8}, "masking": 6, "persona_damage": {}}
+
+    def _hung_ic(self, **over):
+        ic = {"id": "ic1", "type": "Killer", "rating": 5, "status": "active",
+              "initiative": 20, "actions_lost": 3, "slow_turn": 1, "hung_turn": 1,
+              "suppressed": False}
+        ic.update(over)
+        return ic
+
+    def _crashed_ic(self, **over):
+        ic = {"id": "ic2", "type": "Killer", "rating": 4, "status": "crashed", "suppressed": False}
+        ic.update(over)
+        return ic
+
+    def _state(self, ic, *, tally=0):
+        st = _fresh_state()
+        st["security_tally"] = tally
+        st["active_ic"] = [ic]
+        st["pass_free"] = 1
+        st["event_log"] = []
+        return st
+
+    def test_suppress_hung_ic_leaves_tally_unchanged(self):
+        ic = self._hung_ic()
+        st = self._state(ic, tally=0)
+        mr._toggle_ic_suppression(st, self._decker(), ic_id="ic1", release=False)
+        assert ic["suppressed"] is True
+        assert st["security_tally"] == 0            # Slow added no tally -> nothing to refund
+        assert st["detection_factor"] == 6          # base ceil((6+8)/2)=7, -1 for the suppressed IC
+
+    def test_suppress_crashed_ic_refunds_rating(self):
+        ic = self._crashed_ic(rating=4)
+        st = self._state(ic, tally=6)               # tally >= rating so the refund is visible
+        mr._toggle_ic_suppression(st, self._decker(), ic_id="ic2", release=False)
+        assert ic["suppressed"] is True
+        assert st["security_tally"] == 2            # 6 - 4 crash-tally refund (crash path unbroken)
+
+    def test_release_hung_ic_keeps_tally_and_spends_free_action(self):
+        ic = self._hung_ic(suppressed=True)
+        st = self._state(ic, tally=0)
+        mr._toggle_ic_suppression(st, self._decker(), ic_id="ic1", release=True)
+        assert ic["suppressed"] is False
+        assert ic["suppression_released"] is True   # one-way: can never be re-suppressed
+        assert st["security_tally"] == 0            # a hung IC re-adds nothing on release
+        assert st["pass_free"] == 0                 # releasing IC is a Free Action
+
+    def test_suppress_plain_active_ic_is_rejected(self):
+        import pytest
+        from fastapi import HTTPException
+        ic = {"id": "ic3", "type": "Killer", "rating": 5, "status": "active", "suppressed": False}
+        st = self._state(ic, tally=0)
+        with pytest.raises(HTTPException):          # neither crashed nor hung -> 400
+            mr._toggle_ic_suppression(st, self._decker(), ic_id="ic3", release=False)
+
+
+# -- #19 Combat maneuvers: Evade Detection / Parry Attack / Position Attack ------
+
+class TestCombatManeuvers:
+    """vr2_rules.md L1982-2000 (correction #19) -- the three combat maneuvers are opposed
+    Evasion-vs-Sensor tests (eng.maneuver_test) available to the PC, IC, and revealed enemy
+    deckers. The router state-transitions are validated with maneuver_test stubbed to a known
+    win/loss; one case drives the real engine helper with scripted dice. These are the same pure
+    helpers that perform_action, the IC loop, and the enemy-decker turn invoke."""
+
+    @staticmethod
+    def _mk_state(**over):
+        st = {
+            "current_turn": 1,
+            "security_tally": 0,
+            "host_security_value": 6,
+            "active_ic": [],
+            "enemy_deckers": [],
+            "event_log": [],
+            "condition_monitor": {"persona_boxes": 0},
+            "npc_combat_maneuvers": True,
+        }
+        st.update(over)
+        return st
+
+    @staticmethod
+    def _win(man_succ, opp_succ):
+        """A stub eng.maneuver_test returning a fixed opposed-test outcome."""
+        def _f(**kw):
+            return {
+                "maneuvering_roll": {"successes": man_succ, "ones": 0},
+                "opposing_roll": {"successes": opp_succ, "ones": 0},
+                "maneuvering_tn": kw.get("opposing_sensor_rating", 4),
+                "opposing_tn": kw.get("maneuvering_evasion_rating", 4),
+                "net_successes": max(0, man_succ - opp_succ),
+                "success": man_succ > opp_succ,
+            }
+        return _f
+
+    @staticmethod
+    def _body(action_type, **kw):
+        from app.schemas.matrix_run import RunActionInput
+        return RunActionInput(action_type=action_type, subsystem="control", **kw)
+
+    _EFF = {"evasion": 5, "sensor": 5}
+
+    def _ic(self, **over):
+        ic = {"id": "ic1", "type": "Barrier", "rating": 5, "status": "active"}
+        ic.update(over)
+        return ic
+
+    # -- Evade Detection -------------------------------------------------------
+
+    def test_pc_evade_hides_target_and_sets_redetect_timer(self, monkeypatch):
+        ic = self._ic()
+        st = self._mk_state(active_ic=[ic], current_turn=2, security_tally=1)
+        monkeypatch.setattr(eng, "maneuver_test", self._win(4, 1))     # net 3, PC wins
+        mr._apply_maneuver(st, {}, self._EFF, self._body("evade_detection", maneuver_target="ic1"))
+        assert ic["evaded"] is True and ic["evade_dir"] == "lost_pc"
+        assert ic["redetect_turn"] == 2 + 3                            # current_turn + net successes
+        assert ic["redetect_tally_base"] == 1
+        assert any(e["type"] == "maneuver" and e["maneuver"] == "evade_detection" and e["success"]
+                   for e in st["event_log"])
+
+    def test_evaded_icon_is_hidden_until_timer_then_redetected(self, monkeypatch):
+        ic = self._ic(evaded=True, evade_dir="lost_pc", redetect_turn=5, redetect_tally_base=0)
+        st = self._mk_state(active_ic=[ic], current_turn=2, security_tally=0)
+        assert mr._evade_turns_remaining(st, ic) == 3                  # 5 - 2 - 0
+        assert mr._evade_active(st, ic) is True                        # the IC loop skips it
+        st["current_turn"] = 5                                         # window elapsed
+        assert mr._evade_active(st, ic) is False
+        assert not ic.get("evaded")                                    # markers cleared on re-detect
+
+    def test_security_tally_shortens_the_evasion_window(self):
+        ic = self._ic(evaded=True, evade_dir="lost_pc", redetect_turn=5, redetect_tally_base=0)
+        st = self._mk_state(active_ic=[ic], current_turn=2, security_tally=3)
+        # 5 - 2 - 3 = 0 -> each tally point gained since evading shortens the window by a turn (vr2).
+        assert mr._evade_turns_remaining(st, ic) <= 0
+        assert mr._evade_active(st, ic) is False
+
+    def test_cannot_evade_reactive_trace_ic_in_location_cycle(self, monkeypatch):
+        ic = self._ic(id="tr1", type="Trace", trace_phase="locate")
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(4, 0))
+        with pytest.raises(HTTPException) as exc:
+            mr._apply_maneuver(st, {}, self._EFF, self._body("evade_detection", maneuver_target="tr1"))
+        assert exc.value.status_code == 400
+
+    def test_maneuver_with_no_eligible_target_is_rejected(self):
+        st = self._mk_state()                                          # no IC, no revealed enemy
+        with pytest.raises(HTTPException) as exc:
+            mr._apply_maneuver(st, {}, self._EFF, self._body("parry_attack"))
+        assert exc.value.status_code == 400
+
+    # -- Parry Attack ----------------------------------------------------------
+
+    def test_pc_parry_raises_targets_next_attack_tn_then_consumed(self, monkeypatch):
+        ic = self._ic()
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))     # net 2, PC wins
+        mr._apply_maneuver(st, {}, self._EFF, self._body("parry_attack", maneuver_target="ic1"))
+        assert st["pc_parry"] == {"vs": "ic1", "bonus": 2}
+        tn_delta, power_delta = mr._consume_attack_mods_vs_pc(st, ic)  # the IC's next attack on the PC
+        assert tn_delta == 2 and power_delta == 0
+        assert st.get("pc_parry") is None                             # consumed by that attack
+
+    def test_npc_parry_raises_pcs_next_attack_tn_then_consumed(self):
+        ic = self._ic(parry_tn_bonus=3)
+        st = self._mk_state(active_ic=[ic])
+        tn_delta, power_delta = mr._consume_attack_mods_vs_target(st, ic)   # the PC's next attack on it
+        assert tn_delta == 3 and power_delta == 0
+        assert "parry_tn_bonus" not in ic
+
+    # -- Position Attack -------------------------------------------------------
+
+    def test_pc_position_tn_choice_lowers_next_attack_tn(self, monkeypatch):
+        ic = self._ic()
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))     # net 2, PC wins
+        mr._apply_maneuver(st, {}, self._EFF,
+                           self._body("position_attack", maneuver_target="ic1", position_choice="tn"))
+        assert st["pc_position"] == {"tn_reduction": 2}
+        tn_delta, power_delta = mr._consume_attack_mods_vs_target(st, ic)
+        assert tn_delta == -2 and power_delta == 0
+        assert st.get("pc_position") is None
+
+    def test_pc_position_power_choice_raises_next_attack_power(self, monkeypatch):
+        ic = self._ic()
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(4, 1))     # net 3, PC wins
+        mr._apply_maneuver(st, {}, self._EFF,
+                           self._body("position_attack", maneuver_target="ic1", position_choice="power"))
+        assert st["pc_position"] == {"power_bonus": 3}
+        tn_delta, power_delta = mr._consume_attack_mods_vs_target(st, ic)
+        assert tn_delta == 0 and power_delta == 3
+
+    def test_position_attack_backfires_to_the_opposing_icon(self, monkeypatch):
+        ic = self._ic()
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(1, 3))     # opposing wins by 2 (risky)
+        mr._apply_maneuver(st, {}, self._EFF, self._body("position_attack", maneuver_target="ic1"))
+        assert ic["position_bonus"] == {"tn_reduction": 2}
+        tn_delta, power_delta = mr._consume_attack_mods_vs_pc(st, ic)  # IC attacks the PC at -2 TN
+        assert tn_delta == -2 and power_delta == 0
+        assert "position_bonus" not in ic
+
+    # -- NPC-initiated maneuvers (full NPC use; gated by npc_combat_maneuvers) --
+
+    def test_badly_wounded_ic_evades_to_break_off(self, monkeypatch):
+        ic = self._ic(boxes=8)
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, ic, is_ic=True) is True
+        assert ic["evaded"] is True and ic["evade_dir"] == "hid_from_pc"
+
+    def test_moderately_wounded_ic_parries(self, monkeypatch):
+        ic = self._ic(boxes=5)
+        st = self._mk_state(active_ic=[ic])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))     # net 2
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, ic, is_ic=True) is True
+        assert ic["parry_tn_bonus"] == 2
+
+    def test_healthy_ic_seizes_position_when_pc_is_hurt(self, monkeypatch):
+        ic = self._ic(boxes=2)
+        st = self._mk_state(active_ic=[ic], condition_monitor={"persona_boxes": 3})
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))     # net 2
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, ic, is_ic=True) is True
+        assert ic["position_bonus"] == {"tn_reduction": 2}
+
+    def test_npc_maneuvers_are_dormant_when_flag_is_off(self):
+        ic = self._ic(boxes=8)
+        st = self._mk_state(active_ic=[ic], npc_combat_maneuvers=False)
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, ic, is_ic=True) is False
+        assert not ic.get("evaded")
+
+    # -- Enemy-decker parity (revealed enemy deckers, is_ic=False) -------------
+
+    def test_pc_can_maneuver_against_a_revealed_enemy_decker(self, monkeypatch):
+        enemy = {"id": "e1", "name": "Cutter", "sensor": 4, "evasion": 4,
+                 "status": "active", "revealed": True}
+        st = self._mk_state(enemy_deckers=[enemy])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))     # net 2, PC wins
+        mr._apply_maneuver(st, {}, self._EFF, self._body("parry_attack"))  # blank -> first eligible
+        assert st["pc_parry"] == {"vs": "e1", "bonus": 2}
+
+    def test_unrevealed_enemy_decker_is_not_a_valid_target(self):
+        enemy = {"id": "e1", "name": "Cutter", "sensor": 4, "evasion": 4,
+                 "status": "active", "revealed": False}
+        st = self._mk_state(enemy_deckers=[enemy])
+        with pytest.raises(HTTPException):
+            mr._apply_maneuver(st, {}, self._EFF, self._body("parry_attack", maneuver_target="e1"))
+
+    def test_badly_wounded_enemy_decker_evades_and_drops_off_sensors(self, monkeypatch):
+        enemy = {"id": "e1", "name": "Cutter", "sensor": 4, "evasion": 4, "status": "active",
+                 "revealed": True, "condition_monitor": {"persona_boxes": 8}}
+        st = self._mk_state(enemy_deckers=[enemy])
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, enemy, is_ic=False) is True
+        assert enemy["evaded"] is True and enemy["evade_dir"] == "hid_from_pc"
+        assert enemy.get("revealed") is False
+
+    # -- Engine opposed test (real eng.maneuver_test, scripted dice) -----------
+
+    def test_maneuver_test_requires_a_strict_win_and_reports_net(self, monkeypatch):
+        # maneuvering rolls 5,5,5 (>= TN 4) = 3 successes; opposing rolls 2,2,2 = 0 -> net 3, win.
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([5, 5, 5, 2, 2, 2]))
+        res = eng.maneuver_test(maneuvering_evasion_dice=3, maneuvering_evasion_rating=4,
+                                opposing_sensor_dice=3, opposing_sensor_rating=4)
+        assert res["success"] is True and res["net_successes"] == 3
+        # A tie is NOT a win (vr2: the maneuvering icon must roll strictly more successes).
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([5, 2, 2, 5, 2, 2]))
+        tie = eng.maneuver_test(maneuvering_evasion_dice=3, maneuvering_evasion_rating=4,
+                                opposing_sensor_dice=3, opposing_sensor_rating=4)
+        assert tie["success"] is False and tie["net_successes"] == 0
+
+
+class TestLocateReDetect:
+    """vr2_rules.md L1884/L1880 + L1998-1999 (correction #5, user ruling) -- Locate IC and Locate
+    Decker are the re-detect operations for an icon that slipped the decker with an Evade
+    Detection maneuver (evade_dir == "hid_from_pc"). They re-acquire ONLY evaded icons, never
+    never-seen ones (which betray themselves by acting). Locate IC is a System Test only; Locate
+    Decker keeps the #6 opposed Sensor Test vs FULL Masking + Sleaze. A hit clears the evade so
+    the icon is visible/actionable again. These drive the pure _apply_locate_* helpers that
+    perform_action dispatches to."""
+
+    @staticmethod
+    def _state(**over):
+        st = {"current_turn": 3, "security_tally": 0,
+              "active_ic": [], "enemy_deckers": [], "event_log": []}
+        st.update(over)
+        return st
+
+    @staticmethod
+    def _evaded_ic(**over):
+        ic = {"id": "ic1", "type": "Trace", "rating": 5, "status": "active",
+              "detection_level": 3, "evaded": True, "evade_dir": "hid_from_pc",
+              "redetect_turn": 99, "redetect_tally_base": 0}
+        ic.update(over)
+        return ic
+
+    @staticmethod
+    def _evaded_decker(**over):
+        e = {"id": "d1", "name": "Ghost", "tier": 2, "status": "active", "revealed": False,
+             "masking": 4, "evasion": 4, "utilities": {"sleaze": 2},
+             "evaded": True, "evade_dir": "hid_from_pc",
+             "redetect_turn": 99, "redetect_tally_base": 0}
+        e.update(over)
+        return e
+
+    # -- Locate IC (System Test only) ------------------------------------------
+
+    def test_locate_ic_redetects_evaded_ic(self):
+        ic = self._evaded_ic()
+        st = self._state(active_ic=[ic])
+        mr._apply_locate_ic(st, test_success=True)
+        assert "evaded" not in ic and "evade_dir" not in ic          # evade cleared -> visible again
+        assert any(e.get("type") == "maneuver" and e.get("maneuver") == "re_detect"
+                   for e in st["event_log"])
+
+    def test_locate_ic_failed_test_leaves_ic_hidden(self):
+        ic = self._evaded_ic()
+        st = self._state(active_ic=[ic])
+        mr._apply_locate_ic(st, test_success=False)
+        assert ic["evaded"] is True and ic["evade_dir"] == "hid_from_pc"   # still hidden
+        assert any(e.get("type") == "ic_relocate" and e.get("outcome") == "fail"
+                   for e in st["event_log"])
+
+    def test_locate_ic_no_evaded_ic_reports_none(self):
+        # A visible (non-evaded) IC must NOT be affected -- Locate IC only re-detects evaded IC.
+        ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "detection_level": 3}
+        st = self._state(active_ic=[ic])
+        mr._apply_locate_ic(st, test_success=True)
+        assert "evaded" not in ic
+        assert any(e.get("type") == "ic_relocate" and e.get("outcome") == "none"
+                   for e in st["event_log"])
+
+    # -- Locate Decker (Index test + #6 opposed Sensor test) -------------------
+
+    def test_locate_decker_redetects_evaded_decker(self, monkeypatch):
+        e = self._evaded_decker()
+        st = self._state(enemy_deckers=[e])
+        monkeypatch.setattr(eng, "pc_locate_decker_test",
+                            lambda **kw: {"located": True, "net_successes": 2,
+                                          "target_tn": kw["enemy_mask_sleaze"]})
+        mr._apply_locate_decker(st, {"sensor": 5}, test_success=True, scanner=0)
+        assert "evaded" not in e and e["revealed"] is True           # back in view, can Strike Back
+        assert any(ev.get("type") == "enemy_decker" and ev.get("outcome") == "scan_hit"
+                   for ev in st["event_log"])
+
+    def test_locate_decker_uses_full_mask_plus_sleaze(self, monkeypatch):
+        # #6 preserved: the opposed test receives FULL masking + sleaze (4 + 2 = 6), not halved.
+        e = self._evaded_decker(masking=4, utilities={"sleaze": 2})
+        st = self._state(enemy_deckers=[e])
+        seen = {}
+        def _cap(**kw):
+            seen.update(kw)
+            return {"located": True, "net_successes": 1, "target_tn": kw["enemy_mask_sleaze"]}
+        monkeypatch.setattr(eng, "pc_locate_decker_test", _cap)
+        mr._apply_locate_decker(st, {"sensor": 5}, test_success=True, scanner=3)
+        assert seen["enemy_mask_sleaze"] == 6 and seen["scanner_rating"] == 3
+
+    def test_locate_decker_ignores_never_revealed_hunter(self, monkeypatch):
+        # User ruling: an unrevealed hunter that has NOT evaded is not a valid target -- only
+        # evaded deckers are re-acquired (else you'd discover everything in a system instantly).
+        hunter = {"id": "d9", "name": "Hunter", "tier": 3, "status": "active", "revealed": False,
+                  "masking": 4, "evasion": 4, "utilities": {}}
+        st = self._state(enemy_deckers=[hunter])
+        calls = []
+        monkeypatch.setattr(eng, "pc_locate_decker_test",
+                            lambda **kw: calls.append(kw) or {"located": True, "net_successes": 1,
+                                                              "target_tn": 4})
+        mr._apply_locate_decker(st, {"sensor": 5}, test_success=True, scanner=0)
+        assert calls == [] and hunter["revealed"] is False           # never touched
+        assert any(ev.get("type") == "enemy_decker" and ev.get("outcome") == "scan_clear"
+                   for ev in st["event_log"])
+
+    def test_locate_decker_failed_sensor_leaves_decker_evaded(self, monkeypatch):
+        e = self._evaded_decker()
+        st = self._state(enemy_deckers=[e])
+        monkeypatch.setattr(eng, "pc_locate_decker_test",
+                            lambda **kw: {"located": False, "net_successes": 0, "target_tn": 6})
+        mr._apply_locate_decker(st, {"sensor": 3}, test_success=True, scanner=0)
+        assert e["evaded"] is True and e["revealed"] is False         # still hidden
+        assert any(ev.get("type") == "enemy_decker" and ev.get("outcome") == "scan_fail"
+                   for ev in st["event_log"])
+
+    def test_locate_decker_failed_index_test_skips_sensor(self, monkeypatch):
+        # The Index System Test failed -> no opposed Sensor Test is even attempted.
+        e = self._evaded_decker()
+        st = self._state(enemy_deckers=[e])
+        calls = []
+        monkeypatch.setattr(eng, "pc_locate_decker_test",
+                            lambda **kw: calls.append(kw) or {"located": True})
+        mr._apply_locate_decker(st, {"sensor": 5}, test_success=False, scanner=0)
+        assert calls == [] and e["evaded"] is True
+        assert any(ev.get("type") == "enemy_decker" and ev.get("outcome") == "scan_fail"
+                   for ev in st["event_log"])
+
+
+class TestDownloadMultiTurn:
+    """vr2_rules.md L1256-1266 / L1873 / L992 + L1512-1515 (correction #10, user rulings) --
+    Download Data is an ONGOING operation transferring at the deck's I/O Speed, not an instant
+    grab. Turns to transfer = ceil(stored_Mp / io_speed) where ``stored`` is the SAME
+    compressor-effective footprint the file occupies on the deck (a Compressor within its
+    Rating x 100 Mp cap halves what must move; an oversized file transfers full). A file that fits
+    one turn's bandwidth lands immediately; a larger one runs as a BACKGROUND transfer that
+    auto-rolls a Null Operation (Control System Test, Computer skill, NO Hacking Pool) each turn --
+    its host Security Test raises the tally like any op and can wake the sheaf. While a transfer
+    runs the deck's Complex action is committed to that Null Op, so the decker may take only FREE
+    actions and cannot start a second download. Ending the run early (log off / dump / host crash)
+    before completion CORRUPTS the partial copy -- no storage charged, no paydata credited (a
+    Paydata Point needs the COMPLETE file). The ``/3`` duration the doc floated is NOT in RAW and is
+    deliberately rejected: this app's io_speed field is already Mp per Combat Turn (schema L84).
+
+    These drive the pure module helpers (_download_turns / _complete_download / _auto_null_operation
+    / _corrupt_active_download / _tick_active_download) plus the perform_action / new_turn /
+    graceful_logoff wiring."""
+
+    # -- fixtures --------------------------------------------------------------
+
+    @staticmethod
+    def _decker(io_speed=40, compressor=0, storage_free=1000, computer=6):
+        d = {"name": "Jax", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+             "intelligence": 6, "computer_skill": computer, "io_speed": io_speed,
+             "storage_free_mp": storage_free, "utilities": {}}
+        if compressor:
+            d["utilities"]["compressor"] = compressor
+        return d
+
+    @staticmethod
+    def _host(paydata, sec_code="Green", sec_value=6):
+        class _Host:
+            config_json = {"security_code": sec_code, "security_value": sec_value,
+                           "acifs": [6, 6, 6, 6, 6], "paydata": paydata}
+            ltg_address = None
+            trap_doors_json = None
+        return _Host()
+
+    def _state(self, paydata, *, io_speed=40, compressor=0, storage_free=1000):
+        decker = self._decker(io_speed=io_speed, compressor=compressor, storage_free=storage_free)
+        st = mr._initial_state(decker, self._host(paydata))
+        st["logon_complete"] = True
+        return st, decker
+
+    class _FakeDB:
+        async def commit(self):
+            pass
+
+        async def refresh(self, obj):
+            pass
+
+    def _run_action(self, monkeypatch, st, decker, *, action_type, target_file="", success=True):
+        """Drive the REAL perform_action against a stub run (mirrors the other /action harnesses).
+        eng.system_test is stubbed deterministic. Returns the post-action state_json."""
+        import asyncio
+        from app.schemas.matrix_run import RunActionInput
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = decker
+        run.state_json = st
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        def _fake_test(**kw):
+            if success:
+                return {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                        "host_roll": {"successes": 0}, "decker_net_successes": 3, "tally_increase": 0}
+            return {"success": False, "decker_roll": {"successes": 0, "ones": 0},
+                    "host_roll": {"successes": 3}, "decker_net_successes": -3, "tally_increase": 0}
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        inp = RunActionInput(action_type=action_type, subsystem="files",
+                             utility_rating=0, hacking_pool_dice=0, target_file=target_file)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=self._FakeDB()))
+        return run.state_json
+
+    def _run_new_turn(self, monkeypatch, st, decker, *, tally_increase=0):
+        """Drive the REAL new_turn (which ticks an active download) against a stub run."""
+        import asyncio
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = decker
+        run.state_json = st
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: {"success": True, "decker_roll": {"successes": 1},
+                                          "host_roll": {"successes": 0},
+                                          "tally_increase": tally_increase})
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.new_turn(run_id=7, auth=auth, db=self._FakeDB()))
+        return run.state_json
+
+    # -- _download_turns: ceil(stored / io_speed) ------------------------------
+
+    def test_download_turns_is_ceiling_of_stored_over_io(self):
+        assert mr._download_turns({"io_speed": 40}, 140) == 4   # ceil(140/40) = 3.5 -> 4
+        assert mr._download_turns({"io_speed": 40}, 120) == 3   # exact multiple
+        assert mr._download_turns({"io_speed": 40}, 40) == 1    # one turn's bandwidth
+        assert mr._download_turns({"io_speed": 40}, 41) == 2    # one Mp over -> a second turn
+
+    def test_download_turns_legacy_deck_transfers_instantly(self):
+        # A deck with no configured I/O Speed (<=0) keeps the old instant-download behaviour.
+        assert mr._download_turns({"io_speed": 0}, 500) == 1
+        assert mr._download_turns({}, 500) == 1
+        # Nothing to move is also a single (no-op) turn, never zero or negative.
+        assert mr._download_turns({"io_speed": 100}, 0) == 1
+
+    # -- Compressor drives the transfer size (vr2 L1512-1515) ------------------
+
+    def test_compressor_halves_transfer_size_within_cap(self):
+        # Rating 3 -> 300 Mp cap. A 200 Mp file compresses to 100 (halved, rounded up).
+        assert mr._compressed_store_size(3, 200) == (100, True)
+        # Over the Rating x 100 cap the file transfers/stores FULL (not compressible).
+        assert mr._compressed_store_size(3, 400) == (400, False)
+        # No Compressor loaded -> always full size.
+        assert mr._compressed_store_size(0, 200) == (200, False)
+        # ...and the halved footprint is exactly what shortens the transfer.
+        assert mr._download_turns({"io_speed": 50}, 100) == 2   # compressed 100 Mp
+        assert mr._download_turns({"io_speed": 50}, 200) == 4   # full 200 Mp
+
+    # -- _complete_download: land file, charge storage, ledger + event ---------
+
+    def test_complete_download_lands_file_and_charges_storage(self):
+        st, decker = self._state([{"name": "Payroll DB", "density": 120, "is_key": True}])
+        pd = st["paydata"][0]
+        mr._complete_download(st, decker, pd)
+        assert pd["downloaded"] is True and pd["located"] is True
+        assert st["storage_used_mp"] == 120                     # no compressor -> full 120 Mp
+        assert len(st["downloaded_files"]) == 1
+        entry = st["downloaded_files"][0]
+        assert entry["name"] == "Payroll DB" and entry["size_mp"] == 120 and entry["is_key"] is True
+        assert st["event_log"][-1]["type"] == "data_downloaded"
+
+    def test_complete_download_is_idempotent(self):
+        # The guard (``if pd.get("downloaded"): return``) prevents a double charge if called twice.
+        st, decker = self._state([{"name": "F", "density": 60}])
+        pd = st["paydata"][0]
+        mr._complete_download(st, decker, pd)
+        mr._complete_download(st, decker, pd)
+        assert st["storage_used_mp"] == 60 and len(st["downloaded_files"]) == 1
+
+    def test_complete_download_compressed_footprint(self):
+        st, decker = self._state([{"name": "Big", "density": 200}], compressor=3)
+        pd = st["paydata"][0]
+        mr._complete_download(st, decker, pd)
+        assert pd["compressed"] is True and pd["full_size_mp"] == 200
+        assert st["storage_used_mp"] == 100                     # stored halved on the deck
+        assert st["downloaded_files"][0]["size_mp"] == 100
+
+    # -- _auto_null_operation: Control test, Computer skill, tally rises --------
+
+    def test_auto_null_operation_uses_computer_skill_no_hacking_pool(self, monkeypatch):
+        st, decker = self._state([{"name": "F", "density": 60}])   # computer_skill 6
+        seen = {}
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: seen.update(kw) or {"success": True, "decker_roll": {},
+                                                             "host_roll": {}, "tally_increase": 0})
+        hp_before = st.get("hackingPool_remaining")
+        mr._auto_null_operation(st, decker)
+        assert seen["decker_pool"] == 6                          # Computer skill, no Hacking Pool
+        assert st.get("hackingPool_remaining") == hp_before      # Hacking Pool untouched
+
+    def test_auto_null_operation_adds_host_security_tally(self, monkeypatch):
+        st, decker = self._state([{"name": "F", "density": 60}])
+        st["security_tally"] = 1
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: {"success": True, "decker_roll": {}, "host_roll": {},
+                                          "tally_increase": 2})
+        mr._auto_null_operation(st, decker)
+        assert st["security_tally"] == 3                         # 1 + host Security Test successes
+
+    # -- _corrupt_active_download ----------------------------------------------
+
+    def test_corrupt_clears_active_download_and_notes(self):
+        st, _ = self._state([{"name": "F", "density": 60}])
+        st["active_download"] = {"file": "F", "turns_left": 2}
+        st["event_log"] = []
+        mr._corrupt_active_download(st)
+        assert st["active_download"] is None
+        assert st["event_log"][-1]["type"] == "download_corrupted"
+
+    def test_corrupt_is_a_noop_when_no_download(self):
+        st, _ = self._state([{"name": "F", "density": 60}])
+        st["event_log"] = []
+        mr._corrupt_active_download(st)
+        assert st["active_download"] is None and st["event_log"] == []
+
+    # -- _tick_active_download: decrement, complete, corrupt -------------------
+
+    def test_tick_decrements_then_completes(self, monkeypatch):
+        st, decker = self._state([{"name": "Payroll DB", "density": 120, "is_key": True}])
+        st["active_download"] = {"file": "Payroll DB", "stored_mp": 120, "full_mp": 120,
+                                 "compressed": False, "is_key": True, "turns_total": 3,
+                                 "turns_left": 2, "started_turn": 1}
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: {"success": True, "decker_roll": {"successes": 1},
+                                          "host_roll": {"successes": 0}, "tally_increase": 0})
+        # First tick: still transferring -- nothing landed, no storage charged.
+        mr._tick_active_download(st, decker, st["active_download"])
+        assert st["active_download"]["turns_left"] == 1
+        assert st["paydata"][0].get("downloaded") is not True
+        assert st["storage_used_mp"] == 0
+        assert st["event_log"][-1]["type"] == "null_operation"
+        # Second tick: transfer completes -> file lands and storage is charged.
+        mr._tick_active_download(st, decker, st["active_download"])
+        assert st["active_download"] is None
+        assert st["paydata"][0]["downloaded"] is True
+        assert st["storage_used_mp"] == 120
+        assert any(e["type"] == "data_downloaded" for e in st["event_log"])
+
+    def test_tick_corrupts_when_source_file_destroyed_mid_transfer(self, monkeypatch):
+        st, decker = self._state([{"name": "F", "density": 60}])
+        st["paydata"][0]["destroyed"] = True                    # file erased before it finished
+        st["active_download"] = {"file": "F", "stored_mp": 60, "full_mp": 60, "compressed": False,
+                                 "is_key": False, "turns_total": 2, "turns_left": 1,
+                                 "started_turn": 1}
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: {"success": True, "decker_roll": {}, "host_roll": {},
+                                          "tally_increase": 0})
+        mr._tick_active_download(st, decker, st["active_download"])
+        assert st["active_download"] is None
+        assert st["storage_used_mp"] == 0                       # nothing landed
+        assert st["event_log"][-1]["type"] == "download_corrupted"
+
+    # -- perform_action wiring: immediate vs background ------------------------
+
+    def test_small_file_downloads_immediately(self, monkeypatch):
+        st, decker = self._state([{"name": "Memo", "density": 30}], io_speed=100)   # 30 <= 100
+        out = self._run_action(monkeypatch, st, decker,
+                               action_type="download_data", target_file="Memo")
+        assert out["active_download"] is None                   # one turn -> lands at once
+        assert out["paydata"][0]["downloaded"] is True
+        assert out["storage_used_mp"] == 30
+        assert any(e["type"] == "data_downloaded" for e in out["event_log"])
+        assert not any(e["type"] == "download_started" for e in out["event_log"])
+
+    def test_large_file_starts_background_transfer(self, monkeypatch):
+        st, decker = self._state([{"name": "Archive", "density": 120}], io_speed=40)  # 3 turns
+        out = self._run_action(monkeypatch, st, decker,
+                               action_type="download_data", target_file="Archive")
+        dl = out["active_download"]
+        assert dl is not None and dl["file"] == "Archive"
+        assert dl["turns_total"] == 3 and dl["turns_left"] == 2   # first turn moved at start
+        assert dl["stored_mp"] == 120
+        assert out["paydata"][0].get("downloaded") is not True    # not landed yet
+        assert out["storage_used_mp"] == 0                        # nor charged until complete
+        assert any(e["type"] == "download_started" for e in out["event_log"])
+
+    # -- perform_action guard: only Free actions during a transfer -------------
+
+    def test_non_free_action_blocked_during_download(self, monkeypatch):
+        st, decker = self._state([{"name": "F", "density": 60}], io_speed=20)
+        st["active_download"] = {"file": "F", "stored_mp": 60, "full_mp": 60, "compressed": False,
+                                 "is_key": False, "turns_total": 3, "turns_left": 2,
+                                 "started_turn": 1}
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_action(monkeypatch, st, decker, action_type="analyze_host")
+        assert exc.value.status_code == 400
+        assert "only free actions" in exc.value.detail.lower()
+
+    def test_second_download_blocked_during_download(self, monkeypatch):
+        st, decker = self._state([{"name": "F", "density": 60}, {"name": "G", "density": 40}],
+                                 io_speed=20)
+        st["active_download"] = {"file": "F", "stored_mp": 60, "full_mp": 60, "compressed": False,
+                                 "is_key": False, "turns_total": 3, "turns_left": 2,
+                                 "started_turn": 1}
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_action(monkeypatch, st, decker,
+                             action_type="download_data", target_file="G")
+        assert exc.value.status_code == 400
+        assert "already in progress" in exc.value.detail.lower()
+
+    # -- new_turn ticks the background transfer --------------------------------
+
+    def test_new_turn_tick_raises_tally_and_advances(self, monkeypatch):
+        st, decker = self._state([{"name": "Archive", "density": 120}], io_speed=40)  # 3 turns
+        st = self._run_action(monkeypatch, st, decker,
+                              action_type="download_data", target_file="Archive")
+        base = st["security_tally"]
+        st = self._run_new_turn(monkeypatch, st, decker, tally_increase=2)
+        assert st["active_download"]["turns_left"] == 1          # 2 -> 1, still transferring
+        assert st["security_tally"] == base + 2                  # auto Null Op raised the tally
+        assert any(e["type"] == "null_operation" for e in st["event_log"])
+
+    def test_new_turn_completes_finished_download(self, monkeypatch):
+        st, decker = self._state([{"name": "Archive", "density": 80}], io_speed=40)   # 2 turns
+        st = self._run_action(monkeypatch, st, decker,
+                              action_type="download_data", target_file="Archive")
+        assert st["active_download"]["turns_left"] == 1
+        st = self._run_new_turn(monkeypatch, st, decker)         # 1 -> 0 -> lands
+        assert st["active_download"] is None
+        assert st["paydata"][0]["downloaded"] is True
+        assert st["storage_used_mp"] == 80
+        assert any(e["type"] == "data_downloaded" for e in st["event_log"])
+
+    # -- interruption corrupts the partial copy --------------------------------
+
+    def test_graceful_logoff_corrupts_active_download(self, monkeypatch):
+        import asyncio
+        from app.schemas.matrix_run import RunLogoffInput
+        st, decker = self._state([{"name": "F", "density": 60}], io_speed=20)
+        st["active_download"] = {"file": "F", "stored_mp": 60, "full_mp": 60, "compressed": False,
+                                 "is_key": False, "turns_total": 4, "turns_left": 3,
+                                 "started_turn": 1}
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = decker
+        run.state_json = st
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(mr, "_apply_graceful_logoff", lambda *a, **k: True)
+        body = RunLogoffInput(hacking_pool_dice=0, deception_utility=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.graceful_logoff(run_id=7, body=body, auth=auth, db=self._FakeDB()))
+        assert run.status == "escaped"
+        assert run.state_json["active_download"] is None         # partial copy discarded
+        assert run.state_json["storage_used_mp"] == 0            # nothing charged
+        assert run.state_json["event_log"][-1]["type"] == "download_corrupted"
+
+
+# -- App-as-GM automation: ambush IC auto-fire, per-turn Worm, NPC pass flush ----
+#
+# There is no human GM for a Matrix run -- the player is the only human in the loop and the app
+# drives every hostile (ambush IC, background Worms, proactive IC, enemy deckers). These classes
+# validate the automation wiring added for that: a lurking Tar auto-fires at the utility the decker
+# runs, a lurking Worm attacks the MPCP once each Combat Turn, hostiles always take their full
+# initiative passes (even passes the decker never reached, and even on a turn the decker skips), and
+# a badly wounded enemy decker breaks off and jacks out instead of fighting to the death.
+
+class _AutoGMHost:
+    config_json = {"security_code": "Red", "security_value": 9, "acifs": [9, 10, 9, 10, 10]}
+    ltg_address = None
+    trap_doors_json = None
+
+
+class _AutoGMDB:
+    async def commit(self):
+        pass
+
+    async def refresh(self, obj):
+        pass
+
+
+class TestAmbushTarAutoFire:
+    """No human GM -- a lurking Tar Baby / Tar Pit fires AUTOMATICALLY at the utility the decker
+    runs on a System Test (vr2 ambush IC). perform_action calls _autofire_lurking_tar after the
+    action resolves: one opposed test per lurking tar when a reducible utility ran
+    (utility_rating > 0), and nothing at all when the operation carried no utility (rating 0)."""
+
+    def _decker(self):
+        return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "computer_skill": 6, "intelligence": 5, "quickness": 4, "willpower": 4, "body": 5,
+                "hardening": 0, "deck_mode": "cool", "utilities": {"analyze": 6, "sleaze": 4}}
+
+    def _state(self):
+        st = mr._initial_state(self._decker(), _AutoGMHost())
+        st["logon_complete"] = True
+        # Neutralise the per-pass action economy -- these tests exercise the tar wiring, not AP.
+        st["pass_action_points"] = 4
+        st["pass_free"] = 4
+        st["initiative_passes"] = 4
+        st["current_pass"] = 1
+        st["lurking_ic"] = [{"id": "tar1", "type": "Tar Baby", "rating": 6, "status": "lurking"}]
+        return st
+
+    def _drive(self, monkeypatch, state, *, utility_rating):
+        import asyncio
+        from app.schemas.matrix_run import RunActionInput
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = self._decker()
+        run.state_json = state
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        monkeypatch.setattr(eng, "system_test",
+                            lambda **kw: {"success": True, "decker_roll": {"successes": 3, "ones": 0},
+                                          "host_roll": {"successes": 0}, "decker_net_successes": 3,
+                                          "tally_increase": 0})
+        # Deterministic dice for the tar's opposed test (real eng.tar_baby_test runs).
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([3, 1, 5, 2, 4, 6]))
+        inp = RunActionInput(action_type="analyze_host", subsystem="access",
+                             utility_rating=utility_rating, hacking_pool_dice=0, target_file="")
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=_AutoGMDB()))
+        return run.state_json
+
+    def test_tar_fires_on_utility_use(self, monkeypatch):
+        out = self._drive(monkeypatch, self._state(), utility_rating=6)
+        assert any(e.get("type") == "reactive_ic_resolved" and e.get("ic_id") == "tar1"
+                   for e in out["event_log"]), "a lurking Tar must auto-fire when a utility runs"
+
+    def test_tar_silent_when_no_utility_ran(self, monkeypatch):
+        out = self._drive(monkeypatch, self._state(), utility_rating=0)
+        assert not any(e.get("type") == "reactive_ic_resolved" for e in out["event_log"]), \
+            "no reducible utility ran (rating 0) -> the tar must not fire"
+        assert any(ic["id"] == "tar1" for ic in out["lurking_ic"]), "the tar is still lurking"
+
+
+class TestWormAutoTickPerTurn:
+    """No human GM -- a lurking Worm attacks the deck's MPCP once each Combat Turn (vr2). new_turn
+    ticks every lurking Worm via _resolve_lurking_worm; the carried Disinfect defends automatically.
+    An infection consumes the Worm (chip replacement required); a repelled Worm stays lurking."""
+
+    def _decker(self, disinfect=0):
+        d = {"name": "Ghost", "mpcp": 4, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+             "computer_skill": 6, "intelligence": 5, "quickness": 4, "willpower": 4, "body": 5,
+             "hardening": 0, "deck_mode": "cool", "utilities": {}}
+        if disinfect:
+            d["utilities"]["disinfect"] = disinfect
+        return d
+
+    def _state(self, decker):
+        st = mr._initial_state(decker, _AutoGMHost())
+        st["logon_complete"] = True
+        st["lurking_ic"] = [{"id": "worm1", "type": "Worm", "rating": 8, "status": "lurking"}]
+        return st
+
+    def _new_turn(self, monkeypatch, state, decker):
+        import asyncio
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = decker
+        run.state_json = state
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.new_turn(run_id=7, auth=auth, db=_AutoGMDB()))
+        return run.state_json
+
+    def test_worm_infects_mpcp_and_is_consumed(self, monkeypatch):
+        monkeypatch.setattr(eng, "worm_attack",
+                            lambda **kw: {"mpcp_infected": True, "roll": {"successes": 3}})
+        decker = self._decker(disinfect=0)
+        out = self._new_turn(monkeypatch, self._state(decker), decker)
+        assert out["mpcp_infected"] is True
+        assert out.get("chip_replacement_required") is True
+        assert not any(ic["id"] == "worm1" for ic in out["lurking_ic"]), "infected Worm is consumed"
+        assert any(e.get("type") == "worm_resolved" and e.get("outcome") == "mpcp_infected"
+                   for e in out["event_log"])
+
+    def test_worm_repelled_stays_lurking(self, monkeypatch):
+        monkeypatch.setattr(eng, "worm_attack",
+                            lambda **kw: {"mpcp_infected": False, "roll": {"successes": 0}})
+        decker = self._decker(disinfect=6)
+        out = self._new_turn(monkeypatch, self._state(decker), decker)
+        assert out.get("mpcp_infected") is not True
+        assert any(ic["id"] == "worm1" for ic in out["lurking_ic"]), "repelled Worm keeps lurking"
+        assert any(e.get("type") == "worm_resolved" and e.get("outcome") == "repelled"
+                   for e in out["event_log"])
+
+
+class TestNpcPassFlushOnNewTurn:
+    """No human GM -- hostiles ALWAYS take their full initiative passes each Combat Turn. current_pass
+    only climbs as far as the DECKER's passes, so a faster IC would be cheated of its extra passes,
+    and a turn the decker ends without acting would let no hostile act at all. new_turn flushes the
+    remaining NPC passes (current_pass..max_npc_passes) before resetting for the next turn."""
+
+    def _decker(self):
+        return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "computer_skill": 6, "intelligence": 5, "quickness": 4, "willpower": 4, "body": 5,
+                "hardening": 0, "deck_mode": "cool", "utilities": {"sleaze": 4}}
+
+    def _state(self, decker, ic):
+        st = mr._initial_state(decker, _AutoGMHost())
+        st["logon_complete"] = True
+        st["active_ic"] = [ic]
+        st["initiative_passes"] = 1     # the decker has a single pass this turn
+        st["current_pass"] = 1
+        st["event_log"] = []
+        return st
+
+    def _new_turn(self, monkeypatch, state, decker):
+        import asyncio
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = None
+            state_json = None
+
+        run = _StubRun()
+        run.decker_json = decker
+        run.state_json = state
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+        # All-1s dice: the IC attack misses but still logs its ic_attack event (proof it acted).
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([1]))
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.new_turn(run_id=7, auth=auth, db=_AutoGMDB()))
+        return run.state_json
+
+    def test_faster_ic_gets_its_extra_pass_flushed(self, monkeypatch):
+        decker = self._decker()
+        # IC initiative 20 -> 2 passes; it already acted on pass 1 this turn (acted_pass=1). Its
+        # pass-2 action -- which the 1-pass decker never reached -- must be flushed on New Turn.
+        ic = {"id": "killer1", "type": "Killer", "rating": 6, "status": "active",
+              "initiative": 20, "acted_pass": 1}
+        out = self._new_turn(monkeypatch, self._state(decker, ic), decker)
+        assert any(e.get("type") == "ic_attack" and e.get("ic_id") == "killer1"
+                   for e in out["event_log"]), "the faster IC's 2nd pass must fire on New Turn"
+
+    def test_ic_acts_on_bare_new_turn_with_no_player_action(self, monkeypatch):
+        decker = self._decker()
+        # The decker ends the turn WITHOUT acting (no acted_pass on the IC). New Turn must still
+        # drive the IC's pass-1 action -- a bare New Turn is not a free pass for the runner.
+        ic = {"id": "killer2", "type": "Killer", "rating": 6, "status": "active",
+              "initiative": 12}
+        out = self._new_turn(monkeypatch, self._state(decker, ic), decker)
+        assert any(e.get("type") == "ic_attack" and e.get("ic_id") == "killer2"
+                   for e in out["event_log"]), "a hostile must act even on a bare New Turn"
+
+
+class TestEnemyDeckerSelfPreservation:
+    """Balanced enemy AI (app-as-GM, user ruling) -- a badly wounded enemy decker breaks off the hunt
+    and jacks out ('fled') rather than fight to the death. Serious+ icon damage
+    (>= _ENEMY_RETREAT_BOXES / 10 persona boxes) triggers the retreat once it has located the PC
+    (Phase 2); a healthier enemy keeps attacking at full aggression."""
+
+    def _decker(self):
+        return {"bod": 5, "evasion": 5, "masking": 5, "sensor": 5, "mpcp": 6,
+                "intelligence": 5, "body": 5, "hardening": 0, "utilities": {"sleaze": 4}}
+
+    def _state(self):
+        s = _fresh_state(sec_code="Red", sec_value=9)
+        s["event_log"] = []
+        s["condition_monitor"] = {"persona_boxes": 0, "physical_boxes": 0, "mpcp_damage": 0,
+                                  "persona_damage": {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0}}
+        return s
+
+    def _located_enemy(self, persona_boxes):
+        e = eng.generate_enemy_decker("Red", 9)
+        e["id"] = "ed1"
+        e["located"] = True        # past Phase 1 -> reaches the Phase 2 self-preservation check
+        e["revealed"] = True
+        e["condition_monitor"] = {"persona_boxes": persona_boxes, "mpcp_damage": 0}
+        return e
+
+    def test_badly_damaged_enemy_jacks_out(self, scripted):
+        scripted([1])
+        state = self._state()
+        enemy = self._located_enemy(mr._ENEMY_RETREAT_BOXES)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "fled"
+        assert any(e.get("type") == "enemy_decker" and e.get("outcome") == "fled"
+                   and e.get("enemy_id") == "ed1" for e in state["event_log"])
+
+    def test_lightly_damaged_enemy_keeps_fighting(self, scripted):
+        scripted([1])
+        state = self._state()
+        enemy = self._located_enemy(mr._ENEMY_RETREAT_BOXES - 1)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "active"                       # one box short of retreat -> fights on
+        assert not any(e.get("outcome") == "fled" for e in state["event_log"])
 
 
 
