@@ -413,7 +413,7 @@ Each IC program has its own **rating**:
 When a decker crashes IC in cybercombat, add the IC's rating to the decker's security tally.
 
 **Utility Options for Crashing IC:**
-If the decker uses a utility with the Stealth option to destroy IC, reduce the tally increase by the Stealth rating. Stealth-6+ eliminates the tally increase entirely.
+If the decker uses a utility with the Skulk option to destroy IC, reduce the tally increase by the Skulk rating.
 
 ### Suppressing IC
 
