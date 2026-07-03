@@ -619,6 +619,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   transition: all .2s;
   text-decoration: none;
 }
+.btn:disabled,
+.btn[disabled] { opacity: .4; cursor: not-allowed; box-shadow: none; text-shadow: none; }
+.btn:disabled:hover,
+.btn[disabled]:hover { background: transparent; box-shadow: none; text-shadow: none; }
 .btn-green { color: var(--green); border-color: var(--green-dark); }
 .btn-green:hover { background: rgba(0,255,65,.08); box-shadow: var(--glow-green); text-shadow: var(--glow-green); }
 .btn-amber { color: var(--amber); border-color: #442200; }
@@ -3062,12 +3066,100 @@ main:has(.md3) { max-width: 1800px; }
 
 .mr-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 272px minmax(0, 1fr) 352px;
   gap: 16px;
+  max-width: 1920px;
+  margin: 0 auto;
   align-items: start;
 }
-.mr-col-left, .mr-col-right { display: flex; flex-direction: column; gap: 12px; }
-@media (max-width: 900px) { .mr-layout { grid-template-columns: 1fr; } }
+.mr-col-left, .mr-col-center, .mr-col-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* Center column: the situation stage grows; the Actions bar stays pinned to the bottom. */
+.mr-col-center { min-height: calc(100vh - 150px); }
+.mr-col-center .mr-stage { flex: 1 1 auto; display: flex; flex-direction: column; }
+.mr-col-center #run-action-bar { margin-top: auto; }
+/* Situation stage content */
+.stage-phase  { font-size: 1.05rem; letter-spacing: 3px; color: var(--green); text-transform: uppercase; margin-bottom: 10px; }
+.stage-sub    { font-size: 0.78rem; color: var(--text-dim); line-height: 1.55; margin-bottom: 14px; }
+.stage-hint   { font-size: 0.72rem; color: var(--cyan); letter-spacing: 1px; }
+.stage-latest { font-size: 0.8rem; color: var(--text); line-height: 1.5; padding: 10px 12px; border-left: 2px solid var(--green-dim); background: rgba(0,255,65,.03); }
+.stage-latest-label { font-size: 0.56rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 5px; }
+/* Pre-logon briefing block (TARGET / ACCESS / OBJECTIVE -- what the decker knows going in) */
+.stage-brief { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.stage-brief-label { font-size: 0.56rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 3px; }
+.stage-brief-val { font-size: 0.92rem; color: var(--text-bright); }
+.stage-brief-sub { font-size: 0.72rem; color: var(--text-dim); line-height: 1.5; }
+/* Program-memory readout: per-zone meter + compact program/paydata chips */
+.mem-meter-label { font-size: 0.58rem; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 4px; }
+.mem-meter-bar { height: 6px; background: #0a0a0a; border: 1px solid #222; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
+.mem-meter-fill { height: 100%; }
+.mem-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mem-chip { font-size: 0.68rem; color: var(--text-bright); background: #0a140a; border: 1px solid #1a2a1a; border-radius: 3px; padding: 2px 7px; letter-spacing: 0.3px; }
+.mem-chip-file { color: var(--green); border-color: #014a01; }
+.mem-section-gap { margin-top: 10px; padding-top: 8px; border-top: 1px solid #1a2a1a; }
+/* Wide -> collapse to 2 columns; the discovered/log column wraps to a full-width row beneath. */
+@media (max-width: 1500px) {
+  .mr-layout { grid-template-columns: 256px minmax(0, 1fr); }
+  .mr-col-right { grid-column: 1 / -1; }
+}
+@media (max-width: 980px) {
+  .mr-layout { grid-template-columns: 1fr; }
+  .mr-col-right { grid-column: auto; }
+  .mr-col-center { min-height: 0; }
+}
+
+/* -- Action console (post-logon): action-economy readout + compact form ---- */
+.act-econ {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: #0a0a0a; border: 1px solid #1a2a1a; border-radius: 4px;
+  padding: 7px 12px; margin-bottom: 10px;
+}
+.act-econ-cell { display: flex; align-items: center; gap: 7px; }
+.act-econ-k { font-size: 0.54rem; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
+.act-econ-v { font-size: 0.95rem; color: var(--text-bright); font-weight: 600; letter-spacing: 1px; }
+.act-econ-turn { margin-left: auto; }
+.act-pips { display: inline-flex; gap: 4px; }
+.act-pip { width: 13px; height: 13px; border-radius: 50%; border: 1px solid #16343a; background: #0a1518; box-sizing: border-box; }
+/* Action / Free pips read the same: bright cyan while AVAILABLE, dim once spent. */
+.act-pip.on { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(0,204,255,.55); }
+
+.act-form { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
+.act-form .act-action { flex: 1 1 220px; }
+.act-form .act-sub, .act-form .act-target, .act-form .act-swapout { flex: 1 1 160px; }
+.act-form .act-hp { flex: 0 0 92px; }
+.act-form select, .act-form input[type="number"], .act-form input[type="text"] { width: 100%; }
+.act-perform { white-space: nowrap; align-self: flex-end; }
+.act-cost-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.6rem; letter-spacing: 0.5px; background: rgba(0,255,65,.15);
+  color: var(--green); border: 1px solid #014a01;
+}
+.act-cost-tag.act-cost-short { background: rgba(255,153,0,.15); color: var(--amber); border-color: #5a3a00; }
+.act-hint { font-size: 0.68rem; color: var(--text-dim); letter-spacing: 1px; align-self: center; }
+.act-footer {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid #1a2a1a;
+}
+.act-footer-sep { width: 1px; height: 22px; background: #1a2a1a; margin: 0 4px; }
+.act-newturn { color: var(--cyan); border-color: #004455; }
+
+/* -- No-scroll run console: fill the viewport, scroll the side/centre panes internally (wide
+   screens only -- narrow/stacked layout keeps normal document flow). */
+@media (min-width: 981px) {
+  body.mr-run-active { height: 100vh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  body.mr-run-active header { flex: 0 0 auto; }
+  body.mr-run-active main {
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: 14px 24px 12px; max-width: none; margin: 0;
+  }
+  body.mr-run-active .page-title, body.mr-run-active .page-sub { display: none; }
+  body.mr-run-active #pageAlert:empty { display: none; margin: 0; }
+  body.mr-run-active #runView { flex: 1 1 auto; min-height: 0; display: flex; }
+  body.mr-run-active .mr-layout { flex: 1 1 auto; min-height: 0; height: 100%; align-items: stretch; }
+  body.mr-run-active .mr-col-left, body.mr-run-active .mr-col-right { min-height: 0; overflow-y: auto; }
+  body.mr-run-active .mr-col-center { min-height: 0; overflow: hidden; }
+  body.mr-run-active .mr-col-center .mr-stage { min-height: 0; overflow-y: auto; }
+}
 
 .mr-panel { background: var(--bg-card); border: 1px solid #1a2a1a; padding: 14px 16px; }
 
@@ -3258,7 +3350,7 @@ main:has(.md3) { max-width: 1800px; }
 /* Condition monitor */
 .cond-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: var(--fs-sm); }
 .cond-label { font-size: var(--fs-xs); letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; min-width: 60px; }
-.cond-boxes { display: flex; gap: 3px; flex: 1; }
+.cond-boxes { display: flex; gap: 3px; flex: 1; min-width: 0; overflow: hidden; }
 .cond-box {
   width: 14px; height: 14px;
   border: 1px solid #2a2a2a; background: #0a0a0a;

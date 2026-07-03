@@ -367,7 +367,7 @@ SYSTEM_OPERATIONS: list[dict] = [
     {"name": "Logon to LTG",        "subsystem": "access",  "utility": "Deception", "action": "Complex",
      "tip": "Entry to the local grid. Jackpoint Access modifier applies."},
     {"name": "Analyze Host",        "subsystem": "control", "utility": "Analyze",   "action": "Complex",
-     "tip": "Each success reveals one piece of info: security rating, a subsystem rating, or VM status."},
+     "tip": "Each success reveals one host subsystem (ACIFS) rating; 5+ successes reveal all five. Must be logged on."},
     {"name": "Analyze IC",          "subsystem": "control", "utility": "Analyze",   "action": "Free",
      "tip": "Identifies IC type, rating, options. For trace IC: reveals phase and turns remaining."},
     {"name": "Analyze Security",    "subsystem": "control", "utility": "Analyze",   "action": "Simple",

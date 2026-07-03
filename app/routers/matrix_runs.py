@@ -24,7 +24,7 @@ from app.models.matrix_host import MatrixHost
 from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary,
     RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
-    RunSuppressInput, RunEnemyAttackInput,
+    RunSuppressInput, RunRevealHostRatingsInput, RunEnemyAttackInput,
     RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
@@ -75,6 +75,77 @@ def _target_file_name(target: str) -> str:
     scramble actually fires on the matching download.
     """
     return target.rsplit("::", 1)[-1].strip() if target else ""
+
+
+def _data_bomb_scope_name(target: str) -> tuple[str, str]:
+    """Decode a data-bomb target key into (subsystem, bare name).
+
+    The designer encodes bombs as "files::<name>" (a datafile) or "slave::<name>" (a device);
+    a bare/legacy name is treated as a Files bomb. The subsystem is the bomb's CONTROLLING
+    subsystem -- Files for a file bomb, Slave for a device bomb -- which fixes both the Defuse
+    Computer Test TN (vr2 L463-471) and how the icon is labelled to the player. This is the
+    authoritative bomb decoder (it special-cases the legacy "__slave__" token); use it -- not
+    the generic _target_file_name -- wherever a bomb is matched or surfaced."""
+    t = (target or "").strip()
+    if t.startswith("files::"):
+        return "files", t[len("files::"):]
+    if t.startswith("slave::"):
+        return "slave", t[len("slave::"):]
+    if t == "__slave__":
+        return "slave", "Slave device"
+    return "files", t
+
+
+def _scramble_subsystem(target_key: str) -> str:
+    """Controlling subsystem ("access"/"slave"/"files") for a scramble target key.
+
+    The designer keys a scramble as "<subsystem>::..." (e.g. "files::file::<name>",
+    "slave::piece::<name>", "access::entire" -- see the designer's _encodeScrambleTargetKey).
+    The subsystem it lives on is the first "::" segment; a bare/legacy key with no prefix is
+    treated as a Files scramble. This drives BOTH discovery (an Analyze Subsystem on that
+    subsystem reveals it) and how it is offered to the player for Decrypt File."""
+    seg = (target_key or "").split("::", 1)[0].strip().lower()
+    return seg if seg in {"access", "slave", "files"} else "files"
+
+
+def _scramble_label(target_key: str) -> str:
+    """Human-readable label for a scramble in the Decrypt File dropdown / discovery event."""
+    tk = (target_key or "").strip()
+    name = _target_file_name(tk)
+    if tk.startswith("files::file::"):
+        return f"File: {name}"
+    if tk == "files::entire":
+        return "Files subsystem (all files)"
+    if tk.startswith("slave::piece::"):
+        return f"Slave device: {name}"
+    if tk == "slave::entire":
+        return "Slave subsystem"
+    if tk.startswith("access::piece::"):
+        return f"Access: {name}"
+    if tk == "access::entire":
+        return "Access subsystem"
+    return f"File: {tk}"
+
+
+def _defuse_target_subsystem(state: dict, target_file: str) -> str | None:
+    """Controlling subsystem ("files"/"slave") for a Defuse, taken from the matching armed bomb.
+
+    vr2 L463-471: a data bomb is defused with a Computer Test vs its controlling subsystem -- the
+    Files Rating for a datafile, the Slave Rating for a device. The bomb records which via its
+    scope-encoded target, so the TN never depends on the client-sent subsystem. Matches the bomb
+    exactly as ``_apply_defuse_bomb`` does (same decoder, same first-match order) so the derived
+    rating lines up with the bomb the handler will disarm. Returns None when no armed, undefused
+    bomb matches -- the caller then falls back to the requested subsystem."""
+    armed = state.get("data_bombs") or []
+    defused = set(state.get("defused_bombs") or [])
+    tgt = (target_file or "").strip().lower()
+    for b in armed:
+        if not isinstance(b, dict) or b.get("target") in defused:
+            continue
+        scope, name = _data_bomb_scope_name(b.get("target", ""))
+        if not tgt or name.strip().lower() == tgt:
+            return scope
+    return None
 
 
 def _build_trap_doors(host: MatrixHost) -> list[dict]:
@@ -195,10 +266,36 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
             for d in (state.get("trap_doors") or [])
             if isinstance(d, dict) and d.get("discovered")
         ]
+        # Surface only DISCOVERED data bombs (found via Analyze Icon on the protected file/device),
+        # redacted to the protected target + which subsystem hosts it -- enough for the player to
+        # target a Defuse, without leaking undiscovered bombs (the rest of data_bombs stays GM-only).
+        discovered_data_bombs = []
+        for b in (state.get("data_bombs") or []):
+            if not isinstance(b, dict) or not b.get("discovered"):
+                continue
+            scope, name = _data_bomb_scope_name(b.get("target", ""))
+            discovered_data_bombs.append({"target": name, "scope": scope, "name": name})
+        # Surface only DISCOVERED scrambles (found via Analyze Subsystem on the Files/Slave
+        # subsystem that holds them). Redacted to target_key + subsystem + a human label -- enough
+        # to offer Decrypt File against the RIGHT scramble -- WITHOUT leaking its rating or variant
+        # (Poison/Exploding stay GM-only; scrambles is popped below with the other GM-only keys).
+        discovered_scrambles = [
+            {"target_key": s.get("target_key", ""),
+             "subsystem": _scramble_subsystem(s.get("target_key", "")),
+             "label": _scramble_label(s.get("target_key", ""))}
+            for s in (state.get("scrambles") or [])
+            if isinstance(s, dict) and s.get("discovered")
+        ]
         for k in _GM_ONLY_STATE_KEYS:
             state.pop(k, None)
         state["located_paydata"] = located_paydata
         state["discovered_trap_doors"] = discovered_trap_doors
+        state["discovered_data_bombs"] = discovered_data_bombs
+        state["discovered_scrambles"] = discovered_scrambles
+        # Slave device icons are perceptible only once the decker is INSIDE the host; before logon
+        # the run reveals nothing about the interior, so keep the scan-target list empty until then.
+        if not state.get("logon_complete"):
+            state["slave_devices"] = []
         # The current host's LTG-access status is unknown to the decker until a successful
         # Analyze Subsystem on Access reveals it (host_ltg_revealed). Hide it until then.
         if not state.get("host_ltg_revealed"):
@@ -250,6 +347,10 @@ def _redact_enemy_decker(e: dict) -> dict:
         "intent": e.get("intent"),
         "status": e.get("status"),
         "located_pc": e.get("located", False),
+        # Combat maneuver: the PC evaded this enemy (it lost the trail and won't attack until it
+        # re-detects). An enemy that HID from the PC (hid_from_pc) is un-revealed and never reaches
+        # here. Raw redetect internals stay GM-only (whitelist above omits them).
+        "lost_track": bool(e.get("evaded") and e.get("evade_dir") == "lost_pc"),
         "condition_monitor": {"persona_boxes": cm.get("persona_boxes", 0)},
     }
 
@@ -283,7 +384,15 @@ def _redact_ic(ic: dict) -> dict | None:
     level = _ic_detection_level(ic)
     if level <= 0:
         return None  # decker is unaware -- do not reveal the IC at all
+    # Combat maneuver: an IC that successfully Evaded the PC (hid_from_pc) vanishes from the
+    # decker's view until it is re-detected (Analyze Icon / timer). A PC-evaded IC (lost_pc)
+    # stays visible but is flagged so the UI can show it has lost the trail.
+    if ic.get("evaded") and ic.get("evade_dir") == "hid_from_pc":
+        return None
     out = dict(ic)
+    # Keep the ``evaded`` badge (lost_pc) for the UI but strip the GM-only maneuver internals.
+    for k in ("redetect_turn", "redetect_tally_base", "evade_dir", "position_bonus", "parry_tn_bonus"):
+        out.pop(k, None)
     if out.get("trap_hidden"):
         out["trap_hidden"] = True
     if level == 1:
@@ -302,14 +411,25 @@ def _redact_ic(ic: dict) -> dict | None:
 _ACTION_COST = {op["name"].lower().replace(" ", "_"): op["action"] for op in rules.SYSTEM_OPERATIONS}
 _ACTION_COST.update({
     "swap_memory": "Simple", "purge_hog": "Complex", "decrypt_file": "Simple",
-    "relocate": "Simple", "redirect_datatrail": "Complex", "upload_data": "Simple",
-    "analyze_subsystem": "Simple", "logon_to_ltg": "Complex",
+    "relocate": "Simple", "redirect_datatrail": "Complex",
+    "analyze_subsystem": "Simple", "analyze_icon": "Free", "logon_to_ltg": "Complex",
     "attack": "Simple",                       # vr2: all cybercombat attacks are Simple Actions
     "medic": "Complex", "restore": "Complex", "disinfect": "Complex",
-    "defuse_data_bomb": "Complex", "dump_log": "Complex",
+    "defuse_data_bomb": "Complex",
     "steamroller": "Complex", "slow": "Complex", "decompress_file": "Complex",
     "dinab": "Free",                          # DINAB: a Free action runs one program autonomously
+    # Combat maneuvers (vr2 L1982) are Simple Actions.
+    "evade_detection": "Simple", "parry_attack": "Simple", "position_attack": "Simple",
 })
+
+# Operation -> the utility program it runs (from the vr2 System Operations table). Used to auto-fire
+# a lurking Tar Baby / Tar Pit against whatever utility the decker just ran (app-as-GM; there is no
+# human GM to pick the target program). Same snake_case keying as _ACTION_COST.
+_ACTION_UTILITY = {op["name"].lower().replace(" ", "_"): op["utility"] for op in rules.SYSTEM_OPERATIONS}
+
+# Balanced enemy-decker AI: a hostile decker whose icon has taken Serious+ damage (>= this many of
+# its 10 persona boxes) breaks off and jacks out rather than trade blows to the death.
+_ENEMY_RETREAT_BOXES = 7
 
 
 def _decker_reaction(decker: dict) -> int:
@@ -353,6 +473,10 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "initiative_passes": initiative_passes,    # action passes (increments of 10)
         "current_pass": 1,
         "actions_this_turn": 0,
+        # Combat maneuvers (vr2 L1982): with this flag set the app-as-GM lets IC and enemy
+        # deckers INITIATE maneuvers (Evade/Parry/Position) via heuristics, not just oppose the
+        # PC's. Fresh runs opt in; legacy/test states built without it get no NPC maneuvers.
+        "npc_combat_maneuvers": True,
         "pass_action_points": 2,   # per-pass: 2 Simple OR 1 Complex
         "pass_free": 1,            # per-pass: 1 Free action
         "condition_monitor": {
@@ -380,6 +504,11 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "paydata": cfg.get("paydata") or [],       # [{name, density, is_key, defense}]
         "scrambles": cfg.get("scrambles") or [],   # [{target_key, rating, variant}]
         "data_bombs": cfg.get("data_bombs") or [], # [{target, rating}]
+        # Named Slave devices (cameras, locks, sensors). Each is an Analyze Icon scan target, so a
+        # data bomb on a SPECIFIC device can be found and defused by name rather than lumped into a
+        # single generic "Slave device". Perceptible only once inside the host -- _serialize_run
+        # blanks this list for players until logon (interior iconography, like located paydata).
+        "slave_devices": [str(x) for x in (cfg.get("slave_pieces") or []) if str(x).strip()],
         "defused_bombs": [],
         # Concealed trap doors (GM-only until discovered via Analyze Subsystem; destinations
         # stay redacted from players until entered or filed -- see _serialize_run).
@@ -397,16 +526,15 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         # Security (the GM otherwise tracks the tally secretly). None until first scan; then
         # {tally, alert, turn}. The live security_tally/alert_status are redacted for players.
         "security_known": None,
-        # Player-visible host access-log summary from the last successful Dump Log (vr2 Validate).
-        # None until the decker dumps the log; then a dict (legal users, files accessed, programs
-        # run, whether the decker's OWN intrusion is on record, 24h log size). Not GM-only -- it
-        # is the decker's own read of the host logs.
-        "access_log_dumped": None,
         # Deck storage ledger for downloaded paydata (vr2 Mp). storage_free_mp < 0 = untracked/
         # unlimited; >= 0 = real free capacity at jack-in (downloads consume it).
         "storage_free_mp": decker.get("storage_free_mp", -1),
         "storage_used_mp": 0,
         "downloaded_files": [],   # [{name, size_mp, is_key, turn}] -- player-visible ledger
+        # Multi-turn Download Data in progress (vr2 ongoing op). None = no transfer. While set, the
+        # deck auto-rolls a Null Operation each turn and the decker may take only Free actions;
+        # {file, stored_mp, full_mp, compressed, is_key, turns_total, turns_left, started_turn}.
+        "active_download": None,
         # Program memory: storage_programs are carried but NOT active at logon; Swap Memory loads
         # one into active memory (decker.utilities) mid-run, optionally pushing an active program
         # back to storage. program_sizes (util key -> Mp) and active_memory_cap let the engine
@@ -1696,6 +1824,72 @@ def _apply_slow(state: dict, decker: dict, *, sec_code: str,
     })
 
 
+def _toggle_ic_suppression(state: dict, decker: dict, *, ic_id: str, release: bool) -> dict:
+    """Suppress or release a crashed OR hung IC (vr2_rules.md Suppression L418-424 + Slow L1578).
+
+    Mutates ``state`` in place; raises HTTPException on an invalid request; returns the ic dict.
+
+    Suppression is declared the moment an IC is neutralized -- either it CRASHED (crashing added its
+    rating to the security tally) or it HANGS from a Slow strike (its passes drained to 0 for the
+    turn; Slow adds NO tally). The decker absorbs 1 Detection Factor per suppressed IC (applied live
+    by ``_effective_detection_factor``): for a crashed IC this defers the crash tally, for a hung IC
+    there is nothing to defer. Releasing a suppressed IC is a Free Action that restores the DF; a
+    crashed IC re-adds its rating to the tally (the deferred crash increase), a hung IC re-adds
+    nothing (the "appropriate amount" for a hang is 0). A released IC can NEVER be re-suppressed; the
+    DF cannot fall below 1 (enforced by ``_effective_detection_factor``).
+    """
+    ic = next((c for c in state.get("active_ic", [])
+               if c.get("id") == ic_id), None)
+    if ic is None:
+        raise HTTPException(404, f"IC {ic_id} not found")
+
+    rating = ic.get("rating", 0)
+    crashed = ic.get("status") == "crashed"
+    if release:
+        if not ic.get("suppressed"):
+            raise HTTPException(400, "IC is not suppressed -- nothing to release")
+        ic["suppressed"] = False
+        ic["suppression_released"] = True   # one-way: cannot be suppressed again
+        state["pass_free"] = max(0, state.get("pass_free", 0) - 1)  # vr2: releasing IC is a Free Action
+        if crashed:
+            # A crashed IC's suppression deferred the crash tally -- releasing re-adds it.
+            state["security_tally"] = state.get("security_tally", 0) + rating
+            tally_note = f"tally +{rating} -> {state['security_tally']}"
+        else:
+            # A hung IC (Slow) never added tally, so the "appropriate amount" to re-add is 0.
+            tally_note = "no tally change (a hung IC added none)"
+        _append_event(state, {
+            "type": "ic_released", "ic_id": ic["id"],
+            "description": f"Suppressed IC released -- Detection Factor restored; {tally_note}.",
+        })
+        _check_and_activate_sheaf(state, state["host_security_code"])
+    else:
+        # vr2: suppression must be declared the moment the IC is neutralized -- either a fresh crash
+        # (crashing added tally; suppressing refunds it) or a Slow HANG (L1578; adds no tally).
+        hung = ic.get("status") == "active" and ic.get("hung_turn") is not None
+        if not (crashed or hung):
+            raise HTTPException(
+                400, "Only a crashed or hung IC may be suppressed (declare it on the crash/hang)")
+        if ic.get("suppression_released"):
+            raise HTTPException(400, "This IC was already released -- it can no longer be suppressed")
+        if ic.get("suppressed"):
+            raise HTTPException(400, "IC is already suppressed")
+        ic["suppressed"] = True
+        if crashed:
+            state["security_tally"] = max(0, state.get("security_tally", 0) - rating)  # refund crash tally
+            tally_note = f"tally -{rating} (no crash increase)"
+        else:
+            # A hung IC added no tally, so there is nothing to refund.
+            tally_note = "no tally change (Slow added none)"
+        df = _effective_detection_factor(state, decker)
+        state["detection_factor"] = df
+        _append_event(state, {
+            "type": "ic_suppressed", "ic_id": ic["id"],
+            "description": f"IC suppressed -- Detection Factor {df}; {tally_note}.",
+        })
+    return ic
+
+
 # -- DINAB ("Decker In A Box") program option (vr2_rules.md L1665) -------------------------------
 # DINAB gives a utility a built-in Computer skill = the DINAB rating. The decker may spend a Free
 # Action to let ONE DINAB-equipped program run itself autonomously (skill = effective DINAB rating)
@@ -1975,6 +2169,137 @@ def _compressed_store_size(compressor: int, density: int) -> tuple[int, bool]:
     return density, False
 
 
+def _download_turns(decker: dict, stored_mp: int) -> int:
+    """Combat Turns to transfer a file whose on-deck footprint is ``stored_mp`` at the deck's I/O
+    Speed (vr2_rules.md L1256-1261: I/O Speed is the transfer rate; this app stores it as Mp per
+    Combat Turn). ``turns = ceil(stored_mp / io_speed)``. ``stored_mp`` is the SAME
+    compressor-effective size the file occupies on the deck, so a Compressor that can handle the
+    file halves what must be transferred (an oversized file transfers full). A legacy deck with no
+    io_speed (<=0) transfers instantly (1 turn)."""
+    io = int(decker.get("io_speed", 0) or 0)
+    if io <= 0 or stored_mp <= 0:
+        return 1
+    return -(-stored_mp // io)  # ceil
+
+
+def _complete_download(state: dict, decker: dict, pd: dict) -> None:
+    """Land a fully-transferred paydata file on the deck: mark it downloaded, charge its
+    compressor-effective footprint to deck storage, record the player-visible ledger entry, and
+    emit a ``data_downloaded`` event. Shared by the single-turn Download Data action and the final
+    tick of a multi-turn background transfer so both charge storage identically. Compressed files
+    stay compressed on the deck (must be decompressed before use)."""
+    if pd.get("downloaded"):
+        return
+    pd["downloaded"] = True
+    pd["located"] = True
+    density = max(0, int(pd.get("density", 0) or 0))
+    comp = _effective_compressor(decker)
+    stored, compressible = _compressed_store_size(comp, density)
+    pd["compressed"] = compressible
+    if compressible:
+        pd["full_size_mp"] = density
+    state["storage_used_mp"] = state.get("storage_used_mp", 0) + stored
+    state.setdefault("downloaded_files", []).append({
+        "name": pd.get("name"),
+        "size_mp": stored,
+        "is_key": bool(pd.get("is_key")),
+        "turn": state.get("current_turn", 1),
+        "compressed": compressible,
+        "full_size_mp": density,
+    })
+    free = state.get("storage_free_mp", -1)
+    tracked = free is not None and free >= 0
+    remaining = max(0, free - state["storage_used_mp"]) if tracked else None
+    comp_note = (f" (compressed {density}->{stored} Mp; must decompress before use)"
+                 if compressible else "")
+    _append_event(state, {
+        "type": "data_downloaded",
+        "file_name": pd.get("name"),
+        "size_mp": stored,
+        "is_key": bool(pd.get("is_key")),
+        "compressed": compressible,
+        "full_size_mp": density,
+        "storage_used_mp": state["storage_used_mp"],
+        "storage_remaining_mp": remaining,
+        "description": (
+            f"Downloaded \"{pd.get('name')}\" ({stored} Mp"
+            f"{', KEY DATA' if pd.get('is_key') else ''}){comp_note}. "
+            f"Storage used {state['storage_used_mp']} Mp"
+            + (f"; {remaining} Mp free." if tracked else ".")
+        ),
+    })
+
+
+def _auto_null_operation(state: dict, decker: dict) -> dict:
+    """Roll one automatic Null Operation while a background Download runs (vr2: Download Data is an
+    ongoing operation, L1873; Null Operation is 'performed while waiting', L1892). A Control System
+    Test at the decker's Computer skill (NO Hacking Pool -- the decker isn't actively rolling); the
+    host's opposed Security Test adds to the tally exactly like a manual op. Returns the test."""
+    pool = int(decker.get("computer_skill", 4) or 0)
+    test = eng.system_test(
+        decker_pool=pool,
+        subsystem_rating=_subsystem_rating(state, "control"),
+        security_value=state.get("host_security_value", 6),
+        det_factor=_effective_detection_factor(state, decker),
+    )
+    state["security_tally"] = state.get("security_tally", 0) + test["tally_increase"]
+    return test
+
+
+def _corrupt_active_download(state: dict) -> None:
+    """Terminating a transfer early yields a corrupted, worthless copy (vr2 Download Data, L1873; a
+    Paydata Point needs the COMPLETE file, L992). Discard the in-progress download with NO storage
+    charged and NO paydata credited, and tell the player."""
+    dl = state.get("active_download")
+    if not dl:
+        return
+    state["active_download"] = None
+    _append_event(state, {
+        "type": "download_corrupted",
+        "file_name": dl.get("file"),
+        "description": (
+            f"Transfer of \"{dl.get('file')}\" interrupted before completion -- the partial copy "
+            "is corrupted and worthless. No data recovered."
+        ),
+    })
+
+
+def _tick_active_download(state: dict, decker: dict, dl: dict) -> None:
+    """Advance a multi-turn background Download by one Combat Turn: roll the automatic Null
+    Operation (adds tally, may wake the sheaf), decrement the turns remaining, and land the file
+    when the transfer finishes. If the source file was destroyed mid-transfer, the partial copy is
+    corrupted (a Paydata Point needs the COMPLETE file)."""
+    test = _auto_null_operation(state, decker)
+    dl["turns_left"] = int(dl.get("turns_left", 0)) - 1
+    left = max(0, dl["turns_left"])
+    _append_event(state, {
+        "type": "null_operation",
+        "success": test["success"],
+        "decker_roll": test["decker_roll"],
+        "host_roll": test["host_roll"],
+        "tally_increase": test["tally_increase"],
+        "tally_total": state.get("security_tally", 0),
+        "file_name": dl.get("file"),
+        "turns_left": left,
+        "description": (
+            f"Auto Null Operation covers the ongoing download of \"{dl.get('file')}\" "
+            f"({'SUCCESS' if test['success'] else 'FAILED'}). "
+            + (f"{left} turn(s) of transfer remaining." if left > 0 else "Transfer complete.")
+        ),
+    })
+    _check_and_activate_sheaf(state, state.get("host_security_code", "Green"))
+    if dl["turns_left"] > 0:
+        return
+    pd = next((p for p in (state.get("paydata") or [])
+               if str(p.get("name", "")).strip().lower() == str(dl.get("file", "")).strip().lower()
+               and not p.get("destroyed")), None)
+    if pd is not None:
+        _complete_download(state, decker, pd)
+        state["active_download"] = None
+    else:
+        _corrupt_active_download(state)  # source file gone before the transfer finished
+
+
 def _apply_decompress(state: dict, decker: dict, *, target_file: str) -> None:
     """Resolve a Decompress File action (vr2_rules.md L1512-1515: "Files must be decompressed before
     being able to read or use them"). Pure storage bookkeeping with NO dice/test -- like Swap Memory
@@ -2093,12 +2418,233 @@ def _effective_defuse(decker: dict, state: dict) -> int:
     return max(0, base - worn)
 
 
+def _apply_analyze_host(state: dict, net_successes: int) -> dict:
+    """Analyze Host success handler (vr2 System Operations: Control test, Analyze utility).
+
+    Reveals the host's ACIFS subsystem ratings (Access, Control, Index, Files, Slave). The raw
+    ratings live in GM-only ``host_acifs``; revealed values mirror into the player-visible
+    ``host_ratings_revealed`` map in ACIFS order. USER OVERRIDE of RAW: the revealable set is
+    exactly the 5 ACIFS ratings (the host Security Rating is already known; VM status is not
+    modeled), and the "reveal all" threshold is 5+ net successes (not RAW's 7+).
+
+    Let ``net`` = net successes and ``U`` = number of still-hidden ratings. On a successful test:
+      * ``net >= 5`` OR ``net >= U`` -> auto-reveal ALL still-hidden ratings now (no choice to make)
+        and clear any banked pending.
+      * ``1 <= net < U`` -> a genuine choice exists: BANK ``host_analyze_pending`` = {credits, turn}
+        and reveal nothing yet (the decker then picks which to reveal via _reveal_host_ratings).
+        A later banking roll REPLACES the previous pending credits.
+      * no still-hidden ratings at all -> nothing to reveal; clear any pending.
+
+    Mutates ``state`` and appends a ``host_analyzed`` event. Returns a small summary
+    ``{"revealed": [{"subsystem": nm, "rating": rt}, ...], "pending": <credits or 0>}``.
+    """
+    acifs = state.get("host_acifs") or [10, 10, 10, 10, 10]
+    names = ["access", "control", "index", "files", "slave"]
+    revealed = state.setdefault("host_ratings_revealed", {})
+    hidden = [nm for nm in names if nm not in revealed]
+    net = max(0, int(net_successes))
+
+    if not hidden:
+        state.pop("host_analyze_pending", None)
+        _append_event(state, {
+            "type": "host_analyzed", "revealed": [],
+            "description": "Analyze Host -- all subsystem ratings already known.",
+        })
+        return {"revealed": [], "pending": 0}
+
+    # Reveal-all: 5+ net successes, or enough successes to cover every still-hidden rating anyway.
+    if net >= 5 or net >= len(hidden):
+        newly: list[dict] = []
+        for i, nm in enumerate(names):
+            if nm in hidden:
+                revealed[nm] = int(acifs[i]) if i < len(acifs) else 10
+                newly.append({"subsystem": nm, "rating": revealed[nm]})
+        state.pop("host_analyze_pending", None)
+        _append_event(state, {
+            "type": "host_analyzed",
+            "revealed": newly,
+            "description": "Analyze Host -- " + ", ".join(
+                f"{d['subsystem'].capitalize()} {d['rating']}" for d in newly
+            ) + " revealed.",
+        })
+        return {"revealed": newly, "pending": 0}
+
+    # Otherwise a genuine choice exists (1 <= net < hidden count): bank the credits and let the
+    # decker choose which hidden ratings to reveal via /reveal-host-ratings (reveal NOTHING yet).
+    credits = max(1, net)
+    state["host_analyze_pending"] = {
+        "credits": credits,
+        "turn": state.get("current_turn", 1),
+    }
+    reveals = min(credits, len(hidden))
+    _append_event(state, {
+        "type": "host_analyzed", "revealed": [],
+        "description": f"Analyze Host succeeded -- choose {reveals} subsystem rating(s) to reveal.",
+    })
+    return {"revealed": [], "pending": credits}
+
+
+def _reveal_host_ratings(state: dict, subsystems: list[str]) -> list[tuple[str, int]]:
+    """Phase two of Analyze Host (vr2 override): spend banked Analyze Host credits by choosing which
+    still-hidden ACIFS ratings to reveal. Reads ``host_analyze_pending`` (banked by
+    ``_apply_analyze_host`` when the decker rolled fewer net successes than there were hidden
+    ratings); reveals the chosen ratings from GM-only ``host_acifs`` into the player-visible
+    ``host_ratings_revealed`` map; clears the pending; appends a ``host_analyzed`` event.
+
+    Validates the picks: each must be a real ACIFS name, currently hidden, and non-duplicate; the
+    number picked must equal ``min(credits, hidden count)``. Raises HTTPException(400) otherwise.
+    Returns the list of revealed ``(name, rating)`` tuples."""
+    pending = state.get("host_analyze_pending") or {}
+    credits = int(pending.get("credits", 0) or 0)
+    if credits <= 0:
+        raise HTTPException(400, "No pending Analyze Host reveals -- run Analyze Host first.")
+
+    names = ["access", "control", "index", "files", "slave"]
+    acifs = state.get("host_acifs") or [10, 10, 10, 10, 10]
+    revealed = state.setdefault("host_ratings_revealed", {})
+    hidden = [nm for nm in names if nm not in revealed]
+
+    picks: list[str] = []
+    seen: set[str] = set()
+    for raw in (subsystems or []):
+        nm = str(raw).strip().lower()
+        if nm not in names:
+            raise HTTPException(400, f"Unknown subsystem: {raw!r}.")
+        if nm in revealed:
+            raise HTTPException(400, f"Subsystem '{nm}' is already revealed.")
+        if nm in seen:
+            raise HTTPException(400, f"Duplicate subsystem: '{nm}'.")
+        seen.add(nm)
+        picks.append(nm)
+
+    need = min(credits, len(hidden))
+    if len(picks) != need:
+        raise HTTPException(400, f"Choose exactly {need} subsystem rating(s) to reveal.")
+
+    result: list[tuple[str, int]] = []
+    for nm in picks:
+        i = names.index(nm)
+        rt = int(acifs[i]) if i < len(acifs) else 10
+        revealed[nm] = rt
+        result.append((nm, rt))
+
+    state.pop("host_analyze_pending", None)
+    _append_event(state, {
+        "type": "host_analyzed",
+        "revealed": [{"subsystem": nm, "rating": rt} for nm, rt in result],
+        "description": "Analyze Host -- " + ", ".join(
+            f"{nm.capitalize()} {rt}" for nm, rt in result
+        ) + " revealed.",
+    })
+    return result
+
+
+def _decoy_intercept(state: dict, ic: dict, *, sec_code: str, sec_value: int,
+                     ic_target_status: str) -> bool:
+    """Decoy redirect check for a single proactive IC attack (vr2_rules.md L1871).
+
+    A live decoy (Control Test successes recorded, its 10-box Condition Monitor not yet full)
+    draws a proactive IC's attack on a 1D6 <= successes -- ties go to the decoy, so the check is
+    ``<=`` not ``<``. The decoy has NO defences: it eats the IC's fully staged-up damage with no
+    resistance roll, accruing boxes on its own Condition Monitor, and is removed once the CM fills
+    (10 boxes). Trace IC never reach this check (the caller skips it before calling), so decoys are
+    correctly NOT effective against trace IC. Returns True when the IC's action was consumed on the
+    decoy (the caller should stop resolving this IC's attack for the turn)."""
+    decoy_succ = state.get("decoy_successes", 0)
+    if decoy_succ <= 0 or state.get("decoy_hp", 0) >= 10:
+        return False
+    d6 = random.randint(1, 6)
+    if d6 > decoy_succ:
+        return False
+    # IC attacks the decoy instead
+    decoy_tn = rules.COMBAT_TN[sec_code][ic_target_status]
+    decoy_pool = ic["rating"] if ic["type"] == "Construct" else sec_value
+    decoy_atk = eng.roll_dice(decoy_pool, decoy_tn)
+    decoy_staged = eng.stage_damage(rules.IC_DAMAGE_LEVEL[sec_code], decoy_atk["successes"], 1)
+    decoy_boxes = rules.DAMAGE_BOXES[decoy_staged]
+    state["decoy_hp"] = state.get("decoy_hp", 0) + decoy_boxes
+    decoy_destroyed = state["decoy_hp"] >= 10
+    if decoy_destroyed:
+        state["decoy_successes"] = 0
+        state["decoy_hp"] = 0
+    _append_event(state, {
+        "type": "decoy_intercepted",
+        "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
+        "description": (
+            f"D6={d6} <= {decoy_succ} -- {ic['type']}-{ic['rating']} hits DECOY! "
+            f"{decoy_staged} ({decoy_boxes} boxes). "
+            f"Decoy: {min(state.get('decoy_hp', 0), 10)}/10"
+            + (" -- DECOY DESTROYED." if decoy_destroyed else "")
+        ),
+        "d6": d6,
+        "attack_roll": decoy_atk,
+        "decoy_boxes": decoy_boxes,
+        "decoy_destroyed": decoy_destroyed,
+    })
+    return True
+
+
+def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
+    """Analyze Icon success handler (vr2 System Operations: Control test, Analyze utility, Free): a
+    targeted scan of ONE icon -- a located file (Files node) or the host's Slave device (Slave
+    node). vr2 L463: "Detecting [a data bomb]: Analyze Icon operation on the protected file or
+    device." A success reveals an undefused data bomb on the scanned icon so the decker can Defuse
+    it BEFORE an access trips it. This is the ONLY discovery path -- a broad Analyze Subsystem no
+    longer surfaces bombs (too cheap for the whole node).
+
+    The target is scope-encoded ("files::<name>" / "slave::<device>"): a file scan is icon-specific
+    (the named file must match) and a NAMED slave device scans only that device, so multiple bombed
+    devices are told apart. A GENERIC slave scan ("slave::__device__" / legacy "__slave__", used
+    when the host declares no named devices) still matches any undiscovered slave bomb. Mutates
+    ``state`` and emits a player-visible ``data_bomb_found`` (a bomb was on the icon) or
+    ``data_bomb_clear`` event."""
+    scope, want_name = _data_bomb_scope_name(target_file or "")
+    wn = want_name.strip().lower()
+    # A generic slave scan (the old single-device UI option, the legacy "__slave__" token, or an
+    # empty name) matches any undiscovered slave bomb; a named device matches that device only.
+    slave_generic = scope == "slave" and wn in ("", "__device__", "slave device")
+    bomb = None
+    for b in (state.get("data_bombs") or []):
+        if not isinstance(b, dict) or b.get("discovered"):
+            continue
+        bscope, bname = _data_bomb_scope_name(b.get("target", ""))
+        if bscope != scope:
+            continue
+        if not slave_generic and bname.strip().lower() != wn:
+            continue
+        bomb = b
+        break
+    icon_label = "Slave device" if slave_generic else (want_name or "Slave device")
+    if bomb is not None:
+        bomb["discovered"] = True
+        _append_event(state, {
+            "type": "data_bomb_found",
+            "subsystem": scope,
+            "description": (
+                f"Analyze Icon on \"{icon_label}\" -- DATA BOMB detected. "
+                + ("Defuse it before you download or edit the file."
+                   if scope == "files" else
+                   "Defuse it before you access the device.")
+            ),
+        })
+    else:
+        _append_event(state, {
+            "type": "data_bomb_clear",
+            "subsystem": scope,
+            "description": (
+                f"Analyze Icon on \"{icon_label}\" -- nothing unusual; no data bomb on this "
+                + ("file." if scope == "files" else "device.")
+            ),
+        })
+
+
 def _apply_defuse_bomb(state: dict, decker: dict, eff: dict, *, subsystem: str,
                        subsystem_rating: int, decker_pool: int, sec_value: int, sec_code: str,
                        target_file: str = "") -> None:
     """Resolve a deliberate Defuse Data Bomb operation (vr2_rules.md L463-471, Complex Action): a
-    Computer Test against the controlling subsystem rating (Files for a file bomb, Slave for a
-    device bomb -- the decker selects the subsystem) reduced by the carried Defuse utility.
+    Computer Test against the bomb's controlling subsystem rating (Files for a file bomb, Slave
+    for a device bomb -- derived from the bomb's own scope by the caller) reduced by the carried
+    Defuse utility.
 
     - Success (>=1 hit) disarms the bomb with NO security-tally increase: a successful defuse is
       not a crash, so the bomb's rating is never added to the tally and no suppression is needed.
@@ -2108,14 +2654,15 @@ def _apply_defuse_bomb(state: dict, decker: dict, eff: dict, *, subsystem: str,
 
     The defuse models only the decker's Computer Test (no opposed-Security tally), matching the
     pure ``data_bomb_defuse`` helper and the no-tally rule. Targets the bomb on ``target_file``
-    (trailing-segment match) or the first still-armed bomb when none is named. Mutates ``state``
-    and always emits a player-visible ``data_bomb`` event."""
+    (decoded-name match, consistent with the surfaced discovered_data_bombs) or the first
+    still-armed bomb when none is named. Mutates ``state`` and always emits a player-visible
+    ``data_bomb`` event."""
     armed = state.get("data_bombs") or []
     defused = set(state.get("defused_bombs") or [])
     tgt = (target_file or "").strip().lower()
     bomb = next((b for b in armed
                  if b.get("target") not in defused
-                 and (not tgt or _target_file_name(b.get("target", "")).lower() == tgt)), None)
+                 and (not tgt or _data_bomb_scope_name(b.get("target", ""))[1].strip().lower() == tgt)), None)
     if bomb is None:
         _append_event(state, {
             "type": "data_bomb", "outcome": "no_target",
@@ -2163,12 +2710,12 @@ def _apply_defuse_bomb(state: dict, decker: dict, eff: dict, *, subsystem: str,
 def _trigger_access_data_bomb(state: dict, decker: dict, eff: dict, *, action_type: str,
                               target_file: str, test_success: bool, sec_value: int,
                               sec_code: str) -> bool:
-    """Data Bomb access trigger (vr2_rules.md L473): a SUCCESSFUL access (Download / Edit /
-    Upload) of a file or Slave device that still carries an UNDEFUSED bomb sets it off -- the
-    decker gets the access AND eats the blast. A FAILED access does NOT trigger it, and a bomb
-    already disarmed (via the Defuse Data Bomb action) is inert. Returns True iff a bomb
-    detonated; mutates ``state`` (removes the one-shot bomb and applies _detonate_data_bomb)."""
-    if action_type not in ("download_data", "edit_file", "upload_data"):
+    """Data Bomb access trigger (vr2_rules.md L473): a SUCCESSFUL access (Download / Edit) of a
+    file or Slave device that still carries an UNDEFUSED bomb sets it off -- the decker gets the
+    access AND eats the blast. A FAILED access does NOT trigger it, and a bomb already disarmed
+    (via the Defuse Data Bomb action) is inert. Returns True iff a bomb detonated; mutates
+    ``state`` (removes the one-shot bomb and applies _detonate_data_bomb)."""
+    if action_type not in ("download_data", "edit_file"):
         return False
     if not test_success or not target_file:
         return False
@@ -2185,48 +2732,6 @@ def _trigger_access_data_bomb(state: dict, decker: dict, eff: dict, *, action_ty
                         sec_value=sec_value, sec_code=sec_code,
                         headline=f"DATA BOMB on {bomb.get('target')}")
     return True
-
-
-def _apply_dump_log(state: dict, decker: dict, *, host_id: int, run_id: int,
-                    sec_code: str, sec_value: int) -> None:
-    """Dump Log success handler (vr2 Validate / Control System Test): reveal the host's access-log
-    summary to the decker. The readout is fully player-visible -- it is the decker's own read of
-    the logs (so it is NOT GM-redacted), and it is what a Graceful Logoff later wipes.
-
-    Generation is deterministic from a LOCAL ``random.Random`` seeded by the host id + run id, so
-    repeated dumps in the same run are identical. We never call ``random.seed()`` on the global
-    RNG in the request path (that would make every later dice roll in the process predictable --
-    see AGENTS.md RNG rule). The decker's OWN intrusion is recorded UNLESS they currently hold
-    Legitimate status (a validated/linked passcode reads as a legal user in the host logs)."""
-    intrusion_logged = not bool(state.get("has_legitimate_status"))
-    seed = (int(host_id or 0) * 1_000_003) ^ (int(run_id or 0) * 31 + 17)
-    rng = random.Random(seed)
-    summary = eng.build_access_log_summary(
-        security_code=sec_code,
-        security_value=sec_value,
-        intrusion_logged=intrusion_logged,
-        rng=rng,
-    )
-    state["access_log_dumped"] = summary
-    files = ", ".join(summary["files_accessed"]) or "none"
-    progs = ", ".join(summary["programs_run"]) or "none"
-    _append_event(state, {
-        "type": "log_dumped",
-        "legitimate_users": summary["legitimate_users"],
-        "files_accessed": summary["files_accessed"],
-        "programs_run": summary["programs_run"],
-        "intrusions_on_record": summary["intrusions_on_record"],
-        "intrusion_logged": summary["intrusion_logged"],
-        "log_size_mp": summary["log_size_mp"],
-        "description": (
-            f"Dump Log -- {summary['legitimate_users']} legal user(s) on record; "
-            f"files accessed: {files}; programs run: {progs}. "
-            f"24h log ~{summary['log_size_mp']} Mp ({summary['difficulty']} host). "
-            + ("YOUR intrusion IS currently in the host logs -- a Graceful Logoff will clear it."
-               if intrusion_logged else
-               "YOUR access reads as a legitimate user -- no intrusion on record.")
-        ),
-    })
 
 
 def _live_icon_bandwidth(decker: dict, state: dict, eff: dict | None = None) -> int:
@@ -2285,6 +2790,395 @@ def _secret_sensor_test(state: dict, decker: dict, ic: dict) -> int:
             "description": notices[new],
         })
     return new
+
+
+# -- Combat maneuvers (vr2 L1982) ----------------------------------------------
+# Evade Detection / Parry Attack / Position Attack are Simple Actions resolved as an opposed
+# Evasion-vs-Sensor test between the maneuvering icon and ONE opposing icon (eng.maneuver_test).
+# They are fully symmetric: the PC initiates against an IC / revealed enemy decker, and -- when
+# state["npc_combat_maneuvers"] is set -- IC and revealed enemy deckers initiate against the PC
+# via _npc_maybe_maneuver (they can INITIATE, not merely oppose).
+#
+# State written on the target/actor icon dict (also consumed by the re-detect work, item #5):
+#   evaded (bool); evade_dir ("lost_pc" = the PC evaded it, it stays visible but cannot act until
+#     it re-detects; "hid_from_pc" = it hid from the PC and vanishes from view until re-detected);
+#   redetect_turn (absolute Combat Turn of automatic re-detection);
+#   redetect_tally_base (security tally when it evaded -- every later tally point shortens the
+#     hidden window by one Combat Turn, per vr2);
+#   parry_tn_bonus (int, +TN to the PC's next attack on it);
+#   position_bonus ({"tn_reduction": n} | {"power_bonus": n}, applied to its next attack on the PC).
+# Run-level: pc_parry ({"vs": target_id, "bonus": n}); pc_position ({"tn_reduction": n} |
+#   {"power_bonus": n}). An evade-detection maneuver by either party voids a pending Parry.
+
+_MANEUVER_ACTIONS = ("evade_detection", "parry_attack", "position_attack")
+
+
+def _evade_turns_remaining(state: dict, actor: dict) -> int:
+    """Combat Turns until an evaded icon is automatically re-detected. Each security-tally point
+    gained since it evaded shortens the hidden window by one turn (vr2). <= 0 means re-detected."""
+    if not actor.get("evaded"):
+        return 0
+    tally_gain = max(0, state.get("security_tally", 0) - actor.get("redetect_tally_base", 0))
+    return actor.get("redetect_turn", 0) - state.get("current_turn", 1) - tally_gain
+
+
+def _clear_evade(state: dict, actor: dict, *, redetected: bool) -> None:
+    """Clear an icon's evade/hidden markers. When ``redetected`` (the timer/tally window elapsed)
+    restore a hidden enemy to view and emit a player-facing re-detection notice."""
+    was_hidden = actor.get("evade_dir") == "hid_from_pc"
+    for k in ("evaded", "evade_dir", "redetect_turn", "redetect_tally_base"):
+        actor.pop(k, None)
+    if redetected and was_hidden and "revealed" in actor:
+        actor["revealed"] = True   # a hidden enemy decker comes back into contact
+    if redetected:
+        label = actor.get("type") or actor.get("name") or "The icon"
+        desc = (f"{label} re-enters your sensors -- back in contact."
+                if was_hidden else
+                f"{label} has re-detected your icon -- it can act against you again.")
+        _append_event(state, {"type": "maneuver", "maneuver": "re_detect",
+                               "actor_id": actor.get("id"), "description": desc})
+
+
+def _evade_active(state: dict, actor: dict) -> bool:
+    """True while ``actor`` is still hidden from its opponent (skip its actions / hide it).
+    Lazily re-detects + logs once the timer/tally window has elapsed."""
+    if not actor.get("evaded"):
+        return False
+    if _evade_turns_remaining(state, actor) > 0:
+        return True
+    _clear_evade(state, actor, redetected=True)
+    return False
+
+
+def _sweep_evade_expiry(state: dict) -> None:
+    """At the start of a new Combat Turn, re-detect any icon whose hidden window has elapsed."""
+    for actor in list(state.get("active_ic", [])) + list(state.get("enemy_deckers", [])):
+        if isinstance(actor, dict):
+            _evade_active(state, actor)
+
+
+def _break_parry_on_evade(state: dict, actor: dict) -> None:
+    """An evade-detection maneuver by either party voids a pending Parry between them (vr2)."""
+    actor.pop("parry_tn_bonus", None)
+    parry = state.get("pc_parry")
+    if parry and parry.get("vs") == actor.get("id"):
+        state.pop("pc_parry", None)
+
+
+def _consume_attack_mods_vs_pc(state: dict, attacker: dict) -> tuple[int, int]:
+    """(tn_delta, power_delta) for one attack by an IC/enemy against the PC, consuming the PC's
+    pending Parry (vs this attacker) and this attacker's own Position bonus."""
+    tn_delta = 0
+    power_delta = 0
+    parry = state.get("pc_parry")
+    if parry and parry.get("vs") == attacker.get("id"):
+        tn_delta += int(parry.get("bonus", 0))        # Parry raises the TN of the attack on the PC
+        state.pop("pc_parry", None)                    # consumed by the opposing icon's next attack
+    pos = attacker.get("position_bonus")
+    if pos:
+        tn_delta -= int(pos.get("tn_reduction", 0))    # Position lowers the attacker's own TN ...
+        power_delta += int(pos.get("power_bonus", 0))  # ... or raises its Power
+        attacker.pop("position_bonus", None)
+    return tn_delta, power_delta
+
+
+def _consume_attack_mods_vs_target(state: dict, target: dict) -> tuple[int, int]:
+    """(tn_delta, power_delta) for one PC attack against an IC/enemy, consuming the target's
+    Parry bonus and the PC's own Position bonus."""
+    tn_delta = 0
+    power_delta = 0
+    pbonus = target.get("parry_tn_bonus")
+    if pbonus:
+        tn_delta += int(pbonus)                        # the target parried -> the PC's to-hit TN rises
+        target.pop("parry_tn_bonus", None)             # consumed by the PC's next attack
+    pos = state.get("pc_position")
+    if pos:
+        tn_delta -= int(pos.get("tn_reduction", 0))
+        power_delta += int(pos.get("power_bonus", 0))
+        state.pop("pc_position", None)
+    return tn_delta, power_delta
+
+
+def _maneuver_target_lookup(state: dict, target_id: str) -> tuple[str | None, dict | None]:
+    """Resolve a maneuver target id to (kind, obj): ("ic", ic) | ("enemy", enemy) | (None, None).
+    A blank id picks the first eligible target (an active IC, else a revealed enemy decker)."""
+    active_ic = [ic for ic in state.get("active_ic", [])
+                 if isinstance(ic, dict) and ic.get("status") == "active"]
+    enemies = [e for e in state.get("enemy_deckers", [])
+               if isinstance(e, dict) and e.get("status") == "active" and e.get("revealed")]
+    if target_id:
+        ic = next((i for i in active_ic if i.get("id") == target_id), None)
+        if ic is not None:
+            return "ic", ic
+        en = next((e for e in enemies if e.get("id") == target_id), None)
+        if en is not None:
+            return "enemy", en
+        return None, None
+    if active_ic:
+        return "ic", active_ic[0]
+    if enemies:
+        return "enemy", enemies[0]
+    return None, None
+
+
+def _apply_maneuver(state: dict, decker: dict, eff: dict, body) -> None:
+    """Resolve a PC-initiated combat maneuver (Evade/Parry/Position) against one opposing icon
+    (vr2 L1982): the PC is the maneuvering icon (Evasion), the target is the opposing icon
+    (Sensor). Mutates ``state`` in place; raises HTTPException on an invalid/absent target."""
+    maneuver = body.action_type
+    kind, target = _maneuver_target_lookup(state, (body.maneuver_target or "").strip())
+    if target is None:
+        raise HTTPException(
+            400, "No eligible icon to maneuver against (need an active IC or a revealed enemy decker).")
+    # vr2: you cannot Evade a reactive trace IC while it is running its location cycle.
+    if maneuver == "evade_detection" and kind == "ic":
+        info = rules.IC_CATALOG.get(_canonical_ic_type(target.get("type", "")), {})
+        if info.get("subtype") == "trace" and target.get("trace_phase") == "locate":
+            raise HTTPException(
+                400, "You cannot evade a trace IC while it is running its location cycle.")
+    sec_value = state.get("host_security_value", 6)
+    if kind == "ic":
+        opp_sensor_dice = sec_value
+        opp_sensor_rating = int(target.get("rating", 6) or 6)
+        opp_label = str(target.get("type", "IC"))
+    else:
+        opp_sensor_dice = int(target.get("sensor", 4) or 4)
+        opp_sensor_rating = int(target.get("sensor", 4) or 4)
+        opp_label = str(target.get("name", "enemy decker"))
+
+    result = eng.maneuver_test(
+        maneuvering_evasion_dice=eff.get("evasion", 4),
+        maneuvering_evasion_rating=eff.get("evasion", 4),
+        opposing_sensor_dice=opp_sensor_dice,
+        opposing_sensor_rating=opp_sensor_rating,
+    )
+    net = result["net_successes"]
+    man_succ = result["maneuvering_roll"]["successes"]
+    opp_succ = result["opposing_roll"]["successes"]
+    won = result["success"]
+    current_turn = state.get("current_turn", 1)
+    tally = state.get("security_tally", 0)
+    ev: dict[str, Any] = {
+        "type": "maneuver", "maneuver": maneuver, "initiator": "pc",
+        "target_id": target.get("id"), "target": opp_label,
+        "maneuvering_roll": result["maneuvering_roll"], "opposing_roll": result["opposing_roll"],
+        "net_successes": net, "success": won,
+    }
+
+    if maneuver == "evade_detection":
+        if won:
+            _break_parry_on_evade(state, target)
+            target["evaded"] = True
+            target["evade_dir"] = "lost_pc"      # the PC hid; the icon keeps its place but loses you
+            target["redetect_turn"] = current_turn + net
+            target["redetect_tally_base"] = tally
+            ev["description"] = (
+                f"Evade Detection SUCCESS vs {opp_label} ({man_succ} vs {opp_succ}) -- it loses "
+                f"your trail for {net} Combat Turn{'s' if net != 1 else ''} "
+                "(sooner as the security tally climbs).")
+        else:
+            ev["description"] = (f"Evade Detection FAILED vs {opp_label} ({man_succ} vs {opp_succ}) "
+                                 "-- it keeps you in its sensors.")
+    elif maneuver == "parry_attack":
+        if won:
+            state["pc_parry"] = {"vs": target.get("id"), "bonus": net}
+            ev["description"] = (f"Parry Attack SUCCESS vs {opp_label} ({man_succ} vs {opp_succ}) "
+                                 f"-- +{net} TN to its next attack on you.")
+        else:
+            ev["description"] = f"Parry Attack FAILED vs {opp_label} ({man_succ} vs {opp_succ})."
+    else:  # position_attack
+        choice = "power" if str(getattr(body, "position_choice", "tn")).strip().lower() == "power" else "tn"
+        if won:
+            state["pc_position"] = {"power_bonus": net} if choice == "power" else {"tn_reduction": net}
+            gain = f"+{net} Power" if choice == "power" else f"-{net} TN"
+            ev["position_choice"] = choice
+            ev["description"] = (f"Position Attack SUCCESS vs {opp_label} ({man_succ} vs {opp_succ}) "
+                                 f"-- {gain} on your next attack.")
+        elif opp_succ > man_succ:
+            # Risky maneuver: the opposing icon wins the exchange and gains the positioning instead.
+            opp_net = opp_succ - man_succ
+            target["position_bonus"] = {"tn_reduction": opp_net}
+            ev["description"] = (f"Position Attack BACKFIRED vs {opp_label} ({man_succ} vs {opp_succ}) "
+                                 f"-- it gains -{opp_net} TN on its next attack on you.")
+        else:
+            ev["description"] = (f"Position Attack tied vs {opp_label} ({man_succ} vs {opp_succ}) "
+                                 "-- no advantage gained.")
+    _append_event(state, ev)
+
+
+def _resolve_npc_maneuver(state: dict, decker: dict, eff: dict, actor: dict,
+                          maneuver: str, *, is_ic: bool) -> bool:
+    """An IC / enemy decker INITIATES a combat maneuver against the PC (npc_combat_maneuvers).
+    The NPC is the maneuvering icon (Evasion); the PC is the opposing icon (Sensor). Mutates
+    ``state`` and returns True (the NPC spent its action on the maneuver instead of attacking)."""
+    sec_value = state.get("host_security_value", 6)
+    if is_ic:
+        man_evasion_dice = sec_value
+        man_evasion_rating = int(actor.get("rating", 6) or 6)
+        label = str(actor.get("type", "IC"))
+    else:
+        man_evasion_dice = int(actor.get("evasion", 4) or 4)
+        man_evasion_rating = int(actor.get("evasion", 4) or 4)
+        label = str(actor.get("name", "enemy decker"))
+
+    result = eng.maneuver_test(
+        maneuvering_evasion_dice=man_evasion_dice,
+        maneuvering_evasion_rating=man_evasion_rating,
+        opposing_sensor_dice=eff.get("sensor", 4),
+        opposing_sensor_rating=eff.get("sensor", 4),
+    )
+    net = result["net_successes"]
+    man_succ = result["maneuvering_roll"]["successes"]
+    opp_succ = result["opposing_roll"]["successes"]
+    won = result["success"]
+    current_turn = state.get("current_turn", 1)
+    tally = state.get("security_tally", 0)
+    ev: dict[str, Any] = {
+        "type": "maneuver", "maneuver": maneuver, "initiator": "npc",
+        "actor_id": actor.get("id"), "actor": label,
+        "maneuvering_roll": result["maneuvering_roll"], "opposing_roll": result["opposing_roll"],
+        "net_successes": net, "success": won,
+    }
+
+    if maneuver == "evade_detection":
+        if won:
+            _break_parry_on_evade(state, actor)
+            actor["evaded"] = True
+            actor["evade_dir"] = "hid_from_pc"   # the NPC hides and vanishes from your view
+            actor["redetect_turn"] = current_turn + net
+            actor["redetect_tally_base"] = tally
+            if "revealed" in actor:
+                actor["revealed"] = False        # an enemy decker drops off your sensors entirely
+            ev["description"] = (f"{label} breaks contact and slips out of your sensors "
+                                 f"({man_succ} vs {opp_succ}).")
+        else:
+            ev["description"] = (f"{label} tries to break contact but you hold the lock "
+                                 f"({man_succ} vs {opp_succ}).")
+    elif maneuver == "parry_attack":
+        if won:
+            actor["parry_tn_bonus"] = net
+            ev["description"] = (f"{label} takes a defensive stance -- +{net} TN to your next "
+                                 "attack on it.")
+        else:
+            ev["description"] = f"{label} fails to set a guard ({man_succ} vs {opp_succ})."
+    else:  # position_attack
+        if won:
+            actor["position_bonus"] = {"tn_reduction": net}
+            ev["description"] = f"{label} maneuvers into position -- -{net} TN on its next attack on you."
+        elif opp_succ > man_succ:
+            opp_net = opp_succ - man_succ
+            state["pc_position"] = {"tn_reduction": opp_net}
+            ev["description"] = (f"{label} overreaches for position -- you turn it around "
+                                 f"(-{opp_net} TN on your next attack).")
+        else:
+            ev["description"] = f"{label} jockeys for position but gains no edge ({man_succ} vs {opp_succ})."
+    _append_event(state, ev)
+    return True
+
+
+def _npc_maybe_maneuver(state: dict, decker: dict, eff: dict, actor: dict, *, is_ic: bool) -> bool:
+    """Decide whether an IC / enemy decker spends its action on a combat maneuver instead of an
+    attack (gated by state["npc_combat_maneuvers"]). Deterministic priority: break off when
+    badly wounded, guard when moderately wounded, seize position when healthy and already pressing
+    a wounded PC. Returns True if a maneuver was performed (its attack is then skipped)."""
+    if not state.get("npc_combat_maneuvers") or actor.get("evaded"):
+        return False
+    if is_ic:
+        boxes = int(actor.get("boxes", 0) or 0)
+    else:
+        boxes = int((actor.get("condition_monitor", {}) or {}).get("persona_boxes", 0) or 0)
+    pc_persona = int((state.get("condition_monitor", {}) or {}).get("persona_boxes", 0) or 0)
+    # 1) Badly wounded -> Evade Detection to break off.
+    if boxes >= 7:
+        return _resolve_npc_maneuver(state, decker, eff, actor, "evade_detection", is_ic=is_ic)
+    # 2) Moderately wounded -> Parry to blunt the PC's next strike.
+    if 4 <= boxes <= 6 and not actor.get("parry_tn_bonus"):
+        return _resolve_npc_maneuver(state, decker, eff, actor, "parry_attack", is_ic=is_ic)
+    # 3) Healthy but the PC is already hurt -> Position Attack to press the advantage.
+    if boxes <= 3 and pc_persona >= 2 and not actor.get("position_bonus"):
+        return _resolve_npc_maneuver(state, decker, eff, actor, "position_attack", is_ic=is_ic)
+    return False
+
+
+def _apply_locate_ic(state: dict, *, test_success: bool) -> None:
+    """Locate IC (vr2 L1884 + L1998, correction #5): a System Test ONLY (no Sensor Test) that
+    RE-DETECTS every IC which evaded the decker via the Evade Detection maneuver
+    (evade_dir == "hid_from_pc"). Per the user ruling it does NOT reveal never-seen IC -- a
+    lurking reactive IC betrays itself only by acting -- so Locate IC matters only once an IC has
+    hidden. A successful System Test clears each evaded IC's markers (via _clear_evade, which also
+    logs a RE-DETECT notice) so _serialize_run shows the IC again. Mutates ``state``."""
+    evaded_ic = [ic for ic in state.get("active_ic", [])
+                 if isinstance(ic, dict) and ic.get("status") == "active"
+                 and ic.get("evaded") and ic.get("evade_dir") == "hid_from_pc"]
+    if not evaded_ic:
+        _append_event(state, {
+            "type": "ic_relocate", "outcome": "none",
+            "description": "Locate IC: no IC has slipped your sensors -- nothing to re-locate.",
+        })
+        return
+    if not test_success:
+        _append_event(state, {
+            "type": "ic_relocate", "outcome": "fail",
+            "description": "Locate IC failed -- the evaded IC stays off your sensors this pass.",
+        })
+        return
+    for ic in evaded_ic:
+        _clear_evade(state, ic, redetected=True)
+
+
+def _apply_locate_decker(state: dict, decker: dict, *, test_success: bool, scanner: int) -> None:
+    """Locate Decker (vr2 L1880 two-step + L1999, corrections #5/#6): RE-DETECTS a decker that
+    evaded the PC (evade_dir == "hid_from_pc"). Per the user ruling it re-acquires ONLY evaded
+    deckers -- a never-seen hunter reveals itself when it starts hunting, so this is not a blanket
+    "find every hidden icon" scan. Two-step per RAW: the Index System Test (``test_success``)
+    gates the attempt, then an opposed Sensor Test vs the enemy's FULL current Masking + Sleaze
+    (#6, Scanner reduces the TN) decides each re-acquisition. A located enemy has its evade
+    cleared (back into view, can be Struck Back). Mutates ``state``."""
+    evaded = [e for e in state.get("enemy_deckers", [])
+              if isinstance(e, dict) and e.get("status") == "active"
+              and e.get("evaded") and e.get("evade_dir") == "hid_from_pc"]
+    sensor = int(decker.get("sensor", 1) or 1)
+    if not evaded:
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "scan_clear",
+            "description": "Index sweep for evaded icons -- no decker has slipped your sensors to re-locate.",
+        })
+        return
+    if not test_success:
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "scan_fail",
+            "description": "Index sweep failed -- you can't re-acquire the decker that evaded you this pass.",
+        })
+        return
+    found = []
+    for e in evaded:
+        # #6: opposed test vs the enemy's FULL current Masking + Sleaze (not the halved Detection
+        # Factor) -- current masking means a Reveal-crippled decker is easier to re-find.
+        mask = int(e.get("masking", 1) or 1)
+        sleaze = int((e.get("utilities") or {}).get("sleaze", 0) or 0)
+        res = eng.pc_locate_decker_test(
+            sensor_rating=sensor,
+            scanner_rating=scanner,
+            enemy_mask_sleaze=mask + sleaze,
+            enemy_evasion=int(e.get("evasion", 1) or 1),
+        )
+        if res["located"]:
+            _clear_evade(state, e, redetected=True)   # clears evade + revealed=True + RE-DETECT notice
+            found.append((e, res))
+    if found:
+        names = ", ".join(f"{e['name']} (tier {e.get('tier', '?')})" for e, _ in found)
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "scan_hit", "enemy_id": found[0][0]["id"],
+            "description": f"Re-acquired evaded decker(s): {names}. You can Strike Back.",
+        })
+    else:
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "scan_fail",
+            "description": (
+                "Index sweep ran clean but your Sensor pass couldn't re-acquire the evaded decker "
+                "-- try again next pass."
+            ),
+        })
 
 
 # -- Rules / reference endpoints -----------------------------------------------
@@ -2428,716 +3322,35 @@ async def abandon_run(
 
 # -- Run actions ---------------------------------------------------------------
 
-# NOTE: perform_action is ~600 LOC and combines action resolution, probe IC, and
-# the proactive IC turn loop. A split is planned but deferred until gameplay rules
-# stabilize. See docs/refactor-notes.md (R1) for the planned structure, risks, and
-# why this hasn't been done yet -- read that before reorganizing.
-@router.post("/{run_id}/action", response_model=MatrixRunRead)
-async def perform_action(
-    run_id: int,
-    body: RunActionInput,
-    auth: dict = Depends(get_any_token),
-    db: AsyncSession = Depends(get_db),
-):
+def _autofire_lurking_tar(state: dict, decker: dict, action_type: str, utility_rating: int) -> None:
+    """Auto-fire every lurking Tar Baby / Tar Pit against the utility the decker just ran on a
+    System Test (app-as-GM -- there is no human GM to pick the target program). A tar makes one
+    opposed test per utility use; ``utility_rating <= 0`` means the operation ran no reducible
+    utility, so nothing fires. The utility's name is taken from the operation it belongs to."""
+    if utility_rating <= 0:
+        return
+    utility_name = _ACTION_UTILITY.get(action_type) or "utility"
+    for lurking in list(state.get("lurking_ic", [])):
+        if state.get("run_ended"):
+            break
+        if (lurking.get("type") in ("Tar Baby", "Tar Pit")
+                and lurking.get("status", "lurking") == "lurking"):
+            _resolve_lurking_tar(state, decker, lurking, utility_name, utility_rating)
+
+
+def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: str,
+                      sec_value: int, det_factor: int, logon_completed: bool = False) -> None:
+    """Drive every app-controlled hostile for the CURRENT initiative pass (``state['current_pass']``):
+    proactive / trace IC attacks (in initiative order) followed by enemy deckers, each gated by its
+    own initiative passes and an ``acted_pass`` marker so it acts at most once per pass.
+
+    There is no human GM -- this is the app-as-GM loop. It is called from ``perform_action`` after
+    the player's action resolves, and from ``new_turn`` to flush the passes the player never reached
+    so hostiles always take their full allotment each Combat Turn. Probe IC (which test per System
+    Test, not per pass) are handled by the caller, NOT here. ``logon_completed`` carries the player's
+    just-resolved Logon so the event fires in its original position between the IC and enemy loops.
+    Mutates ``state`` (and ``run.status`` on a kill/dump); does NOT commit.
     """
-    Perform a decker system operation.
-    Resolves the test, updates security tally, checks sheaf triggers, activates IC.
-    """
-    run = await _get_run_or_404(db, run_id)
-    _assert_run_access(run, auth)
-    if run.status != "active":
-        raise HTTPException(400, f"Run is not active (status: {run.status})")
-
-    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
-    decker = run.decker_json
-    eff = _get_decker_effective(decker, state)
-
-    if state.get("run_ended"):
-        raise HTTPException(400, "Run has already ended")
-    if state.get("icon_crashed"):
-        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
-
-    # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
-    # the shared helper and return -- mirroring POST /{run_id}/logoff. Without this the
-    # graceful_logoff action fell through to the generic test below and never actually ended
-    # the run.
-    if body.action_type == "graceful_logoff":
-        _spend_pass_action(state, "graceful_logoff")   # vr2: Graceful Logoff is a Complex Action
-        success = _apply_graceful_logoff(
-            state, decker,
-            hacking_pool_dice=body.hacking_pool_dice,
-            deception_utility=body.utility_rating,
-        )
-        if success:
-            run.status = "escaped"
-        run.state_json = state
-        await db.commit()
-        await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Storage pre-check: a Download cannot even be attempted if the named file would not fit the
-    # deck's remaining free storage (vr2 finite memory). Block before spending the action so the
-    # player isn't charged a pass for an impossible download. storage_free_mp < 0 = untracked.
-    if body.action_type == "download_data" and body.target_file:
-        free = state.get("storage_free_mp", -1)
-        if free is not None and free >= 0:
-            tgt_name = body.target_file.strip().lower()
-            pd = next((p for p in (state.get("paydata") or [])
-                       if str(p.get("name", "")).strip().lower() == tgt_name), None)
-            if pd is not None and not pd.get("downloaded"):
-                # Use the SAME effective stored size the download will charge, so a Compressor
-                # lets the player grab a file that fits compressed even if its full size would not.
-                comp = _effective_compressor(decker)
-                stored, _compressible = _compressed_store_size(comp, pd.get("density", 0))
-                remaining = max(0, free - state.get("storage_used_mp", 0))
-                if stored > remaining:
-                    raise HTTPException(
-                        400,
-                        f"Not enough deck storage: \"{pd.get('name')}\" needs {stored} Mp but only "
-                        f"{remaining} Mp free. Purge stored files or free storage memory first."
-                    )
-
-    # Action economy: spend this action's cost from the current initiative pass (auto-advances
-    # passes; blocks when all passes are spent -> New Turn). vr2: 2 Simple OR 1 Complex + 1 Free.
-    _spend_pass_action(state, body.action_type)
-
-    sec_code = state["host_security_code"]
-    sec_value = state["host_security_value"]
-    subsystem_rating = _subsystem_rating(state, body.subsystem)
-    det_factor = _effective_detection_factor(state, decker)
-    state["detection_factor"] = det_factor  # keep serialized run in sync for the UI
-
-    # Decker skill dice + utility reduction
-    _spend_hp(state, body.hacking_pool_dice)
-    base_skill = decker.get("computer_skill", 4)
-    pool = base_skill + body.hacking_pool_dice
-    tn_modifier = body.extra_tn_modifier
-    if body.utility_rating > 0:
-        tn_modifier -= body.utility_rating  # utility reduces TN
-
-    # Swap Memory (Simple Action, no test): move programs between storage and active memory.
-    # Active programs always keep a storage copy, so a swap only shifts *active* memory usage --
-    # deck storage_free_mp is unaffected. See _apply_swap_memory for the three resolution modes.
-    if body.action_type == "swap_memory":
-        new_decker = copy.deepcopy(decker)
-        changed, desc = _apply_swap_memory(
-            state, new_decker,
-            target_program=body.target_program,
-            swap_out_program=body.swap_out_program,
-        )
-        _append_event(state, {"type": "swap_memory", "description": desc})
-        if changed:
-            run.decker_json = new_decker
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Medic (Complex Action, self-targeted -- NOT an opposed subsystem System Test): heal boxes
-    # of the decker's own persona/icon Condition Monitor. Resolved here and returned so it never
-    # falls through to the generic system_test below, which would log a bogus subsystem result.
-    if body.action_type == "medic":
-        _apply_medic(state, decker)
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Restore (Complex Action, self-targeted defensive utility -- NOT an opposed subsystem System
-    # Test): repair the TEMPORARY crippler reductions to the icon's persona attributes (BEMS). It
-    # cannot touch permanent Persona-chip damage and does NOT degrade. Resolved here and returned
-    # so it never falls through to the generic system_test below.
-    if body.action_type == "restore":
-        _apply_restore(state, decker, target=body.target_program)
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Disinfect (Complex Action): a System Test against the subsystem hosting a worm (TN reduced by
-    # the carried Disinfect utility). Success DESTROYS the targeted Worm lurking-IC with no tally
-    # add (a Disinfect is not a cybercombat crash); failure risks the Worm Infection Test against
-    # the MPCP. Resolved here and returned so it never falls through to the generic system_test.
-    if body.action_type == "disinfect":
-        _apply_disinfect(
-            state, decker,
-            subsystem=body.subsystem,
-            subsystem_rating=subsystem_rating,
-            decker_pool=pool,
-            target_ic_id=body.target_ic_id,
-        )
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Defuse Data Bomb (Complex Action): a Computer Test against the controlling subsystem rating
-    # (Files for a file bomb, Slave for a device bomb -- pick the subsystem) reduced by the carried
-    # Defuse utility. Success disarms the bomb with NO tally add (a defuse is not a crash); an
-    # all-1s botch detonates it; any other failure leaves it primed to retry. Resolved here and
-    # returned so it never falls through to the generic system_test below.
-    if body.action_type == "defuse_data_bomb":
-        _apply_defuse_bomb(
-            state, decker, eff,
-            subsystem=body.subsystem,
-            subsystem_rating=subsystem_rating,
-            decker_pool=pool,
-            sec_value=sec_value,
-            sec_code=sec_code,
-            target_file=body.target_file,
-        )
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Steamroller (Complex Action): the dedicated anti-tar weapon. Inflicts (Rating)D on a named
-    # Tar Baby / Tar Pit lurking-IC and is IMMUNE to the tar crash-backlash (it never runs the
-    # tar's opposed crash test, so the decker's utilities are never crashed/corrupted). A crash
-    # removes the tar and adds its rating to the tally unless Stealth(Skulk)-masked or the tar is
-    # suppressed. Targets ONLY tar IC (non-tar target_ic_id is rejected). Resolved here and
-    # returned so it never falls through to the generic system_test below.
-    if body.action_type == "steamroller":
-        _apply_steamroller(
-            state, decker,
-            sec_code=sec_code,
-            decker_pool=pool,
-            target_ic_id=body.target_ic_id,
-        )
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Slow (Complex Action): reduce a proactive IC's execution speed. A to-hit Computer Test then
-    # an opposed Resistance (Slow Rating) Test; on a win the IC loses actions and, with none left,
-    # HANGS for the turn -- the proactive-IC loop honours ``ic['actions_lost']`` and new_turn clears
-    # it unless the IC is suppressed. Reactive IC and location-cycle trace IC are rejected (400).
-    # Resolved here and returned so it never falls through to the generic system_test below.
-    if body.action_type == "slow":
-        _apply_slow(
-            state, decker,
-            sec_code=sec_code,
-            decker_pool=pool,
-            target_ic_id=body.target_ic_id,
-        )
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Decompress File (Complex Action, no test -- pure storage bookkeeping like Swap Memory):
-    # expand a previously-downloaded COMPRESSED file (stored at half size via the Compressor
-    # utility) back to its full size so it can be read/used. Needs the extra free Mp when storage
-    # is tracked (rejected 400 if it won't fit -- and the action is not spent). Resolved here and
-    # returned so it never falls through to the generic system_test below.
-    if body.action_type == "decompress_file":
-        _apply_decompress(state, decker, target_file=body.target_file)
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # DINAB ("Decker In A Box"), Free Action (vr2_rules.md L1665): let ONE DINAB-equipped program
-    # run itself autonomously at skill = effective DINAB rating, alongside the decker's own pass.
-    # Offensive utilities reuse cybercombat / crippler resolution; everything else runs a generic
-    # System Test. Failure degrades the rating (-1); a failed all-1s roll crashes it. Resolved here
-    # and returned so it never falls through to the generic system_test below.
-    if body.action_type == "dinab":
-        _apply_dinab(
-            state, decker,
-            util=body.target_program,
-            sec_code=sec_code, sec_value=sec_value,
-            subsystem=body.subsystem, subsystem_rating=subsystem_rating,
-            det_factor=det_factor,
-            target_ic_id=body.target_ic_id, target_file=body.target_file,
-        )
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Purge Hog (Complex Action): Computer test to wipe a Hog virus -- success removes the
-    # infection AND crashes the infected program (reload it afterward via Swap Memory).
-    if body.action_type == "purge_hog":
-        infections = state.get("hog_infections") or []
-        if not infections:
-            _append_event(state, {"type": "purge_hog", "description": "No Hog virus to purge."})
-        else:
-            inf = next((i for i in infections if i.get("id") == body.target_program), infections[0])
-            pd = state.setdefault("program_damage", {})
-            name, _eff = _highest_running_utility(decker, pd)
-            base = (decker.get("utilities") or {}).get(name, 0) if name else 0
-            purge = eng.hog_purge_test(
-                computer_skill=decker.get("computer_skill", 4), hog_rating=inf.get("rating", 4),
-                infected_program_rating=base, hardening=decker.get("hardening", 0))
-            if purge["purged"]:
-                state["hog_infections"] = [i for i in infections if i is not inf]
-                if name:
-                    pd[name] = base  # the purge sacrifices the infected program (crashed)
-                desc = (f"Purged Hog-{inf.get('rating')} (TN {purge['tn']}) -- virus removed; the "
-                        f"{name.replace('_', ' ').title() if name else 'infected'} program is wiped "
-                        "(reload via Swap Memory).")
-            else:
-                desc = f"Purge FAILED (TN {purge['tn']}) -- Hog-{inf.get('rating')} persists."
-            _append_event(state, {"type": "purge_hog", "decker_roll": purge["roll"], "description": desc})
-        run.state_json = state
-        await db.commit(); await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Decrypt File is resolved against a Scramble IC (its rating IS the decrypt TN),
-    # not the generic subsystem test. A failed decrypt vs a POISON Scramble destroys the
-    # protected data -- key data is a permanent, mission-critical loss shown to the player.
-    if body.action_type == "decrypt_file" and (state.get("scrambles") or []):
-        scrambles = state["scrambles"]
-        scr = None
-        if body.target_file:
-            scr = next((s for s in scrambles if s.get("target_key") == body.target_file), None)
-        if scr is None:
-            scr = scrambles[0]
-        dt = eng.scramble_decrypt_test(
-            decker_pool=pool,
-            scramble_rating=scr.get("rating", 6),
-            decrypt_utility=body.utility_rating,
-        )
-        if dt["decrypted"]:
-            state["scrambles"] = [s for s in scrambles if s is not scr]
-            _append_event(state, {
-                "type": "decrypt", "success": True, "decker_roll": dt["roll"],
-                "description": "Scramble decrypted -- protected data accessible. No tally increase.",
-            })
-        else:
-            paydata = state.get("paydata") or []
-            tkey = str(scr.get("target_key", ""))
-            protected = next((p for p in paydata if p.get("name") and p["name"] in tkey), None)
-            is_key = bool(protected and protected.get("is_key"))
-            cons = eng.scramble_failure_consequence(
-                variant=scr.get("variant", "standard"), is_key=is_key)
-            if cons.get("data_destroyed") and protected is not None:
-                protected["destroyed"] = True
-            _append_event(state, {
-                "type": "decrypt", "success": False, "decker_roll": dt["roll"],
-                "key_data_lost": cons.get("key_data_lost", False),
-                "data_destroyed": cons.get("data_destroyed", False),
-                "file_name": (protected or {}).get("name"),  # lets the UI grey the destroyed file
-                "description": cons["message"],
-            })
-            # Exploding Scramble: a failed decrypt sets off its linked data bomb (vr2).
-            if cons.get("detonate_data_bomb"):
-                _detonate_data_bomb(
-                    state, decker, eff, ic_rating=scr.get("rating", 6),
-                    sec_value=sec_value, sec_code=sec_code,
-                    headline="Exploding Scramble's data bomb")
-        run.state_json = state
-        await db.commit()
-        await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    # Console access additionally halves the host Security Value for Access Tests (vr2).
-    test_sec_value = sec_value
-    if body.subsystem == "access" and state.get("console_access"):
-        test_sec_value = -(-sec_value // 2)
-    # Stolen linked passcode + a Deception utility: -2 TN to Logon to Host (vr2).
-    if (body.action_type == "logon_to_host" and body.utility_rating > 0
-            and state.get("linked_passcode")):
-        tn_modifier -= 2
-
-    test = eng.system_test(
-        decker_pool=pool,
-        subsystem_rating=subsystem_rating,
-        security_value=test_sec_value,
-        det_factor=det_factor,
-        extra_tn_modifier=tn_modifier,
-    )
-
-    # Update tally
-    old_tally = state["security_tally"]
-    state["security_tally"] = old_tally + test["tally_increase"]
-
-    log_entry: dict[str, Any] = {
-        "type": "action",
-        "action": body.action_type,
-        "subsystem": body.subsystem,
-        "description": (
-            f"{body.action_type.replace('_', ' ').title()} -- "
-            f"{'SUCCESS' if test['success'] else 'FAILED'} "
-            f"({test['decker_roll']['successes']} vs {test['host_roll']['successes']} successes). "
-            f"Tally +{test['tally_increase']} -> {state['security_tally']}."
-        ),
-        "success": test["success"],
-        "decker_roll": test["decker_roll"],
-        "host_roll": test["host_roll"],
-        "tally_increase": test["tally_increase"],
-        "tally_total": state["security_tally"],
-        "action_cost": _ACTION_COST.get(body.action_type, "Complex"),  # Free / Simple / Complex
-        "note": body.note,
-    }
-    _append_event(state, log_entry)
-    state["actions_this_turn"] = state.get("actions_this_turn", 0) + 1
-
-    # Analyze IC: a successful Analyze reveals an IC's type + rating to the decker (vr2 #9).
-    # Until then the player only sees an "Unknown IC" marker (redacted in _serialize_run).
-    if body.action_type == "analyze_ic" and test["success"]:
-        active = [ic for ic in state.get("active_ic", []) if ic.get("status") == "active"]
-        target = None
-        if body.target_ic_id:
-            target = next((ic for ic in active if ic["id"] == body.target_ic_id), None)
-        if target is None:
-            target = next((ic for ic in active if not ic.get("analyzed")), None)
-        if target is not None:
-            target["analyzed"] = True
-            _append_event(state, {
-                "type": "ic_analyzed",
-                "ic_id": target["id"],
-                "ic_type": target["type"],
-                "ic_rating": target["rating"],
-                "description": f"IC analyzed: {target['type']} Rating {target['rating']} revealed.",
-            })
-
-    # Analyze Subsystem: a successful analysis of the concealing subsystem reveals any trap
-    # door hidden on it. Per vr2 the decker learns a port to ANOTHER system exists, but the
-    # Analyze Subsystem: a successful analysis of the concealing subsystem reveals any trap
-    # door hidden on it. Per vr2 the decker learns a port to ANOTHER system exists, but the
-    # destination stays hidden until they enter it (revealed on arrival). Separately, a
-    # successful Analyze Subsystem on ACCESS reveals THIS host's LTG-access status -- the only
-    # way to learn whether a host reached via a trap door is also reachable from the grid.
-    if body.action_type == "analyze_subsystem" and test["success"]:
-        sub = body.subsystem
-        newly = [d for d in (state.get("trap_doors") or [])
-                 if not d.get("discovered") and (d.get("subsystem", "slave") == sub)]
-        for d in newly:
-            d["discovered"] = True
-            src = d.get("source_piece") or ""
-            _append_event(state, {
-                "type": "trap_door_found",
-                "trap_door_id": d.get("id"),
-                "subsystem": sub,
-                "source_piece": src,
-                "description": (
-                    f"Concealed port detected on the {sub.capitalize()} subsystem"
-                    + (f" ({src})" if src else "")
-                    + " -- it links to another system. Destination unknown until you enter or file it."
-                ),
-            })
-        if sub == "access" and not state.get("host_ltg_revealed"):
-            state["host_ltg_revealed"] = True
-            has_ltg = bool(state.get("host_has_ltg"))
-            _append_event(state, {
-                "type": "host_ltg_revealed",
-                "has_ltg": has_ltg,
-                "description": (
-                    "Access subsystem analyzed -- this host "
-                    + ("HAS dedicated LTG access (reachable from the regular grid)."
-                       if has_ltg else
-                       "has NO LTG access (reachable only via a direct line or trap door).")
-                ),
-            })
-
-    # Analyze Host: each net success reveals one host subsystem (ACIFS) rating. The raw ratings
-    # are GM-only (host_acifs); revealed values mirror into the player-visible
-    # host_ratings_revealed map in ACIFS order (vr2: "each success reveals one piece of info").
-    if body.action_type == "analyze_host" and test["success"]:
-        acifs = state.get("host_acifs") or [10, 10, 10, 10, 10]
-        names = ["access", "control", "index", "files", "slave"]
-        revealed = state.setdefault("host_ratings_revealed", {})
-        budget = max(1, test["decker_net_successes"])
-        newly: list[tuple[str, int]] = []
-        for i, nm in enumerate(names):
-            if budget <= 0:
-                break
-            if nm not in revealed:
-                revealed[nm] = int(acifs[i]) if i < len(acifs) else 10
-                newly.append((nm, revealed[nm]))
-                budget -= 1
-        if newly:
-            _append_event(state, {
-                "type": "host_analyzed",
-                "revealed": [{"subsystem": nm, "rating": rt} for nm, rt in newly],
-                "description": "Analyze Host -- " + ", ".join(
-                    f"{nm.capitalize()} {rt}" for nm, rt in newly
-                ) + " revealed.",
-            })
-        else:
-            _append_event(state, {
-                "type": "host_analyzed", "revealed": [],
-                "description": "Analyze Host -- all subsystem ratings already known.",
-            })
-
-    # Analyze Security: the decker learns its CURRENT security tally + alert status (otherwise
-    # redacted for players). Snapshot them into the player-visible security_known (vr2: the GM
-    # reveals the tally only when the decker runs this test).
-    if body.action_type == "analyze_security" and test["success"]:
-        snapshot = {
-            "tally": state["security_tally"],
-            "alert": state.get("alert_status", "none"),
-            "turn": state.get("current_turn", 1),
-        }
-        state["security_known"] = snapshot
-        _append_event(state, {
-            "type": "security_analyzed",
-            "known_tally": snapshot["tally"],
-            "known_alert": snapshot["alert"],
-            "description": (
-                f"Analyze Security -- security tally {snapshot['tally']}, "
-                f"alert status {snapshot['alert'].upper()} (as of turn {snapshot['turn']})."
-            ),
-        })
-
-    # Dump Log (vr2 Validate / Control): a successful Control System Test reads the host access
-    # logs. Like Analyze Host/Security this is a generic test followed by a success handler (NOT an
-    # early return). Reveal a player-visible summary -- legal users, files accessed, programs run,
-    # intrusions on record, and crucially whether the decker's OWN intrusion is logged (cleared by
-    # a Graceful Logoff) -- into access_log_dumped. Generated deterministically from a local RNG.
-    if body.action_type == "dump_log" and test["success"]:
-        _apply_dump_log(
-            state, decker,
-            host_id=getattr(run, "host_id", 0),
-            run_id=getattr(run, "id", 0),
-            sec_code=sec_code, sec_value=sec_value,
-        )
-
-    # Crash Host: a successful Control/Crash test starts a host-shutdown countdown (vr2). turns =
-    # round_up(10 / successes); during the countdown all IC ratings drop by 2, and at the END of
-    # each turn the host rolls Security Value vs the decker's MPCP to abort (see
-    # _process_crash_countdown). If the countdown completes the host crashes and the decker rides
-    # it out, logging off cleanly -- a successful clean exit (no dump shock).
-    if body.action_type == "crash_host" and test["success"]:
-        successes = max(1, test["decker_net_successes"])
-        turns = -(-10 // successes)   # ceil(10 / net successes) -- a more decisive win crashes faster
-        decker_mpcp = int((run.decker_json or {}).get("mpcp", 1) or 1)
-        state["crash_host_countdown"] = {
-            "turns_remaining": turns,
-            "total_turns": turns,
-            "decker_mpcp": decker_mpcp,
-            "started_turn": state.get("current_turn", 1),
-        }
-        _apply_crash_ic_penalty(state)
-        _append_event(state, {
-            "type": "crash_host_started",
-            "turns": turns,
-            "description": (
-                f"Crash Host initiated -- host shutdown in {turns} turn"
-                f"{'s' if turns != 1 else ''} ({successes} successes). All IC ratings -2 during "
-                "the countdown; the host rolls Security Value vs your MPCP each turn to abort."
-            ),
-        })
-
-    # Validate Passcode: grant Legitimate status (IC uses Legitimate TN column)
-    if body.action_type == "validate_passcode" and test["success"]:
-        state["has_legitimate_status"] = True
-        _append_event(state, {
-            "type": "validate_passcode",
-            "description": "Validate Passcode successful -- Legitimate status granted. IC uses Legitimate TN column until logoff or active alert.",
-        })
-
-    # Decoy: deploy countermeasure persona; IC must roll 1D6 <= successes to hit it instead
-    if body.action_type == "decoy" and test["success"]:
-        d_successes = test["decker_roll"]["successes"]
-        state["decoy_successes"] = d_successes
-        state["decoy_hp"] = 0
-        _append_event(state, {
-            "type": "decoy_deployed",
-            "description": (
-                f"Decoy deployed with {d_successes} success(es). "
-                "Each proactive IC attack: roll 1D6 -- if result <= successes, IC hits decoy (10-box CM)."
-            ),
-            "successes": d_successes,
-        })
-
-    # Relocate: reset any trace IC in its location cycle back to hunt cycle
-    if body.action_type == "relocate" and test["success"]:
-        reset_count = 0
-        for ic in state.get("active_ic", []):
-            if ic["status"] == "active" and ic.get("trace_phase") == "locate":
-                ic["trace_phase"] = "hunt"
-                ic.pop("trace_locate_remaining", None)
-                reset_count += 1
-                _append_event(state, {
-                    "type": "relocate",
-                    "ic_id": ic["id"],
-                    "description": (
-                        f"Relocate succeeded -- {ic['type']}-{ic['rating']} "
-                        "reset to Hunt Cycle."
-                    ),
-                })
-        if not reset_count:
-            _append_event(state, {
-                "type": "relocate",
-                "description": "Relocate: no trace IC currently in location cycle.",
-            })
-
-    # Redirect Datatrail: each success increments redirects (-1 to Trace Factor)
-    if body.action_type == "redirect_datatrail" and test["success"]:
-        state["redirects_placed"] = state.get("redirects_placed", 0) + 1
-        _append_event(state, {
-            "type": "redirect_placed",
-            "description": (
-                f"Redirect placed. Trace Factor -1 going forward. "
-                f"Total redirects this run: {state['redirects_placed']}."
-            ),
-            "redirects_total": state["redirects_placed"],
-        })
-
-    # Locate Paydata: a successful search reveals what files are present (name + size) so the
-    # player can choose what to download against finite deck storage. Found files are surfaced
-    # to the player via _serialize_run (located_paydata); the full paydata list stays GM-only.
-    if body.action_type == "locate_paydata" and test["success"]:
-        newly = [p for p in (state.get("paydata") or [])
-                 if not p.get("located") and not p.get("destroyed")]
-        for p in newly:
-            p["located"] = True
-        if newly:
-            _append_event(state, {
-                "type": "paydata_located",
-                "description": "Paydata located: " + ", ".join(
-                    f"{p.get('name', '?')} ({max(0, int(p.get('density', 0) or 0))} Mp)" for p in newly
-                ) + ".",
-                "files": [{"name": p.get("name"),
-                           "size_mp": max(0, int(p.get("density", 0) or 0)),
-                           "is_key": bool(p.get("is_key"))} for p in newly],
-            })
-        else:
-            _append_event(state, {
-                "type": "paydata_located",
-                "description": "Search complete -- no further paydata found.",
-            })
-
-    # Locate Decker: a Sensor-aided Index sweep for a hidden hostile decker. The app plays the
-    # opponent, so spawned enemy deckers start hidden and must locate the PC over several turns;
-    # the PC can scan for them at any time (a mutual-detection race). On a successful Index test,
-    # run an opposed Sensor Test vs each hidden enemy (Scanner reduces the TN); any net success
-    # reveals it so the PC can Strike Back or evade first.
-    if body.action_type == "locate_decker":
-        hidden = [e for e in state.get("enemy_deckers", [])
-                  if e.get("status") == "active" and not e.get("revealed")]
-        sensor = int(decker.get("sensor", 1) or 1)
-        scanner = max(0, int(body.utility_rating or 0))   # Scanner utility used for the sweep
-        if not hidden:
-            _append_event(state, {
-                "type": "enemy_decker", "outcome": "scan_clear",
-                "description": "Index sweep for hostile icons -- no hidden decker detected on this host.",
-            })
-        elif not test["success"]:
-            _append_event(state, {
-                "type": "enemy_decker", "outcome": "scan_fail",
-                "description": "Index sweep failed -- you can't pick a hostile icon out of the noise this pass.",
-            })
-        else:
-            found = []
-            for e in hidden:
-                res = eng.pc_locate_decker_test(
-                    sensor_rating=sensor,
-                    scanner_rating=scanner,
-                    enemy_detection_factor=int(e.get("detection_factor", e.get("masking", 1)) or 1),
-                    enemy_evasion=int(e.get("evasion", 1) or 1),
-                )
-                if res["located"]:
-                    e["revealed"] = True
-                    found.append((e, res))
-            if found:
-                for e, res in found:
-                    _append_event(state, {
-                        "type": "enemy_decker", "outcome": "scan_hit", "enemy_id": e["id"],
-                        "description": (
-                            f"Hostile decker located: {e['name']} (tier {e.get('tier', '?')}) -- "
-                            f"Sensor {sensor} vs TN {res['target_tn']}, {res['net_successes']} net "
-                            "success(es). You can Strike Back."
-                        ),
-                    })
-            else:
-                _append_event(state, {
-                    "type": "enemy_decker", "outcome": "scan_fail",
-                    "description": (
-                        "Index sweep ran clean but your Sensor pass couldn't pin the hostile icon "
-                        "-- try again next pass."
-                    ),
-                })
-
-    # Download Data: on success, pull the named file -- record it in the player-visible ledger
-    # (downloaded_files) and consume finite deck storage. The pre-check above guarantees it fits.
-    if body.action_type == "download_data" and test["success"] and body.target_file:
-        tgt_name = body.target_file.strip().lower()
-        pd = next((p for p in (state.get("paydata") or [])
-                   if str(p.get("name", "")).strip().lower() == tgt_name and not p.get("destroyed")),
-                  None)
-        if pd is not None and not pd.get("downloaded"):
-            pd["downloaded"] = True
-            pd["located"] = True
-            density = max(0, int(pd.get("density", 0) or 0))
-            # Compressor (vr2_rules.md L1512-1515): a loaded Compressor halves the STORED footprint
-            # of a file within the Rating*100 Mp cap; it must be decompressed before it can be used.
-            comp = _effective_compressor(decker)
-            stored, compressible = _compressed_store_size(comp, density)
-            pd["compressed"] = compressible
-            if compressible:
-                pd["full_size_mp"] = density
-            state["storage_used_mp"] = state.get("storage_used_mp", 0) + stored
-            state.setdefault("downloaded_files", []).append({
-                "name": pd.get("name"),
-                "size_mp": stored,
-                "is_key": bool(pd.get("is_key")),
-                "turn": state.get("current_turn", 1),
-                "compressed": compressible,
-                "full_size_mp": density,
-            })
-            free = state.get("storage_free_mp", -1)
-            tracked = free is not None and free >= 0
-            remaining = max(0, free - state["storage_used_mp"]) if tracked else None
-            comp_note = (f" (compressed {density}->{stored} Mp; must decompress before use)"
-                         if compressible else "")
-            _append_event(state, {
-                "type": "data_downloaded",
-                "file_name": pd.get("name"),
-                "size_mp": stored,
-                "is_key": bool(pd.get("is_key")),
-                "compressed": compressible,
-                "full_size_mp": density,
-                "storage_used_mp": state["storage_used_mp"],
-                "storage_remaining_mp": remaining,
-                "description": (
-                    f"Downloaded \"{pd.get('name')}\" ({stored} Mp"
-                    f"{', KEY DATA' if pd.get('is_key') else ''}){comp_note}. "
-                    f"Storage used {state['storage_used_mp']} Mp"
-                    + (f"; {remaining} Mp free." if tracked else ".")
-                ),
-            })
-        elif pd is not None:
-            _append_event(state, {
-                "type": "data_downloaded",
-                "file_name": pd.get("name"),
-                "description": f"\"{pd.get('name')}\" already downloaded -- no additional storage used.",
-            })
-
-    # Data Bomb trigger (vr2_rules.md L473): a SUCCESSFUL access (Download/Edit/Upload) of a file
-    # or Slave device that still carries an UNDEFUSED bomb sets it off -- the decker gets the
-    # access AND eats the blast. A FAILED access does NOT trigger it, and a bomb already disarmed
-    # (via the Defuse Data Bomb action) is inert. Detonation adds the bomb's rating to the tally.
-    _trigger_access_data_bomb(
-        state, decker, eff, action_type=body.action_type, target_file=body.target_file or "",
-        test_success=test["success"], sec_value=sec_value, sec_code=sec_code)
-
-    # Check sheaf triggers
-    _check_and_activate_sheaf(state, sec_code)
-
-    # Run probe tests for any active Probe IC
-    for ic in state.get("active_ic", []):
-        if ic["status"] != "active" or ic.get("suppressed"):
-            continue
-        if ic["type"] == "Probe":
-            probe = eng.probe_test(ic["rating"], det_factor)
-            # Probe IC is invisible (reactive): make a secret Sensor Test, then report
-            # the tally change at a detail level matching what the decker has detected.
-            lvl = _secret_sensor_test(state, decker, ic)
-            if probe["tally_increase"] > 0:
-                state["security_tally"] += probe["tally_increase"]
-                tally = state["security_tally"]
-                inc = probe["tally_increase"]
-                if lvl >= 3:
-                    desc = (f"Probe-{ic['rating']} test: {probe['roll']['successes']} successes "
-                            f"-> tally +{inc} -> {tally}")
-                elif lvl == 2:
-                    desc = f"Probe IC test: tally +{inc} -> {tally}"
-                elif lvl == 1:
-                    desc = f"Hidden IC probes your actions: tally +{inc} -> {tally}"
-                else:
-                    desc = f"Security tally rose by {inc} -> {tally} (source unidentified)"
-                ev = {"type": "probe_ic", "description": desc, "tally_increase": inc}
-                if lvl >= 1:
-                    ev["ic_id"] = ic["id"]  # only reference the IC once its presence is known
-                _append_event(state, ev)
-            _check_and_activate_sheaf(state, sec_code)
-
     # Active IC attacks (proactive IC + trace IC that has already activated, in initiative order)
     for ic in sorted(state.get("active_ic", []), key=lambda x: x.get("initiative", 0), reverse=True):
         if ic["status"] != "active" or ic.get("suppressed"):
@@ -3165,6 +3378,11 @@ async def perform_action(
         if cur_pass > effective_passes or ic.get("acted_pass") == cur_pass:
             continue
         ic["acted_pass"] = cur_pass
+
+        # Combat maneuver: an IC that has lost/hidden from the PC (Evade Detection) does not act
+        # this pass; the hidden window auto-expires (timer / security tally) inside _evade_active.
+        if _evade_active(state, ic):
+            continue
 
         # -- Trace IC: hunt/location cycle -- does NOT do cybercombat ---------
         if ic_subtype == "trace":
@@ -3280,36 +3498,16 @@ async def perform_action(
         ic_target_status = "legitimate" if state.get("has_legitimate_status") else "intruding"
 
         # -- Decoy intercept check (not effective vs trace IC) -----------------
-        decoy_succ = state.get("decoy_successes", 0)
-        if decoy_succ > 0 and state.get("decoy_hp", 0) < 10:
-            d6 = random.randint(1, 6)
-            if d6 <= decoy_succ:
-                # IC attacks the decoy instead
-                decoy_tn = rules.COMBAT_TN[sec_code][ic_target_status]
-                decoy_pool = ic["rating"] if ic["type"] == "Construct" else sec_value
-                decoy_atk = eng.roll_dice(decoy_pool, decoy_tn)
-                decoy_staged = eng.stage_damage(rules.IC_DAMAGE_LEVEL[sec_code], decoy_atk["successes"], 1)
-                decoy_boxes = rules.DAMAGE_BOXES[decoy_staged]
-                state["decoy_hp"] = state.get("decoy_hp", 0) + decoy_boxes
-                decoy_destroyed = state["decoy_hp"] >= 10
-                if decoy_destroyed:
-                    state["decoy_successes"] = 0
-                    state["decoy_hp"] = 0
-                _append_event(state, {
-                    "type": "decoy_intercepted",
-                    "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
-                    "description": (
-                        f"D6={d6} <= {decoy_succ} -- {ic['type']}-{ic['rating']} hits DECOY! "
-                        f"{decoy_staged} ({decoy_boxes} boxes). "
-                        f"Decoy: {min(state.get('decoy_hp', 0), 10)}/10"
-                        + (" -- DECOY DESTROYED." if decoy_destroyed else "")
-                    ),
-                    "d6": d6,
-                    "attack_roll": decoy_atk,
-                    "decoy_boxes": decoy_boxes,
-                    "decoy_destroyed": decoy_destroyed,
-                })
-                continue  # IC consumed its action on the decoy
+        if _decoy_intercept(state, ic, sec_code=sec_code, sec_value=sec_value,
+                            ic_target_status=ic_target_status):
+            continue  # IC consumed its action on the decoy
+
+        # Combat maneuver: an attacking IC may spend its action to maneuver against you instead
+        # of attacking (heuristic; only when npc_combat_maneuvers is set).
+        if _npc_maybe_maneuver(state, decker, eff, ic, is_ic=True):
+            continue
+        # Parry (against this IC) + Position (held by this IC) modifiers for this attack.
+        atk_tn_delta, atk_power_delta = _consume_attack_mods_vs_pc(state, ic)
 
         # -- Crippler / Ripper: opposed test, reduces BEMS attributes ---------
         if ic_subtype in ("crippler", "ripper"):
@@ -3327,6 +3525,7 @@ async def perform_action(
                 mpcp_rating=decker.get("mpcp", 1),
                 hardening=decker.get("hardening", 0),
                 shield_successes=shield_succ,
+                tn_modifier=atk_tn_delta,   # combat-maneuver Parry(+)/Position(-) to-hit delta
             )
             reduction = result["attribute_reduction"]
             pd = state["condition_monitor"]["persona_damage"]
@@ -3377,7 +3576,7 @@ async def perform_action(
 
         if is_black:
             # Black IC: attack roll only (resistance is split into two separate tests below)
-            attack_tn  = max(2, rules.COMBAT_TN[sec_code][ic_target_status] + cluster_penalty)
+            attack_tn  = max(2, rules.COMBAT_TN[sec_code][ic_target_status] + cluster_penalty + atk_tn_delta)
             attack_roll_black = eng.roll_dice(ic_attack_pool, attack_tn)
             base_dmg   = rules.IC_DAMAGE_LEVEL[sec_code]
             # Shield parry: net successes cancel the icon-damage staging. Black IC derives BOTH
@@ -3386,7 +3585,7 @@ async def perform_action(
             shield_succ = _shield_parry(state, decker, attacker_skill=sec_value, context="Black IC")
             black_succ = max(0, attack_roll_black["successes"] - shield_succ)
             staged_dmg = eng.stage_damage(base_dmg, black_succ, 1)
-            power      = max(1, ic["rating"] - hardening)
+            power      = max(1, ic["rating"] - hardening + atk_power_delta)  # + combat-maneuver Position Power
 
             if is_non_lethal:
                 # Cool deck: Non-Lethal Black IC -- Willpower test, Stun damage only
@@ -3488,9 +3687,9 @@ async def perform_action(
             target_status=ic_target_status,
             target_bod=eff["bod"],
             armor_rating=armor,
-            ic_rating=cascade_power,
+            ic_rating=cascade_power + atk_power_delta,     # + combat-maneuver Position Power
             attacker_is_ic=True,
-            tn_modifier=cluster_penalty,
+            tn_modifier=cluster_penalty + atk_tn_delta,    # + Parry(+)/Position(-) to-hit delta
             shield_successes=shield_succ,
         )
         final_dmg = attack["resistance"]["final_damage_level"]
@@ -3597,8 +3796,8 @@ async def perform_action(
             state["end_reason"] = "persona_crashed"
             break
 
-    # Handle logon completion
-    if body.action_type == "logon_to_host" and test["success"]:
+    # Handle logon completion (player-action result; parameterized so new_turn's flush skips it).
+    if logon_completed:
         state["logon_complete"] = True
         _append_event(state, {
             "type": "logon",
@@ -3606,7 +3805,7 @@ async def perform_action(
         })
 
     # Enemy deckers act automatically (app-as-GM), once per pass on the passes their OWN
-    # initiative reaches (init//10+1) -- they rolled initiative once when they entered.
+    # initiative reaches (ceil(init/10) passes) -- they rolled initiative once when they entered.
     cur_pass = state.get("current_pass", 1)
     for enemy in list(state.get("enemy_deckers", [])):
         if state.get("run_ended"):
@@ -3617,8 +3816,796 @@ async def perform_action(
             enemy["acted_pass"] = cur_pass
             _enemy_decker_take_turn(state, decker, run, enemy)
 
+
+# NOTE: perform_action is ~600 LOC and combines action resolution, probe IC, and
+# the proactive IC turn loop. A split is planned but deferred until gameplay rules
+# stabilize. See docs/refactor-notes.md (R1) for the planned structure, risks, and
+# why this hasn't been done yet -- read that before reorganizing.
+@router.post("/{run_id}/action", response_model=MatrixRunRead)
+async def perform_action(
+    run_id: int,
+    body: RunActionInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Perform a decker system operation.
+    Resolves the test, updates security tally, checks sheaf triggers, activates IC.
+    """
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, f"Run is not active (status: {run.status})")
+
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
+    decker = run.decker_json
+    eff = _get_decker_effective(decker, state)
+
+    if state.get("run_ended"):
+        raise HTTPException(400, "Run has already ended")
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+
+    # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
+    # the shared helper and return -- mirroring POST /{run_id}/logoff. Without this the
+    # graceful_logoff action fell through to the generic test below and never actually ended
+    # the run.
+    if body.action_type == "graceful_logoff":
+        _spend_pass_action(state, "graceful_logoff")   # vr2: Graceful Logoff is a Complex Action
+        success = _apply_graceful_logoff(
+            state, decker,
+            hacking_pool_dice=body.hacking_pool_dice,
+            deception_utility=body.utility_rating,
+        )
+        if success:
+            run.status = "escaped"
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Storage pre-check: a Download cannot even be attempted if the named file would not fit the
+    # deck's remaining free storage (vr2 finite memory). Block before spending the action so the
+    # player isn't charged a pass for an impossible download. storage_free_mp < 0 = untracked.
+    if body.action_type == "download_data" and body.target_file:
+        free = state.get("storage_free_mp", -1)
+        if free is not None and free >= 0:
+            tgt_name = body.target_file.strip().lower()
+            pd = next((p for p in (state.get("paydata") or [])
+                       if str(p.get("name", "")).strip().lower() == tgt_name), None)
+            if pd is not None and not pd.get("downloaded"):
+                # Use the SAME effective stored size the download will charge, so a Compressor
+                # lets the player grab a file that fits compressed even if its full size would not.
+                comp = _effective_compressor(decker)
+                stored, _compressible = _compressed_store_size(comp, pd.get("density", 0))
+                remaining = max(0, free - state.get("storage_used_mp", 0))
+                if stored > remaining:
+                    raise HTTPException(
+                        400,
+                        f"Not enough deck storage: \"{pd.get('name')}\" needs {stored} Mp but only "
+                        f"{remaining} Mp free. Purge stored files or free storage memory first."
+                    )
+
+    # Validate Passcode (house rule): a FAILED attempt permanently locks the operation out for the
+    # rest of the run -- reject a retry BEFORE spending the action so no initiative pass is wasted.
+    if body.action_type == "validate_passcode" and state.get("validate_passcode_attempted"):
+        raise HTTPException(400, "Validate Passcode already failed this run -- it cannot be attempted again.")
+
+    # A background Download Data transfer commits the deck's Complex action to an automatic Null
+    # Operation each turn (vr2 ongoing operation), so while one runs the decker may take only FREE
+    # actions (e.g. Analyze IC). Refuse any Simple/Complex op until the transfer completes or is
+    # abandoned (log off) -- advancing the turn (New Turn) is what progresses it.
+    if state.get("active_download") and _ACTION_COST.get(body.action_type, "Complex") != "Free":
+        _dl = state["active_download"]
+        if body.action_type == "download_data":
+            raise HTTPException(
+                400,
+                f"A download is already in progress (\"{_dl.get('file')}\", "
+                f"{_dl.get('turns_left')} turn(s) left). Finish or abandon it before starting another.")
+        raise HTTPException(
+            400,
+            f"Download in progress (\"{_dl.get('file')}\", {_dl.get('turns_left')} turn(s) left) -- "
+            "the deck's Complex action is committed to the transfer. Only Free actions are available "
+            "until it completes; advance the turn (New Turn) to continue it.")
+
+    # Action economy: spend this action's cost from the current initiative pass (auto-advances
+    # passes; blocks when all passes are spent -> New Turn). vr2: 2 Simple OR 1 Complex + 1 Free.
+    _spend_pass_action(state, body.action_type)
+
+    # Combat maneuvers (vr2 L1982): Evade Detection / Parry Attack / Position Attack are opposed
+    # Evasion-vs-Sensor tests against ONE opposing icon -- NOT a host System Test -- so they add
+    # no security tally and never fall through to the generic test below. Resolved and returned.
+    if body.action_type in _MANEUVER_ACTIONS:
+        _apply_maneuver(state, decker, eff, body)
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    sec_code = state["host_security_code"]
+    sec_value = state["host_security_value"]
+    subsystem_rating = _subsystem_rating(state, body.subsystem)
+    det_factor = _effective_detection_factor(state, decker)
+    state["detection_factor"] = det_factor  # keep serialized run in sync for the UI
+
+    # Decker skill dice + utility reduction
+    _spend_hp(state, body.hacking_pool_dice)
+    base_skill = decker.get("computer_skill", 4)
+    pool = base_skill + body.hacking_pool_dice
+    tn_modifier = body.extra_tn_modifier
+    if body.utility_rating > 0:
+        tn_modifier -= body.utility_rating  # utility reduces TN
+    # Analyze Icon (Control test) is uniquely sharpened by the decker's gear: vr2 reduces its TN
+    # by the Sensor rating IN ADDITION to the Analyze utility (already applied above). The rules
+    # floor of "minimum TN of 2" is enforced by system_test's max(2, ...) clamp.
+    if body.action_type == "analyze_icon":
+        tn_modifier -= eff.get("sensor", 0)
+    # Validate Passcode (house rule): the plant test itself is +2 TN. Separately, once a passcode
+    # has been validated this run (passcode_tn_bonus), every OTHER System Test gets -2 TN -- the
+    # buff never helps the validate test itself. Both feed the generic system_test below.
+    if body.action_type == "validate_passcode":
+        tn_modifier += 2
+    elif state.get("passcode_tn_bonus"):
+        tn_modifier -= 2
+
+    # Swap Memory (Simple Action, no test): move programs between storage and active memory.
+    # Active programs always keep a storage copy, so a swap only shifts *active* memory usage --
+    # deck storage_free_mp is unaffected. See _apply_swap_memory for the three resolution modes.
+    if body.action_type == "swap_memory":
+        new_decker = copy.deepcopy(decker)
+        changed, desc = _apply_swap_memory(
+            state, new_decker,
+            target_program=body.target_program,
+            swap_out_program=body.swap_out_program,
+        )
+        _append_event(state, {"type": "swap_memory", "description": desc})
+        if changed:
+            run.decker_json = new_decker
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Medic (Complex Action, self-targeted -- NOT an opposed subsystem System Test): heal boxes
+    # of the decker's own persona/icon Condition Monitor. Resolved here and returned so it never
+    # falls through to the generic system_test below, which would log a bogus subsystem result.
+    if body.action_type == "medic":
+        _apply_medic(state, decker)
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Restore (Complex Action, self-targeted defensive utility -- NOT an opposed subsystem System
+    # Test): repair the TEMPORARY crippler reductions to the icon's persona attributes (BEMS). It
+    # cannot touch permanent Persona-chip damage and does NOT degrade. Resolved here and returned
+    # so it never falls through to the generic system_test below.
+    if body.action_type == "restore":
+        _apply_restore(state, decker, target=body.target_program)
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Disinfect (Complex Action): a System Test against the subsystem hosting a worm (TN reduced by
+    # the carried Disinfect utility). Success DESTROYS the targeted Worm lurking-IC with no tally
+    # add (a Disinfect is not a cybercombat crash); failure risks the Worm Infection Test against
+    # the MPCP. Resolved here and returned so it never falls through to the generic system_test.
+    if body.action_type == "disinfect":
+        _apply_disinfect(
+            state, decker,
+            subsystem=body.subsystem,
+            subsystem_rating=subsystem_rating,
+            decker_pool=pool,
+            target_ic_id=body.target_ic_id,
+        )
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Defuse Data Bomb (Complex Action): a Computer Test against the controlling subsystem rating
+    # (Files for a file bomb, Slave for a device bomb -- derived from the bomb's own scope, not the
+    # client) reduced by the carried Defuse utility. Success disarms the bomb with NO tally add (a
+    # defuse is not a crash); an all-1s botch detonates it; any other failure leaves it primed to
+    # retry. Resolved here and returned so it never falls through to the generic system_test below.
+    if body.action_type == "defuse_data_bomb":
+        # vr2 L463-471: test the bomb against ITS controlling subsystem -- Files for a file bomb,
+        # Slave for a device bomb -- derived from the matched bomb's scope, not the client-sent
+        # subsystem (so a Slave bomb is never mis-tested against the Files rating).
+        defuse_sub = _defuse_target_subsystem(state, body.target_file) or body.subsystem
+        _apply_defuse_bomb(
+            state, decker, eff,
+            subsystem=defuse_sub,
+            subsystem_rating=_subsystem_rating(state, defuse_sub),
+            decker_pool=pool,
+            sec_value=sec_value,
+            sec_code=sec_code,
+            target_file=body.target_file,
+        )
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Steamroller (Complex Action): the dedicated anti-tar weapon. Inflicts (Rating)D on a named
+    # Tar Baby / Tar Pit lurking-IC and is IMMUNE to the tar crash-backlash (it never runs the
+    # tar's opposed crash test, so the decker's utilities are never crashed/corrupted). A crash
+    # removes the tar and adds its rating to the tally unless Stealth(Skulk)-masked or the tar is
+    # suppressed. Targets ONLY tar IC (non-tar target_ic_id is rejected). Resolved here and
+    # returned so it never falls through to the generic system_test below.
+    if body.action_type == "steamroller":
+        _apply_steamroller(
+            state, decker,
+            sec_code=sec_code,
+            decker_pool=pool,
+            target_ic_id=body.target_ic_id,
+        )
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Slow (Complex Action): reduce a proactive IC's execution speed. A to-hit Computer Test then
+    # an opposed Resistance (Slow Rating) Test; on a win the IC loses actions and, with none left,
+    # HANGS for the turn -- the proactive-IC loop honours ``ic['actions_lost']`` and new_turn clears
+    # it unless the IC is suppressed. Reactive IC and location-cycle trace IC are rejected (400).
+    # Resolved here and returned so it never falls through to the generic system_test below.
+    if body.action_type == "slow":
+        _apply_slow(
+            state, decker,
+            sec_code=sec_code,
+            decker_pool=pool,
+            target_ic_id=body.target_ic_id,
+        )
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Decompress File (Complex Action, no test -- pure storage bookkeeping like Swap Memory):
+    # expand a previously-downloaded COMPRESSED file (stored at half size via the Compressor
+    # utility) back to its full size so it can be read/used. Needs the extra free Mp when storage
+    # is tracked (rejected 400 if it won't fit -- and the action is not spent). Resolved here and
+    # returned so it never falls through to the generic system_test below.
+    if body.action_type == "decompress_file":
+        _apply_decompress(state, decker, target_file=body.target_file)
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # DINAB ("Decker In A Box"), Free Action (vr2_rules.md L1665): let ONE DINAB-equipped program
+    # run itself autonomously at skill = effective DINAB rating, alongside the decker's own pass.
+    # Offensive utilities reuse cybercombat / crippler resolution; everything else runs a generic
+    # System Test. Failure degrades the rating (-1); a failed all-1s roll crashes it. Resolved here
+    # and returned so it never falls through to the generic system_test below.
+    if body.action_type == "dinab":
+        _apply_dinab(
+            state, decker,
+            util=body.target_program,
+            sec_code=sec_code, sec_value=sec_value,
+            subsystem=body.subsystem, subsystem_rating=subsystem_rating,
+            det_factor=det_factor,
+            target_ic_id=body.target_ic_id, target_file=body.target_file,
+        )
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Purge Hog (Complex Action): Computer test to wipe a Hog virus -- success removes the
+    # infection AND crashes the infected program (reload it afterward via Swap Memory).
+    if body.action_type == "purge_hog":
+        infections = state.get("hog_infections") or []
+        if not infections:
+            _append_event(state, {"type": "purge_hog", "description": "No Hog virus to purge."})
+        else:
+            inf = next((i for i in infections if i.get("id") == body.target_program), infections[0])
+            pd = state.setdefault("program_damage", {})
+            name, _eff = _highest_running_utility(decker, pd)
+            base = (decker.get("utilities") or {}).get(name, 0) if name else 0
+            purge = eng.hog_purge_test(
+                computer_skill=decker.get("computer_skill", 4), hog_rating=inf.get("rating", 4),
+                infected_program_rating=base, hardening=decker.get("hardening", 0))
+            if purge["purged"]:
+                state["hog_infections"] = [i for i in infections if i is not inf]
+                if name:
+                    pd[name] = base  # the purge sacrifices the infected program (crashed)
+                desc = (f"Purged Hog-{inf.get('rating')} (TN {purge['tn']}) -- virus removed; the "
+                        f"{name.replace('_', ' ').title() if name else 'infected'} program is wiped "
+                        "(reload via Swap Memory).")
+            else:
+                desc = f"Purge FAILED (TN {purge['tn']}) -- Hog-{inf.get('rating')} persists."
+            _append_event(state, {"type": "purge_hog", "decker_roll": purge["roll"], "description": desc})
+        run.state_json = state
+        await db.commit(); await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Decrypt File is resolved against a Scramble IC (its rating IS the decrypt TN), NOT the generic
+    # subsystem test, and NEVER falls through to it -- Decrypt adds no security tally (vr2 L495).
+    # A scramble can only be targeted once DISCOVERED via an Analyze Subsystem on the Files/Slave
+    # subsystem that holds it (vr2 L1864); until then the player cannot even see it, and this
+    # handler refuses the op. A failed decrypt vs a POISON Scramble destroys the protected data --
+    # key data is a permanent, mission-critical loss shown to the player.
+    if body.action_type == "decrypt_file":
+        scrambles = state.get("scrambles") or []
+        disc = [s for s in scrambles if s.get("discovered")]
+        scr = None
+        if body.target_file:
+            scr = next((s for s in disc if s.get("target_key") == body.target_file), None)
+            if scr is None:
+                want = _target_file_name(body.target_file).strip().lower()
+                scr = next((s for s in disc
+                            if _target_file_name(s.get("target_key", "")).strip().lower() == want), None)
+        if scr is None:
+            # No discovered scramble matches (unknown target, or none discovered yet). Do NOT run
+            # the decrypt test and do NOT touch the tally -- just tell the decker to Analyze first.
+            _append_event(state, {"type": "decrypt", "success": False,
+                "description": "No discovered scramble on that target -- Analyze the Files/Slave subsystem first."})
+            run.state_json = state
+            await db.commit(); await db.refresh(run)
+            return _serialize_run(run, auth)
+        dt = eng.scramble_decrypt_test(
+            decker_pool=pool,
+            scramble_rating=scr.get("rating", 6),
+            decrypt_utility=body.utility_rating,
+        )
+        if dt["decrypted"]:
+            state["scrambles"] = [s for s in scrambles if s is not scr]
+            _append_event(state, {
+                "type": "decrypt", "success": True, "decker_roll": dt["roll"],
+                "description": "Scramble decrypted -- protected data accessible. No tally increase.",
+            })
+        else:
+            paydata = state.get("paydata") or []
+            protected = next((p for p in paydata
+                              if p.get("name")
+                              and _target_file_name(scr.get("target_key", "")).strip().lower()
+                              == str(p["name"]).strip().lower()), None)
+            is_key = bool(protected and protected.get("is_key"))
+            cons = eng.scramble_failure_consequence(
+                variant=scr.get("variant", "standard"), is_key=is_key)
+            if cons.get("data_destroyed") and protected is not None:
+                protected["destroyed"] = True
+            _append_event(state, {
+                "type": "decrypt", "success": False, "decker_roll": dt["roll"],
+                "key_data_lost": cons.get("key_data_lost", False),
+                "data_destroyed": cons.get("data_destroyed", False),
+                "file_name": (protected or {}).get("name"),  # lets the UI grey the destroyed file
+                "description": cons["message"],
+            })
+            # Exploding Scramble: a failed decrypt sets off its linked data bomb (vr2).
+            if cons.get("detonate_data_bomb"):
+                _detonate_data_bomb(
+                    state, decker, eff, ic_rating=scr.get("rating", 6),
+                    sec_value=sec_value, sec_code=sec_code,
+                    headline="Exploding Scramble's data bomb")
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+
+    # Console access additionally halves the host Security Value for Access Tests (vr2).
+    test_sec_value = sec_value
+    if body.subsystem == "access" and state.get("console_access"):
+        test_sec_value = -(-sec_value // 2)
+    # Stolen linked passcode + a Deception utility: -2 TN to Logon to Host (vr2).
+    if (body.action_type == "logon_to_host" and body.utility_rating > 0
+            and state.get("linked_passcode")):
+        tn_modifier -= 2
+
+    test = eng.system_test(
+        decker_pool=pool,
+        subsystem_rating=subsystem_rating,
+        security_value=test_sec_value,
+        det_factor=det_factor,
+        extra_tn_modifier=tn_modifier,
+    )
+
+    # Update tally
+    old_tally = state["security_tally"]
+    state["security_tally"] = old_tally + test["tally_increase"]
+
+    log_entry: dict[str, Any] = {
+        "type": "action",
+        "action": body.action_type,
+        "subsystem": body.subsystem,
+        "description": (
+            f"{body.action_type.replace('_', ' ').title()} -- "
+            f"{'SUCCESS' if test['success'] else 'FAILED'} "
+            f"({test['decker_roll']['successes']} vs {test['host_roll']['successes']} successes). "
+            f"Tally +{test['tally_increase']} -> {state['security_tally']}."
+        ),
+        "success": test["success"],
+        "decker_roll": test["decker_roll"],
+        "host_roll": test["host_roll"],
+        "tally_increase": test["tally_increase"],
+        "tally_total": state["security_tally"],
+        "action_cost": _ACTION_COST.get(body.action_type, "Complex"),  # Free / Simple / Complex
+        "note": body.note,
+    }
+    _append_event(state, log_entry)
+    state["actions_this_turn"] = state.get("actions_this_turn", 0) + 1
+
+    # Analyze IC: a successful Analyze reveals an IC's type + rating to the decker (vr2 #9).
+    # Until then the player only sees an "Unknown IC" marker (redacted in _serialize_run).
+    if body.action_type == "analyze_ic" and test["success"]:
+        active = [ic for ic in state.get("active_ic", []) if ic.get("status") == "active"]
+        target = None
+        if body.target_ic_id:
+            target = next((ic for ic in active if ic["id"] == body.target_ic_id), None)
+        if target is None:
+            target = next((ic for ic in active if not ic.get("analyzed")), None)
+        if target is not None:
+            target["analyzed"] = True
+            _append_event(state, {
+                "type": "ic_analyzed",
+                "ic_id": target["id"],
+                "ic_type": target["type"],
+                "ic_rating": target["rating"],
+                "description": f"IC analyzed: {target['type']} Rating {target['rating']} revealed.",
+            })
+
+    # Analyze Icon (Free, Control test): targeted scan that reveals an undefused data bomb on the
+    # named file or the Slave device (vr2 L463). The ONLY bomb-discovery path -- a broad Analyze
+    # Subsystem no longer surfaces them. See _apply_analyze_icon.
+    if body.action_type == "analyze_icon" and test["success"]:
+        _apply_analyze_icon(state, target_file=body.target_file or "")
+
+    # Analyze Subsystem: a successful analysis of the concealing subsystem reveals any trap
+    # door hidden on it. Per vr2 the decker learns a port to ANOTHER system exists, but the
+    # destination stays hidden until they enter it (revealed on arrival). Separately, a
+    # successful Analyze Subsystem on ACCESS reveals THIS host's LTG-access status -- the only
+    # way to learn whether a host reached via a trap door is also reachable from the grid.
+    if body.action_type == "analyze_subsystem" and test["success"]:
+        sub = body.subsystem
+        newly = [d for d in (state.get("trap_doors") or [])
+                 if not d.get("discovered") and (d.get("subsystem", "slave") == sub)]
+        for d in newly:
+            d["discovered"] = True
+            src = d.get("source_piece") or ""
+            _append_event(state, {
+                "type": "trap_door_found",
+                "trap_door_id": d.get("id"),
+                "subsystem": sub,
+                "source_piece": src,
+                "description": (
+                    f"Concealed port detected on the {sub.capitalize()} subsystem"
+                    + (f" ({src})" if src else "")
+                    + " -- it links to another system. Destination unknown until you enter or file it."
+                ),
+            })
+        # Scramble IC is likewise revealed by an Analyze Subsystem on the subsystem that holds it
+        # (vr2 L1864: Analyze Subsystem "identifies ... scramble IC, and other defenses"). Until a
+        # scramble is discovered it is not even offered for Decrypt File. Access scramble is not
+        # meaningfully authored in this app, but _scramble_subsystem handles it generically.
+        newly_scr = [s for s in (state.get("scrambles") or [])
+                     if not s.get("discovered") and _scramble_subsystem(s.get("target_key", "")) == sub]
+        for s in newly_scr:
+            s["discovered"] = True
+            _append_event(state, {
+                "type": "scramble_found",
+                "target_key": s.get("target_key", ""),
+                "subsystem": sub,
+                "description": (
+                    f"Scramble IC detected on the {sub.capitalize()} subsystem "
+                    f"({_scramble_label(s.get('target_key', ''))}) -- Decrypt it before "
+                    "operating on the protected data."
+                ),
+            })
+        # Data bombs are NOT surfaced here: a node-wide Analyze Subsystem is too cheap to also
+        # reveal every booby-trapped file/device. Per vr2 a data bomb is detected by an Analyze
+        # Icon on the specific protected file or device (see the analyze_icon handler above).
+        if sub == "access" and not state.get("host_ltg_revealed"):
+            state["host_ltg_revealed"] = True
+            has_ltg = bool(state.get("host_has_ltg"))
+            _append_event(state, {
+                "type": "host_ltg_revealed",
+                "has_ltg": has_ltg,
+                "description": (
+                    "Access subsystem analyzed -- this host "
+                    + ("HAS dedicated LTG access (reachable from the regular grid)."
+                       if has_ltg else
+                       "has NO LTG access (reachable only via a direct line or trap door).")
+                ),
+            })
+
+    # Analyze Host: reveal the host's ACIFS subsystem ratings. 5+ net successes (or enough to cover
+    # every hidden rating) reveals ALL remaining; otherwise the credits are banked and the decker
+    # chooses which hidden ratings to reveal via POST /reveal-host-ratings. See _apply_analyze_host.
+    if body.action_type == "analyze_host" and test["success"]:
+        _apply_analyze_host(state, test["decker_net_successes"])
+
+    # Analyze Security: the decker learns its CURRENT security tally + alert status (otherwise
+    # redacted for players). Snapshot them into the player-visible security_known (vr2: the GM
+    # reveals the tally only when the decker runs this test).
+    if body.action_type == "analyze_security" and test["success"]:
+        snapshot = {
+            "tally": state["security_tally"],
+            "alert": state.get("alert_status", "none"),
+            "turn": state.get("current_turn", 1),
+        }
+        state["security_known"] = snapshot
+        _append_event(state, {
+            "type": "security_analyzed",
+            "known_tally": snapshot["tally"],
+            "known_alert": snapshot["alert"],
+            "description": (
+                f"Analyze Security -- security tally {snapshot['tally']}, "
+                f"alert status {snapshot['alert'].upper()} (as of turn {snapshot['turn']})."
+            ),
+        })
+
+    # Crash Host: a successful Control/Crash test starts a host-shutdown countdown (vr2). turns =
+    # round_up(10 / successes); during the countdown all IC ratings drop by 2, and at the END of
+    # each turn the host rolls Security Value vs the decker's MPCP to abort (see
+    # _process_crash_countdown). If the countdown completes the host crashes and the decker rides
+    # it out, logging off cleanly -- a successful clean exit (no dump shock).
+    if body.action_type == "crash_host" and test["success"]:
+        successes = max(1, test["decker_net_successes"])
+        turns = -(-10 // successes)   # ceil(10 / net successes) -- a more decisive win crashes faster
+        decker_mpcp = int((run.decker_json or {}).get("mpcp", 1) or 1)
+        state["crash_host_countdown"] = {
+            "turns_remaining": turns,
+            "total_turns": turns,
+            "decker_mpcp": decker_mpcp,
+            "started_turn": state.get("current_turn", 1),
+        }
+        _apply_crash_ic_penalty(state)
+        _append_event(state, {
+            "type": "crash_host_started",
+            "turns": turns,
+            "description": (
+                f"Crash Host initiated -- host shutdown in {turns} turn"
+                f"{'s' if turns != 1 else ''} ({successes} successes). All IC ratings -2 during "
+                "the countdown; the host rolls Security Value vs your MPCP each turn to abort."
+            ),
+        })
+
+    # Validate Passcode (house rule): a net success grants Legitimate status (IC uses the
+    # Legitimate TN column) AND a run-long -2 TN to every other System Test. A failed plant is a
+    # ONE-SHOT -- it can never be retried this run, and the security tally still rose by the host's
+    # successes (already applied by the generic tally bump above).
+    if body.action_type == "validate_passcode" and test["success"]:
+        state["has_legitimate_status"] = True
+        state["passcode_tn_bonus"] = True
+        _append_event(state, {
+            "type": "validate_passcode",
+            "success": True,
+            "description": (
+                "Validate Passcode successful -- Legitimate status granted (IC uses the Legitimate "
+                "TN column until logoff or active alert), and every other System Test gets -2 TN for "
+                "the rest of the run."
+            ),
+        })
+    elif body.action_type == "validate_passcode" and not test["success"]:
+        state["validate_passcode_attempted"] = True
+        _append_event(state, {
+            "type": "validate_passcode",
+            "success": False,
+            "description": (
+                f"Validate Passcode FAILED -- the host rejected the plant (tally +"
+                f"{test['tally_increase']}). It cannot be attempted again this run."
+            ),
+        })
+
+    # Decoy: deploy countermeasure persona; IC must roll 1D6 <= successes to hit it instead
+    if body.action_type == "decoy" and test["success"]:
+        d_successes = test["decker_roll"]["successes"]
+        state["decoy_successes"] = d_successes
+        state["decoy_hp"] = 0
+        _append_event(state, {
+            "type": "decoy_deployed",
+            "description": (
+                f"Decoy deployed with {d_successes} success(es). "
+                "Each proactive IC attack: roll 1D6 -- if result <= successes, IC hits decoy (10-box CM)."
+            ),
+            "successes": d_successes,
+        })
+
+    # Relocate: reset any trace IC in its location cycle back to hunt cycle
+    if body.action_type == "relocate" and test["success"]:
+        reset_count = 0
+        for ic in state.get("active_ic", []):
+            if ic["status"] == "active" and ic.get("trace_phase") == "locate":
+                ic["trace_phase"] = "hunt"
+                ic.pop("trace_locate_remaining", None)
+                reset_count += 1
+                _append_event(state, {
+                    "type": "relocate",
+                    "ic_id": ic["id"],
+                    "description": (
+                        f"Relocate succeeded -- {ic['type']}-{ic['rating']} "
+                        "reset to Hunt Cycle."
+                    ),
+                })
+        if not reset_count:
+            _append_event(state, {
+                "type": "relocate",
+                "description": "Relocate: no trace IC currently in location cycle.",
+            })
+
+    # Redirect Datatrail: each success increments redirects (-1 to Trace Factor)
+    if body.action_type == "redirect_datatrail" and test["success"]:
+        state["redirects_placed"] = state.get("redirects_placed", 0) + 1
+        _append_event(state, {
+            "type": "redirect_placed",
+            "description": (
+                f"Redirect placed. Trace Factor -1 going forward. "
+                f"Total redirects this run: {state['redirects_placed']}."
+            ),
+            "redirects_total": state["redirects_placed"],
+        })
+
+    # Locate Paydata (vr2 "Locate Paydata" -- ongoing operation): RAW reveals ONE Paydata Point
+    # per NET success. Reveal min(net successes, remaining) undiscovered files chosen at RANDOM
+    # via a LOCAL random.Random -- never seed the global RNG in a request path (AGENTS.md RNG
+    # rule). The seed is derived from run id + current turn + security tally + the count already
+    # located, so results are reproducible for fixed inputs yet reveal DIFFERENT files as the run
+    # progresses. Located files surface to the player via _serialize_run (located_paydata); the
+    # full paydata list stays GM-only. Repeatable until every paydata point is found.
+    if body.action_type == "locate_paydata" and test["success"]:
+        pool = [p for p in (state.get("paydata") or [])
+                if not p.get("located") and not p.get("destroyed")]
+        if pool:
+            net = max(1, int(test["decker_net_successes"]))
+            already_located = sum(1 for p in (state.get("paydata") or []) if p.get("located"))
+            seed = (
+                (int(getattr(run, "id", 0) or 0) * 1_000_003)
+                ^ (int(state.get("current_turn", 0) or 0) * 8191)
+                ^ (int(state.get("security_tally", 0) or 0) * 131)
+                ^ (already_located * 17)
+            )
+            rng = random.Random(seed)
+            newly = rng.sample(pool, min(net, len(pool)))
+            for p in newly:
+                p["located"] = True
+            _append_event(state, {
+                "type": "paydata_located",
+                "description": "Paydata located: " + ", ".join(
+                    f"{p.get('name', '?')} ({max(0, int(p.get('density', 0) or 0))} Mp)" for p in newly
+                ) + ".",
+                "files": [{"name": p.get("name"),
+                           "size_mp": max(0, int(p.get("density", 0) or 0)),
+                           "is_key": bool(p.get("is_key"))} for p in newly],
+            })
+        else:
+            _append_event(state, {
+                "type": "paydata_located",
+                "description": "Search complete -- no further paydata found.",
+            })
+
+    # Locate IC / Locate Decker (vr2 L1884/L1880 + L1998-1999, corrections #5/#6): the two
+    # re-detect operations for an icon that slipped you with an Evade Detection maneuver. Locate
+    # IC is a System Test only; Locate Decker adds the #6 opposed Sensor Test vs full Masking +
+    # Sleaze. Neither reveals never-seen icons (those betray themselves by acting) -- they only
+    # re-acquire icons you had already detected and then lost. See the helper docstrings.
+    if body.action_type == "locate_ic":
+        _apply_locate_ic(state, test_success=test["success"])
+
+    if body.action_type == "locate_decker":
+        _apply_locate_decker(state, decker, test_success=test["success"],
+                             scanner=max(0, int(body.utility_rating or 0)))
+
+    # Delete File (vr2 Edit File / Files Test): the only in-app use of Edit File is to ERASE a
+    # located paydata file -- sabotage that denies the data to its owner. A successful Files test
+    # marks the targeted paydata destroyed (it drops out of the located/decrypt/download lists and
+    # the UI greys it). A bombed file still detonates on this access (see _trigger_access_data_bomb).
+    if body.action_type == "edit_file" and test["success"] and body.target_file:
+        tgt_name = body.target_file.strip().lower()
+        pd = next((p for p in (state.get("paydata") or [])
+                   if str(p.get("name", "")).strip().lower() == tgt_name and not p.get("destroyed")),
+                  None)
+        if pd is not None:
+            pd["destroyed"] = True
+            _append_event(state, {
+                "type": "file_deleted",
+                "file_name": pd.get("name"),
+                "description": f"File \"{pd.get('name')}\" erased from the host -- the data is gone.",
+            })
+
+    # Download Data: on success, pull the named file -- record it in the player-visible ledger
+    # (downloaded_files) and consume finite deck storage. The pre-check above guarantees it fits.
+    if body.action_type == "download_data" and test["success"] and body.target_file:
+        tgt_name = body.target_file.strip().lower()
+        pd = next((p for p in (state.get("paydata") or [])
+                   if str(p.get("name", "")).strip().lower() == tgt_name and not p.get("destroyed")),
+                  None)
+        if pd is not None and not pd.get("downloaded"):
+            # Transfer time (vr2 Download Data is an ongoing op at the deck's I/O bandwidth,
+            # L1873/L1256): turns = ceil(stored / io_speed) where ``stored`` is the SAME
+            # compressor-effective footprint the file will occupy on the deck -- a Compressor that
+            # can handle the file halves what must be transferred; an oversized file transfers
+            # full. A file that fits in one turn's bandwidth lands immediately; a larger one runs
+            # as a multi-turn BACKGROUND transfer that auto-rolls a Null Operation each turn.
+            density = max(0, int(pd.get("density", 0) or 0))
+            comp = _effective_compressor(decker)
+            stored, compressible = _compressed_store_size(comp, density)
+            turns = _download_turns(decker, stored)
+            if turns <= 1:
+                _complete_download(state, decker, pd)
+            else:
+                io = int(decker.get("io_speed", 0) or 0)
+                state["active_download"] = {
+                    "file": pd.get("name"),
+                    "stored_mp": stored,
+                    "full_mp": density,
+                    "compressed": compressible,
+                    "is_key": bool(pd.get("is_key")),
+                    "turns_total": turns,
+                    "turns_left": turns - 1,
+                    "started_turn": state.get("current_turn", 1),
+                }
+                _append_event(state, {
+                    "type": "download_started",
+                    "file_name": pd.get("name"),
+                    "size_mp": stored,
+                    "turns_total": turns,
+                    "turns_left": turns - 1,
+                    "description": (
+                        f"Began downloading \"{pd.get('name')}\" ({stored} Mp) at {io} Mp/turn -- "
+                        f"about {turns} Combat Turns. The deck auto-runs a Null Operation each turn "
+                        "until it completes; only Free actions are available until then. Logging "
+                        "off or a host crash before it finishes corrupts the file."
+                    ),
+                })
+        elif pd is not None:
+            _append_event(state, {
+                "type": "data_downloaded",
+                "file_name": pd.get("name"),
+                "description": f"\"{pd.get('name')}\" already downloaded -- no additional storage used.",
+            })
+
+    # Data Bomb trigger (vr2_rules.md L473): a SUCCESSFUL access (Download/Edit/Upload) of a file
+    # or Slave device that still carries an UNDEFUSED bomb sets it off -- the decker gets the
+    # access AND eats the blast. A FAILED access does NOT trigger it, and a bomb already disarmed
+    # (via the Defuse Data Bomb action) is inert. Detonation adds the bomb's rating to the tally.
+    _trigger_access_data_bomb(
+        state, decker, eff, action_type=body.action_type, target_file=body.target_file or "",
+        test_success=test["success"], sec_value=sec_value, sec_code=sec_code)
+
+    # Check sheaf triggers
+    _check_and_activate_sheaf(state, sec_code)
+
+    # Ambush IC (app-as-GM): any lurking Tar Baby / Tar Pit fires at the utility the decker just
+    # ran on this System Test -- one opposed test per utility use. Gated on utility_rating > 0, so
+    # actions that ran no reducible utility (or the early-return actions above) never trigger it.
+    _autofire_lurking_tar(state, decker, body.action_type, body.utility_rating)
+
+    # Run probe tests for any active Probe IC
+    for ic in state.get("active_ic", []):
+        if ic["status"] != "active" or ic.get("suppressed"):
+            continue
+        if ic["type"] == "Probe":
+            probe = eng.probe_test(ic["rating"], det_factor)
+            # Probe IC is invisible (reactive): make a secret Sensor Test, then report
+            # the tally change at a detail level matching what the decker has detected.
+            lvl = _secret_sensor_test(state, decker, ic)
+            if probe["tally_increase"] > 0:
+                state["security_tally"] += probe["tally_increase"]
+                tally = state["security_tally"]
+                inc = probe["tally_increase"]
+                if lvl >= 3:
+                    desc = (f"Probe-{ic['rating']} test: {probe['roll']['successes']} successes "
+                            f"-> tally +{inc} -> {tally}")
+                elif lvl == 2:
+                    desc = f"Probe IC test: tally +{inc} -> {tally}"
+                elif lvl == 1:
+                    desc = f"Hidden IC probes your actions: tally +{inc} -> {tally}"
+                else:
+                    desc = f"Security tally rose by {inc} -> {tally} (source unidentified)"
+                ev = {"type": "probe_ic", "description": desc, "tally_increase": inc}
+                if lvl >= 1:
+                    ev["ic_id"] = ic["id"]  # only reference the IC once its presence is known
+                _append_event(state, ev)
+            _check_and_activate_sheaf(state, sec_code)
+
+    # Drive every app-controlled hostile for this initiative pass: proactive/trace IC attacks
+    # then enemy deckers. Probe IC (which test per System Test, above) are NOT driven here.
+    # The just-resolved Logon is carried in so its event still fires between the IC and enemy loops.
+    _advance_npc_pass(
+        state, decker, run,
+        eff=eff, sec_code=sec_code, sec_value=sec_value, det_factor=det_factor,
+        logon_completed=(body.action_type == "logon_to_host" and test["success"]),
+    )
+
     if state.get("run_ended"):
         run.status = state.get("end_reason", "crashed")
+    # A run that ends mid-transfer (e.g. a Free action drew a fatal enemy-decker attack) corrupts
+    # the in-progress download -- a partial copy is worthless (vr2 Download Data).
+    if state.get("run_ended") and state.get("active_download"):
+        _corrupt_active_download(state)
 
     # Auto-refresh Hacking Pool only when no IC (active or lurking) remains
     if not state.get("run_ended") and "hackingPool_total" in state:
@@ -3671,6 +4658,9 @@ async def attack_ic(
     opt_skulk  = max(0, int(atk_opts.get("skulk", 0) or 0))
     opt_area   = max(0, int(atk_opts.get("area", 0) or 0))
     cluster_penalty = _cluster_size(state, target_ic.get("cluster_id"))
+    # Combat maneuver: the target's Parry (raises the PC's to-hit TN) + the PC's own Position
+    # (lowers the TN and/or raises Power). Consumed by this single attack.
+    tgt_tn_delta, tgt_power_delta = _consume_attack_mods_vs_target(state, target_ic)
     # Area option lets one Attack Test cope with an IC cluster -- it offsets the cluster's
     # to-hit penalty (up to the Area rating). This is the single-target-engine equivalent of
     # "hit up to [Area] clustered targets with one test"; it eases the attacker's to-hit only.
@@ -3679,9 +4669,10 @@ async def attack_ic(
     # Shield/Shift raise the decker's to-hit TN; Penetration defeats Shield, Chaser defeats Shift.
     shield_shift = _shield_shift_tn_modifier(
         target_ic, penetration=opt_pen, chaser=opt_chaser)
-    tn = base_tn + shield_shift
+    tn = base_tn + shield_shift + tgt_tn_delta
     if opt_target:
         tn = max(2, tn - 2)   # Targeting option: -2 to-hit TN on attacks with this utility
+    tn = max(2, tn)           # clamp (a Position TN reduction can never push the TN below 2)
 
     attack_roll = eng.roll_dice(attack_pool, tn)
     base_dmg = rules.IC_DAMAGE_LEVEL[sec_code]
@@ -3689,7 +4680,8 @@ async def attack_ic(
     # IC resists with Security Value dice vs the combat TN (the attack Power here).
     # Armor reduces that POWER (lower TN -> the IC resists more easily) -- it does NOT lower
     # the damage level. Expert adds/removes resist dice (Defense +N, Offense -N -- the trade-off).
-    resist_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty
+    # A Position "Power" bonus raises the resist TN (the IC resists a harder-hitting strike).
+    resist_tn = rules.COMBAT_TN[sec_code]["intruding"] + cluster_penalty + tgt_power_delta
     if _ic_has_armor(target_ic):
         # Armor lowers the attack Power, not the damage level. vr2: Armor is extra-effective
         # vs an Area-option utility (+2 effective Armor), so an Area strike resists 2 deeper.
@@ -3962,6 +4954,9 @@ async def graceful_logoff(
     )
     if success:
         run.status = "escaped"
+    # Bailing out mid-transfer corrupts the partial download (vr2: needs the COMPLETE file).
+    if success and state.get("active_download"):
+        _corrupt_active_download(state)
 
     run.state_json = state
     await db.commit()
@@ -4139,6 +5134,46 @@ async def new_turn(
     if state.get("run_ended"):
         raise HTTPException(400, "Run has already ended")
 
+    # -- End-of-turn NPC pass flush (app-as-GM) --------------------------------------------------
+    # current_pass only ever climbs as far as the DECKER's own initiative passes (via the action
+    # economy), so a hostile with MORE passes than the decker -- or any hostile at all, when the
+    # decker ends the turn without acting -- would be cheated of the passes it never got. Before
+    # the turn resets, drive those remaining passes now: no human GM runs the opposition. Each
+    # NPC self-gates on its OWN initiative passes and its acted_pass marker, so passes already
+    # taken this turn are skipped (idempotent) and only the missing ones fire.
+    npc_decker = run.decker_json
+    npc_sec_code = state.get("host_security_code")
+    if npc_sec_code is not None:
+        npc_sec_value = state["host_security_value"]
+        max_npc_passes = 1
+        for _ic in state.get("active_ic", []):
+            if _ic.get("status") == "active":
+                max_npc_passes = max(max_npc_passes, _init_passes(_ic.get("initiative", 0)))
+        for _enemy in state.get("enemy_deckers", []):
+            if _enemy.get("status") == "active":
+                max_npc_passes = max(max_npc_passes, _enemy.get("initiative_passes", 1))
+        for _p in range(state.get("current_pass", 1), max_npc_passes + 1):
+            if state.get("run_ended"):
+                break
+            state["current_pass"] = _p
+            _check_and_activate_sheaf(state, npc_sec_code)
+            _advance_npc_pass(
+                state, npc_decker, run,
+                eff=_get_decker_effective(npc_decker, state),
+                sec_code=npc_sec_code, sec_value=npc_sec_value,
+                det_factor=_effective_detection_factor(state, npc_decker),
+                logon_completed=False,
+            )
+        if state.get("run_ended"):
+            # A flushed hostile pass killed the decker -- end the run here; do NOT advance the turn.
+            run.status = state.get("end_reason", "crashed")
+            if state.get("active_download"):
+                _corrupt_active_download(state)
+            run.state_json = state
+            await db.commit()
+            await db.refresh(run)
+            return _serialize_run(run, auth)
+
     hackingPool_total = state.get("hackingPool_total", 0)
     old_hp = state.get("hackingPool_remaining", hackingPool_total)
     state["hackingPool_remaining"] = hackingPool_total
@@ -4163,6 +5198,10 @@ async def new_turn(
     for enemy in state.get("enemy_deckers", []):
         enemy.pop("acted_pass", None)
 
+    # Combat maneuver: expire any Evade Detection windows whose re-detect turn has arrived
+    # (lazy re-detect also runs whenever an evaded icon is consulted mid-turn via _evade_active).
+    _sweep_evade_expiry(state)
+
     _append_event(state, {
         "type": "new_turn",
         "description": (
@@ -4181,17 +5220,139 @@ async def new_turn(
                 "description": f"Hog-{inf.get('rating')} virus drains your deck: {frag}.",
             })
 
+    # Persistent Worm infections attack the deck's MPCP once each Combat Turn (vr2). App-as-GM --
+    # the carried Disinfect utility defends automatically inside _resolve_lurking_worm; no human GM
+    # triggers it. An infected Worm is consumed; a failed one stays lurking to retry next turn.
+    for _worm in list(state.get("lurking_ic", [])):
+        if state.get("run_ended"):
+            break
+        if _worm.get("type") == "Worm" and _worm.get("status", "lurking") == "lurking":
+            _resolve_lurking_worm(state, decker, _worm)
+
+    # Multi-turn Download Data (vr2 ongoing operation): each turn a background transfer runs, the
+    # deck auto-performs a Null Operation (Control System Test) while it waits -- its tally rises
+    # like any op and can wake the sheaf. When the final turn elapses the file lands on the deck
+    # (storage charged); until then the decker had only Free actions.
+    _dl = state.get("active_download")
+    if _dl and not state.get("run_ended"):
+        _tick_active_download(state, decker, _dl)
+
     # End-of-turn Crash Host processing: host abort roll + countdown decrement / resolution.
     _process_crash_countdown(state)
 
     # A completed Crash Host ends the run as a clean exit (treated like a graceful logoff).
     if state.get("run_ended"):
         run.status = "escaped" if state.get("end_reason") == "host_crashed" else state.get("end_reason", "crashed")
+    # A transfer still running when the run ends this turn (host crash, etc.) is corrupted (vr2).
+    if state.get("run_ended") and state.get("active_download"):
+        _corrupt_active_download(state)
 
     run.state_json = state
     await db.commit()
     await db.refresh(run)
     return _serialize_run(run, auth)
+
+
+def _resolve_lurking_worm(state: dict, decker: dict, lurking: dict) -> None:
+    """Resolve one lurking Worm's infection attempt against the deck's MPCP (vr2).
+
+    The CARRIED Disinfect utility defends automatically (a running Disinfect raises the Worm
+    Infection Test target number) -- read from the decker's load-out, never a GM-typed value, so a
+    decker who actually loaded Disinfect defends and one who did not stays at +0. On infection the
+    MPCP is permanently corrupted (chip replacement required) and the Worm is consumed; otherwise
+    it stays lurking to try again next Combat Turn. Mutates ``state``; appends a ``worm_resolved``
+    event. Called automatically each Combat Turn (new_turn) -- there is no human GM.
+    """
+    disinfect_rating = _effective_disinfect(decker, state)
+    wr = eng.worm_attack(
+        ic_rating=lurking["rating"],
+        mpcp_rating=decker.get("mpcp", 1),
+        hardening=decker.get("hardening", 0),
+        disinfect_utility=disinfect_rating,
+    )
+    if wr["mpcp_infected"]:
+        state["mpcp_infected"] = True
+        state["chip_replacement_required"] = True
+        state["lurking_ic"] = [
+            ic for ic in state.get("lurking_ic", []) if ic["id"] != lurking["id"]]
+        _append_event(state, {
+            "type": "worm_resolved", "ic_id": lurking["id"], "ic_type": "Worm",
+            "outcome": "mpcp_infected", "roll": wr["roll"],
+            "description": (
+                f"Worm-{lurking['rating']} infected the MPCP -- chip replacement required "
+                f"(permanent). Carried Disinfect-{disinfect_rating} failed."
+            ),
+        })
+    else:
+        _append_event(state, {
+            "type": "worm_resolved", "ic_id": lurking["id"], "ic_type": "Worm",
+            "outcome": "repelled", "roll": wr["roll"],
+            "description": (
+                f"Worm-{lurking['rating']} repelled by carried Disinfect-{disinfect_rating}. "
+                f"Worm still lurking."
+            ),
+        })
+
+
+def _resolve_lurking_tar(state: dict, decker: dict, lurking: dict,
+                         utility_name: str, utility_rating: int) -> None:
+    """Resolve one lurking Tar Baby / Tar Pit against the utility the decker just ran (vr2).
+
+    An opposed test, utility rating vs IC. If the IC wins, both it and the utility crash (a Tar Pit
+    additionally corrupts EVERY copy of the utility, and a One-Shot copy is wiped from the deck);
+    if the utility wins, the tar stays lurking to trigger on the next utility use. Mutates
+    ``state``; appends a ``reactive_ic_resolved`` (and possibly ``tar_pit_corruption``) event.
+    Called automatically on utility use (perform_action) -- there is no human GM.
+    """
+    is_tar_pit = lurking["type"] == "Tar Pit"
+    result = eng.tar_baby_test(
+        ic_rating=lurking["rating"],
+        utility_rating=utility_rating,
+        is_tar_pit=is_tar_pit,
+        mpcp_rating=decker.get("mpcp", 1),
+        hardening=decker.get("hardening", 0),
+    )
+
+    if result["ic_wins"]:
+        state["lurking_ic"] = [
+            ic for ic in state.get("lurking_ic", []) if ic["id"] != lurking["id"]
+        ]
+        _append_event(state, {
+            "type": "reactive_ic_resolved",
+            "ic_id": lurking["id"],
+            "ic_type": lurking["type"],
+            "outcome": "ic_wins",
+            "ic_roll": result["ic_roll"],
+            "util_roll": result["util_roll"],
+            "description": (
+                f"{lurking['type']}-{lurking['rating']} triggered vs "
+                f"{utility_name}-{utility_rating}. "
+                f"IC wins -- {utility_name} and {lurking['type']} both crash."
+            ),
+        })
+        if is_tar_pit and result.get("all_copies_corrupted"):
+            _append_event(state, {
+                "type": "tar_pit_corruption",
+                "description": f"Tar Pit: ALL copies of {utility_name} corrupted.",
+                "tar_pit_roll": result.get("tar_pit_roll"),
+            })
+        # If the crashed utility was a One-Shot copy, the tar wipes EVERY copy on the deck
+        # (vr2_rules.md L1667) -- it can never be reloaded this run. No-op for a normal program.
+        _wipe_one_shot(state, decker, utility_name)
+    else:
+        _append_event(state, {
+            "type": "reactive_ic_resolved",
+            "ic_id": lurking["id"],
+            "ic_type": lurking["type"],
+            "outcome": "util_wins",
+            "ic_roll": result["ic_roll"],
+            "util_roll": result["util_roll"],
+            "description": (
+                f"{lurking['type']}-{lurking['rating']} triggered vs "
+                f"{utility_name}-{utility_rating}. "
+                f"Utility wins -- {lurking['type']} remains lurking."
+            ),
+        })
 
 
 @router.post("/{run_id}/resolve-reactive", response_model=MatrixRunRead,
@@ -4202,12 +5363,18 @@ async def resolve_reactive_ic(
     auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """GM triggers a lurking Tar Baby / Tar Pit against the decker's utility."""
+    """TEST HARNESS (admin-only) -- deterministically trigger a lurking Tar Baby / Tar Pit / Worm.
+
+    There is no human GM: lurking ambush IC now fire AUTOMATICALLY -- Tar Baby / Tar Pit on utility
+    use (perform_action) and Worm each Combat Turn (new_turn). This endpoint remains ONLY so the
+    reactive-IC resolution can be triggered on demand with known inputs while we validate that
+    auto-fire behaves correctly in play. MARK FOR DELETION once auto-fire is confirmed satisfactory.
+    """
     run = await _get_run_or_404(db, run_id)
     if run.status != "active":
         raise HTTPException(400, "Run is not active")
 
-    state  = dict(run.state_json)
+    state  = copy.deepcopy(run.state_json)
     decker = run.decker_json
 
     lurking = next(
@@ -4218,94 +5385,9 @@ async def resolve_reactive_ic(
         raise HTTPException(404, f"Lurking IC {body.ic_id} not found")
 
     if lurking["type"] == "Worm":
-        # Worm attacks the deck's MPCP; the CARRIED Disinfect utility defends automatically
-        # (vr2: a running Disinfect raises the Worm Infection Test target number). We read the
-        # rating from the decker's load-out -- NOT the GM-typed utility_rating -- so a decker who
-        # actually loaded Disinfect defends without the GM re-entering it (and a decker who did
-        # not stays at +0). utility_rating still drives the Tar Baby / Tar Pit branches below.
-        disinfect_rating = _effective_disinfect(decker, state)
-        wr = eng.worm_attack(
-            ic_rating=lurking["rating"],
-            mpcp_rating=decker.get("mpcp", 1),
-            hardening=decker.get("hardening", 0),
-            disinfect_utility=disinfect_rating,
-        )
-        if wr["mpcp_infected"]:
-            state["mpcp_infected"] = True
-            state["chip_replacement_required"] = True
-            state["lurking_ic"] = [
-                ic for ic in state.get("lurking_ic", []) if ic["id"] != body.ic_id]
-            _append_event(state, {
-                "type": "worm_resolved", "ic_id": body.ic_id, "ic_type": "Worm",
-                "outcome": "mpcp_infected", "roll": wr["roll"],
-                "description": (
-                    f"Worm-{lurking['rating']} infected the MPCP -- chip replacement required "
-                    f"(permanent). Carried Disinfect-{disinfect_rating} failed."
-                ),
-            })
-        else:
-            _append_event(state, {
-                "type": "worm_resolved", "ic_id": body.ic_id, "ic_type": "Worm",
-                "outcome": "repelled", "roll": wr["roll"],
-                "description": (
-                    f"Worm-{lurking['rating']} repelled by carried Disinfect-{disinfect_rating}. "
-                    f"Worm still lurking."
-                ),
-            })
-        run.state_json = state
-        await db.commit()
-        await db.refresh(run)
-        return _serialize_run(run, auth)
-
-    is_tar_pit = lurking["type"] == "Tar Pit"
-    result = eng.tar_baby_test(
-        ic_rating=lurking["rating"],
-        utility_rating=body.utility_rating,
-        is_tar_pit=is_tar_pit,
-        mpcp_rating=decker.get("mpcp", 1),
-        hardening=decker.get("hardening", 0),
-    )
-
-    if result["ic_wins"]:
-        state["lurking_ic"] = [
-            ic for ic in state.get("lurking_ic", []) if ic["id"] != body.ic_id
-        ]
-        _append_event(state, {
-            "type": "reactive_ic_resolved",
-            "ic_id": body.ic_id,
-            "ic_type": lurking["type"],
-            "outcome": "ic_wins",
-            "ic_roll": result["ic_roll"],
-            "util_roll": result["util_roll"],
-            "description": (
-                f"{lurking['type']}-{lurking['rating']} triggered vs "
-                f"{body.utility_name}-{body.utility_rating}. "
-                f"IC wins -- {body.utility_name} and {lurking['type']} both crash."
-            ),
-        })
-        if is_tar_pit and result.get("all_copies_corrupted"):
-            _append_event(state, {
-                "type": "tar_pit_corruption",
-                "description": f"Tar Pit: ALL copies of {body.utility_name} corrupted.",
-                "tar_pit_roll": result.get("tar_pit_roll"),
-            })
-        # If the crashed utility was a One-Shot copy, the tar wipes EVERY copy on the deck
-        # (vr2_rules.md L1667) -- it can never be reloaded this run. No-op for a normal program.
-        _wipe_one_shot(state, decker, body.utility_name)
+        _resolve_lurking_worm(state, decker, lurking)
     else:
-        _append_event(state, {
-            "type": "reactive_ic_resolved",
-            "ic_id": body.ic_id,
-            "ic_type": lurking["type"],
-            "outcome": "util_wins",
-            "ic_roll": result["ic_roll"],
-            "util_roll": result["util_roll"],
-            "description": (
-                f"{lurking['type']}-{lurking['rating']} triggered vs "
-                f"{body.utility_name}-{body.utility_rating}. "
-                f"Utility wins -- {lurking['type']} remains lurking."
-            ),
-        })
+        _resolve_lurking_tar(state, decker, lurking, body.utility_name, body.utility_rating)
 
     run.state_json = state
     await db.commit()
@@ -4352,6 +5434,10 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
     """
     if enemy.get("status") != "active" or state.get("run_ended"):
         return
+    # Combat maneuver: an enemy that has lost/hidden from the PC (Evade Detection) does not act;
+    # the hidden window auto-expires (timer / security tally) inside _evade_active.
+    if _evade_active(state, enemy):
+        return
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
     eff = _get_decker_effective(decker, state)
@@ -4394,6 +5480,27 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         return
 
     # -- Phase 2: execute the enemy's offensive program --------------------------
+    # Self-preservation (balanced AI): a badly wounded enemy decker breaks off the hunt and jacks
+    # out rather than fight to the death. Serious+ icon damage (>= _ENEMY_RETREAT_BOXES / 10 persona
+    # boxes) triggers the retreat -- it logs off, leaves the run, and is no longer driven or
+    # attackable. It still attacks at full aggression while its icon is healthier than that.
+    ecm = enemy.get("condition_monitor") or {}
+    if ecm.get("persona_boxes", 0) >= _ENEMY_RETREAT_BOXES:
+        enemy["status"] = "fled"
+        _append_event(state, {
+            "type": "enemy_decker", "outcome": "fled", "enemy_id": enemy["id"],
+            "description": (
+                f"{enemy['name']} is badly damaged ({ecm.get('persona_boxes', 0)}/10) and jacks "
+                f"out -- breaking off the hunt to save its deck."
+            ),
+        })
+        return
+    # Combat maneuver: the enemy may spend its action to maneuver against you instead of attacking
+    # (heuristic; only when npc_combat_maneuvers is set).
+    if _npc_maybe_maneuver(state, decker, eff, enemy, is_ic=False):
+        if not state.get("run_ended"):
+            state["detection_factor"] = _effective_detection_factor(state, decker)
+        return
     intent = eng.escalate_enemy_intent(enemy["intent"], security_tally=state.get("security_tally", 0))
     if intent == "kill" and not enemy.get("lethal_program"):
         intent = "dump"   # no lethal program loaded -> can only crash the icon
@@ -4439,10 +5546,12 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         # Shield parry: net successes ADD to the decker's opposed defence (vr2).
         shield_succ = _shield_parry(state, decker,
                                     attacker_skill=enemy["computer_skill"], context=program)
+        # Combat maneuver: Parry (raises the enemy's TN) / Position (held by the enemy) delta.
+        atk_tn_delta, _atk_power_delta = _consume_attack_mods_vs_pc(state, enemy)
         cr = eng.decker_attribute_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             program_rating=attack_rating, target_attribute_rating=eff[attr],
-            shield_successes=shield_succ)
+            shield_successes=shield_succ, tn_modifier=atk_tn_delta)
         if cr["reduction"] > 0:
             cm["persona_damage"][attr] = cm["persona_damage"].get(attr, 0) + cr["reduction"]
             # Record the enemy program's rating as this attribute's causing rating (Restore TN).
@@ -4461,10 +5570,13 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         # that derives from the same parried strike.
         shield_succ = _shield_parry(state, decker,
                                     attacker_skill=enemy["computer_skill"], context=program)
+        # Combat maneuver: Parry (raises the enemy's TN) + Position (held by the enemy: -TN / +Power).
+        atk_tn_delta, atk_power_delta = _consume_attack_mods_vs_pc(state, enemy)
         atk = eng.cybercombat_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             target_bod=eff["bod"], armor_rating=(decker.get("utilities") or {}).get("armor", 0),
-            ic_rating=power, attacker_is_ic=True, shield_successes=shield_succ)
+            ic_rating=power + atk_power_delta, attacker_is_ic=True, tn_modifier=atk_tn_delta,
+            shield_successes=shield_succ)
         boxes = atk["resistance"]["boxes"]
         cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
         did_icon_damage = True
@@ -4556,6 +5668,10 @@ async def attack_enemy_decker(
     _spend_hp(state, body.hacking_pool_dice)
     pool = body.attack_pool + body.hacking_pool_dice
     util = decker.get("utilities") or {}
+    # Combat maneuver: the enemy's Parry (raises the PC's to-hit TN) + the PC's own Position
+    # (lowers the TN and/or raises Power). Consumed by this single attack (exactly one of the
+    # branches below runs, so it is read once here).
+    tgt_tn_delta, tgt_power_delta = _consume_attack_mods_vs_target(state, enemy)
 
     # Poison / Restrict / Reveal -- the PC's offensive crippler programs vs an enemy decker
     # (vr2: the decker versions of the Acid / Binder / Marker IC). Attack to hit, then the
@@ -4571,6 +5687,7 @@ async def attack_enemy_decker(
         cr = eng.decker_attribute_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             program_rating=program_rating, target_attribute_rating=target_rating,
+            tn_modifier=tgt_tn_delta,
             # The enemy decker has no Shield modeled -> shield_successes stays 0.
         )
         reduction = cr["reduction"]
@@ -4622,10 +5739,10 @@ async def attack_enemy_decker(
         target_bod = max(1, int(enemy.get("bod", 1) or 1))
         # Mirror the PC->enemy plain-Attack to-hit TN (host code, target intruding); resolve the
         # icon damage via damage_resistance at a fixed lethal base (the enemy resists with Bod).
-        attack_tn = max(2, rules.COMBAT_TN[sec_code]["intruding"])
+        attack_tn = max(2, rules.COMBAT_TN[sec_code]["intruding"] + tgt_tn_delta)
         attack_roll = eng.roll_dice(pool, attack_tn)
         resist = eng.damage_resistance(
-            bod=target_bod, power=rating, base_damage_level=_LETHAL_BASE_LEVEL,
+            bod=target_bod, power=rating + tgt_power_delta, base_damage_level=_LETHAL_BASE_LEVEL,
             attacker_successes=attack_roll["successes"],
             # The enemy decker has no Shield modeled -> shield_successes stays 0.
         )
@@ -4669,7 +5786,8 @@ async def attack_enemy_decker(
     atk = eng.cybercombat_attack(
         attacker_pool=pool, security_code=sec_code, target_status="intruding",
         target_bod=enemy["bod"], armor_rating=0,
-        ic_rating=util.get("attack", 4), attacker_is_ic=False,
+        ic_rating=util.get("attack", 4) + tgt_power_delta, attacker_is_ic=False,
+        tn_modifier=tgt_tn_delta,
     )
     boxes = atk["resistance"]["boxes"]
     ecm = enemy.setdefault("condition_monitor", {})
@@ -4696,12 +5814,13 @@ async def suppress_ic(
     auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    """Suppress or release a crashed IC (vr2 Suppression).
+    """Suppress or release a crashed OR hung IC (vr2 Suppression + Slow L1578).
 
-    Suppression is declared at the MOMENT the IC crashes: the decker absorbs 1 Detection Factor
-    (applied live by _effective_detection_factor) to refund the tally that crashing it added.
-    Releasing it is a Free Action that restores the DF and re-adds the IC's rating to the tally;
-    a released IC stays crashed and can NEVER be re-suppressed. The DF cannot fall below 1.
+    Suppression is declared the MOMENT the IC is neutralized -- a fresh crash (crashing added its
+    rating to the tally) or a Slow HANG (Slow adds no tally). The decker absorbs 1 Detection Factor
+    (applied live by _effective_detection_factor) to defer/refund that tally. Releasing it is a Free
+    Action that restores the DF and re-adds a CRASHED IC's rating to the tally (a hung IC re-adds
+    nothing); a released IC stays down and can NEVER be re-suppressed. The DF cannot fall below 1.
     """
     run = await _get_run_or_404(db, run_id)
     _assert_run_access(run, auth)
@@ -4709,45 +5828,36 @@ async def suppress_ic(
         raise HTTPException(400, "Run is not active")
 
     state = copy.deepcopy(run.state_json)
-    decker = run.decker_json
-    ic = next((c for c in state.get("active_ic", [])
-               if c.get("id") == body.ic_id), None)
-    if ic is None:
-        raise HTTPException(404, f"IC {body.ic_id} not found")
+    _toggle_ic_suppression(state, run.decker_json, ic_id=body.ic_id, release=body.release)
 
-    rating = ic.get("rating", 0)
-    if body.release:
-        if not ic.get("suppressed"):
-            raise HTTPException(400, "IC is not suppressed -- nothing to release")
-        ic["suppressed"] = False
-        ic["suppression_released"] = True   # one-way: cannot be suppressed again
-        state["pass_free"] = max(0, state.get("pass_free", 0) - 1)  # vr2: releasing IC is a Free Action
-        state["security_tally"] = state.get("security_tally", 0) + rating
-        _append_event(state, {
-            "type": "ic_released", "ic_id": ic["id"],
-            "description": (
-                f"Suppressed IC released -- Detection Factor restored; tally "
-                f"+{rating} -> {state['security_tally']}."
-            ),
-        })
-        _check_and_activate_sheaf(state, state["host_security_code"])
-    else:
-        # vr2: "must declare suppression immediately when crashing IC" -- only a freshly crashed,
-        # never-released IC may be suppressed, and doing so refunds the tally the crash just added.
-        if ic.get("status") != "crashed":
-            raise HTTPException(400, "Only a crashed IC may be suppressed (declare it on the crash)")
-        if ic.get("suppression_released"):
-            raise HTTPException(400, "This IC was already released -- it can no longer be suppressed")
-        if ic.get("suppressed"):
-            raise HTTPException(400, "IC is already suppressed")
-        ic["suppressed"] = True
-        state["security_tally"] = max(0, state.get("security_tally", 0) - rating)  # refund crash tally
-        df = _effective_detection_factor(state, decker)
-        state["detection_factor"] = df
-        _append_event(state, {
-            "type": "ic_suppressed", "ic_id": ic["id"],
-            "description": f"IC suppressed -- Detection Factor {df}; tally -{rating} (no crash increase).",
-        })
+    run.state_json = state
+    await db.commit()
+    await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/reveal-host-ratings", response_model=MatrixRunRead)
+async def reveal_host_ratings(
+    run_id: int,
+    body: RunRevealHostRatingsInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Phase two of Analyze Host (vr2 override): spend banked Analyze Host credits by choosing which
+    still-hidden ACIFS subsystem ratings to reveal.
+
+    When a successful Analyze Host rolled fewer net successes than there were hidden ratings,
+    ``_apply_analyze_host`` banks ``host_analyze_pending`` and reveals nothing. The decker then
+    calls this endpoint with the chosen subsystems (one per banked credit). ``_reveal_host_ratings``
+    validates the picks, reveals them from the GM-only ACIFS ratings, and clears the pending.
+    """
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)
+    _reveal_host_ratings(state, body.subsystems)
 
     run.state_json = state
     await db.commit()
