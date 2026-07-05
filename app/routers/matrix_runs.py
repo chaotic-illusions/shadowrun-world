@@ -25,6 +25,7 @@ from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary,
     RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
     RunSuppressInput, RunRevealHostRatingsInput, RunEnemyAttackInput,
+    RunAreaAttackInput,
     RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
@@ -36,7 +37,8 @@ router = APIRouter()
 # State keys removed entirely from state_json when serving a non-admin.
 # (Admin sees the full state.) lurking_ic is GM-only: reactive IC "lurks
 # silently" by the rules, so players must not see it exists at all.
-_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata", "data_bombs", "trap_doors"}
+_GM_ONLY_STATE_KEYS = {"sheaf", "host_acifs", "lurking_ic", "scrambles", "paydata", "data_bombs",
+                       "trap_doors", "enemy_decker_cap"}
 
 # Maps crippler/ripper IC type names to the decker attribute they attack.
 _CRIPPLER_TARGET: dict[str, str] = {
@@ -351,7 +353,11 @@ def _redact_enemy_decker(e: dict) -> dict:
         # re-detects). An enemy that HID from the PC (hid_from_pc) is un-revealed and never reaches
         # here. Raw redetect internals stay GM-only (whitelist above omits them).
         "lost_track": bool(e.get("evaded") and e.get("evade_dir") == "lost_pc"),
-        "condition_monitor": {"persona_boxes": cm.get("persona_boxes", 0)},
+        "condition_monitor": {
+            "persona_boxes": cm.get("persona_boxes", 0),
+            "stun_boxes": cm.get("stun_boxes", 0),
+            "physical_boxes": cm.get("physical_boxes", 0),
+        },
     }
 
 
@@ -427,9 +433,14 @@ _ACTION_COST.update({
 # human GM to pick the target program). Same snake_case keying as _ACTION_COST.
 _ACTION_UTILITY = {op["name"].lower().replace(" ", "_"): op["utility"] for op in rules.SYSTEM_OPERATIONS}
 
-# Balanced enemy-decker AI: a hostile decker whose icon has taken Serious+ damage (>= this many of
-# its 10 persona boxes) breaks off and jacks out rather than trade blows to the death.
-_ENEMY_RETREAT_BOXES = 7
+# Balanced enemy-decker AI (wounded behaviour, spec section 3.2). Replaces the old hard 7-box
+# flee with a graduated model: an escalating nerve check at 7/8/9 persona boxes (10 = dumped),
+# softened by the decker's per-instance bravery, plus a hide-heal-return loop for Medic-carriers.
+_ENEMY_WOUNDED_BOXES = 5    # Medic-carrier breaks contact (Evade Detection) to heal at/above this
+_ENEMY_REENGAGE_BOXES = 3   # ... and voluntarily re-engages once healed back down to at/below this
+# Base flee chance (before bravery) the FIRST time a wound reaches each persona-box threshold; the
+# decker jacks out on a failed nerve. 10 boxes is a forced dump (handled separately, not a check).
+_ENEMY_NERVE_FLEE = {7: 0.30, 8: 0.55, 9: 0.80}
 
 
 def _decker_reaction(decker: dict) -> int:
@@ -465,6 +476,11 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
     det_factor = eng.detection_factor(masking, sleaze)
     hackingPool_total = max(0, (decker.get("intelligence", 1) + decker.get("mpcp", 1)) // 3)
     decker_initiative, initiative_passes = _roll_decker_initiative(decker)
+    # Roll this run's TOTAL enemy-decker cap ONCE (stable for the whole run). The count-gated
+    # probabilistic spawner (vr2 #5) dispatches at most this many security deckers across the run.
+    _sec_code = cfg.get("security_code", "Green")
+    _spawn_cfg = eng._ENEMY_DECKER_SPAWN.get(_sec_code, eng._ENEMY_DECKER_SPAWN["Green"])
+    enemy_decker_cap = random.randint(*_spawn_cfg["cap"])
 
     return {
         "security_tally": 0,
@@ -481,6 +497,7 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "pass_free": 1,            # per-pass: 1 Free action
         "condition_monitor": {
             "persona_boxes": 0,
+            "stun_boxes": 0,
             "physical_boxes": 0,
             "mpcp_damage": 0,
             "persona_damage": {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0},
@@ -554,6 +571,7 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "base_bandwidth": decker.get("base_bandwidth", 0),     # jackpoint base BW for live BW Trace mod
         "linked_passcode": decker.get("linked_passcode", False),
         "enemy_deckers": [],   # security deckers spawned automatically by the sheaf (vr2 #5)
+        "enemy_decker_cap": enemy_decker_cap,   # per-run TOTAL cap for the probabilistic spawner
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
@@ -826,9 +844,9 @@ def _apply_dump_shock(state: dict, decker: dict, sec_code: str, sec_value: int) 
         is_tortoise=decker.get("deck_mode") == "tortoise",
     )
     if not ds.get("immune"):
-        state["condition_monitor"]["physical_boxes"] = (
-            state["condition_monitor"].get("physical_boxes", 0) + ds["boxes"]
-        )
+        ov = _add_stun(state["condition_monitor"], ds["boxes"])
+        ds["stun_overflow"] = ov["overflow"]
+        ds["unconscious"] = ov["unconscious"]
     return ds
 
 
@@ -861,6 +879,48 @@ def _check_and_activate_sheaf(state: dict, security_code: str) -> None:
     for step in _check_sheaf_triggers(state):
         for ev in _activate_sheaf_step(state, step, security_code):
             _append_event(state, ev)
+        # vr2 #5: after EACH activated step the host may dispatch a security decker (the sole,
+        # count-gated probabilistic spawner). Rolled once per step so deckers arrive paced.
+        _maybe_spawn_enemy_decker(state, security_code)
+
+
+def _spawn_enemy_decker(state: dict, security_code: str, *, name: str | None = None) -> dict:
+    """Build a fully-programmatic security decker, roll its initiative, add it to the run HIDDEN
+    (GM-only ``enemy_decker_injected``), and return it. The sole enemy-decker spawner -- every
+    decker is generated from ratings + dice (there is no hand-authored path). It becomes visible
+    only via its own hunt reveal or the PC's Locate Decker."""
+    enemy = eng.generate_enemy_decker(security_code, state.get("host_security_value", 6), name=name)
+    enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
+    enemy["initiative"], enemy["initiative_passes"] = _roll_decker_initiative(enemy)  # rolled once on entry
+    state.setdefault("enemy_deckers", []).append(enemy)
+    _append_event(state, {
+        "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
+        "description": (
+            f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, "
+            f"Attack-{enemy['utilities']['attack']}) dispatched to hunt the intruder."
+        ),
+    })
+    return enemy
+
+
+def _maybe_spawn_enemy_decker(state: dict, security_code: str) -> None:
+    """Count-gated probabilistic dispatch (vr2 #5): after a sheaf step fires, roll the tier chance
+    to send ONE security decker, capped by the per-run ``enemy_decker_cap`` (the TOTAL from all
+    sources). Skips when the run has ended (e.g. a shutdown step) or the cap is already reached."""
+    if state.get("run_ended"):
+        return
+    spawn_cfg = eng._ENEMY_DECKER_SPAWN.get(security_code)
+    if not spawn_cfg:
+        return
+    cap = state.get("enemy_decker_cap")
+    if cap is None:
+        # Legacy run started before the cap was tracked -- roll it once now and store it.
+        cap = random.randint(*spawn_cfg["cap"])
+        state["enemy_decker_cap"] = cap
+    if len(state.get("enemy_deckers", [])) >= cap:
+        return
+    if random.random() < spawn_cfg["chance"]:
+        _spawn_enemy_decker(state, security_code)
 
 
 def _cascade_max_increase(security_code: str, base_rating: int) -> int:
@@ -1071,26 +1131,6 @@ def _activate_sheaf_step(state: dict, step: dict, security_code: str) -> list[di
             events.append({"type": "shutdown",
                             "description": "HOST SHUTDOWN -- all sessions terminated."})
 
-        elif ev_type == "enemy_decker":
-            # Authored host dispatches a security decker at this tally threshold. It starts
-            # hidden (GM-only) and then hunts the PC automatically via the app-as-GM loop.
-            enemy = eng.generate_enemy_decker(
-                security_code, state.get("host_security_value", 6),
-                name=ev.get("name") or None)
-            if ev.get("intent"):
-                enemy["intent"] = ev["intent"]
-            enemy["id"] = f"ed_{uuid.uuid4().hex[:8]}"
-            _ed_init, _ed_passes = _roll_decker_initiative(enemy)  # rolled once on entry
-            enemy["initiative"], enemy["initiative_passes"] = _ed_init, _ed_passes
-            state.setdefault("enemy_deckers", []).append(enemy)
-            events.append({
-                "type": "enemy_decker_injected", "gm_only": True, "enemy_id": enemy["id"],
-                "description": (
-                    f"GM: {enemy['name']} (Computer {enemy['computer_skill']}, "
-                    f"Attack-{enemy['utilities']['attack']}) dispatched to hunt the intruder."
-                ),
-            })
-
     return events
 
 
@@ -1277,6 +1317,45 @@ def _shield_parry(state: dict, decker: dict, *, attacker_skill: int, context: st
     return succ
 
 
+def _enemy_effective_shield(enemy: dict) -> int:
+    """Effective Shield rating for an ENEMY decker = its loaded Shield utility minus its OWN accrued
+    wear (``enemy['program_damage']['shield']``). Mirrors _effective_shield, but the wear lives on
+    the enemy dict (each security decker tracks its own program damage) rather than the PC's state
+    slot. ``<= 0`` means the enemy carries no Shield, or has worn it out parrying, and cannot parry."""
+    base = (enemy.get("utilities") or {}).get("shield", 0) or 0
+    worn = (enemy.get("program_damage") or {}).get("shield", 0)
+    return max(0, base - worn)
+
+
+def _enemy_shield_parry(state: dict, enemy: dict, *, attacker_skill: int, context: str) -> int:
+    """Make ONE defensive Shield Test for an ENEMY decker against the PC's Strike Back (vr2).
+
+    Mirror of _shield_parry: rolls the enemy's effective Shield vs the PC's Computer skill, wears the
+    enemy's own Shield by 1 Rating Point (win or lose), emits a GM-only ``enemy_shield_parry`` event
+    (the PC never sees the defender's exact program), and returns the net successes for the caller to
+    SUBTRACT from the PC's attack successes (damage) or ADD to the enemy's side of a crippler test.
+    Returns 0 -- no test, no wear, no event -- when the enemy carries no Shield or it is worn to 0."""
+    rating = _enemy_effective_shield(enemy)
+    if rating <= 0:
+        return 0
+    res = eng.shield_parry(shield_rating=rating, attacker_skill=attacker_skill)
+    succ = res["successes"]
+    pd = enemy.setdefault("program_damage", {})
+    pd["shield"] = pd.get("shield", 0) + 1  # -1 Rating Point per use, win or lose (reloadable by the app)
+    remaining = max(0, rating - 1)
+    _append_event(state, {
+        "type": "enemy_shield_parry", "gm_only": True,
+        "enemy_id": enemy.get("id"), "context": context,
+        "shield_rating": rating, "shield_remaining": remaining,
+        "successes": succ, "roll": res["roll"],
+        "description": (
+            f"GM: {enemy.get('name', 'Security decker')} Shield-{rating} parries the {context} hit -- "
+            f"{succ} success{'' if succ == 1 else 'es'} (TN {res['tn']}), worn to {remaining}."
+        ),
+    })
+    return succ
+
+
 def _effective_medic(decker: dict, state: dict) -> int:
     """Effective Medic rating = the loaded Medic utility minus its accrued per-use wear.
 
@@ -1288,10 +1367,86 @@ def _effective_medic(decker: dict, state: dict) -> int:
     return max(0, base - worn)
 
 
+def _add_stun(cm: dict, boxes: int) -> dict:
+    """Add Stun boxes to a condition monitor's Physical Stun track (``stun_boxes``). SR2 Stun
+    OVERFLOWS into Physical Damage: the Stun track caps at 10 and any excess spills 1-for-1 into
+    ``physical_boxes``. Returns {stun, overflow, unconscious}; ``unconscious`` (Stun filled to 10)
+    means the icon's owner blacks out -- the caller ends the run (dumped)."""
+    cur = int(cm.get("stun_boxes", 0) or 0)
+    total = cur + max(0, int(boxes or 0))
+    overflow = max(0, total - 10)
+    cm["stun_boxes"] = min(10, total)
+    if overflow:
+        cm["physical_boxes"] = int(cm.get("physical_boxes", 0) or 0) + overflow
+    return {"stun": cm["stun_boxes"], "overflow": overflow, "unconscious": cm["stun_boxes"] >= 10}
+
+
+def _wound_mod_from_boxes(boxes: int) -> int:
+    """Wound-level TN / initiative modifier from the filled boxes on ONE Condition Monitor track
+    (SR2 floors): 1-2 boxes = Light (+1), 3-5 = Moderate (+2), 6-9 = Serious (+3), 10 = Deadly
+    (crash/out). Undamaged = 0. Same floors as the ``DAMAGE_BOXES`` wound thresholds."""
+    b = int(boxes or 0)
+    if b >= rules.DAMAGE_BOXES["Serious"]:    # >= 6
+        return 3
+    if b >= rules.DAMAGE_BOXES["Moderate"]:   # >= 3
+        return 2
+    if b >= rules.DAMAGE_BOXES["Light"]:      # >= 1
+        return 1
+    return 0
+
+
+def _cm_wound_mod(cm: dict) -> int:
+    """Total wound modifier for an icon with three Condition Monitors (persona + physical stun +
+    physical damage), summed -- the wounds are CUMULATIVE (a Light persona + a Moderate physical =
+    +3 TN / -3 initiative)."""
+    cm = cm or {}
+    return (_wound_mod_from_boxes(cm.get("persona_boxes", 0))
+            + _wound_mod_from_boxes(cm.get("stun_boxes", 0))
+            + _wound_mod_from_boxes(cm.get("physical_boxes", 0)))
+
+
+def _decker_wound_mod(state: dict) -> int:
+    """PLAYER decker's cumulative wound modifier (persona + stun + physical)."""
+    return _cm_wound_mod(state.get("condition_monitor") or {})
+
+
+def _enemy_wound_mod(enemy: dict) -> int:
+    """Enemy decker's cumulative wound modifier (persona + stun + physical)."""
+    return _cm_wound_mod(enemy.get("condition_monitor") or {})
+
+
+def _enemy_armor(enemy: dict) -> int:
+    """Enemy decker's Armor utility rating (reduces the Power of incoming persona damage). Enemy
+    deckers are modeled EXACTLY like the PC decker: they resist icon/persona hits with Bod dice
+    and the Armor utility -- if loaded -- lowers the attack Power (see the PC path in
+    ``_detonate_data_bomb`` / Black IC resistance). Most auto-generated enemies carry no Armor,
+    so this is 0 unless one is explicitly loaded."""
+    return int((enemy.get("utilities") or {}).get("armor", 0) or 0)
+
+
+def _ic_wound_mod(ic: dict) -> int:
+    """IC has a single Condition Monitor track (``boxes``)."""
+    return _wound_mod_from_boxes(ic.get("boxes", 0))
+
+
+def _ic_passes(ic: dict) -> int:
+    """Action passes for an IC this turn, reduced by its wound penalty (-1 initiative per wound
+    level). Initiative is rolled once per encounter, so the wound penalty is re-derived here every
+    time the passes are needed."""
+    return _init_passes(ic.get("initiative", 0) - _ic_wound_mod(ic))
+
+
+def _enemy_passes(enemy: dict) -> int:
+    """Action passes for an enemy decker this turn, reduced by its cumulative wound penalty
+    (-1 initiative per wound level, summed across its three Condition Monitors). Initiative is
+    rolled once per encounter, so the wound penalty is re-derived here every time it is needed."""
+    return _init_passes(enemy.get("initiative", 0) - _enemy_wound_mod(enemy))
+
+
 def _current_icon_wound_level(state: dict) -> str | None:
     """Worst current wound level of the decker's persona icon, derived from the filled Condition
-    Monitor boxes via the vr2 Condition Monitor Table floors (Light >= 1, Moderate >= 2,
-    Serious >= 3 boxes). Returns ``None`` when the icon is undamaged. Everything at or above the
+    Monitor boxes via the vr2 Condition Monitor Table floors (Light >= 1, Moderate >= 3,
+    Serious >= 6 boxes). Returns ``None`` when the icon is undamaged. Everything at or above the
     Serious floor (including the Deadly box-range, up to the 10-box crash) reports ``"Serious"``
     -- the Medic Target Numbers Table tops out at Serious, so a worse wound still heals at TN 6."""
     boxes = (state.get("condition_monitor") or {}).get("persona_boxes", 0) or 0
@@ -1356,6 +1511,86 @@ def _apply_medic(state: dict, decker: dict) -> None:
         ),
     })
     _spend_one_shot(state, decker, "medic")
+
+
+def _enemy_carries_medic(enemy: dict) -> bool:
+    """True if this enemy decker has a Medic utility loaded (Red/Black tiers) -- the gate for the
+    wounded-AI hide-heal-return loop. A healless decker (Blue/Green/Orange) never disengages to heal."""
+    return int((enemy.get("utilities") or {}).get("medic", 0) or 0) > 0
+
+
+def _enemy_effective_medic(enemy: dict) -> int:
+    """Effective Medic rating for an ENEMY decker = its loaded Medic utility minus its OWN per-use
+    wear (``enemy['program_damage']['medic']``). Mirrors _effective_medic, but the wear lives on the
+    enemy dict rather than the PC's state slot."""
+    base = (enemy.get("utilities") or {}).get("medic", 0) or 0
+    worn = (enemy.get("program_damage") or {}).get("medic", 0)
+    return max(0, base - worn)
+
+
+def _enemy_medic_heal(state: dict, enemy: dict) -> None:
+    """Enemy-decker self-heal -- mirror of _apply_medic on the enemy's OWN condition monitor.
+
+    Heals persona/icon boxes equal to the Medic Test successes (TN by the icon's CURRENT wound
+    level, capped by the current damage) and degrades the enemy's Medic 1 Rating Point per use.
+    Emits a GM-only ``enemy_decker``/``medic`` event. No-op when the icon is undamaged or the Medic
+    is worn out / not loaded (mirrors _apply_medic, which does not wear a 0-rating Medic)."""
+    ecm = enemy.setdefault("condition_monitor", {})
+    boxes = int(ecm.get("persona_boxes", 0) or 0)
+    if boxes <= 0:
+        return
+    rating = _enemy_effective_medic(enemy)
+    if rating <= 0:
+        return
+    if boxes >= rules.DAMAGE_BOXES["Serious"]:
+        wound = "Serious"
+    elif boxes >= rules.DAMAGE_BOXES["Moderate"]:
+        wound = "Moderate"
+    else:
+        wound = "Light"
+    res = eng.medic_heal(medic_rating=rating, wound_level=wound)
+    healed = min(boxes, res["boxes_healed"])
+    ecm["persona_boxes"] = max(0, boxes - healed)
+    pd = enemy.setdefault("program_damage", {})
+    pd["medic"] = pd.get("medic", 0) + 1   # -1 Rating Point per use, win or lose
+    _append_event(state, {
+        "type": "enemy_decker", "outcome": "medic", "enemy_id": enemy.get("id"),
+        "gm_only": True, "medic_rating": rating, "healed": healed,
+        "persona_boxes": ecm["persona_boxes"],
+        "description": (
+            f"GM: {enemy.get('name', 'Security decker')} Medic-{rating} treats its {wound.lower()} "
+            f"icon wound (TN {res['tn']}): {healed} box{'' if healed == 1 else 'es'} healed -- "
+            f"now {ecm['persona_boxes']}/10."
+        ),
+    })
+
+
+def _enemy_nerve_check(state: dict, enemy: dict, boxes: int) -> bool:
+    """Escalating nerve check (spec section 3.2): the FIRST time a wound reaches 7/8/9 persona
+    boxes, roll ONCE at that threshold to see if the decker's nerve breaks and it jacks out.
+
+    Checked once per newly-reached threshold (tracked in ``enemy['nerve_checks_done']``) so a
+    decker sitting at 7 boxes isn't re-rolled every turn. A single hit that jumps several
+    thresholds resolves them in ascending order; the decker flees on the first failure. Bravery
+    lowers the flee chance: ``flee_chance = clamp(base - 0.15 * bravery, 0.05, 0.95)``. Sets
+    ``status = "fled"`` and logs on a break. Returns True if the decker fled."""
+    done = enemy.setdefault("nerve_checks_done", [])
+    bravery = int(enemy.get("bravery", 0) or 0)
+    for threshold in (7, 8, 9):
+        if boxes >= threshold and threshold not in done:
+            done.append(threshold)
+            flee_chance = min(0.95, max(0.05, _ENEMY_NERVE_FLEE[threshold] - 0.15 * bravery))
+            if random.random() < flee_chance:
+                enemy["status"] = "fled"
+                _append_event(state, {
+                    "type": "enemy_decker", "outcome": "fled", "enemy_id": enemy.get("id"),
+                    "description": (
+                        f"{enemy.get('name', 'The security decker')} is wounded ({boxes}/10) and "
+                        f"its nerve breaks -- it jacks out, abandoning the hunt."
+                    ),
+                })
+                return True
+    return False
 
 
 _BEMS_ORDER = ("bod", "evasion", "masking", "sensor")
@@ -1799,7 +2034,7 @@ def _apply_slow(state: dict, decker: dict, *, sec_code: str,
     # this turn = ceil(Initiative / 10) passes; losing them all HANGS it for the rest of the turn.
     lost_now = max(1, res["actions_lost"])
     cur_turn = state.get("current_turn", 1)
-    ic_passes = _init_passes(target.get("initiative", 0))
+    ic_passes = _ic_passes(target)
     prev_lost = target.get("actions_lost", 0) if target.get("slow_turn") == cur_turn else 0
     new_lost = min(ic_passes, prev_lost + lost_now)
     target["actions_lost"] = new_lost
@@ -2120,6 +2355,7 @@ def _dinab_strike_decker(state: dict, decker: dict, enemy: dict, eff: int, sec_c
         ar = eng.roll_dice(eff, max(2, rules.COMBAT_TN[sec_code]["intruding"]))
         resist = eng.damage_resistance(bod=max(1, int(enemy.get("bod", 1) or 1)), power=rating,
                                        base_damage_level=_LETHAL_BASE_LEVEL,
+                                       armor_rating=_enemy_armor(enemy),
                                        attacker_successes=ar["successes"])
         boxes = resist["boxes"]
         ecm = enemy.setdefault("condition_monitor", {})
@@ -2132,7 +2368,8 @@ def _dinab_strike_decker(state: dict, decker: dict, enemy: dict, eff: int, sec_c
             "description": f"DINAB {util.replace('_',' ').title()}-{eff} hits {enemy['name']} ({boxes} boxes)."})
         return ar["successes"] <= 0, ar.get("ones", 0) >= ar.get("pool", 0) and ar["successes"] == 0
     atk = eng.cybercombat_attack(attacker_pool=eff, security_code=sec_code, target_status="intruding",
-                                 target_bod=enemy["bod"], ic_rating=int(util_r.get("attack", 4) or 4),
+                                 target_bod=enemy["bod"], armor_rating=_enemy_armor(enemy),
+                                 ic_rating=int(util_r.get("attack", 4) or 4),
                                  attacker_is_ic=False)
     boxes = atk["resistance"]["boxes"]
     ecm = enemy.setdefault("condition_monitor", {})
@@ -3088,8 +3325,10 @@ def _npc_maybe_maneuver(state: dict, decker: dict, eff: dict, actor: dict, *, is
     else:
         boxes = int((actor.get("condition_monitor", {}) or {}).get("persona_boxes", 0) or 0)
     pc_persona = int((state.get("condition_monitor", {}) or {}).get("persona_boxes", 0) or 0)
-    # 1) Badly wounded -> Evade Detection to break off.
-    if boxes >= 7:
+    # 1) Badly wounded -> Evade Detection to break off. IC-only: enemy DECKERS handle breaking off
+    # in the wounded-AI loop (which runs before this and only hides Medic-carriers, since a healless
+    # decker gains nothing by hiding), so a decker reaching here stands and fights (Parry/attack).
+    if boxes >= 7 and is_ic:
         return _resolve_npc_maneuver(state, decker, eff, actor, "evade_detection", is_ic=is_ic)
     # 2) Moderately wounded -> Parry to blunt the PC's next strike.
     if 4 <= boxes <= 6 and not actor.get("parry_tn_bonus"):
@@ -3370,7 +3609,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
         # reaches (init in increments of 10), at most ONCE per pass -- not once per player
         # action. (Probe IC, above, test per System Test instead.)
         cur_pass = state.get("current_pass", 1)
-        ic_passes = _init_passes(ic.get("initiative", 0))
+        ic_passes = _ic_passes(ic)
         # Slow utility (vr2_rules.md L1576): a slowed IC loses actions this Combat Turn, so its
         # effective passes shrink by ic['actions_lost']; with none left it HANGS (does nothing this
         # turn). new_turn clears actions_lost so the IC resumes next turn -- unless still suppressed.
@@ -3460,7 +3699,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                             "description": (
                                 f"{ic['type']}: Jackpoint traced -- FORCED DISCONNECT! "
                                 f"Dump shock: {ds.get('final_level','None')} "
-                                f"({ds.get('boxes',0)} boxes physical)."
+                                f"({ds.get('boxes',0)} boxes stun)."
                             ),
                             "trace_action": "dump",
                             "dump_shock": ds,
@@ -3525,7 +3764,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 mpcp_rating=decker.get("mpcp", 1),
                 hardening=decker.get("hardening", 0),
                 shield_successes=shield_succ,
-                tn_modifier=atk_tn_delta,   # combat-maneuver Parry(+)/Position(-) to-hit delta
+                # combat-maneuver Parry(+)/Position(-) to-hit delta + the IC's own wound penalty
+                tn_modifier=atk_tn_delta + _ic_wound_mod(ic),
             )
             reduction = result["attribute_reduction"]
             pd = state["condition_monitor"]["persona_damage"]
@@ -3576,7 +3816,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
 
         if is_black:
             # Black IC: attack roll only (resistance is split into two separate tests below)
-            attack_tn  = max(2, rules.COMBAT_TN[sec_code][ic_target_status] + cluster_penalty + atk_tn_delta)
+            attack_tn  = max(2, rules.COMBAT_TN[sec_code][ic_target_status] + cluster_penalty + atk_tn_delta + _ic_wound_mod(ic))
             attack_roll_black = eng.roll_dice(ic_attack_pool, attack_tn)
             base_dmg   = rules.IC_DAMAGE_LEVEL[sec_code]
             # Shield parry: net successes cancel the icon-damage staging. Black IC derives BOTH
@@ -3592,7 +3832,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 will_roll = eng.roll_dice(decker.get("willpower", 4), power)
                 stun_dmg  = eng.stage_damage(staged_dmg, will_roll["successes"], -1)
                 stun_boxes = rules.DAMAGE_BOXES[stun_dmg]
-                state["condition_monitor"]["physical_boxes"] += stun_boxes
+                _add_stun(state["condition_monitor"], stun_boxes)
                 _append_event(state, {
                     "type": "ic_attack",
                     "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
@@ -3601,7 +3841,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         f"{attack_roll_black['successes']} atk successes. "
                         f"Willpower resist ({will_roll['successes']} hits): "
                         f"Stun {stun_dmg} ({stun_boxes} boxes). "
-                        f"Physical CM: {state['condition_monitor']['physical_boxes']}/10"
+                        f"Stun CM: {state['condition_monitor']['stun_boxes']}/10"
                     ),
                     "attack_roll": attack_roll_black,
                     "will_roll": will_roll,
@@ -3640,12 +3880,17 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                     "persona_damage": persona_dmg,
                 })
 
-            # Black IC: check thresholds (persona OR physical). On either, IC
-            # fires one final MPCP attack at 2x rating (Blaster mechanics).
-            if state["condition_monitor"]["physical_boxes"] >= 10:
+            # Black IC meat threshold: lethal fills Physical Damage (10 = killed); non-lethal fills
+            # Physical Stun (10 = unconscious -> connection breaks). Either drop triggers one final
+            # MPCP attack at 2x rating (Blaster mechanics) as the decker goes down.
+            phys_full = state["condition_monitor"]["physical_boxes"] >= 10
+            stun_full = state["condition_monitor"]["stun_boxes"] >= 10
+            if phys_full or stun_full:
+                crit = ("physical damage -- decker in critical condition" if phys_full
+                        else "stun -- decker unconscious, connection dropping")
                 _append_event(state, {
                     "type": "persona_crash",
-                    "description": "BLACK IC LETHAL -- physical damage threshold reached! Decker in critical condition.",
+                    "description": f"BLACK IC -- {crit}!",
                 })
                 mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, ic["rating"], pool_multiplier=2)
                 _append_event(state, {
@@ -3655,7 +3900,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                     "mpcp_roll": bl_roll, "mpcp_damage": mpcp_hit,
                 })
                 state["run_ended"] = True
-                state["end_reason"] = "black_ic_lethal"
+                state["end_reason"] = "black_ic_lethal" if phys_full else "black_ic_unconscious"
                 break
 
             if state["condition_monitor"]["persona_boxes"] >= 10 and not state.get("icon_crashed"):
@@ -3689,7 +3934,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
             armor_rating=armor,
             ic_rating=cascade_power + atk_power_delta,     # + combat-maneuver Position Power
             attacker_is_ic=True,
-            tn_modifier=cluster_penalty + atk_tn_delta,    # + Parry(+)/Position(-) to-hit delta
+            # + Parry(+)/Position(-) to-hit delta + the IC's own wound penalty
+            tn_modifier=cluster_penalty + atk_tn_delta + _ic_wound_mod(ic),
             shield_successes=shield_succ,
         )
         final_dmg = attack["resistance"]["final_damage_level"]
@@ -3727,7 +3973,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 has_iccm=decker.get("iccm", False),
             )
             if not sim.get("immune") and sim.get("stun_taken"):
-                state["condition_monitor"]["physical_boxes"] += 1
+                _add_stun(state["condition_monitor"], 1)
                 _append_event(state, {
                     "type": "simsense_overload",
                     "description": f"Simsense overload! Willpower test failed (TN {sim['tn']}). 1 Stun damage.",
@@ -3787,8 +4033,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 _append_event(state, {
                     "type": "dump_shock",
                     "description": (
-                        f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes physical). "
-                        f"Physical: {state['condition_monitor']['physical_boxes']}"
+                        f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes stun). "
+                        f"Stun: {state['condition_monitor']['stun_boxes']}"
                     ),
                     "dump_shock": ds,
                 })
@@ -3811,7 +4057,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
         if state.get("run_ended"):
             break
         if (enemy.get("status") == "active"
-                and cur_pass <= enemy.get("initiative_passes", 1)
+                and cur_pass <= _enemy_passes(enemy)
                 and enemy.get("acted_pass") != cur_pass):
             enemy["acted_pass"] = cur_pass
             _enemy_decker_take_turn(state, decker, run, enemy)
@@ -4620,6 +4866,61 @@ async def perform_action(
     return _serialize_run(run, auth)
 
 
+def _apply_ic_crash(state: dict, target_ic: dict, sec_code: str, skulk: int) -> None:
+    """Resolve an IC crash: mark it crashed, bump the security tally (masked by the Skulk
+    rating), log the crash event, check sheaf triggers, and spawn any hidden Trap IC. Shared
+    by the single-target Attack and the Area strike so both stay in lock-step."""
+    target_ic["status"] = "crashed"
+    # Skulk masks the crash: reduce the tally increase by the Skulk rating, but never below 0
+    # and never zero out a high-rating IC entirely (Rating-10 IC, Skulk-8 -> +2).
+    tally_increase = max(0, target_ic["rating"] - skulk)
+    state["security_tally"] += tally_increase
+    skulk_note = (
+        f" (Skulk-{skulk} masked the crash)"
+        if skulk > 0 and tally_increase < target_ic["rating"] else ""
+    )
+    _append_event(state, {
+        "type": "ic_crashed",
+        "ic_id": target_ic["id"],
+        "description": (
+            f"{target_ic['type']}-{target_ic['rating']} CRASHED. "
+            f"Tally +{tally_increase} -> {state['security_tally']}{skulk_note}"
+        ),
+        "tally_increase": tally_increase,
+    })
+    _check_and_activate_sheaf(state, sec_code)
+
+    # Spawn hidden IC if this was a Trap IC
+    trap_hidden = target_ic.get("trap_hidden")
+    if trap_hidden:
+        h_type   = trap_hidden.get("type", "Blaster")
+        h_rating = trap_hidden.get("rating", 6)
+        new_id   = f"ic_{uuid.uuid4().hex[:8]}"
+        new_init = eng.ic_initiative_roll(h_rating, sec_code)
+        state["active_ic"].append({
+            "id": new_id,
+            "type": h_type,
+            "rating": h_rating,
+            "category": rules.IC_CATALOG.get(h_type, {}).get("category", "gray"),
+            "boxes": 0,
+            "suppressed": False,
+            "initiative": new_init,
+            "status": "active",
+            "hunt_cycle_successes": 0,
+        })
+        _append_event(state, {
+            "type": "ic_activation",
+            "ic_id": new_id,
+            "ic_type": h_type,
+            "ic_rating": h_rating,
+            "is_trap_reveal": True,
+            "description": (
+                f"TRAP TRIGGERED -- hidden {h_type}-{h_rating} revealed! "
+                f"(initiative {new_init})"
+            ),
+        })
+
+
 @router.post("/{run_id}/attack", response_model=MatrixRunRead)
 async def attack_ic(
     run_id: int,
@@ -4645,6 +4946,9 @@ async def attack_ic(
         raise HTTPException(404, f"IC {body.target_ic_id} not found or not active")
     if target_ic["status"] != "active":
         raise HTTPException(400, f"IC {body.target_ic_id} is already {target_ic['status']}")
+    # Limit option (vr2): an Attack utility Limited to deckers is useless against IC.
+    if (((decker.get("program_options") or {}).get("attack") or {}).get("limit_target")) == "decker":
+        raise HTTPException(400, "This Attack utility is Limited to deckers -- it cannot target IC.")
     _one_shot_block(state, decker, "attack")  # a spent One-Shot Attack cannot fire again until reloaded
     _spend_pass_action(state, "attack")        # vr2: a cybercombat attack is a Simple Action
 
@@ -4669,7 +4973,8 @@ async def attack_ic(
     # Shield/Shift raise the decker's to-hit TN; Penetration defeats Shield, Chaser defeats Shift.
     shield_shift = _shield_shift_tn_modifier(
         target_ic, penetration=opt_pen, chaser=opt_chaser)
-    tn = base_tn + shield_shift + tgt_tn_delta
+    # The decker's own cumulative wound penalty raises their to-hit TN (+1 per wound level).
+    tn = base_tn + shield_shift + tgt_tn_delta + _decker_wound_mod(state)
     if opt_target:
         tn = max(2, tn - 2)   # Targeting option: -2 to-hit TN on attacks with this utility
     tn = max(2, tn)           # clamp (a Position TN reduction can never push the TN below 2)
@@ -5148,10 +5453,10 @@ async def new_turn(
         max_npc_passes = 1
         for _ic in state.get("active_ic", []):
             if _ic.get("status") == "active":
-                max_npc_passes = max(max_npc_passes, _init_passes(_ic.get("initiative", 0)))
+                max_npc_passes = max(max_npc_passes, _ic_passes(_ic))
         for _enemy in state.get("enemy_deckers", []):
             if _enemy.get("status") == "active":
-                max_npc_passes = max(max_npc_passes, _enemy.get("initiative_passes", 1))
+                max_npc_passes = max(max_npc_passes, _enemy_passes(_enemy))
         for _p in range(state.get("current_pass", 1), max_npc_passes + 1):
             if state.get("run_ended"):
                 break
@@ -5181,6 +5486,10 @@ async def new_turn(
     # Initiative is rolled ONCE per cybercombat encounter (not per Combat Turn). A new turn
     # just refreshes the action budget and lets every actor act again on its FIXED passes;
     # clear the per-pass "acted" markers so NPCs act again this turn.
+    # Wounds reduce initiative (rolled once per encounter): re-derive the decker's action passes
+    # from the raw initiative minus the CURRENT cumulative wound penalty.
+    state["initiative_passes"] = _init_passes(
+        state.get("decker_initiative", 0) - _decker_wound_mod(state))
     init = state.get("decker_initiative")
     passes = state.get("initiative_passes", 1)
     state["current_pass"] = 1
@@ -5434,9 +5743,28 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
     """
     if enemy.get("status") != "active" or state.get("run_ended"):
         return
-    # Combat maneuver: an enemy that has lost/hidden from the PC (Evade Detection) does not act;
-    # the hidden window auto-expires (timer / security tally) inside _evade_active.
+    # Combat maneuver: an enemy that has lost/hidden from the PC (Evade Detection) does not attack.
+    # Relaxed for the wounded-AI hide-heal loop: a HIDDEN Medic-carrier keeps healing its own icon
+    # while it lurks (healing is not an attack, so it does not break the hide), then re-engages once
+    # patched up. Any other hidden decker simply stays dark this pass. The hidden window auto-expires
+    # (timer / security tally) inside _evade_active, which re-detects it back into view.
     if _evade_active(state, enemy):
+        if _enemy_carries_medic(enemy):
+            ecm = enemy.setdefault("condition_monitor", {})
+            boxes = int(ecm.get("persona_boxes", 0) or 0)
+            if boxes <= _ENEMY_REENGAGE_BOXES:
+                _clear_evade(state, enemy, redetected=False)
+                enemy["revealed"] = True   # back in the open -- the PC can Strike Back at it again
+                _append_event(state, {
+                    "type": "enemy_decker", "outcome": "reengage", "enemy_id": enemy.get("id"),
+                    "gm_only": True,
+                    "description": (
+                        f"GM: {enemy.get('name', 'Security decker')} has patched its icon to "
+                        f"{boxes}/10 and drops its hide to resume the hunt."
+                    ),
+                })
+                return
+            _enemy_medic_heal(state, enemy)
         return
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
@@ -5480,20 +5808,29 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         return
 
     # -- Phase 2: execute the enemy's offensive program --------------------------
-    # Self-preservation (balanced AI): a badly wounded enemy decker breaks off the hunt and jacks
-    # out rather than fight to the death. Serious+ icon damage (>= _ENEMY_RETREAT_BOXES / 10 persona
-    # boxes) triggers the retreat -- it logs off, leaves the run, and is no longer driven or
-    # attackable. It still attacks at full aggression while its icon is healthier than that.
-    ecm = enemy.get("condition_monitor") or {}
-    if ecm.get("persona_boxes", 0) >= _ENEMY_RETREAT_BOXES:
+    # Wounded-decker AI (spec section 3.2): a graduated self-preservation model that replaces the
+    # old hard 7-box flee. Runs BEFORE _npc_maybe_maneuver so the shared maneuver's boxes>=7 Evade
+    # branch stays IC-only for deckers (a healless decker gains nothing by hiding).
+    ecm = enemy.setdefault("condition_monitor", {})
+    boxes = int(ecm.get("persona_boxes", 0) or 0)
+    if boxes >= 10:
+        # Icon crashing -> forced out (not a choice). (Normally the PC's Strike Back crashes it
+        # first; this is a defensive backstop for an enemy that reaches 10 on its own turn.)
         enemy["status"] = "fled"
         _append_event(state, {
             "type": "enemy_decker", "outcome": "fled", "enemy_id": enemy["id"],
             "description": (
-                f"{enemy['name']} is badly damaged ({ecm.get('persona_boxes', 0)}/10) and jacks "
-                f"out -- breaking off the hunt to save its deck."
+                f"{enemy['name']}'s icon is crashing ({boxes}/10) -- it is dumped from the host."
             ),
         })
+        return
+    # Escalating nerve check at 7/8/9 boxes (once per newly-reached threshold; bravery softens it).
+    if _enemy_nerve_check(state, enemy, boxes):
+        return   # nerve broke -> jacked out (the helper set status="fled" + logged it)
+    # Held its nerve but hurt: a Medic-carrier (Red/Black) tactically breaks contact to heal --
+    # Evade Detection now, then heal while hidden (top-of-function loop) and re-engage once patched.
+    if boxes >= _ENEMY_WOUNDED_BOXES and _enemy_carries_medic(enemy):
+        _resolve_npc_maneuver(state, decker, eff, enemy, "evade_detection", is_ic=False)
         return
     # Combat maneuver: the enemy may spend its action to maneuver against you instead of attacking
     # (heuristic; only when npc_combat_maneuvers is set).
@@ -5517,17 +5854,27 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         intent = "kill"
     enemy["intent"] = intent
 
-    attack_rating = (enemy.get("utilities") or {}).get("attack", 4)
+    util_map = enemy.get("utilities") or {}
+    attack_rating = util_map.get("attack", 4)
     is_lethal = program in ("Black Hammer", "Killjoy")
-    power = enemy.get("lethal_rating", 0) if is_lethal else attack_rating
+    # Each program uses its OWN carried rating (falling back to the Attack rating for a legacy
+    # enemy that only stored Attack): lethal -> lethal_rating; Hog / cripplers -> their utility.
+    if is_lethal:
+        power = enemy.get("lethal_rating", 0)
+    elif program == "Hog":
+        power = util_map.get("hog", attack_rating)
+    elif program in ("Poison", "Restrict", "Reveal"):
+        power = util_map.get(program.lower(), attack_rating)
+    else:  # Attack
+        power = attack_rating
     pool = power + hacking_pool
     did_icon_damage = False
 
     if program == "Hog":
         hog = eng.hog_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
-            hog_rating=attack_rating, mpcp_rating=decker.get("mpcp", 4),
-            hardening=decker.get("hardening", 0))
+            hog_rating=power, mpcp_rating=decker.get("mpcp", 4),
+            hardening=decker.get("hardening", 0), tn_modifier=_enemy_wound_mod(enemy))
         if hog["attack_roll"]["successes"] > 0 and hog["reduction"] > 0:
             drain = hog["reduction"]
             state.setdefault("hog_infections", []).append({
@@ -5550,8 +5897,8 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         atk_tn_delta, _atk_power_delta = _consume_attack_mods_vs_pc(state, enemy)
         cr = eng.decker_attribute_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
-            program_rating=attack_rating, target_attribute_rating=eff[attr],
-            shield_successes=shield_succ, tn_modifier=atk_tn_delta)
+            program_rating=power, target_attribute_rating=eff[attr],
+            shield_successes=shield_succ, tn_modifier=atk_tn_delta + _enemy_wound_mod(enemy))
         if cr["reduction"] > 0:
             cm["persona_damage"][attr] = cm["persona_damage"].get(attr, 0) + cr["reduction"]
             # Record the enemy program's rating as this attribute's causing rating (Restore TN).
@@ -5575,7 +5922,8 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         atk = eng.cybercombat_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             target_bod=eff["bod"], armor_rating=(decker.get("utilities") or {}).get("armor", 0),
-            ic_rating=power + atk_power_delta, attacker_is_ic=True, tn_modifier=atk_tn_delta,
+            ic_rating=power + atk_power_delta, attacker_is_ic=True,
+            tn_modifier=atk_tn_delta + _enemy_wound_mod(enemy),
             shield_successes=shield_succ)
         boxes = atk["resistance"]["boxes"]
         cm["persona_boxes"] = cm.get("persona_boxes", 0) + boxes
@@ -5588,13 +5936,21 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
                 bod=decker.get("body", 4), power=power, base_damage_level="Serious",
                 attacker_successes=atk["attack_roll"]["successes"],
                 shield_successes=shield_succ)
-            cm["physical_boxes"] = cm.get("physical_boxes", 0) + bio["boxes"]
-            dmg_kind = "Stun" if program == "Killjoy" else "Physical"
+            if program == "Killjoy":
+                # Killjoy (non-lethal black IC): meat damage is Physical STUN (overflows to physical).
+                _add_stun(cm, bio["boxes"])
+                meat_kind, meat_val = "Stun", cm["stun_boxes"]
+                meat_full = cm["stun_boxes"] >= 10
+            else:
+                # Black Hammer (lethal black IC): meat damage is Physical DAMAGE.
+                cm["physical_boxes"] = cm.get("physical_boxes", 0) + bio["boxes"]
+                meat_kind, meat_val = "Physical", cm["physical_boxes"]
+                meat_full = cm["physical_boxes"] >= 10
             desc = (f"{program.upper()} -- {enemy['name']} drives lethal biofeedback into you: "
-                    f"icon {atk['resistance']['final_damage_level']} ({boxes}), {dmg_kind} "
+                    f"icon {atk['resistance']['final_damage_level']} ({boxes}), {meat_kind} "
                     f"{bio['final_damage_level']} ({bio['boxes']}). "
-                    f"Persona {cm['persona_boxes']}/10, Physical {cm['physical_boxes']}/10.")
-            if cm["physical_boxes"] >= 10:
+                    f"Persona {cm['persona_boxes']}/10, {meat_kind} {meat_val}/10.")
+            if meat_full:
                 state["run_ended"] = True
                 state["end_reason"] = "killed_by_" + ("killjoy" if program == "Killjoy" else "black_hammer")
                 run.status = "killed"
@@ -5610,7 +5966,7 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> None
         state["run_ended"] = True
         state["end_reason"] = "icon_crashed_by_decker"
         run.status = "dumped"
-        shock = "immune" if ds.get("immune") else f"{ds['boxes']} physical boxes"
+        shock = "immune" if ds.get("immune") else f"{ds['boxes']} stun boxes"
         mpcp_note = ""
         if is_lethal:
             mpcp_hit, _b = _roll_mpcp_damage(state, decker, power, pool_multiplier=2)
@@ -5684,11 +6040,16 @@ async def attack_enemy_decker(
         # to the thrown pool if the player supplied one but no rating is recorded.
         program_rating = int(util.get(body.program, 0) or 0) or body.attack_pool
         target_rating = max(1, int(enemy.get(attr, 1) or 1))
+        # The enemy parries with its Shield utility (if loaded): its net successes ADD to the
+        # enemy's side of the opposed crippler test, raising the bar the PC must clear.
+        e_shield = _enemy_shield_parry(
+            state, enemy, attacker_skill=int(decker.get("computer_skill", 1) or 1),
+            context=body.program)
         cr = eng.decker_attribute_attack(
             attacker_pool=pool, security_code=sec_code, target_status="intruding",
             program_rating=program_rating, target_attribute_rating=target_rating,
-            tn_modifier=tgt_tn_delta,
-            # The enemy decker has no Shield modeled -> shield_successes stays 0.
+            shield_successes=e_shield,
+            tn_modifier=tgt_tn_delta + _decker_wound_mod(state),
         )
         reduction = cr["reduction"]
         label = body.program.upper()
@@ -5739,12 +6100,18 @@ async def attack_enemy_decker(
         target_bod = max(1, int(enemy.get("bod", 1) or 1))
         # Mirror the PC->enemy plain-Attack to-hit TN (host code, target intruding); resolve the
         # icon damage via damage_resistance at a fixed lethal base (the enemy resists with Bod).
-        attack_tn = max(2, rules.COMBAT_TN[sec_code]["intruding"] + tgt_tn_delta)
+        attack_tn = max(2, rules.COMBAT_TN[sec_code]["intruding"] + tgt_tn_delta + _decker_wound_mod(state))
         attack_roll = eng.roll_dice(pool, attack_tn)
+        # The enemy parries the lethal hit with its Shield utility (if loaded): its net successes
+        # SUBTRACT from the PC's attack successes before the icon-damage resistance stages.
+        e_shield = _enemy_shield_parry(
+            state, enemy, attacker_skill=int(decker.get("computer_skill", 1) or 1),
+            context=program)
         resist = eng.damage_resistance(
             bod=target_bod, power=rating + tgt_power_delta, base_damage_level=_LETHAL_BASE_LEVEL,
+            armor_rating=_enemy_armor(enemy),
             attacker_successes=attack_roll["successes"],
-            # The enemy decker has no Shield modeled -> shield_successes stays 0.
+            shield_successes=e_shield,
         )
         boxes = resist["boxes"]
         ecm = enemy.setdefault("condition_monitor", {})
@@ -5782,12 +6149,20 @@ async def attack_enemy_decker(
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
 
-    # Plain Attack (default) -- crash the enemy icon.
+    # Limit option (vr2): an Attack utility Limited to IC is useless against an enemy decker.
+    if (((decker.get("program_options") or {}).get("attack") or {}).get("limit_target")) == "ic":
+        raise HTTPException(400, "This Attack utility is Limited to IC -- it cannot target enemy deckers.")
+    # Plain Attack (default) -- crash the enemy icon. The enemy resists EXACTLY like the PC
+    # decker: Bod dice vs Power, with its Armor utility (if loaded) reducing that Power, and its
+    # Shield utility (if loaded) parrying successes off the incoming hit.
+    e_shield = _enemy_shield_parry(
+        state, enemy, attacker_skill=int(decker.get("computer_skill", 1) or 1), context="attack")
     atk = eng.cybercombat_attack(
         attacker_pool=pool, security_code=sec_code, target_status="intruding",
-        target_bod=enemy["bod"], armor_rating=0,
+        target_bod=enemy["bod"], armor_rating=_enemy_armor(enemy),
         ic_rating=util.get("attack", 4) + tgt_power_delta, attacker_is_ic=False,
-        tn_modifier=tgt_tn_delta,
+        tn_modifier=tgt_tn_delta + _decker_wound_mod(state),
+        shield_successes=e_shield,
     )
     boxes = atk["resistance"]["boxes"]
     ecm = enemy.setdefault("condition_monitor", {})
@@ -5804,6 +6179,179 @@ async def attack_enemy_decker(
     _spend_one_shot(state, decker, body.program)
     run.state_json = state
     await db.commit(); await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/area-attack", response_model=MatrixRunRead)
+async def area_attack(
+    run_id: int,
+    body: RunAreaAttackInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """One Area-option Attack burst against several icons at once (vr2 Area utility).
+
+    The Attack utility's Area rating caps how many icons a single burst can engage. ``target_ids``
+    mixes active IC and revealed enemy deckers. ONE Attack Test is made; per vr2 the to-hit TN
+    rises by the number of targets, and the Area option BYPASSES a Party-IC cluster's to-hit
+    penalty entirely. Each target then resists INDIVIDUALLY with its own mechanic -- IC with
+    Security Value vs the combat TN, enemy deckers with Bod (exactly like the PC). Any target
+    carrying Armor gets +2 effective Armor against an Area strike. With a single target the burst
+    collapses to a plain Attack (no Area penalty, no Area armor bonus) -- identical to a non-Area
+    utility.
+    """
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
+    decker = run.decker_json
+    sec_code = state["host_security_code"]
+    sec_value = state["host_security_value"]
+
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+
+    atk_opts   = (decker.get("program_options") or {}).get("attack") or {}
+    opt_pen    = bool(atk_opts.get("penetration"))
+    opt_chaser = bool(atk_opts.get("chaser"))
+    opt_target = bool(atk_opts.get("targeting"))
+    opt_skulk  = max(0, int(atk_opts.get("skulk", 0) or 0))
+    opt_area   = max(0, int(atk_opts.get("area", 0) or 0))
+    if opt_area < 1:
+        raise HTTPException(400, "This Attack utility has no Area option.")
+    limit_target = (atk_opts.get("limit_target") or "")
+
+    # Resolve every target id to an active IC or a revealed, active enemy decker. Order is
+    # preserved from the request. An unknown / dead / hidden id is a hard error (nothing is
+    # spent yet).
+    active_ic = {ic["id"]: ic for ic in state.get("active_ic", [])
+                 if isinstance(ic, dict) and ic.get("status") == "active"}
+    enemies = {e["id"]: e for e in state.get("enemy_deckers", [])
+               if isinstance(e, dict) and e.get("status") == "active" and e.get("revealed")}
+    targets: list[tuple[str, dict]] = []
+    for tid in body.target_ids:
+        if tid in active_ic:
+            if limit_target == "decker":
+                raise HTTPException(400, "This Attack utility is Limited to deckers -- it cannot target IC.")
+            targets.append(("ic", active_ic[tid]))
+        elif tid in enemies:
+            if limit_target == "ic":
+                raise HTTPException(400, "This Attack utility is Limited to IC -- it cannot target enemy deckers.")
+            targets.append(("enemy", enemies[tid]))
+        else:
+            raise HTTPException(404, f"Target {tid} not found, crashed, or not a valid Area target")
+
+    n_targets = len(targets)
+    if n_targets > opt_area:
+        raise HTTPException(400, f"Area rating {opt_area} can engage at most {opt_area} target(s); {n_targets} selected.")
+    # A single target collapses to a plain attack: no Area to-hit penalty, no Area armor bonus.
+    is_burst = n_targets >= 2
+    area_penalty = n_targets if is_burst else 0
+
+    _one_shot_block(state, decker, "attack")   # a spent One-Shot Attack cannot fire again until reloaded
+    _spend_pass_action(state, "attack")        # vr2: one cybercombat attack (burst) is a Simple Action
+    _spend_hp(state, body.hacking_pool_dice)
+    attack_pool = body.attack_pool + body.hacking_pool_dice
+    base_tn = rules.COMBAT_TN[sec_code]["intruding"]
+    wound_mod = _decker_wound_mod(state)
+    base_dmg = rules.IC_DAMAGE_LEVEL[sec_code]
+    attack_util_rating = int((decker.get("utilities") or {}).get("attack", 4) or 4)
+
+    # Pre-compute each target's individual to-hit TN and consume its per-target combat maneuvers
+    # (Parry/Position) BEFORE the single shared Attack Test. Area bypasses the Party-IC cluster
+    # penalty entirely, so clustered IC contribute 0 to-hit penalty on a real burst.
+    plans: list[dict] = []
+    for kind, obj in targets:
+        tgt_tn_delta, tgt_power_delta = _consume_attack_mods_vs_target(state, obj)
+        if kind == "ic":
+            cluster = 0 if is_burst else _cluster_size(state, obj.get("cluster_id"))
+            shield_shift = _shield_shift_tn_modifier(obj, penetration=opt_pen, chaser=opt_chaser)
+            tn = base_tn + cluster + shield_shift + tgt_tn_delta + wound_mod + area_penalty
+        else:
+            cluster = 0
+            tn = base_tn + tgt_tn_delta + wound_mod + area_penalty
+        if opt_target:
+            tn -= 2                    # Targeting option: -2 to-hit TN
+        tn = max(2, tn)
+        plans.append({"kind": kind, "obj": obj, "tn": tn,
+                      "power_delta": tgt_power_delta, "cluster": cluster})
+
+    # ONE Attack Test (vr2 Area: "make one Attack Test and apply the result to all targets").
+    # Roll at the HIGHEST target TN so the rule-of-6 explosions are fully accumulated, then count
+    # each target's successes from the SAME dice against its own TN (shield/shift stay per-target).
+    roll_tn = max(p["tn"] for p in plans)
+    attack_roll = eng.roll_dice(attack_pool, roll_tn)
+
+    results: list[dict] = []
+    for p in plans:
+        kind, obj, tn = p["kind"], p["obj"], p["tn"]
+        succ = sum(1 for d in attack_roll["dice"] if d >= tn)
+        if kind == "ic":
+            # IC resists with Security Value vs the combat TN; Armor lowers that Power (and is +2
+            # more effective vs an Area burst); Expert trades resist dice.
+            resist_tn = base_tn + p["cluster"] + p["power_delta"]
+            if _ic_has_armor(obj):
+                resist_tn = max(2, resist_tn - 2 - (2 if is_burst else 0))
+            resist_pool = max(1, sec_value + _ic_expert(obj, "defense") - _ic_expert(obj, "offense"))
+            resist_roll = eng.roll_dice(resist_pool, resist_tn)
+            staged = eng.stage_damage(base_dmg, succ, 1)
+            final_dmg = eng.stage_damage(staged, resist_roll["successes"], -1)
+            boxes = rules.DAMAGE_BOXES[final_dmg]
+            obj["boxes"] = obj.get("boxes", 0) + boxes
+            crashed = obj["boxes"] >= 10
+            results.append({"kind": "ic", "id": obj["id"],
+                            "label": f"{obj['type']}-{obj['rating']}",
+                            "boxes": boxes, "final": final_dmg,
+                            "total": obj["boxes"], "crashed": crashed})
+            if crashed:
+                _apply_ic_crash(state, obj, sec_code, opt_skulk)
+        else:
+            # Enemy decker resists EXACTLY like the PC: Bod dice vs Power, its Armor utility (if
+            # loaded) reducing that Power and gaining +2 more vs an Area burst.
+            earmor = _enemy_armor(obj)
+            if earmor > 0 and is_burst:
+                earmor += 2
+            resist = eng.damage_resistance(
+                bod=obj["bod"], power=attack_util_rating + p["power_delta"],
+                armor_rating=earmor, base_damage_level=base_dmg,
+                attacker_successes=succ,
+            )
+            boxes = resist["boxes"]
+            ecm = obj.setdefault("condition_monitor", {})
+            ecm["persona_boxes"] = ecm.get("persona_boxes", 0) + boxes
+            crashed = ecm["persona_boxes"] >= 10
+            if crashed:
+                obj["status"] = "crashed"
+            results.append({"kind": "enemy", "id": obj["id"],
+                            "label": obj.get("name", "enemy decker"),
+                            "boxes": boxes, "final": resist["final_damage_level"],
+                            "total": ecm["persona_boxes"], "crashed": crashed})
+
+    crashed_n = sum(1 for r in results if r["crashed"])
+    if is_burst:
+        head = (f"AREA STRIKE ({attack_roll['successes']} successes) hits {n_targets} icons "
+                f"[+{area_penalty} to-hit]")
+    else:
+        head = f"Attack ({attack_roll['successes']} successes)"
+    parts = [f"{r['label']} {r['final']} ({r['boxes']}b{'; CRASHED' if r['crashed'] else ''})"
+             for r in results]
+    desc = f"{head}: " + "; ".join(parts) + f". {crashed_n} crashed." if parts else head
+    _append_event(state, {
+        "type": "area_attack",
+        "n_targets": n_targets,
+        "area_penalty": area_penalty,
+        "attack_roll": attack_roll,
+        "results": results,
+        "crashed": crashed_n,
+        "description": desc,
+    })
+
+    _spend_one_shot(state, decker, "attack")
+    run.state_json = state
+    await db.commit()
+    await db.refresh(run)
     return _serialize_run(run, auth)
 
 
@@ -5896,7 +6444,7 @@ async def jack_out(
         "type": "jack_out",
         "description": (
             f"Emergency jack-out. Dump shock: {ds.get('final_level', 'None')} "
-            f"({ds.get('boxes', 0)} boxes physical)."
+            f"({ds.get('boxes', 0)} boxes stun)."
         ),
         "dump_shock": ds,
     })

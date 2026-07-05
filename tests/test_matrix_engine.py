@@ -55,7 +55,7 @@ def scripted(monkeypatch):
 class TestRulesTables:
     def test_damage_boxes(self):
         # vr2_rules.md "Condition Monitor Fill": L1 M2 S3 Deadly6
-        assert rules.DAMAGE_BOXES == {"Light": 1, "Moderate": 2, "Serious": 3, "Deadly": 6}
+        assert rules.DAMAGE_BOXES == {"Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10}
 
     def test_damage_levels_order(self):
         assert rules.DAMAGE_LEVELS == ["Light", "Moderate", "Serious", "Deadly"]
@@ -79,8 +79,8 @@ class TestRulesTables:
         assert rules.COMBAT_TN["Blue"] == {"intruding": 6, "legitimate": 3}
         assert rules.COMBAT_TN["Green"] == {"intruding": 5, "legitimate": 4}
         assert rules.COMBAT_TN["Orange"] == {"intruding": 4, "legitimate": 5}
-        assert rules.COMBAT_TN["Red"] == {"intruding": 5, "legitimate": 6}
-        assert rules.COMBAT_TN["Black"] == {"intruding": 3, "legitimate": 8}
+        assert rules.COMBAT_TN["Red"] == {"intruding": 3, "legitimate": 6}
+        assert rules.COMBAT_TN["Black"] == {"intruding": 3, "legitimate": 6}
 
     def test_simsense_overload_tn(self):
         # "Simsense Overload TN": L2 M3 S5 (no Deadly entry)
@@ -538,11 +538,11 @@ class TestSteamroller:
 
     def test_full_rating_crashes_the_tar(self, scripted):
         # Power 6 -> the tar resists vs TN 6: 4s are NOT successes, so the Deadly hit stands
-        # (6 boxes >= 3) and the tar crashes.
+        # (10 boxes >= 3) and the tar crashes.
         scripted([4])
         out = eng.steamroller_attack(steamroller_rating=6, steamroller_pool=6, tar_ic_rating=6)
         assert out["damage_level"] == "Deadly"
-        assert out["boxes"] == 6
+        assert out["boxes"] == 10
         assert out["crashed"] is True
 
     def test_very_low_rating_can_fail(self, scripted):

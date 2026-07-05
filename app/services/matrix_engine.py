@@ -1008,23 +1008,51 @@ def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any
 #     Hog (crash running programs), Poison/Restrict/Reveal (decker cripplers -> Bod/Evasion/
 #     Masking), Black Hammer (lethal Physical) / Killjoy (lethal Stun, deadly-force hosts only).
 _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
-    # ri/quickness/intelligence scale the enemy's Matrix INITIATIVE with host difficulty so a
-    # nova-hot player decker doesn't always out-pace security. Reaction = ceil((Q+I)/2); each RI
-    # adds +1D6 init & +2 Reaction (RI <= MPCP/4). Enemies run hot (+1D6). Black is in a league of
-    # its own (Int 7-10, RI 3). RI respects MPCP/4: Blue MPCP4->1(use 0), Green/Orange MPCP6-7->1,
-    # Red MPCP9->2, Black MPCP12->3.
-    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump", "extra": [],
-               "ri": 0, "quickness": 3, "intelligence": 4},
-    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump", "extra": ["Hog"],
-               "ri": 1, "quickness": 4, "intelligence": 5},
-    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump", "extra": ["Hog", "Reveal"],
-               "ri": 1, "quickness": 5, "intelligence": 6},
+    # Per-instance generation rolls each stat/program as a CENTERED 1D3-style spread
+    # (center-1 .. center+1) clamped to [1, cap]. Centers are TIER-ONLY -- the host's numeric
+    # security value never scales a decker (a skilled decker can watch a soft host). SURVIVE is
+    # additive up the tiers: Armor (Green) -> +Shield (Orange) -> +Medic (Red/Black). ``kill`` /
+    # ``survive`` map a utility key -> its center rating; all program ratings live in the returned
+    # ``utilities`` dict. ``hardening`` / ``bravery`` use explicit (min, max) bands (NOT centered).
+    # ri/quickness/intelligence scale the enemy's Matrix INITIATIVE with host difficulty; RI is
+    # additionally clamped to MPCP/4 (vr2). Black is in a league of its own (Int center 8, RI 3).
+    "Blue":   {"mpcp": 4,  "skill": 4,  "persona": 3, "attack": 3,  "intent": "dump",
+               "ri": 0, "quickness": 3, "intelligence": 4, "hardening": (0, 0), "bravery": (0, 1),
+               "kill": {}, "survive": {}},
+    "Green":  {"mpcp": 6,  "skill": 5,  "persona": 4, "attack": 5,  "intent": "dump",
+               "ri": 1, "quickness": 4, "intelligence": 5, "hardening": (0, 0), "bravery": (0, 2),
+               "kill": {"hog": 4}, "survive": {"armor": 3}},
+    "Orange": {"mpcp": 7,  "skill": 6,  "persona": 5, "attack": 6,  "intent": "dump",
+               "ri": 1, "quickness": 5, "intelligence": 6, "hardening": (0, 0), "bravery": (1, 2),
+               "kill": {"hog": 5, "reveal": 5}, "survive": {"armor": 4, "shield": 4}},
     "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump",
-               "extra": ["Hog", "Poison", "Reveal", "Black Hammer"],
-               "ri": 2, "quickness": 6, "intelligence": 6},
+               "ri": 2, "quickness": 6, "intelligence": 6, "hardening": (0, 1), "bravery": (1, 3),
+               "kill": {"hog": 6, "reveal": 6, "poison": 6, "black_hammer": 4},
+               "survive": {"armor": 5, "shield": 5, "medic": 4}},
     "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill",
-               "extra": ["Hog", "Poison", "Restrict", "Reveal", "Black Hammer", "Killjoy"],
-               "ri": 3, "quickness": 6, "intelligence": 8},
+               "ri": 3, "quickness": 6, "intelligence": 8, "hardening": (1, 2), "bravery": (2, 3),
+               "kill": {"hog": 7, "reveal": 7, "poison": 7, "restrict": 7,
+                        "black_hammer": 5, "killjoy": 5},
+               "survive": {"armor": 6, "shield": 6, "medic": 5}},
+}
+
+_MPCP_MAX = 12  # canonical top-end deck -- a Black roll of 13 folds to 12
+
+# Utility key -> display name for the offensive ``programs`` list (Attack is always first).
+_ENEMY_KILL_DISPLAY = {
+    "hog": "Hog", "reveal": "Reveal", "poison": "Poison", "restrict": "Restrict",
+    "black_hammer": "Black Hammer", "killjoy": "Killjoy",
+}
+
+# Count-gated probabilistic spawn: after ANY sheaf step fires, the host rolls ``chance`` to
+# dispatch a security decker, capped per run (``cap`` = (min, max), rolled once into
+# state["enemy_decker_cap"]). This is the SOLE enemy-decker spawner (no hand-authored path).
+_ENEMY_DECKER_SPAWN: dict[str, dict[str, Any]] = {
+    "Blue":   {"chance": 0.05, "cap": (1, 1)},
+    "Green":  {"chance": 0.10, "cap": (1, 1)},
+    "Orange": {"chance": 0.15, "cap": (1, 2)},
+    "Red":    {"chance": 0.20, "cap": (1, 2)},
+    "Black":  {"chance": 0.25, "cap": (2, 3)},
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
@@ -1037,33 +1065,54 @@ def generate_enemy_decker(
     *,
     name: str | None = None,
 ) -> dict[str, Any]:
-    """Auto-generate a security decker scaled to the host (vr2-flavoured rubric).
+    """Auto-generate a security decker scaled to the host TIER (vr2-flavoured rubric).
 
-    Skill/MPCP scale with security_value but are capped to the security-code tier, so
-    enemy deckers stay believable (a Blue host never produces an elite decker). Returns
-    a decker dict ready to drop into run state. The GM decides whether to inject one --
-    on a low-tier host you may simply choose not to.
+    Every stat and program is rolled per-instance as a centered 1D3-style spread
+    (``center - 1 .. center + 1``) clamped to ``[1, cap]`` -- so two same-tier deckers differ.
+    The bands are TIER-ONLY: the host's numeric ``security_value`` never scales MPCP/skill/programs
+    (it informs only the display name). Program ratings cap at MPCP; the lethal programs
+    (Black Hammer / Killjoy) additionally cap at ``ceil(Computer skill / 2)``; MPCP caps at 12.
+    Returns a decker dict ready to drop into run state; every dispatched decker is generated
+    programmatically (there is no hand-authored path). Spawns are automatic (see the run engine).
     """
     tier = _ENEMY_DECKER_TIERS.get(security_code, _ENEMY_DECKER_TIERS["Green"])
-    skill = min(tier["skill"], max(3, security_value))
-    mpcp = min(tier["mpcp"], max(3, security_value))
-    persona = tier["persona"]
-    attack = tier["attack"]
-    sleaze = persona
+
+    def _band(center: int, cap: int = 99) -> int:
+        """Centered 1D3-style roll, floored at 1 and capped at ``cap``."""
+        return max(1, min(cap, center + random.randint(-1, 1)))
+
+    mpcp = _band(tier["mpcp"], _MPCP_MAX)
+    skill = _band(tier["skill"])
+    persona = _band(tier["persona"])
+    sleaze = _band(tier["persona"])       # Sleaze band == persona band, rolled independently
+    scanner = _band(tier["persona"])      # Scanner band == persona band (locate other deckers)
+    attack = _band(tier["attack"], mpcp)
+    lethal_cap = (skill + 1) // 2         # ceil(Computer skill / 2): the RAW lethal-rating cap
     df = detection_factor(persona, sleaze)  # the PC must beat this to find THEM
-    extra = list(tier["extra"])
-    programs = ["Attack"] + extra
+
+    # Roll every carried program into the utilities dict, each clamped to <= MPCP (the lethal
+    # programs additionally to <= ceil(skill/2)). SURVIVE (armor/shield/medic) rides alongside.
+    utilities: dict[str, int] = {"attack": attack, "sleaze": sleaze, "scanner": scanner}
+    for key, center in tier["kill"].items():
+        cap = lethal_cap if key in ("black_hammer", "killjoy") else mpcp
+        utilities[key] = _band(center, cap)
+    for key, center in tier["survive"].items():
+        utilities[key] = _band(center, mpcp)
+
+    programs = ["Attack"] + [_ENEMY_KILL_DISPLAY[k] for k in tier["kill"] if k in _ENEMY_KILL_DISPLAY]
     # Default lethal program (used by 'kill' intent): Black Hammer if carried, else Killjoy.
-    lethal = "Black Hammer" if "Black Hammer" in extra else ("Killjoy" if "Killjoy" in extra else None)
-    lethal_rating = (skill + 1) // 2 if lethal else 0   # max rating = half Computer skill
-    # Reaction stats + Response Increase scale the enemy's initiative with host difficulty.
-    # The app fills these PSEUDO-RANDOMLY within tier bands (no GM input needed): Reaction
-    # stats vary +-1 below the tier top; RI is usually the tier value (30% one lower), capped
-    # at MPCP/4 (vr2); deck mode runs hot more often at higher tiers; a reality filter appears
-    # with a tier-scaled chance. Initiative itself is rolled at inject time (PC model).
-    intelligence = max(3, tier.get("intelligence", min(6, skill)) - random.randint(0, 1))
-    quickness = max(2, tier.get("quickness", 3) - random.randint(0, 1))
-    response_increase = min(mpcp // 4, max(0, tier.get("ri", 0) - (1 if random.random() < 0.3 else 0)))
+    lethal = "Black Hammer" if "black_hammer" in tier["kill"] else (
+        "Killjoy" if "killjoy" in tier["kill"] else None)
+    lethal_rating = utilities.get("black_hammer") or utilities.get("killjoy") or 0
+
+    # Reaction stats + Response Increase scale the enemy's initiative with host difficulty (all
+    # centered per-instance). RI respects MPCP/4 (vr2). Hardening / bravery use explicit bands.
+    # Deck mode runs hot more often at higher tiers; a reality filter appears with a tier chance.
+    intelligence = _band(tier["intelligence"])
+    quickness = _band(tier["quickness"])
+    response_increase = max(0, min(mpcp // 4, tier["ri"] + random.randint(-1, 1)))
+    hardening = random.randint(*tier["hardening"])
+    bravery = random.randint(*tier["bravery"])   # flee resistance (see the run engine's nerve check)
     hot_chance = {"Blue": 0.6, "Green": 0.7, "Orange": 0.8, "Red": 0.9, "Black": 1.0}.get(security_code, 0.8)
     deck_mode = "hot" if random.random() < hot_chance else "cool"
     rf_chance = {"Blue": 0.0, "Green": 0.1, "Orange": 0.25, "Red": 0.5, "Black": 0.75}.get(security_code, 0.25)
@@ -1078,19 +1127,18 @@ def generate_enemy_decker(
         "response_increase": response_increase,
         "deck_mode": deck_mode,
         "reality_filter": reality_filter,
-        "utilities": {
-            # Scanner is a utility (locate other deckers), rated like the persona programs --
-            # not the full Computer skill, so a sleazy PC keeps an evade window.
-            "attack": attack, "sleaze": sleaze, "scanner": persona, "deception": persona,
-        },
+        "utilities": utilities,
         "programs": programs,
         "intent": tier["intent"],
         "lethal_program": lethal,
         "lethal_rating": lethal_rating,
         "tier": security_code,
         "detection_factor": df,
-        "hardening": 1 if security_code in ("Red", "Black") else 0,
-        "condition_monitor": {"persona_boxes": 0, "mpcp_damage": 0},
+        "hardening": hardening,
+        "bravery": bravery,
+        "condition_monitor": {"persona_boxes": 0, "stun_boxes": 0, "physical_boxes": 0, "mpcp_damage": 0},
+        "program_damage": {},          # per-enemy Shield/Medic wear (mirrors the PC's slot)
+        "nerve_checks_done": [],       # persona-box thresholds already nerve-checked (7/8/9)
         "locate_progress": 0,
         "located": False,
         "revealed": False,
@@ -1215,11 +1263,13 @@ def hog_attack(
     hog_rating: int,
     mpcp_rating: int,
     hardening: int = 0,
+    tn_modifier: int = 0,
 ) -> dict[str, Any]:
     """Hog virus weapon (vr2): a cybercombat attack that, on a hit, makes the target roll
     MPCP vs the Hog rating; the attacker's net successes // 2 reduce the target's highest
-    running program (repeats each turn until that program crashes)."""
-    attack_tn = COMBAT_TN[security_code][target_status]
+    running program (repeats each turn until that program crashes). ``tn_modifier`` raises the
+    attacker's to-hit TN (e.g. the attacker's own wound penalty)."""
+    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
     attack_roll = roll_dice(attacker_pool, attack_tn)
     resist_roll = roll_dice(mpcp_rating, max(2, hog_rating - hardening))
     net = max(0, attack_roll["successes"] - resist_roll["successes"])
