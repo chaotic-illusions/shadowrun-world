@@ -392,6 +392,10 @@
             <div class="cond-boxes" id="persona-boxes"></div>
           </div>
           <div class="cond-row">
+            <div class="cond-label">Stun</div>
+            <div class="cond-boxes" id="stun-boxes"></div>
+          </div>
+          <div class="cond-row">
             <div class="cond-label">Physical</div>
             <div class="cond-boxes" id="physical-boxes"></div>
           </div>
@@ -451,7 +455,7 @@
 
         <!-- Active IC -->
         <div class="mr-panel">
-          <div class="panel-title panel-title-green">&gt;&gt; ACTIVE IC</div>
+          <div class="panel-title panel-title-green">&gt;&gt; ACTIVE IC <span id="area-strike-slot" style="float:right"></span></div>
           <div id="run-ic-list"><div class="empty-msg">No IC active</div></div>
         </div>
 
@@ -514,6 +518,32 @@
       <button class="btn btn-ghost" onclick="closeAttackModal()">Cancel</button>
     </div>
     <div id="attackModalAlert" class="alert" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- -- Area Strike Modal ----------------------------- -->
+<div class="modal-overlay" id="areaStrikeModal">
+  <div class="mr-modal-box">
+    <div class="mr-modal-title">&gt;&gt; AREA STRIKE</div>
+    <div style="font-size:0.72rem;margin-bottom:10px" class="text-dim" id="areaStrikeInfo"></div>
+    <div class="setup-grid" style="gap:10px">
+      <div class="mr-field">
+        <label>Attack Pool</label>
+        <input type="number" id="area-pool" min="0" max="30" value="0">
+      </div>
+      <div class="mr-field">
+        <label>Hacking Pool Dice</label>
+        <input type="number" id="area-hp-dice" min="0" max="50" value="0">
+      </div>
+    </div>
+    <div style="font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px" class="text-amber">Targets</div>
+    <div id="areaStrikeTargets" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
+    <div id="areaStrikePrompt" style="font-size:.66rem;margin-top:8px" class="text-dim"></div>
+    <div class="mr-modal-actions">
+      <button class="btn btn-red" id="areaStrikeConfirmBtn" onclick="submitAreaStrike()">&gt;&gt; Execute Area Strike</button>
+      <button class="btn btn-ghost" onclick="closeAreaStrikeModal()">Cancel</button>
+    </div>
+    <div id="areaStrikeModalAlert" class="alert" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -749,7 +779,7 @@ function isOneShotItem(item) {
 // rating. Returns null when no run-relevant option is set, so we don't bloat the payload.
 function parseRunProgramOpts(modsText, baseRating) {
   const max = Math.max(0, parseInt(baseRating, 10) || 0);
-  const opts = { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false };
+  const opts = { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false, limit_target: '' };
   String(modsText || '').split(',').map(s => s.trim()).filter(Boolean).forEach(part => {
     let m = part.match(/^Area\s+(\d+)$/i);
     if (m) { opts.area = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
@@ -757,13 +787,15 @@ function parseRunProgramOpts(modsText, baseRating) {
     if (m) { opts.dinab = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
     m = part.match(/^Skulk\s+(\d+)$/i);
     if (m) { opts.skulk = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
+    m = part.match(/^Limit\s*:\s*(DECKER|IC)$/i);
+    if (m) { opts.limit_target = m[1].toLowerCase(); return; }
     if (/^Targeting$/i.test(part))   { opts.targeting = true; return; }
     if (/^Penetration$/i.test(part)) { opts.penetration = true; return; }
     if (/^Chaser$/i.test(part))      { opts.chaser = true; return; }
     if (/^One-Shot$/i.test(part))    { opts.one_shot = true; return; }
   });
   if (opts.penetration && opts.chaser) opts.chaser = false;  // mutually exclusive (vr2); Penetration wins
-  const any = opts.skulk || opts.area || opts.dinab || opts.targeting || opts.penetration || opts.chaser || opts.one_shot;
+  const any = opts.skulk || opts.area || opts.dinab || opts.targeting || opts.penetration || opts.chaser || opts.one_shot || opts.limit_target;
   return any ? opts : null;
 }
 
@@ -1187,7 +1219,7 @@ function laoAddFromLibrary(cid, target) {
     mods: a.mods || 'None',
     isOneShot: !!a.isOneShot,
     hasLimit: !!a.hasLimit,
-    limitTarget: a.hasLimit ? 'decker' : '',
+    limitTarget: a.hasLimit ? (a.limitTarget || 'decker') : '',
     target: want,
   };
   const items = _runLoadoutDraft.items || [];
@@ -2163,10 +2195,17 @@ async function startRun() {
     // Carry run-relevant program options, preferring the active-loaded copy when a type has
     // both an active and a storage entry (the active program is the one actually in play).
     const opts = parseRunProgramOpts(item?.mods, ident.baseRating);
-    if (opts) {
+    // Limit option: carry the restricted target type into the run so the app (as GM) can enforce
+    // it (an IC-limited utility cannot hit deckers and vice versa). The load-time choice stored on
+    // the loadout item is authoritative; parseRunProgramOpts already read any Limit:TARGET in mods.
+    const lt = item?.hasLimit ? String(item?.limitTarget || '').trim().toLowerCase() : '';
+    const merged = (lt === 'ic' || lt === 'decker')
+      ? { ...(opts || { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false }), limit_target: lt }
+      : opts;
+    if (merged) {
       const rank = targetUsesActive(item?.target || 'active') ? 2 : 1;
       if (program_options[ident.typeKey] === undefined || rank > (_optRank[ident.typeKey] || 0)) {
-        program_options[ident.typeKey] = opts;
+        program_options[ident.typeKey] = merged;
         _optRank[ident.typeKey] = rank;
       }
     }
@@ -2318,6 +2357,8 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
   list.innerHTML = visible.map(e => {
     const cm = (e.condition_monitor || {});
     const boxes = cm.persona_boxes || 0;
+    const stun  = cm.stun_boxes || 0;
+    const phys  = cm.physical_boxes || 0;
     const dead  = e.status === 'crashed';
     const fled  = e.status === 'fled';
     const gone  = dead || fled;                 // crashed or jacked out -- no longer a threat
@@ -2336,6 +2377,12 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
       <div class="cond-row" style="margin:6px 0"><div class="cond-label">Icon</div>
         <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(boxes, 10, 'ic')}</div>
         <div class="cond-count">${boxes}/10</div></div>
+      ${stun ? `<div class="cond-row" style="margin:6px 0"><div class="cond-label">Stun</div>
+        <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(stun, 10, 'stun')}</div>
+        <div class="cond-count">${stun}/10</div></div>` : ''}
+      ${phys ? `<div class="cond-row" style="margin:6px 0"><div class="cond-label">Phys</div>
+        <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(phys, 10, 'physical')}</div>
+        <div class="cond-count">${phys}/10</div></div>` : ''}
       ${canHit ? `
       <div class="enemy-strike-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">
         <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">
@@ -2356,6 +2403,12 @@ async function strikeEnemyDecker(eid) {
   if (!_run) return;
   const sel = document.getElementById('strike-pgm-' + eid);
   const program = (sel && sel.value) || 'attack';
+  // Limit option: an Attack utility Limited to IC cannot target enemy deckers (server enforces this too).
+  if (program === 'attack'
+      && (((_run.decker_json || {}).program_options || {}).attack || {}).limit_target === 'ic') {
+    showAlert(null, 'Your Attack utility is Limited to IC -- it cannot target enemy deckers.', true);
+    return;
+  }
   const labels = {
     attack: 'Attack (crash icon)', poison: 'Poison (vs Bod)',
     restrict: 'Restrict (vs Evasion)', reveal: 'Reveal (vs Masking)',
@@ -2668,6 +2721,7 @@ function renderRunState(run) {
   // Condition monitor
   const cm = state.condition_monitor || {};
   renderConditionBoxes('persona-boxes',  cm.persona_boxes  || 0, 10, 'persona');
+  renderConditionBoxes('stun-boxes',     cm.stun_boxes     || 0, 10, 'stun');
   renderConditionBoxes('physical-boxes', cm.physical_boxes || 0, 10, 'physical');
 
   const crashed = (cm.persona_boxes || 0) >= 10;
@@ -2761,6 +2815,7 @@ function renderRunState(run) {
   // Active IC (including lurking reactive IC)
   renderActiveIC(state.active_ic || [], state.lurking_ic || [], state.run_ended, crashed);
   renderEnemyDeckers(state.enemy_deckers || [], state.run_ended, crashed);
+  renderAreaStrikeSlot(state.run_ended, crashed);
   renderTrapDoorsPanel();
 
   // Event log
@@ -3837,6 +3892,12 @@ async function submitAttack() {
   const hpDice     = parseInt(document.getElementById('atk-hp-dice').value) || 0;
   const armor      = parseInt(document.getElementById('atk-armor').value) || 0;
 
+  // Limit option: an Attack utility Limited to deckers cannot target IC (server enforces this too).
+  if ((((_run.decker_json || {}).program_options || {}).attack || {}).limit_target === 'decker') {
+    showAlert(null, 'Your Attack utility is Limited to deckers -- it cannot target IC.', true);
+    return;
+  }
+
   const btn = document.getElementById('attackConfirmBtn');
   btn.disabled = true;
   const targetId = _attackTargetId;
@@ -3870,6 +3931,140 @@ async function submitAttack() {
     renderRunState(updated);
   } catch(e) {
     showAlert(document.getElementById('attackModalAlert'), e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// -- Area Strike (Area-option Attack) ---------------------------------------
+// One Attack Test engages up to (Area rating) icons at once -- IC and/or revealed enemy deckers.
+// The button appears only when the loaded Attack utility carries Area >= 2 AND there are >= 2
+// valid targets; a single target is just a plain Attack (use the per-icon >> Attack button).
+function _attackOptions() {
+  return ((((_run && _run.decker_json) || {}).program_options || {}).attack) || {};
+}
+function _areaRating() {
+  return Math.max(0, parseInt(_attackOptions().area, 10) || 0);
+}
+function _areaValidTargets() {
+  const st  = (_run && _run.state_json) || {};
+  const lim = _attackOptions().limit_target || '';   // '', 'ic', or 'decker'
+  const out = [];
+  if (lim !== 'decker') {
+    (st.active_ic || []).forEach(ic => {
+      if (ic && ic.status === 'active') out.push({ id: ic.id, kind: 'ic', label: `${ic.type}-${ic.rating || '?'}` });
+    });
+  }
+  if (lim !== 'ic') {
+    (st.enemy_deckers || []).forEach(e => {
+      // The player view is redacted to revealed enemies only and drops the `revealed` flag, so
+      // treat an absent flag as revealed (mirrors renderEnemyDeckers); the backend still enforces it.
+      if (e && e.status === 'active' && (e.revealed === undefined || e.revealed)) {
+        out.push({ id: e.id, kind: 'enemy', label: e.name || 'Hostile Decker' });
+      }
+    });
+  }
+  return out;
+}
+
+function renderAreaStrikeSlot(runEnded, crashed) {
+  const slot = document.getElementById('area-strike-slot');
+  if (!slot) return;
+  const area    = _areaRating();
+  const targets = _areaValidTargets();
+  const iconOut = ((_run && _run.state_json) || {}).icon_crashed;
+  const canArea = !runEnded && !crashed && !iconOut && area >= 2 && targets.length >= 2;
+  slot.innerHTML = canArea
+    ? `<button class="btn btn-red btn-sm" onclick="openAreaStrikeModal()" data-tip="Area-option Attack: one test hits up to ${area} icons (IC and/or enemy deckers) at once; the to-hit TN rises by the number of targets and the strike ignores Party-IC cluster penalties.">&gt;&gt; Area Strike (${area})</button>`
+    : '';
+}
+
+let _areaAutoAll = false;
+function openAreaStrikeModal() {
+  const area    = _areaRating();
+  const targets = _areaValidTargets();
+  if (area < 2 || targets.length < 2) return;
+  const lim     = _attackOptions().limit_target || '';
+  const limNote = lim === 'ic' ? ' (limited to IC)' : lim === 'decker' ? ' (limited to deckers)' : '';
+  _areaAutoAll  = targets.length <= area;
+  document.getElementById('areaStrikeInfo').textContent = _areaAutoAll
+    ? `Area rating ${area}${limNote}: all ${targets.length} valid targets are engaged by one Attack Test (+${targets.length} to-hit).`
+    : `Area rating ${area}${limNote}: ${targets.length} valid targets -- choose up to ${area}.`;
+  document.getElementById('areaStrikeTargets').innerHTML = targets.map(t => {
+    const kindCls = t.kind === 'enemy' ? 'text-red' : 'text-amber';
+    const kindLbl = t.kind === 'enemy' ? 'enemy decker' : 'IC';
+    const attrs   = _areaAutoAll ? 'checked disabled' : 'onchange="_updateAreaStrikeCount()"';
+    return `<label style="display:flex;align-items:center;gap:8px;font-size:.7rem;cursor:pointer">`
+      + `<input type="checkbox" class="area-tgt-cb" value="${esc(t.id)}" ${attrs}>`
+      + `<span class="${kindCls}">${esc(t.label)}</span>`
+      + `<span class="text-dim" style="font-size:.58rem">${kindLbl}</span></label>`;
+  }).join('');
+  // Prefill the pool with the loaded Attack utility rating (parity with the single-target modal).
+  document.getElementById('area-pool').value    = (_run?.decker_json?.utilities?.attack) || 0;
+  document.getElementById('area-hp-dice').value = 0;
+  document.getElementById('areaStrikeModalAlert').className = 'alert';
+  document.getElementById('areaStrikeModal').classList.add('open');
+  _updateAreaStrikeCount();
+}
+
+function _updateAreaStrikeCount() {
+  const area  = _areaRating();
+  const boxes = Array.from(document.querySelectorAll('.area-tgt-cb'));
+  const picked = boxes.filter(b => b.checked).length;
+  const prompt = document.getElementById('areaStrikePrompt');
+  if (_areaAutoAll) {
+    prompt.textContent = `${picked} target(s) engaged.`;
+  } else {
+    prompt.textContent = `${picked}/${area} selected.`;
+    boxes.forEach(b => { b.disabled = (!b.checked && picked >= area); });
+  }
+  document.getElementById('areaStrikeConfirmBtn').disabled = (picked < 1);
+}
+
+function closeAreaStrikeModal() {
+  document.getElementById('areaStrikeModal').classList.remove('open');
+}
+
+async function submitAreaStrike() {
+  if (!_run) return;
+  const ids = Array.from(document.querySelectorAll('.area-tgt-cb'))
+    .filter(b => b.checked).map(b => b.value);
+  if (!ids.length) return;
+  const attackPool = parseInt(document.getElementById('area-pool').value) || 0;
+  const hpDice     = parseInt(document.getElementById('area-hp-dice').value) || 0;
+  const btn = document.getElementById('areaStrikeConfirmBtn');
+  btn.disabled = true;
+  // Snapshot IC that were still active pre-strike, so we can offer suppression on any this burst
+  // crashes (parity with the single-target flow -- suppression is declared the moment IC crash).
+  const preActive = new Set((((_run.state_json || {}).active_ic) || [])
+    .filter(c => c.status === 'active').map(c => c.id));
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/area-attack`, {
+      method: 'POST',
+      body: JSON.stringify({ target_ids: ids, attack_pool: attackPool, hacking_pool_dice: hpDice }),
+    });
+    if (!res.ok) await apiThrow(res);
+    let updated = await res.json();
+    closeAreaStrikeModal();
+    const crashedIds = (((updated.state_json || {}).active_ic) || [])
+      .filter(c => c.status === 'crashed' && !c.suppressed && !c.suppression_released && preActive.has(c.id))
+      .map(c => c.id);
+    if (crashedIds.length) {
+      const supp = await showConfirm(
+        `${crashedIds.length} IC crashed. Suppress them? You absorb 1 Detection Factor per IC instead `
+        + "of adding its rating to the security tally. Releasing later (Free Action) is one-way.",
+        'Suppress crashed IC', 'btn-cyan');
+      if (supp) {
+        for (const cid of crashedIds) {
+          const r2 = await apiFetch(`${API}/matrix-runs2/${_run.id}/suppress`,
+            { method: 'POST', body: JSON.stringify({ ic_id: cid, release: false }) });
+          if (r2.ok) updated = await r2.json();
+        }
+      }
+    }
+    renderRunState(updated);
+  } catch(e) {
+    showAlert(document.getElementById('areaStrikeModalAlert'), e.message, true);
   } finally {
     btn.disabled = false;
   }

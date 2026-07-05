@@ -2023,8 +2023,8 @@ Column headers = **TN to hit an icon of that status**.
 | Blue | 6 | 3 |
 | Green | 5 | 4 |
 | Orange | 4 | 5 |
-| Red | 5 | 6 |
-| Black | 3 | 8 |
+| Red | 3 | 6 |
+| Black | 3 | 6 |
 
 Any icon logged on with a valid passcode is **Legitimate**. All others are **Intruding**.
 
@@ -2068,9 +2068,12 @@ All icons use a **Condition Monitor** with 10 boxes.
 | Damage Level | Boxes Filled |
 |-------------|-------------|
 | Light | 1 box |
-| Moderate | 2 boxes |
-| Serious | 3 boxes |
-| Deadly | 6 boxes |
+| Moderate | 3 boxes |
+| Serious | 6 boxes |
+| Deadly | 10 boxes |
+
+Boxes accumulate; the wound-level *modifiers* (see Cybercombat) key off the total filled:
+1-2 boxes = Light, 3-5 = Moderate, 6-9 = Serious, 10 = Deadly (crash).
 
 When all 10 boxes are filled: the icon **crashes**. If it was a persona, the decker is dumped from the Matrix and is vulnerable to dump shock.
 
@@ -2201,8 +2204,8 @@ Column headers = TN to hit an icon of that status.
 | Blue | 6 | 3 |
 | Green | 5 | 4 |
 | Orange | 4 | 5 |
-| Red | 5 | 6 |
-| Black | 3 | 8 |
+| Red | 3 | 6 |
+| Black | 3 | 6 |
 
 **IC Damage Level by Host Security:**
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # -- Decker input ---------------------------------------------------------------
@@ -59,6 +59,15 @@ class ProgramOptions(BaseModel):
     penetration: bool = False                  # defeats Shield (Shift then adds +2)
     chaser:      bool = False                  # defeats Shift (Shield then adds +2)
     one_shot:    bool = False                  # single-use copy: consumed on use (reload via Swap Memory; Tar IC wipes every copy)
+    limit_target: str = Field("", max_length=8)  # Limit option: "" (none) / "ic" / "decker" -- the ONLY target type this utility may affect
+
+    @field_validator("limit_target")
+    @classmethod
+    def _norm_limit_target(cls, v: str) -> str:
+        v = (v or "").strip().lower()
+        if v not in ("", "ic", "decker"):
+            raise ValueError('limit_target must be "", "ic", or "decker"')
+        return v
 
 
 class DeckerStats(BaseModel):
@@ -210,6 +219,33 @@ class RunEnemyAttackInput(BaseModel):
     # All of these target enemy DECKERS only -- never routed through IC.
     program: Literal["attack", "poison", "restrict", "reveal",
                      "black_hammer", "killjoy"] = "attack"
+
+
+class RunAreaAttackInput(BaseModel):
+    """One Area-option Attack burst against several icons at once (vr2 Area utility). The
+    ``target_ids`` mix active IC ids and revealed enemy-decker ids; the caller must keep the
+    count within the Attack utility's Area rating (enforced server-side)."""
+    target_ids: list[str] = Field(..., min_length=1, max_length=16)
+    attack_pool: int = Field(..., ge=1, le=40)
+    hacking_pool_dice: int = Field(0, ge=0, le=40)
+
+    @field_validator("target_ids")
+    @classmethod
+    def _clean_target_ids(cls, v: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in v:
+            t = (raw or "").strip()
+            if not t:
+                continue
+            if len(t) > 64:
+                raise ValueError("target id too long")
+            if t not in seen:
+                seen.add(t)
+                out.append(t)
+        if not out:
+            raise ValueError("at least one target required")
+        return out
 
 
 # -- Sheaf + Host designer -----------------------------------------------------

@@ -53,6 +53,42 @@ class _ScriptedRandom:
         pass
 
 
+class _ProbRandom:
+    """Scripts random() (probability rolls, e.g. enemy spawn chance / nerve check) and
+    randint()/choice() for the wounded-AI and spawn tests, which drive ``matrix_runs.random``
+    rather than the engine RNG. ``random()`` cycles the supplied floats (default 0.5); ``randint``
+    cycles the supplied ints clamped to [a, b] (default: the low end)."""
+    def __init__(self, randoms=(0.5,), randints=()):
+        self._rf = list(randoms) or [0.5]
+        self._rfi = 0
+        self._ri = list(randints)
+        self._rii = 0
+
+    def randint(self, a, b):
+        if not self._ri:
+            return a
+        v = self._ri[self._rii % len(self._ri)]
+        self._rii += 1
+        return max(a, min(b, v))
+
+    def choice(self, seq):
+        return seq[0]
+
+    def random(self):
+        v = self._rf[self._rfi % len(self._rf)]
+        self._rfi += 1
+        return v
+
+    def seed(self, *a, **k):
+        pass
+
+    def getstate(self):
+        return None
+
+    def setstate(self, s):
+        pass
+
+
 @pytest.fixture
 def scripted(monkeypatch):
     def _install(values):
@@ -462,13 +498,15 @@ class TestEnemyDeckerGeneration:
     """vr2 #5 -- security decker auto-generation stays in-band with the host tier."""
 
     def test_blue_host_stays_weak(self):
-        # The user's constraint: a Blue-5 host must NOT field a Computer-12 decker.
-        d = eng.generate_enemy_decker("Blue", 5)
-        assert d["computer_skill"] <= 4
-        assert d["mpcp"] <= 4
-        assert d["intent"] == "dump"          # crash the icon (no decker-run "trace")
-        assert d["lethal_program"] is None    # non-deadly host: Attack only, no deck-frying
-        assert d["programs"] == ["Attack"]
+        # The user's constraint: a Blue host must NOT field an elite decker. Bands are TIER-only
+        # (the host's numeric value never scales the decker); Blue centers 4 -> band 3-5.
+        for _ in range(30):
+            d = eng.generate_enemy_decker("Blue", 5)
+            assert 3 <= d["computer_skill"] <= 5
+            assert 3 <= d["mpcp"] <= 5
+            assert d["intent"] == "dump"          # crash the icon (no decker-run "trace")
+            assert d["lethal_program"] is None    # non-deadly host: Attack only, no deck-frying
+            assert d["programs"] == ["Attack"]
 
     def test_lethal_programs_only_on_deadly_force_hosts(self):
         # vr2 line 2310: NPC deckers carry Black Hammer/Killjoy only where deadly force is
@@ -477,15 +515,19 @@ class TestEnemyDeckerGeneration:
         assert eng.generate_enemy_decker("Orange", 7)["lethal_program"] is None
         assert eng.generate_enemy_decker("Red", 9)["lethal_program"] == "Black Hammer"
         assert eng.generate_enemy_decker("Black", 10)["lethal_program"] == "Black Hammer"
-        # Black Hammer rating is capped at half the Computer skill
-        d = eng.generate_enemy_decker("Black", 12)
-        assert d["lethal_rating"] == (d["computer_skill"] + 1) // 2
+        # Black Hammer rating is capped at ceil(Computer/2); the band roll may land below the cap.
+        for _ in range(30):
+            d = eng.generate_enemy_decker("Black", 12)
+            assert 1 <= d["lethal_rating"] <= (d["computer_skill"] + 1) // 2
 
-    def test_value_scales_within_tier(self):
-        low = eng.generate_enemy_decker("Blue", 2)
-        high = eng.generate_enemy_decker("Blue", 5)
-        assert high["computer_skill"] >= low["computer_skill"]
-        assert high["computer_skill"] <= 4  # still capped to the Blue tier
+    def test_value_does_not_scale_within_tier(self):
+        # Bands are TIER-only now: the host's numeric security value has ZERO effect on the decker.
+        # A Blue-2 and a Blue-5 decker both roll the same Blue band (centers 4 -> 3-5).
+        for _ in range(30):
+            for value in (2, 5):
+                d = eng.generate_enemy_decker("Blue", value)
+                assert 3 <= d["computer_skill"] <= 5
+                assert 3 <= d["mpcp"] <= 5
 
     def test_black_host_is_lethal_elite(self):
         d = eng.generate_enemy_decker("Black", 10)
@@ -495,9 +537,15 @@ class TestEnemyDeckerGeneration:
         assert "Black Hammer" in d["programs"]
 
     def test_tiers_are_monotonic(self):
-        skills = [eng.generate_enemy_decker(c, v)["computer_skill"]
-                  for c, v in (("Blue", 4), ("Green", 6), ("Orange", 8), ("Red", 9), ("Black", 12))]
-        assert skills == sorted(skills)
+        # Per-instance bands overlap between adjacent tiers, so a single sample isn't strictly
+        # ordered; the tier CENTERS are monotonic, so the MEAN Computer skill over many rolls is.
+        def avg_skill(code, value):
+            return sum(eng.generate_enemy_decker(code, value)["computer_skill"]
+                       for _ in range(40)) / 40
+        means = [avg_skill(c, v) for c, v in
+                 (("Blue", 4), ("Green", 6), ("Orange", 8), ("Red", 9), ("Black", 12))]
+        assert means == sorted(means)
+        assert means[0] < means[-1]   # Blue strictly softer than Black
 
     def test_enemy_has_combat_loadout(self):
         d = eng.generate_enemy_decker("Red", 8)
@@ -512,7 +560,7 @@ class TestEnemyDeckerGeneration:
             green = eng.generate_enemy_decker("Green", 6)
             red = eng.generate_enemy_decker("Red", 9)
             black = eng.generate_enemy_decker("Black", 12)
-            assert blue["response_increase"] == 0
+            assert blue["response_increase"] in (0, 1)
             assert green["response_increase"] in (0, 1)
             assert red["response_increase"] in (1, 2)
             assert black["response_increase"] in (2, 3)
@@ -753,15 +801,32 @@ class TestEnemyAutoActAndAutoInject:
         mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
         assert enemy.get("revealed") in (None, False)  # did nothing
 
-    def test_sheaf_enemy_decker_event_auto_injects(self, scripted):
+    def test_spawn_enemy_decker_injects_hidden(self, scripted):
+        # The authored `enemy_decker` sheaf branch is GONE; every decker now comes from the
+        # programmatic spawner. _spawn_enemy_decker builds one, rolls its initiative, adds it to
+        # the run hidden, and logs a GM-only enemy_decker_injected event.
         scripted([3])
-        state = _fresh_state(); state["host_security_value"] = 8; state["enemy_deckers"] = []
-        events = mr._activate_sheaf_step(state, {"trigger": 10, "events": [{"type": "enemy_decker"}]}, "Red")
+        state = self._state(); state["host_security_value"] = 8
+        state["host_security_code"] = "Red"; state["enemy_deckers"] = []
+        enemy = mr._spawn_enemy_decker(state, "Red")
         assert len(state["enemy_deckers"]) == 1
         ed = state["enemy_deckers"][0]
+        assert ed is enemy
         assert ed["tier"] == "Red" and ed["computer_skill"] >= 1
-        inj = [e for e in events if e.get("type") == "enemy_decker_injected"]
+        assert ed["id"].startswith("ed_")
+        assert "initiative" in ed and "initiative_passes" in ed
+        inj = [e for e in state["event_log"] if e.get("type") == "enemy_decker_injected"]
         assert inj and inj[0]["gm_only"] is True   # hidden from the player until detected
+
+    def test_authored_enemy_decker_sheaf_branch_is_gone(self, scripted):
+        # A sheaf step literally containing {"type": "enemy_decker"} must NOT spawn anything now --
+        # the dead branch was removed; only the probabilistic spawner injects deckers.
+        scripted([3])
+        state = self._state(); state["host_security_value"] = 8; state["enemy_deckers"] = []
+        events = mr._activate_sheaf_step(
+            state, {"trigger": 10, "events": [{"type": "enemy_decker"}]}, "Red")
+        assert state["enemy_deckers"] == []
+        assert not any(e.get("type") == "enemy_decker_injected" for e in events)
 
 
 class TestEnemyLocateAndIntent:
@@ -1829,16 +1894,18 @@ class TestMedicRunLayer:
         assert mr._effective_medic(decker, self._state()) == 0
 
     def test_current_wound_level_by_filled_boxes(self):
-        # vr2 Condition Monitor Table floors: Light >=1, Moderate >=2, Serious >=3 boxes. The
+        # vr2 Condition Monitor Table floors: Light >=1, Moderate >=3, Serious >=6 boxes. The
         # Deadly box-range (up to the 10-box crash) still reports Serious for Medic TN purposes.
         assert mr._current_icon_wound_level(self._state(persona_boxes=0)) is None
         assert mr._current_icon_wound_level(self._state(persona_boxes=1)) == "Light"
-        assert mr._current_icon_wound_level(self._state(persona_boxes=2)) == "Moderate"
-        assert mr._current_icon_wound_level(self._state(persona_boxes=3)) == "Serious"
-        assert mr._current_icon_wound_level(self._state(persona_boxes=7)) == "Serious"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=2)) == "Light"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=3)) == "Moderate"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=5)) == "Moderate"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=6)) == "Serious"
+        assert mr._current_icon_wound_level(self._state(persona_boxes=9)) == "Serious"
 
     def test_medic_reduces_persona_damage_and_emits_event(self, scripted):
-        # 3 boxes filled -> Serious -> TN 6. Medic-4 rolls [6,6,6,1] -> 3 successes -> 3 healed.
+        # 3 boxes filled -> Moderate -> TN 5. Medic-4 rolls [6,6,6,1] -> 3 successes -> 3 healed.
         scripted([6, 6, 6, 1])
         decker = self._decker(medic=4)
         state = self._state(persona_boxes=3)
@@ -1848,7 +1915,7 @@ class TestMedicRunLayer:
         assert mr._effective_medic(decker, state) == 3
         ev = state["event_log"][-1]
         assert ev["type"] == "medic_heal"
-        assert ev["wound_level"] == "Serious"
+        assert ev["wound_level"] == "Moderate"
         assert ev["healed"] == 3
         assert ev["persona_boxes"] == 0
         assert ev["medic_remaining"] == 3
@@ -1866,12 +1933,12 @@ class TestMedicRunLayer:
         assert ev["healed"] == 1                                   # not 3
 
     def test_medic_degrades_even_on_a_failed_heal(self, scripted):
-        # Moderate wound (TN 5); Medic-2 rolls [4,4] -> 0 successes -> 0 healed, but still wears.
+        # Moderate wound (3 boxes -> TN 5); Medic-2 rolls [4,4] -> 0 successes -> 0 healed, but still wears.
         scripted([4, 4])
         decker = self._decker(medic=2)
-        state = self._state(persona_boxes=2)
+        state = self._state(persona_boxes=3)
         mr._apply_medic(state, decker)
-        assert state["condition_monitor"]["persona_boxes"] == 2     # nothing healed
+        assert state["condition_monitor"]["persona_boxes"] == 3     # nothing healed
         assert state["program_damage"]["medic"] == 1               # -1 Rating Point regardless
         ev = state["event_log"][-1]
         assert ev["wound_level"] == "Moderate"
@@ -1892,7 +1959,7 @@ class TestMedicRunLayer:
     def test_worn_out_medic_heals_nothing_and_does_not_degrade_further(self, scripted):
         scripted([6, 6, 6, 6])             # would-be successes -- must NOT be rolled
         decker = self._decker(medic=2)
-        state = self._state(persona_boxes=4)            # Serious damage remains
+        state = self._state(persona_boxes=4)            # Moderate damage remains
         state["program_damage"] = {"medic": 2}          # already worn to effective 0
         assert mr._effective_medic(decker, state) == 0
         mr._apply_medic(state, decker)
@@ -3054,13 +3121,13 @@ class TestDecoyIntercept:
         monkeypatch.setattr(mr, "random", _FixedD6())
 
     def test_tie_redirects_to_decoy(self, monkeypatch, scripted):
-        scripted([1])                              # decoy attack -> 0 successes -> Moderate (2 boxes)
+        scripted([1])                              # decoy attack -> 0 successes -> Moderate (3 boxes)
         self._fix_d6(monkeypatch, 3)               # d6 == decoy_successes (3): a TIE -> decoy (<=)
         st = self._state(successes=3, hp=0)
         hit = mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
                                   ic_target_status="intruding")
         assert hit is True
-        assert st["decoy_hp"] == 2                 # base Moderate = 2 boxes accrued
+        assert st["decoy_hp"] == 3                 # base Moderate = 3 boxes accrued
         ev = st["event_log"][-1]
         assert ev["type"] == "decoy_intercepted"
         assert ev["d6"] == 3
@@ -3095,7 +3162,7 @@ class TestDecoyIntercept:
         st = self._state(successes=3, hp=2)
         mr._decoy_intercept(st, self._ic(), sec_code="Green", sec_value=6,
                             ic_target_status="intruding")
-        assert st["decoy_hp"] == 4                 # 2 existing + 2 (Moderate)
+        assert st["decoy_hp"] == 5                 # 2 existing + 3 (Moderate)
 
     def test_decoy_removed_when_cm_fills(self, monkeypatch, scripted):
         scripted([1])
@@ -4405,7 +4472,7 @@ class TestTargetingToHitTN:
                   "utilities": {"attack": 6}}
         if targeting:
             decker["program_options"] = {"attack": {"targeting": True}}
-        state = _fresh_state(sec_code="Red", sec_value=9)
+        state = _fresh_state(sec_code="Blue", sec_value=9)
         state["event_log"] = []
         state["active_ic"] = [{"id": "ic1", "type": "Killer", "rating": 6,
                                "status": "active", "boxes": 0}]
@@ -4627,7 +4694,7 @@ class TestAreaClusterToHit:
                   "utilities": {"attack": 6}}
         if area:
             decker["program_options"] = {"attack": {"area": area}}
-        state = _fresh_state(sec_code="Red", sec_value=9)
+        state = _fresh_state(sec_code="Blue", sec_value=9)
         state["event_log"] = []
         cid = "c1" if cluster > 1 else None
         ic1 = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "boxes": 0,
@@ -4954,14 +5021,18 @@ class TestCombatManeuvers:
         with pytest.raises(HTTPException):
             mr._apply_maneuver(st, {}, self._EFF, self._body("parry_attack", maneuver_target="e1"))
 
-    def test_badly_wounded_enemy_decker_evades_and_drops_off_sensors(self, monkeypatch):
+    def test_badly_wounded_healless_enemy_decker_stands_and_fights(self, monkeypatch):
+        # Enemy-decker DIVERGENCE from IC (Task 4): the "badly wounded -> Evade Detection" branch is
+        # IC-ONLY. A healless enemy decker gains nothing by hiding, so _npc_maybe_maneuver leaves it
+        # to stand and fight -- breaking off (and Medic-carrier hide-to-heal) is handled earlier in
+        # the wounded-AI loop of _enemy_decker_take_turn, not here.
         enemy = {"id": "e1", "name": "Cutter", "sensor": 4, "evasion": 4, "status": "active",
                  "revealed": True, "condition_monitor": {"persona_boxes": 8}}
         st = self._mk_state(enemy_deckers=[enemy])
         monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))
-        assert mr._npc_maybe_maneuver(st, {}, self._EFF, enemy, is_ic=False) is True
-        assert enemy["evaded"] is True and enemy["evade_dir"] == "hid_from_pc"
-        assert enemy.get("revealed") is False
+        assert mr._npc_maybe_maneuver(st, {}, self._EFF, enemy, is_ic=False) is False
+        assert not enemy.get("evaded")                         # did NOT slip off sensors
+        assert enemy.get("revealed") is True                   # still in view, still fighting
 
     # -- Engine opposed test (real eng.maneuver_test, scripted dice) -----------
 
@@ -5682,46 +5753,553 @@ class TestNpcPassFlushOnNewTurn:
 
 
 class TestEnemyDeckerSelfPreservation:
-    """Balanced enemy AI (app-as-GM, user ruling) -- a badly wounded enemy decker breaks off the hunt
-    and jacks out ('fled') rather than fight to the death. Serious+ icon damage
-    (>= _ENEMY_RETREAT_BOXES / 10 persona boxes) triggers the retreat once it has located the PC
-    (Phase 2); a healthier enemy keeps attacking at full aggression."""
+    """Wounded enemy-decker AI (spec 3.2). The old hard 7-box flee is replaced by an escalating
+    NERVE check at 7/8/9 persona boxes (10 = dumped), softened per-instance by bravery, plus a
+    hide-heal-return loop for Medic-carriers. Nerve/flee probability rolls read matrix_runs.random;
+    generation and dice read matrix_engine.random (the `scripted` fixture)."""
 
     def _decker(self):
         return {"bod": 5, "evasion": 5, "masking": 5, "sensor": 5, "mpcp": 6,
-                "intelligence": 5, "body": 5, "hardening": 0, "utilities": {"sleaze": 4}}
+                "intelligence": 5, "body": 5, "hardening": 0, "computer_skill": 5,
+                "utilities": {"sleaze": 4}}
 
     def _state(self):
         s = _fresh_state(sec_code="Red", sec_value=9)
         s["event_log"] = []
+        s["npc_combat_maneuvers"] = False   # isolate the wounded-AI logic from combat maneuvers
+        s["security_tally"] = 0
         s["condition_monitor"] = {"persona_boxes": 0, "physical_boxes": 0, "mpcp_damage": 0,
                                   "persona_damage": {"bod": 0, "evasion": 0, "masking": 0, "sensor": 0}}
         return s
 
-    def _located_enemy(self, persona_boxes):
-        e = eng.generate_enemy_decker("Red", 9)
-        e["id"] = "ed1"
-        e["located"] = True        # past Phase 1 -> reaches the Phase 2 self-preservation check
-        e["revealed"] = True
-        e["condition_monitor"] = {"persona_boxes": persona_boxes, "mpcp_damage": 0}
-        return e
+    def _enemy(self, boxes, *, bravery=0, medic=0, done=None):
+        util = {"attack": 6, "sleaze": 5, "scanner": 5}
+        if medic:
+            util["medic"] = medic
+        return {
+            "id": "ed1", "name": "Red Security Decker", "tier": "Red",
+            "mpcp": 9, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+            "computer_skill": 8, "intelligence": 6, "quickness": 6, "response_increase": 1,
+            "deck_mode": "cool", "reality_filter": False,
+            "utilities": util, "programs": ["Attack"], "intent": "dump",
+            "lethal_program": None, "lethal_rating": 0, "hardening": 0, "bravery": bravery,
+            "detection_factor": 4, "located": True, "revealed": True, "status": "active",
+            "condition_monitor": {"persona_boxes": boxes, "stun_boxes": 0, "physical_boxes": 0,
+                                  "mpcp_damage": 0},
+            "program_damage": {}, "nerve_checks_done": list(done or []),
+            "locate_progress": 99,
+        }
 
-    def test_badly_damaged_enemy_jacks_out(self, scripted):
+    def test_nerve_break_flees(self, scripted, monkeypatch):
+        # boxes 8, bravery 0: threshold 7 (0.30) holds at 0.5, then 8 (0.55) breaks -> flees.
         scripted([1])
-        state = self._state()
-        enemy = self._located_enemy(mr._ENEMY_RETREAT_BOXES)
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.5]))
+        state = self._state(); enemy = self._enemy(8, bravery=0)
         mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
         assert enemy["status"] == "fled"
-        assert any(e.get("type") == "enemy_decker" and e.get("outcome") == "fled"
-                   and e.get("enemy_id") == "ed1" for e in state["event_log"])
+        assert any(e.get("outcome") == "fled" and e.get("enemy_id") == "ed1"
+                   for e in state["event_log"])
+        assert 8 in enemy["nerve_checks_done"]
 
-    def test_lightly_damaged_enemy_keeps_fighting(self, scripted):
+    def test_low_threshold_holds(self, scripted, monkeypatch):
+        # boxes 7, bravery 0: 0.5 not < 0.30 -> holds nerve and fights on (still active).
+        scripted([1])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.5]))
+        state = self._state(); enemy = self._enemy(7, bravery=0)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "active"
+        assert not any(e.get("outcome") == "fled" for e in state["event_log"])
+        assert enemy["nerve_checks_done"] == [7]
+
+    def test_high_bravery_holds_longer(self, scripted, monkeypatch):
+        # boxes 8, bravery 3: 7 -> 0.30-0.45 clamps to 0.05 (hold); 8 -> 0.55-0.45=0.10 (hold at 0.5).
+        scripted([1])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.5]))
+        state = self._state(); enemy = self._enemy(8, bravery=3)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "active"
+        assert not any(e.get("outcome") == "fled" for e in state["event_log"])
+
+    def test_nerve_checked_once_per_threshold(self, scripted, monkeypatch):
+        # 7 already checked (held): a later turn still at 7 is NOT re-rolled, even with a roll that
+        # would now fail (0.0 < 0.30).
+        scripted([1])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.0]))
+        state = self._state(); enemy = self._enemy(7, bravery=0, done=[7])
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "active"     # threshold 7 not re-checked -> no flee
+
+    def test_ten_boxes_dumped(self, scripted, monkeypatch):
+        # 10 persona boxes -> forced dump, ahead of (and independent of) the nerve roll.
+        scripted([1])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.99]))  # would never flee by choice
+        state = self._state(); enemy = self._enemy(10)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "fled"
+        assert any(e.get("outcome") == "fled" for e in state["event_log"])
+
+    def test_medic_carrier_breaks_contact_to_heal(self, scripted, monkeypatch):
+        # A wounded Medic-carrier (boxes >= _ENEMY_WOUNDED_BOXES) that holds its nerve spends the
+        # turn on Evade Detection to peel off and heal, instead of pressing the attack.
+        scripted([6, 6, 6, 1, 1])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.99]))  # nerve holds
+        state = self._state(); enemy = self._enemy(6, bravery=3, medic=5)
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["status"] == "active"
+        assert any(e.get("type") == "maneuver" and e.get("maneuver") == "evade_detection"
+                   for e in state["event_log"])
+        assert not any(e.get("type") == "enemy_decker"
+                       and e.get("outcome") in ("dump", "kill", "hog")
+                       for e in state["event_log"])
+
+    def test_medic_carrier_heals_while_hidden(self, scripted):
+        # Already hidden: a Medic-carrier above the re-engage line heals its own icon and stays down.
+        scripted([6])
+        state = self._state()
+        enemy = self._enemy(6, medic=5)
+        enemy["evaded"] = True; enemy["evade_dir"] = "hid_from_pc"; enemy["revealed"] = False
+        enemy["redetect_turn"] = 99; enemy["redetect_tally_base"] = 0
+        state["current_turn"] = 1
+        mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
+        assert enemy["condition_monitor"]["persona_boxes"] < 6   # healed while hidden
+        assert enemy.get("evaded") is True                        # stayed down
+
+    def test_medic_carrier_reengages_when_healed(self, scripted):
+        # Once healed to <= _ENEMY_REENGAGE_BOXES it drops the hide and rejoins the fight, revealed.
         scripted([1])
         state = self._state()
-        enemy = self._located_enemy(mr._ENEMY_RETREAT_BOXES - 1)
+        enemy = self._enemy(2, medic=5)
+        enemy["evaded"] = True; enemy["evade_dir"] = "hid_from_pc"; enemy["revealed"] = False
+        enemy["redetect_turn"] = 99; enemy["redetect_tally_base"] = 0
+        state["current_turn"] = 1
         mr._enemy_decker_take_turn(state, self._decker(), _RunStub(), enemy)
-        assert enemy["status"] == "active"                       # one box short of retreat -> fights on
-        assert not any(e.get("outcome") == "fled" for e in state["event_log"])
+        assert not enemy.get("evaded")                # dropped its hide
+        assert enemy["revealed"] is True              # back in the open
+        assert any(e.get("outcome") == "reengage" for e in state["event_log"])
+
+
+# -- Area-option Attack: one Attack Test engages up to (Area rating) icons -------
+
+class TestAreaAttack:
+    """vr2 Area utility -- one Attack Test engages up to (Area rating) icons at once, mixing IC
+    and revealed enemy deckers. The to-hit TN rises by the number of targets, the strike bypasses
+    Party-IC cluster penalties, and any target carrying Armor gains +2 effective Armor. A single
+    target collapses to a plain Attack (no Area penalty, no Area armor bonus)."""
+
+    def _decker(self, *, area=3, limit_target="", armor=0):
+        opts = {"area": area}
+        if limit_target:
+            opts["limit_target"] = limit_target
+        return {"name": "Ghost", "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "mpcp": 6, "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                "utilities": {"attack": 6, "armor": armor},
+                "program_options": {"attack": opts}}
+
+    def _ic(self, iid, *, rating=6, **over):
+        ic = {"id": iid, "type": "Killer", "rating": rating, "status": "active",
+              "boxes": 0, "category": "gray"}
+        ic.update(over)
+        return ic
+
+    def _enemy(self, eid="ed1", **over):
+        e = {"id": eid, "name": "Red Decker", "tier": "Red", "status": "active",
+             "revealed": True, "intent": "dump",
+             "bod": 5, "evasion": 5, "masking": 5, "sensor": 5,
+             "computer_skill": 8, "detection_factor": 4,
+             "utilities": {"sleaze": 5, "armor": 0}, "condition_monitor": {"persona_boxes": 0}}
+        e.update(over)
+        return e
+
+    def _run_area(self, monkeypatch, *, decker, active_ic, enemies, target_ids,
+                  attack_pool=8, resist_successes=0):
+        """Drive the async area_attack endpoint with deterministic dice: ONE big Attack Test (all
+        dice score against every target), then a scripted resist roll per target so both an IC and
+        an enemy reliably crash."""
+        import asyncio
+        from app.schemas.matrix_run import RunAreaAttackInput
+
+        calls = {"n": 0}
+
+        def _fake_roll(pool, tn):
+            calls["n"] += 1
+            if calls["n"] == 1:                     # the single shared Attack Test
+                dice = [99] * max(1, pool)
+                return {"pool": pool, "tn": tn, "dice": dice, "successes": len(dice), "ones": 0}
+            return {"pool": pool, "tn": tn, "dice": [1] * max(1, pool),
+                    "successes": resist_successes, "ones": 0}
+        monkeypatch.setattr(eng, "roll_dice", _fake_roll)
+
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["hackingPool_remaining"] = 10
+        state["active_ic"] = active_ic
+        state["enemy_deckers"] = enemies
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunAreaAttackInput(target_ids=target_ids, attack_pool=attack_pool, hacking_pool_dice=0)
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.area_attack(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def _area_event(self, state):
+        evs = [x for x in state["event_log"] if x.get("type") == "area_attack"]
+        assert evs, "no area_attack event emitted"
+        return evs[-1]
+
+    # -- helpers: enemy Armor symmetry + shared IC-crash resolution ------------
+
+    def test_enemy_armor_reads_utility(self):
+        assert mr._enemy_armor({"utilities": {"armor": 4}}) == 4
+        assert mr._enemy_armor({"utilities": {}}) == 0
+        assert mr._enemy_armor({}) == 0
+
+    def test_apply_ic_crash_bumps_tally_and_logs(self):
+        state = _fresh_state(); state["event_log"] = []
+        ic = self._ic("ic1", rating=6, boxes=10)
+        mr._apply_ic_crash(state, ic, "Green", 0)
+        assert ic["status"] == "crashed"
+        assert state["security_tally"] == 6
+        assert any(e["type"] == "ic_crashed" for e in state["event_log"])
+
+    def test_apply_ic_crash_skulk_masks_tally(self):
+        state = _fresh_state(); state["event_log"] = []
+        ic = self._ic("ic1", rating=6, boxes=10)
+        mr._apply_ic_crash(state, ic, "Green", 4)               # Skulk-4 masks a rating-6 crash
+        assert state["security_tally"] == 2
+
+    # -- endpoint: multi-target burst -----------------------------------------
+
+    def test_burst_hits_ic_and_enemy_together(self, monkeypatch):
+        decker = self._decker(area=3)
+        st = self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1", rating=6)],
+                            enemies=[self._enemy("ed1")], target_ids=["ic1", "ed1"])
+        ev = self._area_event(st)
+        assert ev["n_targets"] == 2 and ev["area_penalty"] == 2
+        assert ev["crashed"] == 2
+        assert st["active_ic"][0]["status"] == "crashed"
+        assert st["enemy_deckers"][0]["status"] == "crashed"
+        assert st["security_tally"] >= 6                         # the crashed IC added its rating
+
+    def test_single_target_has_no_area_penalty(self, monkeypatch):
+        decker = self._decker(area=3)
+        st = self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1", rating=6)],
+                            enemies=[], target_ids=["ic1"])
+        ev = self._area_event(st)
+        assert ev["n_targets"] == 1 and ev["area_penalty"] == 0
+
+    def test_more_targets_than_area_rating_rejected(self, monkeypatch):
+        decker = self._decker(area=2)
+        ics = [self._ic("ic1"), self._ic("ic2"), self._ic("ic3")]
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=ics, enemies=[],
+                          target_ids=["ic1", "ic2", "ic3"])
+        assert exc.value.status_code == 400
+
+    def test_no_area_option_rejected(self, monkeypatch):
+        decker = self._decker(area=0)
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1")], enemies=[],
+                          target_ids=["ic1"])
+        assert exc.value.status_code == 400
+
+    def test_limit_ic_rejects_enemy_target(self, monkeypatch):
+        decker = self._decker(area=3, limit_target="ic")
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1")],
+                          enemies=[self._enemy("ed1")], target_ids=["ic1", "ed1"])
+        assert exc.value.status_code == 400
+
+    def test_limit_decker_rejects_ic_target(self, monkeypatch):
+        decker = self._decker(area=3, limit_target="decker")
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1")],
+                          enemies=[self._enemy("ed1")], target_ids=["ed1", "ic1"])
+        assert exc.value.status_code == 400
+
+    def test_unknown_target_rejected(self, monkeypatch):
+        decker = self._decker(area=3)
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1")], enemies=[],
+                          target_ids=["ic1", "ghost"])
+        assert exc.value.status_code == 404
+
+    # -- Area armor: +2 effective vs a burst, none on a single target ---------
+
+    def test_area_burst_grants_armored_enemy_plus2(self, monkeypatch):
+        captured = {}
+        real_dr = eng.damage_resistance
+
+        def _cap(**kw):
+            captured["armor"] = kw.get("armor_rating")
+            return real_dr(**kw)
+        monkeypatch.setattr(eng, "damage_resistance", _cap)
+        decker = self._decker(area=3)
+        enemy = self._enemy("ed1", utilities={"sleaze": 5, "armor": 3})
+        self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1", rating=6)],
+                      enemies=[enemy], target_ids=["ic1", "ed1"])
+        assert captured["armor"] == 5                           # 3 carried + 2 Area bonus
+
+    def test_single_target_enemy_no_area_armor_bonus(self, monkeypatch):
+        captured = {}
+        real_dr = eng.damage_resistance
+
+        def _cap(**kw):
+            captured["armor"] = kw.get("armor_rating")
+            return real_dr(**kw)
+        monkeypatch.setattr(eng, "damage_resistance", _cap)
+        decker = self._decker(area=3)
+        enemy = self._enemy("ed1", utilities={"sleaze": 5, "armor": 3})
+        self._run_area(monkeypatch, decker=decker, active_ic=[], enemies=[enemy],
+                      target_ids=["ed1"])
+        assert captured["armor"] == 3                           # single target -> no Area bonus
+
+
+# -- Enemy-decker loadout overhaul (docs/enemy-decker-loadout-spec.md) ----------
+
+class TestEnemyDeckerLoadoutBands:
+    """Task 1 -- centered per-tier loadout bands. Every generated decker stays inside its tier's
+    program caps (kill/survive ratings <= MPCP; lethal <= ceil(Computer/2)), carries the new
+    self-preservation fields (bravery / program_damage / nerve_checks_done), drops the vestigial
+    Deception utility, gains its defensive survive-kit only at the deadly tiers, and varies
+    instance-to-instance within a tier."""
+
+    def test_new_self_preservation_fields_present(self):
+        d = eng.generate_enemy_decker("Red", 9)
+        assert isinstance(d["bravery"], int) and d["bravery"] >= 0
+        assert d["program_damage"] == {}                        # fresh -- no wear yet
+        assert d["nerve_checks_done"] == []                     # no thresholds crossed yet
+
+    def test_vestigial_deception_dropped(self):
+        for code, value in (("Blue", 4), ("Red", 9), ("Black", 12)):
+            d = eng.generate_enemy_decker(code, value)
+            assert "deception" not in d
+            assert "deception" not in d["utilities"]
+
+    def test_program_ratings_never_exceed_caps(self):
+        for _ in range(40):
+            d = eng.generate_enemy_decker("Black", 12)
+            mpcp = d["mpcp"]
+            lethal_cap = (d["computer_skill"] + 1) // 2
+            u = d["utilities"]
+            for k in ("hog", "reveal", "poison", "restrict", "armor", "shield", "medic"):
+                if k in u:
+                    assert 1 <= u[k] <= mpcp, (k, u[k], mpcp)
+            for k in ("black_hammer", "killjoy"):
+                if k in u:
+                    assert 1 <= u[k] <= lethal_cap, (k, u[k], lethal_cap)
+
+    def test_defensive_kit_only_on_deadly_tiers(self):
+        blue = eng.generate_enemy_decker("Blue", 4)["utilities"]
+        assert not ({"armor", "shield", "medic"} & set(blue))   # Blue: no survive-kit
+        red = eng.generate_enemy_decker("Red", 9)["utilities"]
+        assert {"armor", "shield", "medic"} <= set(red)         # Red carries the full survive-kit
+        black = eng.generate_enemy_decker("Black", 12)["utilities"]
+        assert {"armor", "shield", "medic"} <= set(black)
+
+    def test_bravery_bands_rise_with_tier(self):
+        def mean_bravery(code, value):
+            return sum(eng.generate_enemy_decker(code, value)["bravery"] for _ in range(40)) / 40
+        assert mean_bravery("Blue", 4) < mean_bravery("Black", 12)   # elites hold their nerve longer
+
+    def test_instances_vary_within_a_tier(self):
+        skills = {eng.generate_enemy_decker("Black", 12)["computer_skill"] for _ in range(40)}
+        assert len(skills) >= 2                                 # per-instance band variation
+
+    def test_redaction_hides_new_secret_fields(self):
+        # Task 6 must keep the Task-1 additions server-side: the player view is a strict whitelist.
+        enemy = eng.generate_enemy_decker("Red", 9)
+        enemy["id"] = "ed_x"
+        enemy["condition_monitor"] = {"persona_boxes": 2, "mpcp_damage": 0}
+        red = mr._redact_enemy_decker(enemy)
+        for secret in ("bravery", "program_damage", "nerve_checks_done", "lethal_rating",
+                       "lethal_program", "utilities", "mpcp", "computer_skill"):
+            assert secret not in red
+
+
+class TestEnemyDeckerSpawnSystem:
+    """Task 2 -- probabilistic, count-capped enemy-decker dispatch. _maybe_spawn_enemy_decker rolls
+    the per-tier chance after a sheaf step, never exceeds the per-run enemy_decker_cap, lazily rolls
+    a missing cap once, and never spawns after the run has ended. Spawn/cap rolls read
+    matrix_runs.random; the built decker's stats + initiative read matrix_engine.random."""
+
+    def _state(self, **over):
+        s = _fresh_state(sec_code="Red", sec_value=9)
+        s["event_log"] = []
+        s["enemy_deckers"] = []
+        s["enemy_decker_cap"] = 2
+        s.update(over)
+        return s
+
+    def test_low_roll_spawns_one(self, scripted, monkeypatch):
+        scripted([3])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.0]))   # 0.0 < Red chance 0.20
+        state = self._state()
+        mr._maybe_spawn_enemy_decker(state, "Red")
+        assert len(state["enemy_deckers"]) == 1
+        assert state["enemy_deckers"][0]["id"].startswith("ed_")
+
+    def test_high_roll_does_not_spawn(self, scripted, monkeypatch):
+        scripted([3])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.99]))  # 0.99 !< 0.20
+        state = self._state()
+        mr._maybe_spawn_enemy_decker(state, "Red")
+        assert state["enemy_deckers"] == []
+
+    def test_cap_blocks_further_spawns(self, scripted, monkeypatch):
+        scripted([3])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.0]))   # would spawn if uncapped
+        state = self._state(enemy_decker_cap=1,
+                            enemy_deckers=[{"id": "ed_existing", "status": "active"}])
+        mr._maybe_spawn_enemy_decker(state, "Red")
+        assert len(state["enemy_deckers"]) == 1                 # already at cap -> no new spawn
+
+    def test_no_spawn_after_run_ended(self, scripted, monkeypatch):
+        scripted([3])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.0]))
+        state = self._state(run_ended=True)
+        mr._maybe_spawn_enemy_decker(state, "Red")
+        assert state["enemy_deckers"] == []
+
+    def test_missing_cap_is_lazily_rolled_once(self, scripted, monkeypatch):
+        scripted([3])
+        # cap None -> rolled from Black's (2, 3) range; _ProbRandom.randint returns the low end (2).
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.99], randints=[2]))
+        state = self._state(enemy_decker_cap=None)
+        mr._maybe_spawn_enemy_decker(state, "Black")
+        assert state["enemy_decker_cap"] == 2                   # banked for the rest of the run
+        assert state["enemy_deckers"] == []                     # high roll -> no spawn this step
+
+    def test_unknown_security_code_never_spawns(self, scripted, monkeypatch):
+        scripted([3])
+        monkeypatch.setattr(mr, "random", _ProbRandom(randoms=[0.0]))
+        state = self._state()
+        mr._maybe_spawn_enemy_decker(state, "Mauve")            # no spawn config for this code
+        assert state["enemy_deckers"] == []
+
+
+class TestEnemyDefensiveStrikeBack:
+    """Task 3 -- a security decker that carries Shield / Armor uses them to blunt the PC's Strike
+    Back, EXACTLY like the PC decker: Shield parries successes off the incoming hit (and wears 1
+    Rating Point per use, GM-only event), Armor lowers the attack Power fed to the resistance. A
+    decker with neither takes the full hit. Fired through the real attack_enemy_decker endpoint."""
+
+    def _decker(self):
+        return {"name": "Ghost", "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+                "mpcp": 6, "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
+                "utilities": {"attack": 6}}
+
+    def _enemy(self, **over):
+        e = {"id": "ed1", "name": "Red Decker", "tier": "Red", "status": "active",
+             "revealed": True, "intent": "dump", "bod": 5, "evasion": 5, "masking": 5,
+             "sensor": 5, "computer_skill": 8, "detection_factor": 4,
+             "utilities": {"attack": 6}, "condition_monitor": {"persona_boxes": 0},
+             "program_damage": {}}
+        e.update(over)
+        return e
+
+    def _strike(self, monkeypatch, *, enemy, shield_succ, capture):
+        import asyncio
+        from app.schemas.matrix_run import RunEnemyAttackInput
+
+        # Fixed Shield roll so the parry successes are deterministic.
+        monkeypatch.setattr(eng, "shield_parry",
+                            lambda shield_rating, attacker_skill: {
+                                "successes": shield_succ, "roll": {"successes": shield_succ},
+                                "tn": 4})
+
+        # Fake cybercombat: capture the defensive kwargs the router fed in, and make the boxes a
+        # function of the parried successes so a Shield provably reduces the hit the enemy takes.
+        def _fake_attack(**kw):
+            capture.update(kw)
+            boxes = max(0, 5 - int(kw.get("shield_successes", 0) or 0))
+            return {"attack_roll": {"successes": 4, "ones": 0},
+                    "resistance": {"boxes": boxes, "final_damage_level": "Moderate"}}
+        monkeypatch.setattr(eng, "cybercombat_attack", _fake_attack)
+
+        decker = self._decker()
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["hackingPool_remaining"] = 10
+        state["enemy_deckers"] = [enemy]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        run = _StubRun()
+
+        async def _fake_get_run(db, run_id):
+            return run
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
+
+        class _FakeDB:
+            async def commit(self):
+                pass
+
+            async def refresh(self, obj):
+                pass
+
+        inp = RunEnemyAttackInput(enemy_id="ed1", attack_pool=6, hacking_pool_dice=0,
+                                  program="attack")
+        auth = {"is_admin": True, "is_user": False, "user_token": None}
+        asyncio.run(mr.attack_enemy_decker(run_id=7, body=inp, auth=auth, db=_FakeDB()))
+        return run.state_json
+
+    def test_shield_parries_and_reduces_boxes(self, monkeypatch):
+        cap = {}
+        enemy = self._enemy(utilities={"attack": 6, "shield": 5})
+        state = self._strike(monkeypatch, enemy=enemy, shield_succ=2, capture=cap)
+        assert cap["shield_successes"] == 2                     # parry fed into the resistance
+        e = state["enemy_deckers"][0]
+        assert e["condition_monitor"]["persona_boxes"] == 3     # 5 - 2 parried
+        assert e["program_damage"]["shield"] == 1              # worn 1 Rating Point per use
+        parry = [x for x in state["event_log"] if x.get("type") == "enemy_shield_parry"]
+        assert parry and parry[0]["gm_only"] is True and parry[0]["context"] == "attack"
+
+    def test_armor_lowers_attack_power(self, monkeypatch):
+        cap = {}
+        enemy = self._enemy(utilities={"attack": 6, "armor": 4})
+        self._strike(monkeypatch, enemy=enemy, shield_succ=0, capture=cap)
+        assert cap["armor_rating"] == 4                         # Armor utility fed to the resistance
+
+    def test_no_defensive_kit_takes_full_hit(self, monkeypatch):
+        cap = {}
+        enemy = self._enemy(utilities={"attack": 6})            # no shield / armor
+        state = self._strike(monkeypatch, enemy=enemy, shield_succ=9, capture=cap)
+        assert cap["shield_successes"] == 0                     # no Shield -> nothing parried
+        assert cap["armor_rating"] == 0                         # no Armor
+        e = state["enemy_deckers"][0]
+        assert e["condition_monitor"]["persona_boxes"] == 5     # full 5 boxes
+        assert "shield" not in enemy.get("program_damage", {})  # no wear
+        assert not any(x.get("type") == "enemy_shield_parry" for x in state["event_log"])
+
 
 
 

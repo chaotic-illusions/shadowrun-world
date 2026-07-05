@@ -3357,6 +3357,7 @@ main:has(.md3) { max-width: 1800px; }
   display: inline-block; flex-shrink: 0;
 }
 .cond-box.filled-persona  { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 4px #ff990055; }
+.cond-box.filled-stun     { background: #ff7700;      border-color: #ff7700;      box-shadow: 0 0 4px #ff770055; }
 .cond-box.filled-physical { background: var(--red);   border-color: var(--red);   box-shadow: 0 0 4px #ff333355; }
 .cond-count               { font-size: var(--fs-sm); color: var(--text-dim); min-width: 36px; text-align: right; }
 .crashed-label {

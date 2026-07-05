@@ -32,8 +32,8 @@ COMBAT_TN: dict[str, dict[str, int]] = {
     "Blue":   {"intruding": 6, "legitimate": 3},
     "Green":  {"intruding": 5, "legitimate": 4},
     "Orange": {"intruding": 4, "legitimate": 5},
-    "Red":    {"intruding": 5, "legitimate": 6},
-    "Black":  {"intruding": 3, "legitimate": 8},
+    "Red":    {"intruding": 3, "legitimate": 6},
+    "Black":  {"intruding": 3, "legitimate": 6},
 }
 
 # Simsense overload willpower TN by damage level (hot deck + white/gray IC only)
@@ -41,9 +41,12 @@ SIMSENSE_OVERLOAD_TN: dict[str, int] = {
     "Light": 2, "Moderate": 3, "Serious": 5,
 }
 
-# Damage boxes filled per damage level
+# Damage boxes filled per damage level. SR2 10-box Condition Monitor: a Light wound deals 1 box,
+# Moderate 3, Serious 6, and a Deadly wound fills the whole 10-box track (an instant crash). These
+# box counts double as the wound-level FLOORS on the accumulated monitor: 1-2 boxes = Light,
+# 3-5 = Moderate, 6-9 = Serious, 10 = Deadly/crash.
 DAMAGE_BOXES: dict[str, int] = {
-    "Light": 1, "Moderate": 2, "Serious": 3, "Deadly": 6,
+    "Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10,
 }
 
 DAMAGE_LEVELS: list[str] = ["Light", "Moderate", "Serious", "Deadly"]
