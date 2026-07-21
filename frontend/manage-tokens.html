@@ -34,7 +34,7 @@
   <!-- -- Admin Tokens -------------------------------------------------------- -->
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;margin-top:28px">
     <div style="font-size:.7rem;letter-spacing:2px;color:var(--amber)">ADMIN ACCESS TOKENS</div>
-    <button class="btn btn-amber" onclick="openNewTokenModal(true)">+ New Admin Token</button>
+    <button class="btn btn-green" onclick="openNewTokenModal(true)">+ New Admin Token</button>
   </div>
   <div id="adminTokenWrap"><div class="loading">Loading tokens</div></div>
 
@@ -55,7 +55,7 @@
       </div>
       <div class="flex-row-8">
         <button class="btn flex-1" id="tokenModalSubmitBtn" onclick="submitNewToken()">&gt;&gt; Generate</button>
-        <button class="btn btn-ghost" onclick="closeTokenModal()">Cancel</button>
+        <button class="btn btn-red" onclick="closeTokenModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -85,7 +85,7 @@
       </div>
       <div class="flex-row-8">
         <button class="btn btn-green flex-1" onclick="submitRename()">&gt;&gt; Save</button>
-        <button class="btn btn-ghost" onclick="closeRenameModal()">Cancel</button>
+        <button class="btn btn-red" onclick="closeRenameModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -261,7 +261,7 @@ async function regenerateToken(id) {
 // -- Delete --------------------------------------------------------------------
 
 async function deleteToken(id) {
-    if (!await showConfirm('Delete this token? The player will lose access and their characters will be unclaimed.', 'Delete')) return;
+    if (!await showConfirm('Delete this token? The player will lose access and their characters will be unclaimed.', 'Confirm')) return;
   try {
     const res = await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) throw new Error(res.statusText);

@@ -321,6 +321,41 @@
   });
 
   // =====================================================================
+  // SCENE: neonhaze -- pink-tinged out-of-focus bokeh over a dark void.
+  // A quiet, atmosphere-only scene (no skyline, no rain): slow-drifting neon
+  // light blooms behind a faint magenta wash. Used on the run-report page.
+  // =====================================================================
+  function neon_haze(env) {
+    var ctx = env.ctx, W = env.W, H = env.H, st = env.store, key = W + 'x' + H;
+    if (!st.nhaze || st.nhazeKey !== key) {
+      // faint pink light-pollution wash, brightest low and fading toward the top
+      var grd = ctx.createLinearGradient(0, H, 0, 0);
+      grd.addColorStop(0.00, 'rgba(120,26,74,0.26)');
+      grd.addColorStop(0.35, 'rgba(96,22,66,0.15)');
+      grd.addColorStop(0.70, 'rgba(66,18,56,0.07)');
+      grd.addColorStop(1.00, 'rgba(40,14,44,0.03)');
+      st.nhaze = grd; st.nhazeKey = key;
+    }
+    ctx.fillStyle = st.nhaze; ctx.fillRect(0, 0, W, H);
+  }
+  scene('neonhaze', {
+    sky: 'linear-gradient(180deg,#0a050c 0%,#0d0710 55%,#120915 100%)',
+    vignette: true,
+    heat: false,
+    init: function (env) { env.store.bokeh = null; },
+    resize: function (env) {
+      // hot-pink / magenta / violet neon tints
+      ws_buildBokeh(env, [[255, 80, 170], [255, 120, 205], [205, 70, 255]]);
+    },
+    frame: function (env, t, dt) {
+      var ctx = env.ctx, W = env.W, H = env.H;
+      ctx.clearRect(0, 0, W, H);
+      neon_haze(env);
+      ws_drawBokeh(env, t, dt);
+    }
+  });
+
+  // =====================================================================
   // SCENE: cityscape -- rain-streaked Seattle sprawl (the world-state look)
   // Ported from world-state.html so the flagship ambiance lives in one place.
   // =====================================================================

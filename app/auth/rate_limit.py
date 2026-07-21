@@ -11,6 +11,8 @@ import os
 import time
 from fastapi import Request, HTTPException
 
+from app.auth.core import hash_token
+
 
 # -- Configuration -------------------------------------------------------------
 
@@ -90,3 +92,55 @@ def record_success(request: Request) -> None:
     """Call after a successful auth to reset the backoff counter."""
     ip = _client_ip(request)
     _attempts.pop(ip, None)
+
+
+# -- Per-caller call-rate throttle (expensive authenticated endpoints) ---------
+#
+# Distinct from the auth backoff above: this is NOT failure-driven. It caps how often a
+# *valid* caller may hit a CPU-heavy route (e.g. the sheaf live-preview generator), keyed
+# per token so one runner -- or a leaked token -- cannot spam it. Plain sliding window.
+
+CALL_WINDOW = 60.0     # sliding window, seconds
+CALL_LIMIT = 30        # max calls per key per window (accommodates the live-preview UI)
+
+# {key: [ts, ts, ...]} -- monotonic timestamps of recent calls still inside the window
+_calls: dict[str, list[float]] = {}
+
+
+def _throttle_key(request: Request) -> str:
+    """Bucket key for the call-rate throttle: prefer the caller's (already auth-validated)
+    token so the limit is per-token, falling back to the client IP when no token header is
+    present. The token is keyed only by its SHA-256 hash -- never store the plaintext.
+    """
+    tok = request.headers.get("x-user-token") or request.headers.get("x-admin-token")
+    if tok:
+        return "tok:" + hash_token(tok)
+    return "ip:" + _client_ip(request)
+
+
+def _prune_calls() -> None:
+    """Drop keys whose whole window has expired (keeps _calls from growing unbounded)."""
+    now = time.monotonic()
+    dead = [k for k, ts in _calls.items() if not ts or now - ts[-1] >= CALL_WINDOW]
+    for k in dead:
+        del _calls[k]
+
+
+def enforce_call_rate(request: Request) -> None:
+    """FastAPI dependency -- throttle an expensive authenticated endpoint to CALL_LIMIT calls
+    per CALL_WINDOW seconds per caller. Raises 429 when the window is full.
+    """
+    _prune_calls()
+    now = time.monotonic()
+    key = _throttle_key(request)
+    recent = [t for t in _calls.get(key, ()) if now - t < CALL_WINDOW]
+    if len(recent) >= CALL_LIMIT:
+        retry = int(CALL_WINDOW - (now - recent[0])) + 1
+        _calls[key] = recent
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded ({CALL_LIMIT} requests/{int(CALL_WINDOW)}s). "
+                   f"Retry in {retry}s.",
+        )
+    recent.append(now)
+    _calls[key] = recent

@@ -9,15 +9,61 @@ from app.models.contact import Contact
 from app.models.location import Location
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary, LtgSecurityUpdate
 from app.services.host_visibility import sync_org_reveals_to_hosts, sync_org_security_to_hosts
-from app.auth.dependencies import get_admin_token
+from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
+
+
+def _serialize_org(org: Organization, auth: dict) -> dict:
+    """Serialize an org for a GET response, redacting decker-only secrets for non-admins.
+
+    ``san_access_rating`` on a matrix_host LTG entry is a security rating players must discover
+    in a run (Analyze Host). Until the entry's ``san_revealed`` flag is set, the rating is
+    stripped from the payload so it cannot leak via devtools / the network tab.
+
+    Redaction applies to non-admins AND to an admin previewing the player payload (UI "runner
+    view" -> ``view_as_player``), so the preview matches exactly what a player receives. A real
+    admin in admin view always gets the full data.
+    """
+    data = OrganizationRead.model_validate(org, from_attributes=True).model_dump()
+    if auth.get("is_admin") and not auth.get("view_as_player"):
+        return data
+    rebuilt = []
+    for entry in (data.get("ltgs") or []):
+        e = dict(entry)
+        if e.get("type") == "matrix_host" and not e.get("san_revealed"):
+            e.pop("san_access_rating", None)
+        rebuilt.append(e)
+    data["ltgs"] = rebuilt
+    return data
+
+
+def _preserve_san_revealed(old_ltgs, new_ltgs):
+    """Carry the persistent ``san_revealed`` discovery flag from old LTG entries onto the
+    replacement list from a PATCH body. The GM editor never sends ``san_revealed``, so a naive
+    replace would wipe a decker's discovery; matched by the (rtg, ltg) address key.
+    """
+    revealed = {
+        (e.get("rtg"), e.get("ltg"))
+        for e in (old_ltgs or [])
+        if e.get("type") == "matrix_host" and e.get("san_revealed")
+    }
+    if not revealed:
+        return new_ltgs
+    rebuilt = []
+    for entry in (new_ltgs or []):
+        e = dict(entry)
+        if e.get("type") == "matrix_host" and (e.get("rtg"), e.get("ltg")) in revealed:
+            e["san_revealed"] = True
+        rebuilt.append(e)
+    return rebuilt
 
 
 @router.get("/", response_model=list[OrganizationRead])
 async def list_organizations(
     org_type: str | None = Query(None),
     is_active: bool | None = Query(None),
+    auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Organization)
@@ -26,7 +72,7 @@ async def list_organizations(
     if is_active is not None:
         q = q.where(Organization.is_active == is_active)
     result = await db.execute(q.order_by(Organization.tier.desc(), Organization.name))
-    return result.scalars().all()
+    return [_serialize_org(o, auth) for o in result.scalars().all()]
 
 
 @router.post("/", response_model=OrganizationRead, status_code=201)
@@ -43,8 +89,13 @@ async def create_organization(
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
-async def get_organization(org_id: int, db: AsyncSession = Depends(get_db)):
-    return await get_or_404(db, Organization, org_id)
+async def get_organization(
+    org_id: int,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    org = await get_or_404(db, Organization, org_id)
+    return _serialize_org(org, auth)
 
 
 @router.patch("/{org_id}", response_model=OrganizationRead)
@@ -56,11 +107,14 @@ async def update_organization(
 ):
     org = await get_or_404(db, Organization, org_id)
     fields = body.model_dump(exclude_unset=True)
+    old_ltgs = [dict(e) for e in (org.ltgs or [])] if "ltgs" in fields else None
     await apply_update(db, org, body, commit=False)
     # When the LTG list changes, propagate each matrix_host entry's "revealed" flag onto the
     # matching host rows so revealing a host on the org card also makes it runnable, and push
     # each entry's san_access_rating onto the matching host's config so security stays in sync.
     if "ltgs" in fields:
+        # The GM editor never sends the decker-discovery flag, so preserve it across the replace.
+        org.ltgs = _preserve_san_revealed(old_ltgs, org.ltgs)
         await sync_org_reveals_to_hosts(db, org)
         await sync_org_security_to_hosts(db, org)
     await db.commit()

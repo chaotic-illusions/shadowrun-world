@@ -171,7 +171,7 @@
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -333,7 +333,7 @@ async function saveLoc() {
 async function deleteLoc() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
     const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);

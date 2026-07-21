@@ -104,6 +104,24 @@ async def _ensure_matrix_run_owner_token_hash_column():
         )
 
 
+async def _ensure_matrix_run_aar_acknowledged_column():
+    """Startup safety migration for the matrix_runs after-action-report gate column.
+
+    create_all only creates missing tables; it won't add a column to an existing matrix_runs table.
+    The run-start gate and the GM AAR review view both read this column, so an older DB file that
+    predates it would 500 on those paths until it exists. Add it in place, idempotently.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
+        cols = {row[1] for row in rows.fetchall()}
+        if "aar_acknowledged" in cols:
+            return
+        await conn.exec_driver_sql(
+            "ALTER TABLE matrix_runs ADD COLUMN aar_acknowledged BOOLEAN NOT NULL DEFAULT 0"
+        )
+        print("[startup] Added matrix_runs.aar_acknowledged column")
+
+
 async def _ensure_matrix_host_id_code_column():
     """Startup safety migration for matrix_hosts.id_code on SQLite deployments.
 
@@ -189,6 +207,10 @@ async def lifespan(app: FastAPI):
         await _ensure_matrix_run_owner_token_hash_column()
     except Exception:
         logging.getLogger(__name__).exception("matrix-run owner-token-hash-column migration failed")
+    try:
+        await _ensure_matrix_run_aar_acknowledged_column()
+    except Exception:
+        logging.getLogger(__name__).exception("matrix-run aar-acknowledged-column migration failed")
     try:
         await _ensure_matrix_host_id_code_column()
     except Exception:
