@@ -25,7 +25,7 @@ from app.models.matrix_host import MatrixHost
 from app.models.character import Character
 from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary, MatrixRunAAR,
-    RunActionInput, RunAttackInput, RunLogoffInput, RunReactiveInput,
+    RunActionInput, RunAttackInput, RunDefendInput, RunLogoffInput, RunReactiveInput,
     RunSuppressInput, RunRevealHostRatingsInput, RunEnemyAttackInput,
     RunEnemyScanInput, RunAreaAttackInput,
     RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
@@ -77,7 +77,7 @@ _PERSONA_CARRY_KEYS = {
     "condition_monitor", "mpcp_infections", "mpcp_infected", "chip_replacement_required",
     "hackingPool_total", "hackingPool_remaining", "storage_free_mp", "storage_used_mp",
     "downloaded_files", "storage_programs", "active_memory_cap", "program_sizes",
-    "detection_factor",
+    "detection_factor", "interactive_defense",
 }
 
 # Single source of truth for the attribute-crippling family. Each persona attribute maps to the
@@ -416,6 +416,16 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
         if not state.get("host_security_revealed"):
             state.pop("host_security_code", None)
             state.pop("host_security_value", None)
+        # A pending interactive-defense prompt keeps an internal ``ctx`` (host Security code/value +
+        # attack modifiers) that only /defend needs to resolve the parked strike. The player must
+        # see the prompt itself -- attacker, successes, Power, Hacking Pool available -- but NOT that
+        # ctx, which would leak the still-secret host Security Rating. Strip it to display fields.
+        pend = state.get("pending_defense")
+        if isinstance(pend, dict):
+            state["pending_defense"] = {
+                k: v for k, v in pend.items()
+                if k not in ("ctx", "resume_logon_completed")
+            }
         if isinstance(state.get("active_ic"), list):
             redacted = [_redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)]
             state["active_ic"] = [ic for ic in redacted if ic is not None]
@@ -798,6 +808,14 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "logon_complete": False,
         "run_ended": False,
         "end_reason": None,
+        # Interactive defense (Hacking Pool spent on the NPC phase). When interactive_defense is
+        # True and an IC cybercombat attack scores net successes, perform_action's proactive pass
+        # PAUSES with pending_defense set so the decker can allocate Hacking Pool dice to the
+        # icon's damage resistance before the hit resolves. None = no pending prompt; otherwise a
+        # dict describing the parked attack (see _park_pending_defense). Defaults off so existing
+        # runs/tests resolve IC hits inline exactly as before.
+        "interactive_defense": False,
+        "pending_defense": None,
         "event_log": [],
         "hackingPool_total": hackingPool_total,
         "hackingPool_remaining": hackingPool_total,
@@ -4933,6 +4951,11 @@ async def _create_run(db: AsyncSession, auth: dict, host: MatrixHost, decker_dic
     """Persist a fresh run on ``host`` for the given decker. Shared by start_run and the
     trap-door ENTER transit (which lands the decker on a new linked host)."""
     state = _initial_state(decker_dict, host)
+    # Real runs opt into interactive per-attack defense: a landing IC cybercombat strike pauses the
+    # host response phase (state['pending_defense']) so the decker can allocate Hacking Pool dice to
+    # the icon's resist before the hit lands (resolved via POST /{run_id}/defend). Tests build state
+    # through _initial_state directly (defaults off), so they keep resolving IC hits inline.
+    state["interactive_defense"] = True
     state["excluded_handles"] = await _gather_player_handles(db, decker_dict)
     run = MatrixRun(
         host_id=host.id,
@@ -5096,8 +5119,228 @@ def _autofire_lurking_tar(state: dict, decker: dict, action_type: str, utility_r
             _resolve_lurking_tar(state, decker, lurking, utility_name, utility_rating)
 
 
+def _defense_offer_wanted(state: dict, to_hit: dict) -> bool:
+    """True when the decker should be offered an interactive Hacking-Pool defense against an IC
+    cybercombat strike: the run opted into interactive defense (``interactive_defense``), the attack
+    scored at least one net success (so damage is pending), the decker still has Hacking Pool dice
+    to spend, and no defense prompt is already outstanding. When False the strike resolves inline
+    exactly as before -- so existing runs and tests (which never set ``interactive_defense``) are
+    completely unaffected."""
+    return bool(
+        state.get("interactive_defense")
+        and to_hit.get("successes", 0) > 0
+        and state.get("hackingPool_remaining", 0) > 0
+        and not state.get("pending_defense")
+    )
+
+
+def _assert_no_pending_defense(state: dict) -> None:
+    """Reject a player action while an IC cybercombat strike is parked awaiting the decker's
+    interactive defense (``state['pending_defense']``). The strike must be resolved via POST
+    /{run_id}/defend first -- otherwise acting again would let the decker skip the parked hit or
+    advance the pass out from under it. 409 Conflict: the request is well-formed, but the run is in
+    a state that must be cleared first. Never trips for runs without interactive defense (they never
+    park), so existing runs and the test suite are unaffected."""
+    if state.get("pending_defense"):
+        raise HTTPException(409, "An IC strike is awaiting your defense -- resolve it first.")
+
+
+def _park_pending_defense(state: dict, decker: dict, ic: dict, *, to_hit: dict,
+                          ic_attack_pool: int, ic_target_status: str, atk_power_delta: int,
+                          atk_tn_delta: int, cluster_penalty: int, ic_category: str,
+                          sec_code: str, sec_value: int, logon_completed: bool = False) -> None:
+    """Pause an IC's standard cybercombat strike so the decker can allocate Hacking Pool dice to the
+    icon's damage resistance before it resolves. Stashes everything ``_resolve_ic_cybercombat`` needs
+    to finish the SAME strike later -- the already-rolled to-hit is reused verbatim, so no dice are
+    re-rolled -- and emits a ``defense_pending`` event carrying the attacker's successes so the
+    client can show them before the player chooses. The parked IC already has ``acted_pass`` set, so
+    resuming the pass skips it: only the resolution is deferred, not the action."""
+    power = (ic["rating"] + ic.get("cascade_rating_bonus", 0)
+             + atk_power_delta + _deathworm_tn_bonus(state))
+    label = f"{ic['type']}-{ic['rating']}"
+    state["pending_defense"] = {
+        "ic_id": ic["id"],
+        "attacker_label": label,
+        "attack_successes": to_hit.get("successes", 0),
+        "to_hit_roll": to_hit,
+        "power": power,
+        "hp_available": state.get("hackingPool_remaining", 0),
+        "resume_logon_completed": bool(logon_completed),
+        "ctx": {
+            "ic_attack_pool": ic_attack_pool,
+            "ic_target_status": ic_target_status,
+            "atk_power_delta": atk_power_delta,
+            "atk_tn_delta": atk_tn_delta,
+            "cluster_penalty": cluster_penalty,
+            "ic_category": ic_category,
+            "sec_code": sec_code,
+            "sec_value": sec_value,
+        },
+    }
+    _append_event(state, {
+        "type": "defense_pending",
+        "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
+        "description": (
+            f"{label} strikes your icon -- {to_hit.get('successes', 0)} attack success(es), "
+            f"Power {power}. Allocate Hacking Pool dice to resist (or defend with none)."
+        ),
+        "attack_roll": to_hit,
+        "hp_available": state.get("hackingPool_remaining", 0),
+    })
+
+
+def _resolve_ic_cybercombat(state: dict, decker: dict, ic: dict, *, ic_attack_pool: int,
+                            ic_target_status: str, eff: dict, atk_power_delta: int,
+                            atk_tn_delta: int, cluster_penalty: int, ic_category: str,
+                            sec_code: str, sec_value: int,
+                            precomputed_attack_roll: dict | None = None,
+                            defender_bonus_dice: int = 0) -> bool:
+    """Resolve one standard (non-black) IC cybercombat strike -- Killer / Blaster / Sparky /
+    Construct -- against the decker's persona icon: damage resistance, Armor wear, Simsense overload,
+    and persona-crash consequences (Blaster/Sparky MPCP burn + dump shock).
+
+    Split out of ``_advance_npc_pass`` so the interactive-defense flow can resolve the SAME strike
+    after the decker allocates Hacking Pool dice: the caller rolls the to-hit first and passes it as
+    ``precomputed_attack_roll`` (reused verbatim -- RNG-identical to the old inline roll), and
+    ``defender_bonus_dice`` adds the decker's chosen Hacking Pool dice to the icon's Bod resistance.
+    Returns True when the strike ended the run (caller must stop the pass); False otherwise.
+    """
+    armor          = _effective_armor(decker, state)
+    cascade_power  = ic["rating"] + ic.get("cascade_rating_bonus", 0)
+    # Shield parry: fired ONLY if the attack lands; net successes then cancel attacker damage
+    # successes before staging (vr2). A clean miss rolls no Shield and wears nothing.
+    ic_skill       = ic["rating"] if ic["type"] == "Construct" else sec_value
+    attack = eng.cybercombat_attack(
+        attacker_pool=ic_attack_pool,
+        security_code=sec_code,
+        target_status=ic_target_status,
+        target_bod=eff["bod"],
+        armor_rating=armor,
+        ic_rating=cascade_power + atk_power_delta + _deathworm_tn_bonus(state),   # + Position Power + Deathworm resist TN
+        attacker_is_ic=True,
+        # + Parry(+)/Position(-) to-hit delta + the IC's own wound penalty, minus the
+        # -1-per-completed-Trace proactive-IC to-hit bonus (vr2 Trace L590)
+        tn_modifier=cluster_penalty + atk_tn_delta + _ic_wound_mod(ic) - _completed_trace_count(state),
+        shield_parry=lambda: _shield_parry(state, decker, attacker_skill=ic_skill, context=ic["type"]),
+        precomputed_attack_roll=precomputed_attack_roll,
+        defender_bonus_dice=defender_bonus_dice,
+    )
+    final_dmg = attack["resistance"]["final_damage_level"]
+    boxes = attack["resistance"]["boxes"]
+    # Cascading IC: a miss raises its attack SV; a hit the decker fully resists raises its rating.
+    _apply_cascade_outcome(ic, sec_code,
+                           hit=attack["attack_roll"]["successes"] > 0, damage_dealt=boxes > 0)
+
+    _add_cm_damage(state["condition_monitor"], "persona_boxes", boxes)
+    _wear_armor(state, state, decker, boxes)
+    _append_event(state, {
+        "type": "ic_attack",
+        "ic_id": ic["id"],
+        "ic_type": ic["type"],
+        "ic_rating": ic["rating"],
+        "description": (
+            f"{ic['type']}-{ic['rating']} attacks: "
+            f"{attack['attack_roll']['successes']} attack successes vs "
+            f"{attack['resistance']['resist_roll']['successes']} resist. "
+            f"Damage: {final_dmg} ({boxes} boxes). "
+            f"Persona: {state['condition_monitor']['persona_boxes']}/10"
+        ),
+        "attack_roll": attack["attack_roll"],
+        "resist_roll": attack["resistance"]["resist_roll"],
+        "final_damage_level": final_dmg,
+        "boxes": boxes,
+        "persona_total": state["condition_monitor"]["persona_boxes"],
+    })
+
+    # Simsense: hot deck only, white/gray IC only. This app has no separate manual-vs-DNI
+    # control axis, so a hot deck IS "running hot on pure DNI" -- the same convention that
+    # grants the +1D6 hot-DNI initiative die (see _roll_decker_initiative). Per RAW that pure-
+    # DNI interface also adds +2 to the simsense overload TN (an ICCM filter cancels it).
+    if ic_category in ("white", "gray") and decker.get("deck_mode") == "hot":
+        sim = eng.simsense_check(
+            damage_level=final_dmg,
+            willpower=decker.get("willpower", 4),
+            deck_mode=decker.get("deck_mode", "hot"),
+            hot_dnil_only=True,
+            has_iccm=decker.get("iccm", False),
+        )
+        if not sim.get("immune") and sim.get("stun_taken"):
+            _add_stun(state["condition_monitor"], 1)
+            _append_event(state, {
+                "type": "simsense_overload",
+                "description": f"Simsense overload! Willpower test failed (TN {sim['tn']}). 1 Stun damage.",
+                "roll": sim.get("roll"),
+            })
+
+    # Killer / Blaster / Sparky / Construct: check persona crash
+    if state["condition_monitor"]["persona_boxes"] >= 10:
+        _append_event(state, {
+            "type": "persona_crash",
+            "description": "PERSONA CRASHED -- decker dumped from the Matrix!",
+        })
+
+        # Blaster: MPCP damage test on persona crash (1 per 2 successes)
+        if ic["type"] == "Blaster":
+            mpcp_hit, b_roll = _roll_mpcp_damage(state, decker, ic["rating"])
+            _append_event(state, {
+                "type": "ic_attack",
+                "ic_id": ic["id"], "ic_type": "Blaster",
+                "description": (
+                    f"Blaster post-crash MPCP test (TN {b_roll['tn']}): "
+                    f"{b_roll['successes']} hits -> MPCP -{mpcp_hit} (permanent)."
+                ),
+                "blaster_roll": b_roll, "mpcp_damage": mpcp_hit,
+            })
+
+        # Sparky: MPCP damage (1 per 2 successes) + physical discharge.
+        # Sparky raises the MPCP-test TN by 2 vs Blaster.
+        elif ic["type"] == "Sparky":
+            mpcp_hit, s_roll = _roll_mpcp_damage(state, decker, ic["rating"], tn_bonus=2)
+            # VR2 "Sparky": (IC Rating)M physical -- stage up per Sparky-test successes,
+            # then the decker RESISTS with Body vs Power (IC rating, reduced by Hardening).
+            hardening = decker.get("hardening", 0)
+            sparky_staged = eng.stage_damage("Moderate", s_roll["successes"], 1)
+            sparky_power = max(1, ic["rating"] - hardening)
+            sparky_body = eng.roll_dice(decker.get("body", 4), sparky_power)
+            sparky_final = eng.stage_damage(sparky_staged, sparky_body["successes"], -1)
+            sparky_boxes = rules.ICON_DAMAGE_BOXES[sparky_final]
+            _add_cm_damage(state["condition_monitor"], "physical_boxes", sparky_boxes)
+            _append_event(state, {
+                "type": "ic_attack",
+                "ic_id": ic["id"], "ic_type": "Sparky",
+                "description": (
+                    f"Sparky discharge on crash (TN {s_roll['tn']}): MPCP -{mpcp_hit} (perm). "
+                    f"Body resist ({sparky_body['successes']} hits): "
+                    f"{sparky_final} ({sparky_boxes} boxes physical)."
+                ),
+                "sparky_roll": s_roll,
+                "body_roll": sparky_body,
+                "mpcp_damage": mpcp_hit,
+                "physical_damage": sparky_final,
+            })
+
+        # Dump shock
+        ds = _apply_dump_shock(state, decker, sec_code, sec_value)
+        if not ds.get("immune"):
+            _append_event(state, {
+                "type": "dump_shock",
+                "description": (
+                    f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes stun). "
+                    f"Stun: {state['condition_monitor']['stun_boxes']}"
+                ),
+                "dump_shock": ds,
+            })
+        state["run_ended"] = True
+        state["end_reason"] = "persona_crashed"
+        _finalize_run_end(state)
+        return True
+
+    return False
+
+
 def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: str,
-                      sec_value: int, det_factor: int, logon_completed: bool = False) -> None:
+                      sec_value: int, det_factor: int, logon_completed: bool = False,
+                      allow_defense_pause: bool = False) -> None:
     """Drive every app-controlled hostile for the CURRENT initiative pass (``state['current_pass']``):
     proactive / trace IC attacks (in initiative order) followed by enemy deckers, each gated by its
     own initiative passes and an ``acted_pass`` marker so it acts at most once per pass.
@@ -5443,132 +5686,33 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
             continue  # Black IC handled -- skip the rest of the standard combat block
 
         # -- Killer / Blaster / Sparky / Construct (non-black) ----------------
-        armor          = _effective_armor(decker, state)
-        cascade_power  = ic["rating"] + ic.get("cascade_rating_bonus", 0)
-        # Shield parry: fired ONLY if the attack lands; net successes then cancel attacker damage
-        # successes before staging (vr2). A clean miss rolls no Shield and wears nothing.
-        ic_skill       = ic["rating"] if ic["type"] == "Construct" else sec_value
-        attack = eng.cybercombat_attack(
-            attacker_pool=ic_attack_pool,
-            security_code=sec_code,
-            target_status=ic_target_status,
-            target_bod=eff["bod"],
-            armor_rating=armor,
-            ic_rating=cascade_power + atk_power_delta + _deathworm_tn_bonus(state),   # + Position Power + Deathworm resist TN
-            attacker_is_ic=True,
-            # + Parry(+)/Position(-) to-hit delta + the IC's own wound penalty, minus the
-            # -1-per-completed-Trace proactive-IC to-hit bonus (vr2 Trace L590)
-            tn_modifier=cluster_penalty + atk_tn_delta + _ic_wound_mod(ic) - _completed_trace_count(state),
-            shield_parry=lambda: _shield_parry(state, decker, attacker_skill=ic_skill, context=ic["type"]),
-        )
-        final_dmg = attack["resistance"]["final_damage_level"]
-        boxes = attack["resistance"]["boxes"]
-        # Cascading IC: a miss raises its attack SV; a hit the decker fully resists raises its rating.
-        _apply_cascade_outcome(ic, sec_code,
-                               hit=attack["attack_roll"]["successes"] > 0, damage_dealt=boxes > 0)
-
-        _add_cm_damage(state["condition_monitor"], "persona_boxes", boxes)
-        _wear_armor(state, state, decker, boxes)
-        _append_event(state, {
-            "type": "ic_attack",
-            "ic_id": ic["id"],
-            "ic_type": ic["type"],
-            "ic_rating": ic["rating"],
-            "description": (
-                f"{ic['type']}-{ic['rating']} attacks: "
-                f"{attack['attack_roll']['successes']} attack successes vs "
-                f"{attack['resistance']['resist_roll']['successes']} resist. "
-                f"Damage: {final_dmg} ({boxes} boxes). "
-                f"Persona: {state['condition_monitor']['persona_boxes']}/10"
-            ),
-            "attack_roll": attack["attack_roll"],
-            "resist_roll": attack["resistance"]["resist_roll"],
-            "final_damage_level": final_dmg,
-            "boxes": boxes,
-            "persona_total": state["condition_monitor"]["persona_boxes"],
-        })
-
-        # Simsense: hot deck only, white/gray IC only. This app has no separate manual-vs-DNI
-        # control axis, so a hot deck IS "running hot on pure DNI" -- the same convention that
-        # grants the +1D6 hot-DNI initiative die (see _roll_decker_initiative). Per RAW that pure-
-        # DNI interface also adds +2 to the simsense overload TN (an ICCM filter cancels it).
-        if ic_category in ("white", "gray") and decker.get("deck_mode") == "hot":
-            sim = eng.simsense_check(
-                damage_level=final_dmg,
-                willpower=decker.get("willpower", 4),
-                deck_mode=decker.get("deck_mode", "hot"),
-                hot_dnil_only=True,
-                has_iccm=decker.get("iccm", False),
+        # Roll the to-hit up front so an interactive defender sees the attacker's successes before
+        # choosing Hacking Pool dice. The TN mirrors eng.cybercombat_attack exactly, and the roll is
+        # reused verbatim (precomputed_attack_roll), so with no pause this is RNG-identical to the
+        # old inline resolution.
+        _to_hit_tn = max(2, rules.COMBAT_TN[sec_code][ic_target_status]
+                         + cluster_penalty + atk_tn_delta + _ic_wound_mod(ic)
+                         - _completed_trace_count(state))
+        _to_hit = eng.roll_dice(ic_attack_pool, _to_hit_tn)
+        if allow_defense_pause and _defense_offer_wanted(state, _to_hit):
+            # Pause the whole NPC pass: stash the strike and return. The decker allocates Hacking
+            # Pool via POST /{run_id}/defend, which resolves it and resumes the pass. The IC's
+            # acted_pass is already set, so it will not act again when the pass resumes.
+            _park_pending_defense(
+                state, decker, ic, to_hit=_to_hit,
+                ic_attack_pool=ic_attack_pool, ic_target_status=ic_target_status,
+                atk_power_delta=atk_power_delta, atk_tn_delta=atk_tn_delta,
+                cluster_penalty=cluster_penalty, ic_category=ic_category,
+                sec_code=sec_code, sec_value=sec_value, logon_completed=logon_completed,
             )
-            if not sim.get("immune") and sim.get("stun_taken"):
-                _add_stun(state["condition_monitor"], 1)
-                _append_event(state, {
-                    "type": "simsense_overload",
-                    "description": f"Simsense overload! Willpower test failed (TN {sim['tn']}). 1 Stun damage.",
-                    "roll": sim.get("roll"),
-                })
-
-        # Killer / Blaster / Sparky / Construct: check persona crash
-        if state["condition_monitor"]["persona_boxes"] >= 10:
-            _append_event(state, {
-                "type": "persona_crash",
-                "description": "PERSONA CRASHED -- decker dumped from the Matrix!",
-            })
-
-            # Blaster: MPCP damage test on persona crash (1 per 2 successes)
-            if ic["type"] == "Blaster":
-                mpcp_hit, b_roll = _roll_mpcp_damage(state, decker, ic["rating"])
-                _append_event(state, {
-                    "type": "ic_attack",
-                    "ic_id": ic["id"], "ic_type": "Blaster",
-                    "description": (
-                        f"Blaster post-crash MPCP test (TN {b_roll['tn']}): "
-                        f"{b_roll['successes']} hits -> MPCP -{mpcp_hit} (permanent)."
-                    ),
-                    "blaster_roll": b_roll, "mpcp_damage": mpcp_hit,
-                })
-
-            # Sparky: MPCP damage (1 per 2 successes) + physical discharge.
-            # Sparky raises the MPCP-test TN by 2 vs Blaster.
-            elif ic["type"] == "Sparky":
-                mpcp_hit, s_roll = _roll_mpcp_damage(state, decker, ic["rating"], tn_bonus=2)
-                # VR2 "Sparky": (IC Rating)M physical -- stage up per Sparky-test successes,
-                # then the decker RESISTS with Body vs Power (IC rating, reduced by Hardening).
-                hardening = decker.get("hardening", 0)
-                sparky_staged = eng.stage_damage("Moderate", s_roll["successes"], 1)
-                sparky_power = max(1, ic["rating"] - hardening)
-                sparky_body = eng.roll_dice(decker.get("body", 4), sparky_power)
-                sparky_final = eng.stage_damage(sparky_staged, sparky_body["successes"], -1)
-                sparky_boxes = rules.ICON_DAMAGE_BOXES[sparky_final]
-                _add_cm_damage(state["condition_monitor"], "physical_boxes", sparky_boxes)
-                _append_event(state, {
-                    "type": "ic_attack",
-                    "ic_id": ic["id"], "ic_type": "Sparky",
-                    "description": (
-                        f"Sparky discharge on crash (TN {s_roll['tn']}): MPCP -{mpcp_hit} (perm). "
-                        f"Body resist ({sparky_body['successes']} hits): "
-                        f"{sparky_final} ({sparky_boxes} boxes physical)."
-                    ),
-                    "sparky_roll": s_roll,
-                    "body_roll": sparky_body,
-                    "mpcp_damage": mpcp_hit,
-                    "physical_damage": sparky_final,
-                })
-
-            # Dump shock
-            ds = _apply_dump_shock(state, decker, sec_code, sec_value)
-            if not ds.get("immune"):
-                _append_event(state, {
-                    "type": "dump_shock",
-                    "description": (
-                        f"Dump shock: {ds['final_level']} ({ds['boxes']} boxes stun). "
-                        f"Stun: {state['condition_monitor']['stun_boxes']}"
-                    ),
-                    "dump_shock": ds,
-                })
-            state["run_ended"] = True
-            state["end_reason"] = "persona_crashed"
-            _finalize_run_end(state)
+            return
+        if _resolve_ic_cybercombat(
+            state, decker, ic,
+            ic_attack_pool=ic_attack_pool, ic_target_status=ic_target_status, eff=eff,
+            atk_power_delta=atk_power_delta, atk_tn_delta=atk_tn_delta,
+            cluster_penalty=cluster_penalty, ic_category=ic_category,
+            sec_code=sec_code, sec_value=sec_value, precomputed_attack_roll=_to_hit,
+        ):
             break
 
     # Handle logon completion (player-action result; parameterized so new_turn's flush skips it).
@@ -5619,6 +5763,7 @@ async def perform_action(
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     eff = _get_decker_effective(decker, state)
+    _assert_no_pending_defense(state)   # a parked IC strike must be resolved (POST /defend) first
     # Events logged while THIS player action resolves belong to the decker's initiative count.
     state["_acting_init"] = state.get("decker_initiative")
 
@@ -6626,6 +6771,7 @@ async def perform_action(
         state, decker, run,
         eff=eff, sec_code=sec_code, sec_value=sec_value, det_factor=det_factor,
         logon_completed=(body.action_type == "logon_to_host" and test["success"]),
+        allow_defense_pause=True,
     )
 
     if state.get("run_ended"):
@@ -6639,6 +6785,96 @@ async def perform_action(
     # decker spends it -- whether or not IC are present -- and only refreshes at the start of each
     # initiative pass and each Combat Turn (handled by _reset_pass_budget on pass-advance / New
     # Turn). So dice spent on one action leave fewer for the next until the pass/turn rolls over.
+    run.state_json = state
+    await db.commit()
+    await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
+@router.post("/{run_id}/defend", response_model=MatrixRunRead, dependencies=[Depends(trace_action)])
+async def defend(
+    run_id: int,
+    body: RunDefendInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve a paused IC cybercombat strike after the decker allocates Hacking Pool dice.
+
+    The interactive-defense flow (``perform_action`` -> ``_advance_npc_pass`` with
+    ``allow_defense_pause``) PARKS a standard IC strike in ``state['pending_defense']`` once the
+    to-hit lands, so the decker can add Hacking Pool dice to the icon's Bod resistance before the
+    hit resolves. This endpoint spends those dice, resolves the SAME strike (reusing the parked
+    to-hit verbatim -- no re-roll), then RESUMES the rest of the NPC pass, which may immediately
+    park again on the next IC. When nothing is left pending, the pass is complete and the client
+    stops prompting. ``hacking_pool_dice`` of 0 resists with Bod alone (declines the offer).
+    """
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, f"Run is not active (status: {run.status})")
+
+    state = copy.deepcopy(run.state_json)  # deepcopy so nested JSON mutations un-alias (UPDATE fires)
+    pending = state.get("pending_defense")
+    if not pending:
+        raise HTTPException(400, "No defense is pending on this run")
+
+    decker = run.decker_json
+    # Events logged while this defense resolves belong to the decker's initiative count.
+    state["_acting_init"] = state.get("decker_initiative")
+    sec_code = state["host_security_code"]
+    sec_value = state["host_security_value"]
+    det_factor = _effective_detection_factor(state, decker)
+    eff = _get_decker_effective(decker, state)
+
+    ctx = pending.get("ctx", {})
+    # Hacking Pool dice actually applied to the icon's resistance, capped at what remains in the
+    # pool (the schema also bounds the request). 0 = resist with Bod alone / decline the offer.
+    hp = min(int(body.hacking_pool_dice or 0), state.get("hackingPool_remaining", 0))
+    if hp > 0:
+        _spend_hp(state, hp)
+
+    # Clear the prompt BEFORE resolving so a fresh park later in the resumed pass can set a new one.
+    state["pending_defense"] = None
+
+    ic = next((x for x in state.get("active_ic", []) if x.get("id") == pending.get("ic_id")), None)
+    if ic is not None:
+        run_ended = _resolve_ic_cybercombat(
+            state, decker, ic,
+            ic_attack_pool=ctx.get("ic_attack_pool", sec_value),
+            ic_target_status=ctx.get("ic_target_status", _pc_target_status(state)),
+            eff=eff,
+            atk_power_delta=ctx.get("atk_power_delta", 0),
+            atk_tn_delta=ctx.get("atk_tn_delta", 0),
+            cluster_penalty=ctx.get("cluster_penalty", 0),
+            ic_category=ctx.get("ic_category", "white"),
+            sec_code=ctx.get("sec_code", sec_code),
+            sec_value=ctx.get("sec_value", sec_value),
+            precomputed_attack_roll=pending.get("to_hit_roll"),
+            defender_bonus_dice=hp,
+        )
+    else:
+        # The parked IC vanished (crashed/suppressed between park and defend) -- nothing to resolve;
+        # just resume the pass so the remaining hostiles still act.
+        run_ended = bool(state.get("run_ended"))
+
+    # Resume the rest of the NPC pass (remaining IC + enemy deckers). This may park again on the
+    # next IC that lands a hit, setting a fresh pending_defense the client will prompt for. The
+    # already-resolved IC has acted_pass set, so it will not act again. logon_completed is carried
+    # forward so a Logon that paused mid-pass still fires its event once the pass finally finishes.
+    if not run_ended:
+        _advance_npc_pass(
+            state, decker, run,
+            eff=eff, sec_code=sec_code, sec_value=sec_value, det_factor=det_factor,
+            logon_completed=bool(pending.get("resume_logon_completed")),
+            allow_defense_pause=True,
+        )
+
+    if state.get("run_ended"):
+        run.status = state.get("end_reason", "crashed")
+    # A run that ends mid-transfer corrupts the in-progress download (a partial copy is worthless).
+    if state.get("run_ended") and state.get("active_download"):
+        _corrupt_active_download(state)
+
     run.state_json = state
     await db.commit()
     await db.refresh(run)
@@ -7451,6 +7687,7 @@ async def new_turn(
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     if state.get("run_ended"):
         raise HTTPException(400, "Run has already ended")
+    _assert_no_pending_defense(state)   # resolve a parked IC strike (POST /defend) before ending the pass
 
     # Default acting context to the decker's initiative; the NPC driver overrides it per hostile.
     state["_acting_init"] = state.get("decker_initiative")
