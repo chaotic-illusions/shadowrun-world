@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any
+from typing import Any, Callable
 
 from app.services.matrix_rules import (
-    DAMAGE_LEVELS, DAMAGE_BOXES, IC_DAMAGE_LEVEL,
+    DAMAGE_LEVELS, DAMAGE_BOXES, ICON_DAMAGE_BOXES, STAGE_SCALE, IC_DAMAGE_LEVEL,
     DUMP_SHOCK_LEVEL, COMBAT_TN, SIMSENSE_OVERLOAD_TN,
     MEDIC_TN,
     IC_INITIATIVE_DICE, SHEAF_INTERVALS,
@@ -21,6 +21,7 @@ from app.services.matrix_rules import (
     IC_OPTIONS_TABLE, IC_DEFENSE_TABLE,
     IC_CATALOG,
 )
+from app.services.run_trace import trace
 
 
 # -- Dice engine ----------------------------------------------------------------
@@ -47,6 +48,11 @@ def roll_dice(pool: int, tn: int = 4) -> dict[str, Any]:
             dice.append(total)
 
     successes = sum(1 for d in dice if d >= tn)
+    trace(
+        f"roll {pool}d6 vs TN {tn} -> {successes} success(es)"
+        + (f", {ones} one(s)" if ones else "")
+        + (f" [rule of 6, per-die totals {dice}]" if tn > 6 else "")
+    )
     return {"pool": pool, "tn": tn, "dice": dice, "successes": successes, "ones": ones}
 
 
@@ -58,8 +64,12 @@ def hacking_pool(intelligence: int, mpcp: int) -> int:
 def detection_factor(masking: int, sleaze_rating: int = 0) -> int:
     """Detection Factor = ceil((masking + sleaze) / 2) if sleaze > 0, else ceil(masking / 2)."""
     if sleaze_rating > 0:
-        return math.ceil((masking + sleaze_rating) / 2)
-    return math.ceil(masking / 2)
+        df = math.ceil((masking + sleaze_rating) / 2)
+        trace(f"detection factor: ceil((masking {masking} + sleaze {sleaze_rating}) / 2) = {df}")
+        return df
+    df = math.ceil(masking / 2)
+    trace(f"detection factor: ceil(masking {masking} / 2) = {df}")
+    return df
 
 
 # -- System test (decker action + host security response) ----------------------
@@ -83,8 +93,18 @@ def system_test(
     host_roll = roll_dice(security_value, det_factor)
 
     decker_net = decker_roll["successes"] - host_roll["successes"]
-    success = decker_net > 0
+    # House rule (vr2 line 152, modified): a TIE goes to the decker -- the task succeeds. RAW is
+    # decker_net > 0 (tie fails); we relax it to >= 0 to ease player deckers. BUT a 0-vs-0 tie is
+    # a mutual whiff -- nothing happened -- so the decker must score at least 1 success to win.
+    success = decker_net >= 0 and decker_roll["successes"] > 0
 
+    trace(
+        f"system test: decker {decker_pool}d6 vs subsystem TN {subsystem_rating}"
+        + (f" {extra_tn_modifier:+d} mod" if extra_tn_modifier else "")
+        + f" = TN {decker_tn} -> {decker_roll['successes']} succ; "
+        f"host {security_value}d6 vs DF {det_factor} -> {host_roll['successes']} succ; "
+        f"net {decker_net} => {'SUCCESS' if success else 'FAIL'}, tally +{host_roll['successes']}"
+    )
     return {
         "success": success,
         "decker_roll": decker_roll,
@@ -98,13 +118,23 @@ def system_test(
 
 def stage_damage(base_level: str, net_successes: int, direction: int = 1) -> str:
     """
-    Stage damage up (direction=1) or down (direction=-1) by net_successes // 2.
-    Clamped to valid damage levels.
+    Stage damage up (direction=1) or down (direction=-1) by net_successes // 2 on the full staging
+    scale (``STAGE_SCALE`` = None, Light, Moderate, Serious, Deadly). ``net_successes`` may be
+    negative (a net-successes-first resolution can hand this a negative value with direction=1);
+    division truncates toward zero so 2 full successes are always needed to move one level in either
+    sense. A hit can be staged DOWN to ``None`` (fully resisted -- no damage) but never UP past
+    ``Deadly``.
     """
-    steps = net_successes // 2
-    idx = DAMAGE_LEVELS.index(base_level)
-    idx = max(0, min(len(DAMAGE_LEVELS) - 1, idx + direction * steps))
-    return DAMAGE_LEVELS[idx]
+    steps = int(net_successes / 2)
+    idx = STAGE_SCALE.index(base_level)
+    idx = max(0, min(len(STAGE_SCALE) - 1, idx + direction * steps))
+    result = STAGE_SCALE[idx]
+    if steps:
+        trace(
+            f"stage {base_level} {'up' if direction > 0 else 'down'} by {steps} "
+            f"(net {net_successes} succ / 2) -> {result}"
+        )
+    return result
 
 
 def damage_resistance(
@@ -115,25 +145,43 @@ def damage_resistance(
     base_damage_level: str,
     attacker_successes: int = 0,
     shield_successes: int = 0,
+    body_damage: bool = False,
+    defender_bonus_dice: int = 0,
 ) -> dict[str, Any]:
     """
     Resolve a damage resistance roll.
     - Effective power = power - armor_rating (min 1)
     - Shield parry: net Shield Test successes cancel attacker damage successes 1:1 BEFORE
-      staging up, clamped at 0 (a parry can blunt a hit but never reverse it). Armor (a Power
+      staging, clamped at 0 (a parry can blunt a hit but never reverse it). Armor (a Power
       reduction) is a SEPARATE defence and stacks with Shield (a successes reduction).
-    - Resistance roll: bod dice vs. effective_power
-    - Stage down 1 level per 2 resistance successes
+    - Resistance roll: (bod + defender_bonus_dice) dice vs. effective_power. ``defender_bonus_dice``
+      is Hacking Pool the defender chose to spend on THIS resist (vr2: HP may be added to defense
+      tests -- but NOT to Body/Willpower tests vs gray/black IC; that gate is the caller's).
+    - NET-SUCCESSES-FIRST staging: the defender resists, then the damage level is staged ONCE
+      from the base by (attacker net successes - resistance successes) // 2. This preserves
+      excess attacker successes above Deadly through the resist step instead of capping the hit
+      at Deadly before the defender rolls (a Deadly-capped hit that is then resisted would lose
+      the excess and drop too far). Damage is still clamped at Deadly -- no over-Deadly overflow.
+    - ``body_damage``: select the box table. Icon/persona damage uses ICON_DAMAGE_BOXES
+      (1/2/3/6); physical/stun damage to the operator's meat body uses DAMAGE_BOXES (1/3/6/10).
     Returns effective power, resistance roll, and final damage level.
     """
     effective_power = max(1, power - armor_rating)
     shield_successes = max(0, shield_successes)
     net_attacker = max(0, attacker_successes - shield_successes)
-    # First stage up from the (shield-reduced) attacker successes
+    # Informational: where the hit would land on attacker successes alone (pre-resist).
     staged_up = stage_damage(base_damage_level, net_attacker, 1)
-    # Defender resists
-    resist_roll = roll_dice(bod, effective_power)
-    final = stage_damage(staged_up, resist_roll["successes"], -1)
+    # Defender resists, THEN stage once from the base by the combined net successes.
+    resist_roll = roll_dice(bod + max(0, defender_bonus_dice), effective_power)
+    net = net_attacker - resist_roll["successes"]
+    final = stage_damage(base_damage_level, net, 1)
+    box_table = DAMAGE_BOXES if body_damage else ICON_DAMAGE_BOXES
+    trace(
+        f"damage resist: power {power} - armor {armor_rating} = {effective_power}; "
+        f"attacker succ {attacker_successes} - shield {shield_successes} = {net_attacker}; "
+        f"resist {bod}d6 vs {effective_power} -> {resist_roll['successes']} succ; "
+        f"net {net} from base {base_damage_level} -> final {final} ({box_table[final]} boxes)"
+    )
     return {
         "effective_power": effective_power,
         "attacker_successes": net_attacker,
@@ -141,7 +189,7 @@ def damage_resistance(
         "staged_up_level": staged_up,
         "resist_roll": resist_roll,
         "final_damage_level": final,
-        "boxes": DAMAGE_BOXES[final],
+        "boxes": box_table[final],
     }
 
 
@@ -156,6 +204,7 @@ def shield_parry(*, shield_rating: int, attacker_skill: int) -> dict[str, Any]:
     """
     rating = max(1, shield_rating)
     roll = roll_dice(rating, max(2, attacker_skill))
+    trace(f"shield parry: {rating}d6 vs attacker skill {roll['tn']} -> {roll['successes']} succ")
     return {"roll": roll, "successes": roll["successes"], "shield_rating": rating, "tn": roll["tn"]}
 
 
@@ -171,6 +220,7 @@ def medic_heal(*, medic_rating: int, wound_level: str) -> dict[str, Any]:
     rating = max(1, medic_rating)
     tn = MEDIC_TN[wound_level]
     roll = roll_dice(rating, tn)
+    trace(f"medic heal: {rating}d6 vs {wound_level} TN {tn} -> heal {roll['successes']} box(es)")
     return {
         "roll": roll,
         "tn": tn,
@@ -195,6 +245,10 @@ def restore_repair(*, restore_rating: int, causing_rating: int, damage_points: i
     tn = max(2, causing_rating)
     roll = roll_dice(rating, tn)
     points = min(max(0, damage_points), roll["successes"] // 2)
+    trace(
+        f"restore: {rating}d6 vs causing rating {tn} -> {roll['successes']} succ "
+        f"-> repair {points} attribute point(s)"
+    )
     return {
         "roll": roll,
         "tn": tn,
@@ -218,24 +272,49 @@ def cybercombat_attack(
     attacker_is_ic: bool = True,
     tn_modifier: int = 0,
     shield_successes: int = 0,
+    base_damage_level: str | None = None,
+    shield_parry: Callable[[], int] | None = None,
+    defender_bonus_dice: int = 0,
+    precomputed_attack_roll: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Resolve a single cybercombat attack exchange.
     - attacker_pool: attacker's dice pool (Security Value for IC; attack utility + hacking pool for decker)
     - security_code: host security code string
-    - target_status: "intruding" or "legitimate"
+    - target_status: "intruding" or "legitimate" -- the TARGET icon's status (vr2: valid-passcode
+      icons are Legitimate, all others Intruding), which selects the to-hit column
     - target_bod: defender Bod rating (for resistance)
     - armor_rating: Armor utility rating (reduces Power)
-    - ic_rating: IC's rating (determines Power and base damage level)
+    - ic_rating: IC's rating (determines Power and, for IC, the base damage level)
     - attacker_is_ic: if True, IC attacks decker; if False, decker attacks IC
     - tn_modifier: additional TN adjustment (e.g. Party IC cluster penalty)
     - shield_successes: defender's Shield parry successes, subtracted from the attack's damage
       successes before staging (a hit on the decker's persona; see damage_resistance)
+    - base_damage_level: override the base Damage Level. IC read their severity from the host
+      Security Code (``IC_DAMAGE_LEVEL[security_code]``), so IC callers leave this None; a decker's
+      Attack utility carries its OWN level (Attack-6L/-6M/-6S/-6D) and passes it here. Only the
+      damage SEVERITY follows the program -- the to-hit still uses the host COMBAT_TN.
+    - shield_parry: optional deferred Shield callback (vr2). The persona is only "affected" -- and
+      the defender only rolls (and wears) a Shield -- when the attack actually lands, so the caller
+      passes a callback that rolls+wears the Shield; it is invoked ONLY when the attack scores >= 1
+      success, and its return value overrides ``shield_successes``. A clean miss rolls no Shield.
     """
     tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
-    base_damage = IC_DAMAGE_LEVEL[security_code]
+    base_damage = base_damage_level if base_damage_level in DAMAGE_LEVELS else IC_DAMAGE_LEVEL[security_code]
 
-    attack_roll = roll_dice(attacker_pool, tn)
+    trace(
+        f"cybercombat {'IC->decker' if attacker_is_ic else 'decker->IC'}: "
+        f"{attacker_pool}d6 vs TN {tn} ({security_code}/{target_status}"
+        + (f", {tn_modifier:+d} mod" if tn_modifier else "") + f"), base damage {base_damage}"
+    )
+    # ``precomputed_attack_roll``: reuse a to-hit already rolled by the caller (the interactive
+    # per-attack defense flow rolls the to-hit first so the player sees it, THEN resolves the resist
+    # with the Hacking Pool dice they chose). Backward-compatible -- callers that omit it roll now.
+    attack_roll = precomputed_attack_roll if precomputed_attack_roll is not None else roll_dice(attacker_pool, tn)
+
+    # Shield only fires when the attack lands (the persona is affected); a clean miss rolls no Shield.
+    if shield_parry is not None and attack_roll["successes"] > 0:
+        shield_successes = shield_parry()
 
     resist = damage_resistance(
         bod=target_bod,
@@ -244,6 +323,7 @@ def cybercombat_attack(
         base_damage_level=base_damage,
         attacker_successes=attack_roll["successes"],
         shield_successes=shield_successes,
+        defender_bonus_dice=defender_bonus_dice,
     )
 
     return {
@@ -251,6 +331,92 @@ def cybercombat_attack(
         "attack_tn": tn,
         "base_damage_level": base_damage,
         "resistance": resist,
+    }
+
+
+def black_attack(
+    *,
+    attacker_pool: int,
+    security_code: str,
+    target_status: str = "intruding",
+    base_damage_level: str,
+    power: int,
+    hardening: int = 0,
+    icon_bod: int,
+    icon_armor: int = 0,
+    tn_modifier: int = 0,
+    shield_successes: int = 0,
+    meat_pool: int | None = None,
+    meat_is_stun: bool = False,
+    shield_parry: Callable[[], int] | None = None,
+) -> dict[str, Any]:
+    """Resolve one Black-family strike (Black IC / Black Hammer / Killjoy).
+
+    Shared by every actor that can fire one -- enemy Black IC, an enemy decker's Black Hammer /
+    Killjoy, and the PC's own Black Hammer / Killjoy -- so the mechanic resolves identically no
+    matter who pulls the trigger. A SINGLE Attack Test drives BOTH resistance tests off the same
+    successes (vr2: black IC / Black Hammer "damage the icon AND the operator" from one strike):
+
+    - icon: ``icon_bod`` dice vs Power. Hardening reduces Power; Armor reduces it further.
+    - meat: ``meat_pool`` dice vs Power. Hardening reduces Power; Armor does NOT protect the
+      operator. ``meat_pool`` is the operator's Body (lethal) or Willpower (non-lethal / Killjoy);
+      pass ``None`` when the target is an NPC whose flesh is not simulated (PC -> enemy decker),
+      which yields an icon-only result.
+
+    ``base_damage_level`` is supplied by the caller: the host Security Code table
+    (``IC_DAMAGE_LEVEL[sec]``) for black IC, or a fixed level for the Black Hammer / Killjoy
+    programs. The to-hit still uses the host's ``COMBAT_TN`` -- only the damage SEVERITY follows the
+    program. Both resistance tests share one ``power`` (Position-Power maneuver bonuses fold into
+    it), so a combat maneuver shifts the whole strike, not just one half of it.
+
+    Returns the attack roll plus an ``icon`` (always) and ``meat`` (or ``None``) ``damage_resistance``
+    result. The caller applies boxes to the correct condition monitor, composes the event, and
+    resolves crash / MPCP-burn / jack-out consequences per actor.
+    """
+    tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
+    attack_roll = roll_dice(attacker_pool, tn)
+    # One deferred Shield parry blunts BOTH resistance tests -- but only when the strike lands
+    # (persona affected). A clean miss (0 attack successes) rolls no Shield and wears nothing.
+    if shield_parry is not None and attack_roll["successes"] > 0:
+        shield_successes = shield_parry()
+    resist_power = power - hardening  # floored by damage_resistance via max(1, power - armor)
+    icon = damage_resistance(
+        bod=icon_bod,
+        power=resist_power,
+        armor_rating=icon_armor,
+        base_damage_level=base_damage_level,
+        attacker_successes=attack_roll["successes"],
+        shield_successes=shield_successes,
+    )
+    meat = None
+    if meat_pool is not None:
+        meat = damage_resistance(
+            bod=meat_pool,
+            power=resist_power,
+            armor_rating=0,
+            base_damage_level=base_damage_level,
+            attacker_successes=attack_roll["successes"],
+            shield_successes=shield_successes,
+            body_damage=True,
+        )
+    trace(
+        f"black_attack {security_code}/{target_status}: {attacker_pool}d6 vs TN {tn} "
+        f"-> {attack_roll['successes']} succ; base {base_damage_level}; "
+        f"icon {icon['final_damage_level']} ({icon['boxes']})"
+        + (
+            f"; meat {'stun' if meat_is_stun else 'phys'} "
+            f"{meat['final_damage_level']} ({meat['boxes']})"
+            if meat
+            else "; icon-only"
+        )
+    )
+    return {
+        "attack_roll": attack_roll,
+        "attack_tn": tn,
+        "base_damage_level": base_damage_level,
+        "icon": icon,
+        "meat": meat,
+        "meat_is_stun": meat_is_stun,
     }
 
 
@@ -266,15 +432,28 @@ def decker_initiative_roll(
     response_increase: int = 0,
     has_hot_dnl: bool = False,
     has_reality_filter: bool = False,
+    deck_mode: str = "hot",
 ) -> int:
     """
-    Decker initiative: Reaction + 1D6 base + bonuses.
+    Decker initiative (vr2 L1913-1923): Reaction + 1D6 base + bonuses.
     +1D6 and +2 Reaction per Response Increase level (max 3).
     +1D6 if hot DNI, +1D6 if Reality Filter.
+    Cool deck: -1D6 Initiative (running cool with manual controls).
+    Tortoise: no ASIST -- half Reaction (min 1) and only 1D6 regardless of Response
+    Increase / other bonuses.
+    Always rolls at least 1 initiative die (SR2 core minimum).
     """
-    ri = min(3, response_increase)
-    effective_reaction = reaction + ri * 2
-    dice_count = 1 + ri + (1 if has_hot_dnl else 0) + (1 if has_reality_filter else 0)
+    mode = (deck_mode or "hot").lower()
+    if mode == "tortoise":
+        effective_reaction = max(1, reaction // 2)
+        dice_count = 1                       # single die, no RI/RF/hot bonus
+    else:
+        ri = min(3, response_increase)
+        effective_reaction = reaction + ri * 2
+        dice_count = 1 + ri + (1 if has_hot_dnl else 0) + (1 if has_reality_filter else 0)
+        if mode == "cool":
+            dice_count -= 1                  # -1D6 running cool with manual controls
+        dice_count = max(1, dice_count)      # SR2: always at least 1 initiative die
     roll = sum(random.randint(1, 6) for _ in range(dice_count))
     return effective_reaction + roll
 
@@ -393,8 +572,15 @@ def _table_pick(table: list[tuple[tuple[int, int], Any]], roll: int) -> Any:
     return table[-1][1]
 
 
-def _roll_alert_family(zone: str) -> str:
-    return _table_pick(SHEAF_ALERT_TABLE[zone], _roll_2d6())
+def _roll_alert_family(zone: str, steps_passed: int = 0) -> str:
+    """Roll on the Alert Table (vr2_rules.md L857-873) for one trigger step. RAW: roll **1D6** and
+    **add the number of trigger steps already passed in the CURRENT alert level** (the counter
+    resets to 0 on every escalation). This ramp applies to all three levels -- No Alert, Passive
+    Alert, and Active Alert -- so each level eventually rolls the 8+ escalation row
+    (No->Passive->Active->Shutdown); the lower rows name an IC family to activate. Escalation is
+    impossible in the first couple of steps of a level and steadily more likely as its tally
+    climbs -- deckers get poking-around time early, urgency late."""
+    return _table_pick(SHEAF_ALERT_TABLE[zone], _roll_d6() + steps_passed)
 
 
 def _build_trap_ic_event(surface_type: str, security_value: int) -> dict:
@@ -553,9 +739,10 @@ def generate_sheaf(
     Rules:
     - Trigger thresholds increase by random intervals per SHEAF_INTERVALS
     - IC families are rolled from the VR2 alert/allocation tables
-    - Results follow VR2 allocation tables directly (manual curation expected)
-    - Passive Alert appears in mid-section, Active Alert in late section
-    - Shutdown is always the last step
+    - Alert state EMERGES from the per-step 1D6+ramp roll (vr2 L857-873): No -> Passive -> Active
+      -> Shutdown, each escalating only when its step rolls the 8+ row. Early steps effectively
+      cannot escalate (the ramp is small); late steps almost certainly do.
+    - Shutdown is not guaranteed and is not forced onto the last step (it is operator-initiated).
     """
     if seed is None:
         return _generate_sheaf_impl(security_code, security_value, step_count)
@@ -591,46 +778,36 @@ def _generate_sheaf_impl(
         trigger += random.randint(iv_min, iv_max)
         triggers.append(trigger)
 
-    passive_alert_step = step_count // 3
-    active_alert_step = (step_count * 2) // 3
-    shutdown_step = step_count - 1
-
+    # Walk the steps in order, carrying the live alert state. Each step rolls 1D6 + (steps already
+    # passed IN THE CURRENT alert level -- the counter resets on every escalation) against that
+    # level's Alert Table (vr2 L857-873): an 8+ result escalates the level (No->Passive->Active->
+    # Shutdown) and is that step's event; any other result activates the named IC family.
     sheaf: list[dict] = []
-    for i, trig in enumerate(triggers):
+    zone = "none"
+    level_steps = 0
+    for trig in triggers:
         events: list[dict] = []
-
-        if i == shutdown_step:
-            events.append({"type": "shutdown"})
-            sheaf.append({"trigger": trig, "events": events})
-            continue
-
-        if i < passive_alert_step:
-            zone = "none"
-        elif i < active_alert_step:
+        outcome = _roll_alert_family(zone, level_steps)
+        if outcome == "passive_alert":
             zone = "passive"
-        else:
-            zone = "active"
-
-        candidate: dict | None = None
-        for _ in range(64):
-            family = _roll_alert_family(zone)
-            if family in {"passive_alert", "active_alert", "shutdown"}:
-                continue
-            candidate = _build_ic_event(family, security_value)
-            if candidate:
-                break
-
-        if candidate:
-            events.append(candidate)
-
-        if i == passive_alert_step:
+            level_steps = 0
             events.append({"type": "passive_alert"})
-        elif i == active_alert_step:
+        elif outcome == "active_alert":
+            zone = "active"
+            level_steps = 0
             events.append({"type": "active_alert"})
-
+        elif outcome == "shutdown":
+            level_steps = 0
+            events.append({"type": "shutdown"})
+        else:
+            level_steps += 1
+            candidate = _build_ic_event(outcome, security_value)
+            if candidate:
+                events.append(candidate)
         sheaf.append({"trigger": trig, "events": events})
 
     return sheaf
+
 
 
 # -- Probe IC test -------------------------------------------------------------
@@ -666,6 +843,45 @@ def trace_hunt_cycle_attack(
 
 # -- Crippler / Ripper attack --------------------------------------------------
 
+def attribute_attack_core(
+    *,
+    attacker_pool: int,
+    resist_tn: int,
+    security_code: str,
+    target_status: str,
+    target_attribute_rating: int,
+    shield_successes: int = 0,
+    tn_modifier: int = 0,
+    shield_parry: Callable[[], int] | None = None,
+) -> dict[str, Any]:
+    """Shared attribute-crippling core for BOTH the IC cripplers (Acid / Binder / Marker /
+    Jammer) and the decker programs (Poison / Restrict / Reveal) -- the rules explicitly say the
+    decker programs work "like" the matching crippler IC, so the dice math is modelled ONCE here
+    and both public entry points delegate to it (see crippler_attack / decker_attribute_attack).
+
+    - Attack: ``attacker_pool`` dice vs COMBAT_TN[security_code][target_status] (+ tn_modifier).
+    - Resist: ``target_attribute_rating`` dice vs ``resist_tn`` (the attacker's program/IC rating).
+    - Shield: net defender Shield Test successes ADD to the resist side (vr2).
+    - Reduction = max(0, net) // 2  (1 attribute point per 2 net successes).
+
+    ``shield_parry`` is an optional deferred Shield callback: the persona is only "affected" when
+    the crippler's attack scores hits, so the Shield is rolled (and worn) ONLY when the attack
+    roll lands >= 1 success -- a resisted/whiffed crippler rolls no Shield. Its return overrides
+    ``shield_successes``.
+
+    Returns neutral keys (attack_roll / resist_roll / net / reduction / shield_successes); the
+    two public wrappers re-label these to preserve their historical return contracts."""
+    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
+    attack_roll = roll_dice(attacker_pool, attack_tn)
+    resist_roll = roll_dice(target_attribute_rating, resist_tn)
+    if shield_parry is not None and attack_roll["successes"] > 0:
+        shield_successes = shield_parry()
+    shield_successes = max(0, shield_successes)
+    net = max(0, attack_roll["successes"] - resist_roll["successes"] - shield_successes)
+    return {"attack_roll": attack_roll, "resist_roll": resist_roll, "net": net,
+            "reduction": net // 2, "shield_successes": shield_successes}
+
+
 def crippler_attack(
     *,
     security_value: int,
@@ -678,9 +894,10 @@ def crippler_attack(
     hardening: int = 0,
     shield_successes: int = 0,
     tn_modifier: int = 0,
+    shield_parry: Callable[[], int] | None = None,
 ) -> dict[str, Any]:
     """
-    Crippler/Ripper opposed attack sequence.
+    Crippler/Ripper opposed attack sequence (IC side of attribute_attack_core).
     - Attack: security_value dice vs COMBAT_TN[security_code][target_status]
     - Defense: target_attribute_rating dice vs ic_rating (decker uses targeted attr as dice pool)
     - Shield: net Shield Test successes ADD to the decker's defence side (vr2)
@@ -689,20 +906,20 @@ def crippler_attack(
       -> reduces the targeted attribute chip by 1 per success (permanent)
     - tn_modifier: combat-maneuver adjustment to the attack TN (Parry raises it, Position
       lowers it); defaults to 0 so existing callers are unaffected.
+    - shield_parry: optional deferred Shield callback -- rolled/worn ONLY when the crippler's
+      attack lands (>= 1 success); overrides ``shield_successes``.
     """
-    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
-    attack_roll = roll_dice(security_value, attack_tn)
-    defense_roll = roll_dice(target_attribute_rating, ic_rating)
-    shield_successes = max(0, shield_successes)
-    net = max(0, attack_roll["successes"] - defense_roll["successes"] - shield_successes)
-    reduction = net // 2
-
+    core = attribute_attack_core(
+        attacker_pool=security_value, resist_tn=ic_rating, security_code=security_code,
+        target_status=target_status, target_attribute_rating=target_attribute_rating,
+        shield_successes=shield_successes, tn_modifier=tn_modifier, shield_parry=shield_parry)
+    net = core["net"]
     result: dict[str, Any] = {
-        "attack_roll": attack_roll,
-        "defense_roll": defense_roll,
-        "shield_successes": shield_successes,
+        "attack_roll": core["attack_roll"],
+        "defense_roll": core["resist_roll"],
+        "shield_successes": core["shield_successes"],
         "net_successes": net,
-        "attribute_reduction": reduction,
+        "attribute_reduction": core["reduction"],
         "is_ripper": is_ripper,
     }
 
@@ -733,7 +950,9 @@ def tar_baby_test(
     ic_roll = roll_dice(ic_rating, utility_rating)
     util_roll = roll_dice(utility_rating, ic_rating)
 
-    ic_wins = ic_roll["successes"] >= util_roll["successes"]
+    # A tie goes to the IC (the attacker), BUT a 0-vs-0 tie is a mutual whiff -- nothing happens,
+    # so the IC must land at least 1 success to crash the utility.
+    ic_wins = ic_roll["successes"] >= util_roll["successes"] and ic_roll["successes"] > 0
     result: dict[str, Any] = {
         "ic_roll": ic_roll,
         "util_roll": util_roll,
@@ -753,12 +972,11 @@ def tar_baby_test(
 
 # -- Steamroller (anti-tar utility) --------------------------------------------
 
-# A Tar Baby / Tar Pit IC is a small, fragile program -- it has no real persona, so its
-# condition monitor is shallow. (Rating)D from Steamroller fills it quickly. We model that
-# shallow monitor as a 3-box (Serious-level) track so a solid (Rating)D hit reliably crashes
-# it while a badly under-rated Steamroller (low Power -> the tar resists the Deadly down to a
-# Light graze) can still fail to finish it.
-TAR_IC_CONDITION_BOXES = 3
+# A Tar Baby / Tar Pit IC uses the SAME 10-box condition monitor as any other IC (user ruling
+# 2026-07-17): tar programs are not special-cased into a shallow track. Steamroller simply takes
+# one down FASTER because it lands full (Rating)D hits (6 icon boxes each), so a solid two-strike
+# Steamroller crashes it while chip damage or a badly under-rated Steamroller takes longer.
+TAR_IC_CONDITION_BOXES = 10
 
 
 def steamroller_attack(
@@ -783,8 +1001,10 @@ def steamroller_attack(
       This is why a high-rating Steamroller reliably crashes (the tar can't stage a high-Power
       Deadly far enough down) while a very low rating can fail (low Power -> low resist TN ->
       the tar stages it down to a Light graze).
-    - The resolved damage fills the tar's shallow condition monitor; it crashes once the
-      accumulated boxes reach ``TAR_IC_CONDITION_BOXES``.
+    - The resolved damage fills the tar's condition monitor; it crashes once the accumulated boxes
+      reach ``TAR_IC_CONDITION_BOXES`` (a full 10-box IC monitor). A clean (Rating)D lands 6 icon
+      boxes, so a solid two-strike Steamroller crashes it -- faster than chipping it with plain
+      attacks, but no longer a one-shot.
 
     Returns the to-hit roll, the resistance result, the boxes inflicted this strike, the running
     total against the tar's monitor, and whether it crashed.
@@ -898,7 +1118,7 @@ def data_bomb_detonate(
     if shield_successes > 0:
         lowered = stage_damage(resist["final_damage_level"], shield_successes, -1)
         resist["final_damage_level"] = lowered
-        resist["boxes"] = DAMAGE_BOXES[lowered]
+        resist["boxes"] = ICON_DAMAGE_BOXES[lowered]
         resist["shield_successes"] = shield_successes
     return {"damage_level": "Moderate", "tally_increase": ic_rating, "resistance": resist}
 
@@ -907,22 +1127,26 @@ def data_bomb_detonate(
 
 def worm_attack(
     *,
-    ic_rating: int,
+    security_value: int,
     mpcp_rating: int,
     hardening: int = 0,
-    disinfect_utility: int = 0,
 ) -> dict[str, Any]:
-    """Worm infection test (vr2): ic_rating dice vs (MPCP + Hardening + Disinfect).
+    """Worm Infection Test (vr2_rules.md L548-550 + user ruling 2026-07-10).
 
-    On any success the MPCP is infected and the chip must be replaced (permanent).
-    A running Disinfect utility raises the target number (defends the deck).
+    The HOST rolls its Security Value dice against a target number equal to the deck's MPCP
+    rating. Subtract the deck's Hardening from the worm's successes; a net GREATER THAN ZERO
+    (i.e. successes exceed Hardening) infects the MPCP -- a permanent corruption that requires
+    replacing the chip. A worm carries no IC rating, so this test never touches the security
+    tally (the caller adds none).
     """
-    tn = mpcp_rating + hardening + disinfect_utility
-    roll = roll_dice(ic_rating, tn)
-    infected = roll["successes"] > 0
+    tn = max(2, mpcp_rating)
+    roll = roll_dice(security_value, tn)
+    net = roll["successes"] - hardening
+    infected = net > 0
     return {
         "roll": roll,
         "tn": tn,
+        "net_successes": net,
         "mpcp_infected": infected,
         "chip_replacement_required": infected,
     }
@@ -961,24 +1185,46 @@ def scramble_decrypt_test(
     return {"roll": roll, "tn": tn, "decrypted": roll["successes"] > 0}
 
 
-def scramble_failure_consequence(*, variant: str, is_key: bool) -> dict[str, Any]:
-    """Consequence of a FAILED Decrypt against a Scramble IC (vr2).
+def scramble_failure_consequence(
+    *, variant: str, is_key: bool, scramble_rating: int = 6, decker_computer_skill: int = 6
+) -> dict[str, Any]:
+    """Consequence of a FAILED Decrypt against a Scramble IC (vr2_rules.md L487-495).
 
-    - Poison: the Scramble destroys the data it protects. If that data is KEY data the
-      loss is permanent and mission-critical -- surfaced to the player as KEY DATA
-      DESTROYED so they know the objective is gone.
+    - Poison: on a failed decrypt the IC makes a Poison Test -- it rolls its own rating dice
+      against a target number equal to the decker's Computer skill. Only a SUCCESS destroys the
+      protected data; if the Poison Test FAILS the data is safe (the poison is suppressed for
+      this attempt). Key data lost this way is permanent and mission-critical.
     - Exploding: linked to a data bomb that detonates (data not wiped by the Scramble).
     - Standard/other: no destruction -- the decker simply failed to decrypt.
     """
     if variant == "poison":
+        poison_tn = max(2, decker_computer_skill)
+        poison_roll = roll_dice(scramble_rating, poison_tn)
+        destroyed = poison_roll["successes"] > 0
+        if not destroyed:
+            return {
+                "data_destroyed": False,
+                "key_data_lost": False,
+                "poison_roll": poison_roll,
+                "poison_tn": poison_tn,
+                "message": (
+                    "Decrypt failed, but the Poison Scramble's test missed (IC "
+                    f"{scramble_rating}d6 vs TN {poison_tn} = your Computer skill) -- "
+                    "the protected data survives. Try the decrypt again."
+                ),
+            }
         return {
             "data_destroyed": True,
             "key_data_lost": bool(is_key),
+            "poison_roll": poison_roll,
+            "poison_tn": poison_tn,
             "message": (
-                "KEY DATA DESTROYED -- the Poison Scramble wiped the protected file. "
+                "KEY DATA DESTROYED -- the Poison Scramble's test succeeded (IC "
+                f"{scramble_rating}d6 vs TN {poison_tn}) and wiped the protected file. "
                 "It cannot be recovered."
                 if is_key else
-                "Protected data destroyed by Poison Scramble on the failed decrypt."
+                "Protected data destroyed -- the Poison Scramble's test succeeded (IC "
+                f"{scramble_rating}d6 vs TN {poison_tn}) on the failed decrypt."
             ),
         }
     if variant == "exploding":
@@ -1028,12 +1274,12 @@ _ENEMY_DECKER_TIERS: dict[str, dict[str, Any]] = {
     "Red":    {"mpcp": 9,  "skill": 8,  "persona": 6, "attack": 8,  "intent": "dump",
                "ri": 2, "quickness": 6, "intelligence": 6, "hardening": (0, 1), "bravery": (1, 3),
                "kill": {"hog": 6, "reveal": 6, "poison": 6, "black_hammer": 4},
-               "survive": {"armor": 5, "shield": 5, "medic": 4}},
+               "survive": {"armor": 5, "shield": 5, "medic": 4, "restore": 4}},
     "Black":  {"mpcp": 12, "skill": 10, "persona": 7, "attack": 10, "intent": "kill",
                "ri": 3, "quickness": 6, "intelligence": 8, "hardening": (1, 2), "bravery": (2, 3),
                "kill": {"hog": 7, "reveal": 7, "poison": 7, "restrict": 7,
                         "black_hammer": 5, "killjoy": 5},
-               "survive": {"armor": 6, "shield": 6, "medic": 5}},
+               "survive": {"armor": 6, "shield": 6, "medic": 5, "restore": 5}},
 }
 
 _MPCP_MAX = 12  # canonical top-end deck -- a Black roll of 13 folds to 12
@@ -1056,7 +1302,43 @@ _ENEMY_DECKER_SPAWN: dict[str, dict[str, Any]] = {
 }
 
 # Cumulative net successes the enemy must score before it has pinpointed the PC.
-ENEMY_LOCATE_THRESHOLD = 3
+# DEPRECATED: locate is now a single opposed test (see _locate_opposed) -- any net success
+# pinpoints the PC, else the enemy retries next pass. Kept only so any stale reference resolves.
+ENEMY_LOCATE_THRESHOLD = 1
+
+# Security-decker street handles, revealed to the PC only once its icon is Analyzed / Scanned
+# (until then it shows the generic "Security Decker" identifier). Placeholder pool -- the full
+# lore/handle-generator discussion is deferred (see the matrix-run roadmap #4). Kept deliberately
+# ASCII-only; a per-run counter disambiguates when the same handle is rolled twice.
+_ENEMY_DECKER_HANDLES = (
+    "Redline", "Nyx", "Cutter", "Havoc", "Cipher", "Wraith", "Static", "Vantage",
+    "Halcyon", "Rook", "Payload", "Torque", "Ferrous", "Mote", "Praxis", "Glitch",
+    "Onyx", "Sable", "Vector", "Quorum", "Kestrel", "Dross", "Ember", "Fathom",
+    "Cinder", "Talon", "Vellum", "Nought", "Grackle", "Hollow", "Ironsight", "Jitter",
+    "Kraken", "Lattice", "Marrow", "Nadir", "Obelisk", "Pallor", "Ratchet", "Snarl",
+    "Tremor", "Umbra", "Vagrant", "Warden", "Xenon", "Yarrow", "Zephyr", "Ashfall",
+    "Bishop", "Crypt", "Dredge", "Effigy", "Fracture", "Gambit", "Husk", "Ivory",
+    "Junction", "Knell", "Lumen", "Mordant", "Needle", "Ordnance", "Pyre", "Quill",
+)
+
+
+def pick_enemy_handle(exclude: set[str] | None = None) -> str:
+    """Return a random security-decker street handle from ``_ENEMY_DECKER_HANDLES`` (revealed only
+    after the PC Analyzes/Scans the icon). ``exclude`` is a set of handles that are OFF-LIMITS --
+    every player-character name plus any handle already taken by another enemy this run -- so an
+    NPC never shares a name with a player (case-insensitive). If the whole pool is excluded, fall
+    back to a synthesized unique tag rather than reusing a forbidden name. Placeholder generator;
+    see roadmap #4."""
+    banned = {str(x).strip().lower() for x in (exclude or ()) if str(x).strip()}
+    pool = [h for h in _ENEMY_DECKER_HANDLES if h.lower() not in banned]
+    if pool:
+        return random.choice(pool)
+    # Everything is spoken for -- synthesize a handle that is still not on the banned list.
+    for _ in range(50):
+        candidate = f"Decker-{random.randint(1000, 9999)}"
+        if candidate.lower() not in banned:
+            return candidate
+    return "Decker-0000"
 
 
 def generate_enemy_decker(
@@ -1064,6 +1346,7 @@ def generate_enemy_decker(
     security_value: int,
     *,
     name: str | None = None,
+    exclude_handles: set[str] | None = None,
 ) -> dict[str, Any]:
     """Auto-generate a security decker scaled to the host TIER (vr2-flavoured rubric).
 
@@ -1086,13 +1369,16 @@ def generate_enemy_decker(
     persona = _band(tier["persona"])
     sleaze = _band(tier["persona"])       # Sleaze band == persona band, rolled independently
     scanner = _band(tier["persona"])      # Scanner band == persona band (locate other deckers)
+    cloak = _band(tier["persona"])        # Cloak band == persona band (evade the PC during maneuvers)
+    lock_on = _band(tier["persona"])      # Lock-On band == persona band (hold a sensor lock when the PC evades)
     attack = _band(tier["attack"], mpcp)
     lethal_cap = (skill + 1) // 2         # ceil(Computer skill / 2): the RAW lethal-rating cap
     df = detection_factor(persona, sleaze)  # the PC must beat this to find THEM
 
     # Roll every carried program into the utilities dict, each clamped to <= MPCP (the lethal
     # programs additionally to <= ceil(skill/2)). SURVIVE (armor/shield/medic) rides alongside.
-    utilities: dict[str, int] = {"attack": attack, "sleaze": sleaze, "scanner": scanner}
+    utilities: dict[str, int] = {"attack": attack, "sleaze": sleaze, "scanner": scanner,
+                                "cloak": cloak, "lock_on": lock_on}
     for key, center in tier["kill"].items():
         cap = lethal_cap if key in ("black_hammer", "killjoy") else mpcp
         utilities[key] = _band(center, cap)
@@ -1118,7 +1404,9 @@ def generate_enemy_decker(
     rf_chance = {"Blue": 0.0, "Green": 0.1, "Orange": 0.25, "Red": 0.5, "Black": 0.75}.get(security_code, 0.25)
     reality_filter = random.random() < rf_chance
     return {
-        "name": name or f"{security_code}-{security_value} Security Decker",
+        "name": name or "Security Decker",
+        "handle": pick_enemy_handle(exclude_handles),
+        "name_revealed": False,
         "mpcp": mpcp,
         "bod": persona, "evasion": persona, "masking": persona, "sensor": persona,
         "computer_skill": skill,
@@ -1146,6 +1434,33 @@ def generate_enemy_decker(
     }
 
 
+def _locate_opposed(
+    *,
+    locator_dice: int,
+    target_hidden_rating: int,
+    locator_scanner: int,
+    target_evasion_dice: int,
+    locator_sensor: int,
+) -> dict[str, Any]:
+    """Shared opposed locate resolution used by BOTH directions (the PC locating an enemy decker and
+    an enemy decker locating the PC). The locator rolls its locate dice vs the target's hidden rating
+    (the PC's Detection Factor, or an enemy's full Masking + Sleaze) minus the locator's Scanner
+    utility; the target resists with Evasion dice vs the locator's Sensor. Any net locator success
+    pinpoints the target -- a single opposed test, no cumulative threshold. Rolls the locator first
+    so a scripted die sequence is consumed locator-then-target."""
+    target_tn = max(2, target_hidden_rating - locator_scanner)
+    locator_roll = roll_dice(locator_dice, target_tn)
+    target_roll = roll_dice(target_evasion_dice, locator_sensor)
+    net = max(0, locator_roll["successes"] - target_roll["successes"])
+    return {
+        "locator_roll": locator_roll,
+        "target_roll": target_roll,
+        "target_tn": target_tn,
+        "net_successes": net,
+        "located": net > 0,
+    }
+
+
 def enemy_locate_test(
     *,
     computer_skill: int,
@@ -1154,22 +1469,25 @@ def enemy_locate_test(
     pc_detection_factor: int,
     pc_evasion: int,
 ) -> dict[str, Any]:
-    """One enemy attempt to locate the PC (vr2: find the intruder's icon/jackpoint).
-
-    Opposed: the enemy rolls Computer dice vs (PC Detection Factor - Scanner utility);
-    the PC resists with Evasion dice vs the enemy's Sensor. Net enemy successes add to
-    its locate progress; once the cumulative reaches ENEMY_LOCATE_THRESHOLD the PC is
-    pinpointed and the enemy can act on its intent.
+    """One enemy attempt to locate the PC (vr2: find the intruder's icon). Mirror of
+    pc_locate_decker_test via the shared _locate_opposed: the enemy rolls Computer dice vs
+    (PC Detection Factor - Scanner utility); the PC resists with Evasion dice vs the enemy's Sensor.
+    Any net enemy success pinpoints the PC on THIS attempt -- no cumulative threshold; a miss simply
+    means the enemy tries again next pass.
     """
-    enemy_tn = max(2, pc_detection_factor - scanner_rating)
-    enemy_roll = roll_dice(computer_skill, enemy_tn)
-    pc_roll = roll_dice(pc_evasion, sensor_rating)
-    progress_gain = max(0, enemy_roll["successes"] - pc_roll["successes"])
+    r = _locate_opposed(
+        locator_dice=computer_skill,
+        target_hidden_rating=pc_detection_factor,
+        locator_scanner=scanner_rating,
+        target_evasion_dice=pc_evasion,
+        locator_sensor=sensor_rating,
+    )
     return {
-        "enemy_roll": enemy_roll,
-        "pc_roll": pc_roll,
-        "enemy_tn": enemy_tn,
-        "progress_gain": progress_gain,
+        "enemy_roll": r["locator_roll"],
+        "pc_roll": r["target_roll"],
+        "enemy_tn": r["target_tn"],
+        "net_successes": r["net_successes"],
+        "located": r["located"],
     }
 
 
@@ -1180,26 +1498,28 @@ def pc_locate_decker_test(
     enemy_mask_sleaze: int,
     enemy_evasion: int,
 ) -> dict[str, Any]:
-    """One PC attempt to locate a hidden enemy decker -- the mirror image of enemy_locate_test.
+    """One PC attempt to locate a hidden enemy decker -- the mirror image of enemy_locate_test, via
+    the same shared _locate_opposed.
 
-    Opposed: the PC rolls Sensor dice vs (enemy full Masking + Sleaze - PC Scanner utility); the
-    enemy resists with Evasion dice vs the PC's Sensor. Any net PC success pinpoints the enemy
-    (it becomes revealed and the PC can Strike Back). The TN is the enemy's FULL Masking + Sleaze
-    (vr2 L1880: Masking, plus the target's Sleaze rating added in) -- NOT the halved Detection
-    Factor a decker computes for its own persona -- so a sleazier security decker is even harder
-    to find. Unlike the enemy's cumulative hunt, the PC -- who spends a deliberate action to scan
-    -- pinpoints on any single net success.
+    The PC rolls Sensor dice vs (enemy full Masking + Sleaze - PC Scanner utility); the enemy resists
+    with Evasion dice vs the PC's Sensor. Any net PC success pinpoints the enemy (it becomes revealed
+    and the PC can Strike Back). The TN is the enemy's FULL Masking + Sleaze (vr2 L1880: Masking plus
+    the target's Sleaze rating) -- NOT the halved Detection Factor a decker computes for its own
+    persona -- so a sleazier security decker is even harder to find.
     """
-    target_tn = max(2, enemy_mask_sleaze - scanner_rating)
-    pc_roll = roll_dice(sensor_rating, target_tn)
-    enemy_roll = roll_dice(enemy_evasion, sensor_rating)
-    net_successes = max(0, pc_roll["successes"] - enemy_roll["successes"])
+    r = _locate_opposed(
+        locator_dice=sensor_rating,
+        target_hidden_rating=enemy_mask_sleaze,
+        locator_scanner=scanner_rating,
+        target_evasion_dice=enemy_evasion,
+        locator_sensor=sensor_rating,
+    )
     return {
-        "pc_roll": pc_roll,
-        "enemy_roll": enemy_roll,
-        "target_tn": target_tn,
-        "net_successes": net_successes,
-        "located": net_successes > 0,
+        "pc_roll": r["locator_roll"],
+        "enemy_roll": r["target_roll"],
+        "target_tn": r["target_tn"],
+        "net_successes": r["net_successes"],
+        "located": r["located"],
     }
 
 
@@ -1227,7 +1547,8 @@ def maneuver_test(
         Sensor attribute.
       - IC: rolls Security Value dice for BOTH tests, and uses its rating as BOTH its Evasion
         Rating and its Sensor Rating (the TN an opponent rolls against it).
-    Cloak / Lock-On default to 0 (not modeled in this app).
+    Cloak lowers the maneuvering icon's Evasion TN; Lock-On lowers the opposing icon's Sensor
+    TN. Both default to 0 (the actor carries neither); IC never carry them.
     """
     maneuvering_tn = max(2, opposing_sensor_rating - cloak)
     opposing_tn = max(2, maneuvering_evasion_rating - lock_on)
@@ -1307,11 +1628,11 @@ def decker_attribute_attack(
     vs the program rating; the attacker's net successes // 2 reduce that attribute (until
     logoff). Poison->Bod, Restrict->Evasion, Reveal->Masking. A defending Shield adds its
     parry successes to the target's resistance side. ``tn_modifier`` is the combat-maneuver
-    adjustment to the attack TN (Parry raises it, Position lowers it); defaults to 0."""
-    attack_tn = max(2, COMBAT_TN[security_code][target_status] + tn_modifier)
-    attack_roll = roll_dice(attacker_pool, attack_tn)
-    resist_roll = roll_dice(target_attribute_rating, program_rating)
-    shield_successes = max(0, shield_successes)
-    net = max(0, attack_roll["successes"] - resist_roll["successes"] - shield_successes)
-    return {"attack_roll": attack_roll, "resist_roll": resist_roll, "net": net,
-            "reduction": net // 2, "shield_successes": shield_successes}
+    adjustment to the attack TN (Parry raises it, Position lowers it); defaults to 0.
+
+    Shares attribute_attack_core with crippler_attack so the decker programs and the matching
+    crippler IC can never drift apart numerically (the 'model once' guarantee)."""
+    return attribute_attack_core(
+        attacker_pool=attacker_pool, resist_tn=program_rating, security_code=security_code,
+        target_status=target_status, target_attribute_rating=target_attribute_rating,
+        shield_successes=shield_successes, tn_modifier=tn_modifier)

@@ -58,19 +58,25 @@ async def list_hosts(
     db: AsyncSession = Depends(get_db),
 ):
     is_admin = bool(auth.get("is_admin"))
+    # A real admin sees the full GM listing; players -- AND an admin previewing runner view
+    # (X-Runner-View) -- get the player payload. view_as_player can only REDUCE what is returned.
+    show_gm = is_admin and not auth.get("view_as_player")
     q = select(MatrixHost).order_by(MatrixHost.name)
-    if not is_admin:
+    if not show_gm:
         q = q.where(MatrixHost.is_visible_to_players == True)  # noqa: E712
     result = await db.execute(q)
     rows = result.scalars().all()
-    if is_admin:
+    if show_gm:
         return rows
-    # Trap-door topology is GM-only -- the admin registry needs the edge list to draw the parent/
-    # child tree, but players must never get it in the bulk listing. Strip it from each summary.
+    # Player view: trap-door topology is GM-only (the admin registry needs the edge list to draw
+    # the parent/child tree, but players must never get it), and the host Security Rating (SC/SV)
+    # stays hidden -- it is discovered in-run via Analyze Host, or shown on the org card once the
+    # matching LTG entry is revealed (served reveal-aware by ltg-catalog). Strip both per summary.
     redacted = []
     for h in rows:
         s = MatrixHostSummary.model_validate(h)
         s.trap_doors_json = None
+        s.san_rating = None
         redacted.append(s)
     return redacted
 
@@ -91,6 +97,10 @@ async def ltg_catalog(
     db: AsyncSession = Depends(get_db),
 ):
     """Return all matrix_host LTG entries from the live organizations table."""
+    # A real admin (not previewing runner view) sees the GM data; players -- and an admin who
+    # toggled runner view -- get each entry's SC/SV rating only once it has been discovered
+    # (san_revealed), mirroring the org-card redaction in organizations._serialize_org.
+    show_secrets = bool(auth.get("is_admin")) and not auth.get("view_as_player")
     result = await db.execute(select(Organization).order_by(Organization.name))
     orgs = result.scalars().all()
 
@@ -102,6 +112,8 @@ async def ltg_catalog(
             rtg = ltg.get("rtg", "")
             ltg_code = ltg.get("ltg", "")
             full_address = f"{rtg} {ltg_code}".strip()
+            san = ltg.get("san_access_rating", "")
+            san_revealed = bool(ltg.get("san_revealed", False))
             entries.append({
                 "org_id":           org.id,
                 "org_name":         org.name,
@@ -112,7 +124,7 @@ async def ltg_catalog(
                 "description":      ltg.get("description", ""),
                 "visibility":       ltg.get("visibility", "listed"),
                 "revealed":         bool(ltg.get("revealed", False)),
-                "san_access_rating": ltg.get("san_access_rating", ""),
+                "san_access_rating": san if (show_secrets or san_revealed) else "",
             })
     return entries
 

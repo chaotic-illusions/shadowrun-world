@@ -750,7 +750,7 @@ async function updateTaskBonus(it, bonus) {
 
 async function refuseDeck(it) {
   if (!isAdmin()) return alertMsg('GM only.', true);
-  const ok = await showConfirm('Refuse "' + (it.deckName || it.id) + '" and return it to the runner?', 'Refuse', 'btn-red');
+  const ok = await showConfirm('Refuse "' + (it.deckName || it.id) + '" and return it to the runner?', 'Confirm');
   if (!ok) return;
   const f = _findDeck(it.pcId, it.id);
   if (!f) { alertMsg('Deck no longer present.', true); return loadQueue(); }
@@ -772,7 +772,7 @@ async function refuseDeck(it) {
 
 async function refuseCompile(it) {
   if (!isAdmin()) return alertMsg('GM only.', true);
-  const ok = await showConfirm('Cancel the compile "' + (it.label || it.id) + '"? The queued job is removed.', 'Cancel job', 'btn-red');
+  const ok = await showConfirm('Cancel the compile "' + (it.label || it.id) + '"? The queued job is removed.', 'Confirm');
   if (!ok) return;
   const f = _findJob(it.pcId, it.id);
   if (!f) { alertMsg('Compile no longer present.', true); return loadQueue(); }
@@ -842,7 +842,7 @@ async function finishFixerProgNow(it) {
 
 async function refuseFixerProg(it) {
   if (!isAdmin()) return alertMsg('GM only.', true);
-  const ok = await showConfirm('Refuse fixer order "' + (it.label || it.id) + '"? The order is removed.', 'Refuse', 'btn-red');
+  const ok = await showConfirm('Refuse fixer order "' + (it.label || it.id) + '"? The order is removed.', 'Confirm');
   if (!ok) return;
   const stores = (_stateCache[it.pcId] && _stateCache[it.pcId].stores) || null;
   if (!stores) { alertMsg('Order no longer present.', true); return loadQueue(); }
@@ -943,7 +943,7 @@ async function finishDeckNow(it) {
   // Mirror advanceClock's completion branch: a repair reverts to as-built (drop
   // the damage overlay); a build or order lands as the finished deck.
   deck.status = 'ready';
-  if (acq.isRepair) delete deck.damage;
+  if (acq.isRepair) { delete deck.damage; delete deck.mpcp_infections; }
   deck.acq = null;
   f.decks[f.idx] = deck;
   _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
@@ -988,7 +988,7 @@ async function advanceClock(days) {
       const left = Math.max(0, (parseInt(acq.daysRemaining, 10) || 0) - burn);
       const next = Object.assign({}, deck);
       // A repair job restores the deck to as-built: drop the damage overlay on completion.
-      if (left <= 0) { next.status = 'ready'; if (acq.isRepair) delete next.damage; next.acq = null; deckDone++; }
+      if (left <= 0) { next.status = 'ready'; if (acq.isRepair) { delete next.damage; delete next.mpcp_infections; } next.acq = null; deckDone++; }
       else { next.acq = Object.assign({}, acq, { daysRemaining: left }); }
       decks[i] = next;
       deckChanged = true;

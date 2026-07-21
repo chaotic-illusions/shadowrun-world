@@ -22,6 +22,9 @@ env/
 # Runtime data backups (timestamped state dumps)
 data/backups/
 
+# Per-action engine trace logs (SR_TRACE developer observability)
+data/traces/
+
 # IDE
 .vscode/
 .idea/

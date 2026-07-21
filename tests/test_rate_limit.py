@@ -2,10 +2,12 @@
 import time
 import pytest
 from unittest.mock import MagicMock
+from fastapi import HTTPException
 
 from app.auth.rate_limit import (
     record_failure, record_success, _attempts, _client_ip,
     BASE_DELAY, MAX_DELAY,
+    enforce_call_rate, _calls, _throttle_key, CALL_LIMIT, CALL_WINDOW,
 )
 
 
@@ -16,12 +18,21 @@ def _mock_request(ip: str = "127.0.0.1") -> MagicMock:
     return req
 
 
+def _tok_request(token: str | None = None, ip: str = "127.0.0.1") -> MagicMock:
+    req = MagicMock()
+    req.client.host = ip
+    req.headers = {"x-user-token": token} if token else {}
+    return req
+
+
 @pytest.fixture(autouse=True)
 def clear_state():
     """Reset the rate limiter state between tests."""
     _attempts.clear()
+    _calls.clear()
     yield
     _attempts.clear()
+    _calls.clear()
 
 
 class TestClientIp:
@@ -104,3 +115,57 @@ class TestBackoffCalculation:
     def test_capped_at_max(self):
         delay = min(BASE_DELAY * (2 ** 99), MAX_DELAY)
         assert delay == MAX_DELAY
+
+
+class TestCallRateThrottle:
+    """Per-caller sliding-window throttle used by expensive authenticated endpoints
+    (e.g. /rules/sheaf-preview)."""
+
+    def test_allows_up_to_limit(self):
+        req = _tok_request("tokenA")
+        for _ in range(CALL_LIMIT):
+            enforce_call_rate(req)  # should not raise
+        assert len(_calls[_throttle_key(req)]) == CALL_LIMIT
+
+    def test_blocks_over_limit(self):
+        req = _tok_request("tokenA")
+        for _ in range(CALL_LIMIT):
+            enforce_call_rate(req)
+        with pytest.raises(HTTPException) as exc:
+            enforce_call_rate(req)
+        assert exc.value.status_code == 429
+
+    def test_tokens_have_separate_buckets(self):
+        a = _tok_request("tokenA")
+        b = _tok_request("tokenB")
+        for _ in range(CALL_LIMIT):
+            enforce_call_rate(a)
+        # A is full, but B is a fresh bucket and must still be allowed.
+        enforce_call_rate(b)  # should not raise
+        assert len(_calls[_throttle_key(b)]) == 1
+
+    def test_key_prefers_token_over_shared_ip(self):
+        # Two callers sharing one IP but with different tokens must NOT share a bucket.
+        a = _tok_request("tokenA", ip="10.0.0.9")
+        b = _tok_request("tokenB", ip="10.0.0.9")
+        assert _throttle_key(a) != _throttle_key(b)
+
+    def test_key_never_contains_plaintext_token(self):
+        req = _tok_request("supersecret")
+        key = _throttle_key(req)
+        assert "supersecret" not in key
+        assert key.startswith("tok:")
+
+    def test_falls_back_to_ip_without_token(self):
+        req = _tok_request(None, ip="10.0.0.7")
+        assert _throttle_key(req) == "ip:10.0.0.7"
+
+    def test_window_expiry_allows_again(self):
+        req = _tok_request("tokenA")
+        for _ in range(CALL_LIMIT):
+            enforce_call_rate(req)
+        key = _throttle_key(req)
+        # Backdate every recorded call to before the window -> they all prune on the next hit.
+        _calls[key] = [t - CALL_WINDOW - 1 for t in _calls[key]]
+        enforce_call_rate(req)  # window cleared -> allowed again
+        assert len(_calls[key]) == 1

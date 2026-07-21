@@ -79,8 +79,17 @@ def _host_security_rating(host: MatrixHost) -> str | None:
     return None
 
 
-async def sync_host_security_to_org(db: AsyncSession, host: MatrixHost) -> None:
-    """Push a host's security rating onto its matching org LTG entry's ``san_access_rating``."""
+async def sync_host_security_to_org(
+    db: AsyncSession, host: MatrixHost, *, mark_revealed: bool = False
+) -> None:
+    """Push a host's security rating onto its matching org LTG entry's ``san_access_rating``.
+
+    ``san_access_rating`` is a GM/decker secret: it is redacted from the org payload for
+    non-admins until the entry's ``san_revealed`` flag is set. Pass ``mark_revealed=True``
+    when a decker actually discovers the host's security (e.g. Analyze Host in a run) so the
+    rating becomes visible to players. GM/Designer edits leave ``mark_revealed`` False so
+    they never leak an undiscovered rating.
+    """
     addr = (host.ltg_address or "").strip()
     rating = _host_security_rating(host)
     if not addr or not rating:
@@ -94,6 +103,9 @@ async def sync_host_security_to_org(db: AsyncSession, host: MatrixHost) -> None:
             if e.get("type") == "matrix_host" and _ltg_full_address(e) == addr:
                 if (e.get("san_access_rating") or "") != rating:
                     e["san_access_rating"] = rating
+                    changed = True
+                if mark_revealed and not e.get("san_revealed"):
+                    e["san_revealed"] = True
                     changed = True
             rebuilt.append(e)
         if changed:

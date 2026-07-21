@@ -28,10 +28,14 @@ class DeckerUtilities(BaseModel):
     poison:     int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Bod (Acid analog)
     restrict:   int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Evasion (Binder analog)
     reveal:     int = Field(0, ge=0)   # offensive crippler vs an enemy decker's Masking (Marker analog)
+    hog:        int = Field(0, ge=0)   # offensive virus vs an enemy decker: a persistent infection that drains its highest running program each Combat Turn until purged/crashed
     black_hammer: int = Field(0, ge=0) # lethal offensive (Physical) vs enemy deckers; max rating = ceil(Computer/2)
     killjoy:    int = Field(0, ge=0)   # lethal offensive (Stun) vs enemy deckers; max rating = ceil(Computer/2)
     steamroller: int = Field(0, ge=0)  # anti-tar: inflicts (Rating)D to a Tar Baby/Tar Pit IC; immune to the tar crash-backlash
     slow:       int = Field(0, ge=0)   # anti-proactive-IC: opposed test makes a proactive IC lose actions / HANG for the turn
+    # Combat maneuvers (vr2 L1599-1605): Cloak aids the maneuvering icon, Lock-On the opposing icon
+    cloak:      int = Field(0, ge=0)   # lowers the decker's Evasion-test TN when IT maneuvers (Evade/Parry/Position)
+    lock_on:    int = Field(0, ge=0)   # lowers the decker's Sensor-test TN when an opposing icon maneuvers (holds the lock)
     armor:      int = Field(0, ge=0)
     shield:     int = Field(0, ge=0)
     restore:    int = Field(0, ge=0)
@@ -50,8 +54,9 @@ class MemoryProgram(BaseModel):
 
 class ProgramOptions(BaseModel):
     """Run-relevant program options carried from the Deck Workshop into a run, keyed by
-    utility type (e.g. "attack"). Build-time-only options (Optimization / Squeeze / Limit)
-    affect size/cost in the workshop and are intentionally NOT carried here."""
+    utility type (e.g. "attack"). Build-time-only options (Optimization / Squeeze) affect
+    size/cost in the workshop and are intentionally NOT carried here; Limit IS carried (as
+    limit_target) because it restricts which target type the utility may affect at run time."""
     skulk:       int = Field(0, ge=0, le=50)   # crashing IC: reduce the tally increase by this
     area:        int = Field(0, ge=0, le=50)   # attack copes with an IC cluster (offsets its TN penalty)
     dinab:       int = Field(0, ge=0, le=50)   # "Decker In A Box": Free action runs this program autonomously at skill = rating
@@ -60,6 +65,10 @@ class ProgramOptions(BaseModel):
     chaser:      bool = False                  # defeats Shift (Shield then adds +2)
     one_shot:    bool = False                  # single-use copy: consumed on use (reload via Swap Memory; Tar IC wipes every copy)
     limit_target: str = Field("", max_length=8)  # Limit option: "" (none) / "ic" / "decker" -- the ONLY target type this utility may affect
+    # Attack utility only: its OWN base Damage Level (vr2 Attack-6L/-6M/-6S/-6D), chosen at code
+    # time and priced by level. Carried so the engine damages icons at the program's chosen
+    # severity, NOT the host IC Damage Table. "" = legacy/unset -> the engine falls back to the host.
+    damage_level: str = Field("", max_length=8)
 
     @field_validator("limit_target")
     @classmethod
@@ -69,9 +78,32 @@ class ProgramOptions(BaseModel):
             raise ValueError('limit_target must be "", "ic", or "decker"')
         return v
 
+    @field_validator("damage_level")
+    @classmethod
+    def _norm_damage_level(cls, v: str) -> str:
+        v = (v or "").strip().title()
+        if v not in ("", "Light", "Moderate", "Serious", "Deadly"):
+            raise ValueError('damage_level must be "", "Light", "Moderate", "Serious", or "Deadly"')
+        return v
+
+
+class MpcpInfection(BaseModel):
+    """A persistent Worm infection lodged in the deck's MPCP, carried across runs until the chip
+    is replaced. variant drives the ongoing effect (deathworm = cybercombat-TN penalty; tapeworm =
+    paydata erasure at run end; standard = chip degraded only)."""
+    variant: Literal["standard", "deathworm", "tapeworm"] = "standard"
+    rating:  int = Field(6, ge=1, le=50)
+    ic_id:   str = Field("", max_length=40)
+
+
 
 class DeckerStats(BaseModel):
     name: str = "Ghost"
+    # Deck provenance so run consequences (MPCP damage, chip burn, worm infection) can be written
+    # back to the owning character's persisted deck at run end. Both are optional (legacy/ad-hoc
+    # runs may omit them) -- damage write-back is skipped when either is missing.
+    character_id: int | None = None
+    deck_name:    str = Field("", max_length=120)
     # Deck persona programs
     mpcp:              int = Field(..., ge=1, le=50)
     bod:               int = Field(..., ge=1, le=50)
@@ -119,6 +151,11 @@ class DeckerStats(BaseModel):
     # util key -> run-relevant program options (Skulk / Targeting / Penetration / Chaser / Area
     # / etc.), read automatically by the engine instead of asking the player each action.
     program_options:   dict[str, ProgramOptions] = Field(default_factory=dict)
+    # Persistent MPCP infections carried on the deck from previous runs (Deathworm / Tapeworm).
+    # An infection is permanent until the MPCP chip is replaced, so the client re-sends it every
+    # run: a Deathworm keeps degrading cybercombat TNs and a Tapeworm keeps erasing paydata until
+    # the chip is remediated in the Deck Workshop. Capped to keep the payload bounded.
+    mpcp_infections:   list[MpcpInfection] = Field(default_factory=list, max_length=32)
 
 
 # -- Run creation ---------------------------------------------------------------
@@ -131,14 +168,14 @@ class MatrixRunCreate(BaseModel):
 # -- Action input --------------------------------------------------------------
 
 ActionType = Literal[
-    "logon_to_host", "logon_to_ltg",
+    "logon_to_host",
     "analyze_host", "analyze_ic", "analyze_icon", "analyze_security", "analyze_subsystem",
     "locate_paydata", "locate_ic", "locate_decker",
     "download_data", "edit_file",
     "null_operation", "graceful_logoff", "crash_host",
-    "validate_passcode", "decoy",
+    "validate_passcode", "invalidate_passcode", "decoy",
     "redirect_datatrail", "relocate", "decrypt_file",
-    "swap_memory", "purge_hog", "medic", "restore", "disinfect",
+    "swap_memory", "unload_program", "purge_hog", "medic", "restore", "disinfect",
     "defuse_data_bomb", "steamroller", "slow", "decompress_file",
     "dinab",
     # Combat maneuvers (vr2 L1982) -- Simple Actions, opposed Evasion/Sensor tests
@@ -157,14 +194,20 @@ class RunActionInput(BaseModel):
     note: str = Field("", max_length=500)
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
-    target_program: str = Field("", max_length=40)  # Swap Memory / Purge Hog: utility key; Restore: BEMS attribute to repair (blank = first relevant / most-damaged)
-    swap_out_program: str = Field("", max_length=40)  # Swap Memory: active program to push to storage to free memory
+    target_program: str = Field("", max_length=40)  # Swap Memory (load) / Unload Program: utility key; Purge Hog: utility key; Restore: BEMS attribute to repair (blank = first relevant / most-damaged)
     # Combat maneuvers: which opposing icon to maneuver against (active IC id or revealed
     # enemy-decker id); blank = first eligible target.
     maneuver_target: str = Field("", max_length=64)
     # Position Attack only: "tn" (reduce next-attack TN) or "power" (raise next-attack Power).
     # Anything other than "power" is treated as "tn" by the router.
     position_choice: str = Field("tn", max_length=8)
+    # Edit File only: "erase" (destroy the located file) or "modify" (tamper with / corrupt the
+    # host's copy in place). Anything other than "modify" is treated as "erase" by the router.
+    edit_mode: str = Field("erase", max_length=8)
+    # Relocate only: when True, a successful Relocate (won the opposed Control vs Security test)
+    # SUPPRESSES the trace IC in place instead of merely spoofing it -- pausing its cycle for 1
+    # Detection Factor (vr2 L588). A released trace resumes where it left off.
+    suppress_trace: bool = False
 
 
 class RunAttackInput(BaseModel):
@@ -179,6 +222,13 @@ class RunAttackInput(BaseModel):
 class RunLogoffInput(BaseModel):
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     deception_utility: int = Field(0, ge=0, le=50)
+
+
+class RunDefendInput(BaseModel):
+    # Hacking Pool dice the decker spends on the resist test surfaced by state["pending_defense"]
+    # (the interactive per-attack defense flow). vr2: HP may be added to a defense test -- capped
+    # server-side at the remaining pool; 0 = resist with Bod alone (or just decline the offer).
+    hacking_pool_dice: int = Field(0, ge=0, le=40)
 
 
 class RunTrapDoorInput(BaseModel):
@@ -197,15 +247,16 @@ class RunReactiveInput(BaseModel):
 
 
 class RunSuppressInput(BaseModel):
-    ic_id: str = Field(..., max_length=64)
+    ic_id: str = Field(..., max_length=64)  # crashed/hung IC id OR a non-IC suppression entry id (data bomb)
     release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
 
 
 class RunRevealHostRatingsInput(BaseModel):
     # Two-phase Analyze Host: when a successful Analyze Host banked fewer net successes than there
-    # are still-hidden ACIFS ratings, the decker chooses which subsystems to reveal (one per banked
-    # credit). subsystems = the chosen ACIFS names ("access"/"control"/"index"/"files"/"slave").
-    subsystems: list[str] = Field(..., min_length=1, max_length=5)
+    # are still-hidden items, the decker chooses which to reveal (one per banked credit). subsystems
+    # = the chosen names: the ACIFS ratings ("access"/"control"/"index"/"files"/"slave") and/or
+    # "security" (the host Security Rating -- a 6th revealable item).
+    subsystems: list[str] = Field(..., min_length=1, max_length=6)
 
 
 class RunEnemyAttackInput(BaseModel):
@@ -216,9 +267,20 @@ class RunEnemyAttackInput(BaseModel):
     # Bod / Evasion / Masking respectively (Poison / Restrict / Reveal). Black Hammer
     # (lethal Physical) / Killjoy (lethal Stun) "function like black IC but from a decker":
     # on an icon crash they burn the enemy's MPCP (blaster at DOUBLE the program rating).
+    # Hog is the offensive virus -- a persistent infection that drains the enemy's highest
+    # running program each Combat Turn (the same one an enemy decker can plant on the PC).
     # All of these target enemy DECKERS only -- never routed through IC.
-    program: Literal["attack", "poison", "restrict", "reveal",
+    program: Literal["attack", "poison", "restrict", "reveal", "hog",
                      "black_hammer", "killjoy"] = "attack"
+
+
+class RunEnemyScanInput(BaseModel):
+    """Scan Icon vs a revealed enemy decker (vr2 L1895): a Computer Test vs the target's Masking
+    (adjusted by the target's Sleaze minus the PC's Scanner). Each net success reveals one of the
+    enemy's hidden ratings (MPCP / a Persona rating / Response Increase); 3+ successes reveal all.
+    Decker-only target, so it doubles as the Analyze-Icon read for a hostile decker."""
+    enemy_id: str = Field(..., max_length=64)
+    hacking_pool_dice: int = Field(0, ge=0, le=40)
 
 
 class RunAreaAttackInput(BaseModel):
@@ -251,7 +313,7 @@ class RunAreaAttackInput(BaseModel):
 # -- Sheaf + Host designer -----------------------------------------------------
 
 class SheafEvent(BaseModel):
-    type: str  # ic, passive_alert, active_alert, shutdown, trap_ic, construct, party_ic
+    type: str  # ic, passive_alert, active_alert, shutdown, trap_ic, construct, party_ic, bouncer
     # Normal IC
     ic_type: str | None = None
     rating: int | None = None
@@ -264,6 +326,9 @@ class SheafEvent(BaseModel):
     threat_rating: int | None = None
     components: list[dict] | None = None
     defenses: list[str] | None = None
+    # Bouncer -- upgrades the host security code/value mid-run (vr2 L300)
+    new_security_code: str | None = None
+    new_security_value: int | None = None
 
 
 class SheafStep(BaseModel):
@@ -293,6 +358,7 @@ class MatrixRunSummary(BaseModel):
     id: int
     host_id: int | None
     status: str
+    aar_acknowledged: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -305,6 +371,38 @@ class MatrixRunRead(BaseModel):
     decker_json: dict[str, Any]
     state_json: dict[str, Any]
     status: str
+    aar_acknowledged: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MatrixRunAAR(BaseModel):
+    """GM after-action report for an ENDED run. Computed on demand from the run's frozen state --
+    surfaces the consequences the GM must adjudicate (paydata haul, whether the decker was traced /
+    physically located, injuries, lingering MPCP infections, alert level reached)."""
+    run_id: int
+    host_id: int | None
+    status: str
+    end_reason: str | None
+    outcome: str
+    escaped_clean: bool
+    decker_name: str
+    character_id: int | None
+    paydata: dict[str, Any]
+    traced: bool
+    physical_location_found: bool
+    physical_trace_immune: bool
+    injuries: list[str]
+    mpcp_damage: int
+    persona_chip_burn: dict[str, int]
+    mpcp_infections: list[dict[str, Any]]
+    enemy_deckers: list[dict[str, Any]] = []
+    trap_doors: list[dict[str, Any]] = []
+    alert_status: str
+    security_tally: int
+    acknowledged: bool
     created_at: datetime
     updated_at: datetime
 

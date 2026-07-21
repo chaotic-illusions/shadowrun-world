@@ -120,22 +120,26 @@ Compressor, Commlink, Slow (anti-IC), Steamroller (anti-tar).
 `Deception` is currently in the enemy's utility dict but is **vestigial** (a home-turf decker is
 authorized) -- drop it or repurpose it.
 
-### 3.1a Enemy deckers SEE THROUGH Validate Passcode (DECIDED 2026-07-04)
+### 3.1a Enemy deckers RESPECT Validate/Invalidate Passcode (REVERSED -- supersedes 2026-07-04)
 
-A PC's Validate Passcode plants a fake passcode that flips the PC to `legitimate` status
-(`state["has_legitimate_status"]`), which swaps the attacker's `COMBAT_TN` column. Against a **skilled
-human-equivalent hunter this does nothing** -- an enemy decker recognizes the intruder for what they
-are and **always** attacks on the `intruding` column. This is already the code's behavior: every enemy
-attack in `_enemy_decker_take_turn` passes `target_status="intruding"` hardcoded (icon attack
-~L5570, crippler ~L5555). **KEEP it hardcoded** -- do NOT wire enemy-decker attacks to
-`has_legitimate_status`. (Contrast: dumb **IC** still respects the fake passcode -- the IC path reads
-`has_legitimate_status` at ~L3498 -- so Validate Passcode remains useful against IC but is worthless
-against a decker. A nice built-in asymmetry, not a bug.)
+**Current decision:** enemy deckers honor the PC's forged status. A PC's Validate Passcode plants a
+fake passcode that flips the PC to `legitimate` status (`state["has_legitimate_status"]`), which swaps
+the attacker's `COMBAT_TN` column; enemy-decker attacks now read that flag via `_pc_target_status(state)`
+(icon attack, crippler/HOG, attribute attack, black + cybercombat) exactly like the IC path -- so
+Validate is useful against BOTH IC and enemy deckers. Symmetrically, **Invalidate Passcode** flips an
+enemy icon (IC or enemy decker) from `legitimate` to `intruding` (`icon["intruding"] = True`), and every
+PC->enemy attack reads `_combat_target_status(target)`, so the enemy's own to-hit TN is revised after a
+successful Invalidate. An enemy never regains `legitimate` once invalidated (permanent); a PC's
+`has_legitimate_status` is cleared on active alert / logoff / host shutdown.
 
-Corollary of the corrected `COMBAT_TN` table (Red/Black intruding now 3): against a Red/Black enemy
-decker the PC is hit on TN 3 whether or not they Validate -- so on the deadliest hosts a passcode
-already can't help vs a decker for two independent reasons (decker ignores it AND the column barely
-differs there).
+**Superseded (2026-07-04) rationale, kept for history:** the earlier decision hardcoded every enemy
+attack to `target_status="intruding"` on the theory that a skilled hunter "sees through" the forged
+passcode, making Validate worthless against a decker (an intentional IC-vs-decker asymmetry). That
+asymmetry was removed on user direction -- enemy deckers now honor forged status like IC.
+
+Corollary of the `COMBAT_TN` table (Red/Black intruding is 3): against a Red/Black enemy decker the
+column barely differs, so on the deadliest hosts a passcode still buys the PC little even though the
+decker now respects it.
 
 ### 3.1 Combat maneuvers -- ALREADY IMPLEMENTED for enemy deckers (verified 2026-07-04)
 

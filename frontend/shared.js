@@ -30,6 +30,9 @@ function authHeaders(extra = {}) {
   const ut = userToken();
   if (at) h['X-Admin-Token'] = at;
   if (ut) h['X-User-Token']  = ut;
+  // Admin previewing runner view: ask the server for the exact player payload so no GM-only data
+  // ever reaches the browser. Presentation-only -- the admin token above still authorizes the call.
+  if (isAdmin() && !isAdminMode()) h['X-Runner-View'] = '1';
   return h;
 }
 
@@ -75,9 +78,10 @@ function _buildMatrixNavGroup() {
   const childDefs = [
     { href: 'manage-rtgs.html',     label: 'RTGs' },
     { href: 'matrix-hosts.html',    label: 'Hosts' },
+    { href: 'matrix-designer.html', label: 'Matrix Designer', gmOnly: true },
     { href: 'deck-workshop.html',   label: 'Deck Workshop' },
     { href: 'matrix-run.html',      label: 'Matrix Run' },
-    { href: 'matrix-designer.html', label: 'Matrix Designer', gmOnly: true },
+    { href: 'matrix-aars.html',     label: 'Host AARs', gmOnly: true },
   ];
 
   const here = window.location.pathname;
@@ -342,9 +346,13 @@ function showAlert(el, msg, isErr) {
 /**
  * Show a styled confirmation dialog. Returns a Promise<boolean>.
  * okLabel  - label for the confirm button (default 'Confirm')
- * okClass  - CSS class for the confirm button (default 'btn-red')
+ * okClass  - CSS class for the confirm button (default 'btn-green' -- the affirmative "yes")
+ *
+ * Button-color convention (app-wide): the affirmative primary is GREEN and Cancel is RED.
+ * Destructive confirms therefore read "Confirm" (green) / "Cancel" (red) rather than a red
+ * "Delete". Callers that need an amber/cyan action primary may still pass okClass explicitly.
  */
-function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
+function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-green') {
   return new Promise(resolve => {
     let overlay = document.getElementById('_sharedConfirmOverlay');
     if (!overlay) {
@@ -358,8 +366,8 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-red') {
           <div style="font-size:.75rem;letter-spacing:2px;color:var(--red);margin-bottom:14px">&gt;&gt; CONFIRM ACTION</div>
           <div id="_sharedConfirmMsg" style="font-size:.8rem;color:var(--text-bright);margin-bottom:22px;line-height:1.6"></div>
           <div style="display:flex;gap:8px;justify-content:flex-end">
-            <button id="_sharedConfirmOk" class="btn btn-red" style="min-width:90px"></button>
-            <button id="_sharedConfirmCancel" class="btn btn-ghost">Cancel</button>
+            <button id="_sharedConfirmOk" class="btn btn-green" style="min-width:90px"></button>
+            <button id="_sharedConfirmCancel" class="btn btn-red">Cancel</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);

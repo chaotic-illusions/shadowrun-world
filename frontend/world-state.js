@@ -1332,7 +1332,7 @@ function renderOrgDossierView(org) {
     ? `<div class="dossier-net-grid">${hostGridHeader}${hosts.map(h =>
         `<span><span class="text-amber">&#8250; ${esc(h.rtg)}</span><span class="text-dim"> // </span><span style="color:var(--green-dim)">${esc(h.ltg)}</span>${h.id_code?`<span style="color:var(--purple);font-size:.65rem"> [${esc(h.id_code)}]</span>`:''}</span>
          <span class="text-dim">${esc(h.description||'')}</span>
-         <span>${h.san_access_rating ? `<span class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating)}</span>` : ''}</span>
+         <span>${h.san_access_rating ? `<span class="ltg-rating ${ratingClass(h.san_access_rating)}">${esc(h.san_access_rating)}</span>` : `<span class="text-dim" style="font-size:.62rem;letter-spacing:.07em">UNKNOWN</span>`}</span>
          <span class="dossier-net-disp">${disposBadge(h.visibility)}</span>`
       ).join('')}</div>`
     : `<div class="ws-empty">No public matrix listings</div>`;

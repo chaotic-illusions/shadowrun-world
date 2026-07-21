@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, UTC
-from sqlalchemy import Integer, String, JSON, ForeignKey
+from sqlalchemy import Integer, String, JSON, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -27,6 +27,12 @@ class MatrixRun(Base):
 
     # active | escaped | crashed | shutdown
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+
+    # Once a run ENDS, the GM must review its after-action report before the same decker may start
+    # another run (there may be lingering consequences to apply). False until the GM acknowledges
+    # the AAR via the review view; a still-active run keeps it False (the gate only checks ended
+    # runs). The report itself is computed on demand from state_json -- no snapshot column needed.
+    aar_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Optimistic-lock counter (declared as version_id_col below). SQLAlchemy adds
     # `WHERE version = :old` to every UPDATE and raises StaleDataError if a

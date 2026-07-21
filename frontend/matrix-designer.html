@@ -255,8 +255,7 @@
                     <option value="Slave">Slave</option>
                   </select>
                   <select id="wrmVariant" onchange="this.dataset.tip=this.options[this.selectedIndex].dataset.tip"
-                    data-tip="Logs and sends incriminating information about the decker to a delivery address.">
-                    <option value="dataworm" data-tip="Logs and sends incriminating information about the decker to a delivery address.">Dataworm</option>
+                    data-tip="+2 TN to all Attack/Resistance tests in cybercombat.  +1 for each additional worm.">
                     <option value="deathworm" data-tip="+2 TN to all Attack/Resistance tests in cybercombat.  +1 for each additional worm.">Deathworm</option>
                     <option value="tapeworm" data-tip="At run end, reduce Paydata Points downloaded by 1D6-1.  Roll 1D6 for key files; 5-6 erases it.">Tapeworm</option>
                   </select>
@@ -293,7 +292,7 @@
           <div class="sub-section">
             <div class="flex-between mb-8">
               <div class="sub-section-title" style="margin:0">&gt;&gt; Current Sheaf Steps</div>
-              <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addStep()" data-tip="Add a blank sheaf step.">+ Add Step</button>
+              <button class="btn btn-amber btn-sm md3-ctrl-btn" onclick="addStep()" data-tip="Add a blank sheaf step.">+ Add Step</button>
             </div>
             <div id="sheafStepList"></div>
             <div id="sheafEmpty" class="empty-msg" style="padding:16px 0;font-size:.62rem">No steps defined -- generate or add manually</div>
@@ -394,7 +393,7 @@
         <div class="tip" id="newHostAddrHint">Pick an RTG and generate a unique LTG to put this host on the Matrix. Leave blank for an off-grid system reached only via a trap door.</div>
       </div>
       <div class="edit-modal-btns" style="justify-content:flex-end;gap:8px">
-        <button class="btn btn-ghost btn-sm" type="button" onclick="closeCreateHostModal()">Cancel</button>
+        <button class="btn btn-red btn-sm" type="button" onclick="closeCreateHostModal()">Cancel</button>
         <button class="btn btn-green btn-sm" type="button" onclick="createHost()">&gt;&gt; Create Custom Host</button>
       </div>
     </div>
@@ -469,7 +468,7 @@ let sheafSteps  = [];   // [{trigger: number, events: [{type, ic_type?, rating?}
 let paydata      = [];   // [{name: string, points: number, density: number}]  (defined on host; referenced by data bombs / scrambles)
 let dataBombs    = [];   // [{target: string, rating: number}]
 let scrambles    = [];   // [{target_key: string, rating: number, variant: 'exploding'|'poison'}]
-let worms        = [];   // [{target: string, rating: number, variant: 'dataworm'|'deathworm'|'tapeworm'}]
+let worms        = [];   // [{target: string, rating: number, variant: 'deathworm'|'tapeworm'}]
 let _mhRtgs      = [];   // [{code, ...}] RTG list for the Matrix Hosts registry assign row
 let _mhView      = 'designer';  // active top-level view: 'designer' | 'hosts'
 let accessPieces = [];   // string[] -- named Access subsystem pieces (for Scramble IC specific-piece targeting)
@@ -630,7 +629,6 @@ function setAlertStep(type, rawVal) {
 const IC_BACKEND_ALIASES = {
   'Acid': 'white', 'Binder': 'white', 'Jammer': 'white', 'Marker': 'white',
   'Acid-rip': 'gray', 'Bind-rip': 'gray', 'Jam-rip': 'gray', 'Mark-rip': 'gray',
-  'Trace-Report': 'gray', 'Trace-Dump': 'gray', 'Trace-Burn': 'gray',
   'Black IC': 'black',
 };
 
@@ -1243,7 +1241,7 @@ async function onHostChange() {
 async function deleteCurrentHost() {
   if (!currentHost || currentHost._autoCreated) return;
   const name = currentHost.name || `Host #${currentHost.id}`;
-  const ok = await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete');
+  const ok = await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm');
   if (!ok) return;
   try {
     const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, { method: 'DELETE' });
@@ -1534,7 +1532,7 @@ function _mhEditorHtml(h) {
     <div class="mh-assign-actions">
       ${removeBtn}
       <button class="btn btn-green btn-sm" onclick="mhAssignAddress(${h.id})">Save</button>
-      <button class="btn btn-ghost btn-sm" onclick="mhCancelEdit()">Cancel</button>
+      <button class="btn btn-red btn-sm" onclick="mhCancelEdit()">Cancel</button>
     </div>
   </div>`;
 }
@@ -2554,7 +2552,7 @@ function renderWorms() {
     list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None configured.</div>';
     return;
   }
-  const VARIANT_LABEL = { dataworm: 'Dataworm', deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
+  const VARIANT_LABEL = { deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
   list.innerHTML = worms.map((w, i) =>
     `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
       <span style="font-size:.72rem;color:var(--amber)">${esc(VARIANT_LABEL[w.variant] || w.variant)}: ${esc(w.target)}-${w.rating}</span>

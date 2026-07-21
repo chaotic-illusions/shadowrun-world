@@ -149,7 +149,7 @@ Unauthorized deckers make a **System Test** for every task attempted in the Matr
 |--------|---------|
 | Decker more successes | Task succeeds |
 | Host more successes | Task fails |
-| Tie | Task fails |
+| Tie | Task succeeds |
 
 Regardless of outcome, the gamemaster records the host's successes and adds them to the running **security tally**.
 
@@ -573,15 +573,16 @@ Trace IC has two phases:
 - Duration: 10 Combat Turns / number of successes on the IC's Attack Test (rounded down).
 - During this time, the decker can attempt to locate and neutralize the IC.
 
-**Trace Factor:**
+**Trace Factor:** (the trace IC's target number in its Hunt Cycle -- **higher = harder to trace**; see the No-Alert note that a *lower* Trace Factor lets the IC locate the jackpoint more easily)
 ```
 Trace Factor = Evasion Rating - Trace IC Rating + (number of Redirect Datatrail operations) + Camo utility rating + Jackpoint Trace modifier + Bandwidth Trace modifier
 ```
+Every Redirect Datatrail operation left on the grid **adds 1** to the Trace Factor (making the decker harder to trace); it is a positive term in the formula above.
 
 **Defeating Trace IC:**
 1. **Attack it** during hunt cycle (cybercombat).
 2. **Graceful Logoff** (adds IC rating to the target number for the logoff operation).
-3. **Relocate utility**: Spend a Simple Action, make a **Control Test** (Relocate utility reduces target number). Gamemaster makes an opposing Security Test; successes add to security tally. If the decker's Control Test yields more successes, the trace is spoofed for that turn.  The Decker can choose to suppress the IC at this point and no further tests will be necessary unless the suppression is released.
+3. **Relocate utility**: Spend a Simple Action, make a **Control Test** (Relocate utility reduces target number) against **one** trace IC that is in its Location Cycle (Relocate cannot affect a trace during its Hunt Cycle). With more than one trace hunting, the decker must Relocate each separately. Gamemaster makes an opposing Security Test; successes add to security tally. If the decker's Control Test yields more successes, the trace is **spoofed for that turn only** -- it makes no location-cycle progress this turn but is **not** reset to its Hunt Cycle, and it resumes its Location Cycle next turn unless spoofed or suppressed again. Alternatively, the decker can choose to **suppress** the IC at this point (standard suppression, 1 Detection Factor); no further tests are then necessary until the suppression is released, at which point the trace resumes where it left off.
 
 Simply jacking out does not stop trace IC -- the commiline remains open, and the IC can still complete its cycle. Roll 1D6 (minimum 1); that many turns remain for the trace to complete after jack-out.
 
@@ -1890,7 +1891,7 @@ Monitored operations must be actively maintained after the initial System Test.
 | **Make Comcall** | Files | Commlink | Complex | Places a Matrix communications call. Decker can link calls across multiple RTGs for a conference call; each additional link requires another opposed Files Test. Trace routines on the call are treated as trace IC. Decker can detect taps with Sensor (Device Rating) Test and neutralize them with Evasion (Device Rating) Test. Monitored operation. |
 | **Monitor Slave** | Slave | Spoof | Simple | Monitored operation. Reads real-time data from a remote device: audio pickups, cameras, medical scanners, etc. Provides constant updates while maintained. |
 | **Null Operation** | Control | Deception | Complex | Performed while waiting. Security Value modifier by inactivity duration: <10 sec: base SV; <1 min: +1; <1 hr: +2; <12 hrs: +4; each additional 12 hrs: +1. |
-| **Redirect Datatrail** | Control | Camo | Complex | Reduces the opposing Security Test TN by the decker's trace modifier (jackpoint Trace Factor). Decker can leave only one redirect per grid. Each redirect left on a grid reduces the decker's Trace Factor by 1 (does not affect bandwidth modifier's impact on further Redirect Datatrail tests). |
+| **Redirect Datatrail** | Control | Camo | Complex | Reduces the opposing Security Test TN by the decker's trace modifier (jackpoint Trace Factor). Decker can leave only one redirect per grid. Each redirect left on a grid **increases** the decker's Trace Factor by 1 (making the decker harder to trace -- a positive term in the Trace Factor formula; does not affect the bandwidth modifier's impact on further Redirect Datatrail tests). |
 | **Retrain** | Access | Commlink | Free | Reallocates I/O bandwidth between icon bandwidth and I/O bandwidth. Can be performed at any time, even while loading data. |
 | **Scan Icon** | Special | Scanner | Simple | Computer Test vs. target's Masking Rating. If target runs Sleaze: adjust TN by difference between Sleaze and Scanner ratings (reduce TN if scanner > sleaze; increase if sleaze > scanner). Each success: choose one -- MPCP Rating, any Persona Rating, or Response Increase Rating. |
 | **Swap Memory** | None | None | Simple | Loads a utility from storage to active memory (or vice versa). If insufficient active memory, first spend a Free Action to unload a program. No tests required. Squeezed or Compressed utilities must be decompressed before use (Complex Action required). |
@@ -2051,7 +2052,10 @@ A decker can write a one-shot attack program as a Simple Action:
 
 ### Icon Damage
 
-**Programs that inflict standard damage** (attack, killer IC, etc.) have a Damage Code: Power = IC Rating; Damage Level = from the IC Damage Table.
+**Programs that inflict standard damage** have a Damage Code (Power / Damage Level). The Power and the Damage Level come from different sources depending on who is attacking:
+
+- **IC** (killer IC, and the standard-damage IC generally): Power = IC Rating; Damage Level = from the **IC Damage Table** (by host Security Code).
+- **A decker's Attack utility**: Power = the utility's Rating; Damage Level = the level chosen when the program was coded (**Attack-6L / -6M / -6S / -6D**), priced by level. The Attack utility does **not** read the IC Damage Table -- only the to-hit uses the host's Cybercombat Target Number (by the *target* icon's Legitimate/Intruding status). Black Hammer / Killjoy likewise carry their own fixed level.
 
 See [IC Damage Level by Host Security](#cybercombat-summary-tables) in Reference Tables.
 
@@ -2063,17 +2067,20 @@ Stage up 1 Damage Level for every 2 successes on the attacker's Attack Test.
 
 All icons use a **Condition Monitor** with 10 boxes.
 
-**Condition Monitor Table:**
+**Condition Monitor Table (boxes a single hit deals):**
 
 | Damage Level | Boxes Filled |
 |-------------|-------------|
 | Light | 1 box |
-| Moderate | 3 boxes |
-| Serious | 6 boxes |
-| Deadly | 10 boxes |
+| Moderate | 2 boxes |
+| Serious | 3 boxes |
+| Deadly | 6 boxes |
 
-Boxes accumulate; the wound-level *modifiers* (see Cybercombat) key off the total filled:
+Boxes accumulate; the wound-level *modifiers* (see Cybercombat) key off the total filled
+(these are escalation THRESHOLDS, not the per-hit box counts above):
 1-2 boxes = Light, 3-5 = Moderate, 6-9 = Serious, 10 = Deadly (crash).
+A single Deadly hit deals 6 boxes -- it does **not** crash outright; the icon crashes only once
+accumulated damage reaches 10 boxes.
 
 When all 10 boxes are filled: the icon **crashes**. If it was a persona, the decker is dumped from the Matrix and is vulnerable to dump shock.
 

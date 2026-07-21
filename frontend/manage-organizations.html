@@ -226,7 +226,7 @@
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1 flex-center" onclick="submitForm()" id="submitBtn">&gt;&gt; Submit to Database</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -682,7 +682,7 @@ async function loadOrgs() {
 async function deleteOrg() {
   if (!editingId) return;
   const name = document.getElementById('name').value || 'this organization';
-    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
     const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);

@@ -11,7 +11,9 @@ class OrganizationBase(BaseModel):
     leadership: list[dict[str, Any]] = []
     # Each entry is one of:
     #   telecom:     {type, number, description, visibility}
-    #   matrix_host: {type, rtg, ltg, id_code, description, visibility, san_access_rating, notes?}
+    #   matrix_host: {type, rtg, ltg, id_code, description, visibility, san_access_rating, san_revealed?, notes?}
+    # san_access_rating is a decker secret redacted from non-admin GETs until san_revealed is
+    # set (flipped when a decker discovers the host's security in a run; see host_visibility).
     ltgs: list[dict[str, Any]] = []
     ally_ids: list[int] = []
     enemy_ids: list[int] = []

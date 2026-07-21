@@ -648,7 +648,7 @@
     <div class="mr-modal-title" id="deckAlertTitle" style="color:var(--amber)">&gt;&gt; SYSTEM NOTICE</div>
     <div id="deckAlertMessage" class="tip" style="margin:8px 0 14px;font-size:.8rem;line-height:1.55;color:var(--text-bright)"></div>
     <div class="mr-modal-actions">
-      <button class="btn btn-ghost" onclick="closeDeckAlertModal()">Acknowledge</button>
+      <button class="btn btn-green" onclick="closeDeckAlertModal()">Acknowledge</button>
     </div>
   </div>
 </div>
@@ -663,7 +663,7 @@
     </div>
     <div class="mr-modal-actions">
       <button class="btn btn-green" onclick="confirmDeckSelectionForLoad()">&gt;&gt; Use Deck</button>
-      <button class="btn btn-ghost" onclick="cancelDeckSelectionForLoad()">Cancel</button>
+      <button class="btn btn-red" onclick="cancelDeckSelectionForLoad()">Cancel</button>
     </div>
   </div>
 </div>
@@ -678,7 +678,7 @@
     <div class="deck-interrupt-line deck-interrupt-straw">&nbsp;&nbsp;&gt;&gt;&gt;&gt;[Looks like you may have zigged when you should have zagged chummer. Nothing to see here. Move along.]&lt;&lt;&lt;&lt;</div>
     <div class="deck-interrupt-line deck-interrupt-signature" id="deckInterruptStamp">-- Fastjack</div>
     <div class="deck-interrupt-actions">
-      <button class="btn btn-red" onclick="acknowledgeInterrupt()">&gt;&gt; Acknowledge</button>
+      <button class="btn btn-green" onclick="acknowledgeInterrupt()">&gt;&gt; Acknowledge</button>
     </div>
   </div>
 </div>
@@ -766,14 +766,16 @@ const UTILITIES = [
   { name: "Black Hammer",mult:20, cat: "Offensive", note: "Decker version of Black IC, minus the Blaster-like capabilities. Lethal damage to deckers. Uses standard program cap." },
   { name: "Hog",        mult: 3,  cat: "Offensive", note: "Enemy Decker Virus: Reduces rating and crashes deck programs in sequence." },
   { name: "Killjoy",    mult: 10, cat: "Offensive", note: "Decker version of non-lethal Black IC, minus the Blaster-like capabilities.  Stun damage to deckers. Uses standard program cap." },
+  { name: "Lock-On",    mult: 3,  cat: "Offensive", note: "Maneuver aid. Lowers YOUR Sensor Test TN (by [Rating]) to hold a lock on an opposing icon that maneuvers to evade you." },
   { name: "Poison",     mult: 3,  cat: "Offensive", note: "Decker version of Acid Crippler. Attacks enemy MPCP Bod attribute." },
   { name: "Restrict",   mult: 3,  cat: "Offensive", note: "Decker version of Binder Crippler. Attacks enemy MPCP Evasion attribute." },
   { name: "Reveal",     mult: 3,  cat: "Offensive", note: "Decker version of Marker Crippler. Attacks enemy MPCP Masking attribute." },
   { name: "Slow",       mult: 4,  cat: "Offensive", note: "Slows proactive IC execution speed. Net successes reduce IC actions." },
   { name: "Steamroller",mult: 3,  cat: "Offensive", note: "Inflicts [Rating]D to Tar-IC, and is immune to their effects." },
   // Defensive
-  { name: "Armor",      mult: 3,  cat: "Defensive", note: "Reduces Power of IC attacks against the persona. Loses 1 rating per hit that isn't fully mitigated by the Armor program itself." },
+  { name: "Armor",      mult: 3,  cat: "Defensive", note: "Reduces Power of IC/decker attacks against the persona. Loses 1 rating each time the decker takes damage (a hit that lands 1+ boxes). Can be reloaded via Swap Memory." },
   { name: "Camo",       mult: 3,  cat: "Defensive", note: "Adds [Rating] to Trace Factor. Also reduces Redirect Datatrail TN." },
+  { name: "Cloak",      mult: 3,  cat: "Defensive", note: "Maneuver aid. Lowers YOUR Evasion Test TN (by [Rating]) when you maneuver (Evade/Parry/Position) against an opposing icon's Sensor Rating." },
   { name: "Medic",      mult: 4,  cat: "Defensive", note: "Heals persona damage. Loses 1 rating each use. Can be reloaded via Swap Memory." },
   { name: "Restore",    mult: 3,  cat: "Defensive", note: "Repairs BEMS (persona attribute) damage from cripplers/rippers. 1 pt per 2 successes. Cannot fix permanent chip damage." },
   { name: "Shield",     mult: 4,  cat: "Defensive", note: "Parries attacks. Can reduce attacker net successes, as well as Crippler/Ripper IC successes. Loses 1 rating each use. Can be reloaded via Swap Memory." },
@@ -804,6 +806,7 @@ const UTILITY_OPTION_ALLOW = {
   "Black Hammer": ["oneshot", "optimization", "targeting"],
   "Hog":          ["dinab", "oneshot", "optimization", "targeting"],
   "Killjoy":      ["oneshot", "optimization", "targeting"],
+  "Lock-On":      ["oneshot", "optimization"],
   "Poison":       ["area", "dinab", "oneshot", "optimization", "targeting"],
   "Restrict":     ["area", "dinab", "oneshot", "optimization", "targeting"],
   "Reveal":       ["area", "dinab", "oneshot", "optimization", "targeting"],
@@ -812,6 +815,7 @@ const UTILITY_OPTION_ALLOW = {
   // Defensive
   "Armor":        ["optimization"],
   "Camo":         ["oneshot", "optimization"],
+  "Cloak":        ["oneshot", "optimization"],
   "Medic":        ["dinab", "optimization"],
   "Restore":      ["dinab", "oneshot", "optimization"],
   "Shield":       ["optimization"],
@@ -2043,12 +2047,12 @@ async function deleteSoftwareVariant(v) {
   if (!v) return;
   if (v.kind === 'order') {
     if (v.authorized) { showAlert(null, 'This order is already authorized by the fixer -- cancel it from Downtime Control.', true); return; }
-    if (!await showConfirm(`Cancel on-order program R${v.baseRating}? This cannot be undone.`, 'Cancel order')) return;
+    if (!await showConfirm(`Cancel on-order program R${v.baseRating}? This cannot be undone.`, 'Confirm')) return;
     cancelPurchasedProgramOrder(v.id);
     return;
   }
   const label = v.kind === 'job' ? `${v.sourceName || 'compile job'} v${v.version}` : `program R${v.baseRating}`;
-  if (!await showConfirm(`Delete ${label}? This cannot be undone.`, 'Delete')) return;
+  if (!await showConfirm(`Delete ${label}? This cannot be undone.`, 'Confirm')) return;
   if (v.kind === 'compiled') deleteCompiledProgram(v.id);
   else deleteCompileJob(v.id);
 }
@@ -2695,6 +2699,8 @@ function calcDeck() {
     mpcp, bod, evasion, masking, sensor, hardening, ri, hasIccm,
     activeMem, ioSpeed, offlineStorage, casingLvl, hasSatlink, hasHitcher,
   }) : null;
+  // A repair clearing an MPCP infection re-cooks the MPCP chip even when its rating is unchanged.
+  if (refabKeys && upgInfo && upgInfo.forceMpcpRefab) { refabKeys.add('mpcp'); refabKeys.add('asist'); }
   // Source-gating: a persona chip (MPCP/Bod/Evasion/Masking/Sensor) raised in this upgrade
   // for which we hold no source can only be re-purchased -> it closes the bench route.
   _deckPurchaseTriggers = [];
@@ -2757,8 +2763,17 @@ function calcDeck() {
   const effectiveRI = ri + (hasRf ? 1 : 0);
   const programmerIntel = Math.max(0, selectedProgrammerSkillSet?.intelligence ?? getSelectedProgrammerSkillSet()?.intelligence ?? 0);
   const programmerQuickness = Math.max(0, selectedProgrammerSkillSet?.quickness ?? getSelectedProgrammerSkillSet()?.quickness ?? 0);
-  const matrixReaction = Math.floor((programmerQuickness + programmerIntel) / 2) + (effectiveRI * 2);
-  const initiativeDice = 1 + effectiveRI;
+  const baseReaction = Math.ceil((programmerQuickness + programmerIntel) / 2);   // Matrix Reaction, round up (vr2)
+  // Initiative varies by ASIST deck type (vr2 L1913-1923): hot +1D6, cool -1D6, tortoise = half
+  // Reaction (min 1) and a single die with no RI/RF bonus. Reality Filter adds an init die, not Reaction.
+  let matrixReaction, initiativeDice;
+  if (deckType === 'tortoise') {
+    matrixReaction = Math.max(1, Math.floor(baseReaction / 2));
+    initiativeDice = 1;
+  } else {
+    matrixReaction = baseReaction + (ri * 2);
+    initiativeDice = Math.max(1, 1 + effectiveRI + (deckType === 'hot' ? 1 : -1));
+  }
   const loadedSleazeRating = getLoadedSleazeRating();
   const detectionFactor = Math.ceil((masking + loadedSleazeRating) / 2);
   const hackingPool = Math.floor((programmerIntel + mpcp) / 3);
@@ -4891,7 +4906,16 @@ function getDeckDamageList(deck) {
   return out;
 }
 
-function isDeckDamaged(deck) { return getDeckDamageList(deck).length > 0; }
+function isDeckDamaged(deck) { return getDeckDamageList(deck).length > 0 || deckHasInfection(deck); }
+
+// Persistent MPCP Worm infections stamped on the deck by a matrix run (Deathworm / Tapeworm /
+// standard). The MPCP is compromised until the chip is replaced (a Deck Workshop refit/repair).
+function getDeckInfections(deck) {
+  const inf = deck && deck.mpcp_infections;
+  return Array.isArray(inf) ? inf.filter(i => i && typeof i === 'object') : [];
+}
+function deckHasInfection(deck) { return getDeckInfections(deck).length > 0; }
+const INFECTION_LABEL = { standard: 'Worm', deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
 
 // Per-component provenance: deck.sources = { mpcp, pBod, pEvasion, pMasking, pSensor }
 // (true = source on file -> bench-upgradeable). A deck can be mixed -- e.g. built, then a
@@ -4962,7 +4986,8 @@ function renderDeckDamagePanel(deck) {
   if (!host) return;
   host.innerHTML = '';
   const list = getDeckDamageList(deck);
-  if (!list.length) {
+  const infections = getDeckInfections(deck);
+  if (!list.length && !infections.length) {
     if (isAdminMode()) {
       const panel = document.createElement('div');
       panel.className = 'mx-panel';
@@ -5013,6 +5038,29 @@ function renderDeckDamagePanel(deck) {
     rows.appendChild(item);
   }
   panel.appendChild(rows);
+  // MPCP Worm infection(s): the run stamped a persistent infection on the deck. The MPCP chip is
+  // compromised (Deathworm degrades cybercombat TNs; Tapeworm erases paydata every run) until the
+  // chip is replaced by a refit/repair.
+  if (infections.length) {
+    const infRow = document.createElement('div');
+    infRow.className = 'dw-row';
+    infRow.style.cssText = 'gap:22px;margin-top:8px';
+    for (const inf of infections) {
+      const item = document.createElement('div');
+      const label = INFECTION_LABEL[String(inf.variant || 'standard')] || 'Worm';
+      const rating = parseInt(inf.rating, 10) || 0;
+      item.innerHTML = `MPCP <span class="text-red">${esc(label)}</span>`
+        + (rating ? ` <span class="text-dim">R${rating}</span>` : '')
+        + ` <span class="chipx damaged inline">infected</span>`;
+      infRow.appendChild(item);
+    }
+    panel.appendChild(infRow);
+    const infTip = document.createElement('div');
+    infTip.className = 'tip';
+    infTip.style.marginTop = '6px';
+    infTip.textContent = 'MPCP infection persists across runs until the chip is replaced. Refit the deck to re-cook a clean MPCP and clear the infection.';
+    panel.appendChild(infTip);
+  }
   const tip = document.createElement('div');
   tip.className = 'tip';
   tip.style.marginTop = '8px';
@@ -5033,7 +5081,8 @@ function startDeckRepair(name) {
   const deck = _loadStore(DECK_STORE).find(d => d.name === name);
   if (!deck) return;
   const list = getDeckDamageList(deck);
-  if (!list.length) { showAlert(null, 'That deck has no hardware damage on record.', true); return; }
+  const infected = deckHasInfection(deck);
+  if (!list.length && !infected) { showAlert(null, 'That deck has no hardware damage on record.', true); return; }
   loadDeckBuild(name, { silent: true, forEdit: true });   // as-built into form, clears baseline, unlocks the form
   const dmg = deck.damage || {};
   // Re-fab floor for a repair = the DAMAGED spec (restoring a degraded chip re-fabs it whole
@@ -5063,6 +5112,9 @@ function startDeckRepair(name) {
   deckUpgradeBaseline = {
     name: deck.name,
     isRepair: true,
+    // An MPCP infection with no rating damage still requires re-cooking the MPCP chip to clear it,
+    // so force the MPCP (+ ASIST cascade) into the re-fab set even when the rating is untouched.
+    forceMpcpRefab: infected,
     refabFromSpec: damagedSpec,
     cascadeBaseMpcp: parseInt(dmg.mpcp, 10) || parseInt(deck.mpcp, 10) || 1,
     mpcp: parseInt(deck.mpcp, 10) || 1,
@@ -5097,6 +5149,7 @@ function clearDeckDamage(name) {
   if (idx < 0) return;
   const next = { ...decks[idx] };
   delete next.damage;
+  delete next.mpcp_infections;
   decks[idx] = next;
   _saveStore(DECK_STORE, decks);
   showAlert(null, `>> GM // damage cleared on "${name}".`, false);
@@ -5122,7 +5175,7 @@ function toggleDeckOrigin() {
 }
 
 async function deleteDeckBuild(name) {
-  if (!await showConfirm(`Delete deck build "${name}"? This cannot be undone.`, 'Delete')) return;
+  if (!await showConfirm(`Delete deck build "${name}"? This cannot be undone.`, 'Confirm')) return;
   const decks = _loadStore(DECK_STORE).filter(d => d.name !== name);
   _saveStore(DECK_STORE, decks);
   if (activeDeckBuildName === name) activeDeckBuildName = '';
@@ -5210,7 +5263,7 @@ function duplicateDeckBuild() {
 async function scrapDeckBuild() {
   const name = activeDeckBuildName;
   if (!name) { discardDeckDossier(); return; }
-  const ok = await showConfirm('Scrap deck "' + name + '"? This permanently removes the build and any in-flight order. This cannot be undone.', 'Scrap');
+  const ok = await showConfirm('Scrap deck "' + name + '"? This permanently removes the build and any in-flight order. This cannot be undone.', 'Confirm');
   if (!ok) return;
   const decks = _loadStore(DECK_STORE).filter(d => d.name !== name);
   _saveStore(DECK_STORE, decks);
@@ -5745,7 +5798,7 @@ function loadLoadout(name) {
 }
 
 async function deleteLoadout(name) {
-  if (!await showConfirm(`Delete loadout "${name}"?`, 'Delete')) return;
+  if (!await showConfirm(`Delete loadout "${name}"?`, 'Confirm')) return;
   _saveStore(LOADOUT_STORE, _loadStore(LOADOUT_STORE).filter(l => l.name !== name));
   if (editingLoadoutName === name) { editingLoadoutName = ''; if ($('loadoutPlateName')) { $('loadoutPlateName').textContent = 'NEW LOADOUT'; $('loadoutPlateName').style.color = 'var(--text-dim)'; } }
   renderSavedLoadouts();
@@ -5808,7 +5861,7 @@ var DETAIL = {
   'bod': { t:'Bod (persona)', b:'The icon\'s toughness. Bod is the dice pool for the Bod Resistance Test that soaks cybercombat damage from IC (rolled against the IC Rating). More Bod means your persona shrugs off more Matrix damage before it crashes.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget. Hardening and Armor cut the Power before you roll Bod.' },
   'evasion': { t:'Evasion (persona)', b:'The icon\'s speed and slipperiness. Evasion is the heart of your Trace Factor, so it sets how hard trace IC can pin down your jackpoint; it also fuels Evade Detection maneuvers and dodging in cybercombat.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget. In the persona, Quickness equals Evasion.' },
   'masking': { t:'Masking (persona)', b:'How well the icon hides. Masking sets your Detection Factor &mdash; the TN the host rolls to notice you: (Masking + Sleaze) / 2, round up (or Masking / 2 with no Sleaze running). Higher Masking is harder to detect.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget.' },
-  'sensor': { t:'Sensor (persona)', b:'The icon\'s Matrix perception. Sensor is the dice pool for Sensor Tests &mdash; spotting hidden IC, noticing a dataworm phoning home, and locating files, slaves, and other icons. Higher Sensor means you see the trap before it springs.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget.' },
+  'sensor': { t:'Sensor (persona)', b:'The icon\'s Matrix perception. Sensor is the dice pool for Sensor Tests &mdash; spotting hidden IC, noticing a host shutdown in progress, and locating files, slaves, and other icons. Higher Sensor means you see the trap before it springs.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget.' },
   'hardening': { t:'Hardening', b:'Subtracts from IC attack power before resistance.', r:'PF basis: MPCP. Max = MPCP / 2 (round down).' },
   'active': { t:'Active Memory', b:'Total Mp of utilities running at once.', r:'Cap MPCP &times; 100. Multiples of 10.' },
   'tools': { t:'Task multiplier &middot; tool bonuses', b:'Software side (Programming Tools table): doubled-memory PC +1 &middot; kit +1 (1,500&yen;) &middot; shop +2 (15,000&yen;) &middot; mainframe host +4 (100&yen; &times; SV/day) &middot; Programming Suite +5 (300,000&yen;). Hardware side (Tool Availability table): having a better tool unit than the task requires grants its own bonus. Multiplier = 1 + total bonus, capped &times;10.', r:'Whether bonuses stack is GM discretion &mdash; the rules don\'t say, so this field doesn\'t either. Tools are bought like any gear through the fixer pipe; when the decker invests, bump the multiplier on their jobs.' },

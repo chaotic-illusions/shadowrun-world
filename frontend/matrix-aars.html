@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Host AARs | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Matrix Ops <em class="sep">//</em> After-Action Reports</div>
+  <div class="page-sub" style="color:var(--cyan)">GM REVIEW QUEUE -- PENDING ACKNOWLEDGEMENT</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="mh-help">
+    Ended Matrix runs awaiting GM review. Each decker is <b>blocked from starting a new run</b>
+    until you acknowledge its report -- review the haul, trace status and injuries, apply any
+    lingering consequences, then <b>Acknowledge</b> to clear the gate.
+  </div>
+
+  <div id="aarList"><div class="mh-empty">Loading reports...</div></div>
+</main>
+
+<script>
+const API = '';
+
+async function loadAars() {
+  if (!isAdmin()) {
+    document.getElementById('aarList').innerHTML =
+      '<div class="mh-empty">GM only.</div>';
+    return;
+  }
+  const list = document.getElementById('aarList');
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/aar/pending`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const aars = await res.json();
+    renderAars(Array.isArray(aars) ? aars : []);
+  } catch (e) {
+    list.innerHTML = `<div class="mh-empty">Failed to load reports: ${esc(e.message)}</div>`;
+  }
+}
+
+function _line(text, cls) {
+  return `<div class="mr-aar-line ${cls || ''}">${esc(text)}</div>`;
+}
+
+function renderAars(aars) {
+  const list = document.getElementById('aarList');
+  if (!aars.length) {
+    list.innerHTML = '<div class="mh-empty">No runs awaiting review.</div>';
+    return;
+  }
+  list.innerHTML = aars.map(a => {
+    const pd = a.paydata || {};
+    const count = parseInt(pd.count, 10) || 0;
+    const keys = parseInt(pd.key_count, 10) || 0;
+    const mp = parseInt(pd.total_mp, 10) || 0;
+
+    const lines = [];
+    lines.push(_line(a.outcome, a.escaped_clean ? 'text-green' : 'text-amber'));
+
+    if (count > 0) {
+      const keyNote = keys > 0 ? ` (${keys} key)` : '';
+      const mpNote = mp > 0 ? `, ${mp} Mp` : '';
+      lines.push(_line(`Paydata secured: ${count} file${count === 1 ? '' : 's'}${keyNote}${mpNote}.`, 'text-green'));
+      const files = Array.isArray(pd.files) ? pd.files : [];
+      files.forEach(f => {
+        const nm = (f && f.name) ? f.name : 'file';
+        const sz = parseInt(f && f.size_mp, 10);
+        const szNote = Number.isFinite(sz) ? ` -- ${sz} Mp` : '';
+        const keyTag = (f && f.is_key) ? ' [KEY]' : '';
+        lines.push(_line(`  - ${nm}${szNote}${keyTag}`, 'text-dim'));
+      });
+    } else {
+      lines.push(_line('No paydata recovered.', 'text-amber'));
+    }
+
+    if (a.traced) {
+      if (a.physical_trace_immune) {
+        lines.push(_line('Traced in the Matrix -- physical location protected (satellite uplink).', 'text-amber'));
+      } else {
+        lines.push(_line('PHYSICAL LOCATION TRACED -- security may be dispatched to the meat body.', 'text-red'));
+      }
+    } else {
+      lines.push(_line('Not traced.', 'text-dim'));
+    }
+
+    const injuries = Array.isArray(a.injuries) ? a.injuries : [];
+    if (injuries.length) {
+      injuries.forEach(inj => lines.push(_line(inj, 'text-red')));
+    } else {
+      lines.push(_line('No injuries or deck damage.', 'text-dim'));
+    }
+
+    const enemies = Array.isArray(a.enemy_deckers) ? a.enemy_deckers : [];
+    if (enemies.length) {
+      enemies.forEach(e => {
+        const who = e.handle ? e.handle : 'Unknown security decker';
+        const st = e.status ? ` [${e.status}]` : '';
+        const loc = e.located_pc ? ' -- located the runner' : '';
+        lines.push(_line(`Enemy decker: ${who}${st}${loc}`, 'text-amber'));
+      });
+    }
+
+    const doors = Array.isArray(a.trap_doors) ? a.trap_doors : [];
+    if (doors.length) {
+      doors.forEach(d => {
+        const dest = d.destination_label || d.destination_ltg || 'unknown host';
+        const tags = [];
+        if (d.filed) tags.push('filed');
+        if (d.entered) tags.push('followed');
+        const tag = tags.length ? ` (${tags.join(', ')})` : '';
+        const sub = d.subsystem ? ` on ${d.subsystem}` : '';
+        lines.push(_line(`Trap door found${sub} -> ${dest}${tag}`, 'text-cyan'));
+      });
+    }
+
+    lines.push(_line(`Alert reached: ${a.alert_status} -- security tally ${a.security_tally}.`, 'text-dim'));
+
+    const title = `${a.decker_name} vs host #${a.host_id == null ? '?' : a.host_id}`;
+    return (
+      `<div class="mr-aar-card">`
+      + `<div class="mr-aar-head">`
+      +   `<span class="mr-aar-title">${esc(title)}</span>`
+      +   `<button class="btn btn-green btn-sm" data-ack="${a.run_id}">Acknowledge</button>`
+      + `</div>`
+      + `<div class="mr-aar-body">${lines.join('')}</div>`
+      + `</div>`
+    );
+  }).join('');
+
+  list.querySelectorAll('button[data-ack]').forEach(btn => {
+    btn.addEventListener('click', () => acknowledge(parseInt(btn.getAttribute('data-ack'), 10)));
+  });
+}
+
+async function acknowledge(runId) {
+  const ok = await showConfirm('Acknowledge this run report? The decker will be cleared to start a new run.');
+  if (!ok) return;
+  const alertEl = document.getElementById('alert');
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${runId}/aar/acknowledge`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showAlert(alertEl, 'Report acknowledged.', false);
+    await loadAars();
+  } catch (e) {
+    showAlert(alertEl, `Failed to acknowledge: ${e.message}`, true);
+  }
+}
+
+(async () => {
+  const ctx = await bootstrapAuth();
+  if (!ctx) return;
+  await loadAars();
+})();
+</script>
+
+<script src="ambiance.js"></script>
+<script>Ambiance.start('neonhaze');</script>
+
+</body>
+</html>
