@@ -10,6 +10,43 @@
        shell's 1200px max-width clamp (style.css: main{max-width:1200px}) so the run view can use
        the full screen width; .mr-layout re-centers itself with its own 1920px cap. */
     main { max-width: none; }
+
+    /* -- Narrated host-response stream (center stage) ------------------------------------------ */
+    .mr-stream { display:flex; flex-direction:column; height:100%; min-height:0; }
+    .mr-stream-feed { flex:1; min-height:0; overflow-y:auto; padding:6px 2px 4px;
+      font-size:0.86rem; line-height:1.55; letter-spacing:0.3px; }
+    .mr-ln { opacity:0; transform:translateY(4px); animation:mrRise .28s ease forwards;
+      white-space:pre-wrap; margin:2px 0; }
+    @keyframes mrRise { to { opacity:1; transform:none; } }
+    .mr-sub { padding-left:18px; }
+    .mr-s-hdr { color:var(--green); text-shadow:0 0 8px #00ff4166; letter-spacing:1px; margin:8px 0 2px; }
+    .mr-s-dim { color:var(--text-dim); }
+    .mr-s-cyan { color:var(--cyan); }
+    .mr-s-amber { color:var(--amber); }
+    .mr-s-red { color:var(--red); text-shadow:0 0 6px #ff333344; }
+    .mr-s-good { color:var(--green); }
+    .mr-s-white { color:#f5f5f5; }
+    .mr-s-gray { color:#9c9c9c; }
+    .mr-s-black, .mr-s-enemy { color:var(--violet); }
+    .mr-die { display:inline-block; min-width:15px; text-align:center; padding:0 2px; margin:0 1px;
+      color:var(--text-dim); border-bottom:1px solid #163016; }
+    .mr-die.hit { color:var(--text-bright); border-color:var(--green); text-shadow:0 0 6px #00ff4155; }
+    .mr-cursor { display:inline-block; width:8px; height:14px; background:var(--green);
+      animation:mrBlink 1s steps(1) infinite; vertical-align:-2px; }
+    @keyframes mrBlink { 50% { opacity:0; } }
+    .mr-prompt { margin-top:10px; padding:12px 14px; border:1px solid var(--red); background:#150808; }
+    .mr-prompt .q { color:var(--text-bright); font-size:0.9rem; margin-bottom:8px; }
+    .mr-prompt .q b { color:var(--red); }
+    .mr-prompt-step { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .mr-prompt-step button { width:30px; height:30px; background:#0a0f0a; color:var(--cyan);
+      border:1px solid #045; font-family:inherit; font-size:1rem; cursor:pointer; }
+    .mr-prompt-step button:hover { background:#0d160d; }
+    .mr-prompt-step .n { min-width:28px; text-align:center; color:var(--text-bright); font-size:1.1rem; }
+    .mr-prompt-step .lbl { color:var(--text-dim); font-size:0.72rem; letter-spacing:1px; }
+    .mr-prompt-sum { color:#eecc66; font-size:0.82rem; margin-bottom:10px; }
+    .mr-prompt-hint { margin-top:6px; color:var(--text-dim); font-size:0.68rem; letter-spacing:1px; }
+    /* actions are locked while the host-response stream plays */
+    body.mr-streaming #run-action-bar { pointer-events:none; opacity:0.45; filter:saturate(0.5); }
   </style>
 </head>
 <body>
@@ -3191,7 +3228,8 @@ function renderRunState(run) {
   }
 
   // Center situation stage (focal "now"); the full chronological history stays in the Event Log.
-  renderStage(state, decker);
+  // While the host-response stream is playing it OWNS this pane, so skip the static render then.
+  if (!_streaming) renderStage(state, decker);
 
   // Action area
   renderActionArea(state, decker, crashed);
@@ -4580,9 +4618,10 @@ async function doLogon() {
 async function doEndTurn() {
   if (!_run) return;
   try {
+    const before = _eventCount();
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/new-turn`, { method: 'POST' });
     if (!res.ok) await apiThrow(res);
-    renderRunState(await res.json());
+    _applyRunResponse(before, await res.json());   // narrate the end-of-turn NPC flurry
   } catch(e) {
     showAlert(document.getElementById('runAlert'), `>> FAILED // ${e.message}`, true);
   }
@@ -4734,6 +4773,7 @@ function _releaseCandidates(state) {
 
 function checkSuppressionModal(state, decker) {
   if (!state || state.run_ended) return;
+  if (_streaming || state.pending_defense) return;   // host-response stream / unresolved IC strike first
   if ((state.condition_monitor || {}).persona_boxes >= 10) return;
   const pending = _pendingSuppressibles(state).filter(p => !_suppressDismissed.has(p.id));
   if (!pending.length) return;
@@ -4885,6 +4925,252 @@ async function submitAttack() {
     showAlert(document.getElementById('attackModalAlert'), e.message, true);
   } finally {
     btn.disabled = false;
+  }
+}
+
+// -- Narrated host-response stream (center stage) ---------------------------
+// After a player action (or End Turn) the host's response phase -- IC cybercombat, Probe sweeps,
+// traces, biofeedback -- is replayed in the CENTER stage as a colour-coded, auto-advancing feed.
+// When it reaches a parked IC strike (state.pending_defense) it HARD-STOPS with a Hacking Pool
+// prompt; resolving it (POST /defend) resumes the feed with the outcome and any following strikes.
+// Actions stay locked (body.mr-streaming) until the whole phase resolves.
+let _streaming = false;
+const _stream = { beats: [], i: 0, timer: null };
+
+function _eventCount() {
+  return (((_run && _run.state_json) || {}).event_log || []).length;
+}
+
+// Event types worth taking over the stage for (a lone player 'action' event is not a "phase" --
+// the result card already shows it; we only narrate when the host actually reacts).
+const _NPC_BEAT_TYPES = new Set([
+  'ic_attack', 'defense_pending', 'persona_crash', 'dump_shock', 'simsense_overload',
+  'probe_ic', 'ic_activation', 'ic_spawn', 'shield_parry',
+]);
+function _hasNarratable(before, run) {
+  const events = ((run.state_json || {}).event_log) || [];
+  return events.slice(before).some(e => e && _NPC_BEAT_TYPES.has(e.type))
+    || !!(run.state_json || {}).pending_defense;
+}
+
+// A little authored atmosphere for the icon that just struck ({L} = its label).
+const _IC_FLAVOR = {
+  'Killer':    ['{L} sharpens into a blade of light and cuts at your icon.', '{L} rezzes into a chrome mantis and fixes on you.'],
+  'Blaster':   ['{L} crackles with lethal charge and reaches for your deck.'],
+  'Sparky':    ['{L} discharges a spitting arc straight down your datajack.'],
+  'Black IC':  ['{L} uncoils from the SAN -- cold, patient, lethal.', '{L} pours toward your trodes like liquid midnight.'],
+  'Acid':      ['{L} sprays corrosive code across your persona.'],
+  'Binder':    ['{L} throws grasping tendrils around your icon.'],
+  'Marker':    ['{L} splashes tracer code over your masking.'],
+  'Jammer':    ['{L} howls static across your sensors.'],
+  'Construct': ['{L} lumbers into reach and swings.'],
+  'Trace':     ['{L} keeps combing the grid for your datatrail.'],
+  'Probe':     ['{L} slides across the datastore, testing your mask...'],
+};
+function _flavorFor(icType, label) {
+  const set = _IC_FLAVOR[icType];
+  return set ? set[Math.floor(Math.random() * set.length)].replace('{L}', label) : '';
+}
+
+// Stream dice: post-explosion per-die totals, hits (die >= tn) highlighted -- the same figures the
+// Event Log already shows, so nothing hidden is revealed.
+function _streamDiceHtml(roll, label) {
+  if (!roll) return '';
+  const tn = parseInt(roll.tn, 10);
+  const pips = (Array.isArray(roll.dice) ? roll.dice : []).map(d => {
+    const v = parseInt(d, 10);
+    const hit = Number.isFinite(tn) && v >= tn;
+    return `<span class="mr-die${hit ? ' hit' : ''}">${esc(String(v))}</span>`;
+  }).join('');
+  if (!pips) return '';
+  const succ = roll.successes != null ? roll.successes : 0;
+  return `${esc(label)} ${pips} &rarr; <b>${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
+}
+
+function _beatClassFor(ev) {
+  switch (ev.type) {
+    case 'ic_attack':          return (ev.trace_phase || ev.trace_action) ? 'mr-s-amber' : 'mr-s-red';
+    case 'persona_crash':
+    case 'dump_shock':         return 'mr-s-red';
+    case 'simsense_overload':  return 'mr-s-amber';
+    case 'shield_parry':       return 'mr-s-cyan';
+    case 'probe_ic':           return ev.tally_increase ? 'mr-s-amber' : 'mr-s-dim';
+    case 'ic_activation':
+    case 'ic_spawn':           return 'mr-s-amber';
+    case 'logon':              return 'mr-s-good';
+    default:                   return 'mr-s-dim';
+  }
+}
+
+// One real event -> 1-3 stream beats: an optional flavour lead, the mechanical description, then the
+// dice behind it. defense_pending becomes the hard-stop marker (its data is read live at the stop).
+function _eventToBeats(ev) {
+  if (!ev || typeof ev !== 'object') return [];
+  if (ev.type === 'defense_pending') return [{ stop: true }];
+  const beats = [];
+  const cls = _beatClassFor(ev);
+  if (ev.type === 'ic_attack' && ev.ic_type) {
+    const label = `${ev.ic_type}${ev.ic_rating ? '-' + ev.ic_rating : ''}`;
+    const flav = _flavorFor(ev.ic_type, label);
+    if (flav) beats.push({ t: flav, c: cls, d: 1000 });
+  }
+  if (ev.description) beats.push({ h: esc(ev.description), c: cls, d: 1200 });
+  ['attack_roll', 'resist_roll', 'hunt_roll'].forEach(k => {
+    const label = k === 'attack_roll' ? '> attack' : (k === 'resist_roll' ? '> resist' : '> hunt');
+    const html = _streamDiceHtml(ev[k], label);
+    if (html) beats.push({ h: html, c: 'mr-s-dim', d: 900, sub: true });
+  });
+  if (!beats.length) beats.push({ h: esc(ev.description || ev.type || 'event'), c: cls, d: 1000 });
+  return beats;
+}
+
+function _streamFeed() { return document.getElementById('mr-stream-feed'); }
+function _clearStreamCursor() {
+  const feed = _streamFeed(); if (!feed) return;
+  const c = feed.querySelector('.mr-cursor'); if (c) c.remove();
+}
+function _showStreamCursor() {
+  const feed = _streamFeed(); if (!feed || feed.querySelector('.mr-cursor')) return;
+  const c = document.createElement('span'); c.className = 'mr-cursor';
+  feed.appendChild(c); feed.scrollTop = feed.scrollHeight;
+}
+function _emitBeat(b) {
+  const feed = _streamFeed(); if (!feed) return;
+  _clearStreamCursor();
+  const d = document.createElement('div');
+  d.className = 'mr-ln ' + (b.c || 'mr-s-dim') + (b.sub ? ' mr-sub' : '');
+  if (b.h != null) d.innerHTML = b.h; else d.textContent = b.t;
+  feed.appendChild(d);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function _streamTick() {
+  if (_stream.i >= _stream.beats.length) {
+    if (((_run && _run.state_json) || {}).pending_defense) { _renderStreamPrompt(); return; }
+    _streamDone(); return;
+  }
+  const b = _stream.beats[_stream.i];
+  if (b.stop) { _renderStreamPrompt(); return; }   // hard stop -- wait for the decker
+  _emitBeat(b);
+  _stream.i++;
+  _showStreamCursor();
+  _stream.timer = setTimeout(_streamTick, b.d || 1200);
+}
+
+function _startStream(before, run) {
+  if (_stream.timer) { clearTimeout(_stream.timer); _stream.timer = null; }
+  const events = ((run.state_json || {}).event_log) || [];
+  const beats = events.slice(before).flatMap(_eventToBeats);
+  const stageBody = document.getElementById('run-stage-body');
+  if (!beats.length || !stageBody) {
+    _streaming = false; document.body.classList.remove('mr-streaming'); renderRunState(run); return;
+  }
+  _streaming = true;
+  document.body.classList.add('mr-streaming');
+  stageBody.innerHTML =
+    '<div class="mr-stream">'
+    + '<div class="stage-phase">&gt;&gt; Host Response Phase</div>'
+    + '<div class="mr-stream-feed" id="mr-stream-feed"></div>'
+    + '</div>';
+  _stream.beats = beats;
+  _stream.i = 0;
+  _emitBeat({ t: 'The node stills. Ice shares the grid with your icon.', c: 'mr-s-dim' });
+  _showStreamCursor();
+  _stream.timer = setTimeout(_streamTick, 700);
+}
+
+function _streamDone() {
+  if (_stream.timer) { clearTimeout(_stream.timer); _stream.timer = null; }
+  _clearStreamCursor();
+  _streaming = false;
+  document.body.classList.remove('mr-streaming');
+  if (_run) renderRunState(_run);   // restore the normal center stage + re-enable actions
+}
+
+// The hard-stop defense prompt, rendered inline in the stream feed.
+function _renderStreamPrompt() {
+  const feed = _streamFeed();
+  const pend = ((_run && _run.state_json) || {}).pending_defense;
+  if (!feed || !pend) { _stream.i++; _streamTick(); return; }   // safety: nothing to resist
+  _clearStreamCursor();
+  const hpMax = Math.max(0, parseInt(pend.hp_available, 10) || 0);
+  const succ = parseInt(pend.attack_successes, 10) || 0;
+  const power = pend.power != null ? pend.power : '?';
+  const dice = ((pend.to_hit_roll || {}).dice) || [];
+  const diceHtml = dice.length
+    ? 'Attack roll: ' + dice.map(v => `<span class="mr-die">${esc(String(v))}</span>`).join('') : '';
+  const box = document.createElement('div');
+  box.className = 'mr-ln mr-prompt';
+  box.innerHTML =
+    `<div class="q"><b>${esc(pend.attacker_label || 'IC')}</b> strikes your icon &mdash; `
+    + `${succ} attack success${succ === 1 ? '' : 'es'} at Power ${esc(String(power))}.</div>`
+    + (diceHtml ? `<div class="mr-s-dim" style="margin-bottom:8px">${diceHtml}</div>` : '')
+    + '<div class="mr-prompt-step">'
+    +   '<span class="lbl">HACKING POOL DICE</span>'
+    +   '<button type="button" data-a="-">-</button><span class="n" id="mr-def-n">0</span><button type="button" data-a="+">+</button>'
+    +   `<span class="lbl">of ${hpMax} available</span>`
+    + '</div>'
+    + '<div class="mr-prompt-sum" id="mr-def-sum"></div>'
+    + '<div class="row"><button class="btn btn-red" id="mr-def-go">&gt;&gt; Resist Strike</button></div>'
+    + '<div class="mr-prompt-hint">Auto-continues after you resolve. No dice to spare? Just hit Resist.</div>';
+  feed.appendChild(box);
+  feed.scrollTop = feed.scrollHeight;
+
+  let n = 0;
+  const nEl = box.querySelector('#mr-def-n');
+  const sumEl = box.querySelector('#mr-def-sum');
+  const upd = () => {
+    nEl.textContent = String(n);
+    sumEl.textContent = n > 0
+      ? `Resisting with your icon Bod + ${n} Hacking Pool ${n === 1 ? 'die' : 'dice'}.`
+      : 'Resisting with your icon Bod alone (no Hacking Pool spent).';
+  };
+  upd();
+  box.querySelectorAll('button[data-a]').forEach(btn => { btn.onclick = () => {
+    n = Math.max(0, Math.min(n + (btn.dataset.a === '+' ? 1 : -1), hpMax));
+    upd();
+  }; });
+  box.querySelector('#mr-def-go').onclick = () => _streamDefend(box, n);
+}
+
+async function _streamDefend(box, hp) {
+  if (!_run) return;
+  const go = box.querySelector('#mr-def-go');
+  if (go) go.disabled = true;
+  const hint = box.querySelector('.mr-prompt-hint');
+  if (hint) hint.textContent = `Spending ${hp} Hacking Pool ${hp === 1 ? 'die' : 'dice'}. Resolving...`;
+  const before = _eventCount();
+  try {
+    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/defend`, {
+      method: 'POST', body: JSON.stringify({ hacking_pool_dice: hp }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    _run = updated;
+    renderRunState(updated);                 // _streaming is true -> center pane left to the stream
+    const row = box.querySelector('.row'); if (row) row.innerHTML = '';
+    const newBeats = (((updated.state_json || {}).event_log) || []).slice(before).flatMap(_eventToBeats);
+    _stream.beats.push(...newBeats);
+    _stream.i++;                             // consume the stop marker
+    _stream.timer = setTimeout(_streamTick, 650);
+  } catch (e) {
+    if (go) go.disabled = false;
+    if (hint) hint.textContent = '';
+    showAlert(document.getElementById('pageAlert'), `>> ${e.message}`, true);
+  }
+}
+
+// Apply a run response from an NPC-phase action: narrate the host's reaction in the center stage
+// when there's something to show, else settle normally. Used by the action + End-Turn paths.
+function _applyRunResponse(before, updated) {
+  _run = updated;
+  if (_hasNarratable(before, updated)) {
+    _streaming = true;                 // set before render so renderRunState leaves the center alone
+    renderRunState(updated);
+    _startStream(before, updated);
+  } else {
+    _streaming = false;
+    renderRunState(updated);
   }
 }
 
@@ -5135,13 +5421,15 @@ async function submitLogoff() {
 // -- Generic action POST ----------------------------------------------------
 async function postAction(url, body) {
   try {
+    const before = _eventCount();
     const res = await apiFetch(url, {
       method: 'POST',
       body: JSON.stringify(body),
     });
     if (!res.ok) await apiThrow(res);
-    const updated = await res.json();
-    renderRunState(updated);
+    // Narrate the host's response phase in the center stage (hard-stops on a parked IC strike);
+    // falls back to a normal render when the host had nothing to say.
+    _applyRunResponse(before, await res.json());
   } catch(e) {
     showAlert(document.getElementById('pageAlert'), `>> ${e.message}`, true);
   }
