@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<!--
+  DESIGN MOCKUP (not wired to the backend): representative "narrated NPC phase" stream for the
+  interactive per-attack Hacking-Pool-on-defense flow. Shows the center-pane readout as a steady,
+  colour-coded text feed that auto-advances ~1.2s per beat and HARD-STOPS when you must allocate
+  Hacking Pool dice to a resist. Scrollable so you can review what already happened.
+  Open directly in a browser: file:///.../frontend/defense-stream-demo.html
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Defense Stream // design mockup</title>
+<style>
+  :root{
+    --green:#00ff41; --green-dim:#00cc33; --amber:#ff9900; --red:#ff3333; --cyan:#00ccff;
+    --straw:#eecc66; --bright:#eeeeee; --dim:#5f7d5f; --ic-white:#f5f5f5; --ic-gray:#9c9c9c;
+    --ic-black:#bb44ff; --violet:#9966ff;
+  }
+  html,body{margin:0;height:100%;background:#050705;color:var(--green);
+    font-family:'Share Tech Mono','Courier New',monospace;}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 16px;height:100vh;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:12px;}
+  .titlebar{font-size:.72rem;letter-spacing:2px;color:var(--dim);text-transform:uppercase;}
+  .titlebar b{color:var(--cyan);}
+  /* deck status strip */
+  .status{display:flex;gap:22px;align-items:center;padding:8px 12px;border:1px solid #123012;
+    background:#0a0f0a;font-size:.72rem;letter-spacing:1px;}
+  .status .k{color:var(--dim);}
+  .status .v{color:var(--bright);}
+  .status .v.warn{color:var(--amber);} .status .v.bad{color:var(--red);}
+  /* the stream pane */
+  .stage{flex:1;min-height:0;border:1px solid #123012;background:
+      repeating-linear-gradient(0deg,#060a06 0px,#060a06 2px,#070c07 3px);
+    padding:14px 16px;overflow-y:auto;font-size:.86rem;line-height:1.6;letter-spacing:.3px;}
+  .stage::-webkit-scrollbar{width:8px;} .stage::-webkit-scrollbar-thumb{background:#1c3a1c;}
+  .ln{opacity:0;transform:translateY(4px);animation:rise .28s ease forwards;white-space:pre-wrap;}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  .sub{padding-left:20px;}
+  .hdr{color:var(--green);text-shadow:0 0 8px #00ff4166;letter-spacing:1px;margin:8px 0 2px;}
+  .dim{color:var(--dim);}
+  .cyan{color:var(--cyan);}
+  .amber{color:var(--amber);}
+  .red{color:var(--red);text-shadow:0 0 6px #ff333344;}
+  .good{color:var(--green);}
+  .bright{color:var(--bright);}
+  .ic-white{color:var(--ic-white);} .ic-gray{color:var(--ic-gray);} .ic-black{color:var(--ic-black);}
+  .enemy{color:var(--violet);}
+  .cursor{display:inline-block;width:9px;height:15px;background:var(--green);
+    animation:blink 1s steps(1) infinite;vertical-align:-2px;}
+  @keyframes blink{50%{opacity:0;}}
+  /* defense prompt */
+  .prompt{margin-top:10px;padding:12px 14px;border:1px solid var(--red);background:#150808;}
+  .prompt .q{color:var(--bright);font-size:.9rem;margin-bottom:8px;}
+  .prompt .q b{color:var(--red);}
+  .stepper{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .stepper button{width:30px;height:30px;background:#0a0f0a;color:var(--cyan);
+    border:1px solid #045;font-family:inherit;font-size:1rem;cursor:pointer;}
+  .stepper .n{min-width:28px;text-align:center;color:var(--bright);font-size:1.1rem;}
+  .stepper .lbl{color:var(--dim);font-size:.72rem;letter-spacing:1px;}
+  .summary{color:var(--straw);font-size:.82rem;margin-bottom:10px;}
+  .row{display:flex;gap:10px;}
+  .btn{padding:8px 16px;font-family:inherit;font-size:.82rem;letter-spacing:1px;cursor:pointer;
+    background:transparent;color:var(--green);border:1px solid var(--green-dim);}
+  .btn.red{color:var(--red);border-color:#5a1010;}
+  .btn:hover{background:#0d160d;}
+  .hint{margin-top:6px;color:var(--dim);font-size:.68rem;letter-spacing:1px;}
+  .tn{color:var(--straw);} .unk{color:var(--amber);}
+  .die{display:inline-block;min-width:15px;text-align:center;padding:0 2px;margin:0 1px;
+    color:var(--dim);border-bottom:1px solid #163016;}
+  .die.hit{color:var(--bright);border-color:var(--green);text-shadow:0 0 6px #00ff4155;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="titlebar">Shadowrun <b>//</b> Matrix Run &gt;&gt; host response phase <span style="color:#2a4a2a">(design mockup -- not live)</span></div>
+
+  <div class="stage" id="stage"></div>
+</div>
+
+<script>
+// The REAL matrix-run page shows condition monitors + Hacking Pool on the left, so this mockup
+// omits the status strip. `hp` here only caps the defense stepper (6 dice available this pass).
+let hp = 6;
+
+// -------- stream engine ---------------------------------------------------
+const stage = document.getElementById('stage');
+let cursorEl = null;
+function showCursor(on){
+  if(cursorEl){cursorEl.remove();cursorEl=null;}
+  if(on){cursorEl=document.createElement('span');cursorEl.className='cursor';stage.appendChild(cursorEl);scroll();}
+}
+function scroll(){ stage.scrollTop = stage.scrollHeight; }
+function emit(beat){
+  showCursor(false);
+  const d = document.createElement('div');
+  d.className = 'ln ' + (beat.c||'') + (beat.sub?' sub':'');
+  if(beat.h!=null) d.innerHTML = beat.h; else d.textContent = beat.t;
+  stage.appendChild(d);
+  scroll();
+}
+
+// -------- dice ------------------------------------------------------------
+// Rule of 6: explode a 6 (re-roll and add) only when TN>6 (at TN<=6 a 6 already counts).
+function rollPool(pool, tn){
+  const dice=[]; let succ=0;
+  for(let k=0;k<pool;k++){
+    let v=1+Math.floor(Math.random()*6), total=v;
+    if(tn>6){ while(v===6){ v=1+Math.floor(Math.random()*6); total+=v; } }
+    dice.push(total);
+    if(total>=tn) succ++;
+  }
+  return {dice, succ};
+}
+function rollAtLeast(pool, tn, min){ let r; do{ r=rollPool(pool,tn); }while(r.succ<min); return r; }
+// Render a roll line. tn===null => difficulty UNKNOWN (IC not analyzed): show the dice but mask the
+// TN and do not mark hits -- you see it roll, but cannot read the result.
+function rollHtml(label, pool, tn, roll){
+  const known = tn!==null;
+  const tnTxt = known ? `<span class="tn">TN ${tn}</span>` : `<span class="unk">TN ?</span>`;
+  const dice = roll.dice.map(v=>`<span class="die${known && v>=tn?' hit':''}">${v}</span>`).join('');
+  const tail = known ? ` -&gt; <b>${roll.succ}</b> success${roll.succ===1?'':'es'}`
+                     : ` -&gt; <span class="unk">?</span>`;
+  return `${label} -- ${pool}d6 vs ${tnTxt} ${dice}${tail}`;
+}
+// --- host context (assume the decker has Analyzed the host, so its code/value/to-hit are known) --
+const SEC_CODE='Green', SEC_VALUE=8, TO_HIT=5;   // COMBAT_TN[Green][intruding] = 5
+const DET_FACTOR=5, TRACE_TN=7;                  // your Detection Factor / Trace Factor
+// Full VR2 staging scale incl. the "None" floor (fully resisted). Base level = IC_DAMAGE_LEVEL[code].
+const STAGE=['None','Light','Moderate','Serious','Deadly'];
+const ICON_BOXES={None:0,Light:1,Moderate:2,Serious:3,Deadly:6};
+const BASE_LEVEL='Moderate';                     // IC_DAMAGE_LEVEL[Green]
+
+// Resolve YOUR resist. Damage is NET-first: net = attacker successes - your successes, then stage
+// the IC's BASE level by net/2 (2 successes per level). The attack's successes ALONE never set the
+// damage. If the IC's rating (= the Power / your resist TN) is UNKNOWN, you resist blind.
+function resolveResist(power, powerKnown, icSucc, n){
+  const pool=6+n, r=rollPool(pool, power), net=icSucc-r.succ;
+  const shown = powerKnown ? power : null;
+  const out=[{h: rollHtml(`&gt; You resist (Bod 6${n?` + ${n} HP`:''})`, pool, shown, r), c:'cyan', sub:true, d:1100}];
+  let idx=STAGE.indexOf(BASE_LEVEL)+Math.trunc(net/2);
+  idx=Math.max(0,Math.min(4,idx));
+  const lvl=STAGE[idx], box=ICON_BOXES[lvl];
+  if(powerKnown){
+    out.push(box<=0
+      ? {t:`> Net ${net} from base ${BASE_LEVEL} -- staged below Light. Fully resisted, no damage.`, c:'good', sub:true, d:1300}
+      : {t:`> Net ${net} from base ${BASE_LEVEL} -- ${lvl}: ${box} box${box===1?'':'es'} to your icon.`, c:'amber', sub:true, d:1300});
+  } else {
+    out.push(box<=0
+      ? {t:'> The host resolves it -- you shrug it off. No damage. (Analyze IC to reveal its rating.)', c:'good', sub:true, d:1300}
+      : {t:`> The host resolves it -- you take ${box} box${box===1?'':'es'}. (Analyze IC to reveal its rating / Power.)`, c:'amber', sub:true, d:1300});
+  }
+  return out;
+}
+
+// Each beat: {t | h, c(class), d(ms), sub, fx(), stop{...}}. A stop beat pauses for HP input.
+// Pre-roll dice at load so the shown roll and the resist resolution stay consistent.
+// vr2: cybercombat + trace IC roll the host SECURITY VALUE (program rating sets EFFECT only);
+// Probe is the exception (Probe Rating vs Detection Factor, vr2 L485); enemy deckers roll their own
+// Computer skill. The IC's RATING is the Power / your resist TN -- hidden until you Analyze IC.
+const flavor = a => a[Math.floor(Math.random()*a.length)];   // pick an authored line (RNG, no AI)
+
+const probe   = rollPool(7, DET_FACTOR);           // Probe Rating 7 vs Detection Factor (the exception)
+const killer  = rollAtLeast(SEC_VALUE, TO_HIT, 2);  // Killer: Security Value dice vs to-hit TN
+const spook   = rollAtLeast(SEC_VALUE, TO_HIT, 1);  // an un-analyzed IC (its rating/Power is hidden)
+const redline = rollAtLeast(6, TO_HIT, 1);          // enemy decker: Computer skill 6 vs to-hit TN
+const black   = rollAtLeast(SEC_VALUE, TO_HIT, 2);  // Black IC: Security Value dice vs to-hit TN
+const blackWp = rollPool(5, 6);                     // Willpower resist vs Power 6 (no Hacking Pool)
+const trace   = rollPool(SEC_VALUE, TRACE_TN);      // Trace hunt: Security Value dice vs Trace Factor
+
+const script = [
+  {t:'== MATRIX // COMBAT TURN 4 -- host response phase ==', c:'hdr', d:1000},
+  {t: flavor(['The node stills. Ice programs share the grid with your icon.',
+              'The datastore hums, aware of you now. The ice stirs.']), c:'dim', d:1300},
+
+  {t:'Probe-7 slides across the datastore, testing your mask...', c:'ic-gray', d:1100},
+  {h: rollHtml('&gt; Probe Test (Probe Rating 7)', 7, DET_FACTOR, probe), c: probe.succ?'amber':'good', sub:true, d:1200},
+  {t: probe.succ ? `> ${probe.succ} success -- security tally creeps up.` : '> No successes. The sweep passes you by.', c: probe.succ?'amber':'good', sub:true, d:1300},
+
+  {t: flavor(['Killer-6 rezzes into a chrome mantis and fixes on you.',
+              'Killer-6 sharpens into a blade of light and comes for your icon.']), c:'ic-white', d:1100},
+  {h: rollHtml(`&gt; Killer-6 attacks (Security Value ${SEC_VALUE})`, SEC_VALUE, TO_HIT, killer), c:'red', sub:true, d:1100},
+  {t:`> ${killer.succ} success${killer.succ===1?'':'es'} land. Resolve your resist -- net successes decide the damage.`, c:'amber', sub:true, d:800},
+  {stop:{attacker:'Killer-6', power:6, powerKnown:true, icSucc:killer.succ}},
+
+  {t: flavor(['A program you have NOT analyzed lunges from the murk.',
+              'An unlabelled icon you cannot read snaps at your trodes.']), c:'ic-gray', d:1100},
+  {h: rollHtml(`&gt; Unknown IC attacks (Security Value ${SEC_VALUE})`, SEC_VALUE, TO_HIT, spook), c:'red', sub:true, d:1100},
+  {t:`> ${spook.succ} success${spook.succ===1?'':'es'} land -- its rating is unknown, so you resist BLIND (Power ?).`, c:'amber', sub:true, d:900},
+  {stop:{attacker:'Unknown IC', power:5, powerKnown:false, icSucc:spook.succ}},
+
+  {t:'Redline, a corp security decker, burns out of the ICE and locates you.', c:'enemy', d:1200},
+  {h: rollHtml('&gt; Redline attacks (Computer 6)', 6, TO_HIT, redline), c:'red', sub:true, d:1100},
+  {t:`> ${redline.succ} success${redline.succ===1?'':'es'} land -- resolve your resist.`, c:'amber', sub:true, d:800},
+  {stop:{attacker:'Redline (enemy decker)', power:5, powerKnown:true, icSucc:redline.succ}},
+
+  {t:'Black IC uncoils from the SAN -- cold, patient, lethal.', c:'ic-black', d:1200},
+  {h: rollHtml(`&gt; Black IC attacks (Security Value ${SEC_VALUE})`, SEC_VALUE, TO_HIT, black), c:'red', sub:true, d:1100},
+  {t:'> Biofeedback -- resist with WILLPOWER. Hacking Pool cannot apply here (Karma only).', c:'dim', sub:true, d:1300},
+  {h: rollHtml('&gt; Willpower resist', 5, 6, blackWp), c:'cyan', sub:true, d:1100},
+  {t: (black.succ-blackWp.succ)>0 ? `> Net ${black.succ-blackWp.succ} -- ${black.succ-blackWp.succ} Stun sears into your body.` : '> Net 0 or less -- you shrug off the feedback.', c: (black.succ-blackWp.succ)>0?'red':'good', sub:true, d:1300},
+
+  {t:'Trace-5 keeps hunting your datatrail.', c:'amber', d:1100},
+  {h: rollHtml(`&gt; Trace hunt (Security Value ${SEC_VALUE})`, SEC_VALUE, TRACE_TN, trace), c: trace.succ?'red':'amber', sub:true, d:1200},
+  {t: trace.succ ? '> It gains on you -- its location cycle advances!' : '> It fails to pin your jackpoint. Not yet.', c: trace.succ?'red':'good', sub:true, d:1300},
+
+  {t:'== Host phase ends. Your move -- Pass 3. Hacking Pool refreshes to 6. ==', c:'hdr', d:800, fx:()=>{hp=6;}},
+];
+
+let i = 0, timer = null;
+
+function tick(){
+  if(i>=script.length){ showCursor(true); return; }
+  const b = script[i];
+  if(b.stop){ renderPrompt(b.stop); return; }   // hard stop: wait for input
+  emit(b);
+  if(b.fx) b.fx();
+  i++;
+  showCursor(true);
+  timer = setTimeout(tick, b.d || 1200);
+}
+
+// -------- defense prompt (hard stop) --------------------------------------
+function renderPrompt(stop){
+  showCursor(false);
+  let n = 0;
+  const box = document.createElement('div');
+  box.className = 'ln prompt';
+  box.innerHTML =
+    `<div class="q">Resist <b>${stop.attacker}</b> -- base ${BASE_LEVEL} damage, Power ${stop.powerKnown?stop.power:'?'}. `
+    + `Spend Hacking Pool dice on this resist?</div>`
+    + `<div class="stepper">`
+    +   `<span class="lbl">HACKING POOL DICE</span>`
+    +   `<button data-a="-">-</button><span class="n" id="p-n">0</span><button data-a="+">+</button>`
+    +   `<span class="lbl">of ${hp} available</span>`
+    + `</div>`
+    + `<div class="summary" id="p-sum"></div>`
+    + `<div class="row"><button class="btn red" id="p-go">&gt;&gt; Resist</button></div>`
+    + `<div class="hint">Auto-continues after you resolve this. No dice? Just hit Resist.</div>`;
+  stage.appendChild(box); scroll();
+
+  const nEl = box.querySelector('#p-n'), sum = box.querySelector('#p-sum');
+  const upd=()=>{ nEl.textContent=n;
+    const p = stop.powerKnown ? stop.power : '?';
+    sum.textContent = `Resisting with Bod 6 + ${n} HP = ${6+n} dice vs Power ${p}.`; };
+  upd();
+  box.querySelectorAll('button[data-a]').forEach(btn=>btn.onclick=()=>{
+    n += btn.dataset.a==='+'?1:-1; n=Math.max(0,Math.min(n,hp)); upd();
+  });
+  box.querySelector('#p-go').onclick=()=>{
+    hp -= n;
+    box.querySelector('.row').innerHTML = '';
+    box.querySelector('.hint').textContent = `Spent ${n} HP. Resolving...`;
+    const results = resolveResist(stop.power, stop.powerKnown, stop.icSucc, n);
+    // splice the resolution beats in right after this stop, then resume the stream.
+    script.splice(i+1, 0, ...results);
+    i++;                       // consume the stop beat
+    setTimeout(tick, 700);
+  };
+}
+
+setTimeout(tick, 500);
+</script>
+</body>
+</html>

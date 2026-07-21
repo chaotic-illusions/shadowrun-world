@@ -302,7 +302,7 @@
             </div>
           </div>
           <button class="btn btn-green" style="font-size:0.65rem" onclick="addContactLinkFromForm()">Link Runner</button>
-          <button class="btn" style="font-size:0.65rem;color:var(--text-dim);border-color:#222;margin-left:6px" onclick="document.getElementById('addLinkForm').style.display='none'">Cancel</button>
+          <button class="btn btn-red" style="margin-left:6px" onclick="document.getElementById('addLinkForm').style.display='none'">Cancel</button>
         </div>
         <button class="btn btn-amber" id="showAddLinkBtn" style="font-size:0.62rem;padding:3px 10px;display:none" onclick="showAddLinkForm()">+ Link Runner</button>
       </div>
@@ -360,7 +360,7 @@
       <button class="btn btn-green flex-1" onclick="saveChar()">&gt;&gt; Save Entry</button>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteChar()">&gt;&gt; Delete</button>
       <button class="btn" id="unclaimBtn" style="display:none;color:var(--amber);border-color:var(--amber)" onclick="unclaimChar()">&gt;&gt; Unclaim</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -950,7 +950,7 @@ async function saveChar() {
 async function deleteChar() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Delete')) return;
+    if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
     const res = await apiFetch(`${API}/characters/${editingId}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);
@@ -965,7 +965,7 @@ async function deleteChar() {
 async function unclaimChar() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
-    if (!await showConfirm(`Unclaim "${name}"? The player will lose ownership but their data is preserved.`, 'Unclaim')) return;
+    if (!await showConfirm(`Unclaim "${name}"? The player will lose ownership but their data is preserved.`, 'Confirm')) return;
   try {
     const res = await apiFetch(`${API}/characters/${editingId}/unclaim`, { method: 'POST' });
     if (!res.ok) await apiThrow(res);
@@ -1056,7 +1056,7 @@ async function addContactLinkFromForm() {
 }
 
 async function removeContactLinkFromForm(contactId) {
-    if (!await showConfirm('Remove this contact link?', 'Remove')) return;
+    if (!await showConfirm('Remove this contact link?', 'Confirm')) return;
   await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
   const r = await apiFetch(`${API}/contacts/`);
   allContacts = await r.json();

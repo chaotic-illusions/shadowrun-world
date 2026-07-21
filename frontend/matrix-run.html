@@ -76,9 +76,9 @@
           <div class="mr-field">
             <label>Deck Mode</label>
             <select id="cfg-mode">
-              <option value="hot">Hot -- Full simsense (no modifier)</option>
-              <option value="cool">Cool -- Reduced feedback (-2 dice)</option>
-              <option value="tortoise">Tortoise -- Minimal feedback (-4 dice)</option>
+              <option value="hot">Hot -- Best interface (+1D6 initiative)</option>
+              <option value="cool">Cool -- -1D6 init; black IC non-lethal; dump shock -2P/-1L</option>
+              <option value="tortoise">Tortoise -- No ASIST: half Reaction, 1D6 init, dump-shock immune</option>
             </select>
           </div>
           <div class="mr-field">
@@ -291,6 +291,11 @@
           <span class="tip">Offensive crippler vs an enemy decker's Masking (Strike Back).</span>
         </div>
         <div class="mr-field">
+          <label>Hog</label>
+          <input type="number" id="cfg-u-hog" min="0" max="50" value="0">
+          <span class="tip">Offensive virus vs an enemy decker: a persistent infection that drains its highest running program each Combat Turn until purged or crashed.</span>
+        </div>
+        <div class="mr-field">
           <label>Black Hammer</label>
           <input type="number" id="cfg-u-black-hammer" min="0" max="50" value="0">
           <span class="tip">Lethal offensive (Physical) vs enemy deckers. Max rating = ceil(Computer/2); crash burns enemy MPCP.</span>
@@ -309,6 +314,16 @@
           <label>Slow</label>
           <input type="number" id="cfg-u-slow" min="0" max="50" value="0">
           <span class="tip">Anti-proactive-IC: opposed test makes a proactive IC lose actions (1 per 2 net); HANGS at 0 actions. Reactive IC immune.</span>
+        </div>
+        <div class="mr-field">
+          <label>Cloak</label>
+          <input type="number" id="cfg-u-cloak" min="0" max="50" value="0">
+          <span class="tip">Maneuver aid: lowers YOUR Evasion Test TN when you maneuver (Evade / Parry / Position) against an opposing icon's Sensor Rating.</span>
+        </div>
+        <div class="mr-field">
+          <label>Lock-On</label>
+          <input type="number" id="cfg-u-lock-on" min="0" max="50" value="0">
+          <span class="tip">Maneuver aid: lowers YOUR Sensor Test TN to hold a lock when an opposing icon maneuvers to evade you.</span>
         </div>
         <div class="mr-field">
           <label>Armor</label>
@@ -361,7 +376,7 @@
             <span class="cs-label">Reaction</span>
             <span class="cs-value" id="stat-reaction">--</span>
           </div>
-          <div class="computed-stat">
+          <div class="computed-stat" id="cs-trace-tn">
             <span class="cs-label">Trace TN (base)</span>
             <span class="cs-value" id="stat-trace-tn">--</span>
           </div>
@@ -459,6 +474,12 @@
           <div id="run-ic-list"><div class="empty-msg">No IC active</div></div>
         </div>
 
+        <!-- Suppressions (data bombs / crashed IC held down) -->
+        <div class="mr-panel" id="run-suppress-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; SUPPRESSIONS</div>
+          <div id="run-suppress-list"></div>
+        </div>
+
         <!-- Trap Doors -->
         <div class="mr-panel" id="run-trap-door-panel" style="display:none">
           <div class="panel-title panel-title-green">&gt;&gt; TRAP DOORS</div>
@@ -496,28 +517,43 @@
     <div class="mr-modal-title">&gt;&gt; EXECUTE IC ATTACK</div>
     <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:12px" id="attackModalTarget"></div>
     <div class="setup-grid" style="gap:10px">
-      <div class="mr-field">
-        <label>Attack Pool</label>
-        <input type="number" id="atk-pool" min="0" max="30" value="0">
-      </div>
-      <div class="mr-field">
+      <div class="mr-field span2">
         <label>Hacking Pool Dice</label>
-        <input type="number" id="atk-hp-dice" min="0" max="50" value="0">
+        <input type="number" id="atk-hp-dice" min="0" max="0" value="0" oninput="updateAttackSummary()">
+        <span class="tip" id="atk-hp-tip">Available: 0</span>
       </div>
       <div class="mr-field span2">
-        <label>Armor Utility Rating</label>
-        <input type="number" id="atk-armor" min="0" max="50" value="0">
-        <span class="tip">Your deck's Armor utility rating.</span>
+        <div id="atk-summary" style="font-size:0.82rem;color:var(--text-bright);letter-spacing:0.5px">--</div>
       </div>
       <div class="mr-field span2">
         <span class="tip">Attack options (Skulk, Penetration, Chaser, Targeting, Area) are read automatically from your loaded Attack program.</span>
       </div>
     </div>
     <div class="mr-modal-actions">
-      <button class="btn btn-red" id="attackConfirmBtn" onclick="submitAttack()">&gt;&gt; Execute Attack</button>
-      <button class="btn btn-ghost" onclick="closeAttackModal()">Cancel</button>
+      <button class="btn btn-green" id="attackConfirmBtn" onclick="submitAttack()">&gt;&gt; Execute Attack</button>
+      <button class="btn btn-red" onclick="closeAttackModal()">Cancel</button>
     </div>
     <div id="attackModalAlert" class="alert" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- -- Suppression decision Modal -------------------- -->
+<!-- Immediate query: when an IC crashes or a data bomb goes off, the operator decides right then
+     whether to spend 1 Detection Factor to suppress it (refunding the tally) or accept the tally.
+     No action cost either way. Persistent Suppress/Release controls remain on the board afterward. -->
+<div class="modal-overlay" id="suppressModal">
+  <div class="mr-modal-box">
+    <div class="mr-modal-title">&gt;&gt; SUPPRESS?</div>
+    <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:8px" id="suppressModalLabel"></div>
+    <div style="font-size:0.72rem;margin-bottom:12px" id="suppressModalDf"></div>
+    <div id="suppressModalReleaseWrap" style="display:none;margin-bottom:12px">
+      <div class="dim-label" style="margin-bottom:6px">RELEASE ONE TO FREE 1 DF</div>
+      <div id="suppressModalReleaseList"></div>
+    </div>
+    <div class="mr-modal-actions">
+      <button class="btn btn-green" id="suppressModalYes">&gt;&gt; Suppress (-1 DF)</button>
+      <button class="btn btn-red" id="suppressModalNo">Accept tally</button>
+    </div>
   </div>
 </div>
 
@@ -540,8 +576,8 @@
     <div id="areaStrikeTargets" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto"></div>
     <div id="areaStrikePrompt" style="font-size:.66rem;margin-top:8px" class="text-dim"></div>
     <div class="mr-modal-actions">
-      <button class="btn btn-red" id="areaStrikeConfirmBtn" onclick="submitAreaStrike()">&gt;&gt; Execute Area Strike</button>
-      <button class="btn btn-ghost" onclick="closeAreaStrikeModal()">Cancel</button>
+      <button class="btn btn-green" id="areaStrikeConfirmBtn" onclick="submitAreaStrike()">&gt;&gt; Execute Area Strike</button>
+      <button class="btn btn-red" onclick="closeAreaStrikeModal()">Cancel</button>
     </div>
     <div id="areaStrikeModalAlert" class="alert" style="margin-top:8px"></div>
   </div>
@@ -555,7 +591,7 @@
     <div id="revealHostOptions" style="display:flex;flex-direction:column;gap:8px;margin-bottom:6px"></div>
     <div class="mr-modal-actions">
       <button class="btn btn-cyan" id="revealHostConfirmBtn" onclick="submitRevealHostRatings()">&gt;&gt; Reveal</button>
-      <button class="btn btn-ghost" onclick="closeRevealHostModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeRevealHostModal()">Cancel</button>
     </div>
     <div id="revealHostModalAlert" class="alert" style="margin-top:8px"></div>
   </div>
@@ -578,7 +614,7 @@
     </div>
     <div class="mr-modal-actions">
       <button class="btn btn-amber" id="reactiveConfirmBtn" onclick="submitReactive()">&gt;&gt; Trigger Resolution</button>
-      <button class="btn btn-ghost" onclick="closeReactiveModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeReactiveModal()">Cancel</button>
     </div>
     <div id="reactiveModalAlert" class="alert" style="margin-top:8px"></div>
   </div>
@@ -602,7 +638,7 @@
     </div>
     <div class="mr-modal-actions">
       <button class="btn btn-amber" onclick="submitLogoff()">&gt;&gt; Attempt Logoff</button>
-      <button class="btn btn-ghost" onclick="closeLogoffModal()">Cancel</button>
+      <button class="btn btn-red" onclick="closeLogoffModal()">Cancel</button>
     </div>
     <div id="logoffModalAlert" class="alert" style="margin-top:8px"></div>
   </div>
@@ -635,7 +671,6 @@ let _hosts    = [];
 let _run      = null;   // current MatrixRunRead
 let _attackTargetId   = null;
 let _reactiveTargetId = null;
-let _hostTrapDoors  = [];        // cache of the current run's discovered trap doors for enter/file lookup
 let _savedDecks = [];
 let _savedLoadouts = [];
 let _runLoadoutDraft = null;
@@ -647,6 +682,14 @@ function fmtN(n) {
   if (!isFinite(n) || n === 0) return '0';
   return Number(n).toLocaleString('en-US');
 }
+
+// Canonical IC label: "<Type>-<Rating>" (e.g. Probe-6, Crippler (Marker)-7). When the rating is
+// unknown (server-redacted -> 0/null/'?'), show the bare type ("Probe") -- never "Rating 0".
+function icLabel(type, rating) {
+  const r = parseInt(rating, 10);
+  return (Number.isFinite(r) && r > 0) ? `${type}-${r}` : `${type}`;
+}
+
 
 const PROGRAMMER_PROFILE_STORE = 'sr2_deck_programmer_profile_v1';
 const DECK_STORE = 'sr2_decks_v1';
@@ -670,6 +713,7 @@ const UTIL_FIELD_MAP = {
   poison: 'cfg-u-poison',
   restrict: 'cfg-u-restrict',
   reveal: 'cfg-u-reveal',
+  hog: 'cfg-u-hog',
   black_hammer: 'cfg-u-black-hammer',
   killjoy: 'cfg-u-killjoy',
   steamroller: 'cfg-u-steamroller',
@@ -680,6 +724,9 @@ const UTIL_FIELD_MAP = {
   medic: 'cfg-u-medic',
   disinfect: 'cfg-u-disinfect',
   scanner: 'cfg-u-scanner',
+  cloak: 'cfg-u-cloak',
+  'lock-on': 'cfg-u-lock-on',
+  lock_on: 'cfg-u-lock-on',
   compressor: 'cfg-u-compressor',
 };
 
@@ -1443,8 +1490,9 @@ async function hydrateDeckLoadoutFromBackend() {
     if (!res.ok) return;
     const stores = ((await res.json())?.state || {}).stores || {};
 
-    // Load-outs: fill-only. The player edits load-out drafts on THIS page (saveScopedStore),
-    // so unsynced local edits must win -- only seed from the backend when local is empty.
+    // Load-outs: fill-only. The player edits load-out drafts on THIS page (written straight to
+    // localStorage under the programmer-scoped key), so unsynced local edits must win -- only
+    // seed from the backend when local is empty.
     {
       const scoped = getProgrammerScopedStoreKey(LOADOUT_STORE);
       let localHas = false;
@@ -1594,7 +1642,6 @@ async function loadDeckerOptions() {
 // -- Action subsystem map ---------------------------------------------------
 const ACTION_SUBSYSTEM = {
   logon_to_host:     'access',
-  logon_to_ltg:      'access',
   graceful_logoff:   'access',
   analyze_host:      'control',
   analyze_ic:        'control',
@@ -1615,6 +1662,7 @@ const ACTION_SUBSYSTEM = {
   // defuse. Kept only so lookups in this map never miss the key.
   defuse_data_bomb:    'files',
   validate_passcode:   'control',
+  invalidate_passcode: 'control',
   decoy:               'control',
   redirect_datatrail:  'control',
   relocate:            'control',
@@ -1631,12 +1679,13 @@ const ACTION_SUBSYSTEM = {
 // Used to auto-fill the per-action UTIL RATING from the decker's load-out so operations
 // apply their utility (a 0 means the decker doesn't carry that utility -- correct).
 const ACTION_UTILITY = {
-  logon_to_host: 'deception', logon_to_ltg: 'deception', graceful_logoff: 'deception',
+  logon_to_host: 'deception', graceful_logoff: 'deception',
   analyze_host: 'analyze', analyze_ic: 'analyze', analyze_icon: 'analyze', analyze_security: 'analyze', analyze_subsystem: 'analyze',
   locate_paydata: 'evaluate', locate_ic: 'analyze', locate_decker: 'scanner',
   download_data: 'read_write', edit_file: 'read_write',
   decompress_file: 'compressor',
   null_operation: 'deception', crash_host: 'crash', validate_passcode: 'validate_pgm',
+  invalidate_passcode: 'validate_pgm',
   decoy: 'mirrors', redirect_datatrail: 'camo',
   relocate: 'relocate', decrypt_file: 'decrypt',
   defuse_data_bomb: 'defuse',
@@ -1653,11 +1702,17 @@ const ACTION_UTILITY = {
 // the action is offered this turn; `target(state)` (optional) describes the sub-field the action
 // needs (a select of discoverable targets, or a free-text name). Actions with neither are always
 // available and take no target. Per-action util rating is applied automatically (see ACTION_UTILITY).
-function _allIC(s)      { return [].concat(s.active_ic || [], s.lurking_ic || []); }
+function _allIC(s)      { return [].concat(s.active_ic || [], s.lurking_ic || [], s.revealed_lurking_ic || []); }
 function _liveIC(s)     { return (s.active_ic || []).filter(ic => ic.status !== 'crashed'); }
 function _tarIC(s)      { return _allIC(s).filter(ic => ic.type === 'Tar Baby' || ic.type === 'Tar Pit'); }
 function _wormIC(s)     { return _allIC(s).filter(ic => /worm/i.test(ic.type || '')); }
 function _traceIC(s)    { return _liveIC(s).filter(ic => /trace/i.test(ic.type || '')); }
+// Relocate only affects a Trace IC that is in its LOCATION cycle (trace_phase 'locate'); it cannot
+// touch a trace during its hunt cycle, and targets ONE trace at a time.
+function _locatingTraceIC(s) { return _traceIC(s).filter(ic => (ic.trace_phase || '') === 'locate'); }
+// Hog viruses infecting the PC's OWN deck (target_id 'pc'); mirrors the backend purge_hog filter.
+// Purge Hog wipes one -- a virus drains the deck's highest running program every Combat Turn.
+function _pcHogInfections(s) { return (s.hog_infections || []).filter(i => (i.target_id || 'pc') === 'pc'); }
 function _undownPaydata(s){ return (s.located_paydata || []).filter(p => !p.downloaded && !p.destroyed); }
 function _locPaydata(s) { return (s.located_paydata || []).filter(p => !p.destroyed); }
 function _compFiles(s)  { return (s.downloaded_files || []).filter(f => f.compressed); }
@@ -1709,6 +1764,42 @@ function _discoveredScrambles(s) {
 }
 function _liveUtils()   { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
   return Object.keys(u).filter(k => (parseInt(u[k], 10) || 0) > 0).map(k => ({ key: k, rating: parseInt(u[k], 10) || 0 })); }
+// Active (loaded) utilities and their accrued wear, for the Swap Memory refresh picker. `worn` is
+// state.program_damage[k] (rating points lost to use); a program is refreshable only when worn > 0
+// -- an undamaged program is a useless swap (RAW: you would just reload the identical rating).
+function _activeWear(s) { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
+  const pd = (s && s.program_damage) || {};
+  return Object.keys(u)
+    .filter(k => (parseInt(u[k], 10) || 0) > 0)
+    .map(k => { const base = parseInt(u[k], 10) || 0, worn = Math.max(0, parseInt(pd[k], 10) || 0);
+                return { key: k, base, worn, eff: Math.max(0, base - worn) }; }); }
+// Active-memory budget for the Swap Memory load picker. `used` = footprint of currently loaded
+// utilities (state.program_sizes); `cap` = state.active_memory_cap (0 = untracked/unlimited).
+function _activeMem(s)  { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
+  const sz = (s && s.program_sizes) || {};
+  const used = Object.keys(u)
+    .filter(k => (parseInt(u[k], 10) || 0) > 0)
+    .reduce((t, k) => t + (parseInt(sz[k], 10) || 0), 0);
+  return { used, cap: parseInt(s && s.active_memory_cap, 10) || 0 }; }
+// DINAB-capable programs: mirrors the backend _effective_dinab. A program qualifies only when its
+// loadout carries a DINAB rating (program_options[k].dinab > 0), the program is loaded
+// (utilities[k] > 0), not crashed (program_damage[k] < its loaded rating), and not fully worn
+// (dinab_damage[k] < the DINAB rating). eff = DINAB rating minus accrued wear.
+function _dinabUtils(s)  { const dj = (_run && _run.decker_json) || {};
+  const u = dj.utilities || {}, po = dj.program_options || {};
+  const pd = (s && s.program_damage) || {}, dd = (s && s.dinab_damage) || {};
+  const out = [];
+  Object.keys(po).forEach(k => {
+    const base = parseInt((po[k] || {}).dinab, 10) || 0;
+    if (base <= 0) return;                                 // not DINAB-equipped
+    const utilBase = parseInt(u[k], 10) || 0;
+    if (utilBase <= 0) return;                             // program not loaded
+    if ((parseInt(pd[k], 10) || 0) >= utilBase) return;    // program crashed -- reload via Swap Memory
+    const eff = Math.max(0, base - (parseInt(dd[k], 10) || 0));
+    if (eff <= 0) return;                                  // DINAB worn out
+    out.push({ key: k, eff: eff, rating: utilBase });
+  });
+  return out; }
 function _personaHurt(s){ return ((s.condition_monitor || {}).persona_boxes || 0) > 0; }
 function _attrHurt(s)   { const pd = (s.condition_monitor || {}).persona_damage || {};
   return ['bod', 'evasion', 'masking', 'sensor'].some(k => (pd[k] || 0) > 0); }
@@ -1717,7 +1808,6 @@ function _attrHurt(s)   { const pd = (s.condition_monitor || {}).persona_damage 
 function _icTgt(list, label) {
   return { mode: 'select', label, options: list.map(ic => ({ value: String(ic.id), label: `${ic.type}-${ic.rating || '?'}` })) };
 }
-function _txtTgt(label, placeholder) { return { mode: 'text', label, placeholder }; }
 
 // Analyze Icon (Free, Control test) scan targets: each located file (Files node) plus every named
 // Slave device on the host (cameras, locks, sensors). vr2 detects a data bomb via an Analyze Icon
@@ -1746,6 +1836,28 @@ function _maneuverTargets(s) {
   return ics.concat(enemies);
 }
 
+// Invalidate Passcode (vr2 L1879): erase a host passcode so the affected security icon flips from
+// Legitimate to Intruding (its to-hit TNs are revised). Single-target pool = every still-Legitimate
+// active IC plus every REVEALED, still-Legitimate enemy decker (icons already Intruding are omitted
+// -- nothing left to invalidate on them).
+function _invalidateSingles(s) {
+  const ics = _liveIC(s).filter(ic => !ic.intruding)
+    .map(ic => ({ value: String(ic.id), label: `${ic.type}-${ic.rating || '?'}` }));
+  const enemies = (s.enemy_deckers || [])
+    .filter(e => e.status === 'active' && e.revealed && !e.intruding)
+    .map(e => ({ value: String(e.id), label: `${e.name || 'Enemy decker'} (decker)` }));
+  return ics.concat(enemies);
+}
+// Options for the Invalidate target select: the single icons above, led (when 2+ exist) by an
+// "ALL passcodes" option that wipes the whole list at +4 TN. The "__all__" sentinel routes to the
+// backend whole-list branch and never collides with an IC ("ic_"/"td_") or enemy ("ed_") id.
+function _invalidateTargets(s) {
+  const single = _invalidateSingles(s);
+  const opts = [];
+  if (single.length >= 2) opts.push({ value: '__all__', label: `ALL passcodes (+4 TN) -- flip ${single.length} icons` });
+  return opts.concat(single);
+}
+
 const ACTION_CATALOG = [
   // -- Complex actions (2 AP) --
   { v: 'analyze_host',      l: 'Analyze Host',            cost: 'Complex' },
@@ -1754,11 +1866,18 @@ const ACTION_CATALOG = [
   { v: 'locate_decker',     l: 'Locate Decker',           cost: 'Complex' },
   { v: 'crash_host',        l: 'Crash Host',              cost: 'Complex' },
   { v: 'validate_passcode', l: 'Validate Passcode',       cost: 'Complex',
-    valid: s => !s.has_legitimate_status && !s.validate_passcode_attempted,
-    reason: 'already validated or attempt used' },
+    valid: s => !s.has_legitimate_status,
+    reason: 'already have Legitimate status' },
+  { v: 'invalidate_passcode', l: 'Invalidate Passcode',   cost: 'Complex',
+    valid: s => _invalidateSingles(s).length > 0,
+    reason: 'no Legitimate IC or enemy decker to invalidate',
+    target: s => ({ mode: 'select', label: 'Passcode to erase', options: _invalidateTargets(s) }) },
   { v: 'decoy',             l: 'Decoy',                   cost: 'Complex' },
   { v: 'redirect_datatrail',l: 'Redirect Datatrail',      cost: 'Complex',
-    valid: s => _traceIC(s).length > 0, reason: 'no trace running' },
+    valid: s => _traceIC(s).length > 0 && !(parseInt(s.redirects_placed, 10) > 0),
+    reason: s => (parseInt(s.redirects_placed, 10) > 0
+      ? 'datatrail already redirected on this host'
+      : 'no trace running') },
   { v: 'null_operation',    l: 'Null Operation (idle)',   cost: 'Complex' },
   { v: 'medic',             l: 'Medic (heal icon)',       cost: 'Complex',
     valid: s => _personaHurt(s) && _liveUtils().some(u => u.key === 'medic'), reason: 'need icon damage + Medic loaded' },
@@ -1766,10 +1885,17 @@ const ACTION_CATALOG = [
     valid: s => _attrHurt(s) && _liveUtils().some(u => u.key === 'restore'), reason: 'need attrib damage + Restore loaded' },
   { v: 'disinfect',         l: 'Disinfect (kill worm)',   cost: 'Complex',
     valid: s => _wormIC(s).length > 0, reason: 'no worm', target: s => _icTgt(_wormIC(s), 'Worm to disinfect') },
-  { v: 'steamroller',       l: 'Steamroller (crush tar)', cost: 'Complex',
-    valid: s => _tarIC(s).length > 0, reason: 'no tar IC', target: s => _icTgt(_tarIC(s), 'Tar IC to crush') },
-  { v: 'slow',              l: 'Slow (cripple IC)',       cost: 'Complex',
-    valid: s => _liveIC(s).length > 0, reason: 'no active IC', target: s => _icTgt(_liveIC(s), 'IC to slow') },
+  { v: 'purge_hog',         l: 'Purge Hog (wipe virus)',  cost: 'Complex',
+    valid: s => _pcHogInfections(s).length > 0, reason: 'no Hog infecting your deck',
+    target: s => ({ mode: 'select', label: 'Hog to purge', options: _pcHogInfections(s).map(i => ({ value: i.id, label: `Hog-${parseInt(i.rating, 10) || 0}` })) }) },
+  { v: 'steamroller',       l: 'Steamroller (crush tar)', cost: 'Simple',
+    valid: s => _carriedStrikeRating('steamroller') > 0 && _tarIC(s).length > 0,
+    reason: s => _carriedStrikeRating('steamroller') > 0 ? 'no tar IC' : 'no Steamroller loaded',
+    target: s => _icTgt(_tarIC(s), 'Tar IC to crush') },
+  { v: 'slow',              l: 'Slow (cripple IC)',       cost: 'Simple',
+    valid: s => _carriedStrikeRating('slow') > 0 && _liveIC(s).length > 0,
+    reason: s => _carriedStrikeRating('slow') > 0 ? 'no active IC' : 'no Slow utility loaded',
+    target: s => _icTgt(_liveIC(s), 'IC to slow') },
   { v: 'defuse_data_bomb',  l: 'Defuse Data Bomb',        cost: 'Complex',
     valid: s => _discoveredBombs(s).length > 0, reason: 'none discovered',
     target: s => ({ mode: 'select', label: 'Bomb to defuse', options: _discoveredBombs(s).map(b => ({ value: b.target, label: `${b.scope === 'slave' ? 'Slave' : 'Files'} - ${b.name || b.target}` })) }) },
@@ -1788,14 +1914,15 @@ const ACTION_CATALOG = [
       if (c > 0) { note += (full <= c * 100) ? (' -> ' + _storedSizeMp(full) + 'Mp compressed') : (' -- over ' + (c * 100) + 'Mp cap, stored full'); }
       return { value: p.name, label: p.name + ' (' + note + ')' };
     }) }) },
-  { v: 'edit_file',         l: 'Delete File',             cost: 'Simple',
+  { v: 'edit_file',         l: 'Edit File',               cost: 'Simple', editMode: true,
     valid: s => _locPaydata(s).length > 0, reason: 'nothing located',
-    target: s => ({ mode: 'select', label: 'File to delete', options: _locPaydata(s).map(p => ({ value: p.name, label: String(p.name) })) }) },
+    target: s => ({ mode: 'select', label: 'File to edit', options: _locPaydata(s).map(p => ({ value: p.name, label: String(p.name) })) }) },
   { v: 'decrypt_file',      l: 'Decrypt File',            cost: 'Simple',
     valid: s => _discoveredScrambles(s).length > 0, reason: 'no scramble discovered -- Analyze Files/Slave',
     target: s => ({ mode: 'select', label: 'Scramble to decrypt', options: _discoveredScrambles(s).map(sc => ({ value: sc.target_key, label: String(sc.label) })) }) },
-  { v: 'relocate',          l: 'Relocate (vs Trace IC)',  cost: 'Simple',
-    valid: s => _traceIC(s).length > 0, reason: 'no trace running' },
+  { v: 'relocate',          l: 'Relocate (vs Trace IC)',  cost: 'Simple', relocateMode: true,
+    valid: s => _locatingTraceIC(s).length > 0, reason: 'no trace in its location cycle',
+    target: s => _icTgt(_locatingTraceIC(s), 'Trace IC to relocate') },
   // Combat maneuvers (vr2 L1982): a Simple Action opposed Evasion-vs-Sensor test against ONE
   // opposing icon. They roll the decker's fixed Evasion attribute (Hacking Pool is not applied),
   // so the HP Dice field is hidden (noTest). Position Attack adds a -TN / +Power choice.
@@ -1808,21 +1935,50 @@ const ACTION_CATALOG = [
   { v: 'position_attack',   l: 'Position Attack',         cost: 'Simple', maneuver: true, noTest: true, posChoice: true,
     valid: s => _maneuverTargets(s).length > 0, reason: 'no IC or revealed enemy decker',
     target: s => ({ mode: 'select', label: 'Icon to outposition', options: _maneuverTargets(s) }) },
-  // Swap Memory is a no-test Simple Action: load a stored program into active memory, optionally
-  // pushing an ACTIVE program out to storage (swapOut selector) to make room. No dice test, so the
-  // HP Dice field is hidden (noTest).
-  { v: 'swap_memory',       l: 'Swap Memory (load)',      cost: 'Simple', noTest: true, swapOut: true,
-    valid: s => _storeProgs(s).length > 0, reason: 'storage empty',
-    target: s => ({ mode: 'select', label: 'Program to load', options: _storeProgs(s).map(p => ({ value: p.name, label: `${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` })) }) },
+  // Swap Memory is a no-test Simple Action (RAW): load a stored program into active memory, OR
+  // reload a fresh copy over a WORN active program to restore its rating (Shield/Medic/Armor etc).
+  // It only LOADS -- pushing an active program to storage is the separate Unload Program Free
+  // action (below). No dice test, so the HP Dice field is hidden (noTest). Two option groups:
+  //  1. Load  -- storage programs; disabled/dimmed when they will not fit in active memory.
+  //  2. Refresh -- active programs that have actually WORN (worn > 0). Programs that cannot
+  //     wear, or can but currently haven't, are omitted (a swap would just reload the same rating).
+  { v: 'swap_memory',       l: 'Swap Memory (load)',      cost: 'Simple', noTest: true,
+    valid: s => _storeProgs(s).length > 0 || _activeWear(s).some(p => p.worn > 0),
+    reason: 'nothing to load or refresh',
+    target: s => {
+      const mem  = _activeMem(s);
+      const free = Math.max(0, mem.cap - mem.used);
+      const load = _storeProgs(s).map(p => {
+        const size = parseInt(p.size, 10) || 0;
+        const fits = mem.cap <= 0 || size <= free;
+        const o = { value: p.name, label: `Load ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` };
+        if (!fits) { o.disabled = true; o.label += ' (insufficient active memory)';
+          o.title = `Insufficient active memory to load (needs ${size} MP, ${free} MP free).`; }
+        return o;
+      });
+      const refresh = _activeWear(s).filter(p => p.worn > 0).map(p => ({ value: p.key,
+        label: `Refresh ${prettyProg(p.key)}-${p.eff} -> ${p.base}` }));
+      return { mode: 'select', label: 'Program to load / refresh', options: load.concat(refresh) };
+    } },
+
   // -- Free actions --
   { v: 'analyze_icon',      l: 'Analyze Icon',            cost: 'Free',
     valid: s => _analyzeIconTargets(s).length > 0, reason: 'no icon to scan',
     target: s => ({ mode: 'select', label: 'Icon to scan', options: _analyzeIconTargets(s) }) },
   { v: 'analyze_ic',        l: 'Analyze IC',              cost: 'Free',
     valid: s => _allIC(s).length > 0, reason: 'no IC visible', target: s => _icTgt(_allIC(s), 'IC to analyze') },
+  // Unload Program (RAW, Free): push an ACTIVE program out to storage to free active memory. No
+  // dice test. The complementary load is Swap Memory (Simple) above. The option label shows the
+  // active-memory footprint (state.program_sizes) so the decker sees how much Mp unloading frees.
+  { v: 'unload_program',    l: 'Unload Program (to storage)', cost: 'Free', noTest: true,
+    valid: s => _liveUtils().length > 0, reason: 'no active program',
+    target: s => ({ mode: 'select', label: 'Program to unload', options: _liveUtils().map(u => { const mp = parseInt((s.program_sizes || {})[u.key], 10) || 0; return { value: u.key, label: `${prettyProg(u.key)}-${u.rating}${mp ? ` (frees ${mp} Mp)` : ''}` }; }) }) },
+  // DINAB (Free): run ONE DINAB-equipped program this pass at no action cost. Only programs whose
+  // loadout carries a DINAB rating (and that are loaded, uncrashed, unworn) qualify; the label
+  // shows the effective pool (DINAB rating minus accrued wear).
   { v: 'dinab',             l: 'DINAB (run program free)',cost: 'Free',
-    valid: s => _liveUtils().length > 0, reason: 'no programs',
-    target: s => ({ mode: 'select', label: 'Program to run', options: _liveUtils().map(u => ({ value: u.key, label: `${prettyProg(u.key)}-${u.rating}` })) }) },
+    valid: s => _dinabUtils(s).length > 0, reason: 'no DINAB-equipped program',
+    target: s => ({ mode: 'select', label: 'Program to run', options: _dinabUtils(s).map(u => ({ value: u.key, label: `${prettyProg(u.key)} DINAB-${u.eff}` })) }) },
 ];
 const _ACTION_BY_V = Object.fromEntries(ACTION_CATALOG.map(a => [a.v, a]));
 
@@ -1858,17 +2014,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const subSel = document.getElementById('actionSubsystem');
       if (subSel && sub) subSel.value = sub;
     });
-  }
-
-  // Pre-select host if arriving via trap door "Enter"
-  const pendingHost = sessionStorage.getItem('pending_trap_door_host');
-  if (pendingHost) {
-    sessionStorage.removeItem('pending_trap_door_host');
-    await loadHosts();
-    const sel = document.getElementById('hostSelect');
-    if (sel) sel.value = pendingHost;
-    startPolling(loadHosts, 2500);
-    return;
   }
 
   // Try to resume a run from session storage
@@ -1972,6 +2117,23 @@ function updateComputedStats() {
   set('stat-df', df);
   set('stat-reaction', reaction);
   set('stat-trace-tn', `${traceTN}+ (-IC rating at run time)`);
+
+  // Live Trace Factor breakdown (vr2 L578): a two-line labels/numbers equation. Negative terms
+  // render as subtraction (e.g. "- 3") instead of "+ (-3)". Shown before any IC; at run time the
+  // running Trace IC's rating is subtracted (higher rating = lower TN = easier to trace).
+  const traceRow = document.getElementById('cs-trace-tn');
+  if (traceRow) {
+    const parts = [['Evasion', evasion], ['Camo', camo], ['Jackpoint', jackpt], ['Bandwidth', bwMod]];
+    const traceSum = parts.reduce((s, p) => s + p[1], 0);
+    const labelLine = parts.map(p => p[0]).join(' + ');
+    let numLine = String(parts[0][1]);
+    for (let i = 1; i < parts.length; i++) {
+      const v = parts[i][1];
+      numLine += v < 0 ? ` - ${Math.abs(v)}` : ` + ${v}`;
+    }
+    traceRow.dataset.tip =
+      `${labelLine}\n${numLine} = ${traceSum}\nthen - Trace IC rating (min TN 2)`;
+  }
   updateRunStartEligibility();
 }
 
@@ -2199,9 +2361,17 @@ async function startRun() {
     // it (an IC-limited utility cannot hit deckers and vice versa). The load-time choice stored on
     // the loadout item is authoritative; parseRunProgramOpts already read any Limit:TARGET in mods.
     const lt = item?.hasLimit ? String(item?.limitTarget || '').trim().toLowerCase() : '';
-    const merged = (lt === 'ic' || lt === 'decker')
+    let merged = (lt === 'ic' || lt === 'decker')
       ? { ...(opts || { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false }), limit_target: lt }
       : opts;
+    // Attack utility only: carry its OWN base Damage Level (Light/Moderate/Serious/Deadly) so the
+    // engine damages icons at the program's chosen severity, not the host IC Damage Table. The
+    // workshop stores it as the per-rating cost multiplier (2..5); map that to the level string.
+    // It must ride even on a plain Attack with no other options, so seed an options object.
+    if (ident.typeKey === 'attack') {
+      const dl = ({ 2: 'Light', 3: 'Moderate', 4: 'Serious', 5: 'Deadly' })[parseInt(item?.attackDamage, 10)] || '';
+      if (dl) merged = { ...(merged || {}), damage_level: dl };
+    }
     if (merged) {
       const rank = targetUsesActive(item?.target || 'active') ? 2 : 1;
       if (program_options[ident.typeKey] === undefined || rank > (_optRank[ident.typeKey] || 0)) {
@@ -2232,10 +2402,13 @@ async function startRun() {
     poison:     gn('cfg-u-poison'),
     restrict:   gn('cfg-u-restrict'),
     reveal:     gn('cfg-u-reveal'),
+    hog:        gn('cfg-u-hog'),
     black_hammer: gn('cfg-u-black-hammer'),
     killjoy:    gn('cfg-u-killjoy'),
     steamroller: gn('cfg-u-steamroller'),
     slow:       gn('cfg-u-slow'),
+    cloak:      gn('cfg-u-cloak'),
+    lock_on:    gn('cfg-u-lock-on'),
     armor:      gn('cfg-u-armor'),
     shield:     gn('cfg-u-shield'),
     restore:    gn('cfg-u-restore'),
@@ -2246,6 +2419,8 @@ async function startRun() {
 
   const decker = {
     name, mpcp, bod, evasion, masking, sensor,
+    character_id: getSavedProgrammerProfile()?.characterId ? parseInt(getSavedProgrammerProfile().characterId, 10) : null,
+    deck_name: getSelectedDeck()?.name || '',
     computer_skill: computer,
     intelligence: intel,
     quickness: quick,
@@ -2269,6 +2444,17 @@ async function startRun() {
     program_sizes,
     program_options,
   };
+
+  // Carry the deck's persistent MPCP infections into the run so a Deathworm keeps degrading
+  // cybercombat TNs and a Tapeworm keeps erasing paydata every run until the chip is replaced.
+  const _deckInf = getSelectedDeck()?.mpcp_infections;
+  if (Array.isArray(_deckInf) && _deckInf.length) {
+    decker.mpcp_infections = _deckInf.map(i => ({
+      variant: String(i.variant || 'standard'),
+      rating: parseInt(i.rating, 10) || 6,
+      ic_id: String(i.ic_id || ''),
+    }));
+  }
 
   const btn = document.getElementById('startRunBtn');
   const spin = document.getElementById('startSpinner');
@@ -2311,13 +2497,21 @@ function renderTrapDoorsPanel() {
   // Same view for everyone: only DISCOVERED doors, with the destination redacted server-side (no
   // leak of where it leads). A GM who wants the full host topology uses the Matrix Designer.
   const doors = Array.isArray(state.discovered_trap_doors) ? state.discovered_trap_doors : [];
-  _hostTrapDoors = doors;   // cache for enter/file lookup
-  if (!doors.length) { panel.style.display = 'none'; return; }
+  const stackDepth = parseInt(state.host_stack_depth, 10) || 0;
+  if (!doors.length && !stackDepth) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
   const runActive = !state.run_ended;
 
-  list.innerHTML = doors.map(td => {
+  // B34: when suspended parent hosts are stacked below this one, show how deep we are -- a logoff
+  // or host crash here drops back one level rather than ending the whole run.
+  const depthBanner = stackDepth
+    ? `<div style="font-size:.62rem;letter-spacing:1px;color:var(--cyan);margin-bottom:6px">`
+      + `DEEP-LINKED &mdash; ${stackDepth} host${stackDepth === 1 ? '' : 's'} suspended below `
+      + `(logoff or crash to drop back)</div>`
+    : '';
+
+  list.innerHTML = depthBanner + (doors.length ? doors.map(td => {
     const src = td.source_piece ? esc(String(td.source_piece)) : '';
     const sub = esc(String(td.subsystem || 'slave'));
     const srcBadge = `<span style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px">[${sub}${src ? ' / ' + src : ''}]</span>`;
@@ -2342,7 +2536,7 @@ function renderTrapDoorsPanel() {
       ${fileBtn}
       ${intel}
     </div>`;
-  }).join('');
+  }).join('') : '');
 }
 
 // -- Enemy deckers (vr2 #5) --------------------------------------------------
@@ -2367,6 +2561,14 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
     const intentColor = e.intent === 'kill' ? 'var(--red)' : e.intent === 'dump' ? '#ff7700' : 'var(--amber)';
     const located = e.located_pc ? `<span style="font-size:.55rem;color:var(--red);letter-spacing:1px">[HAS YOU LOCATED]</span>` : `<span style="font-size:.55rem;color:var(--amber)">[hunting]</span>`;
     const canHit = !runEnded && !crashed && !gone;
+    const sc = e.scanned || {};
+    const scKeys = Object.keys(sc);
+    const scanLabels = { mpcp: 'MPCP', bod: 'Bod', evasion: 'Evasion', masking: 'Masking', sensor: 'Sensor', response_increase: 'Resp+' };
+    const scanRow = scKeys.length ? `
+      <div class="ic-meta" style="flex-wrap:wrap;gap:5px">
+        <span style="font-size:.55rem;color:var(--cyan);letter-spacing:1px">SCANNED &gt;</span>
+        ${scKeys.map(k => `<span style="font-size:.55rem;color:var(--text-dim)">${esc(scanLabels[k] || k)} <span style="color:var(--text-bright)">${esc(String(sc[k]))}</span></span>`).join('')}
+      </div>` : '';
     return `
     <div class="ic-card ic-black${gone ? ' ic-crashed' : ''}">
       <div class="ic-head">
@@ -2374,6 +2576,7 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
         <span class="ic-badge" style="color:var(--red);border-color:#440000">${esc((e.tier || '?').toUpperCase())}</span>
       </div>
       <div class="ic-meta"><span>${located}</span><span>Status: <span style="color:${gone ? 'var(--text-dim)' : 'var(--red)'}">${statusLabel}</span></span></div>
+      ${scanRow}
       <div class="cond-row" style="margin:6px 0"><div class="cond-label">Icon</div>
         <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(boxes, 10, 'ic')}</div>
         <div class="cond-count">${boxes}/10</div></div>
@@ -2390,10 +2593,15 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
           <option value="poison">Poison (vs Bod)</option>
           <option value="restrict">Restrict (vs Evasion)</option>
           <option value="reveal">Reveal (vs Masking)</option>
+          <option value="hog">Hog (virus)</option>
           <option value="black_hammer">Black Hammer (lethal Physical)</option>
           <option value="killjoy">Killjoy (lethal Stun)</option>
         </select>
         <button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')">&gt;&gt; Strike Back</button>
+      </div>
+      <div style="margin-top:5px;display:flex;gap:6px;align-items:center">
+        <button class="btn btn-cyan btn-sm" onclick="scanEnemyDecker('${esc(e.id)}')">Scan Icon</button>
+        <span style="font-size:.5rem;color:var(--text-dim)">Computer vs Masking &mdash; reveals hidden ratings</span>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -2412,6 +2620,7 @@ async function strikeEnemyDecker(eid) {
   const labels = {
     attack: 'Attack (crash icon)', poison: 'Poison (vs Bod)',
     restrict: 'Restrict (vs Evasion)', reveal: 'Reveal (vs Masking)',
+    hog: 'Hog (virus)',
     black_hammer: 'Black Hammer (lethal Physical)', killjoy: 'Killjoy (lethal Stun)',
   };
   const carried = _carriedStrikeRating(program);
@@ -2423,6 +2632,20 @@ async function strikeEnemyDecker(eid) {
   if (pool < 1) return;
   await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`,
     { enemy_id: eid, attack_pool: pool, hacking_pool_dice: 0, program });
+}
+
+// Scan Icon vs an enemy decker (Computer Test vs Masking): the server rolls the decker's Computer
+// skill plus whatever Hacking Pool the player commits here, so the prompt asks only for the pool
+// dice to add. Each success reveals another hidden rating (MPCP / Persona / Response Increase).
+async function scanEnemyDecker(eid) {
+  if (!_run) return;
+  const cs = parseInt((_run.decker_json || {}).computer_skill, 10) || 0;
+  const raw = prompt('Scan Icon: Computer skill (' + cs + ') + how many Hacking Pool dice?', '0');
+  if (raw === null) return;
+  const hp = parseInt(raw, 10);
+  if (!Number.isFinite(hp) || hp < 0) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/scan`,
+    { enemy_id: eid, hacking_pool_dice: hp });
 }
 
 // Carried rating for a Strike Back program (Attack / Poison / Restrict / Reveal): prefer the
@@ -2452,7 +2675,9 @@ function renderDownloadsPanel() {
   const downloaded = Array.isArray(state.downloaded_files) ? state.downloaded_files : [];
   // Everyone sees only located_paydata (what the decker has actually found via Locate Paydata).
   const gmPaydata = [];
-  if (!located.length && !downloaded.length && !gmPaydata.length && !state.active_download) {
+  const secured = (state.paydata_secured && typeof state.paydata_secured === 'object')
+    ? state.paydata_secured : null;
+  if (!located.length && !downloaded.length && !gmPaydata.length && !state.active_download && !secured) {
     panel.style.display = 'none';
     return;
   }
@@ -2497,8 +2722,8 @@ function renderDownloadsPanel() {
       + `&#9660; DOWNLOADING ${esc(dl.file || '?')}`
       + (dl.compressed ? ` <span style="color:var(--amber)">(COMPRESSED)</span>` : '') + `</div>`
       + `<div style="font-size:.58rem;color:var(--text-dim);margin-bottom:4px">`
-      + `${parseInt(dl.stored_mp, 10) || 0} Mp -- ${left} turn(s) left of ${tot}. `
-      + `Auto Null Operation each turn; only Free actions available.</div>`
+      + `${parseInt(dl.stored_mp, 10) || 0} Mp -- ${left} round(s) left of ${tot}. `
+      + `Auto Null Operation each round; only Free actions available.</div>`
       + `<div style="height:5px;background:#0a0a0a;border:1px solid #222;border-radius:3px;overflow:hidden">`
       + `<div style="height:100%;width:${pctD}%;background:var(--cyan)"></div></div>`
       + `</div>`;
@@ -2506,7 +2731,7 @@ function renderDownloadsPanel() {
 
   const rows = located.length ? located : gmPaydata.map(p => ({
     name: p.name, size_mp: p.density || 0, is_key: !!p.is_key,
-    downloaded: !!p.downloaded, destroyed: !!p.destroyed,
+    downloaded: !!p.downloaded, destroyed: !!p.destroyed, tampered: !!p.tampered,
   }));
   if (rows.length) {
     html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">LOCATED FILES</div>`;
@@ -2519,6 +2744,7 @@ function renderDownloadsPanel() {
         + `<span style="font-size:.58rem;color:var(--text-dim)">${parseInt(p.size_mp, 10) || 0}Mp</span>`
         + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
         + (tag ? `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>` : '')
+        + (p.tampered && !p.destroyed ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--red)">[TAMPERED]</span>` : '')
         + `</div>`;
     }).join('');
   }
@@ -2543,6 +2769,27 @@ function renderDownloadsPanel() {
             : '')
         + `</div>`;
     }).join('');
+  }
+
+  // Run-end secured haul (directive #6): once the run ends the deck ledger is wiped and the
+  // secured haul is summarized here (compressed files auto-counted at full size). Generic view --
+  // no behind-the-scenes detail.
+  if (secured && Array.isArray(secured.files) && secured.files.length) {
+    const total    = parseInt(secured.total_mp, 10) || 0;
+    const keyCount = parseInt(secured.key_count, 10) || 0;
+    html += `<div style="font-size:.58rem;color:var(--green);letter-spacing:1px;margin:10px 0 4px">`
+      + `SECURED HAUL (${secured.files.length} file${secured.files.length === 1 ? '' : 's'}, ${total} Mp`
+      + (keyCount ? `, ${keyCount} key` : '') + `)</div>`;
+    html += secured.files.map(f => {
+      const sz = parseInt(f.size_mp, 10) || 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">`
+        + `<span style="font-size:.66rem;color:var(--green)">&#10003; ${esc(f.name || '?')}</span>`
+        + `<span style="font-size:.58rem;color:var(--text-dim)">${sz}Mp${f.is_key ? ' -- KEY' : ''}</span>`
+        + `</div>`;
+    }).join('');
+  } else if (secured) {
+    html += `<div style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;margin:10px 0 4px">`
+      + `SECURED HAUL -- no paydata secured.</div>`;
   }
 
   body.innerHTML = html;
@@ -2570,19 +2817,23 @@ function renderMemoryPanel() {
   const files     = Array.isArray(state.downloaded_files) ? state.downloaded_files : [];
   const activeCap = parseInt(state.active_memory_cap, 10) || 0;
 
-  // Active utilities currently loaded (rating > 0) with their active-memory footprint.
+  // Active utilities currently loaded (rating > 0) with their active-memory footprint. `worn`
+  // is the accrued per-use degradation (state.program_damage) -- Shield/Armor/Medic lose rating
+  // as they are used, so the chip shows the EFFECTIVE (worn-down) rating, not the loaded base.
+  const pdmg = state.program_damage || {};
   const active = Object.keys(utils)
     .filter(k => (parseInt(utils[k], 10) || 0) > 0)
-    .map(k => ({ name: k, rating: parseInt(utils[k], 10) || 0, size: parseInt(sizes[k], 10) || 0 }));
+    .map(k => ({ name: k, rating: parseInt(utils[k], 10) || 0, size: parseInt(sizes[k], 10) || 0,
+                 worn: parseInt(pdmg[k], 10) || 0 }));
   const activeUsed = active.reduce((s, p) => s + p.size, 0);
 
   if (!active.length && !storage.length && !files.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  // ACTIVE MEMORY -- meter + program chips (name-rating, no sizes).
+  // ACTIVE MEMORY -- meter + program chips (name-rating; size + description on hover).
   let html = memMeterBar('ACTIVE MEMORY', activeUsed, activeCap);
   html += active.length
-    ? `<div class="mem-chips">${active.map(p => progChip(p.name, p.rating)).join('')}</div>`
+    ? `<div class="mem-chips">${active.map(p => progChip(p.name, p.rating, p.size, p.worn)).join('')}</div>`
     : `<div class="empty-msg" style="font-size:.62rem">No active utilities</div>`;
 
   // OFFLINE STORAGE -- meter + stored-program chips and downloaded paydata files (by name).
@@ -2597,7 +2848,7 @@ function renderMemoryPanel() {
   const storUsed = activeUsed + storedProgMp + downloadsMp;
   const storCap  = storTracked ? (activeUsed + storedProgMp + freeBudget) : 0;
   html += `<div class="mem-section-gap">${memMeterBar('STORAGE', storUsed, storCap)}</div>`;
-  const chips = storage.map(p => progChip(p.name, parseInt(p.rating, 10) || 0))
+  const chips = storage.map(p => progChip(p.name, parseInt(p.rating, 10) || 0, parseInt(p.size, 10) || 0))
     .concat(files.map(f => fileChip(f.name, !!f.is_key, !!f.compressed)));
   html += chips.length
     ? `<div class="mem-chips">${chips.join('')}</div>`
@@ -2623,9 +2874,76 @@ function memMeterBar(label, used, cap) {
   return h;
 }
 
-// A program chip ("Sleaze-6"); rating 0 drops the suffix.
-function progChip(name, rating) {
-  return `<span class="mem-chip">${esc(prettyProg(name))}${rating ? '-' + rating : ''}</span>`;
+// Short SR2 program descriptions (what each utility does) keyed by decker_json.utilities key.
+// Shown with the program's memory size in the memory-panel chip tooltips. Sourced from the VR2
+// utility tables (same notes as the Deck Workshop catalog), condensed to one ASCII-only line.
+const PROGRAM_DESC = {
+  sleaze:       'Passive. Raises your Detection Factor: (Masking + Sleaze) / 2.',
+  camo:         'Adds Rating to your Trace Factor; also lowers Redirect Datatrail TN.',
+  scanner:      'Lowers the TN to locate other deckers and frames (Locate Decker/Frame).',
+  deception:    'Lowers the TN for Access tests (Logon, Graceful Logoff).',
+  analyze:      'Lowers the TN for Systems Tests that identify IC, icons, programs and security.',
+  evaluate:     'Finds valuable paydata in a host (Locate Paydata). Degrades 1-3 after each run.',
+  decrypt:      'Lowers the TN to decrypt Scramble IC (Access/File/Slave).',
+  defuse:       'Lowers the TN to defuse data bombs (File/Slave subsystem test).',
+  crash:        'Lowers the TN to crash a program or host (Crash Application/Host).',
+  mirrors:      'Lowers the TN for decoy operations (Decoy).',
+  validate_pgm: 'Lowers the TN for administrative tests (Validate Passcode).',
+  read_write:   'Lowers the TN for data tests (Download/Upload Data, Edit File).',
+  relocate:     'Lowers the Control-test TN to spoof Trace IC during a location cycle.',
+  attack:       'Standard cybercombat attack program; damage level is set at build time.',
+  poison:       'Crippler vs an enemy decker: attacks the MPCP Bod attribute.',
+  restrict:     'Crippler vs an enemy decker: attacks the MPCP Evasion attribute.',
+  reveal:       'Crippler vs an enemy decker: attacks the MPCP Masking attribute.',
+  hog:          'Virus vs an enemy decker: drains and crashes its programs until purged.',
+  black_hammer: 'Lethal (Physical) attack vs enemy deckers. Max rating = ceil(Computer / 2).',
+  killjoy:      'Non-lethal (Stun) attack vs enemy deckers. Max rating = ceil(Computer / 2).',
+  steamroller:  'Inflicts (Rating)D to Tar-Baby / Tar-Pit IC; immune to the tar backlash.',
+  slow:         'Opposed test that makes a proactive IC lose actions / hang for the round.',
+  cloak:        'Maneuver aid. Lowers your Evasion-test TN when YOU maneuver.',
+  lock_on:      'Maneuver aid. Lowers your Sensor-test TN to hold a lock on an evading icon.',
+  armor:        'Reduces the Power of attacks vs your persona. Loses 1 rating per damaging hit.',
+  shield:       'Parries attacks, cutting attacker/crippler net successes. Loses 1 rating per use.',
+  restore:      'Repairs persona attribute (BEMS) damage from cripplers. 1 point per 2 successes.',
+  medic:        'Heals persona condition damage. Loses 1 rating per use.',
+  disinfect:    'Destroys worm IC and raises the worm-infection TN (passive defense).',
+  compressor:   'Halves a downloaded file stored size (cap Rating x 100 Mp).',
+};
+
+// Tooltip for a program chip: brief description + memory size. Either part is omitted if unknown.
+function progTip(name, size) {
+  const desc = PROGRAM_DESC[name] || '';
+  const mp = size ? `${size} Mp` : '';
+  return desc && mp ? `${desc}\n\n${mp}` : (desc || mp);
+}
+
+// SR2 damage-level word (as stored in program_options[].damage_level) -> its one-letter code.
+const _DMG_CODE = { light: 'L', moderate: 'M', serious: 'S', deadly: 'D' };
+
+// The damage-code suffix for a combat program chip (Attack -> "M"/"S"/etc.), or '' for programs
+// with no damage level. Reads the build-time Damage Level carried on the loadout.
+function progDmgCode(name) {
+  const dl = ((((_run && _run.decker_json) || {}).program_options || {})[name] || {}).damage_level;
+  return _DMG_CODE[String(dl || '').toLowerCase()] || '';
+}
+
+// A program chip ("Sleaze-6", "Attack-6M"); rating 0 drops the suffix. A combat program with a
+// build-time Damage Level appends its SR2 damage code (L/M/S/D). `worn` is per-use degradation
+// (state.program_damage): when set, the chip shows the EFFECTIVE (worn-down) rating in straw so a
+// used-up Shield/Armor/Medic reads its current strength, not its loaded base. Size + description
+// show on hover via the shared in-app tooltip (data-tip; styled #app-tooltip, not the OS title).
+function progChip(name, rating, size, worn) {
+  const wear = parseInt(worn, 10) || 0;
+  const eff  = wear > 0 ? Math.max(0, rating - wear) : rating;
+  const degraded = wear > 0 && eff < rating;
+  const tipBase = progTip(name, size);
+  const tip = degraded
+    ? (tipBase ? `${tipBase}\n\nDegraded: Rating ${rating} -> ${eff} (worn ${wear})`
+               : `Degraded: Rating ${rating} -> ${eff} (worn ${wear})`)
+    : tipBase;
+  const dmg = rating ? progDmgCode(name) : '';
+  const cls = degraded ? 'mem-chip mem-chip-worn' : 'mem-chip';
+  return `<span class="${cls}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${esc(prettyProg(name))}${rating ? '-' + eff : ''}${esc(dmg)}</span>`;
 }
 // A downloaded-paydata chip (by file name); key files get a star, compressed files a down-arrow.
 function fileChip(name, isKey, compressed) {
@@ -2647,6 +2965,7 @@ async function enterTrapDoor(id) {
   try {
     // VR2: the logoff out through a trap door uses the decker's loaded Deception utility by default.
     const deception = parseInt(_run?.decker_json?.utilities?.deception, 10) || 0;
+    const prevHostId = _run.host_id;
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/trap-door/${encodeURIComponent(id)}`, {
       method: 'POST',
       body: JSON.stringify({ action: 'enter', hacking_pool_dice: 0, deception_utility: deception }),
@@ -2654,17 +2973,17 @@ async function enterTrapDoor(id) {
     if (!res.ok) await apiThrow(res);
     const result = await res.json();
 
-    if (result.id !== _run.id) {
-      // Transit succeeded -- the server returned a BRAND-NEW run on the destination host.
-      sessionStorage.setItem('active_run_id', result.id);
-      await showRunView(result);
+    if (result.host_id !== prevHostId) {
+      // Transit succeeded -- SAME run row, retargeted to the destination host. The previous host is
+      // suspended on the trap-door stack; a later logoff or crash here drops back to it (B34).
+      renderRunState(result);
       showAlert(
-        document.getElementById('pageAlert'),
-        `Trap-door transit complete -- arrived at host #${result.host_id}. Log on to continue.`,
+        document.getElementById('runAlert') || document.getElementById('pageAlert'),
+        `Trap-door transit complete -- arrived at host #${result.host_id} (previous host suspended). Log on to continue.`,
         false
       );
     } else {
-      // Same run id -- the graceful logoff failed; still logged on to the current host.
+      // Same host -- the graceful logoff failed; still logged on to the current host.
       renderRunState(result);
       showAlert(
         document.getElementById('runAlert'),
@@ -2708,11 +3027,45 @@ function showSetupView() {
 }
 
 // -- Render entire run state ------------------------------------------------
+// Deck-damage write-back is idempotent server-side, but guard the network call to fire once per
+// ended run in this session.
+let _deckDamageApplied = null;
+async function maybeApplyDeckDamage(run) {
+  if (!run || !run.id) return;
+  const state = run.state_json || {};
+  const ended = !!state.run_ended || (run.status && run.status !== 'active');
+  if (!ended || state.deck_damage_applied) return;
+  if (_deckDamageApplied === run.id) return;
+  _deckDamageApplied = run.id;
+  try {
+    await apiFetch(`${API}/matrix-runs2/${run.id}/apply-deck-damage`, { method: 'POST' });
+  } catch (_) { _deckDamageApplied = null; /* allow a later retry */ }
+}
+
 function renderRunState(run) {
   if (!run) return;
   _run = run;
   const state = run.state_json || {};
   const decker = run.decker_json || {};
+
+  // Runs are the source of deck damage: once a run ends, stamp its hardware consequences (MPCP
+  // damage, Ripper chip burn, Worm infections) onto the owning character's saved deck. Fire once.
+  maybeApplyDeckDamage(run);
+
+  // Once the run is over there is nothing live to render -- swap the whole board for a flavorful
+  // CRT "session terminated" screen and stop here.
+  if (state.run_ended) { renderRunTerminated(state); return; }
+
+  // Live run: make sure the side panes are visible (they may have been hidden by a prior
+  // terminated-run screen in this session).
+  const _left = document.querySelector('#runView .mr-col-left');
+  const _right = document.querySelector('#runView .mr-col-right');
+  const _bar = document.getElementById('run-action-bar');
+  if (_left)  _left.style.display  = '';
+  if (_right) _right.style.display = '';
+  if (_bar)   _bar.style.display   = '';
+  const _layout = document.querySelector('#runView .mr-layout');
+  if (_layout) _layout.classList.remove('mr-terminated');
 
   // Decker name / mode
   document.getElementById('run-decker-name').textContent = decker.name || 'Ghost';
@@ -2731,18 +3084,24 @@ function renderRunState(run) {
   const hpTotal     = state.hackingPool_total     ?? Math.floor(((decker.intelligence || 0) + (decker.mpcp || 0)) / 3);
   const hpRemaining = state.hackingPool_remaining ?? hpTotal;
   const sleaze = (decker.utilities || {}).sleaze || 0;
-  const df = Math.ceil(((decker.masking || 0) + sleaze) / 2);
+  const baseDf = Math.ceil(((decker.masking || 0) + sleaze) / 2);
+  // Each active suppression (a crashed IC held down, or a suppressed data-bomb entry) costs 1
+  // Detection Factor, floored at 1 -- mirrors _effective_detection_factor server-side.
+  const supActive = (state.active_ic || []).filter(ic => ic.suppressed && !ic.suppression_released).length
+    + (state.suppressions || []).filter(s => s.suppressed && !s.released).length;
+  const effDf = Math.max(1, baseDf - supActive);
   const hpEl = document.getElementById('run-hp');
   hpEl.textContent = `${hpRemaining}/${hpTotal}`;
   hpEl.style.color = hpRemaining === 0 ? 'var(--red)' : hpRemaining < hpTotal ? 'var(--amber)' : '';
-  document.getElementById('run-df').textContent = df;
+  document.getElementById('run-df').textContent =
+    supActive > 0 ? `${effDf} (base ${baseDf}, -${supActive} suppressing)` : String(effDf);
   const initEl = document.getElementById('run-init');
   if (initEl) {
     const ini = state.decker_initiative, passes = state.initiative_passes;
     if (ini == null) { initEl.textContent = '--'; }
     else {
       const ap = state.pass_action_points, fr = state.pass_free, cp = state.current_pass;
-      const budget = (ap != null) ? ` -- pass ${cp}/${passes}, ${ap} AP + ${fr} Free` : ` (${passes} passes)`;
+      const budget = (ap != null) ? ` -- turn ${cp}/${passes}, ${ap} AP + ${fr} Free` : ` (${passes} turns)`;
       initEl.textContent = `${ini}${budget}`;
     }
   }
@@ -2791,9 +3150,6 @@ function renderRunState(run) {
     if (decoySucc > 0) {
       badges.push(`<span style="font-size:.65rem;letter-spacing:2px;padding:2px 7px;background:rgba(0,180,255,.1);border:1px solid var(--cyan);color:var(--cyan);border-radius:3px">DECOY ${decoyHp}/10</span>`);
     }
-    if (state.passcode_tn_bonus) {
-      badges.push(`<span style="font-size:.65rem;letter-spacing:2px;padding:2px 7px;background:rgba(0,255,65,.1);border:1px solid var(--green);color:var(--green);border-radius:3px">PASSCODE -2 TN</span>`);
-    }
     badgeEl.innerHTML = badges.join('');
   }
 
@@ -2802,7 +3158,7 @@ function renderRunState(run) {
   if (secKnown) {
     const sk = state.security_known;
     secKnown.innerHTML = sk
-      ? `Last Scan -- Tally <span>${esc(String(sk.tally))}</span>, Alert <span>${esc(String(sk.alert || 'none').toUpperCase())}</span> <span class="text-dim">(turn ${esc(String(sk.turn))})</span>`
+      ? `Last Scan -- Tally <span>${esc(String(sk.tally))}</span>, Alert <span>${esc(String(sk.alert || 'none').toUpperCase())}</span> <span class="text-dim">(round ${esc(String(sk.turn))})</span>`
       : `Security intel: <span class="text-dim">unknown -- run Analyze Security</span>`;
   }
 
@@ -2812,11 +3168,13 @@ function renderRunState(run) {
   // Crash Host countdown banner (visible once the decker initiates a crash)
   renderCrashCountdown(state.crash_host_countdown);
 
-  // Active IC (including lurking reactive IC)
-  renderActiveIC(state.active_ic || [], state.lurking_ic || [], state.run_ended, crashed);
+  // Active IC (including lurking reactive IC; players also see revealed tar IC)
+  renderActiveIC(state.active_ic || [], [].concat(state.lurking_ic || [], state.revealed_lurking_ic || []), state.run_ended, crashed);
+  renderSuppressions(state, crashed);
   renderEnemyDeckers(state.enemy_deckers || [], state.run_ended, crashed);
   renderAreaStrikeSlot(state.run_ended, crashed);
   renderTrapDoorsPanel();
+  checkSuppressionModal(state, decker);
 
   // Event log
   renderEventLog(state.event_log || [], state);
@@ -2826,10 +3184,10 @@ function renderRunState(run) {
   renderDownloadsPanel();
   renderMemoryPanel();
 
-  // Turn badge
+  // Round badge
   const lastEvent = (state.event_log || []).slice(-1)[0];
   if (lastEvent) {
-    document.getElementById('run-turn-badge').textContent = `TURN ${lastEvent.turn}`;
+    document.getElementById('run-turn-badge').textContent = `ROUND ${lastEvent.turn}`;
   }
 
   // Center situation stage (focal "now"); the full chronological history stays in the Event Log.
@@ -2885,15 +3243,8 @@ function renderHostRatings(revealed, pending) {
       `${lbl}: <span>${esc(String(revealed[k]))}</span>`
     ).join(', ');
   }
-  // A banked Analyze Host (fewer net successes than hidden ratings) lets the decker CHOOSE which
-  // still-hidden ACIFS ratings to reveal -- surface a button that opens the selection modal.
-  const credits = (pending && parseInt(pending.credits, 10)) || 0;
-  const hiddenCount = order.filter(([k]) => !revealed || revealed[k] == null).length;
-  const need = Math.min(credits, hiddenCount);
-  if (need > 0) {
-    html += `<div style="margin-top:6px"><button class="btn btn-cyan btn-sm" onclick="openRevealHostModal()">`
-      + `Reveal subsystem ratings (${need})</button></div>`;
-  }
+  // The banked-reveal CTA now lives on the center "game screen" (see stageRequiredAction); this
+  // left-pane readout shows only the subsystem ratings already known. `pending` is unused here.
   el.innerHTML = html;
 }
 
@@ -2904,7 +3255,7 @@ function renderCrashCountdown(cd) {
   if (!cd || (t ?? 0) <= 0) { el.innerHTML = ''; return; }
   el.innerHTML = `<div style="font-size:.62rem;letter-spacing:1px;margin-top:6px;padding:3px 7px;`
     + `background:rgba(255,40,40,.14);border:1px solid var(--red);color:var(--red);border-radius:3px">`
-    + `HOST CRASH: ${esc(String(t))} turn${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each turn</div>`;
+    + `HOST CRASH: ${esc(String(t))} round${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each round</div>`;
 }
 
 // -- Active IC --------------------------------------------------------------
@@ -2929,7 +3280,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     }
   });
 
-  let html = icList.map(ic => {
+  const _cardHtml = icList.map(ic => {
     const isCrashed = ic.status === 'crashed';
     const isConstruct = ic.type === 'Construct';
     const isParty     = !!ic.cluster_id;
@@ -2969,10 +3320,31 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       constructDetails = `<div style="font-size:0.6rem;margin:4px 0 4px;color:var(--text-dim)">${comps}</div>`;
     }
 
+    // IC options (Expert Offense/Defense, Cascading, Armor, Shield/Shifting) -- the backend only
+    // includes these once the IC is fully identified (Analyze IC / GM view), so show them whenever
+    // present. These are the defenses/enhancements a full Analyze reveals.
+    let optionDetails = '';
+    {
+      const optParts = [];
+      if (ic.expert && ic.expert.type) {
+        const side = ic.expert.type === 'offense' ? 'Expert Offense' : 'Expert Defense';
+        const val  = parseInt(ic.expert.value, 10) || 0;
+        optParts.push(val ? `${side} +${val}` : side);
+      }
+      if (ic.shield)    optParts.push('Shielding');
+      if (ic.shift)     optParts.push('Shifting');
+      if (ic.cascading) optParts.push('Cascading');
+      (Array.isArray(ic.options) ? ic.options : []).forEach(o => optParts.push(String(o)));
+      if (optParts.length) {
+        const opts = optParts.map(o => `<span style="color:var(--amber)">${esc(o)}</span>`).join(', ');
+        optionDetails = `<div style="font-size:0.6rem;margin:2px 0 4px;color:var(--text-dim)">Options: ${opts}</div>`;
+      }
+    }
+
     return `
     <div class="ic-card ic-${esc(cardCat)}${isCrashed ? ' ic-crashed' : ''}">
       <div class="ic-head">
-        <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span>${detBadge}${trapBadge}${partyBadge}</span>
+        <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}${detBadge}${trapBadge}${partyBadge}</span>
         <span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>
       </div>
       <div class="ic-meta">
@@ -2980,6 +3352,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
         <span>Status: <span style="color:${isCrashed ? 'var(--text-dim)' : (ic.suppressed ? 'var(--amber)' : 'var(--red)')}">${isCrashed ? 'CRASHED' : (ic.suppressed ? 'SUPPRESSED' : 'ACTIVE')}</span></span>
       </div>
       ${constructDetails}
+      ${optionDetails}
       <div class="cond-row" style="margin-bottom:6px">
         <div class="cond-label">Cond</div>
         <div style="display:flex;gap:3px;flex:1">${boxes}</div>
@@ -2988,14 +3361,42 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       ${canAtk ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>
-        ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this turn (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
+        ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this round (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
+      </div>` : ''}
+      ${isCrashed && !ic.suppressed && !ic.suppression_released ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="color:var(--green);border-color:#004400" onclick="toggleSuppress('${esc(ic.id)}', false)" data-tip="Suppress this crashed IC: spend 1 Detection Factor to hold it down and refund its rating from the security tally. No action cost -- do it any time on your turn.">&gt;&gt; Suppress (-1 DF)</button>
       </div>` : ''}
       ${isCrashed && ic.suppressed && !ic.suppression_released ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="toggleSuppress('${esc(ic.id)}', true)" data-tip="Release suppression: restores 1 Detection Factor but adds this IC's rating to the security tally (may trigger the sheaf). One-way -- it cannot be suppressed again.">&gt;&gt; Release</button>
       </div>` : ''}
     </div>`;
-  }).join('');
+  });
+
+  // Assemble the cards, grouping consecutive members of the same Party IC cluster inside a subtle
+  // bordered wrapper. Each component is still its own targetable card (vr2: party IC components are
+  // separate icons defeated individually) -- the wrapper is purely a visual cue that they act as a
+  // cluster and share the TN penalty.
+  let html = '';
+  let gi = 0;
+  while (gi < icList.length) {
+    const cid = icList[gi].cluster_id ? String(icList[gi].cluster_id) : null;
+    if (cid) {
+      const parts = [];
+      while (gi < icList.length && (icList[gi].cluster_id ? String(icList[gi].cluster_id) : null) === cid) {
+        parts.push(_cardHtml[gi]); gi++;
+      }
+      const sz = clusterCounts[cid] || parts.length;
+      html += `<div class="ic-party-cluster">`
+        + `<div class="ic-party-cluster-hd">PARTY IC CLUSTER${sz > 1 ? ` &mdash; ${sz} icons, TN +${sz} to hit` : ''}</div>`
+        + parts.join('')
+        + `</div>`;
+    } else {
+      html += _cardHtml[gi];
+      gi++;
+    }
+  }
 
   // Lurking (reactive) IC section
   if (lurkingList.length) {
@@ -3007,7 +3408,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       return `
       <div class="ic-card ic-lurking">
         <div class="ic-head">
-          <span class="ic-type-name">${esc(ic.type)} <span style="color:var(--text-dim)">Rating ${ic.rating || '?'}</span></span>
+          <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}</span>
           <span class="ic-badge" style="color:var(--amber);border-color:#442200">LURKING</span>
         </div>
         <div class="ic-meta">
@@ -3088,6 +3489,12 @@ function renderEventEntry(ev) {
       badgeColor = ev.outcome === 'crash' ? 'var(--green)' : 'var(--red)';
       badgeText = ev.program === 'killjoy' ? 'KILLJOY' : 'BLACK HAMMER';
       break;
+    case 'icon_scanned':
+      // PC Scan Icon vs an enemy decker: cyan recon; green when it reveals something new.
+      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = ev.success ? 'var(--green)' : 'var(--cyan)';
+      badgeText = 'SCAN ICON';
+      break;
     case 'ic_crashed':
       cls = 'ev-ic-crashed';
       badgeColor = 'var(--green)';
@@ -3158,7 +3565,7 @@ function renderEventEntry(ev) {
     case 'new_turn':
       cls = 'ev-neutral';
       badgeColor = 'var(--cyan)';
-      badgeText = 'NEW TURN';
+      badgeText = 'NEW ROUND';
       break;
     case 'reactive_ic_armed':
       cls = 'ev-reactive';
@@ -3195,6 +3602,11 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--green-dim)';
       badgeText = 'PASSCODE';
       break;
+    case 'invalidate_passcode':
+      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
+      badgeColor = 'var(--amber)';
+      badgeText = 'INVALIDATE';
+      break;
     case 'decoy_deployed':
       cls = 'ev-action-ok';
       badgeColor = 'var(--cyan)';
@@ -3224,6 +3636,16 @@ function renderEventEntry(ev) {
       cls = 'ev-action-ok';
       badgeColor = 'var(--green)';
       badgeText = 'DOWNLOAD';
+      break;
+    case 'file_deleted':
+      cls = 'ev-crash';
+      badgeColor = 'var(--red)';
+      badgeText = 'FILE ERASED';
+      break;
+    case 'file_modified':
+      cls = 'ev-action-fail';
+      badgeColor = 'var(--red)';
+      badgeText = 'FILE TAMPERED';
       break;
     case 'download_started':
       cls = 'ev-action-ok';
@@ -3266,10 +3688,20 @@ function renderEventEntry(ev) {
       badgeColor = 'var(--cyan)';
       badgeText = 'TRAP TRANSIT';
       break;
+    case 'trap_door_return':
+      cls = 'ev-action-ok';
+      badgeColor = 'var(--cyan)';
+      badgeText = 'TRAP RETURN';
+      break;
     case 'host_ltg_revealed':
       cls = 'ev-action-ok';
       badgeColor = ev.has_ltg ? 'var(--green)' : 'var(--text-dim)';
       badgeText = ev.has_ltg ? 'LTG: YES' : 'LTG: NO';
+      break;
+    case 'access_analysis_blocked':
+      cls = 'ev-action-fail';
+      badgeColor = 'var(--amber)';
+      badgeText = 'BLOCKED';
       break;
     case 'decrypt':
       if (!ev.decker_roll) {   // guard: no discovered scramble matched -- nothing decrypted, no loss
@@ -3308,6 +3740,32 @@ function renderEventEntry(ev) {
       badgeColor = ev.outcome === 'mpcp_infected' ? 'var(--red)' : 'var(--green)';
       badgeText = ev.outcome === 'mpcp_infected' ? 'WORM INFECT' : 'WORM REPELLED';
       break;
+    case 'tapeworm_payload_loss':
+      cls = (ev.destroyed_files || []).length ? 'ev-crash' : 'ev-neutral';
+      badgeColor = (ev.destroyed_files || []).length ? 'var(--red)' : 'var(--cyan)';
+      badgeText = ev.key_erased ? 'KEY DATA LOST' : 'TAPEWORM';
+      break;
+    case 'shutdown_initiated':
+      cls = 'ev-ic-activate';
+      badgeColor = 'var(--red)';
+      badgeText = 'SHUTDOWN';
+      break;
+    case 'shutdown_detected':
+    case 'shutdown_warning':
+      cls = 'ev-alert';
+      badgeColor = 'var(--amber)';
+      badgeText = 'SHUTDOWN';
+      break;
+    case 'shutdown_tick':
+      cls = 'ev-neutral';
+      badgeColor = 'var(--amber)';
+      badgeText = 'SHUTDOWN';
+      break;
+    case 'jack_out_failed':
+      cls = 'ev-action-fail';
+      badgeColor = 'var(--red)';
+      badgeText = 'JACK-OUT FAIL';
+      break;
     case 'ic_detected':
       cls = 'ev-reactive';
       badgeColor = 'var(--amber)';
@@ -3330,8 +3788,12 @@ function renderEventEntry(ev) {
       else if (oc === 'scan_hit') { cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'DECKER FOUND'; }
       else if (oc === 'scan_clear') { cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'SCAN CLEAR'; }
       else if (oc === 'scan_fail') { cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'SCAN FAIL'; }
+      else if (oc === 'scanned') { cls = 'ev-alert'; badgeColor = 'var(--red)'; badgeText = 'ICON READ'; }
       else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = (ev.program || 'BLACK HAMMER').toUpperCase(); }
       else if (oc === 'fled') { cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'DECKER FLED'; }
+      else if (oc === 'hog') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'HOG DRAIN'; }
+      else if (oc === 'purge_hog') { cls = 'ev-neutral'; badgeColor = 'var(--amber)'; badgeText = 'DECKER PURGE'; }
+      else if (oc === 'swap_memory') { cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'DECKER RELOAD'; }
       else { cls = 'ev-ic-attack'; badgeColor = '#ff7700'; badgeText = 'ENEMY DECKER'; }
       break;
     }
@@ -3339,6 +3801,11 @@ function renderEventEntry(ev) {
       cls = (ev.successes || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
       badgeColor = (ev.shield_remaining || 0) > 0 ? 'var(--cyan)' : 'var(--amber)';
       badgeText = 'SHIELD';
+      break;
+    case 'armor_wear':
+      cls = (ev.armor_remaining || 0) > 0 ? 'ev-neutral' : 'ev-action-fail';
+      badgeColor = (ev.armor_remaining || 0) > 0 ? 'var(--cyan)' : 'var(--amber)';
+      badgeText = 'ARMOR';
       break;
     case 'medic_heal':
       cls = (ev.healed || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
@@ -3404,17 +3871,24 @@ function renderEventEntry(ev) {
     if (ev.opposing_roll)    parts.push(`Oppose: [${(ev.opposing_roll.dice || []).join(',')}] &rarr; ${ev.opposing_roll.successes ?? 0} hits`);
     if (parts.length) diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
   }
+  // Cybercombat attack (decker attacks IC): the attack roll and the IC's damage-resist roll.
+  if (ev.attack_roll || ev.resist_roll) {
+    const parts = [];
+    if (ev.attack_roll) parts.push(`Attack: [${(ev.attack_roll.dice || []).join(',')}] &rarr; ${ev.attack_roll.successes ?? 0} hits`);
+    if (ev.resist_roll) parts.push(`IC resist: [${(ev.resist_roll.dice || []).join(',')}] &rarr; ${ev.resist_roll.successes ?? 0} hits`);
+    if (parts.length) diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
+  }
 
   return `
   <div class="ev-entry ${cls}">
-    <span class="ev-turn">T${turn}</span>
+    <span class="ev-turn">R${turn}</span>
+    ${ev.init != null ? `<span class="ev-init" data-tip="Initiative count this happened on">i${esc(String(ev.init))}</span>` : ''}
     <span class="ev-type-badge" style="color:${badgeColor};border-color:${badgeColor}40">${badgeText}</span>
     <span class="ev-desc">${desc}</span>
     ${diceLine}
   </div>`;
 }
 
-// -- Action area ------------------------------------------------------------
 // -- Center situation stage -------------------------------------------------
 // The focal "what's happening now" pane in the middle column. Pre-logon it frames the clean
 // slate and points the decker at the Log On action; once on the host it surfaces the current
@@ -3432,14 +3906,118 @@ function renderStage(state, decker) {
 
   const ev    = (state.event_log || []).slice(-1)[0];
   const phase = ended ? 'Run Complete' : 'On the Host';
-  let html = `<div class="stage-phase">&gt;&gt; ${esc(phase)}</div>`;
-  if (ended && state.end_reason) {
-    html += `<div class="stage-sub">${esc(state.end_reason)}</div>`;
-  }
-  if (ev && ev.description) {
-    html += `<div class="stage-latest"><span class="stage-latest-label">LATEST</span>${esc(ev.description)}</div>`;
-  }
+  // Show the CURRENT initiative count (SR2: the count drops by 10 each pass). The decker rolled
+  // initiative once for the encounter; on pass N the live count is that roll minus 10*(N-1). This
+  // is the number anything acting right now is on -- e.g. init 26 on pass 1, 16 on pass 2, 6 on 3.
+  const dInit = parseInt(state.decker_initiative, 10);
+  const curPass = parseInt(state.current_pass, 10) || 1;
+  const curInit = Number.isFinite(dInit) ? dInit - 10 * (curPass - 1) : NaN;
+  const initTag = (!ended && Number.isFinite(curInit))
+    ? ` <span class="stage-phase-init">&middot; Initiative Count ${esc(String(curInit))}</span>` : '';
+  let html = `<div class="stage-phase">&gt;&gt; ${esc(phase)}${initTag}</div>`;
+  // The center pane is the "game screen": show the latest result as a card (what happened + the
+  // dice behind it), then any action the player must take right now. Live deck status (persona
+  // boxes, BEMS, pool) lives on the LEFT pane and is deliberately NOT repeated here.
+  if (ev) html += stageResultCard(ev);
+  html += stageRequiredAction(state);
   el.innerHTML = html;
+}
+
+// Latest event as a prominent result card: title + outcome badge, the narrative line, and the
+// dice behind it. The host/opposing roll only appears when the server included it -- it is
+// redacted for players (see _redact_event_tally), so a player sees only their own roll here.
+function stageResultCard(ev) {
+  const b = stageBadge(ev);
+  let inner = `<div class="stage-card-head">`
+    + `<span class="stage-card-title">${esc(stageActionTitle(ev))}</span>`
+    + `<span class="stage-badge" style="color:${b.c}">${esc(b.t)}</span>`
+    + `</div>`;
+  if (ev.description) inner += `<div class="stage-card-desc">${esc(ev.description)}</div>`;
+  let rolls = stageDice(ev.decker_roll, 'You');
+  if (ev.ic_roll)          rolls += stageDice(ev.ic_roll, 'IC');
+  if (ev.host_roll)        rolls += stageDice(ev.host_roll, 'Host');
+  if (ev.maneuvering_roll) rolls += stageDice(ev.maneuvering_roll, 'Maneuver');
+  if (ev.opposing_roll)    rolls += stageDice(ev.opposing_roll, 'Oppose');
+  if (rolls) inner += `<div class="stage-card-rolls">${rolls}</div>`;
+  if (ev.net_successes != null) {
+    inner += `<div class="stage-card-net">NET SUCCESSES <span>${esc(String(ev.net_successes))}</span></div>`;
+  }
+  return `<div class="stage-card">${inner}</div>`;
+}
+
+// One dice line: the roller's label (+TN), each die (hits and 1s highlighted), then the hit count.
+// `dice` holds post-explosion per-die totals, so `die >= tn` is an honest hit and `die === 1` a one.
+function stageDice(roll, label) {
+  if (!roll) return '';
+  const tn   = parseInt(roll.tn, 10);
+  const dice = Array.isArray(roll.dice) ? roll.dice : [];
+  const pips = dice.map(d => {
+    const v = parseInt(d, 10);
+    let cls = 'stage-die';
+    if (Number.isFinite(tn) && v >= tn) cls += ' stage-die-hit';
+    else if (v === 1) cls += ' stage-die-one';
+    return `<span class="${cls}">${esc(String(v))}</span>`;
+  }).join('');
+  if (!pips && roll.successes == null) return '';
+  const tnTxt = Number.isFinite(tn) ? ` &middot; TN ${esc(String(tn))}` : '';
+  const succ  = roll.successes ?? 0;
+  return `<div class="stage-roll">`
+    + `<span class="stage-roll-who">${esc(label)}${tnTxt}</span>`
+    + (pips ? `<span class="stage-dice">${pips}</span>` : '')
+    + `<span class="stage-roll-succ">&rarr; ${esc(String(succ))} hit${succ == 1 ? '' : 's'}</span>`
+    + `</div>`;
+}
+
+// Outcome badge for the card. Action-style events carry a boolean `success`; other event types map
+// to a short label. Kept compact on purpose -- the Event Log (right) still has the full per-type badge.
+function stageBadge(ev) {
+  if (typeof ev.success === 'boolean') {
+    return ev.success ? { t: 'SUCCESS', c: 'var(--green)' } : { t: 'FAILED', c: 'var(--red)' };
+  }
+  const map = {
+    new_turn:  { t: 'NEW ROUND', c: 'var(--cyan)' },
+    new_pass:  { t: 'NEW TURN',  c: 'var(--cyan)' },
+    ic_attack: { t: 'IC ATTACK', c: 'var(--red)' },
+    ic_spawn:  { t: 'IC SPAWN',  c: 'var(--amber)' },
+    crash:     { t: 'CRASH',     c: 'var(--red)' },
+    alert:     { t: 'ALERT',     c: 'var(--amber)' },
+  };
+  const t = String(ev.type || '');
+  return map[t] || { t: (t.replace(/_/g, ' ').toUpperCase() || 'RESULT'), c: 'var(--text-dim)' };
+}
+
+// Human-readable title for the card header: the action name when present, else the event type.
+// Analyze Subsystem appends its targeted subsystem (e.g. "Analyze Subsystem - Files") to match the
+// event-log label, so the player can easily re-reference which subsystem they probed.
+function stageActionTitle(ev) {
+  const raw = ev.action || ev.type || 'result';
+  let title = String(raw).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  if (ev.action === 'analyze_subsystem' && ev.subsystem) {
+    title += ' - ' + String(ev.subsystem).replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return title;
+}
+
+// A required-action prompt on the game screen. The only one today is a banked Analyze Host: when the
+// decker scored fewer net successes than the host had hidden ratings, it may CHOOSE which still-hidden
+// items to reveal (the 5 ACIFS ratings + the Security Rating). This is the relocated reveal button.
+function stageRequiredAction(state) {
+  const pending = state.host_analyze_pending || null;
+  if (!pending) return '';
+  const revealed = state.host_ratings_revealed || {};
+  const order    = ['access', 'control', 'index', 'files', 'slave'];
+  const credits  = parseInt(pending.credits, 10) || 0;
+  let hidden     = order.filter(k => revealed[k] == null).length;
+  if (!state.host_security_revealed) hidden += 1;   // Security Rating is a 6th revealable item
+  const need     = Math.min(credits, hidden);
+  if (need <= 0) return '';
+  return `<div class="stage-cta">`
+    + `<div class="stage-cta-label">&gt;&gt; Action Required</div>`
+    + `<div class="stage-cta-text">Your Analyze Host banked ${esc(String(need))} host `
+    +   `rating${need == 1 ? '' : 's'} to reveal &mdash; choose which to expose.</div>`
+    + `<button class="btn btn-cyan btn-sm" onclick="openRevealHostModal()">`
+    +   `&gt;&gt; Reveal host ratings (${esc(String(need))})</button>`
+    + `</div>`;
 }
 
 // Pre-logon briefing: frame the clean slate with what the decker DOES know going in -- the host
@@ -3480,10 +4058,10 @@ function actionEconomyBar(state) {
   const tp = state.initiative_passes || 1;
   const turn = state.current_turn || (((state.event_log || []).slice(-1)[0] || {}).turn) || 1;
   return `<div class="act-econ">`
-    + `<span class="act-econ-cell"><span class="act-econ-k">PASS</span><span class="act-econ-v">${esc(String(cp))}/${esc(String(tp))}</span></span>`
+    + `<span class="act-econ-cell"><span class="act-econ-k">TURN</span><span class="act-econ-v">${esc(String(cp))}/${esc(String(tp))}</span></span>`
     + `<span class="act-econ-cell"><span class="act-econ-k">ACTION PTS</span>${_pips(apN, 2, 'ap')}</span>`
     + `<span class="act-econ-cell"><span class="act-econ-k">FREE</span>${_pips(frN, 1, 'free')}</span>`
-    + `<span class="act-econ-cell act-econ-turn"><span class="act-econ-k">TURN</span><span class="act-econ-v">${esc(String(turn))}</span></span>`
+    + `<span class="act-econ-cell act-econ-turn"><span class="act-econ-k">ROUND</span><span class="act-econ-v">${esc(String(turn))}</span></span>`
     + `</div>`;
 }
 function _pips(filled, total, kind) {
@@ -3502,6 +4080,141 @@ function _autoUtilRating(actionType) {
   return Math.max(0, base - dmg);
 }
 
+// -- Action area ------------------------------------------------------------
+// Can the current initiative pass still afford an action of this cost? Complex needs 2 action
+// points, Simple 1, a Free action its own Free slot (mirrors the backend _spend_pass_action).
+// Legacy runs with no budget tracked are never gated here.
+function _canAffordCost(state, cost) {
+  if (state.pass_action_points == null) return true;   // legacy run: economy not enforced
+  if (cost === 'Free') return (state.pass_free || 0) >= 1;
+  return (state.pass_action_points || 0) >= (cost === 'Complex' ? 2 : 1);
+}
+
+// Run-terminated CRT screen: clear the side panes and show a flavorful "session terminated"
+// message with a Linux-style shell prompt + blinking cursor in the center stage. The run is
+// over -- no live board to draw. The outcome line and status lines are derived from the run's
+// own end_reason and state (paydata secured, deck damage) so the summary reflects what happened.
+function _terminatedOutcome(reason) {
+  // Maps the machine end_reason code to a human-readable outcome line + severity class.
+  const dangerUnconscious =
+    'Connection severed -- DANGER, Biofeedback synapse spike -- consciousness not guaranteed! '
+    + 'Dispatching Doc Wagon.';
+  const dangerFlatline =
+    'Connection severed -- DANGER! Biofeedback pulse incoming! FLATLINED.';
+  const map = {
+    graceful_logoff:        ['Logged out successfully, connection closed.',       'crt-good'],
+    jack_out:               ['User interrupt, connection lost!!',                 'crt-amber'],
+    host_shutdown:          ['Target host shutdown -- connection lost.',          'crt-amber'],
+    host_crashed:           ['Target host crashed, all processes stopped -- connection lost.', 'crt-amber'],
+    persona_crashed:        ['Icon damage threshold exceeded -- crashed.',        'crt-bad'],
+    icon_crashed_by_decker: ['Icon damage threshold exceeded -- crashed.',        'crt-bad'],
+    black_ic_unconscious:   [dangerUnconscious,                                   'crt-bad'],
+    killed_by_killjoy:      [dangerUnconscious,                                   'crt-bad'],
+    black_ic_lethal:        [dangerFlatline,                                      'crt-bad'],
+    killed_by_black_hammer: [dangerFlatline,                                      'crt-bad'],
+  };
+  return map[reason] || [reason ? String(reason).replace(/_/g, ' ') : 'Session closed.', 'crt-amber'];
+}
+
+function renderRunTerminated(state) {
+  const left  = document.querySelector('#runView .mr-col-left');
+  const right = document.querySelector('#runView .mr-col-right');
+  const bar   = document.getElementById('run-action-bar');
+  const layout = document.querySelector('#runView .mr-layout');
+  if (left)  left.style.display  = 'none';
+  if (right) right.style.display = 'none';
+  if (bar)   bar.style.display   = 'none';
+  // Collapse the 3-column grid to one full-width track so the CRT stage fills the pane.
+  if (layout) layout.classList.add('mr-terminated');
+
+  const hosts = (typeof _hosts !== 'undefined' && Array.isArray(_hosts)) ? _hosts : [];
+  const host  = hosts.find(h => String(h.id) === String(_run?.host_id));
+  const ltg   = host && host.ltg_address ? String(host.ltg_address) : '';
+  const node  = ltg ? `LTG ${ltg}` : (host && host.name ? host.name : `host #${_run?.host_id ?? '?'}`);
+
+  const [outcomeText, outcomeCls] = _terminatedOutcome(state.end_reason);
+
+  // Status lines derived from the run's own state -- only shown when they actually apply.
+  const statusLines = [];
+  // Paydata haul: read the finalized summary (state.paydata_secured), NOT downloaded_files --
+  // the latter is wiped when the haul is finalized at run end, so it is empty on a clean escape.
+  const secured = (state.paydata_secured && typeof state.paydata_secured === 'object')
+    ? state.paydata_secured : null;
+  const securedCount = secured ? (parseInt(secured.count, 10) || 0) : 0;
+  if (securedCount > 0) {
+    const keys = parseInt(secured.key_count, 10) || 0;
+    const keyNote = keys > 0 ? ` (${keys} key)` : '';
+    const mp = parseInt(secured.total_mp, 10) || 0;
+    const mpNote = mp > 0 ? `, ${mp} Mp` : '';
+    statusLines.push([`Paydata secured: ${securedCount} file${securedCount === 1 ? '' : 's'}${keyNote}${mpNote}.`, 'crt-good']);
+  } else {
+    statusLines.push(['No paydata recovered.', 'crt-amber']);
+  }
+  // Trace outcome: a completed Trace IC locates the jackpoint; a physical location is only
+  // pinpointed when the decker lacks satellite-uplink (physical_trace_immune) protection.
+  const traced = (parseInt(state.traces_completed, 10) || 0) > 0;
+  if (traced) {
+    if (state.physical_trace_immune) {
+      statusLines.push(['Jackpoint traced -- physical location protected (satellite uplink).', 'crt-amber']);
+    } else {
+      statusLines.push(['PHYSICAL LOCATION TRACED -- location reported to system operator.', 'crt-bad']);
+    }
+  }
+  const mpcpDmg = (state.condition_monitor && state.condition_monitor.mpcp_damage) || 0;
+  if (mpcpDmg > 0) {
+    statusLines.push([`Deck damage sustained: MPCP -${mpcpDmg}.`, 'crt-bad']);
+  }
+  // Ripper persona-chip burn (permanent): condition_monitor.persona_chip_damage {bod,evasion,masking,sensor}.
+  const chip = (state.condition_monitor && state.condition_monitor.persona_chip_damage) || {};
+  const chipLabels = { bod: 'BOD', evasion: 'EVA', masking: 'MASK', sensor: 'SENS' };
+  const chipParts = [];
+  Object.keys(chipLabels).forEach(k => {
+    const n = parseInt(chip[k], 10) || 0;
+    if (n > 0) chipParts.push(`${chipLabels[k]} -${n}`);
+  });
+  if (chipParts.length) {
+    statusLines.push([`Persona chips burned: ${chipParts.join(', ')}.`, 'crt-bad']);
+  }
+  // Persistent MPCP worm infections: state.mpcp_infections [{variant, rating, ic_id}].
+  const worms = Array.isArray(state.mpcp_infections) ? state.mpcp_infections : [];
+  if (worms.length) {
+    const tags = worms.map(w => {
+      const v = (w && w.variant) ? String(w.variant) : 'worm';
+      const r = parseInt(w && w.rating, 10);
+      return Number.isFinite(r) ? `${v} (R${r})` : v;
+    });
+    statusLines.push([`MPCP infected: ${tags.join(', ')}.`, 'crt-bad']);
+  }
+
+  // Linux-style prompt: <decker>@<deck> ~ #  -- fall back to sane defaults if unset.
+  const decker   = (_run && _run.decker_json) || {};
+  const userName = _shellToken(decker.name, 'decker');
+  const deckName = _shellToken(decker.deck_name, 'deck');
+
+  const body = document.getElementById('run-stage-body');
+  if (!body) return;
+  body.innerHTML =
+      `<div class="crt-terminated">`
+    +   `<div class="crt-line">&gt; Session terminated.</div>`
+    +   `<div class="crt-line crt-node">&gt; Connection to ${esc(node)} closed.</div>`
+    +   `<div class="crt-line ${outcomeCls}">&gt; ${esc(outcomeText)}</div>`
+    +   statusLines.map(([t, c]) => `<div class="crt-line ${c}">&gt; ${esc(t)}</div>`).join('')
+    +   `<div class="crt-prompt">`
+    +     `<span class="crt-user">${esc(userName)}@${esc(deckName)}</span> `
+    +     `<span class="crt-path">~</span> `
+    +     `<span class="crt-hash">#</span>`
+    +     `<span class="crt-cursor">&nbsp;</span>`
+    +   `</div>`
+    + `</div>`;
+}
+
+// Normalize a display name into a shell-token: lowercase, spaces/punct -> hyphens, trimmed.
+function _shellToken(raw, fallback) {
+  const s = String(raw == null ? '' : raw).trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return s || fallback;
+}
+
 function renderActionArea(state, decker, crashed) {
   const el = document.getElementById('action-area');
   if (!el) return;
@@ -3509,9 +4222,8 @@ function renderActionArea(state, decker, crashed) {
   const logonDone = state.logon_complete || false;
 
   if (runEnded) {
-    el.innerHTML = `
-      <div class="run-ended-msg">&gt;&gt; RUN ENDED: ${esc(state.end_reason || 'unknown')}</div>
-      <button class="btn btn-ghost" onclick="abandonRun()">&gt;&gt; Close / Abandon</button>`;
+    // Handled entirely by renderRunTerminated (center stage takes over); nothing to draw here.
+    el.innerHTML = '';
     return;
   }
 
@@ -3523,9 +4235,8 @@ function renderActionArea(state, decker, crashed) {
           <label>HP Dice <span style="color:var(--text-dim)">(${hpRem})</span></label>
           <input type="number" id="logonHpDice" min="0" max="${hpRem}" value="0">
         </div>
-        <button class="btn btn-green act-perform" onclick="doLogon()">&gt;&gt; Log On to Host <span class="act-cost-tag">Complex -- 2 AP</span></button>
+        <button class="btn btn-green act-perform" onclick="doLogon()">&gt;&gt; Log On to Host <span class="act-cost-tag">2 AP</span></button>
         <span class="act-hint">Establish connection to target system</span>
-        <button class="btn btn-red btn-sm" style="margin-left:auto" onclick="abandonRun()">&gt;&gt; Abandon Run</button>
       </div>`;
     return;
   }
@@ -3534,7 +4245,14 @@ function renderActionArea(state, decker, crashed) {
   // cost, invalid ones disabled with a reason) + the conditional sub-field the chosen action
   // needs. Util rating is applied automatically; HP dice are capped to the remaining pool.
   const hpRem = state.hackingPool_remaining ?? 0;
-  const rows  = ACTION_CATALOG.map(a => ({ a, ok: a.valid ? !!a.valid(state) : true }));
+  // Two independent gates decide if an action is selectable: game state (a.valid -> gray reason,
+  // e.g. "no trace running") and the per-pass action budget (enough AP / a Free slot -> dark-red
+  // "insufficient action points"). A game-state block takes precedence when both apply.
+  const rows  = ACTION_CATALOG.map(a => ({
+    a,
+    okGame: a.valid ? !!a.valid(state) : true,
+    afford: _canAffordCost(state, a.cost),
+  }));
   const buckets = { Complex: [], Simple: [], Free: [] };
   rows.forEach(r => (buckets[r.a.cost] || buckets.Complex).push(r));
   const groupLabel = { Complex: 'Complex -- 2 AP', Simple: 'Simple -- 1 AP', Free: 'Free Action' };
@@ -3542,11 +4260,28 @@ function renderActionArea(state, decker, crashed) {
     const items = buckets[cost];
     if (!items.length) return '';
     return `<optgroup label="${groupLabel[cost]}">`
-      + items.map(r => `<option value="${r.a.v}"${r.ok ? '' : ' disabled'}>`
-          + `${esc(r.a.l)}${r.ok ? '' : ' -- ' + esc(r.a.reason || 'n/a')}</option>`).join('')
+      + items.map(r => {
+          const disabled = !r.okGame || !r.afford;
+          // Native <option> can't color only part of its text, so an affordability block dark-reds
+          // the whole row via .opt-noap; a game-state block keeps the default gray + its reason.
+          let label = esc(r.a.l), cls = '';
+          if (!r.okGame)      label += ' -- ' + esc((typeof r.a.reason === 'function' ? r.a.reason(state) : r.a.reason) || 'n/a');
+          else if (!r.afford) { label += ' -- insufficient action points'; cls = ' class="opt-noap"'; }
+          return `<option value="${r.a.v}"${disabled ? ' disabled' : ''}${cls}>${label}</option>`;
+        }).join('')
       + `</optgroup>`;
   }).join('');
   const deception = (decker.utilities || {}).deception || 0;
+
+  // End button closes ONE initiative pass (now labelled a "Turn") at a time. Only the decker's
+  // LAST pass ends the whole Combat Round, so the label + tooltip reflect which this click does.
+  // (SR2 rolls initiative ONCE per encounter -- ending a Turn or a Round never re-rolls it.)
+  const _cp = state.current_pass || 1, _tp = state.initiative_passes || 1;
+  const _endsPass = _cp < _tp;
+  const _endLabel = _endsPass ? 'End Turn' : 'End Round';
+  const _endTip = _endsPass
+    ? `End turn ${_cp}/${_tp}: the hostiles on this turn act, then your next turn opens with fresh actions + Hacking Pool. Same Combat Round, initiative unchanged.`
+    : `End the Combat Round: any remaining hostile turns resolve, then the next round begins. Initiative is unchanged (SR2 rolls it once per encounter).`;
 
   el.innerHTML = actionEconomyBar(state) + `
     <div class="act-form">
@@ -3570,10 +4305,6 @@ function renderActionArea(state, decker, crashed) {
         <select id="actionTargetSelect"></select>
         <input type="text" id="actionTargetFile" style="display:none" placeholder="-- name --">
       </div>
-      <div class="mr-field act-swapout" id="actionSwapOutWrap" style="display:none">
-        <label>Swap Out</label>
-        <select id="actionSwapOut"></select>
-      </div>
       <div class="mr-field act-poschoice" id="actionPosChoiceWrap" style="display:none">
         <label>On Next Attack</label>
         <!-- Position Attack (vr2 L1982): on a win, spend the net successes as a to-hit bonus
@@ -3583,22 +4314,42 @@ function renderActionArea(state, decker, crashed) {
           <option value="power">Raise Power (+net damage)</option>
         </select>
       </div>
+      <div class="mr-field act-editmode" id="actionEditModeWrap" style="display:none">
+        <label>Edit Mode</label>
+        <!-- Edit File (vr2 L1875): ERASE destroys the file; MODIFY corrupts the host's copy in
+             place. Both deny clean data to the owner. -->
+        <select id="actionEditMode">
+          <option value="erase">Erase (destroy file)</option>
+          <option value="modify">Modify (corrupt file)</option>
+        </select>
+      </div>
+      <div class="mr-field act-relocatemode" id="actionRelocateModeWrap" style="display:none">
+        <label>Relocate Mode</label>
+        <!-- Relocate (vr2 L588): SPOOF hides you from this trace for THIS turn only (it resumes its
+             location cycle next turn unless spoofed again); SUPPRESS pauses it in place indefinitely
+             for -1 Detection Factor until you release it. -->
+        <select id="actionRelocateMode">
+          <option value="spoof">Spoof (this round only)</option>
+          <option value="suppress">Suppress (pause, -1 DF)</option>
+        </select>
+      </div>
       <div class="mr-field act-hp" id="actionHpWrap">
         <label>HP Dice <span style="color:var(--text-dim)">(${hpRem})</span></label>
         <input type="number" id="actionHpDice" min="0" max="${hpRem}" value="0">
       </div>
       <button class="btn btn-green act-perform" id="actPerformBtn" onclick="performAction()">&gt;&gt; Perform <span class="act-cost-tag" id="actCostTag"></span></button>
+      <button class="btn act-newturn act-endturn" onclick="doEndTurn()" data-tip="${esc(_endTip)}">&gt;&gt; ${esc(_endLabel)}</button>
     </div>
     <div class="act-footer">
-      <button class="btn btn-sm act-newturn" onclick="doNewTurn()" data-tip="End your action phase: re-roll initiative and refresh action passes + Hacking Pool">&gt;&gt; New Turn</button>
-      <span class="act-footer-sep"></span>
       <button class="btn btn-amber btn-sm" onclick="openLogoffModal(${deception})">&gt;&gt; Graceful Logoff</button>
-      <button class="btn btn-ghost btn-sm" onclick="doJackOut()">&gt;&gt; Jack Out</button>
+      <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
     </div>`;
 
-  // Default to the first VALID action, then lay out its sub-fields + cost tag.
+  // Default to the first FULLY-USABLE action (valid by game state AND affordable this pass), then
+  // lay out its sub-fields + cost tag. If none is usable, leave the browser's default selection so
+  // onActionTypeChange still wires the panel.
   const sel = document.getElementById('actionType');
-  const firstOk = rows.find(r => r.ok);
+  const firstOk = rows.find(r => r.okGame && r.afford);
   if (sel && firstOk) sel.value = firstOk.a.v;
   onActionTypeChange();
 }
@@ -3626,7 +4377,7 @@ function onActionTypeChange() {
     if (wrap) wrap.style.display = '';
     if (tLbl) tLbl.textContent = tgt.label || 'Target';
     if (tgt.mode === 'select') {
-      if (tSel) { tSel.style.display = ''; tSel.innerHTML = tgt.options.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join(''); }
+      if (tSel) { tSel.style.display = ''; tSel.innerHTML = tgt.options.map(o => `<option value="${esc(o.value)}"${o.disabled ? ' disabled' : ''}${o.title ? ` title="${esc(o.title)}"` : ''}>${esc(o.label)}</option>`).join(''); }
       if (tTxt) tTxt.style.display = 'none';
     } else {
       if (tSel) { tSel.style.display = 'none'; tSel.innerHTML = ''; }
@@ -3634,20 +4385,15 @@ function onActionTypeChange() {
     }
   }
 
-  // Swap-out selector (Swap Memory only): choose an ACTIVE program to push to storage so the
-  // incoming program has room. Lists live utilities (rating > 0); "(keep all active)" leaves
-  // active memory as-is -- the load then 400s if there is no room, with the reason from the server.
-  const soWrap = document.getElementById('actionSwapOutWrap');
-  const soSel  = document.getElementById('actionSwapOut');
-  if (soWrap) soWrap.style.display = entry.swapOut ? '' : 'none';
-  if (soSel && entry.swapOut) {
-    soSel.innerHTML = '<option value="">(keep all active)</option>'
-      + _liveUtils().map(u => `<option value="${esc(u.key)}">${esc(prettyProg(u.key))}-${u.rating}</option>`).join('');
-  }
-
   // Position Attack choice selector: only for that maneuver -- spend net successes as -TN or +Power.
   const pcWrap = document.getElementById('actionPosChoiceWrap');
   if (pcWrap) pcWrap.style.display = entry.posChoice ? '' : 'none';
+
+  // Edit File mode selector: only for Edit File -- Erase (destroy) vs Modify (corrupt in place).
+  const emWrap = document.getElementById('actionEditModeWrap');
+  if (emWrap) emWrap.style.display = entry.editMode ? '' : 'none';
+  const rmWrap = document.getElementById('actionRelocateModeWrap');
+  if (rmWrap) rmWrap.style.display = entry.relocateMode ? '' : 'none';
 
   // HP Dice field: hidden for no-test actions (e.g. Swap Memory). The Hacking Pool only buys dice
   // on a test, so a test-less action never uses it.
@@ -3655,28 +4401,31 @@ function onActionTypeChange() {
   if (hpWrap) hpWrap.style.display = entry.noTest ? 'none' : '';
 
   // Cost tag + AP gate on Perform. Each initiative pass grants 2 AP (Simple = 1, Complex = 2) and
-  // 1 Free action; when the current pass cannot afford the action the server auto-advances to the
-  // next pass (refreshing the budget), so the amber tag means "starts a new pass". The action is
-  // only IMPOSSIBLE -- and Perform disabled -- when the current pass cannot afford it AND no
-  // further pass remains this Combat Turn (the decker must click New Turn to re-roll initiative).
+  // 1 Free action. Perform is live ONLY when the selected action can actually be taken in the
+  // CURRENT pass -- i.e. its <option> is enabled (valid this game-state) AND the pass can afford
+  // its cost. When out of action points (or the action is unavailable) Perform goes dim and drops
+  // its cost tag entirely; the decker advances with End Pass / End Turn, which refreshes the budget.
   const tag = document.getElementById('actCostTag');
   const btn = document.getElementById('actPerformBtn');
   const cost = entry.cost || 'Complex';
   const need = cost === 'Free' ? 0 : (cost === 'Complex' ? 2 : 1);
   const ap = parseInt(state.pass_action_points, 10); const apN = Number.isFinite(ap) ? ap : 2;
   const fr = parseInt(state.pass_free, 10);          const frN = Number.isFinite(fr) ? fr : 1;
-  const cp = parseInt(state.current_pass, 10);       const cpN = Number.isFinite(cp) ? cp : 1;
-  const tp = parseInt(state.initiative_passes, 10);  const tpN = Number.isFinite(tp) ? tp : 1;
-  const affordNow  = cost === 'Free' ? frN >= 1 : apN >= need;
-  const canAdvance = cpN < tpN;             // a fresh pass (2 AP + 1 Free) affords any action
-  const possible   = affordNow || canAdvance;
+  const affordNow = cost === 'Free' ? frN >= 1 : apN >= need;
+  // The chosen <option> is disabled when the action is invalid in this game-state; combine that
+  // with affordability so Perform reflects exactly whether the action is takeable right now.
+  const optDisabled = !!(sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].disabled);
+  const usable = affordNow && !optDisabled;
   if (tag) {
-    tag.textContent = cost === 'Free' ? 'Free' : `${cost} -- ${need} AP`;
-    tag.classList.toggle('act-cost-short', !affordNow && possible);   // amber: will start a new pass
+    // Hide the AP cost when the action can't be taken -- a dimmed Perform shows no cost.
+    tag.textContent = usable ? (cost === 'Free' ? 'Free' : `${need} AP`) : '';
+    tag.classList.remove('act-cost-short');
   }
   if (btn) {
-    btn.disabled = !possible;
-    btn.title = possible ? '' : 'No actions left this Combat Turn -- click New Turn to re-roll initiative.';
+    btn.disabled = !usable;
+    btn.title = !affordNow
+      ? 'Out of action points this turn -- use End Turn / End Round to continue.'
+      : (optDisabled ? 'This action is not available right now.' : '');
   }
 }
 
@@ -3715,8 +4464,8 @@ async function performAction() {
     const val = raw.trim();
     if (val) {
       if (entry.maneuver) body.maneuver_target = val;
-      else if (['steamroller', 'slow', 'disinfect', 'analyze_ic'].includes(actionType)) body.target_ic_id = val;
-      else if (actionType === 'dinab' || actionType === 'swap_memory') body.target_program = val;
+      else if (['steamroller', 'slow', 'disinfect', 'analyze_ic', 'invalidate_passcode', 'relocate'].includes(actionType)) body.target_ic_id = val;
+      else if (['dinab', 'swap_memory', 'unload_program', 'purge_hog'].includes(actionType)) body.target_program = val;
       else body.target_file = val;
     }
   }
@@ -3726,11 +4475,12 @@ async function performAction() {
     body.position_choice = document.getElementById('actionPosChoice')?.value === 'power' ? 'power' : 'tn';
   }
 
-  // Swap Memory: the optional swap-out program (an ACTIVE utility pushed to storage to free room
-  // for the incoming program). Blank = keep all active (backend load 400s if there is no room).
-  if (entry.swapOut) {
-    const swapOut = (document.getElementById('actionSwapOut')?.value || '').trim();
-    if (swapOut) body.swap_out_program = swapOut;
+  // Edit File: Erase (default) vs Modify sub-mode.
+  if (entry.relocateMode) {
+    body.suppress_trace = document.getElementById('actionRelocateMode')?.value === 'suppress';
+  }
+  if (entry.editMode) {
+    body.edit_mode = document.getElementById('actionEditMode')?.value === 'modify' ? 'modify' : 'erase';
   }
 
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, body);
@@ -3827,7 +4577,7 @@ async function doLogon() {
   });
 }
 
-async function doNewTurn() {
+async function doEndTurn() {
   if (!_run) return;
   try {
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/new-turn`, { method: 'POST' });
@@ -3866,19 +4616,227 @@ async function toggleSuppress(icId, release) {
   await postAction(`${API}/matrix-runs2/${_run.id}/suppress`, { ic_id: icId, release: !!release });
 }
 
+// -- Suppressions panel (data-bomb entries + crashed IC held down) ----------
+function renderSuppressions(state, crashed) {
+  const panel = document.getElementById('run-suppress-panel');
+  const el = document.getElementById('run-suppress-list');
+  if (!panel || !el) return;
+  const runEnded = state.run_ended;
+  // Build a unified list of every SUPPRESSED item plus any still-pending bomb entry, regardless of
+  // source (crashed/hung/trace IC and data-bomb ledger entries alike) so the operator has one place
+  // to release anything they have suppressed.
+  const items = [];
+  (state.active_ic || []).forEach(ic => {
+    if (ic.suppressed && !ic.suppression_released) {
+      const mode = ic.suppress_mode === 'trace' ? ' (trace paused)'
+                 : (ic.status === 'crashed' ? ' (crashed)' : ' (hung)');
+      items.push({
+        id: ic.id,
+        label: `${icLabel(ic.type, ic.rating)}${mode}`,
+        rating: parseInt(ic.crash_tally, 10) || 0,
+        suppressed: true,
+      });
+    } else if (ic.relocate_suppress_pending && !ic.suppressed) {
+      // Held Relocate suppress offer -- shown UNSUPPRESSED with a Suppress button so the decker can
+      // free a DF point (release another item) and then pause this trace here.
+      items.push({
+        id: ic.id,
+        label: `${icLabel(ic.type, ic.rating)} (relocate: pause trace)`,
+        rating: 0,
+        suppressed: false,
+      });
+    }
+  });
+  (state.suppressions || []).forEach(s => {
+    if (s.released) return;
+    items.push({
+      id: s.id,
+      label: s.label || s.source || 'Suppression',
+      rating: parseInt(s.rating, 10) || 0,
+      suppressed: !!s.suppressed,
+    });
+  });
+  if (!items.length) { panel.style.display = 'none'; el.innerHTML = ''; return; }
+  panel.style.display = '';
+  el.innerHTML = items.map(item => {
+    const label = esc(item.label);
+    const rating = item.rating;
+    const isSup = item.suppressed;
+    const status = isSup ? '<span style="color:var(--amber)">SUPPRESSED</span>'
+                         : '<span style="color:var(--red)">UNSUPPRESSED</span>';
+    let btn = '';
+    if (!runEnded && !crashed) {
+      btn = isSup
+        ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="toggleSuppress('${esc(item.id)}', true)" data-tip="Release: restores 1 Detection Factor but re-adds this item's tally (may trigger the sheaf). One-way.">&gt;&gt; Release</button>`
+        : `<button class="btn btn-sm" style="color:var(--green);border-color:#004400" onclick="toggleSuppress('${esc(item.id)}', false)" data-tip="Suppress: spend 1 Detection Factor to refund this item's tally. No action cost.">&gt;&gt; Suppress (-1 DF)</button>`;
+    }
+    return `
+    <div class="ic-card">
+      <div class="ic-head">
+        <span class="ic-type-name">${label} <span style="color:var(--text-dim)">tally ${rating}</span></span>
+        <span class="ic-badge">${status}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${btn}</div>
+    </div>`;
+  }).join('');
+}
+
+// -- Immediate suppression query (blocking modal) ---------------------------
+// When an IC freshly crashes or a data bomb detonates, prompt the operator to decide right then.
+// Dismissed ids are remembered per run so a declined item does not re-nag (persistent Suppress/
+// Release controls stay on the board for later).
+const _suppressDismissed = new Set();
+
+function _pendingSuppressibles(state) {
+  const out = [];
+  (state.active_ic || []).forEach(ic => {
+    if (ic.status === 'crashed' && !ic.suppressed && !ic.suppression_released) {
+      out.push({ id: ic.id, label: `${icLabel(ic.type, ic.rating)} (crashed)`, kind: 'crashed_ic' });
+    } else if (ic.relocate_suppress_pending && !ic.suppressed) {
+      // A won Relocate that could not afford the DF cost -- the suppress offer is HELD open so the
+      // decker can release another suppression to free a point, then take it here.
+      out.push({ id: ic.id, label: `${icLabel(ic.type, ic.rating)} (relocate: pause trace?)` });
+    }
+  });
+  (state.suppressions || []).forEach(s => {
+    if (!s.suppressed && !s.released) {
+      out.push({ id: s.id, label: s.label || s.source || 'Data bomb' });
+    }
+  });
+  return out;
+}
+
+// Currently-suppressed items the decker could RELEASE to free 1 Detection Factor, each with the
+// security-tally increase that release would incur (0 for a paused trace or a hung IC, which added
+// no tally). Used to offer release choices right in the Suppress-at-DF-floor modal.
+function _releaseCandidates(state) {
+  const out = [];
+  (state.active_ic || []).forEach(ic => {
+    if (!ic.suppressed || ic.suppression_released) return;
+    let tally, note;
+    if (ic.suppress_mode === 'trace') {
+      tally = 0; note = 'no tally (trace resumes)';
+    } else if (ic.status === 'crashed') {
+      tally = parseInt(ic.crash_tally, 10) || 0; note = `+${tally} tally`;
+    } else {
+      tally = 0; note = 'no tally (was hung)';
+    }
+    out.push({ id: ic.id, label: `${ic.type}-${ic.rating || '?'}`, tally, note });
+  });
+  (state.suppressions || []).forEach(s => {
+    if (!s.suppressed || s.released) return;
+    const tally = parseInt(s.rating, 10) || 0;
+    out.push({ id: s.id, label: s.label || s.source || 'Data bomb', tally,
+               note: tally ? `+${tally} tally` : 'no tally' });
+  });
+  return out;
+}
+
+function checkSuppressionModal(state, decker) {
+  if (!state || state.run_ended) return;
+  if ((state.condition_monitor || {}).persona_boxes >= 10) return;
+  const pending = _pendingSuppressibles(state).filter(p => !_suppressDismissed.has(p.id));
+  if (!pending.length) return;
+  const p = pending[0];
+  const sleaze = (decker.utilities || {}).sleaze || 0;
+  const baseDf = Math.ceil(((decker.masking || 0) + sleaze) / 2);
+  const supActive = (state.active_ic || []).filter(ic => ic.suppressed && !ic.suppression_released).length
+    + (state.suppressions || []).filter(s => s.suppressed && !s.released).length;
+  const curDf = Math.max(1, baseDf - supActive);
+  const afterDf = Math.max(1, baseDf - (supActive + 1));
+  const noRoom = curDf <= 1;   // DF already at the floor -- can't spend another point to suppress
+  document.getElementById('suppressModalLabel').textContent = p.label;
+  const yes = document.getElementById('suppressModalYes');
+  const no = document.getElementById('suppressModalNo');
+  const relWrap = document.getElementById('suppressModalReleaseWrap');
+  const relList = document.getElementById('suppressModalReleaseList');
+  relWrap.style.display = 'none';
+  relList.innerHTML = '';
+  if (noRoom) {
+    document.getElementById('suppressModalDf').innerHTML =
+      `Detection Factor is at its minimum (<span style="color:var(--red)">${curDf}</span>). `
+      + `To suppress this, first <b>release</b> one of the items below to free up 1 DF `
+      + `(each shows the security-tally increase it would cost).`;
+    yes.style.display = 'none';   // no DF to spend -- offer release choices + Accept instead
+    const cands = _releaseCandidates(state);
+    if (cands.length) {
+      relWrap.style.display = '';
+      relList.innerHTML = cands.map(c => `
+        <div class="rel-card">
+          <div class="rel-card-info">
+            <span class="rel-card-name">${esc(c.label)}</span>
+            <span class="rel-card-cost">${esc(c.note)}</span>
+          </div>
+          <button class="btn btn-sm" style="color:var(--amber);border-color:#442200"
+                  onclick="_releaseFromSuppressModal('${esc(c.id)}')">&gt;&gt; Release</button>
+        </div>`).join('');
+    }
+  } else {
+    document.getElementById('suppressModalDf').innerHTML =
+      `Current Detection Factor: <span style="color:var(--cyan)">${curDf}</span> &rarr; `
+      + `after suppress: <span style="color:var(--amber)">${afterDf}</span>`;
+    yes.style.display = '';
+    yes.onclick = async () => {
+      document.getElementById('suppressModal').classList.remove('open');
+      _suppressDismissed.add(p.id);
+      await toggleSuppress(p.id, false);
+    };
+  }
+  no.onclick = async () => {
+    _suppressDismissed.add(p.id);
+    document.getElementById('suppressModal').classList.remove('open');
+    // For a freshly crashed IC, "Accept tally" is a FINAL decision: close the pending crash so it
+    // can never be suppressed later (the tally is already applied). This drops the Suppress control
+    // from the IC's card. Other pending items (relocate offer, data bomb) just dismiss the prompt.
+    if (p.kind === 'crashed_ic') {
+      await postAction(`${API}/matrix-runs2/${_run.id}/suppress`, { ic_id: p.id, release: true });
+    }
+  };
+  document.getElementById('suppressModal').classList.add('open');
+}
+
+// Release a suppressed item chosen from inside the Suppress-at-DF-floor modal. Closes the modal so
+// toggleSuppress can run its own release confirm; postAction then re-renders and re-opens this modal
+// with the freed DF, so the still-pending item can now be suppressed.
+async function _releaseFromSuppressModal(id) {
+  document.getElementById('suppressModal').classList.remove('open');
+  await toggleSuppress(id, true);
+}
+
 // -- Attack modal -----------------------------------------------------------
 function openAttackModal(icId, icType, icRating) {
   _attackTargetId = icId;
   document.getElementById('attackModalTarget').textContent =
-    `Target: ${icType} (Rating ${icRating})`;
-  // Pre-fill attack utility and armor from decker
-  const armor  = (_run?.decker_json?.utilities?.armor)  || 0;
-  const attack = (_run?.decker_json?.utilities?.attack) || 0;
-  document.getElementById('atk-armor').value = armor;
-  document.getElementById('atk-pool').value  = attack;
-  document.getElementById('atk-hp-dice').value = 0;
+    `Target: ${icLabel(icType, icRating)}`;
+  // Attack Pool is fixed by the loaded Attack program's rating (not player-editable). Hacking Pool
+  // dice are the only choice, capped at what remains this pass.
+  const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const hpInput = document.getElementById('atk-hp-dice');
+  hpInput.max = String(hpMax);
+  hpInput.value = 0;
+  document.getElementById('atk-hp-tip').textContent = `Available: ${hpMax}`;
+  updateAttackSummary();
   document.getElementById('attackModalAlert').className = 'alert';
   document.getElementById('attackModal').classList.add('open');
+}
+
+// Attack program label "Attack-6S": rating from the loaded Attack utility, damage LEVEL letter from
+// its build options (L/M/S/D). Unknown level (legacy deck) -> just "Attack-6".
+function _attackLabel() {
+  const rating = (_run?.decker_json?.utilities?.attack) || 0;
+  const lvl = ((_run?.decker_json?.program_options?.attack?.damage_level) || '').trim();
+  const letter = lvl ? lvl.charAt(0).toUpperCase() : '';
+  return `Attack-${rating}${letter}`;
+}
+
+// Live attack summary + Hacking Pool clamp (number inputs don't hard-enforce max on typed values).
+function updateAttackSummary() {
+  const hpInput = document.getElementById('atk-hp-dice');
+  const hpMax = parseInt(hpInput.max) || 0;
+  let hp = Math.max(0, Math.min(parseInt(hpInput.value) || 0, hpMax));
+  if (String(hp) !== hpInput.value) hpInput.value = hp;
+  const dice = hp === 1 ? '1 hacking pool die' : `${hp} hacking pool dice`;
+  document.getElementById('atk-summary').textContent = `Using ${_attackLabel()}, with ${dice}.`;
 }
 
 function closeAttackModal() {
@@ -3888,9 +4846,15 @@ function closeAttackModal() {
 
 async function submitAttack() {
   if (!_run || !_attackTargetId) return;
-  const attackPool = parseInt(document.getElementById('atk-pool').value) || 0;
-  const hpDice     = parseInt(document.getElementById('atk-hp-dice').value) || 0;
-  const armor      = parseInt(document.getElementById('atk-armor').value) || 0;
+  // Attack Pool is the Attack program's rating (server also derives it from the deck); it is not an
+  // editable field. Hacking Pool dice are clamped to what remains this pass.
+  const attackPool = (_run?.decker_json?.utilities?.attack) || 0;
+  if (attackPool < 1) {
+    showAlert(document.getElementById('attackModalAlert'), 'No Attack program loaded on this deck.', true);
+    return;
+  }
+  const hpMax  = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const hpDice = Math.max(0, Math.min(parseInt(document.getElementById('atk-hp-dice').value) || 0, hpMax));
 
   // Limit option: an Attack utility Limited to deckers cannot target IC (server enforces this too).
   if ((((_run.decker_json || {}).program_options || {}).attack || {}).limit_target === 'decker') {
@@ -3908,26 +4872,14 @@ async function submitAttack() {
         target_ic_id:     targetId,
         attack_pool:      attackPool,
         hacking_pool_dice:hpDice,
-        armor_utility:    armor,
       }),
     });
     if (!res.ok) await apiThrow(res);
     let updated = await res.json();
     closeAttackModal();
     // vr2: suppression must be declared the moment the IC crashes. If this strike crashed the
-    // target, offer to suppress it (refunds the crash tally for 1 Detection Factor) before render.
-    const tgt = (updated.state_json?.active_ic || []).find(c => c.id === targetId);
-    if (tgt && tgt.status === 'crashed' && !tgt.suppressed && !tgt.suppression_released) {
-      const supp = await showConfirm(
-        "IC CRASHED. Suppress it? You absorb 1 Detection Factor instead of adding the IC's rating "
-        + "to the security tally. Releasing it later (Free Action) is one-way and adds the tally back.",
-        'Suppress crashed IC', 'btn-cyan');
-      if (supp) {
-        const r2 = await apiFetch(`${API}/matrix-runs2/${_run.id}/suppress`,
-          { method: 'POST', body: JSON.stringify({ ic_id: targetId, release: false }) });
-        if (r2.ok) updated = await r2.json();
-      }
-    }
+    // target, the single suppress-or-accept decision modal is raised by renderRunState ->
+    // checkSuppressionModal below (Suppress = -1 DF / refund tally; Accept = keep the tally).
     renderRunState(updated);
   } catch(e) {
     showAlert(document.getElementById('attackModalAlert'), e.message, true);
@@ -4071,8 +5023,9 @@ async function submitAreaStrike() {
 }
 
 // -- Analyze Host: reveal-subsystem selection modal -------------------------
-// When Analyze Host banks fewer net successes than there are still-hidden ACIFS ratings, the
-// decker CHOOSES which hidden subsystems to reveal -- exactly min(credits, hiddenCount) of them.
+// When Analyze Host banks fewer net successes than there are still-hidden items, the decker
+// CHOOSES which to reveal -- exactly min(credits, hiddenCount) of them. The revealable set is the
+// 5 ACIFS ratings PLUS the host Security Rating (a 6th item, gated by host_security_revealed).
 const _ACIFS_ORDER = [['access','Access'],['control','Control'],['index','Index'],['files','Files'],['slave','Slave']];
 
 function _hiddenAcifs(state) {
@@ -4080,15 +5033,23 @@ function _hiddenAcifs(state) {
   return _ACIFS_ORDER.filter(([k]) => revealed[k] == null);
 }
 
+// Full Analyze Host revealable set still hidden: hidden ACIFS ratings + the Security Rating when
+// it has not yet been revealed (host_security_revealed). Security is listed last (the 6th item).
+function _hiddenAnalyzeItems(state) {
+  const items = _hiddenAcifs(state);
+  if (state && !state.host_security_revealed) items.push(['security','Security']);
+  return items;
+}
+
 function _revealHostNeed(state) {
   const pending = (state && state.host_analyze_pending) || {};
   const credits = parseInt(pending.credits, 10) || 0;
-  return Math.min(credits, _hiddenAcifs(state).length);
+  return Math.min(credits, _hiddenAnalyzeItems(state).length);
 }
 
 function openRevealHostModal() {
   const state = (_run && _run.state_json) || {};
-  const hidden = _hiddenAcifs(state);
+  const hidden = _hiddenAnalyzeItems(state);
   const need = _revealHostNeed(state);
   if (need <= 0) return;
   document.getElementById('revealHostOptions').innerHTML = hidden.map(([k, lbl]) =>
@@ -4190,7 +5151,7 @@ async function postAction(url, body) {
 function openReactiveModal(icId, icType, icRating) {
   _reactiveTargetId = icId;
   document.getElementById('reactiveModalTarget').textContent =
-    `${icType} Rating ${icRating} -- triggered against which utility?`;
+    `${icLabel(icType, icRating)} -- triggered against which utility?`;
   document.getElementById('reactive-util-name').value   = '';
   document.getElementById('reactive-util-rating').value = '1';
   document.getElementById('reactiveModalAlert').className = 'alert';
@@ -4228,18 +5189,6 @@ async function submitReactive() {
 }
 
 // -- Abandon / close run ----------------------------------------------------
-async function abandonRun() {
-  if (!_run) { showSetupView(); return; }
-  const state = _run.state_json || {};
-  if (!state.run_ended) {
-    const ok = await showConfirm('Abandon this Matrix run? This cannot be undone.', 'Abandon', 'btn-red');
-    if (!ok) return;
-    try {
-      await apiFetch(`${API}/matrix-runs2/${_run.id}`, { method: 'DELETE' });
-    } catch(_e) {}
-  }
-  showSetupView();
-}
 </script>
 <script src="ambiance.js"></script>
 <script>

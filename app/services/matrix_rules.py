@@ -5,11 +5,6 @@ All tables encoded from vr2_rules.md. Used by matrix_engine and frontend tooltip
 
 from __future__ import annotations
 
-#  Security codes 
-SECURITY_CODES: list[str] = ["Blue", "Green", "Orange", "Red", "Black"]
-
-SECURITY_CODE_ORDER: dict[str, int] = {c: i for i, c in enumerate(SECURITY_CODES)}
-
 # Initiative dice added to IC rating by host security code
 IC_INITIATIVE_DICE: dict[str, int] = {
     "Blue": 1, "Green": 2, "Orange": 3, "Red": 4, "Black": 5,
@@ -41,15 +36,32 @@ SIMSENSE_OVERLOAD_TN: dict[str, int] = {
     "Light": 2, "Moderate": 3, "Serious": 5,
 }
 
-# Damage boxes filled per damage level. SR2 10-box Condition Monitor: a Light wound deals 1 box,
-# Moderate 3, Serious 6, and a Deadly wound fills the whole 10-box track (an instant crash). These
-# box counts double as the wound-level FLOORS on the accumulated monitor: 1-2 boxes = Light,
-# 3-5 = Moderate, 6-9 = Serious, 10 = Deadly/crash.
+# Wound-level THRESHOLDS on the accumulated 10-box Condition Monitor (VR2). These are the FLOORS
+# at which the running box total escalates a wound level -- NOT the boxes a single hit deals:
+#   1-2 boxes = Light, 3-5 = Moderate, 6-9 = Serious, 10 = Deadly/crash.
+# Used only to read the wound-level modifier off an accumulated monitor (see _wound_mod_from_boxes).
+# ``None`` (0 boxes) is the "fully resisted" outcome: a resistance test can stage damage BELOW Light,
+# which means no damage at all (see stage_damage / damage_resistance). It is not a real wound band --
+# only a staging floor -- so the box tables map it to 0 and the wound-threshold reads ignore it.
 DAMAGE_BOXES: dict[str, int] = {
-    "Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10,
+    "None": 0, "Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10,
 }
 
+# Boxes a single hit DEALS to a 10-box Condition Monitor, by resolved Damage Level (VR2 icon
+# damage; user ruling 2026-07-11). A Deadly hit deals 6 (it does NOT fill the track outright) -- an
+# icon/persona crashes (10 boxes) only once damage ACCUMULATES past the Serious/Deadly thresholds
+# above. Distinct from DAMAGE_BOXES, which is the accumulated wound-level threshold table.
+ICON_DAMAGE_BOXES: dict[str, int] = {
+    "None": 0, "Light": 1, "Moderate": 2, "Serious": 3, "Deadly": 6,
+}
+
+# Base damage levels a hit can START at (Light..Deadly). ``None`` is deliberately absent -- it is a
+# resolution floor only, reachable by staging DOWN, never a base level or an up-staging cap.
 DAMAGE_LEVELS: list[str] = ["Light", "Moderate", "Serious", "Deadly"]
+
+# Full staging scale including the "no damage" floor -- used by stage_damage to index up/down. A hit
+# can be staged DOWN to "None" (fully resisted) but never UP past "Deadly".
+STAGE_SCALE: list[str] = ["None", "Light", "Moderate", "Serious", "Deadly"]
 
 # Medic utility target numbers by the icon's current wound level (vr2 Medic Target Numbers
 # Table). The Medic Test rolls the program's effective rating against this TN and heals 1
@@ -198,8 +210,8 @@ IC_CATALOG: dict[str, dict] = {
         "category": "white", "ic_type": "reactive",
         "summary": (
             "Makes a Probe Test (IC rating vs. Detection Factor) for every System Test "
-            "the decker makes. Successes are added to the security tally. Invisible  -"
-            "decker only knows it's there if they get 1 success on a sensor test against it."
+            "the decker makes -- beginning with the next test after it activates, not the "
+            "action that triggered it. Any successes are added to the security tally."
         ),
     },
     "Killer": {
@@ -370,9 +382,11 @@ SYSTEM_OPERATIONS: list[dict] = [
     {"name": "Logon to LTG",        "subsystem": "access",  "utility": "Deception", "action": "Complex",
      "tip": "Entry to the local grid. Jackpoint Access modifier applies."},
     {"name": "Analyze Host",        "subsystem": "control", "utility": "Analyze",   "action": "Complex",
-     "tip": "Each success reveals one host subsystem (ACIFS) rating; 5+ successes reveal all five. Must be logged on."},
+     "tip": "Each success reveals one host rating -- an ACIFS subsystem or the Security Rating; 6+ successes reveal all six. Must be logged on."},
     {"name": "Analyze IC",          "subsystem": "control", "utility": "Analyze",   "action": "Free",
      "tip": "Identifies IC type, rating, options. For trace IC: reveals phase and turns remaining."},
+    {"name": "Analyze Icon",        "subsystem": "control", "utility": "Analyze",   "action": "Free",
+     "tip": "Inspects a file or Slave device for a Data Bomb before you access it. Detect one here, then Defuse Data Bomb it -- otherwise a successful access sets it off."},
     {"name": "Analyze Security",    "subsystem": "control", "utility": "Analyze",   "action": "Simple",
      "tip": "Reveals current security rating, your tally, and alert status. GM includes tally from this test."},
     {"name": "Locate Paydata",      "subsystem": "index",   "utility": "Evaluate",  "action": "Complex",
@@ -380,7 +394,9 @@ SYSTEM_OPERATIONS: list[dict] = [
     {"name": "Download Data",       "subsystem": "files",   "utility": "Read/Write","action": "Simple",
      "tip": "Ongoing op. Copies file to deck at I/O bandwidth. Terminating early corrupts the copy."},
     {"name": "Edit File",           "subsystem": "files",   "utility": "Read/Write","action": "Simple",
-     "tip": "Create/modify/erase a datafile. Computer Test (TN = Files -- 2 + Masking) to hide edits."},
+     "tip": "Erase a located datafile, or modify (corrupt) it in place -- sabotage that denies clean data to its owner."},
+    {"name": "Decrypt File",        "subsystem": "files",   "utility": "Decrypt",   "action": "Simple",
+     "tip": "Breaks a Scramble on a located file/device (its rating IS the TN). Adds NO security tally. A failed decrypt vs a Poison Scramble destroys the data. Discover the Scramble first via Analyze Subsystem."},
     {"name": "Null Operation",      "subsystem": "control", "utility": "Deception", "action": "Complex",
      "tip": "Idle wait. Security Value modifier increases with time: <10s base; <1m +1; <1h +2; <12h +4."},
     {"name": "Graceful Logoff",     "subsystem": "access",  "utility": "Deception", "action": "Complex",
@@ -390,8 +406,12 @@ SYSTEM_OPERATIONS: list[dict] = [
      "tip": "Successes - 10 = turns before shutdown. Host makes SV Test vs. MPCP each turn to abort. "
              "All IC 2 rating during countdown."},
     {"name": "Validate Passcode",   "subsystem": "control", "utility": "Validate",  "action": "Complex",
-     "tip": "Plants a fake passcode. Grants Legitimate status in combat (+2 TN for attackers). "
-             "Lasts 1D6 -- successes days."},
+     "tip": "Plants a fake passcode -> Legitimate status: IC attack your persona on the Legitimate "
+             "to-hit column until you log off or trigger an active alert. Lasts 1D6 x successes days."},
+    {"name": "Invalidate Passcode", "subsystem": "control", "utility": "Validate",  "action": "Complex",
+     "tip": "Erases a host passcode -> the affected IC / enemy decker flips from Legitimate to "
+             "Intruding (its to-hit TNs are revised). One success flips a single icon; add +4 TN to "
+             "wipe the ENTIRE passcode list at once. Permanent -- an enemy never regains Legitimate status."},
     {"name": "Decoy",               "subsystem": "control", "utility": "Mirrors",   "action": "Complex",
      "tip": "Creates a decoy icon. Roll 1D6 when proactive IC attacks  if < successes, IC hits decoy instead."},
     {"name": "Locate IC",           "subsystem": "index",   "utility": "Analyze",   "action": "Complex",

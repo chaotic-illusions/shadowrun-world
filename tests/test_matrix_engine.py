@@ -54,8 +54,8 @@ def scripted(monkeypatch):
 
 class TestRulesTables:
     def test_damage_boxes(self):
-        # vr2_rules.md "Condition Monitor Fill": L1 M2 S3 Deadly6
-        assert rules.DAMAGE_BOXES == {"Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10}
+        # Wound-level thresholds (1/3/6/10) + the "None" (0) fully-resisted floor.
+        assert rules.DAMAGE_BOXES == {"None": 0, "Light": 1, "Moderate": 3, "Serious": 6, "Deadly": 10}
 
     def test_damage_levels_order(self):
         assert rules.DAMAGE_LEVELS == ["Light", "Moderate", "Serious", "Deadly"]
@@ -175,12 +175,21 @@ class TestSystemTest:
         assert t["tally_increase"] == 0           # host successes
         assert t["decker_net_successes"] == 3
 
-    def test_tie_is_failure(self, scripted):
-        # decker 1 success, host 1 success -> tie -> fail; tally += host successes
+    def test_tie_goes_to_decker(self, scripted):
+        # House rule (vr2 line 152, modified): decker 1 success, host 1 success -> tie -> the
+        # decker SUCCEEDS; tally still += host successes.
         scripted([4, 1, 6])  # decker: [4,1] vs TN4 -> 1 success; host: [6] vs TN5 -> 1
         t = eng.system_test(decker_pool=2, subsystem_rating=4, security_value=1, det_factor=5)
-        assert t["success"] is False
+        assert t["success"] is True
         assert t["tally_increase"] == 1
+
+    def test_zero_vs_zero_tie_is_a_mutual_whiff(self, scripted):
+        # House rule edge: a 0-vs-0 tie means EVERYTHING missed -> nothing happened -> the task
+        # fails. The decker needs at least 1 success for a tie to count.
+        scripted([1, 1, 1])  # decker: [1,1] vs TN4 -> 0 success; host: [1] vs TN5 -> 0
+        t = eng.system_test(decker_pool=2, subsystem_rating=4, security_value=1, det_factor=5)
+        assert t["success"] is False
+        assert t["tally_increase"] == 0
 
     def test_utility_reduces_decker_tn(self, scripted):
         # extra_tn_modifier is applied to the decker TN; floor at 2
@@ -201,7 +210,9 @@ class TestDamageStaging:
 
     def test_stage_down_and_clamp(self):
         assert eng.stage_damage("Serious", net_successes=2, direction=-1) == "Moderate"
-        assert eng.stage_damage("Light", net_successes=10, direction=-1) == "Light"   # clamp low
+        # Staging DOWN below Light reaches "None" (fully resisted -- no damage), then clamps there.
+        assert eng.stage_damage("Light", net_successes=2, direction=-1) == "None"
+        assert eng.stage_damage("Light", net_successes=10, direction=-1) == "None"   # clamp low
         assert eng.stage_damage("Deadly", net_successes=10, direction=1) == "Deadly"  # clamp high
 
     def test_damage_resistance_armor_reduces_power(self, scripted):
@@ -271,6 +282,26 @@ class TestSimsense:
         assert out["tn"] == 3                # Serious 5, ICCM -2 -> 3
         assert out["stun_taken"] is False
 
+    def test_hot_dnil_adds_two_to_tn(self, scripted):
+        # vr2 Simsense Overload: "Running hot with DNI-only interface: +2 to TN."
+        scripted([1])                        # roll outcome irrelevant; asserting the TN only
+        out = eng.simsense_check(damage_level="Moderate", willpower=4,
+                                 deck_mode="hot", hot_dnil_only=True)
+        assert out["tn"] == 5                # Moderate 3, +2 pure-DNI
+
+    def test_hot_dnil_and_iccm_cancel(self, scripted):
+        # The ICCM filter (-2) exactly offsets the pure-DNI penalty (+2).
+        scripted([1])
+        out = eng.simsense_check(damage_level="Moderate", willpower=4,
+                                 deck_mode="hot", hot_dnil_only=True, has_iccm=True)
+        assert out["tn"] == 3                # Moderate 3, +2 DNI, -2 ICCM
+
+    def test_tn_floors_at_two(self, scripted):
+        scripted([1])
+        out = eng.simsense_check(damage_level="Light", willpower=4,
+                                 deck_mode="hot", has_iccm=True)
+        assert out["tn"] == 2                # Light 2, -2 ICCM -> 0, floored to 2
+
 
 # -- Initiative (Cybercombat / Initiative) -------------------------------------
 
@@ -286,6 +317,40 @@ class TestInitiative:
         out = eng.decker_initiative_roll(reaction=5, response_increase=9)
         assert out == (5 + 6) + 4
 
+    def test_decker_hot_dni_adds_one_die(self, scripted):
+        scripted([1])  # each d6 -> 1
+        # Hot deck on pure DNI: base 1D6 + hot 1D6 = 2 dice; no RI -> reaction unchanged
+        out = eng.decker_initiative_roll(
+            reaction=5, response_increase=0, has_hot_dnl=True, deck_mode="hot")
+        assert out == 5 + 2
+
+    def test_decker_cool_deck_loses_one_init_die(self, scripted):
+        scripted([1])  # each d6 -> 1
+        # Cool deck: -1D6. ri=2 -> reaction 5+4=9, dice = 1 + 2 - 1 = 2 -> +2
+        out = eng.decker_initiative_roll(
+            reaction=5, response_increase=2, deck_mode="cool")
+        assert out == (5 + 4) + 2
+
+    def test_decker_cool_deck_never_drops_below_one_die(self, scripted):
+        scripted([1])  # each d6 -> 1
+        # No RI: base 1 die - 1 (cool) floors at 1 (SR2 minimum) -> reaction + 1
+        out = eng.decker_initiative_roll(
+            reaction=4, response_increase=0, deck_mode="cool")
+        assert out == 4 + 1
+
+    def test_decker_tortoise_halves_reaction_and_rolls_single_die(self, scripted):
+        scripted([6])  # the single init die -> 6 (init dice do not explode)
+        # Tortoise: half Reaction (7 -> 3, min 1), 1 die regardless of RI/RF, no RI reaction bonus
+        out = eng.decker_initiative_roll(
+            reaction=7, response_increase=3, has_reality_filter=True, deck_mode="tortoise")
+        assert out == 3 + 6
+
+    def test_decker_tortoise_reaction_floors_at_one(self, scripted):
+        scripted([2])  # the single init die -> 2
+        # Reaction 1 -> half = 0 -> floored to 1; single die
+        out = eng.decker_initiative_roll(reaction=1, response_increase=0, deck_mode="tortoise")
+        assert out == 1 + 2
+
 
 # -- Cybercombat attack (Resolving Attacks) ------------------------------------
 
@@ -300,6 +365,38 @@ class TestCybercombat:
         assert out["attack_tn"] == 4
         assert out["base_damage_level"] == "Moderate"   # Orange IC damage
         assert out["resistance"]["effective_power"] == 4  # 6 - 2 armor
+
+
+# -- Shield parry gate: fires ONLY when the attack lands (vr2) ------------------
+
+class TestShieldParryGate:
+    def test_shield_not_fired_on_a_clean_miss(self, scripted):
+        # Attacker rolls all 1s vs TN 4 -> 0 successes; the persona is never affected, so the
+        # deferred Shield callback must NOT be invoked (no roll, no wear).
+        scripted([1, 1, 1, 1, 1, 1])
+        calls = []
+        out = eng.cybercombat_attack(
+            attacker_pool=3, security_code="Orange", target_status="intruding",
+            target_bod=3, armor_rating=0, ic_rating=6,
+            shield_parry=lambda: (calls.append(1) or 2),
+        )
+        assert out["attack_roll"]["successes"] == 0
+        assert calls == []                              # callback never fired
+
+    def test_shield_fired_when_the_attack_lands(self, scripted):
+        # Attacker rolls successes vs TN 4 -> the strike lands, so the callback fires and its
+        # returned successes are applied to the resistance stage.
+        scripted([6, 6, 1, 1, 1])
+        calls = []
+        out = eng.cybercombat_attack(
+            attacker_pool=3, security_code="Orange", target_status="intruding",
+            target_bod=3, armor_rating=0, ic_rating=6,
+            shield_parry=lambda: (calls.append(1) or 2),
+        )
+        assert out["attack_roll"]["successes"] > 0
+        assert calls == [1]                             # callback fired exactly once
+        # The parried successes are surfaced in the resistance stage (2 parried off the hit).
+        assert out["resistance"]["shield_successes"] == 2
 
 
 # -- Cripplers + Rippers (White/Gray IC) ---------------------------------------
@@ -528,48 +625,61 @@ class TestSteamroller:
     """vr2_rules.md L1581-1585 -- Steamroller is the anti-tar weapon: it inflicts (Rating)D on a
     Tar Baby / Tar Pit and is IMMUNE to the tar crash-backlash (it never runs tar_baby_test). The
     engine resolves it as a normal IC-damage hit so the existing staging math decides the outcome:
-    a solid (Rating)D fills the tar's shallow condition monitor (TAR_IC_CONDITION_BOXES) and
-    crashes it, while a badly under-rated Steamroller (low Power) lets the tar stage the Deadly hit
-    down to a survivable graze."""
+    a solid (Rating)D chips the tar's full 10-box condition monitor (TAR_IC_CONDITION_BOXES) and a
+    two-strike Steamroller crashes it, while a badly under-rated Steamroller (low Power) lets the
+    tar stage the Deadly hit down to a survivable graze."""
 
-    def test_tar_condition_monitor_is_shallow(self):
-        # A tar IC is fragile -- a 3-box (Serious) track, not the 10-box active-IC persona.
-        assert eng.TAR_IC_CONDITION_BOXES == 3
+    def test_tar_condition_monitor_is_full(self):
+        # A tar IC uses the SAME 10-box monitor as any other IC (user ruling 2026-07-17).
+        assert eng.TAR_IC_CONDITION_BOXES == 10
 
-    def test_full_rating_crashes_the_tar(self, scripted):
+    def test_full_rating_two_strikes_crash_the_tar(self, scripted):
         # Power 6 -> the tar resists vs TN 6: 4s are NOT successes, so the Deadly hit stands
-        # (10 boxes >= 3) and the tar crashes.
+        # (6 icon boxes). One strike does NOT fill the 10-box track; a second accumulates to
+        # 12 >= 10 and crashes it.
         scripted([4])
         out = eng.steamroller_attack(steamroller_rating=6, steamroller_pool=6, tar_ic_rating=6)
         assert out["damage_level"] == "Deadly"
-        assert out["boxes"] == 10
-        assert out["crashed"] is True
+        assert out["boxes"] == 6
+        assert out["total_boxes"] == 6
+        assert out["crashed"] is False
+        scripted([4])
+        out2 = eng.steamroller_attack(steamroller_rating=6, steamroller_pool=6,
+                                      tar_ic_rating=6, existing_boxes=out["total_boxes"])
+        assert out2["total_boxes"] == 12
+        assert out2["crashed"] is True
 
     def test_very_low_rating_can_fail(self, scripted):
-        # SAME dice, Power 1 -> the tar resists vs TN 1: every 4 succeeds, staging the Deadly hit
-        # all the way down to a Light graze (1 box < 3) -- the tar survives. This is why a low
-        # Steamroller can fail without any special miss rule.
-        scripted([4])
+        # Under net-successes-first staging the tar only stages the Deadly hit down by the amount
+        # its resistance EXCEEDS the to-hit successes. A rating-1 Steamroller (Power 1 -> the tar
+        # resists at TN 2) that also rolls a weak to-hit is out-resisted: to-hit rolls 6 misses
+        # (0 succ), the tar resists with 6 hits -> net -6 -> Deadly staged all the way down to a
+        # Light graze (1 box < 10). The tar survives. Draw order: 6 to-hit dice, then 6 resist dice.
+        scripted([1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4])
         out = eng.steamroller_attack(steamroller_rating=1, steamroller_pool=6, tar_ic_rating=6)
         assert out["damage_level"] == "Light"
         assert out["total_boxes"] < eng.TAR_IC_CONDITION_BOXES
         assert out["crashed"] is False
 
-    def test_resisting_nothing_always_crashes(self, scripted):
-        # Tar rolls all 1s (resists nothing) -> the Deadly hit stands regardless of Power.
+    def test_resisting_nothing_still_needs_accumulation(self, scripted):
+        # Tar rolls all 1s (resists nothing) -> the Deadly hit stands regardless of Power, dealing
+        # 6 icon boxes. A single hit no longer fills the 10-box track, so it does not crash yet.
         scripted([1])
         out = eng.steamroller_attack(steamroller_rating=2, steamroller_pool=6, tar_ic_rating=8)
         assert out["damage_level"] == "Deadly"
-        assert out["crashed"] is True
+        assert out["boxes"] == 6
+        assert out["crashed"] is False
 
     def test_boxes_accumulate_across_strikes(self, scripted):
-        # A single low strike only grazes (Light, 1 box), but it adds to existing damage: 1 + 2
-        # prior boxes = 3 reaches the shallow monitor and crashes the tar.
-        scripted([4])
+        # A single out-resisted strike only grazes (Light, 1 box), but it adds to existing damage:
+        # 1 + 9 prior boxes = 10 reaches the monitor and crashes the tar. To-hit rolls 6 misses
+        # (0 succ), the tar resists with 6 hits -> net -6 -> Light. Draw order: 6 to-hit, 6 resist.
+        scripted([1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4])
         out = eng.steamroller_attack(steamroller_rating=1, steamroller_pool=6,
-                                     tar_ic_rating=6, existing_boxes=2)
+                                     tar_ic_rating=6, existing_boxes=9)
         assert out["boxes"] == 1
-        assert out["total_boxes"] == 3
+        assert out["total_boxes"] == 10
+        assert out["crashed"] is True
         assert out["crashed"] is True
 
 
@@ -655,14 +765,22 @@ class TestSheafGeneration:
         b = eng.generate_sheaf(security_code="Red", security_value=8, seed=7)
         assert a == b
 
-    def test_structure_triggers_increasing_and_shutdown_last(self):
-        sheaf = eng.generate_sheaf(security_code="Orange", security_value=8, seed=3)
+    def test_structure_triggers_increasing_and_alerts_escalate_in_order(self):
+        # vr2 L857-873 (RAW): alert state EMERGES from the per-step 1D6+ramp roll and escalates in
+        # strict order No -> Passive -> Active -> Shutdown; it is not pinned to fixed positions and
+        # shutdown is not guaranteed. Over a long sheaf the ramp forces at least Passive then Active.
+        sheaf = eng.generate_sheaf(security_code="Orange", security_value=8,
+                                   step_count=24, seed=3)
         triggers = [s["trigger"] for s in sheaf]
         assert triggers == sorted(triggers)              # monotonic non-decreasing
-        assert any(e["type"] == "shutdown" for e in sheaf[-1]["events"])
-        # passive + active alerts both appear somewhere
-        kinds = {e["type"] for s in sheaf for e in s["events"]}
-        assert "passive_alert" in kinds and "active_alert" in kinds
+        # Collect alert markers in step order and confirm they only ever climb the severity ladder.
+        severity = {"passive_alert": 1, "active_alert": 2, "shutdown": 3}
+        seen = [e["type"] for s in sheaf for e in s["events"] if e["type"] in severity]
+        levels = [severity[k] for k in seen]
+        assert levels == sorted(levels)                  # never de-escalates
+        assert "passive_alert" in seen and "active_alert" in seen
+        assert seen.index("passive_alert") < seen.index("active_alert")
+
 
     def test_interval_range_matches_first_range(self):
         # VR2 "Generating Trigger Steps": every interval is 1D3+modifier for ALL steps,
