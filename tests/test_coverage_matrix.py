@@ -207,6 +207,7 @@ OPTION_CONSUMER: dict[str, str] = {
     "penetration": "attack: defeats Shield",
     "chaser": "attack: defeats Shift",
     "one_shot": "single-use copy: consumed on use / Tar-wiped",
+    "squeeze": "compressed: half storage; must decompress (Complex) after a mid-run swap-in",
     "limit_target": "restricts a utility to only 'ic' or 'decker' targets",
     "damage_level": "attack: the utility's own coded base Damage Level (not the host IC table)",
 }

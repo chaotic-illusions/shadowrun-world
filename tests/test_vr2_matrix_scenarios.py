@@ -2759,7 +2759,7 @@ class TestSwapMemory:
         st, _ = self._state_decker(active_cap=60)
         assert st["active_memory_cap"] == 60
         assert st["program_sizes"]["analyze"] == 18
-        assert st["storage_programs"] == [{"name": "analyze", "rating": 6, "size": 18}]
+        assert st["storage_programs"] == [{"name": "analyze", "rating": 6, "size": 18, "squeezed": False}]
         # Program memory is the decker's own deck data -- player-visible, not GM-only.
         assert "storage_programs" not in mr._GM_ONLY_STATE_KEYS
 
@@ -2818,6 +2818,103 @@ class TestSwapMemory:
 
     def test_swap_action_cost_is_simple(self):
         assert mr._ACTION_COST["swap_memory"] == "Simple"
+
+
+class TestSqueezedPrograms:
+    """vr2 Squeeze option (L1673): a squeezed program is half-size in storage but must be
+    Decompressed (Complex Action, no test) to full size before use after a mid-run swap-in. In
+    active memory it occupies its FULL size; while compressed it is held OUT of decker.utilities
+    (unusable) in state['squeezed_active']."""
+
+    def _state_decker(self, active_cap=100):
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+        decker = {
+            "masking": 4, "intelligence": 5, "mpcp": 6,
+            "active_memory": active_cap,
+            "utilities": {"read_write": 6},
+            "program_sizes": {"read_write": 30, "attack": 40},
+            # attack was built with Squeeze: stored at half (20 Mp) but full active footprint 40 Mp.
+            "storage_programs": [{"name": "attack", "rating": 5, "size": 40, "squeezed": True}],
+            "program_options": {"attack": {"squeeze": True}},
+        }
+        return mr._initial_state(decker, _Host()), decker
+
+    def test_initial_state_seeds_squeeze_state(self):
+        st, _ = self._state_decker()
+        assert "attack" in st["squeeze_keys"]
+        assert st["squeezed_active"] == []
+        entry = st["storage_programs"][0]
+        assert entry["squeezed"] is True and entry["size"] == 40   # full size retained on the entry
+        # The decker's own deck data -- player-visible, never redacted.
+        assert "squeeze_keys" not in mr._GM_ONLY_STATE_KEYS
+        assert "squeezed_active" not in mr._GM_ONLY_STATE_KEYS
+
+    def test_load_squeezed_goes_to_pending_not_usable(self):
+        st, decker = self._state_decker()
+        changed, desc = mr._apply_swap_memory(
+            st, decker, target_program="attack", swap_out_program="")
+        assert changed is True
+        assert decker["utilities"].get("attack", 0) == 0          # NOT usable yet
+        assert [p["name"] for p in st["squeezed_active"]] == ["attack"]
+        assert st["squeezed_active"][0]["size"] == 40             # full active footprint
+        assert "COMPRESSED" in desc
+        assert st["storage_programs"] == []                       # left storage
+
+    def test_pending_squeezed_counts_against_active_cap(self):
+        st, decker = self._state_decker(active_cap=80)
+        st["storage_programs"].append({"name": "analyze", "rating": 6, "size": 18, "squeezed": False})
+        # read_write(30) active + attack(40) pending = 70 used.
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
+        # Loading analyze (18) -> 70 + 18 = 88 > 80: overflow proves the pending copy is charged.
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
+        assert exc.value.status_code == 400
+
+    def test_decompress_makes_pending_usable(self):
+        st, decker = self._state_decker()
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
+        ok = mr._apply_decompress_program(st, decker, target_program="attack")
+        assert ok is True
+        assert decker["utilities"]["attack"] == 5                 # now usable
+        assert st["squeezed_active"] == []
+        assert st["program_sizes"]["attack"] == 40               # full active footprint recorded
+        ev = st["event_log"][-1]
+        assert ev["type"] == "program_decompressed" and ev["outcome"] == "ok"
+
+    def test_decompress_missing_target_is_noop(self):
+        st, decker = self._state_decker()
+        ok = mr._apply_decompress_program(st, decker, target_program="attack")  # nothing pending
+        assert ok is False
+        assert st["event_log"][-1]["outcome"] == "no_target"
+
+    def test_unload_decompressed_squeezed_re_flags_storage(self):
+        st, decker = self._state_decker()
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
+        mr._apply_decompress_program(st, decker, target_program="attack")       # usable/active
+        changed, _ = mr._apply_swap_memory(st, decker, target_program="", swap_out_program="attack")
+        assert changed is True
+        assert decker["utilities"]["attack"] == 0
+        entry = next(p for p in st["storage_programs"] if p["name"] == "attack")
+        assert entry["squeezed"] is True                          # re-compressed for storage
+        assert entry["size"] == 40                               # full size retained (footprint halved by flag)
+
+    def test_unload_pending_squeezed_returns_to_storage(self):
+        st, decker = self._state_decker()
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")  # pending
+        changed, desc = mr._apply_swap_memory(st, decker, target_program="", swap_out_program="attack")
+        assert changed is True
+        assert st["squeezed_active"] == []
+        entry = next(p for p in st["storage_programs"] if p["name"] == "attack")
+        assert entry["squeezed"] is True
+        assert "compressed" in desc.lower()
+
+    def test_non_squeezed_load_still_usable_immediately(self):
+        st, decker = self._state_decker()
+        st["storage_programs"].append({"name": "analyze", "rating": 6, "size": 18, "squeezed": False})
+        mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
+        assert decker["utilities"]["analyze"] == 6               # straight into active, usable
+        assert all(p["name"] != "analyze" for p in st["squeezed_active"])
 
 
 class TestRouteRegistration:

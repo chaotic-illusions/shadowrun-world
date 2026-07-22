@@ -35,9 +35,11 @@
     .mr-s-white { color:#f5f5f5; }
     .mr-s-gray { color:#9c9c9c; }
     .mr-s-black, .mr-s-enemy { color:var(--violet); }
+    .mr-s-sensor { color:#c586c0; }
     .mr-die { display:inline-block; min-width:15px; text-align:center; padding:0 2px; margin:0 1px;
       color:#5f7d5f; border-bottom:1px solid #163016; }
     .mr-die.hit { color:var(--text-bright); border-color:var(--green); text-shadow:0 0 6px #00ff4155; }
+    .mr-die.mr-die-shield { color:var(--cyan); border-bottom-color:#024a4a; text-shadow:none; }
     .mr-cursor { display:inline-block; width:8px; height:14px; background:var(--green);
       animation:mrBlink 1s steps(1) infinite; vertical-align:-2px; }
     @keyframes mrBlink { 50% { opacity:0; } }
@@ -806,6 +808,19 @@ function targetUsesStorage(target) {
   return target === 'storage' || target === 'both' || target === 'active';
 }
 
+// A Squeezed program is compressed in STORAGE (the Deck Workshop already halves its actualSize,
+// "upload only") but occupies its FULL size in ACTIVE memory (it must be decompressed to run). So
+// storage uses actualSize as-is; active doubles it back to full for a squeezed program.
+function _itemSqueezed(item) {
+  return !!item?.squeezed || /\bSqueeze\b/i.test(String(item?.mods || ''));
+}
+function _itemStoreSize(item) { return Math.max(0, parseInt(item?.actualSize, 10) || 0); }
+function _itemFullSize(item) {
+  const st = _itemStoreSize(item);
+  if (item?.fullSize != null) return Math.max(st, parseInt(item.fullSize, 10) || st);
+  return _itemSqueezed(item) ? st * 2 : st;
+}
+
 function computeLoadoutUsage(items) {
   const normalized = (items || []).map(item => ({
     ...item,
@@ -814,11 +829,11 @@ function computeLoadoutUsage(items) {
 
   const activeUsed = normalized
     .filter(i => targetUsesActive(i.target))
-    .reduce((sum, i) => sum + (parseInt(i.actualSize, 10) || 0), 0);
+    .reduce((sum, i) => sum + _itemFullSize(i), 0);
 
   const storageUsed = normalized
     .filter(i => targetUsesStorage(i.target))
-    .reduce((sum, i) => sum + (parseInt(i.actualSize, 10) || 0), 0);
+    .reduce((sum, i) => sum + _itemStoreSize(i), 0);
 
   return { activeUsed, storageUsed };
 }
@@ -862,7 +877,7 @@ function isOneShotItem(item) {
 // rating. Returns null when no run-relevant option is set, so we don't bloat the payload.
 function parseRunProgramOpts(modsText, baseRating) {
   const max = Math.max(0, parseInt(baseRating, 10) || 0);
-  const opts = { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false, limit_target: '' };
+  const opts = { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false, squeeze: false, limit_target: '' };
   String(modsText || '').split(',').map(s => s.trim()).filter(Boolean).forEach(part => {
     let m = part.match(/^Area\s+(\d+)$/i);
     if (m) { opts.area = Math.min(max, Math.max(0, parseInt(m[1], 10) || 0)); return; }
@@ -876,9 +891,10 @@ function parseRunProgramOpts(modsText, baseRating) {
     if (/^Penetration$/i.test(part)) { opts.penetration = true; return; }
     if (/^Chaser$/i.test(part))      { opts.chaser = true; return; }
     if (/^One-Shot$/i.test(part))    { opts.one_shot = true; return; }
+    if (/^Squeeze$/i.test(part))     { opts.squeeze = true; return; }
   });
   if (opts.penetration && opts.chaser) opts.chaser = false;  // mutually exclusive (vr2); Penetration wins
-  const any = opts.skulk || opts.area || opts.dinab || opts.targeting || opts.penetration || opts.chaser || opts.one_shot || opts.limit_target;
+  const any = opts.skulk || opts.area || opts.dinab || opts.targeting || opts.penetration || opts.chaser || opts.one_shot || opts.squeeze || opts.limit_target;
   return any ? opts : null;
 }
 
@@ -1815,8 +1831,12 @@ function _activeMem(s)  { const u = (_run && _run.decker_json && _run.decker_jso
   const sz = (s && s.program_sizes) || {};
   const used = Object.keys(u)
     .filter(k => (parseInt(u[k], 10) || 0) > 0)
-    .reduce((t, k) => t + (parseInt(sz[k], 10) || 0), 0);
+    .reduce((t, k) => t + (parseInt(sz[k], 10) || 0), 0)
+    + _squeezedActive(s).reduce((t, p) => t + (parseInt(p.size, 10) || 0), 0);
   return { used, cap: parseInt(s && s.active_memory_cap, 10) || 0 }; }
+// Squeezed programs swapped into active memory but NOT yet decompressed: they occupy full active
+// memory but are unusable (held out of decker.utilities) until a Decompress action expands them.
+function _squeezedActive(s) { return Array.isArray(s && s.squeezed_active) ? s.squeezed_active : []; }
 // DINAB-capable programs: mirrors the backend _effective_dinab. A program qualifies only when its
 // loadout carries a DINAB rating (program_options[k].dinab > 0), the program is loaded
 // (utilities[k] > 0), not crashed (program_damage[k] < its loaded rating), and not fully worn
@@ -1935,9 +1955,11 @@ const ACTION_CATALOG = [
   { v: 'defuse_data_bomb',  l: 'Defuse Data Bomb',        cost: 'Complex',
     valid: s => _discoveredBombs(s).length > 0, reason: 'none discovered',
     target: s => ({ mode: 'select', label: 'Bomb to defuse', options: _discoveredBombs(s).map(b => ({ value: b.target, label: `${b.scope === 'slave' ? 'Slave' : 'Files'} - ${b.name || b.target}` })) }) },
-  { v: 'decompress_file',   l: 'Decompress File',         cost: 'Complex',
-    valid: s => _compFiles(s).length > 0, reason: 'no compressed file',
-    target: s => ({ mode: 'select', label: 'Compressed file', options: _compFiles(s).map(f => ({ value: f.name, label: String(f.name) })) }) },
+  { v: 'decompress_file',   l: 'Decompress',              cost: 'Complex',
+    valid: s => _compFiles(s).length > 0 || _squeezedActive(s).length > 0, reason: 'nothing compressed to decompress',
+    target: s => ({ mode: 'select', label: 'Compressed program / file', options:
+      _squeezedActive(s).map(p => ({ value: 'prog::' + p.name, label: `Program: ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` }))
+        .concat(_compFiles(s).map(f => ({ value: f.name, label: `File: ${String(f.name)}` }))) }) },
   // -- Simple actions (1 AP) --
   { v: 'analyze_security',  l: 'Analyze Security',        cost: 'Simple' },
   { v: 'analyze_subsystem', l: 'Analyze Subsystem',       cost: 'Simple', subsystem: true },
@@ -1987,7 +2009,8 @@ const ACTION_CATALOG = [
       const load = _storeProgs(s).map(p => {
         const size = parseInt(p.size, 10) || 0;
         const fits = mem.cap <= 0 || size <= free;
-        const o = { value: p.name, label: `Load ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` };
+        const sq = !!p.squeezed;
+        const o = { value: p.name, label: `Load ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}${sq ? ' (squeezed -- decompress after)' : ''}` };
         if (!fits) { o.disabled = true; o.label += ' (insufficient active memory)';
           o.title = `Insufficient active memory to load (needs ${size} MP, ${free} MP free).`; }
         return o;
@@ -2007,8 +2030,9 @@ const ACTION_CATALOG = [
   // dice test. The complementary load is Swap Memory (Simple) above. The option label shows the
   // active-memory footprint (state.program_sizes) so the decker sees how much Mp unloading frees.
   { v: 'unload_program',    l: 'Unload Program (to storage)', cost: 'Free', noTest: true,
-    valid: s => _liveUtils().length > 0, reason: 'no active program',
-    target: s => ({ mode: 'select', label: 'Program to unload', options: _liveUtils().map(u => { const mp = parseInt((s.program_sizes || {})[u.key], 10) || 0; return { value: u.key, label: `${prettyProg(u.key)}-${u.rating}${mp ? ` (frees ${mp} Mp)` : ''}` }; }) }) },
+    valid: s => _liveUtils().length > 0 || _squeezedActive(s).length > 0, reason: 'no active program',
+    target: s => ({ mode: 'select', label: 'Program to unload', options: _liveUtils().map(u => { const mp = parseInt((s.program_sizes || {})[u.key], 10) || 0; return { value: u.key, label: `${prettyProg(u.key)}-${u.rating}${mp ? ` (frees ${mp} Mp)` : ''}` }; })
+      .concat(_squeezedActive(s).map(p => ({ value: p.name, label: `${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0} (compressed, frees ${parseInt(p.size, 10) || 0} Mp)` }))) }) },
   // DINAB (Free): run ONE DINAB-equipped program this pass at no action cost. Only programs whose
   // loadout carries a DINAB rating (and that are loaded, uncrashed, unworn) qualify; the label
   // shows the effective pool (DINAB rating minus accrued wear).
@@ -2385,10 +2409,13 @@ async function startRun() {
   _loadoutItems.forEach(item => {
     const ident = parseProgramIdentity(item);
     if (!ident.typeKey || ident.baseRating < 1) return;
-    const size = parseInt(item.actualSize, 10) || 0;
+    // Active-memory footprint is the FULL (decompressed) size; a squeezed program is stored at
+    // half but expands to full in active memory (and must be decompressed after a mid-run swap-in).
+    const size = _itemFullSize(item);
+    const squeezed = _itemSqueezed(item);
     program_sizes[ident.typeKey] = Math.max(program_sizes[ident.typeKey] || 0, size);
     if ((item?.target || 'active') === 'storage') {
-      storage_programs.push({ name: ident.typeKey, rating: ident.baseRating, size });
+      storage_programs.push({ name: ident.typeKey, rating: ident.baseRating, size, squeezed });
     }
     // Carry run-relevant program options, preferring the active-loaded copy when a type has
     // both an active and a storage entry (the active program is the one actually in play).
@@ -2398,7 +2425,7 @@ async function startRun() {
     // the loadout item is authoritative; parseRunProgramOpts already read any Limit:TARGET in mods.
     const lt = item?.hasLimit ? String(item?.limitTarget || '').trim().toLowerCase() : '';
     let merged = (lt === 'ic' || lt === 'decker')
-      ? { ...(opts || { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false }), limit_target: lt }
+      ? { ...(opts || { skulk: 0, area: 0, dinab: 0, targeting: false, penetration: false, chaser: false, one_shot: false, squeeze: false }), limit_target: lt }
       : opts;
     // Attack utility only: carry its OWN base Damage Level (Light/Moderate/Serious/Deadly) so the
     // engine damages icons at the program's chosen severity, not the host IC Damage Table. The
@@ -2822,8 +2849,7 @@ function renderDownloadsPanel() {
         + `<span style="font-size:.66rem;color:var(--green)">&#10003; ${esc(f.name || '?')}</span>`
         + `<span style="font-size:.58rem;color:var(--text-dim)">${sz}Mp${f.is_key ? ' -- KEY' : ''}</span>`
         + (compressed
-            ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)" title="Stored compressed (full ${full} Mp) -- decompress before the file can be read or used">COMPRESSED</span>`
-              + (ended ? '' : `<button class="btn btn-sm" style="margin-left:auto;color:var(--cyan);border-color:#024a4a" onclick="decompressFile(${i})">Decompress</button>`)
+            ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)" title="Stored compressed at half size (full ${full} Mp) -- paydata rides out compressed; the buyer decompresses it off-deck">COMPRESSED</span>`
             : '')
         + `</div>`;
     }).join('');
@@ -2883,30 +2909,43 @@ function renderMemoryPanel() {
     .filter(k => (parseInt(utils[k], 10) || 0) > 0)
     .map(k => ({ name: k, rating: parseInt(utils[k], 10) || 0, size: parseInt(sizes[k], 10) || 0,
                  worn: parseInt(pdmg[k], 10) || 0 }));
-  const activeUsed = active.reduce((s, p) => s + p.size, 0);
+  // Squeezed programs swapped in but not yet decompressed: full active footprint, unusable.
+  const pending = _squeezedActive(state).map(p => ({ name: p.name, rating: parseInt(p.rating, 10) || 0,
+                                                     size: parseInt(p.size, 10) || 0 }));
+  const activeUsed = active.reduce((s, p) => s + p.size, 0) + pending.reduce((s, p) => s + p.size, 0);
 
-  if (!active.length && !storage.length && !files.length) { panel.style.display = 'none'; return; }
+  if (!active.length && !pending.length && !storage.length && !files.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  // ACTIVE MEMORY -- meter + program chips (name-rating; size + description on hover).
+  // A squeezed program keeps only a HALF-size copy in storage (ceil), whether it sits in storage,
+  // is pending decompress, or is decompressed in active memory. squeeze_keys lists every such key.
+  const squeezeKeys = new Set((state.squeeze_keys || []).map(k => String(k).toLowerCase()));
+  const storeFoot = (name, size) => squeezeKeys.has(String(name).toLowerCase())
+    ? Math.floor(((parseInt(size, 10) || 0) + 1) / 2) : (parseInt(size, 10) || 0);
+
+  // ACTIVE MEMORY -- meter + program chips (name-rating; size + description on hover). Pending
+  // squeezed programs render as amber COMPRESSED chips (occupy active memory but unusable).
   let html = memMeterBar('ACTIVE MEMORY', activeUsed, activeCap);
-  html += active.length
-    ? `<div class="mem-chips">${active.map(p => progChip(p.name, p.rating, p.size, p.worn)).join('')}</div>`
+  const activeChips = active.map(p => progChip(p.name, p.rating, p.size, p.worn))
+    .concat(pending.map(p => `<span class="mem-chip mem-chip-squeezed" data-tip="${esc(`Compressed in active memory (${p.size} Mp). Decompress (Complex Action) before use.`)}">${esc(prettyProg(p.name))}${p.rating ? '-' + p.rating : ''} [COMPRESSED]</span>`));
+  html += activeChips.length
+    ? `<div class="mem-chips">${activeChips.join('')}</div>`
     : `<div class="empty-msg" style="font-size:.62rem">No active utilities</div>`;
 
   // OFFLINE STORAGE -- meter + stored-program chips and downloaded paydata files (by name).
-  // Offline storage holds a backup copy of every loaded utility (active programs each keep one)
-  // PLUS storage-only programs PLUS downloaded paydata. Used = active footprint + storage-only
-  // programs + downloads; cap = that plus the free paydata budget the deck reported at jack-in
-  // (state.storage_free_mp is static; -1 = untracked/unlimited).
-  const storedProgMp = storage.reduce((s, p) => s + (parseInt(p.size, 10) || 0), 0);
+  // Offline storage holds a backup copy of every loaded utility (active + pending each keep one,
+  // squeezed at half) PLUS storage-only programs (squeezed at half) PLUS downloaded paydata.
+  // cap = that plus the free paydata budget the deck reported at jack-in (state.storage_free_mp
+  // is static; -1 = untracked/unlimited).
+  const activeBackup = active.concat(pending).reduce((s, p) => s + storeFoot(p.name, p.size), 0);
+  const storedProgMp = storage.reduce((s, p) => s + storeFoot(p.name, p.size), 0);
   const downloadsMp  = Math.max(0, parseInt(state.storage_used_mp, 10) || 0);
   const freeBudget   = state.storage_free_mp;
   const storTracked  = (typeof freeBudget === 'number' && freeBudget >= 0);
-  const storUsed = activeUsed + storedProgMp + downloadsMp;
-  const storCap  = storTracked ? (activeUsed + storedProgMp + freeBudget) : 0;
+  const storUsed = activeBackup + storedProgMp + downloadsMp;
+  const storCap  = storTracked ? (activeBackup + storedProgMp + freeBudget) : 0;
   html += `<div class="mem-section-gap">${memMeterBar('STORAGE', storUsed, storCap)}</div>`;
-  const chips = storage.map(p => progChip(p.name, parseInt(p.rating, 10) || 0, parseInt(p.size, 10) || 0))
+  const chips = storage.map(p => progChip(p.name, parseInt(p.rating, 10) || 0, storeFoot(p.name, p.size)))
     .concat(files.map(f => fileChip(f.name, !!f.is_key, !!f.compressed)));
   html += chips.length
     ? `<div class="mem-chips">${chips.join('')}</div>`
@@ -3958,7 +3997,7 @@ function renderActionArea(state, decker, crashed) {
       <button class="btn act-newturn act-endturn" onclick="doEndTurn()" data-tip="${esc(_endTip)}">&gt;&gt; ${esc(_endLabel)}</button>
     </div>
     <div class="act-footer">
-      <button class="btn btn-amber btn-sm" onclick="openLogoffModal(${deception})">&gt;&gt; Graceful Logoff</button>
+      <button class="btn btn-amber btn-sm" onclick="openLogoffModal(${deception})" ${_canAffordCost(state, 'Complex') ? '' : 'disabled'} data-tip="${_canAffordCost(state, 'Complex') ? 'Graceful Logoff -- a Complex action (2 AP)' : 'Graceful Logoff is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Graceful Logoff</button>
       <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
     </div>`;
 
@@ -4082,6 +4121,7 @@ async function performAction() {
     if (val) {
       if (entry.maneuver) body.maneuver_target = val;
       else if (['steamroller', 'slow', 'disinfect', 'analyze_ic', 'invalidate_passcode', 'relocate'].includes(actionType)) body.target_ic_id = val;
+      else if (actionType === 'decompress_file') { if (val.startsWith('prog::')) body.target_program = val.slice(6); else body.target_file = val; }
       else if (['dinab', 'swap_memory', 'unload_program', 'purge_hog'].includes(actionType)) body.target_program = val;
       else body.target_file = val;
     }
@@ -4562,10 +4602,15 @@ function _streamDiceHtml(roll, label) {
     const hit = Number.isFinite(tn) && v >= tn;
     return `<span class="mr-die${hit ? ' hit' : ''}">${esc(String(v))}</span>`;
   }).join('');
-  if (!pips) return '';
+  // Shield parry dice fold into the defence (vr2: they ADD to the resist), shown in a distinct
+  // colour right after the base dice so you can see the parry that softened the hit.
+  const shieldPips = (Array.isArray(roll.shield_dice) ? roll.shield_dice : [])
+    .map(d => `<span class="mr-die mr-die-shield">${esc(String(parseInt(d, 10)))}</span>`).join('');
+  if (!pips && !shieldPips) return '';
   const succ = roll.successes != null ? roll.successes : 0;
   const tnTxt = Number.isFinite(tn) ? ` <span class="mr-tn">vs TN ${esc(String(tn))}</span>` : '';
-  return `${esc(label)}${tnTxt} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
+  const shieldTxt = shieldPips ? ` <span style="color:var(--cyan)">+shield</span> ${shieldPips}` : '';
+  return `${esc(label)}${tnTxt} ${pips}${shieldTxt} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
 }
 
 function _beatClassFor(ev) {
@@ -4580,7 +4625,10 @@ function _beatClassFor(ev) {
     case 'dump_shock':         return 'mr-s-red';
     case 'simsense_overload':  return 'mr-s-amber';
     case 'shield_parry':       return 'mr-s-cyan';
+    case 'file_decompressed':
+    case 'program_decompressed': return 'mr-s-cyan';
     case 'probe_ic':           return ev.tally_increase ? 'mr-s-amber' : 'mr-s-dim';
+    case 'ic_detected':        return 'mr-s-sensor';
     case 'ic_activation':
     case 'ic_spawn':           return 'mr-s-amber';
     case 'logon':              return 'mr-s-good';
@@ -4598,13 +4646,29 @@ function _eventStamp(ev) {
   return `<span class="mr-stamp">${r}${i}</span> `;
 }
 
-// Every roll an event can carry, in a stable display order, so the center log shows the dice behind
-// ANY action: System Tests roll decker vs host, cybercombat rolls attack vs resist, maneuvers oppose.
-const _STREAM_ROLLS = [
-  ['decker_roll', '> decker'], ['attack_roll', '> attack'], ['maneuvering_roll', '> maneuver'],
-  ['host_roll', '> host'], ['resist_roll', '> resist'], ['opposing_roll', '> oppose'],
-  ['hunt_roll', '> hunt'],
-];
+// Roll fields an event can carry, with display labels, in a stable order. Any other *_roll dict on
+// the event is shown too (fallback), so the dice behind EVERY result appear in the log -- attacks,
+// opposed defences, Shield parries, worm-infection attempts, simsense / willpower checks, etc.
+const _STREAM_ROLL_LABELS = {
+  decker_roll: '> decker', attack_roll: '> attack', maneuvering_roll: '> maneuver',
+  host_roll: '> host', resist_roll: '> resist', defense_roll: '> defend', opposing_roll: '> oppose',
+  hunt_roll: '> hunt', body_roll: '> body', bod_roll: '> bod', will_roll: '> willpower',
+  blaster_roll: '> MPCP', sparky_roll: '> MPCP', mpcp_roll: '> MPCP', wp_roll: '> willpower',
+  sensor_roll: '> sensor',
+};
+const _STREAM_ROLL_ORDER = ['decker_roll', 'attack_roll', 'maneuvering_roll', 'sensor_roll',
+  'host_roll', 'resist_roll', 'defense_roll', 'opposing_roll', 'hunt_roll', 'body_roll', 'bod_roll',
+  'will_roll', 'blaster_roll', 'sparky_roll', 'mpcp_roll', 'wp_roll'];
+// A generic `roll` field's label depends on what produced it.
+const _STREAM_ROLL_CTX = {
+  worm_resolved: '> worm', shield_parry: '> shield', simsense_overload: '> willpower',
+  jack_out_failed: '> willpower',
+};
+function _rollLabelFor(key, ev) {
+  if (_STREAM_ROLL_LABELS[key]) return _STREAM_ROLL_LABELS[key];
+  if (key === 'roll') return _STREAM_ROLL_CTX[ev.type] || '> roll';
+  return '> ' + key.replace(/_roll$/, '').replace(/_/g, ' ');
+}
 
 // One real event -> stream beats: an optional flavour lead, the mechanical description (stamped with
 // round/initiative), then every roll behind it. defense_pending becomes the hard-stop marker.
@@ -4612,6 +4676,11 @@ function _eventToBeats(ev) {
   if (!ev || typeof ev !== 'object') return [];
   if (ev.type === 'defense_pending') return [{ stop: true }];
   if (ev.type === 'new_pass' || ev.type === 'new_turn') return [];   // structural markers -- not log-worthy
+  // Shield parry: its dice fold into the attacker's resist line (see _streamDiceHtml shield_dice),
+  // so keep only a compact cyan wear note here rather than a duplicate dice line.
+  if (ev.type === 'shield_parry') {
+    return ev.description ? [{ h: _eventStamp(ev) + esc(ev.description), c: 'mr-s-cyan', d: 900 }] : [];
+  }
   const beats = [];
   const cls = _beatClassFor(ev);
   const stamp = _eventStamp(ev);
@@ -4621,10 +4690,18 @@ function _eventToBeats(ev) {
     if (flav) beats.push({ t: flav, c: cls, d: 1000 });
   }
   if (ev.description) beats.push({ h: stamp + esc(ev.description), c: cls, d: 1200 });
-  _STREAM_ROLLS.forEach(([k, label]) => {
-    const html = _streamDiceHtml(ev[k], label);
+  // Render every roll-shaped field (a dict with a dice[] array): the known keys in a stable order,
+  // then a generic `roll`, then any other *_roll not already shown.
+  const seen = new Set();
+  const pushRoll = (k) => {
+    if (seen.has(k)) return;
+    seen.add(k);
+    const html = _streamDiceHtml(ev[k], _rollLabelFor(k, ev));
     if (html) beats.push({ h: html, c: 'mr-s-dim', d: 900, sub: true });
-  });
+  };
+  _STREAM_ROLL_ORDER.forEach(k => { if (ev[k] && ev[k].dice) pushRoll(k); });
+  if (ev.roll && ev.roll.dice) pushRoll('roll');
+  Object.keys(ev).forEach(k => { if (/_roll$/.test(k) && ev[k] && ev[k].dice) pushRoll(k); });
   if (!beats.length) beats.push({ h: stamp + esc(ev.description || ev.type || 'event'), c: cls, d: 1000 });
   return beats;
 }

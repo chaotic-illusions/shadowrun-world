@@ -77,6 +77,7 @@ _PERSONA_CARRY_KEYS = {
     "condition_monitor", "mpcp_infections", "mpcp_infected", "chip_replacement_required",
     "hackingPool_total", "hackingPool_remaining", "storage_free_mp", "storage_used_mp",
     "downloaded_files", "storage_programs", "active_memory_cap", "program_sizes",
+    "squeeze_keys", "squeezed_active",
     "detection_factor", "interactive_defense",
 }
 
@@ -836,10 +837,25 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
         "program_sizes": {str(k): int(v) for k, v in (decker.get("program_sizes") or {}).items()},
         "storage_programs": [
             {"name": str(p.get("name", "")), "rating": int(p.get("rating", 0) or 0),
-             "size": int(p.get("size", 0) or 0)}
+             "size": int(p.get("size", 0) or 0), "squeezed": bool(p.get("squeezed"))}
             for p in (decker.get("storage_programs") or [])
             if isinstance(p, dict) and p.get("name")
         ],
+        # Squeeze option (vr2 L1673): programs built compressed sit at HALF size in storage but must
+        # be Decompressed (Complex Action, no test) to full size before use after a mid-run swap into
+        # active memory. squeeze_keys = every util key built squeezed (active copies start already
+        # decompressed/usable; only storage->active swaps need the decompress). squeezed_active =
+        # programs swapped into active but NOT yet decompressed: they occupy full active memory but
+        # are held OUT of decker.utilities (so every effective-rating path ignores them) until
+        # Decompress moves them in. Both are the decker's own deck data -- player-visible.
+        "squeeze_keys": sorted(
+            {str(k) for k, v in (decker.get("program_options") or {}).items()
+             if isinstance(v, dict) and v.get("squeeze")}
+            | {str(p.get("name", "")) for p in (decker.get("storage_programs") or [])
+               if isinstance(p, dict) and p.get("name") and p.get("squeezed")}
+        ),
+        "squeezed_active": [],
+
         "access_modifier": decker.get("access_modifier", 0),  # jackpoint Access side
         "console_access": decker.get("console_access", False),
         "physical_trace_immune": bool(decker.get("physical_trace_immune", False)),  # SATLINK uplink
@@ -1906,6 +1922,11 @@ def _shield_parry(state: dict, decker: dict, *, attacker_skill: int, context: st
     if rating <= 0:
         return 0
     res, succ, remaining = _shield_parry_core(state, rating=rating, attacker_skill=attacker_skill)
+    # Stash the Shield dice so the attacker's event can fold them into its resist/defence roll for
+    # display (the parry ADDS to the persona's defence, vr2). The caller pops this right after the
+    # strike resolves; the standalone shield_parry event is kept for the GM/AAR, but the client
+    # renders these dice inline (a distinct colour) on the resist line rather than a separate line.
+    state["_shield_dice_pending"] = list(res["roll"].get("dice", []))
     _append_event(state, {
         "type": "shield_parry",
         "context": context,
@@ -3722,6 +3743,43 @@ def _apply_decompress(state: dict, decker: dict, *, target_file: str) -> None:
     })
 
 
+def _apply_decompress_program(state: dict, decker: dict, *, target_program: str) -> bool:
+    """Decompress a Squeezed program that was swapped into active memory (vr2_rules.md L1673:
+    "Cannot be used until decompressed -- Complex Action, no test required"). Pure bookkeeping --
+    it moves the program out of the ``squeezed_active`` holding area into ``decker.utilities`` so
+    every effective-rating / auto-defense path now sees it. The program already occupies its full
+    active footprint (charged when it was swapped in), so there is NO memory check here. Returns
+    True when a program was expanded (the caller must persist ``decker``); a missing target emits a
+    no-op event and returns False (never a crash)."""
+    name = (target_program or "").strip().lower()
+    squeezed_active = state.setdefault("squeezed_active", [])
+    ent = next((p for p in squeezed_active
+                if str(p.get("name", "")).strip().lower() == name), None)
+    pretty = str(name).replace("_", " ").title()
+    if not name or ent is None:
+        _append_event(state, {
+            "type": "program_decompressed", "outcome": "no_target",
+            "description": (
+                f"Decompress: no compressed program \"{pretty}\" in active memory to expand."
+                if name else
+                "Decompress: name a compressed program in active memory to expand."
+            ),
+        })
+        return False
+    squeezed_active.remove(ent)
+    utils = decker.setdefault("utilities", {})
+    sizes = state.setdefault("program_sizes", {})
+    rating = int(ent.get("rating", 0) or 0)
+    utils[name] = rating
+    sizes[name] = int(ent.get("size", sizes.get(name, 0)) or 0)
+    state.setdefault("program_damage", {}).pop(name, None)   # fresh copy -- no accrued damage
+    _append_event(state, {
+        "type": "program_decompressed", "outcome": "ok", "program": name,
+        "description": (f"Decompressed {pretty} (rating {rating}) -- now usable in active memory."),
+    })
+    return True
+
+
 def _register_suppression(state: dict, *, source: str, label: str, rating: int) -> dict:
     """Register a non-IC suppressible tally event (a data bomb detonation, etc.) so the decker can
     later choose to suppress it (vr2 Suppression, generalized from crashed IC). The tally has ALREADY
@@ -4224,14 +4282,17 @@ def _secret_sensor_test(state: dict, decker: dict, ic: dict) -> int:
     ic["detection_level"] = new
     if new > prev:
         notices = {
-            1: "Passive scan: your actions tripped a lurking IC (identity unknown).",
-            2: f"Passive scan identifies the lurking IC as {ic.get('type', '?')} IC.",
-            3: f"Passive scan pinpoints {ic.get('type', '?')}-{ic.get('rating', '?')} IC and its location.",
+            1: "Sensor sweep: your deck's sensors snag on hidden IC activity (identity unknown).",
+            2: f"Sensor sweep identifies the lurking IC as {ic.get('type', '?')} IC.",
+            3: f"Sensor sweep pinpoints {ic.get('type', '?')}-{ic.get('rating', '?')} IC and its location.",
         }
         _append_event(state, {
             "type": "ic_detected",
             "ic_id": ic["id"],
             "detection_level": new,
+            # The dice behind the sweep are your Sensor roll; the TN is the IC's rating, which you
+            # do NOT know until a full ID -- so expose the dice + successes but NOT the target number.
+            "sensor_roll": {"dice": roll["dice"], "successes": roll["successes"]},
             "description": notices[new],
         })
     return new
@@ -5275,6 +5336,9 @@ def _resolve_ic_cybercombat(state: dict, decker: dict, ic: dict, *, ic_attack_po
 
     _add_cm_damage(state["condition_monitor"], "persona_boxes", boxes)
     _wear_armor(state, state, decker, boxes)
+    _sp_dice = state.pop("_shield_dice_pending", None)
+    if _sp_dice:
+        attack["resistance"]["resist_roll"]["shield_dice"] = _sp_dice
     _append_event(state, {
         "type": "ic_attack",
         "ic_id": ic["id"],
@@ -5571,6 +5635,9 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 mpcp_rating=decker.get("mpcp", 1),
                 hardening=decker.get("hardening", 0),
             )
+            _sp_dice = state.pop("_shield_dice_pending", None)
+            if _sp_dice and result.get("defense_roll"):
+                result["defense_roll"]["shield_dice"] = _sp_dice
             reduction = result["reduction"]
             atk_succ = result["attack_roll"]["successes"]
             def_succ = result["defense_roll"]["successes"]
@@ -5634,6 +5701,9 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 meat_pool=decker.get("willpower", 4) if is_non_lethal else decker.get("body", 4),
                 meat_is_stun=is_non_lethal,
             )
+            _sp_dice = state.pop("_shield_dice_pending", None)
+            if _sp_dice:
+                black["icon"]["resist_roll"]["shield_dice"] = _sp_dice   # parry folds into the persona (Bod) resist
             persona_boxes = black["icon"]["boxes"]
             meat_boxes    = black["meat"]["boxes"]
             # vr2 L612: after the FIRST Black IC hit (even if no damage), jacking out stops being a
@@ -5764,6 +5834,10 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
             "type": "logon",
             "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
         })
+        # Logging on is the ENTRY step, not one of Turn 1's actions: refresh the pass budget so the
+        # decker begins Round 1 Turn 1 with a full 2 AP + 1 Free (the logon test still rolled its
+        # dice and cost its Hacking Pool; it just no longer eats the first turn's action points).
+        _reset_pass_budget(state)
 
     # Enemy deckers act automatically (app-as-GM), once per pass on the passes their OWN
     # initiative reaches (ceil(init/10) passes) -- they rolled initiative once when they entered.
@@ -6080,13 +6154,20 @@ async def perform_action(
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
 
-    # Decompress File (Complex Action, no test -- pure storage bookkeeping like Swap Memory):
-    # expand a previously-downloaded COMPRESSED file (stored at half size via the Compressor
-    # utility) back to its full size so it can be read/used. Needs the extra free Mp when storage
-    # is tracked (rejected 400 if it won't fit -- and the action is not spent). Resolved here and
-    # returned so it never falls through to the generic system_test below.
+    # Decompress (Complex Action, no test -- pure bookkeeping like Swap Memory): expand EITHER a
+    # Squeezed program swapped into active memory (target_program -- held compressed/unusable until
+    # now) OR a previously-downloaded COMPRESSED paydata file (target_file -- stored at half size via
+    # the Compressor utility) back to full size so it can be used/read. Program decompress mutates
+    # decker.utilities (reassign decker_json when it changed); file decompress is state-only and may
+    # 400 if the expanded file will not fit tracked storage (the action is then not spent). Resolved
+    # here and returned so it never falls through to the generic system_test below.
     if body.action_type == "decompress_file":
-        _apply_decompress(state, decker, target_file=body.target_file)
+        if body.target_program:
+            new_decker = copy.deepcopy(decker)
+            if _apply_decompress_program(state, new_decker, target_program=body.target_program):
+                run.decker_json = new_decker
+        else:
+            _apply_decompress(state, decker, target_file=body.target_file)
         run.state_json = state
         await db.commit(); await db.refresh(run)
         return _serialize_run(run, auth)
@@ -6302,7 +6383,7 @@ async def perform_action(
                 "description": (
                     f"Concealed port detected on the {sub.capitalize()} subsystem"
                     + (f" ({src})" if src else "")
-                    + " -- it links to another system. Destination unknown until you enter or file it."
+                    + " -- it links to another system. Destination unknown until you enter it."
                 ),
             })
         # Scramble IC is likewise revealed by an Analyze Subsystem on the subsystem that holds it
@@ -6346,8 +6427,7 @@ async def perform_action(
                     "has_ltg": True,
                     "ltg_address": addr,
                     "description": (
-                        f"Access subsystem analyzed -- this host HAS dedicated LTG access at {addr} "
-                        "(now reachable from the regular grid)."
+                        f"Access subsystem analyzed -- this host HAS dedicated LTG access at {addr}."
                     ),
                 })
             else:
@@ -7221,12 +7301,16 @@ def _apply_swap_memory(
     swap_out_program: str,
 ) -> tuple[bool, str]:
     """Resolve a Swap Memory action (vr2, Simple Action, no test). Mutates ``state``
-    (storage_programs / program_sizes / program_damage) and ``decker`` (utilities) in place and
-    returns ``(decker_changed, description)``. Modes, in priority order:
+    (storage_programs / program_sizes / program_damage / squeezed_active) and ``decker``
+    (utilities) in place and returns ``(decker_changed, description)``. Modes, in priority order:
 
       1. Load a stored program into active memory (``target_program`` names a stored program),
-         optionally pushing ``swap_out_program`` from active back to storage to make room.
-      2. Push an active program to storage only (``swap_out_program`` set, no storage target).
+         optionally pushing ``swap_out_program`` from active back to storage to make room. A
+         Squeezed program loads at FULL active size but stays COMPRESSED (held out of
+         decker.utilities so it is unusable) until a Decompress action expands it (vr2 L1673).
+      2. Push an active program to storage only (``swap_out_program`` set, no storage target) --
+         a usable program OR a still-compressed one swapped in earlier. A squeezed program returns
+         to storage at half footprint, re-compressed (no test).
       3. Reload a crashed/degraded *active* program from its storage copy (restore its rating
          after Hog / Tar Baby / One-Shot / degraded Armor-Shield).
 
@@ -7238,13 +7322,46 @@ def _apply_swap_memory(
     storage = state.setdefault("storage_programs", [])
     sizes   = state.setdefault("program_sizes", {})
     pd      = state.setdefault("program_damage", {})
+    squeezed_active = state.setdefault("squeezed_active", [])
+    squeeze_keys = set(state.get("squeeze_keys") or [])
     cap     = int(state.get("active_memory_cap", 0) or 0)
 
     def _pretty(n: str) -> str:
         return str(n).replace("_", " ").title()
 
     def _active_used() -> int:
-        return sum(int(sizes.get(n, 0)) for n, r in utils.items() if (r or 0) > 0)
+        # Full active footprint = usable loaded utilities PLUS squeezed programs swapped in but not
+        # yet decompressed (they occupy full active memory even while unusable).
+        used = sum(int(sizes.get(n, 0)) for n, r in utils.items() if (r or 0) > 0)
+        used += sum(int(p.get("size", 0) or 0) for p in squeezed_active)
+        return used
+
+    def _store_append(name: str, rating: int, size: int) -> None:
+        # A squeezed program returns to storage still flagged so its footprint stays halved and a
+        # later reload needs another decompress.
+        storage.append({"name": name, "rating": int(rating or 0), "size": int(size or 0),
+                        "squeezed": name in squeeze_keys})
+
+    def _pop_squeezed_active(name: str):
+        ent = next((p for p in squeezed_active
+                    if str(p.get("name", "")).strip().lower() == name), None)
+        if ent is not None:
+            squeezed_active.remove(ent)
+        return ent
+
+    def _push_active_out(name: str) -> str:
+        # Push an active program (usable OR a pending compressed copy) back to storage to free
+        # room; returns a note fragment ("" if nothing was pushed).
+        if (utils.get(name, 0) or 0) > 0:
+            _store_append(name, utils.get(name, 0), sizes.get(name, 0))
+            utils[name] = 0
+            pd.pop(name, None)
+            return f" (swapped {_pretty(name)} out to storage)"
+        ent = _pop_squeezed_active(name)
+        if ent is not None:
+            _store_append(name, ent.get("rating", 0), ent.get("size", 0))
+            return f" (swapped compressed {_pretty(name)} out to storage)"
+        return ""
 
     target   = (target_program or "").strip().lower()
     swap_out = (swap_out_program or "").strip().lower()
@@ -7263,13 +7380,10 @@ def _apply_swap_memory(
     if store_entry:
         # Mode 1: load a stored program into active memory.
         in_size = int(store_entry.get("size", 0) or 0)
+        is_squeezed = bool(store_entry.get("squeezed")) or target in squeeze_keys
         note = ""
-        if swap_out and (utils.get(swap_out, 0) or 0) > 0:
-            storage.append({"name": swap_out, "rating": int(utils.get(swap_out, 0) or 0),
-                            "size": int(sizes.get(swap_out, 0) or 0)})
-            utils[swap_out] = 0
-            pd.pop(swap_out, None)
-            note = f" (swapped {_pretty(swap_out)} out to storage)"
+        if swap_out:
+            note = _push_active_out(swap_out)
         if cap > 0 and _active_used() + in_size > cap:
             used = _active_used()
             raise HTTPException(
@@ -7278,20 +7392,33 @@ def _apply_swap_memory(
                 f"only {max(0, cap - used)} Mp free ({used}/{cap} Mp used). Swap a program out "
                 "to free active memory."
             )
+        storage.remove(store_entry)
+        if is_squeezed:
+            # Occupies FULL active memory immediately but stays UNUSABLE (out of decker.utilities)
+            # until a Decompress action expands it.
+            squeezed_active.append({"name": target,
+                                    "rating": int(store_entry.get("rating", 0) or 0),
+                                    "size": in_size})
+            return True, (f"Swap Memory -- loaded {_pretty(target)} into active memory still "
+                          f"COMPRESSED{note}. Decompress it (Complex Action) before use.")
         utils[target] = int(store_entry.get("rating", 0) or 0)
         sizes[target] = in_size
         pd.pop(target, None)   # fresh storage copy -- no accrued damage
-        storage.remove(store_entry)
         return True, (f"Swap Memory -- loaded {_pretty(target)} (rating {utils[target]}) into "
                       f"active memory{note}.")
 
-    if swap_out and (utils.get(swap_out, 0) or 0) > 0:
-        # Mode 2: push an active program to storage (no incoming program).
-        storage.append({"name": swap_out, "rating": int(utils.get(swap_out, 0) or 0),
-                        "size": int(sizes.get(swap_out, 0) or 0)})
-        utils[swap_out] = 0
-        pd.pop(swap_out, None)
-        return True, f"Swap Memory -- moved {_pretty(swap_out)} from active memory to storage."
+    if swap_out:
+        # Mode 2: push an active program to storage (no incoming program) -- usable or compressed.
+        if (utils.get(swap_out, 0) or 0) > 0:
+            _store_append(swap_out, utils.get(swap_out, 0), sizes.get(swap_out, 0))
+            utils[swap_out] = 0
+            pd.pop(swap_out, None)
+            return True, f"Swap Memory -- moved {_pretty(swap_out)} from active memory to storage."
+        ent = _pop_squeezed_active(swap_out)
+        if ent is not None:
+            _store_append(swap_out, ent.get("rating", 0), ent.get("size", 0))
+            return True, (f"Swap Memory -- moved compressed {_pretty(swap_out)} from active memory "
+                          "back to storage.")
 
     # Mode 3: reload a crashed/degraded active program from its storage copy.
     reload_target = target or next((k for k, v in pd.items() if v > 0 and k not in wiped), None)
