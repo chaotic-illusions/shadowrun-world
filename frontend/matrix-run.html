@@ -24,6 +24,8 @@
     @keyframes mrRise { to { opacity:1; transform:none; } }
     .mr-ln-instant { animation:none; opacity:1; transform:none; }
     .mr-sub { padding-left:18px; }
+    .mr-stamp { color:var(--steel-blue); font-size:0.78em; letter-spacing:0.5px; }
+    .mr-tn { color:#d9b44a; }
     .mr-s-hdr { color:var(--green); text-shadow:0 0 8px #00ff4166; letter-spacing:1px; margin:8px 0 2px; }
     .mr-s-dim { color:var(--text-dim); }
     .mr-s-cyan { color:var(--cyan); }
@@ -507,7 +509,7 @@
         </div>
       </div>
 
-      <!-- -- RIGHT: Discovered board + Event Log ------ -->
+      <!-- -- RIGHT: Discovered board ------ -->
       <div class="mr-col-right">
 
         <!-- Active IC -->
@@ -522,10 +524,10 @@
           <div id="run-suppress-list"></div>
         </div>
 
-        <!-- Trap Doors -->
-        <div class="mr-panel" id="run-trap-door-panel" style="display:none">
-          <div class="panel-title panel-title-green">&gt;&gt; TRAP DOORS</div>
-          <div id="run-trap-door-list"></div>
+        <!-- Enemy deckers -->
+        <div class="mr-panel" id="run-enemy-decker-panel" style="display:none">
+          <div class="panel-title" style="color:var(--red)">&gt;&gt; HOSTILE DECKERS <em style="float:right;font-size:0.58rem;color:var(--red)">THREAT</em></div>
+          <div id="run-enemy-decker-list"></div>
         </div>
 
         <!-- Paydata downloads / deck storage -->
@@ -534,18 +536,10 @@
           <div id="run-downloads-body"></div>
         </div>
 
-        <!-- Enemy deckers -->
-        <div class="mr-panel" id="run-enemy-decker-panel" style="display:none">
-          <div class="panel-title" style="color:var(--red)">&gt;&gt; HOSTILE DECKERS <em style="float:right;font-size:0.58rem;color:var(--red)">THREAT</em></div>
-          <div id="run-enemy-decker-list"></div>
-        </div>
-
-        <!-- Event log -->
-        <div class="mr-panel">
-          <div class="panel-title panel-title-green">&gt;&gt; EVENT LOG <em style="float:right;font-size:0.58rem;color:var(--text-dim)" id="run-turn-badge"></em></div>
-          <div class="event-log" id="run-event-log">
-            <div class="empty-msg">No events yet</div>
-          </div>
+        <!-- Trap Doors -->
+        <div class="mr-panel" id="run-trap-door-panel" style="display:none">
+          <div class="panel-title panel-title-green">&gt;&gt; TRAP DOORS</div>
+          <div id="run-trap-door-list"></div>
         </div>
 
       </div>
@@ -3243,19 +3237,10 @@ function renderRunState(run) {
   renderTrapDoorsPanel();
   checkSuppressionModal(state, decker);
 
-  // Event log
-  renderEventLog(state.event_log || [], state);
-
   // Paydata: located -> downloaded -> destroyed, all driven by engine state (located_paydata
   // carries the server-set `destroyed` flag when a Poison Scramble wipes a file).
   renderDownloadsPanel();
   renderMemoryPanel();
-
-  // Round badge
-  const lastEvent = (state.event_log || []).slice(-1)[0];
-  if (lastEvent) {
-    document.getElementById('run-turn-badge').textContent = `ROUND ${lastEvent.turn}`;
-  }
 
   // Center situation stage: ONE persistent, scrollable running log (renderStage builds it once,
   // then only refreshes the header/CTA; new events stream in via _pushNewEvents).
@@ -3498,468 +3483,6 @@ function renderConditionBoxesHTML(filled, total, type) {
     html += `<div class="cond-box"${cls}></div>`;
   }
   return html;
-}
-
-// -- Event log --------------------------------------------------------------
-function renderEventLog(events, state) {
-  const el = document.getElementById('run-event-log');
-  if (!el) return;
-  if (!events.length) {
-    el.innerHTML = '<div class="empty-msg">No events yet</div>';
-    return;
-  }
-
-  const reversed = [...events].reverse();
-  el.innerHTML = reversed.map(ev => renderEventEntry(ev)).join('');
-}
-
-function renderEventEntry(ev) {
-  const turn = ev.turn ?? '?';
-  const type = ev.type || 'unknown';
-  const desc = esc(ev.description || '');
-
-  let cls = 'ev-neutral';
-  let badgeColor = '#333';
-  let badgeText  = type.replace(/_/g,' ').toUpperCase();
-
-  switch (type) {
-    case 'action':
-      cls = ev.success ? 'ev-action-ok' : 'ev-action-fail';
-      badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
-      badgeText = ev.success ? 'SUCCESS' : 'FAILED';
-      break;
-    case 'probe_ic':
-      // An undetected Probe (no ic_id) must not name itself -- keep it a vague "ALERT". Only once
-      // the decker has detected/analysed it (ic_id present) is it labelled a Probe.
-      cls = 'ev-ic-activate';
-      badgeColor = 'var(--amber)';
-      badgeText = ev.ic_id ? 'PROBE IC' : 'ALERT';
-      break;
-    case 'ic_activation':
-      cls = 'ev-ic-activate';
-      badgeColor = 'var(--red)';
-      badgeText = 'IC ALERT';
-      break;
-    case 'ic_attack':
-      cls = 'ev-ic-attack';
-      badgeColor = '#ff7700';
-      badgeText = 'IC ATTACK';
-      break;
-    case 'decker_attack':
-      cls = 'ev-decker-atk';
-      badgeColor = 'var(--blue)';
-      badgeText = 'ATTACK';
-      break;
-    case 'decker_crippled':
-      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
-      badgeText = (ev.program || 'cripple').toUpperCase();
-      break;
-    case 'decker_lethal':
-      // PC Black Hammer / Killjoy vs an enemy decker. The crash (enemy dumped + MPCP burn)
-      // reads as a win (green); a plain hit is a lethal strike in progress (red).
-      cls = ev.outcome === 'crash' ? 'ev-ic-crashed' : 'ev-decker-atk';
-      badgeColor = ev.outcome === 'crash' ? 'var(--green)' : 'var(--red)';
-      badgeText = ev.program === 'killjoy' ? 'KILLJOY' : 'BLACK HAMMER';
-      break;
-    case 'icon_scanned':
-      // PC Scan Icon vs an enemy decker: cyan recon; green when it reveals something new.
-      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = ev.success ? 'var(--green)' : 'var(--cyan)';
-      badgeText = 'SCAN ICON';
-      break;
-    case 'ic_crashed':
-      cls = 'ev-ic-crashed';
-      badgeColor = 'var(--green)';
-      badgeText = 'IC CRASH';
-      break;
-    case 'alert':
-      cls = 'ev-alert';
-      badgeColor = 'var(--amber)';
-      badgeText = 'ALERT';
-      break;
-    case 'host_analyzed':
-    case 'security_analyzed':
-      cls = 'ev-logon';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'INTEL';
-      break;
-    case 'crash_host_started':
-    case 'crash_host_tick':
-      cls = 'ev-ic-attack';
-      badgeColor = 'var(--red)';
-      badgeText = 'CRASH';
-      break;
-    case 'crash_host_aborted':
-      cls = 'ev-action-fail';
-      badgeColor = 'var(--amber)';
-      badgeText = 'ABORTED';
-      break;
-    case 'crash_host_complete':
-      cls = 'ev-ic-crashed';
-      badgeColor = 'var(--green)';
-      badgeText = 'HOST DOWN';
-      break;
-    case 'logon':
-      cls = 'ev-logon';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'LOGON';
-      break;
-    case 'logoff_success':
-      cls = 'ev-logoff-ok';
-      badgeColor = 'var(--green)';
-      badgeText = 'LOGOFF';
-      break;
-    case 'logoff_fail':
-      cls = 'ev-logoff-fail';
-      badgeColor = 'var(--amber)';
-      badgeText = 'LOGOFF FAIL';
-      break;
-    case 'jack_out':
-      cls = 'ev-jack-out';
-      badgeColor = 'var(--amber)';
-      badgeText = 'JACK OUT';
-      break;
-    case 'persona_crash':
-      cls = 'ev-crash';
-      badgeColor = 'var(--red)';
-      badgeText = 'CRASH';
-      break;
-    case 'dump_shock':
-      cls = 'ev-dump-shock';
-      badgeColor = 'var(--red)';
-      badgeText = 'DUMP SHOCK';
-      break;
-    case 'simsense_overload':
-      cls = 'ev-simsense';
-      badgeColor = 'var(--amber)';
-      badgeText = 'SIMSENSE';
-      break;
-    case 'new_turn':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'NEW ROUND';
-      break;
-    case 'reactive_ic_armed':
-      cls = 'ev-reactive';
-      badgeColor = 'var(--amber)';
-      badgeText = 'LURKING IC';
-      break;
-    case 'party_ic_activation':
-      cls = 'ev-party-ic';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'PARTY IC';
-      break;
-    case 'reactive_ic_resolved':
-      cls = ev.outcome === 'ic_wins' ? 'ev-ic-attack' : 'ev-ic-crashed';
-      badgeColor = ev.outcome === 'ic_wins' ? '#ff7700' : 'var(--green)';
-      badgeText = ev.outcome === 'ic_wins' ? 'REACTIVE HIT' : 'REACTIVE MISS';
-      break;
-    case 'tar_pit_corruption':
-      cls = 'ev-crash';
-      badgeColor = 'var(--red)';
-      badgeText = 'TAR PIT';
-      break;
-    case 'tar_steamrolled':
-      cls = ev.destroyed ? 'ev-ic-crashed' : 'ev-neutral';
-      badgeColor = ev.destroyed ? 'var(--green)' : 'var(--amber)';
-      badgeText = 'STEAMROLLER';
-      break;
-    case 'ic_slowed':
-      cls = (ev.outcome === 'hung' || ev.outcome === 'slowed') ? 'ev-ic-crashed' : 'ev-neutral';
-      badgeColor = ev.outcome === 'hung' ? 'var(--green)' : (ev.outcome === 'slowed' ? 'var(--cyan)' : 'var(--amber)');
-      badgeText = 'SLOW';
-      break;
-    case 'validate_passcode':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--green-dim)';
-      badgeText = 'PASSCODE';
-      break;
-    case 'invalidate_passcode':
-      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = 'var(--amber)';
-      badgeText = 'INVALIDATE';
-      break;
-    case 'decoy_deployed':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'DECOY';
-      break;
-    case 'decoy_intercepted':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'DECOY HIT';
-      break;
-    case 'relocate':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--green-dim)';
-      badgeText = 'RELOCATE';
-      break;
-    case 'redirect_placed':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'REDIRECT';
-      break;
-    case 'paydata_located':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'PAYDATA FOUND';
-      break;
-    case 'data_downloaded':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--green)';
-      badgeText = 'DOWNLOAD';
-      break;
-    case 'file_deleted':
-      cls = 'ev-crash';
-      badgeColor = 'var(--red)';
-      badgeText = 'FILE ERASED';
-      break;
-    case 'file_modified':
-      cls = 'ev-action-fail';
-      badgeColor = 'var(--red)';
-      badgeText = 'FILE TAMPERED';
-      break;
-    case 'download_started':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'DOWNLOAD START';
-      break;
-    case 'null_operation':
-      // Automatic Null Operation covering an ongoing multi-turn download (masks the transfer).
-      cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'NULL OP';
-      break;
-    case 'download_corrupted':
-      cls = 'ev-crash';
-      badgeColor = 'var(--red)';
-      badgeText = 'DOWNLOAD LOST';
-      break;
-    case 'file_decompressed':
-      cls = ev.outcome === 'expanded' ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = ev.outcome === 'expanded' ? 'var(--cyan)' : 'var(--amber)';
-      badgeText = ev.outcome === 'expanded' ? 'DECOMPRESS' : 'NO TARGET';
-      break;
-    case 'trap_door_found':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'TRAP DOOR';
-      break;
-    case 'scramble_found':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--amber)';
-      badgeText = 'SCRAMBLE FOUND';
-      break;
-    case 'trap_door_filed':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--amber)';
-      badgeText = 'TRAP FILED';
-      break;
-    case 'trap_door_entered':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'TRAP TRANSIT';
-      break;
-    case 'trap_door_return':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'TRAP RETURN';
-      break;
-    case 'host_ltg_revealed':
-      cls = 'ev-action-ok';
-      badgeColor = ev.has_ltg ? 'var(--green)' : 'var(--text-dim)';
-      badgeText = ev.has_ltg ? 'LTG: YES' : 'LTG: NO';
-      break;
-    case 'access_analysis_blocked':
-      cls = 'ev-action-fail';
-      badgeColor = 'var(--amber)';
-      badgeText = 'BLOCKED';
-      break;
-    case 'decrypt':
-      if (!ev.decker_roll) {   // guard: no discovered scramble matched -- nothing decrypted, no loss
-        cls = 'ev-neutral';
-        badgeColor = 'var(--cyan)';
-        badgeText = 'NO SCRAMBLE';
-        break;
-      }
-      cls = ev.success ? 'ev-action-ok' : 'ev-crash';
-      badgeColor = ev.success ? 'var(--green)' : 'var(--red)';
-      badgeText = ev.success ? 'DECRYPT' : (ev.key_data_lost ? 'KEY DATA LOST' : 'DATA WIPED');
-      break;
-    case 'data_bomb':
-      if (ev.outcome === 'defused') {
-        cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'BOMB DEFUSED';
-      } else if (ev.outcome === 'primed') {
-        cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'BOMB PRIMED';
-      } else if (ev.outcome === 'no_target') {
-        cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'NO BOMB';
-      } else {
-        cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'DATA BOMB';
-      }
-      break;
-    case 'data_bomb_found':
-      cls = 'ev-action-fail';
-      badgeColor = 'var(--amber)';
-      badgeText = 'BOMB FOUND';
-      break;
-    case 'data_bomb_clear':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--cyan)';
-      badgeText = 'ICON CLEAR';
-      break;
-    case 'worm_resolved':
-      cls = ev.outcome === 'mpcp_infected' ? 'ev-crash' : 'ev-ic-crashed';
-      badgeColor = ev.outcome === 'mpcp_infected' ? 'var(--red)' : 'var(--green)';
-      badgeText = ev.outcome === 'mpcp_infected' ? 'WORM INFECT' : 'WORM REPELLED';
-      break;
-    case 'tapeworm_payload_loss':
-      cls = (ev.destroyed_files || []).length ? 'ev-crash' : 'ev-neutral';
-      badgeColor = (ev.destroyed_files || []).length ? 'var(--red)' : 'var(--cyan)';
-      badgeText = ev.key_erased ? 'KEY DATA LOST' : 'TAPEWORM';
-      break;
-    case 'shutdown_initiated':
-      cls = 'ev-ic-activate';
-      badgeColor = 'var(--red)';
-      badgeText = 'SHUTDOWN';
-      break;
-    case 'shutdown_detected':
-    case 'shutdown_warning':
-      cls = 'ev-alert';
-      badgeColor = 'var(--amber)';
-      badgeText = 'SHUTDOWN';
-      break;
-    case 'shutdown_tick':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--amber)';
-      badgeText = 'SHUTDOWN';
-      break;
-    case 'jack_out_failed':
-      cls = 'ev-action-fail';
-      badgeColor = 'var(--red)';
-      badgeText = 'JACK-OUT FAIL';
-      break;
-    case 'ic_detected':
-      cls = 'ev-reactive';
-      badgeColor = 'var(--amber)';
-      badgeText = 'IC DETECTED';
-      break;
-    case 'ic_suppressed':
-      cls = 'ev-action-ok';
-      badgeColor = 'var(--green-dim)';
-      badgeText = 'SUPPRESSED';
-      break;
-    case 'ic_released':
-      cls = 'ev-alert';
-      badgeColor = 'var(--amber)';
-      badgeText = 'IC RELEASED';
-      break;
-    case 'enemy_decker': {
-      const oc = ev.outcome || '';
-      if (oc === 'hunting') { cls = 'ev-alert'; badgeColor = 'var(--amber)'; badgeText = 'DECKER HUNT'; }
-      else if (oc === 'located') { cls = 'ev-ic-activate'; badgeColor = 'var(--red)'; badgeText = 'PC LOCATED'; }
-      else if (oc === 'scan_hit') { cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'DECKER FOUND'; }
-      else if (oc === 'scan_clear') { cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'SCAN CLEAR'; }
-      else if (oc === 'scan_fail') { cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'SCAN FAIL'; }
-      else if (oc === 'scanned') { cls = 'ev-alert'; badgeColor = 'var(--red)'; badgeText = 'ICON READ'; }
-      else if (oc === 'kill') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = (ev.program || 'BLACK HAMMER').toUpperCase(); }
-      else if (oc === 'fled') { cls = 'ev-action-ok'; badgeColor = 'var(--green)'; badgeText = 'DECKER FLED'; }
-      else if (oc === 'hog') { cls = 'ev-crash'; badgeColor = 'var(--red)'; badgeText = 'HOG DRAIN'; }
-      else if (oc === 'purge_hog') { cls = 'ev-neutral'; badgeColor = 'var(--amber)'; badgeText = 'DECKER PURGE'; }
-      else if (oc === 'swap_memory') { cls = 'ev-action-fail'; badgeColor = 'var(--amber)'; badgeText = 'DECKER RELOAD'; }
-      else { cls = 'ev-ic-attack'; badgeColor = '#ff7700'; badgeText = 'ENEMY DECKER'; }
-      break;
-    }
-    case 'shield_parry':
-      cls = (ev.successes || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = (ev.shield_remaining || 0) > 0 ? 'var(--cyan)' : 'var(--amber)';
-      badgeText = 'SHIELD';
-      break;
-    case 'armor_wear':
-      cls = (ev.armor_remaining || 0) > 0 ? 'ev-neutral' : 'ev-action-fail';
-      badgeColor = (ev.armor_remaining || 0) > 0 ? 'var(--cyan)' : 'var(--amber)';
-      badgeText = 'ARMOR';
-      break;
-    case 'medic_heal':
-      cls = (ev.healed || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = (ev.healed || 0) > 0 ? 'var(--green)' : 'var(--amber)';
-      badgeText = 'MEDIC';
-      break;
-    case 'restore_repair':
-      cls = (ev.repaired || 0) > 0 ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = (ev.repaired || 0) > 0 ? 'var(--green)' : 'var(--amber)';
-      badgeText = 'RESTORE';
-      break;
-    case 'worm_disinfected':
-      cls = ev.destroyed ? 'ev-action-ok' : 'ev-neutral';
-      badgeColor = ev.destroyed ? 'var(--green)' : 'var(--amber)';
-      badgeText = 'DISINFECT';
-      break;
-    case 'one_shot_spent':
-      cls = 'ev-neutral';
-      badgeColor = 'var(--amber)';
-      badgeText = '1-SHOT SPENT';
-      break;
-    case 'one_shot_wiped':
-      cls = 'ev-crash';
-      badgeColor = 'var(--red)';
-      badgeText = '1-SHOT WIPED';
-      break;
-    case 'maneuver': {
-      // Combat maneuver (Evade Detection / Parry Attack / Position Attack) or an auto re-detect.
-      const mv = ev.maneuver || '';
-      if (mv === 're_detect') {
-        cls = 'ev-neutral'; badgeColor = 'var(--cyan)'; badgeText = 'RE-DETECT';
-      } else {
-        cls = ev.success ? 'ev-action-ok' : 'ev-neutral';
-        badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
-        badgeText = mv === 'evade_detection' ? 'EVADE'
-                  : mv === 'parry_attack'    ? 'PARRY'
-                  : mv === 'position_attack' ? 'POSITION' : 'MANEUVER';
-      }
-      break;
-    }
-  }
-
-  // Dice summary
-  let diceLine = '';
-  if (ev.decker_roll || ev.host_roll) {
-    const parts = [];
-    if (ev.decker_roll) {
-      const dr = ev.decker_roll;
-      parts.push(`Decker: [${(dr.dice || []).join(',')}] &rarr; ${dr.successes ?? 0} hits`);
-    }
-    if (ev.host_roll) {
-      const hr = ev.host_roll;
-      parts.push(`Host: [${(hr.dice || []).join(',')}] &rarr; ${hr.successes ?? 0} hits`);
-    }
-    if (parts.length) {
-      diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
-    }
-  }
-  // Combat-maneuver rolls (opposed Evasion vs Sensor) use their own roll keys.
-  if (ev.maneuvering_roll || ev.opposing_roll) {
-    const parts = [];
-    if (ev.maneuvering_roll) parts.push(`Maneuver: [${(ev.maneuvering_roll.dice || []).join(',')}] &rarr; ${ev.maneuvering_roll.successes ?? 0} hits`);
-    if (ev.opposing_roll)    parts.push(`Oppose: [${(ev.opposing_roll.dice || []).join(',')}] &rarr; ${ev.opposing_roll.successes ?? 0} hits`);
-    if (parts.length) diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
-  }
-  // Cybercombat attack (decker attacks IC): the attack roll and the IC's damage-resist roll.
-  if (ev.attack_roll || ev.resist_roll) {
-    const parts = [];
-    if (ev.attack_roll) parts.push(`Attack: [${(ev.attack_roll.dice || []).join(',')}] &rarr; ${ev.attack_roll.successes ?? 0} hits`);
-    if (ev.resist_roll) parts.push(`IC resist: [${(ev.resist_roll.dice || []).join(',')}] &rarr; ${ev.resist_roll.successes ?? 0} hits`);
-    if (parts.length) diceLine = `<div class="ev-dice">${parts.join(' // ')}</div>`;
-  }
-
-  return `
-  <div class="ev-entry ${cls}">
-    <span class="ev-turn">R${turn}</span>
-    ${ev.init != null ? `<span class="ev-init" data-tip="Initiative count this happened on">i${esc(String(ev.init))}</span>` : ''}
-    <span class="ev-type-badge" style="color:${badgeColor};border-color:${badgeColor}40">${badgeText}</span>
-    <span class="ev-desc">${desc}</span>
-    ${diceLine}
-  </div>`;
 }
 
 // -- Center situation stage -------------------------------------------------
@@ -5041,7 +4564,8 @@ function _streamDiceHtml(roll, label) {
   }).join('');
   if (!pips) return '';
   const succ = roll.successes != null ? roll.successes : 0;
-  return `${esc(label)} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
+  const tnTxt = Number.isFinite(tn) ? ` <span class="mr-tn">vs TN ${esc(String(tn))}</span>` : '';
+  return `${esc(label)}${tnTxt} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
 }
 
 function _beatClassFor(ev) {
@@ -5064,26 +4588,44 @@ function _beatClassFor(ev) {
   }
 }
 
-// One real event -> 1-3 stream beats: an optional flavour lead, the mechanical description, then the
-// dice behind it. defense_pending becomes the hard-stop marker (its data is read live at the stop).
+// Round/initiative stamp for a log line (kept from the retired right-pane Event Log): R{round} plus
+// i{initiative count} when present, so the center running log keeps the "when did this happen"
+// reference without a second pane.
+function _eventStamp(ev) {
+  if (ev.turn == null && ev.init == null) return '';
+  const r = ev.turn != null ? 'R' + esc(String(ev.turn)) : '';
+  const i = ev.init != null ? ' i' + esc(String(ev.init)) : '';
+  return `<span class="mr-stamp">${r}${i}</span> `;
+}
+
+// Every roll an event can carry, in a stable display order, so the center log shows the dice behind
+// ANY action: System Tests roll decker vs host, cybercombat rolls attack vs resist, maneuvers oppose.
+const _STREAM_ROLLS = [
+  ['decker_roll', '> decker'], ['attack_roll', '> attack'], ['maneuvering_roll', '> maneuver'],
+  ['host_roll', '> host'], ['resist_roll', '> resist'], ['opposing_roll', '> oppose'],
+  ['hunt_roll', '> hunt'],
+];
+
+// One real event -> stream beats: an optional flavour lead, the mechanical description (stamped with
+// round/initiative), then every roll behind it. defense_pending becomes the hard-stop marker.
 function _eventToBeats(ev) {
   if (!ev || typeof ev !== 'object') return [];
   if (ev.type === 'defense_pending') return [{ stop: true }];
   if (ev.type === 'new_pass' || ev.type === 'new_turn') return [];   // structural markers -- not log-worthy
   const beats = [];
   const cls = _beatClassFor(ev);
+  const stamp = _eventStamp(ev);
   if (ev.type === 'ic_attack' && ev.ic_type) {
     const label = `${ev.ic_type}${ev.ic_rating ? '-' + ev.ic_rating : ''}`;
     const flav = _flavorFor(ev.ic_type, label);
     if (flav) beats.push({ t: flav, c: cls, d: 1000 });
   }
-  if (ev.description) beats.push({ h: esc(ev.description), c: cls, d: 1200 });
-  ['attack_roll', 'resist_roll', 'hunt_roll'].forEach(k => {
-    const label = k === 'attack_roll' ? '> attack' : (k === 'resist_roll' ? '> resist' : '> hunt');
+  if (ev.description) beats.push({ h: stamp + esc(ev.description), c: cls, d: 1200 });
+  _STREAM_ROLLS.forEach(([k, label]) => {
     const html = _streamDiceHtml(ev[k], label);
     if (html) beats.push({ h: html, c: 'mr-s-dim', d: 900, sub: true });
   });
-  if (!beats.length) beats.push({ h: esc(ev.description || ev.type || 'event'), c: cls, d: 1000 });
+  if (!beats.length) beats.push({ h: stamp + esc(ev.description || ev.type || 'event'), c: cls, d: 1000 });
   return beats;
 }
 
