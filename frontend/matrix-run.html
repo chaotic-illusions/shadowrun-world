@@ -3353,8 +3353,11 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     const isCrashed = ic.status === 'crashed';
     const isConstruct = ic.type === 'Construct';
     const isParty     = !!ic.cluster_id;
-    const cardCat     = isConstruct ? 'construct' : isParty ? 'party' : (ic.category || 'white').toLowerCase();
+    const cardCat     = isConstruct ? 'construct' : isParty ? 'party' : (ic.category ? String(ic.category).toLowerCase() : 'unknown');
     const badgeCat    = ic.category ? String(ic.category).toLowerCase() : '';
+    // Border stays dashed while the decker's ID of this IC is incomplete (detection level < 3) and
+    // solidifies at a full ID; the colour is the "unknown" hue until the threat class is learned.
+    const partialId   = ic.detection_level != null && ic.detection_level < 3;
     const boxes       = renderConditionBoxesHTML(ic.boxes || 0, 10, 'ic');
     const canAtk      = !runEnded && !crashed && !isCrashed;
 
@@ -3364,13 +3367,6 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       trapBadge = gm
         ? `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[TRAP&#8594;${esc(ic.trap_hidden.type)}-${ic.trap_hidden.rating}]</span>`
         : `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[TRAP]</span>`;
-    }
-
-    // Detection-level indicator (vr2): reactive IC partially identified by the decker.
-    // Backend already redacts type/rating below the detected level; show progress 1/3 - 2/3.
-    let detBadge = '';
-    if (!gm && ic.detection_level && ic.detection_level < 3) {
-      detBadge = `<span style="font-size:0.5rem;color:var(--amber);margin-left:5px">[ID ${ic.detection_level}/3]</span>`;
     }
 
     // Party IC cluster penalty indicator
@@ -3411,10 +3407,10 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     }
 
     return `
-    <div class="ic-card ic-${esc(cardCat)}${isCrashed ? ' ic-crashed' : ''}">
+    <div class="ic-card ic-${esc(cardCat)}${partialId ? ' ic-partial' : ''}${isCrashed ? ' ic-crashed' : ''}">
       <div class="ic-head">
-        <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}${detBadge}${trapBadge}${partyBadge}</span>
-        ${badgeCat ? `<span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>` : `<span class="ic-badge" style="color:var(--text-dim);border-color:#333" data-tip="Threat class hidden until you Analyze this IC">?</span>`}
+        <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}${trapBadge}${partyBadge}</span>
+        ${badgeCat ? `<span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>` : ''}
       </div>
       <div class="ic-meta">
         <span>Initiative: <span>${ic.initiative || '--'}</span></span>
