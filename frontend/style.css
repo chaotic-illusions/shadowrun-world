@@ -3503,49 +3503,6 @@ main:has(.md3) { max-width: 1800px; }
 .sec-code-display { font-size: var(--fs-sm); color: var(--text-dim); margin-bottom: 8px; }
 .sec-code-value   { color: var(--text-bright); }
 
-/* Event log */
-.event-log {
-  max-height: 320px;
-  overflow-y: auto;
-  display: flex; flex-direction: column; gap: 3px;
-}
-.event-log::-webkit-scrollbar       { width: 4px; }
-.event-log::-webkit-scrollbar-track { background: #040404; }
-.event-log::-webkit-scrollbar-thumb { background: #1a3a1a; }
-.ev-entry {
-  padding: 6px 8px; border-left: 2px solid #1a2a1a;
-  font-size: var(--fs-sm); line-height: 1.5; background: #080808;
-}
-.ev-entry:hover { background: #0a0f0a; }
-.ev-turn        { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); margin-right: 6px; }
-.ev-init        { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--steel-blue); margin-right: 6px; }
-.ev-type-badge {
-  display: inline-block; font-size: var(--fs-xxs); letter-spacing: 2px;
-  padding: 1px 5px; border: 1px solid #222;
-  text-transform: uppercase; margin-right: 6px; vertical-align: middle;
-}
-.ev-desc        { display: inline; }
-.ev-dice        { font-size: var(--fs-xs); color: var(--text-dim); margin-top: 2px; }
-
-/* Event color classes */
-.ev-action-ok    { border-left-color: var(--green); color: var(--green); }
-.ev-action-fail  { border-left-color: var(--amber); color: var(--amber); }
-.ev-ic-activate  { border-left-color: var(--red);   color: var(--red); }
-.ev-ic-attack    { border-left-color: #ff7700;      color: #ff7700; }
-.ev-ic-crashed   { border-left-color: var(--green); color: var(--green); }
-.ev-alert        { border-left-color: var(--amber); color: var(--amber); }
-.ev-logon        { border-left-color: var(--cyan);  color: var(--cyan); }
-.ev-logoff-ok    { border-left-color: var(--green); color: var(--text-bright); }
-.ev-logoff-fail  { border-left-color: var(--amber); color: var(--amber); }
-.ev-jack-out     { border-left-color: var(--amber); color: var(--amber); }
-.ev-crash        { border-left-color: var(--red);   color: var(--red); text-shadow: var(--glow-red); }
-.ev-dump-shock   { border-left-color: var(--red);   color: var(--red); }
-.ev-simsense     { border-left-color: var(--amber); color: var(--amber); }
-.ev-decker-atk   { border-left-color: var(--blue);  color: var(--blue); }
-.ev-reactive     { border-left-color: var(--amber); color: var(--amber); }
-.ev-party-ic     { border-left-color: var(--cyan);  color: var(--cyan); }
-.ev-neutral      { border-left-color: #333; color: var(--text-dim); }
-
 /* Action bar */
 .action-bar      { background: var(--bg-card); border: 1px solid #1a2a1a; padding: 14px 16px; }
 .action-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
