@@ -46,17 +46,22 @@ class DeckerUtilities(BaseModel):
 
 class MemoryProgram(BaseModel):
     """A program the decker carries that Swap Memory can move between storage and active
-    memory mid-run. size is its active-memory footprint in Mp."""
+    memory mid-run. size is its FULL (decompressed) active-memory footprint in Mp. A Squeezed
+    program is stored at half that size but must be decompressed (Complex Action) to full size
+    before it can be used once loaded into active memory (vr2 Squeeze option, L1673)."""
     name:   str = Field("", max_length=40)   # utility key, e.g. "analyze", "read_write"
     rating: int = Field(0, ge=0, le=50)
-    size:   int = Field(0, ge=0)
+    size:   int = Field(0, ge=0)             # full (decompressed) active footprint in Mp
+    squeezed: bool = False                   # built with the Squeeze option: half storage, needs decompress after a swap-in
 
 
 class ProgramOptions(BaseModel):
     """Run-relevant program options carried from the Deck Workshop into a run, keyed by
-    utility type (e.g. "attack"). Build-time-only options (Optimization / Squeeze) affect
-    size/cost in the workshop and are intentionally NOT carried here; Limit IS carried (as
-    limit_target) because it restricts which target type the utility may affect at run time."""
+    utility type (e.g. "attack"). Optimization stays build-time-only (pure size/cost); Squeeze
+    IS carried (as ``squeeze``) because it changes run-time behaviour -- a squeezed program takes
+    half storage but must be decompressed (Complex Action) before use after a mid-run swap-in.
+    Limit is carried (as limit_target) because it restricts which target type the utility may
+    affect at run time."""
     skulk:       int = Field(0, ge=0, le=50)   # crashing IC: reduce the tally increase by this
     area:        int = Field(0, ge=0, le=50)   # attack copes with an IC cluster (offsets its TN penalty)
     dinab:       int = Field(0, ge=0, le=50)   # "Decker In A Box": Free action runs this program autonomously at skill = rating
@@ -64,6 +69,7 @@ class ProgramOptions(BaseModel):
     penetration: bool = False                  # defeats Shield (Shift then adds +2)
     chaser:      bool = False                  # defeats Shift (Shield then adds +2)
     one_shot:    bool = False                  # single-use copy: consumed on use (reload via Swap Memory; Tar IC wipes every copy)
+    squeeze:     bool = False                   # built compressed: half storage footprint; must be decompressed (Complex Action, no test) after a mid-run swap into active memory
     limit_target: str = Field("", max_length=8)  # Limit option: "" (none) / "ic" / "decker" -- the ONLY target type this utility may affect
     # Attack utility only: its OWN base Damage Level (vr2 Attack-6L/-6M/-6S/-6D), chosen at code
     # time and priced by level. Carried so the engine damages icons at the program's chosen

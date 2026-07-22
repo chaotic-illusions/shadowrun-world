@@ -205,9 +205,9 @@ OPTIONS: dict[str, dict] = {
     # Build-time-only: affect design/actual SIZE and cost in the workshop, never read at run time.
     "optimization": {"schema": None,           "carried": False,
                      "consumer": "build-time size/cost only (design x2.0, actual x0.5)", "vr2": 1655},
-    "squeeze":      {"schema": None,           "carried": False,
-                     "consumer": "build-time upload compression only (must decompress before use)",
-                     "vr2": 1655},
+    "squeeze":      {"schema": "squeeze",      "carried": True,
+                     "consumer": "half storage footprint; must decompress (Complex Action) after a mid-run swap into active memory",
+                     "vr2": 1673},
 }
 
 

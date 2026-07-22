@@ -3217,9 +3217,15 @@ function isOneShotProgram(item) {
 
 function computeLoadUsage(items) {
   const normalized = (items || []).map(item => ({ ...item, target: item.target || 'active' }));
+  // A Squeezed program is stored at half size ("upload only", actualSize is already halved) but
+  // occupies its FULL size in ACTIVE memory -- it must be decompressed to run. So storage uses
+  // actualSize as-is while active doubles it back to full for a squeezed program.
+  const isSqueezed = (i) => !!i.squeezed || /\bSqueeze\b/i.test(String(i.mods || ''))
+    || !!(i.optionState && i.optionState.checks && i.optionState.checks.squeeze);
+  const activeSize = (i) => { const st = parseInt(i.actualSize, 10) || 0; return isSqueezed(i) ? st * 2 : st; };
   const activeUsed = normalized
     .filter(i => targetIsActive(i.target))
-    .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
+    .reduce((s, i) => s + activeSize(i), 0);
   // Storage: a one-shot program keeps a single storage master, so its footprint counts
   // ONCE no matter how many copies run in active memory; normal programs count each copy.
   const oneShotCounted = new Set();
