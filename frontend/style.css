@@ -438,10 +438,6 @@ select {
   padding-right: 30px;
 }
 select option { background: #090909; }
-/* An action the decker cannot afford this pass (insufficient action points): dark red so it reads
-   distinctly from the gray "can't do this at all" (game-state) disabled options. !important so the
-   color wins over the browser's default disabled-option graying. */
-select option.opt-noap { color: #cc4444 !important; }
 
 /* Hide OS native number spinners; keyboard updown still works */
 input[type=number]::-webkit-inner-spin-button,
@@ -623,10 +619,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   transition: all .2s;
   text-decoration: none;
 }
-.btn:disabled,
-.btn[disabled] { opacity: .4; cursor: not-allowed; box-shadow: none; text-shadow: none; }
-.btn:disabled:hover,
-.btn[disabled]:hover { background: transparent; box-shadow: none; text-shadow: none; }
 .btn-green { color: var(--green); border-color: var(--green-dark); }
 .btn-green:hover { background: rgba(0,255,65,.08); box-shadow: var(--glow-green); text-shadow: var(--glow-green); }
 .btn-amber { color: var(--amber); border-color: #442200; }
@@ -635,8 +627,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .btn-red:hover { background: rgba(255,51,51,.08); }
 .btn-ghost { color: var(--text-dim); border-color: #222; }
 .btn-ghost:hover { color: var(--text-bright); border-color: #444; }
-.btn-cyan { color: var(--cyan); border-color: #045; }
-.btn-cyan:hover { background: rgba(0,204,255,.08); box-shadow: var(--glow-cyan, 0 0 8px rgba(0,204,255,.35)); text-shadow: var(--glow-cyan, 0 0 8px rgba(0,204,255,.35)); }
 .btn-sm { font-size: var(--btn-sm-fs); padding: var(--btn-sm-pad); letter-spacing: 1px; }
 .btn-submit { width: 100%; justify-content: center; font-size: var(--fs-xl); padding: 14px; letter-spacing: 3px; margin-top: 10px; }
 
@@ -3078,9 +3068,6 @@ main:has(.md3) { max-width: 1800px; }
   margin: 0 auto;
   align-items: start;
 }
-/* Run-terminated: the side panes are hidden, so collapse the grid to one full-width track
-   and let the CRT stage fill the whole center pane instead of a narrow column. */
-.mr-layout.mr-terminated { grid-template-columns: 1fr; }
 .mr-col-left, .mr-col-center, .mr-col-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 /* Center column: the situation stage grows; the Actions bar stays pinned to the bottom. */
 .mr-col-center { min-height: calc(100vh - 150px); }
@@ -3088,34 +3075,15 @@ main:has(.md3) { max-width: 1800px; }
 .mr-col-center #run-action-bar { margin-top: auto; }
 /* Situation stage content */
 .stage-phase  { font-size: 1.05rem; letter-spacing: 3px; color: var(--green); text-transform: uppercase; margin-bottom: 10px; }
-.stage-phase-init { font-size: 0.75rem; letter-spacing: 2px; color: var(--cyan); }
 .stage-sub    { font-size: 0.78rem; color: var(--text-dim); line-height: 1.55; margin-bottom: 14px; }
 .stage-hint   { font-size: 0.72rem; color: var(--cyan); letter-spacing: 1px; }
+.stage-latest { font-size: 0.8rem; color: var(--text); line-height: 1.5; padding: 10px 12px; border-left: 2px solid var(--green-dim); background: rgba(0,255,65,.03); }
+.stage-latest-label { font-size: 0.56rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 5px; }
 /* Pre-logon briefing block (TARGET / ACCESS / OBJECTIVE -- what the decker knows going in) */
 .stage-brief { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .stage-brief-label { font-size: 0.56rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 3px; }
 .stage-brief-val { font-size: 0.92rem; color: var(--text-bright); }
 .stage-brief-sub { font-size: 0.72rem; color: var(--text-dim); line-height: 1.5; }
-/* Latest-result "game screen" card: what just happened + the dice behind it (center stage). */
-.stage-card { background: rgba(0,255,65,.03); border: 1px solid #1a2a1a; border-left: 3px solid var(--green-dim); border-radius: 4px; padding: 12px 14px; margin-bottom: 14px; }
-.stage-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.stage-card-title { font-size: 0.9rem; letter-spacing: 1.5px; color: var(--text-bright); text-transform: uppercase; }
-.stage-badge { font-size: 0.58rem; letter-spacing: 1.5px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 3px; text-transform: uppercase; white-space: nowrap; }
-.stage-card-desc { font-size: 0.8rem; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
-.stage-card-rolls { display: flex; flex-direction: column; gap: 5px; }
-.stage-roll { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.stage-roll-who { min-width: 82px; font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
-.stage-dice { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.stage-die { min-width: 18px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.68rem; color: var(--text-dim); background: #0a0a0a; border: 1px solid #222; border-radius: 3px; box-sizing: border-box; }
-.stage-die-hit { color: var(--green); border-color: #014a01; background: rgba(0,255,65,.08); }
-.stage-die-one { color: var(--red); border-color: #4a0101; background: rgba(255,51,51,.08); }
-.stage-roll-succ { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.5px; color: var(--text-bright); }
-.stage-card-net { margin-top: 8px; font-size: 0.6rem; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
-.stage-card-net span { margin-left: 4px; font-size: 0.9rem; font-weight: 600; color: var(--cyan); }
-/* Required-action prompt on the game screen (e.g. choose which banked subsystem ratings to reveal). */
-.stage-cta { background: rgba(0,204,255,.05); border: 1px solid #045; border-radius: 4px; padding: 11px 13px; margin-bottom: 14px; }
-.stage-cta-label { font-size: 0.58rem; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; margin-bottom: 6px; }
-.stage-cta-text { font-size: 0.76rem; color: var(--text); line-height: 1.5; margin-bottom: 9px; }
 /* Program-memory readout: per-zone meter + compact program/paydata chips */
 .mem-meter-label { font-size: 0.58rem; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 4px; }
 .mem-meter-bar { height: 6px; background: #0a0a0a; border: 1px solid #222; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
@@ -3123,7 +3091,6 @@ main:has(.md3) { max-width: 1800px; }
 .mem-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .mem-chip { font-size: 0.68rem; color: var(--text-bright); background: #0a140a; border: 1px solid #1a2a1a; border-radius: 3px; padding: 2px 7px; letter-spacing: 0.3px; }
 .mem-chip-file { color: var(--green); border-color: #014a01; }
-.mem-chip-worn { color: #d8c37a; border-color: #4a4020; }
 .mem-section-gap { margin-top: 10px; padding-top: 8px; border-top: 1px solid #1a2a1a; }
 /* Wide -> collapse to 2 columns; the discovered/log column wraps to a full-width row beneath. */
 @media (max-width: 1500px) {
@@ -3153,7 +3120,7 @@ main:has(.md3) { max-width: 1800px; }
 
 .act-form { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; }
 .act-form .act-action { flex: 1 1 220px; }
-.act-form .act-sub, .act-form .act-target, .act-form .act-swapout { flex: 1 1 160px; }
+.act-form .act-sub, .act-form .act-target { flex: 1 1 160px; }
 .act-form .act-hp { flex: 0 0 92px; }
 .act-form select, .act-form input[type="number"], .act-form input[type="text"] { width: 100%; }
 .act-perform { white-space: nowrap; align-self: flex-end; }
@@ -3170,28 +3137,6 @@ main:has(.md3) { max-width: 1800px; }
 }
 .act-footer-sep { width: 1px; height: 22px; background: #1a2a1a; margin: 0 4px; }
 .act-newturn { color: var(--cyan); border-color: #004455; }
-/* End Pass / End Turn sits in the action row beside Perform (bottom-aligned, no wrap). */
-.act-endturn { align-self: flex-end; white-space: nowrap; }
-
-/* Jack Out = last-ditch emergency exit (causes dump shock). Menacing red with a slow warning
-   pulse; hover floods it solid red. Standalone class (no btn-ghost) so nothing fights its colours. */
-.act-jackout {
-  color: var(--red); border-color: #5a0000;
-  background: rgba(255,51,51,.06);
-  letter-spacing: 1.5px; font-weight: 600;
-  text-shadow: 0 0 6px rgba(255,51,51,.45);
-  animation: jackout-pulse 2.2s ease-in-out infinite;
-}
-.act-jackout:hover {
-  color: #1a0000; background: var(--red); border-color: var(--red);
-  box-shadow: 0 0 14px rgba(255,51,51,.75), inset 0 0 10px rgba(120,0,0,.55);
-  text-shadow: none; animation: none;
-}
-.act-jackout-icon { font-size: 1.05em; line-height: 1; }
-@keyframes jackout-pulse {
-  0%, 100% { box-shadow: 0 0 0 rgba(255,51,51,0); border-color: #5a0000; }
-  50%      { box-shadow: 0 0 9px rgba(255,51,51,.4); border-color: var(--red); }
-}
 
 /* -- No-scroll run console: fill the viewport, scroll the side/centre panes internally (wide
    screens only -- narrow/stacked layout keeps normal document flow). */
@@ -3388,15 +3333,6 @@ main:has(.md3) { max-width: 1800px; }
 .mh-branch { color: var(--amber); margin-right: 6px; opacity: .85; }
 .mh-via { font-size: var(--fs-xs); color: var(--text-dim); letter-spacing: .5px; margin-top: 2px;
   display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; }
-
-/* GM after-action report (matrix-aars.html): one card per ended run awaiting acknowledgement. */
-.mr-aar-card { border: 1px solid #024a4a; background: rgba(0,204,255,.03); border-radius: 4px;
-  padding: 12px 14px; margin-bottom: 14px; max-width: 880px; }
-.mr-aar-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-.mr-aar-title { font-size: var(--fs-lg); color: var(--text-bright); letter-spacing: .5px; }
-.mr-aar-head .btn { margin-left: auto; }
-.mr-aar-body { font-size: var(--fs-md); line-height: 1.5; }
-.mr-aar-line { white-space: pre-wrap; }
 .mh-trap-tag { font-size: var(--fs-sm); color: var(--amber); letter-spacing: .5px; text-transform: uppercase; }
 .mh-cycle { color: var(--red); font-size: var(--fs-sm); }
 .mh-unlink {
@@ -3417,7 +3353,6 @@ main:has(.md3) { max-width: 1800px; }
   display: inline-block; flex-shrink: 0;
 }
 .cond-box.filled-persona  { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 4px #ff990055; }
-.cond-box.filled-stun     { background: #ff7700;      border-color: #ff7700;      box-shadow: 0 0 4px #ff770055; }
 .cond-box.filled-physical { background: var(--red);   border-color: var(--red);   box-shadow: 0 0 4px #ff333355; }
 .cond-count               { font-size: var(--fs-sm); color: var(--text-dim); min-width: 36px; text-align: right; }
 .crashed-label {
@@ -3447,31 +3382,10 @@ main:has(.md3) { max-width: 1800px; }
 .ic-card.ic-black     { border-left-color: var(--ic-black); }
 .ic-card.ic-construct { border-left-color: #aaaa00; }
 .ic-card.ic-party     { border-left-color: var(--cyan); }
+.ic-card.ic-unknown   { border-left-color: var(--blue); }
+.ic-card.ic-partial   { border-left-style: dashed; }
 .ic-card.ic-lurking   { border-left-color: var(--amber); opacity: 0.85; }
 .ic-card.ic-crashed   { opacity: 0.45; }
-/* Party IC cluster wrapper: a subtle bordered container grouping the separate component cards so
-   the player reads them as one cooperative cluster. The components remain individually targetable
-   (vr2: party IC is defeated icon by icon). */
-.ic-party-cluster {
-  border: 1px dashed #045; border-radius: 4px;
-  background: rgba(0,204,255,.03);
-  padding: 8px 8px 2px; margin-bottom: 8px;
-}
-.ic-party-cluster > .ic-card { margin-bottom: 8px; }
-.ic-party-cluster-hd {
-  font-size: var(--fs-xxs); letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--cyan); margin-bottom: 8px; opacity: 0.85;
-}
-/* Compact release card used in the Suppress-at-DF-floor modal. Informational card (NOT a chip/button)
-   with a small Release button, so a player sees what releasing would cost before acting. */
-.rel-card {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  background: #0a0a0a; border: 1px solid #2a1a00; border-left: 3px solid var(--amber);
-  padding: 7px 10px; margin-bottom: 6px;
-}
-.rel-card-info  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rel-card-name  { font-size: var(--fs-sm); color: var(--text-bright); letter-spacing: .5px; }
-.rel-card-cost  { font-size: var(--fs-xxs); color: var(--text-dim); letter-spacing: .3px; }
 .ic-head              { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .ic-type-name         { font-size: var(--fs-md); color: var(--text-bright); letter-spacing: 1px; }
 .ic-badge-white       { color: var(--ic-white); border-color: #aaa; }
@@ -3516,7 +3430,6 @@ main:has(.md3) { max-width: 1800px; }
 }
 .ev-entry:hover { background: #0a0f0a; }
 .ev-turn        { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); margin-right: 6px; }
-.ev-init        { font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--steel-blue); margin-right: 6px; }
 .ev-type-badge {
   display: inline-block; font-size: var(--fs-xxs); letter-spacing: 2px;
   padding: 1px 5px; border: 1px solid #222;
@@ -3551,36 +3464,6 @@ main:has(.md3) { max-width: 1800px; }
 .action-controls .mr-field select,
 .action-controls .mr-field input { min-width: 100px; }
 .run-ended-msg   { font-size: var(--fs-md); letter-spacing: 2px; color: var(--red); margin-bottom: 12px; }
-
-/* Run-terminated CRT screen -- fills the center stage once a run ends; side panes are hidden.
-   Uses a plain classic terminal font (not the app's Share Tech Mono display face) for a
-   real-console feel. */
-.crt-terminated {
-  min-height: 240px;
-  display: flex; flex-direction: column; justify-content: center;
-  padding: 40px 32px;
-  font-family: 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
-  color: var(--green);
-  letter-spacing: 1px;
-  line-height: 1.9;
-}
-.crt-terminated .crt-line { font-size: var(--fs-md); }
-.crt-terminated .crt-line.crt-node  { color: var(--cyan); }
-.crt-terminated .crt-line.crt-amber { color: var(--amber); }
-.crt-terminated .crt-line.crt-good  { color: var(--green); }
-.crt-terminated .crt-line.crt-bad   { color: var(--red); }
-/* Linux-style shell prompt: user@host in green, path in blue, root # then the blinking cursor. */
-.crt-terminated .crt-prompt { margin-top: 22px; font-size: var(--fs-lg); }
-.crt-terminated .crt-user { color: var(--green); font-weight: bold; }
-.crt-terminated .crt-path { color: #5c9dff; font-weight: bold; }
-.crt-terminated .crt-hash { color: var(--text-bright); }
-.crt-cursor {
-  display: inline-block; width: 0.55em; height: 1.05em; margin-left: 4px;
-  vertical-align: text-bottom;
-  background: var(--green);
-  animation: crt-blink 1s step-end infinite;
-}
-@keyframes crt-blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
 /* Matrix-run modal box (sits inside .modal-overlay) */
 .mr-modal-box {
