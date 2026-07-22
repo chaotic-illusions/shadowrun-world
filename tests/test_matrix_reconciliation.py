@@ -104,7 +104,9 @@ def _invoke_present(inv: dict) -> bool:
     if kind == "console":
         return key in CONSOLE_ACTIONS
     if kind == "enemy_opt":
-        return f'value="{key}"' in RUN_UI
+        # The enemy-decker "Attack" menu is built at runtime from _strikeOptionsHtml(), filtered to
+        # carried programs; its static source of truth is the option array entry ['<key>', '<label>'].
+        return f"['{key}', " in RUN_UI
     if kind in ("endpoint", "raw"):
         return key in RUN_UI
     raise AssertionError(f"unknown invoke kind {kind!r}")

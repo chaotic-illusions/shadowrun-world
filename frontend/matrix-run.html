@@ -12,12 +12,17 @@
     main { max-width: none; }
 
     /* -- Narrated host-response stream (center stage) ------------------------------------------ */
-    .mr-stream { display:flex; flex-direction:column; height:100%; min-height:0; }
-    .mr-stream-feed { flex:1; min-height:0; overflow-y:auto; padding:6px 2px 4px;
+    .mr-stream { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+    .mr-stream-feed { flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px 2px 4px;
       font-size:0.86rem; line-height:1.55; letter-spacing:0.3px; }
+    /* Single scrollbar: the FEED scrolls; the stage panel itself does NOT (override the run-layout
+       rule that makes .mr-stage scrollable) and run-stage-body fills the stage so the feed flexes. */
+    body.mr-run-active .mr-col-center .mr-stage { overflow: hidden; }
+    #run-stage-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
     .mr-ln { opacity:0; transform:translateY(4px); animation:mrRise .28s ease forwards;
       white-space:pre-wrap; margin:2px 0; }
     @keyframes mrRise { to { opacity:1; transform:none; } }
+    .mr-ln-instant { animation:none; opacity:1; transform:none; }
     .mr-sub { padding-left:18px; }
     .mr-s-hdr { color:var(--green); text-shadow:0 0 8px #00ff4166; letter-spacing:1px; margin:8px 0 2px; }
     .mr-s-dim { color:var(--text-dim); }
@@ -29,7 +34,7 @@
     .mr-s-gray { color:#9c9c9c; }
     .mr-s-black, .mr-s-enemy { color:var(--violet); }
     .mr-die { display:inline-block; min-width:15px; text-align:center; padding:0 2px; margin:0 1px;
-      color:var(--text-dim); border-bottom:1px solid #163016; }
+      color:#5f7d5f; border-bottom:1px solid #163016; }
     .mr-die.hit { color:var(--text-bright); border-color:var(--green); text-shadow:0 0 6px #00ff4155; }
     .mr-cursor { display:inline-block; width:8px; height:14px; background:var(--green);
       animation:mrBlink 1s steps(1) infinite; vertical-align:-2px; }
@@ -2563,9 +2568,10 @@ function renderTrapDoorsPanel() {
     const enterBtn = runActive
       ? `<button class="btn btn-ghost btn-sm" onclick="enterTrapDoor('${idArg}')" style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -&gt;</button>`
       : '';
-    const fileBtn = (runActive && !filed)
-      ? `<button class="btn btn-ghost btn-sm" onclick="fileTrapDoor('${idArg}')" style="padding:2px 8px;font-size:.62rem">File Away</button>`
-      : '';
+    // File Away removed: it only set a cosmetic "filed" marker for the rest of the run (no
+    // persisted cross-run intel, and it does NOT reveal LTG access -- that needs entering the door
+    // and running Analyze Access on the far side). Enter is the only meaningful action.
+    const fileBtn = '';
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
       ${srcBadge}
       ${destLine}
@@ -2584,6 +2590,7 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
   const visible = (enemies || []).filter(e => e && (e.revealed === undefined || e.revealed));
   if (!visible.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
+  const _apOk = _canAffordCost((_run && _run.state_json) || {}, 'Simple');
 
   list.innerHTML = visible.map(e => {
     const cm = (e.condition_monitor || {});
@@ -2594,8 +2601,10 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
     const fled  = e.status === 'fled';
     const gone  = dead || fled;                 // crashed or jacked out -- no longer a threat
     const statusLabel = dead ? 'CRASHED' : (fled ? 'JACKED OUT' : 'ACTIVE');
-    const intent = (e.intent || '?').toUpperCase();
-    const intentColor = e.intent === 'kill' ? 'var(--red)' : e.intent === 'dump' ? '#ff7700' : 'var(--amber)';
+    // Threat tier is null until the PC scans this decker; colour it by tier when known. Intent is
+    // never shown -- a decker's plan is not knowable from outside the icon until it acts.
+    const tierRaw = e.tier ? String(e.tier) : '';
+    const tierColor = { green: 'var(--green)', orange: 'var(--amber)', red: 'var(--red)', black: 'var(--violet)' }[tierRaw.toLowerCase()] || 'var(--text-dim)';
     const located = e.located_pc ? `<span style="font-size:.55rem;color:var(--red);letter-spacing:1px">[HAS YOU LOCATED]</span>` : `<span style="font-size:.55rem;color:var(--amber)">[hunting]</span>`;
     const canHit = !runEnded && !crashed && !gone;
     const sc = e.scanned || {};
@@ -2609,8 +2618,8 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
     return `
     <div class="ic-card ic-black${gone ? ' ic-crashed' : ''}">
       <div class="ic-head">
-        <span class="ic-type-name">${esc(e.name || 'Hostile Decker')} <span style="font-size:.55rem;color:${intentColor}">[${esc(intent)}]</span></span>
-        <span class="ic-badge" style="color:var(--red);border-color:#440000">${esc((e.tier || '?').toUpperCase())}</span>
+        <span class="ic-type-name">${esc(e.name || 'Hostile Decker')}</span>
+        ${tierRaw ? `<span class="ic-badge" style="color:${tierColor};border-color:currentColor" data-tip="Security tier (threat class) -- revealed by Scan Icon">${esc(tierRaw.toUpperCase())}</span>` : ''}
       </div>
       <div class="ic-meta"><span>${located}</span><span>Status: <span style="color:${gone ? 'var(--text-dim)' : 'var(--red)'}">${statusLabel}</span></span></div>
       ${scanRow}
@@ -2625,19 +2634,11 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
         <div class="cond-count">${phys}/10</div></div>` : ''}
       ${canHit ? `
       <div class="enemy-strike-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">
-        <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">
-          <option value="attack">Attack (crash icon)</option>
-          <option value="poison">Poison (vs Bod)</option>
-          <option value="restrict">Restrict (vs Evasion)</option>
-          <option value="reveal">Reveal (vs Masking)</option>
-          <option value="hog">Hog (virus)</option>
-          <option value="black_hammer">Black Hammer (lethal Physical)</option>
-          <option value="killjoy">Killjoy (lethal Stun)</option>
-        </select>
-        <button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')">&gt;&gt; Strike Back</button>
+        <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">${_strikeOptionsHtml()}</select>
+        <button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
       </div>
       <div style="margin-top:5px;display:flex;gap:6px;align-items:center">
-        <button class="btn btn-cyan btn-sm" onclick="scanEnemyDecker('${esc(e.id)}')">Scan Icon</button>
+        <button class="btn btn-cyan btn-sm" style="white-space:nowrap;flex-shrink:0" onclick="scanEnemyDecker('${esc(e.id)}')" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'Scan Icon -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">Scan Icon <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
         <span style="font-size:.5rem;color:var(--text-dim)">Computer vs Masking &mdash; reveals hidden ratings</span>
       </div>` : ''}
     </div>`;
@@ -2683,6 +2684,32 @@ async function scanEnemyDecker(eid) {
   if (!Number.isFinite(hp) || hp < 0) return;
   await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/scan`,
     { enemy_id: eid, hacking_pool_dice: hp });
+}
+
+// Analyze IC on a specific active-IC chip -- a Free action (target_ic_id). Each success advances
+// the decker's ID of that IC (presence -> type -> rating + options), the same as the dropdown action.
+async function analyzeIC(id) {
+  if (!_run) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'analyze_ic',
+    subsystem: ACTION_SUBSYSTEM.analyze_ic || 'control',
+    utility_rating: _autoUtilRating('analyze_ic'),
+    hacking_pool_dice: 0,
+    target_ic_id: id,
+  });
+}
+
+// Cybercombat program options for the "Attack" menu on an enemy-decker chip, filtered to the
+// programs the runner actually carries (an option the decker lacks can't be fired). Attack is the
+// baseline; the rest appear only when their utility is loaded.
+function _strikeOptionsHtml() {
+  const opts = [
+    ['attack', 'Attack (crash icon)'], ['poison', 'Poison (vs Bod)'],
+    ['restrict', 'Restrict (vs Evasion)'], ['reveal', 'Reveal (vs Masking)'],
+    ['hog', 'Hog (virus)'],
+    ['black_hammer', 'Black Hammer (lethal Physical)'], ['killjoy', 'Killjoy (lethal Stun)'],
+  ].filter(([p]) => _carriedStrikeRating(p) > 0);
+  return opts.map(([p, lbl]) => `<option value="${p}">${lbl}</option>`).join('');
 }
 
 // Carried rating for a Strike Back program (Attack / Poison / Restrict / Reveal): prefer the
@@ -3129,7 +3156,10 @@ function renderRunState(run) {
   const effDf = Math.max(1, baseDf - supActive);
   const hpEl = document.getElementById('run-hp');
   hpEl.textContent = `${hpRemaining}/${hpTotal}`;
-  hpEl.style.color = hpRemaining === 0 ? 'var(--red)' : hpRemaining < hpTotal ? 'var(--amber)' : '';
+  // Match the glow to the state: depleted = red glow, partial = amber, full = green (CSS default).
+  if (hpRemaining === 0) { hpEl.style.color = 'var(--red)'; hpEl.style.textShadow = '0 0 8px #ff3333, 0 0 20px #ff333333'; }
+  else if (hpRemaining < hpTotal) { hpEl.style.color = 'var(--amber)'; hpEl.style.textShadow = '0 0 8px #ff9900, 0 0 20px #ff990033'; }
+  else { hpEl.style.color = ''; hpEl.style.textShadow = ''; }
   document.getElementById('run-df').textContent =
     supActive > 0 ? `${effDf} (base ${baseDf}, -${supActive} suppressing)` : String(effDf);
   const initEl = document.getElementById('run-init');
@@ -3227,9 +3257,9 @@ function renderRunState(run) {
     document.getElementById('run-turn-badge').textContent = `ROUND ${lastEvent.turn}`;
   }
 
-  // Center situation stage (focal "now"); the full chronological history stays in the Event Log.
-  // While the host-response stream is playing it OWNS this pane, so skip the static render then.
-  if (!_streaming) renderStage(state, decker);
+  // Center situation stage: ONE persistent, scrollable running log (renderStage builds it once,
+  // then only refreshes the header/CTA; new events stream in via _pushNewEvents).
+  renderStage(state, decker);
 
   // Action area
   renderActionArea(state, decker, crashed);
@@ -3300,6 +3330,7 @@ function renderCrashCountdown(cd) {
 function renderActiveIC(icList, lurkingList, runEnded, crashed) {
   const el = document.getElementById('run-ic-list');
   if (!el) return;
+  const _apOk = _canAffordCost((_run && _run.state_json) || {}, 'Simple');
 
   if (!icList.length && !lurkingList.length) {
     el.innerHTML = '<div class="empty-msg">No IC active</div>';
@@ -3323,7 +3354,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     const isConstruct = ic.type === 'Construct';
     const isParty     = !!ic.cluster_id;
     const cardCat     = isConstruct ? 'construct' : isParty ? 'party' : (ic.category || 'white').toLowerCase();
-    const badgeCat    = (ic.category || 'white').toLowerCase();
+    const badgeCat    = ic.category ? String(ic.category).toLowerCase() : '';
     const boxes       = renderConditionBoxesHTML(ic.boxes || 0, 10, 'ic');
     const canAtk      = !runEnded && !crashed && !isCrashed;
 
@@ -3383,7 +3414,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     <div class="ic-card ic-${esc(cardCat)}${isCrashed ? ' ic-crashed' : ''}">
       <div class="ic-head">
         <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}${detBadge}${trapBadge}${partyBadge}</span>
-        <span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>
+        ${badgeCat ? `<span class="ic-badge ic-badge-${esc(badgeCat)}">${esc(badgeCat.toUpperCase())}</span>` : `<span class="ic-badge" style="color:var(--text-dim);border-color:#333" data-tip="Threat class hidden until you Analyze this IC">?</span>`}
       </div>
       <div class="ic-meta">
         <span>Initiative: <span>${ic.initiative || '--'}</span></span>
@@ -3398,7 +3429,8 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       </div>
       ${canAtk ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})">&gt;&gt; Attack</button>
+        <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
+        ${((ic.detection_level || 3) < 3) ? `<button class="btn btn-cyan btn-sm" onclick="analyzeIC('${esc(ic.id)}')" data-tip="Analyze IC -- a Free action; each success reveals more of this IC (presence, then type, then rating &amp; options)">&gt;&gt; Analyze <span style="font-size:.5rem;opacity:.75">Free</span></button>` : ''}
         ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this round (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
       </div>` : ''}
       ${isCrashed && !ic.suppressed && !ic.suppression_released ? `
@@ -3499,6 +3531,13 @@ function renderEventEntry(ev) {
       cls = ev.success ? 'ev-action-ok' : 'ev-action-fail';
       badgeColor = ev.success ? 'var(--green)' : 'var(--amber)';
       badgeText = ev.success ? 'SUCCESS' : 'FAILED';
+      break;
+    case 'probe_ic':
+      // An undetected Probe (no ic_id) must not name itself -- keep it a vague "ALERT". Only once
+      // the decker has detected/analysed it (ic_id present) is it labelled a Probe.
+      cls = 'ev-ic-activate';
+      badgeColor = 'var(--amber)';
+      badgeText = ev.ic_id ? 'PROBE IC' : 'ALERT';
       break;
     case 'ic_activation':
       cls = 'ev-ic-activate';
@@ -3939,26 +3978,47 @@ function renderStage(state, decker) {
 
   if (!loggedOn) {
     el.innerHTML = stageBriefing(decker);
+    _streamRendered = 0;   // a fresh logon rebuilds the running log from scratch
     return;
   }
 
-  const ev    = (state.event_log || []).slice(-1)[0];
   const phase = ended ? 'Run Complete' : 'On the Host';
   // Show the CURRENT initiative count (SR2: the count drops by 10 each pass). The decker rolled
-  // initiative once for the encounter; on pass N the live count is that roll minus 10*(N-1). This
-  // is the number anything acting right now is on -- e.g. init 26 on pass 1, 16 on pass 2, 6 on 3.
+  // initiative once for the encounter; on pass N the live count is that roll minus 10*(N-1).
   const dInit = parseInt(state.decker_initiative, 10);
   const curPass = parseInt(state.current_pass, 10) || 1;
   const curInit = Number.isFinite(dInit) ? dInit - 10 * (curPass - 1) : NaN;
   const initTag = (!ended && Number.isFinite(curInit))
     ? ` <span class="stage-phase-init">&middot; Initiative Count ${esc(String(curInit))}</span>` : '';
-  let html = `<div class="stage-phase">&gt;&gt; ${esc(phase)}${initTag}</div>`;
-  // The center pane is the "game screen": show the latest result as a card (what happened + the
-  // dice behind it), then any action the player must take right now. Live deck status (persona
-  // boxes, BEMS, pool) lives on the LEFT pane and is deliberately NOT repeated here.
-  if (ev) html += stageResultCard(ev);
-  html += stageRequiredAction(state);
-  el.innerHTML = html;
+  const headerHtml = `&gt;&gt; ${esc(phase)}${initTag}`;
+  const events = state.event_log || [];
+
+  // The center pane is ONE persistent, scrollable running log of the whole run (player actions +
+  // host responses), narrated as colour-coded beats. Built once, with the full history caught up
+  // instantly so a reload shows everything; afterward it only refreshes the header + any required-
+  // action prompt, and instantly appends events any bypassing path (e.g. /attack) left unrendered.
+  if (!document.getElementById('mr-stream-feed')) {
+    el.innerHTML =
+      '<div class="mr-stream">'
+      + `<div class="stage-phase" id="mr-stream-phase">${headerHtml}</div>`
+      + '<div class="mr-stream-feed" id="mr-stream-feed"></div>'
+      + '<div id="mr-stream-cta"></div>'
+      + '</div>';
+    events.forEach(ev => _eventToBeats(ev).forEach(b => { if (!b.stop) _emitBeat(b, true); }));
+    _streamRendered = events.length;
+    if (state.pending_defense) _renderStreamPrompt();
+    const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+  } else {
+    const ph = document.getElementById('mr-stream-phase'); if (ph) ph.innerHTML = headerHtml;
+    if (events.length > _streamRendered) {
+      events.slice(_streamRendered).forEach(ev => _eventToBeats(ev).forEach(b => { if (!b.stop) _emitBeat(b, true); }));
+      _streamRendered = events.length;
+      const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+      if (state.pending_defense && !document.querySelector('.mr-prompt')) _renderStreamPrompt();
+    }
+  }
+  const cta = document.getElementById('mr-stream-cta');
+  if (cta) cta.innerHTML = stageRequiredAction(state);
 }
 
 // Latest event as a prominent result card: title + outcome badge, the narrative line, and the
@@ -4936,6 +4996,7 @@ async function submitAttack() {
 // Actions stay locked (body.mr-streaming) until the whole phase resolves.
 let _streaming = false;
 const _stream = { beats: [], i: 0, timer: null };
+let _streamRendered = 0;   // count of event_log entries already written into the persistent log
 
 function _eventCount() {
   return (((_run && _run.state_json) || {}).event_log || []).length;
@@ -4984,11 +5045,16 @@ function _streamDiceHtml(roll, label) {
   }).join('');
   if (!pips) return '';
   const succ = roll.successes != null ? roll.successes : 0;
-  return `${esc(label)} ${pips} &rarr; <b>${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
+  return `${esc(label)} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
 }
 
 function _beatClassFor(ev) {
   switch (ev.type) {
+    case 'action':             return ev.success ? 'mr-s-good' : 'mr-s-amber';
+    case 'paydata_located':
+    case 'trap_door_found':
+    case 'scramble_found':
+    case 'host_ltg_revealed':  return 'mr-s-cyan';
     case 'ic_attack':          return (ev.trace_phase || ev.trace_action) ? 'mr-s-amber' : 'mr-s-red';
     case 'persona_crash':
     case 'dump_shock':         return 'mr-s-red';
@@ -5007,6 +5073,7 @@ function _beatClassFor(ev) {
 function _eventToBeats(ev) {
   if (!ev || typeof ev !== 'object') return [];
   if (ev.type === 'defense_pending') return [{ stop: true }];
+  if (ev.type === 'new_pass' || ev.type === 'new_turn') return [];   // structural markers -- not log-worthy
   const beats = [];
   const cls = _beatClassFor(ev);
   if (ev.type === 'ic_attack' && ev.ic_type) {
@@ -5034,11 +5101,11 @@ function _showStreamCursor() {
   const c = document.createElement('span'); c.className = 'mr-cursor';
   feed.appendChild(c); feed.scrollTop = feed.scrollHeight;
 }
-function _emitBeat(b) {
+function _emitBeat(b, instant) {
   const feed = _streamFeed(); if (!feed) return;
   _clearStreamCursor();
   const d = document.createElement('div');
-  d.className = 'mr-ln ' + (b.c || 'mr-s-dim') + (b.sub ? ' mr-sub' : '');
+  d.className = 'mr-ln ' + (b.c || 'mr-s-dim') + (b.sub ? ' mr-sub' : '') + (instant ? ' mr-ln-instant' : '');
   if (b.h != null) d.innerHTML = b.h; else d.textContent = b.t;
   feed.appendChild(d);
   feed.scrollTop = feed.scrollHeight;
@@ -5057,34 +5124,40 @@ function _streamTick() {
   _stream.timer = setTimeout(_streamTick, b.d || 1200);
 }
 
-function _startStream(before, run) {
+// Append every event beyond what's already in the running log. A routine player result (no host
+// reaction) is written straight in; a host-response phase (IC / probe / trace / defense) auto-
+// advances as a colour-coded narration and LOCKS actions (body.mr-streaming) until it resolves,
+// hard-stopping on a parked IC strike. The feed is never cleared -- it is the full scrollable log.
+function _pushNewEvents(run) {
+  if (!document.getElementById('mr-stream-feed')) return;   // renderStage builds + catches up first
   if (_stream.timer) { clearTimeout(_stream.timer); _stream.timer = null; }
   const events = ((run.state_json || {}).event_log) || [];
-  const beats = events.slice(before).flatMap(_eventToBeats);
-  const stageBody = document.getElementById('run-stage-body');
-  if (!beats.length || !stageBody) {
-    _streaming = false; document.body.classList.remove('mr-streaming'); renderRunState(run); return;
+  const newEvents = events.slice(_streamRendered);
+  if (!newEvents.length) {
+    if ((run.state_json || {}).pending_defense && !document.querySelector('.mr-prompt')) _renderStreamPrompt();
+    return;
   }
-  _streaming = true;
-  document.body.classList.add('mr-streaming');
-  stageBody.innerHTML =
-    '<div class="mr-stream">'
-    + '<div class="stage-phase">&gt;&gt; Host Response Phase</div>'
-    + '<div class="mr-stream-feed" id="mr-stream-feed"></div>'
-    + '</div>';
+  _streamRendered = events.length;
+  const beats = newEvents.flatMap(_eventToBeats);
+  const hasNpc = newEvents.some(e => e && _NPC_BEAT_TYPES.has(e.type)) || !!(run.state_json || {}).pending_defense;
+  if (!hasNpc) {
+    // routine player result -- write it into the log instantly, no lock, no typewriter
+    beats.forEach(b => { if (!b.stop) _emitBeat(b, true); });
+    const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+    return;
+  }
   _stream.beats = beats;
   _stream.i = 0;
-  _emitBeat({ t: 'The node stills. Ice shares the grid with your icon.', c: 'mr-s-dim' });
-  _showStreamCursor();
-  _stream.timer = setTimeout(_streamTick, 700);
+  _streaming = true;
+  document.body.classList.add('mr-streaming');
+  _stream.timer = setTimeout(_streamTick, 350);
 }
 
 function _streamDone() {
   if (_stream.timer) { clearTimeout(_stream.timer); _stream.timer = null; }
   _clearStreamCursor();
   _streaming = false;
-  document.body.classList.remove('mr-streaming');
-  if (_run) renderRunState(_run);   // restore the normal center stage + re-enable actions
+  document.body.classList.remove('mr-streaming');   // the running log persists; just unlock actions
 }
 
 // The hard-stop defense prompt, rendered inline in the stream feed.
@@ -5147,10 +5220,12 @@ async function _streamDefend(box, hp) {
     if (!res.ok) await apiThrow(res);
     const updated = await res.json();
     _run = updated;
-    renderRunState(updated);                 // _streaming is true -> center pane left to the stream
     const row = box.querySelector('.row'); if (row) row.innerHTML = '';
-    const newBeats = (((updated.state_json || {}).event_log) || []).slice(before).flatMap(_eventToBeats);
-    _stream.beats.push(...newBeats);
+    const events = ((updated.state_json || {}).event_log) || [];
+    const newBeats = events.slice(_streamRendered).flatMap(_eventToBeats);
+    _streamRendered = events.length;         // claim these before renderRunState can catch them up
+    renderRunState(updated);                 // side panels + header; the running log persists
+    _stream.beats.push(...newBeats);          // animate the strike's outcome + any following strike
     _stream.i++;                             // consume the stop marker
     _stream.timer = setTimeout(_streamTick, 650);
   } catch (e) {
@@ -5160,18 +5235,13 @@ async function _streamDefend(box, hp) {
   }
 }
 
-// Apply a run response from an NPC-phase action: narrate the host's reaction in the center stage
-// when there's something to show, else settle normally. Used by the action + End-Turn paths.
+// Apply a run response from an NPC-phase action: append its events to the persistent running log
+// (routine results instantly, host responses narrated), then refresh the side panels. Used by the
+// action + End-Turn paths.
 function _applyRunResponse(before, updated) {
   _run = updated;
-  if (_hasNarratable(before, updated)) {
-    _streaming = true;                 // set before render so renderRunState leaves the center alone
-    renderRunState(updated);
-    _startStream(before, updated);
-  } else {
-    _streaming = false;
-    renderRunState(updated);
-  }
+  _pushNewEvents(updated);   // claim + narrate new events (advances _streamRendered) before the sync render
+  renderRunState(updated);   // side panels + center header; renderStage catch-up is now a no-op
 }
 
 // -- Area Strike (Area-option Attack) ---------------------------------------
