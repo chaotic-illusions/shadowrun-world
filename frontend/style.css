@@ -3124,6 +3124,7 @@ main:has(.md3) { max-width: 1800px; }
 .mem-chip { font-size: 0.68rem; color: var(--text-bright); background: #0a140a; border: 1px solid #1a2a1a; border-radius: 3px; padding: 2px 7px; letter-spacing: 0.3px; }
 .mem-chip-file { color: var(--green); border-color: #014a01; }
 .mem-chip-worn { color: #d8c37a; border-color: #4a4020; }
+.mem-chip-squeezed { color: var(--amber); border-color: #4a3a10; font-style: italic; }
 .mem-section-gap { margin-top: 10px; padding-top: 8px; border-top: 1px solid #1a2a1a; }
 /* Wide -> collapse to 2 columns; the discovered/log column wraps to a full-width row beneath. */
 @media (max-width: 1500px) {
