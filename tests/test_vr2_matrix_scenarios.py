@@ -1755,11 +1755,18 @@ class TestEnemyLocateAndIntent:
         enemy["id"] = "ed_1"
         enemy["condition_monitor"] = {"persona_boxes": 4, "mpcp_damage": 0}
         red = mr._redact_enemy_decker(enemy)
-        # presence + condition only -- no raw ratings leak to the player
-        assert red["name"] and red["tier"] == "Red" and red["intent"]
+        # presence + condition only -- name is shown, but the threat TIER is hidden until the PC
+        # runs Scan Icon, and INTENT (the decker's plan) is never surfaced to the player at all.
+        assert red["name"]
+        assert red["tier"] is None            # unscanned -> threat tier hidden
+        assert "intent" not in red            # a decker's intent is never disclosed
         assert red["condition_monitor"]["persona_boxes"] == 4
         for secret in ("computer_skill", "mpcp", "utilities", "detection_factor"):
             assert secret not in red
+        # Once Scan Icon has revealed ratings, the tier becomes visible (still no intent).
+        enemy["scan_reveal"] = 2
+        red2 = mr._redact_enemy_decker(enemy)
+        assert red2["tier"] == "Red" and "intent" not in red2
 
 
 class TestPCCripplerStrikeBack:
@@ -2617,7 +2624,7 @@ class TestAnalyzeGatedICReveal:
         assert out is not None
         assert out["type"] == "Unknown IC"
         assert out["rating"] is None
-        assert out["category"] == "white"
+        assert out["category"] is None  # threat class withheld until analyzed
 
     def test_analyzed_ic_fully_revealed(self):
         out = mr._redact_ic(self._proactive(analyzed=True))
@@ -2636,10 +2643,12 @@ class TestAnalyzeGatedICReveal:
         out = mr._redact_ic(self._reactive(detection_level=1))
         assert out is not None
         assert out["type"] == "Unknown IC" and out["rating"] is None
+        assert out["category"] is None  # threat class withheld below level 2
 
     def test_reactive_level2_shows_type_not_rating(self):
         out = mr._redact_ic(self._reactive(detection_level=2))
         assert out["type"] == "Probe" and out["rating"] is None
+        assert out["category"] == "white"  # type known -> threat class revealed
 
     def test_reactive_level3_full_reveal(self):
         out = mr._redact_ic(self._reactive(detection_level=3))
