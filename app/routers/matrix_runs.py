@@ -288,6 +288,35 @@ def _tally_clause_generic(m: "re.Match[str]") -> str:
 _VS_HOST_SUCC_RE = re.compile(r"\((\d+) vs \d+(?: successes)?\)")
 
 
+def _redact_event_ic(e: dict, redact_ids: set) -> dict:
+    """Mask an un-identified IC's name in a player-facing event.
+
+    An active IC the decker has not analysed past presence (detection level < 2) reads as
+    'Unknown IC' in the log, matching its redacted chip -- so activation / attack lines never
+    disclose the IC's type or rating before an Analyze IC identifies it.
+    """
+    if not isinstance(e, dict):
+        return e
+    ic_id = e.get("ic_id")
+    ic_type = e.get("ic_type")
+    if not ic_id or ic_id not in redact_ids or not ic_type:
+        return e
+    out = dict(e)
+    rating = out.get("ic_rating")
+    desc = out.get("description")
+    if isinstance(desc, str):
+        variants = []
+        if rating not in (None, ""):
+            variants += [f"{ic_type}-{rating}", f"{ic_type} Rating {rating}"]
+        variants.append(ic_type)
+        for v in variants:
+            desc = desc.replace(v, "Unknown IC")
+        out["description"] = desc
+    out["ic_type"] = "Unknown IC"
+    out.pop("ic_rating", None)
+    return out
+
+
 def _redact_event_tally(e: dict) -> dict:
     """Return a player-safe copy of an event with the running security tally removed.
 
@@ -430,12 +459,19 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
             redacted = [_redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)]
             state["active_ic"] = [ic for ic in redacted if ic is not None]
         if isinstance(state.get("event_log"), list):
+            # IC the decker has detected but not yet identified (detection level < 2): their name
+            # must read as "Unknown IC" in the log, matching the redacted chip. active_ic is already
+            # redacted above, so its detection_level fields drive which IC names to mask.
+            _ic_redact_ids = {
+                ic.get("id") for ic in (state.get("active_ic") or [])
+                if isinstance(ic, dict) and ic.get("id") and (ic.get("detection_level") or 0) < 2
+            }
             # Drop GM-only events (e.g. surreptitious reactive-IC activity the decker
             # has not yet detected) so the log never betrays a hidden IC's presence, and
             # scrub the running security tally from the survivors (the decker only learns
             # its tally via Analyze Security -- see _redact_event_tally).
             state["event_log"] = [
-                _redact_event_tally(e)
+                _redact_event_ic(_redact_event_tally(e), _ic_redact_ids)
                 for e in state["event_log"]
                 if not (isinstance(e, dict) and e.get("gm_only"))
             ]
@@ -502,13 +538,16 @@ def _redact_enemy_decker(e: dict) -> dict:
     the PC has run Scan Icon on it, which discloses ratings in _SCAN_REVEAL_ORDER)."""
     cm = e.get("condition_monitor", {}) or {}
     name_known = _enemy_name_revealed(e)
+    reveal_n = int(e.get("scan_reveal", 0) or 0)
     out = {
         "id": e.get("id"),
         "name": _enemy_display_name(e),
         "name_revealed": name_known,
         "handle": e.get("handle") if name_known else None,
-        "tier": e.get("tier"),
-        "intent": e.get("intent"),
+        # Threat tier (Green/Orange/Red/Black rating class) is unknown until the PC runs Scan Icon.
+        # Intent (kill/dump/crash) is NEVER surfaced -- a decker's plan is not knowable from outside
+        # the icon; the PC only learns it once the decker acts.
+        "tier": e.get("tier") if reveal_n > 0 else None,
         "status": e.get("status"),
         "located_pc": e.get("located", False),
         # Combat maneuver: the PC evaded this enemy (it lost the trail and won't attack until it
@@ -523,7 +562,6 @@ def _redact_enemy_decker(e: dict) -> dict:
     }
     # Scan Icon reveal: disclose the first N base ratings the PC has uncovered (N latched on the
     # enemy as scan_reveal; 6 == fully scanned). Base ratings, not the live combat-damaged values.
-    reveal_n = int(e.get("scan_reveal", 0) or 0)
     if reveal_n > 0:
         out["scanned"] = {k: int(e.get(k, 0) or 0) for k in _SCAN_REVEAL_ORDER[:reveal_n]}
         out["scan_level"] = min(reveal_n, len(_SCAN_REVEAL_ORDER))
@@ -579,6 +617,10 @@ def _redact_ic(ic: dict) -> dict | None:
         out["rating"] = None
     elif level == 2:
         out["rating"] = None  # type known, exact rating still unknown
+    # Threat class (white/gray/black) is part of an IC's identity: withhold it until the type is
+    # known (level >= 2), so an un-analysed IC never leaks its class through the chip badge/colour.
+    if level < 2:
+        out["category"] = None
     # IC Options (Expert Offense/Defense, Cascading, Shielding/Shifting, Armor) are learned only at
     # a full Analyze IC (level 3). Below that, strip them so a partial ID cannot leak the defenses.
     if level < 3:
@@ -6576,11 +6618,15 @@ async def perform_action(
             newly = rng.sample(pool, min(net, len(pool)))
             for p in newly:
                 p["located"] = True
+            all_found = not [p for p in (state.get("paydata") or [])
+                             if not p.get("located") and not p.get("destroyed")]
             _append_event(state, {
                 "type": "paydata_located",
                 "description": "Paydata located: " + ", ".join(
                     f"{p.get('name', '?')} ({max(0, int(p.get('density', 0) or 0))} Mp)" for p in newly
-                ) + ".",
+                ) + "."
+                + (" All paydata on this host is now located." if all_found else ""),
+                "all_located": all_found,
                 "files": [{"name": p.get("name"),
                            "size_mp": max(0, int(p.get("density", 0) or 0)),
                            "is_key": bool(p.get("is_key"))} for p in newly],
@@ -8786,7 +8832,8 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
             boxes = atk["resistance"]["boxes"]
             _add_cm_damage(cm, "persona_boxes", boxes)
             _wear_armor(state, state, decker, boxes)
-            desc = (f"{_enemy_display_name(enemy)} hits your icon with {program}-{power} -- "
+            _atk_letter = rules.IC_DAMAGE_LEVEL.get(sec_code, "Moderate")[0]
+            desc = (f"{_enemy_display_name(enemy)} hits your icon with {program}-{power}{_atk_letter} -- "
                     f"{atk['resistance']['final_damage_level']} ({boxes} boxes). "
                     f"Persona {cm['persona_boxes']}/10.")
         _append_event(state, {

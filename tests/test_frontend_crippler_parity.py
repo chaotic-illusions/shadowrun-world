@@ -28,8 +28,8 @@ def test_strike_back_offers_every_backend_attribute_program():
     """Each poison/restrict/reveal program is a Strike Back option whose label names the SAME
     attribute the backend table attacks (poison->Bod, restrict->Evasion, reveal->Masking)."""
     for program, attr in mr._PROGRAM_ATTR.items():
-        assert f'<option value="{program}"' in _RUN_HTML, (
-            f"Strike Back UI is missing an option for '{program}'")
+        assert f"['{program}', " in _RUN_HTML, (
+            f"Attack menu (_strikeOptionsHtml) is missing an option for '{program}'")
         label = f"{program.capitalize()} (vs {attr.capitalize()})"
         assert label in _RUN_HTML, (
             f"Strike Back label for '{program}' must read '{label}' to match the backend "
