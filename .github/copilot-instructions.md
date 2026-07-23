@@ -38,7 +38,7 @@ decay_sim.py       -- standalone CLI tool; imports from app.services.heat_calcul
 ```
 
 ## Auth Rules
-- `BOOTSTRAP_ADMIN_KEY` env var (default: `shadowrunner`) accepted as admin password **only** when no admin tokens exist in DB yet
+- The application has no intrinsic `BOOTSTRAP_ADMIN_KEY` fallback; Docker Compose supplies `shadowrunner` for fresh installs. The configured value is accepted as an admin password **only** when no admin tokens exist in DB yet
 - All world-data API routes require at least a valid user token (`get_any_token`)
 - Admin-only actions use `get_admin_token`
 - Tokens stored as SHA-256 hex (64 chars); plaintext shown once at creation
@@ -48,7 +48,7 @@ decay_sim.py       -- standalone CLI tool; imports from app.services.heat_calcul
 | Var | Default | Notes |
 |-----|---------|-------|
 | `DATABASE_URL` | `sqlite+aiosqlite:///./data/shadowrun.db` | sync prefix auto-replaced |
-| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` | bootstrap only; ignored once admin tokens exist |
+| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` in Docker Compose | bootstrap only; ignored once admin tokens exist |
 | `ANTHROPIC_API_KEY` | -- | optional; 503 returned if missing when parsing |
 | `CLAUDE_MODEL` | `claude-sonnet-4-6` | model string passed to Anthropic client |
 | `CORS_ORIGINS` | `*` | comma-separated; open for local dev |

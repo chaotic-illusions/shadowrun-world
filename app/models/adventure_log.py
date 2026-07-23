@@ -1,5 +1,5 @@
 from datetime import datetime, date, UTC
-from sqlalchemy import String, Text, Integer, Date, JSON
+from sqlalchemy import String, Text, Integer, Date, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.associations import log_characters, log_locations, log_organizations
@@ -12,6 +12,10 @@ class AdventureLog(Base):
     title: Mapped[str] = mapped_column(String(300))
     session_date: Mapped[date] = mapped_column(Date)
     run_number: Mapped[int | None] = mapped_column(Integer, default=None)
+
+    __table_args__ = (
+        Index("ux_adventure_logs_run_number", "run_number", unique=True),
+    )
 
     objective: Mapped[str] = mapped_column(Text)
     result: Mapped[str] = mapped_column(Text)
@@ -56,3 +60,10 @@ class AdventureLog(Base):
     orgs_involved: Mapped[list["Organization"]] = relationship(
         "Organization", secondary=log_organizations, back_populates="adventure_logs"
     )
+
+
+class AdventureRunCounter(Base):
+    __tablename__ = "adventure_run_counter"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    last_run_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

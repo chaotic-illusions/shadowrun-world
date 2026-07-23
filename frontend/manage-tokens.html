@@ -95,11 +95,13 @@
 <script>
 let _creatingAdmin = false;
 let _renameId = null;
+const _tokensById = new Map();
 
 // -- Render tokens -------------------------------------------------------------
 const _lastTokenHtml = {};
 
 function renderTokenTable(tokens, containerId, accentColor) {
+  tokens.forEach(t => _tokensById.set(Number(t.id), t));
   const wrap = document.getElementById(containerId);
   let newHtml;
   if (!tokens.length) {
@@ -119,7 +121,7 @@ function renderTokenTable(tokens, containerId, accentColor) {
         ${tokens.map(t => {
           const actions = `
             <button class="btn btn-ghost btn-sm" style="margin-right:4px"
-              onclick="openRenameModal(${t.id}, '${esc(t.label || '')}')">Rename</button>
+              data-token-rename="${Number(t.id)}">Rename</button>
             <button class="btn btn-amber btn-sm" style="margin-right:4px"
               onclick="regenerateToken(${t.id})">Regenerate</button>
             <button class="btn btn-red btn-sm"
@@ -147,11 +149,18 @@ async function loadTokens() {
     renderTokenTable(all.filter(t => t.is_admin),  'adminTokenWrap',  'var(--amber)');
     renderTokenTable(all.filter(t => !t.is_admin), 'playerTokenWrap', 'var(--green)');
   } catch(e) {
-    const msg = `<div class="alert alert-err show">>> FAILED // ${e.message}</div>`;
+    const msg = `<div class="alert alert-err show">&gt;&gt; FAILED // ${esc(e.message)}</div>`;
     document.getElementById('adminTokenWrap').innerHTML  = msg;
     document.getElementById('playerTokenWrap').innerHTML = msg;
   }
 }
+
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-token-rename]');
+  if (!button) return;
+  const token = _tokensById.get(Number(button.dataset.tokenRename));
+  if (token) openRenameModal(token.id, token.label || '');
+});
 
 // -- New token modal -----------------------------------------------------------
 

@@ -1394,7 +1394,7 @@ function openOrgEditModal(orgId) {
   const badge = document.getElementById('oeDossierBadge');
   if (badge) badge.innerHTML = `
     <span class="ws-tier-row">
-      <span class="cc-race-prof text-amber">${typeLabel}</span>
+      <span class="cc-race-prof text-amber">${esc(typeLabel)}</span>
       <span class="dim-meta">&#183;</span>
       <span class="ws-tier-badge">TIER ${tier} // ${tierLabel(tier).toUpperCase()}</span>
     </span>`;

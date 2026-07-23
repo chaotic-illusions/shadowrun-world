@@ -19,7 +19,7 @@ applyTo: "app/auth/**,app/routers/auth.py"
 - `is_admin=True` on `UserToken` -> grants admin role
 
 ## Bootstrap Flow
-- `BOOTSTRAP_ADMIN_KEY` (default `shadowrunner`) is accepted as admin password **only** while `UserToken` table has no admin rows
+- The application has no intrinsic `BOOTSTRAP_ADMIN_KEY` fallback; Docker Compose supplies `shadowrunner` for fresh installs. The configured value is accepted as an admin password **only** while `UserToken` table has no admin rows
 - After first real token is created, bootstrap key is silently rejected
 - `is_default_admin_password()` -> True if no admin tokens exist yet (used to show warning in UI)
 

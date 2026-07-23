@@ -1,5 +1,6 @@
 """Shared campaign utilities."""
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.adventure_log import AdventureLog
 from app.models.campaign import CampaignState
@@ -18,12 +19,17 @@ async def _legacy_tick_total(db: AsyncSession) -> int:
 
 async def get_campaign_state(db: AsyncSession) -> CampaignState:
     """Return the single CampaignState row, creating + seeding it if absent."""
+    legacy_total = await _legacy_tick_total(db)
+    result = await db.execute(
+        sqlite_insert(CampaignState)
+        .values(id=1, current_tick=legacy_total)
+        .on_conflict_do_nothing(index_elements=[CampaignState.id])
+    )
+    if result.rowcount == 1:
+        await db.commit()
     state = await db.get(CampaignState, 1)
     if state is None:
-        state = CampaignState(id=1, current_tick=await _legacy_tick_total(db))
-        db.add(state)
-        await db.commit()
-        await db.refresh(state)
+        raise RuntimeError("campaign_state singleton was not created")
     return state
 
 
@@ -38,8 +44,16 @@ async def current_tick(db: AsyncSession) -> int:
 
 async def advance_clock(db: AsyncSession, days: int) -> int:
     """Advance the campaign clock by `days` ticks and return the new total."""
-    state = await get_campaign_state(db)
-    state.current_tick += max(0, int(days))
+    await get_campaign_state(db)
+    result = await db.execute(
+        update(CampaignState)
+        .where(CampaignState.id == 1)
+        .values(current_tick=CampaignState.current_tick + max(0, int(days)))
+        .returning(CampaignState.current_tick)
+    )
+    new_tick = result.scalar_one_or_none()
+    if new_tick is None:
+        await db.rollback()
+        raise RuntimeError("campaign_state singleton disappeared during clock advance")
     await db.commit()
-    await db.refresh(state)
-    return state.current_tick
+    return new_tick

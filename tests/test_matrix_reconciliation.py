@@ -51,6 +51,7 @@ from tests.test_coverage_matrix import (
 ROOT = Path(__file__).resolve().parents[1]
 RUN_UI = (ROOT / "frontend" / "matrix-run.html").read_text(encoding="utf-8")
 WORKSHOP = (ROOT / "frontend" / "deck-workshop.html").read_text(encoding="utf-8")
+PROGRAM_CATALOG = (ROOT / "frontend" / "matrix-programs.js").read_text(encoding="utf-8")
 DESIGNER = (ROOT / "frontend" / "matrix-designer.html").read_text(encoding="utf-8")
 
 ACTION_TYPES = set(typing.get_args(ActionType))
@@ -67,10 +68,9 @@ def _js_array(text: str, name: str) -> str:
 
 #: Action keys reachable through the run console (ACTION_CATALOG ``{ v: 'key', ... }``).
 CONSOLE_ACTIONS = set(re.findall(r"\bv:\s*'([a-z0-9_]+)'", _js_array(RUN_UI, "ACTION_CATALOG")))
-#: Program display names offered by the deck workshop (const UTILITIES).
-WORKSHOP_PROGRAMS = set(re.findall(r'name:\s*"([^"]+)"', _js_array(WORKSHOP, "UTILITIES")))
-#: Program option ids offered by the deck workshop (const OPTION_DEFS).
-WORKSHOP_OPTIONS = set(re.findall(r'id:\s*"([^"]+)"', _js_array(WORKSHOP, "OPTION_DEFS")))
+#: Program display names and option ids from the canonical shared catalog.
+WORKSHOP_PROGRAMS = set(re.findall(r"display:\s*'([^']+)'", _js_array(PROGRAM_CATALOG, "PROGRAMS")))
+WORKSHOP_OPTIONS = set(re.findall(r"id:\s*'([^']+)'", _js_array(PROGRAM_CATALOG, "OPTION_DEFS")))
 
 #: Actions reachable via a dedicated (non-console) run control -> the token that proves it.
 DEDICATED_CONTROLS = {

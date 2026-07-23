@@ -6,6 +6,7 @@
   <title>Deck Workshop | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
   <script src="shared.js"></script>
+  <script src="matrix-programs.js"></script>
   <script src="ambiance.js"></script>
   <style>
     /* Workshop-only button variant not in style.css: bright secondary button. */
@@ -743,89 +744,27 @@ function fastjackStamp() {
   return `${hh}:${mi}:${ss}/${mm}-${dd}-${yy}`;
 }
 
-// --- Utilities list ----------------------------------------------------------
-const UTILITIES = [
-  // Operational
-  { name: "Analyze",    mult: 3,  cat: "Operational", note: "Reduces TN for Systems Tests that identify IC, programs, and other host resources.\n\nValid Operations:  Analyze [IC|Icon|Security], Locate IC." },
-  { name: "Crash",      mult: 3,  cat: "Operational", note: "Reduces TN on attempts to crash a program or host.\n\nValid Operations:  Crash [Application|Host]." },
-  { name: "Defuse",     mult: 2,  cat: "Operational", note: "Reduces TN to defuse data bombs.\n\nValid Operations:  [File|Slave] Subsystem Test." },
-  { name: "Deception",  mult: 2,  cat: "Operational", note: "Reduces TN for Access Tests.\n\nValid Operations:  Graceful Logoff, Logon." },
-  { name: "Decrypt",    mult: 1,  cat: "Operational", note: "Reduces TN to Decrypt (defeat) Scramble IC.\n\nValid Operations:  Decrypt [Access|File|Slave]." },
-  { name: "Disinfect",  mult: 2,  cat: "Operational", note: "Reduces TN to destroy worms.\n\nValid Operations:  [Access|Control|Index|File|Slave] Subsystem Test." },
-  { name: "Evaluate",   mult: 2,  cat: "Operational", note: "Searches for valuable data in a host. Degrades 1-3 after each run.\n\nValid Operations:  Locate Paydata." },
-  { name: "Mirrors",    mult: 3,  cat: "Operational", note: "Reduces TN for decoy operations.\n\nValid Operations:  Decoy." },
-  { name: "Read/Write", mult: 2,  cat: "Operational", note: "Reduces TN for Systems Tests related to data.\n\nValid Operations:  Download Data, Uplaod Data, Edit File." },
-  { name: "Relocate",   mult: 2,  cat: "Operational", note: "Reduces TN on Control Test to spoof Trace IC during location cycle.\n\nValid Operations:  Control Test." },
-  { name: "Scanner",    mult: 3,  cat: "Operational", note: "Reduces TN to locate other Deckers and Frames.\n\nValid Operations:  Locate [Decker|Frame]." },
-  { name: "Validate",   mult: 4,  cat: "Operational", note: "Reduces TN for Administrative System Tests.\n\nValid Operations:  Validate Passcode." },
-  // Special
-  { name: "Compressor", mult: 2,  cat: "Special", note: "Reduce transfer file size by 50%. Max file = Rating\xd7100 Mp." },
-  { name: "Sleaze",     mult: 3,  cat: "Special", note: "Passive. Increases Detection Factor.  ((Masking + Sleaze) \xf7 2)" },
-  // Offensive
-  { name: "Attack",     mult: 2,  cat: "Offensive", dmg_levels: { Light:2, Moderate:3, Serious:4, Deadly:5 }, note: "Standard cybercombat. Multiplier varies by damage level chosen." },
-  { name: "Black Hammer",mult:20, cat: "Offensive", note: "Decker version of Black IC, minus the Blaster-like capabilities. Lethal damage to deckers. Uses standard program cap." },
-  { name: "Hog",        mult: 3,  cat: "Offensive", note: "Enemy Decker Virus: Reduces rating and crashes deck programs in sequence." },
-  { name: "Killjoy",    mult: 10, cat: "Offensive", note: "Decker version of non-lethal Black IC, minus the Blaster-like capabilities.  Stun damage to deckers. Uses standard program cap." },
-  { name: "Lock-On",    mult: 3,  cat: "Offensive", note: "Maneuver aid. Lowers YOUR Sensor Test TN (by [Rating]) to hold a lock on an opposing icon that maneuvers to evade you." },
-  { name: "Poison",     mult: 3,  cat: "Offensive", note: "Decker version of Acid Crippler. Attacks enemy MPCP Bod attribute." },
-  { name: "Restrict",   mult: 3,  cat: "Offensive", note: "Decker version of Binder Crippler. Attacks enemy MPCP Evasion attribute." },
-  { name: "Reveal",     mult: 3,  cat: "Offensive", note: "Decker version of Marker Crippler. Attacks enemy MPCP Masking attribute." },
-  { name: "Slow",       mult: 4,  cat: "Offensive", note: "Slows proactive IC execution speed. Net successes reduce IC actions." },
-  { name: "Steamroller",mult: 3,  cat: "Offensive", note: "Inflicts [Rating]D to Tar-IC, and is immune to their effects." },
-  // Defensive
-  { name: "Armor",      mult: 3,  cat: "Defensive", note: "Reduces Power of IC/decker attacks against the persona. Loses 1 rating each time the decker takes damage (a hit that lands 1+ boxes). Can be reloaded via Swap Memory." },
-  { name: "Camo",       mult: 3,  cat: "Defensive", note: "Adds [Rating] to Trace Factor. Also reduces Redirect Datatrail TN." },
-  { name: "Cloak",      mult: 3,  cat: "Defensive", note: "Maneuver aid. Lowers YOUR Evasion Test TN (by [Rating]) when you maneuver (Evade/Parry/Position) against an opposing icon's Sensor Rating." },
-  { name: "Medic",      mult: 4,  cat: "Defensive", note: "Heals persona damage. Loses 1 rating each use. Can be reloaded via Swap Memory." },
-  { name: "Restore",    mult: 3,  cat: "Defensive", note: "Repairs BEMS (persona attribute) damage from cripplers/rippers. 1 pt per 2 successes. Cannot fix permanent chip damage." },
-  { name: "Shield",     mult: 4,  cat: "Defensive", note: "Parries attacks. Can reduce attacker net successes, as well as Crippler/Ripper IC successes. Loses 1 rating each use. Can be reloaded via Swap Memory." },
-];
-
-// Options supported (all by default, Attack gets all, Black Hammer/Killjoy fewer)
-const OPTION_DEFS = [
-  { id: "area",         label: "Area",          type: "number", note: "Rule: Hit up to [Area] targets with one Attack Test. [Num Targets] added to TN.\n\nCounter: Armor +2 effective vs Area attacks.\n\nEff Rating: +[Area].\n\nDesign: Per [Eff Rating]\xb2 \xd7 Multiplier) Mp." },
-  { id: "chaser",       label: "Chaser",        type: "check",  note: "Rule: Negates Shift attack penalty.  Cannot combine with Penetration.\n\nCounter: Shield adds additional +2 TN.\n\nEff Rating: +1.\n\nDesign: Per [Eff Rating]." },
-  { id: "dinab",        label: "DINAB",         type: "number", note: "Rule: Utility can act autonomously with Computer Skill equal to [DINAB].\n\nCounter: DINAB degrades by 1 on failed tests and will crash on all-1s.\n\nEff Rating: +[DINAB].\n\nDesign: Per [Eff Rating]\xb2 \xd7 Multiplier) Mp." },
-  { id: "limit",        label: "Limit",         type: "check",  note: "Rule: Restrict utility to one target type, reducing effective rating.\n\nCounter: Non-matching target types are unaffected.\n\nEff Rating: -1.\n\nDesign: Per [Eff Rating]." },
-  { id: "oneshot",      label: "One-Shot",      type: "check",  note: "Rule: Single-use program, much smaller size. Must load fresh copy each use.\n\nCounter: Tar Baby/Tar Pit crashes wipe all copies on the Deck.\n\nEff Rating: No change.\n\nDesign: \xd71.5 Actual: \xd70.25." },
-  { id: "optimization", label: "Optimization",  type: "check",  note: "Rule: Reduces actual size, increases design size.\n\nEff Rating: No change.\n\nDesign: \xd72.0. Actual: \xd70.5." },
-  { id: "penetration",  label: "Penetration",   type: "check",  note: "Rule: Negates Shield attack penalty.  Cannot combine with Chaser.\n\nCounter: Shift adds additional +2 TN.\n\nEff Rating: +1.\n\nDesign: Per [Eff Rating]." },
-  { id: "skulk",        label: "Skulk",         type: "number", note: "Rule: When this utility crashes IC, reduce tally increase by [Skulk].\n\nEff Rating: +[Skulk].\n\nDesign: Per [Eff Rating]." },
-  { id: "squeeze",      label: "Squeeze",       type: "check",  note: "Rule: Compresses upload by 50%; must decompress before use.\n\nEff Rating: No change.\n\nDesign: Per ([Eff Rating] + 1)." },
-  { id: "targeting",    label: "Targeting",     type: "check",  note: "Rule: -2 TN on attacks made with this utility.\n\nEff Rating: +2.\n\nDesign: Per [Eff Rating]." },
-];
-
-// Options each utility may carry, taken verbatim from the VR2 utility tables
-// (vr2_rules.md). All operational utilities share one blanket set; special
-// utilities (Compressor, Sleaze) list none; offensive/defensive
-// utilities each enumerate their own. "Stealth" in the book == our "skulk".
-const OPERATIONAL_OPTIONS = ["dinab", "oneshot", "optimization", "squeeze"];
-const UTILITY_OPTION_ALLOW = {
-  // Offensive
-  "Attack":       ["area", "chaser", "dinab", "limit", "oneshot", "optimization", "penetration", "skulk", "targeting"],
-  "Black Hammer": ["oneshot", "optimization", "targeting"],
-  "Hog":          ["dinab", "oneshot", "optimization", "targeting"],
-  "Killjoy":      ["oneshot", "optimization", "targeting"],
-  "Lock-On":      ["oneshot", "optimization"],
-  "Poison":       ["area", "dinab", "oneshot", "optimization", "targeting"],
-  "Restrict":     ["area", "dinab", "oneshot", "optimization", "targeting"],
-  "Reveal":       ["area", "dinab", "oneshot", "optimization", "targeting"],
-  "Slow":         ["area", "dinab", "oneshot", "optimization", "targeting"],
-  "Steamroller":  ["dinab", "oneshot", "optimization", "skulk", "targeting"],
-  // Defensive
-  "Armor":        ["optimization"],
-  "Camo":         ["oneshot", "optimization"],
-  "Cloak":        ["oneshot", "optimization"],
-  "Medic":        ["dinab", "optimization"],
-  "Restore":      ["dinab", "oneshot", "optimization"],
-  "Shield":       ["optimization"],
+// MatrixPrograms owns identity, display/category/description, and option metadata. Multipliers
+// remain workshop-only because they are build economics rather than shared program identity.
+const UTILITY_MULTIPLIERS = {
+  analyze: 3, crash: 3, defuse: 2, deception: 2, decrypt: 1, disinfect: 2,
+  evaluate: 2, mirrors: 3, read_write: 2, relocate: 2, scanner: 3, validate_pgm: 4,
+  compressor: 2, sleaze: 3, attack: 2, black_hammer: 20, hog: 3, killjoy: 10,
+  lock_on: 3, poison: 3, restrict: 3, reveal: 3, slow: 4, steamroller: 3,
+  armor: 3, camo: 3, cloak: 3, medic: 4, restore: 3, shield: 4,
 };
+const UTILITIES = MatrixPrograms.programs.map(program => ({
+  name: program.display,
+  mult: UTILITY_MULTIPLIERS[program.key],
+  cat: program.category,
+  note: program.description,
+  ...(program.key === 'attack' ? { dmg_levels: { Light: 2, Moderate: 3, Serious: 4, Deadly: 5 } } : {}),
+}));
+const OPTION_DEFS = MatrixPrograms.options.map(option => ({ ...option, note: option.description }));
 
 function getUtilityAllowedOptions(util) {
   if (!util) return [];
-  if (util.cat === 'Operational') return OPERATIONAL_OPTIONS.slice();
-  if (util.cat === 'Special') return []; // Compressor / Sleaze carry no options per RAW
-  return UTILITY_OPTION_ALLOW[util.name] || [];
+  return MatrixPrograms.get(util.name)?.options.slice() || [];
 }
 
 function getUtilityOptionExclusions(util) {
@@ -4305,10 +4244,7 @@ function getProgramModsLabel(fp) {
 }
 
 function getProgramTypeKey(utilName) {
-  const raw = String(utilName || '').trim().toLowerCase();
-  if (!raw) return 'unknown';
-  if (raw === 'read/write') return 'read_write';
-  return raw.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return MatrixPrograms.keyOf(utilName) || 'unknown';
 }
 
 function getProgramTypeLabelFromKey(typeKey) {

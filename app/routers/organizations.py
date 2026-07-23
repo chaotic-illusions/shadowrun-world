@@ -28,9 +28,20 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
     data = OrganizationRead.model_validate(org, from_attributes=True).model_dump()
     if auth.get("is_admin") and not auth.get("view_as_player"):
         return data
+    data["notes"] = None
+    data["ally_ids"] = list(data.get("revealed_ally_ids") or [])
+    data["enemy_ids"] = list(data.get("revealed_enemy_ids") or [])
+    data["leadership"] = [
+        {key: value for key, value in entry.items() if key != "notes"}
+        for entry in (data.get("leadership") or [])
+        if isinstance(entry, dict)
+    ]
     rebuilt = []
     for entry in (data.get("ltgs") or []):
         e = dict(entry)
+        if e.get("visibility", "listed") != "listed" and not e.get("revealed"):
+            continue
+        e.pop("notes", None)
         if e.get("type") == "matrix_host" and not e.get("san_revealed"):
             e.pop("san_access_rating", None)
         rebuilt.append(e)

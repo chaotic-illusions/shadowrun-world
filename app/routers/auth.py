@@ -27,10 +27,18 @@ async def verify(body: VerifyRequest, request: Request, db: AsyncSession = Depen
     is_user = is_admin or bool(body.user_token and await verify_user_token(db, body.user_token))
 
     if not is_admin and not is_user:
-        record_failure(request)
+        if body.admin_token:
+            record_failure(request, "admin")
+        if body.user_token:
+            record_failure(request, "user")
         raise HTTPException(status_code=401, detail="No valid token")
 
-    record_success(request)
+    if is_admin:
+        record_success(request, "admin")
+    else:
+        record_success(request, "user")
+        if body.admin_token:
+            record_failure(request, "admin")
     used_token = body.admin_token if is_admin else body.user_token
     token_record = await get_token_record(db, used_token) if used_token else None
 
@@ -146,6 +154,12 @@ async def revoke_token(
     ut = result.scalars().first()
     if not ut:
         raise HTTPException(status_code=404, detail="Token not found")
+    if ut.is_admin:
+        result = await db.execute(
+            select(UserToken.id).where(UserToken.is_admin == True).limit(2)  # noqa: E712
+        )
+        if len(result.scalars().all()) <= 1:
+            raise HTTPException(status_code=409, detail="Cannot revoke the final admin token")
     # Unclaim any characters owned by this token's hash before deleting it
     char_result = await db.execute(
         select(Character).where(Character.owner_token == ut.token_hash)

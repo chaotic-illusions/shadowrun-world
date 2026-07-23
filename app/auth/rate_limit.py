@@ -28,16 +28,16 @@ _TRUST_PROXY = os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() in ("1", "tr
 
 # -- In-memory store ----------------------------------------------------------
 
-# {ip: (consecutive_failures, last_attempt_ts)}
-_attempts: dict[str, tuple[int, float]] = {}
+# {(ip, credential_scope): (consecutive_failures, last_attempt_ts)}
+_attempts: dict[tuple[str, str], tuple[int, float]] = {}
 
 
 def _prune() -> None:
     """Remove entries that haven't been touched in STALE_AFTER seconds."""
     now = time.monotonic()
-    stale = [ip for ip, (_, ts) in _attempts.items() if now - ts > STALE_AFTER]
-    for ip in stale:
-        del _attempts[ip]
+    stale = [key for key, (_, ts) in _attempts.items() if now - ts > STALE_AFTER]
+    for key in stale:
+        del _attempts[key]
 
 
 def _client_ip(request: Request) -> str:
@@ -62,16 +62,17 @@ async def enforce_rate_limit(request: Request) -> None:
     """FastAPI dependency -- sleeps or rejects if the caller is in backoff."""
     _prune()
     ip = _client_ip(request)
-    entry = _attempts.get(ip)
-    if not entry:
+    entries = [entry for (attempt_ip, _), entry in _attempts.items() if attempt_ip == ip]
+    if not entries:
         return
 
-    failures, last_ts = entry
-    delay = min(BASE_DELAY * (2 ** (failures - 1)), MAX_DELAY)
-    elapsed = time.monotonic() - last_ts
+    now = time.monotonic()
+    remaining = max(
+        min(BASE_DELAY * (2 ** (failures - 1)), MAX_DELAY) - (now - last_ts)
+        for failures, last_ts in entries
+    )
 
-    if elapsed < delay:
-        remaining = delay - elapsed
+    if remaining > 0:
         if remaining > 5.0:
             # Long waits -> reject immediately instead of holding a connection
             raise HTTPException(
@@ -81,17 +82,16 @@ async def enforce_rate_limit(request: Request) -> None:
         await asyncio.sleep(remaining)
 
 
-def record_failure(request: Request) -> None:
+def record_failure(request: Request, scope: str = "any") -> None:
     """Call after a failed auth attempt to bump the backoff counter."""
-    ip = _client_ip(request)
-    failures, _ = _attempts.get(ip, (0, 0))
-    _attempts[ip] = (failures + 1, time.monotonic())
+    key = (_client_ip(request), scope)
+    failures, _ = _attempts.get(key, (0, 0))
+    _attempts[key] = (failures + 1, time.monotonic())
 
 
-def record_success(request: Request) -> None:
+def record_success(request: Request, scope: str = "any") -> None:
     """Call after a successful auth to reset the backoff counter."""
-    ip = _client_ip(request)
-    _attempts.pop(ip, None)
+    _attempts.pop((_client_ip(request), scope), None)
 
 
 # -- Per-caller call-rate throttle (expensive authenticated endpoints) ---------
@@ -126,9 +126,13 @@ def _prune_calls() -> None:
         del _calls[k]
 
 
-def enforce_call_rate(request: Request) -> None:
+async def enforce_call_rate(request: Request) -> None:
     """FastAPI dependency -- throttle an expensive authenticated endpoint to CALL_LIMIT calls
     per CALL_WINDOW seconds per caller. Raises 429 when the window is full.
+
+    Declared ``async`` on purpose: it runs on the event-loop thread (not the sync-dependency
+    threadpool) and contains no ``await``, so the read-modify-write of the shared ``_calls`` map
+    is atomic -- concurrent requests cannot interleave and over-admit past the limit.
     """
     _prune_calls()
     now = time.monotonic()

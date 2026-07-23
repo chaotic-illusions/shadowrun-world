@@ -6,7 +6,7 @@ from app.dependencies import get_db
 from app.models.matrix_host import MatrixHost
 from app.models.organization import Organization
 from app.schemas.matrix_host import (
-    MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostSummary,
+    MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostPlayerRead, MatrixHostSummary,
 )
 from app.services.host_visibility import sync_host_reveal_to_org, sync_host_security_to_org
 from app.auth.dependencies import get_admin_token, get_any_token
@@ -129,16 +129,19 @@ async def ltg_catalog(
     return entries
 
 
-@router.get("/{host_id}", response_model=MatrixHostRead)
+@router.get("/{host_id}", response_model=None)
 async def get_host(
     host_id: int,
     auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     host = await _get_or_404(db, host_id)
-    if not auth.get("is_admin") and not host.is_visible_to_players:
+    show_gm = bool(auth.get("is_admin")) and not auth.get("view_as_player")
+    if not show_gm and not host.is_visible_to_players:
         raise HTTPException(status_code=404, detail="Matrix host not found")
-    return host
+    if show_gm:
+        return MatrixHostRead.model_validate(host, from_attributes=True).model_dump()
+    return MatrixHostPlayerRead.model_validate(host, from_attributes=True).model_dump()
 
 
 @router.patch("/{host_id}", response_model=MatrixHostRead,

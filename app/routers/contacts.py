@@ -5,15 +5,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.contact import Contact
 from app.schemas.contact import ContactCreate, ContactUpdate, ContactRead
-from app.auth.dependencies import get_admin_token
+from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
+
+
+def _serialize_contact(contact: Contact, ctx: dict) -> dict:
+    data = ContactRead.model_validate(contact, from_attributes=True).model_dump()
+    if not (ctx.get("is_admin") and not ctx.get("view_as_player")):
+        data["notes"] = None
+    return data
 
 
 @router.get("/", response_model=list[ContactRead])
 async def list_contacts(
     owner_id: int | None = Query(None, description="Filter by owning character ID"),
     organization_id: int | None = Query(None),
+    ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Contact)
@@ -22,7 +30,7 @@ async def list_contacts(
     if organization_id is not None:
         q = q.where(Contact.organization_id == organization_id)
     result = await db.execute(q.order_by(Contact.name))
-    return result.scalars().all()
+    return [_serialize_contact(contact, ctx) for contact in result.scalars().all()]
 
 
 @router.post("/", response_model=ContactRead, status_code=201)
@@ -39,8 +47,12 @@ async def create_contact(
 
 
 @router.get("/{contact_id}", response_model=ContactRead)
-async def get_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
-    return await get_or_404(db, Contact, contact_id)
+async def get_contact(
+    contact_id: int,
+    ctx: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    return _serialize_contact(await get_or_404(db, Contact, contact_id), ctx)
 
 
 @router.patch("/{contact_id}", response_model=ContactRead)

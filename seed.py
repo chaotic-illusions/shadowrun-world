@@ -14,7 +14,13 @@ import argparse
 import httpx
 
 
-ADMIN_PASSWORD = os.environ.get("BOOTSTRAP_ADMIN_KEY", "shadowrunner")
+def resolve_admin_token(admin_token=None):
+    token = (admin_token or os.environ.get("BOOTSTRAP_ADMIN_KEY", "")).strip()
+    if not token:
+        raise RuntimeError(
+            "Admin credential required: pass --admin-token or set BOOTSTRAP_ADMIN_KEY"
+        )
+    return token
 
 
 def post(client, path, payload):
@@ -69,6 +75,7 @@ def upsert_rtgs(client, data, rtg_ids):
 
 
 def seed(base_url, seed_file, admin_token=None, upsert_rtgs_only=False):
+    token = resolve_admin_token(admin_token)
     with open(seed_file, encoding="utf-8-sig") as f:
         data = json.load(f)
 
@@ -77,7 +84,6 @@ def seed(base_url, seed_file, admin_token=None, upsert_rtgs_only=False):
     location_ids = {}
     character_ids = {}
 
-    token = admin_token or ADMIN_PASSWORD
     headers = {"X-Admin-Token": token}
     with httpx.Client(base_url=base_url, headers=headers, timeout=30.0) as client:
         if upsert_rtgs_only:

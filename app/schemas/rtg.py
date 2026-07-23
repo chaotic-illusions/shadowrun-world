@@ -12,10 +12,13 @@ class RTGBase(BaseModel):
     notes: Optional[str] = None
 
 
-RTGCreate = RTGBase
+class RTGCreate(RTGBase):
+    model_config = ConfigDict(extra="forbid")
 
 
 class RTGUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     code: Optional[str] = Field(default=None, max_length=50)
     region: Optional[str] = Field(default=None, max_length=200)
     political_entity: Optional[str] = Field(default=None, max_length=200)

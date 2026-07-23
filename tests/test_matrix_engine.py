@@ -480,9 +480,9 @@ class TestShieldDefense:
     def test_shield_adds_to_decker_attribute_attack_defence(self, scripted):
         # enemy-decker Poison/Restrict/Reveal: attack 4, resist 0, shield 2 -> net 2 -> reduction 1
         scripted([6, 6, 6, 6, 1, 1, 1])
-        out = eng.decker_attribute_attack(
-            attacker_pool=4, security_code="Orange", target_status="intruding",
-            program_rating=6, target_attribute_rating=3, shield_successes=2)
+        out = eng.attribute_attack_core(
+            attacker_pool=4, resist_tn=6, security_code="Orange", target_status="intruding",
+            target_attribute_rating=3, shield_successes=2)
         assert out["shield_successes"] == 2
         assert out["net"] == 2
         assert out["reduction"] == 1
@@ -491,9 +491,9 @@ class TestShieldDefense:
         # PC firing Poison / Restrict / Reveal at an enemy decker: omitting the Shield param
         # leaves shield_successes 0, and the reduction is always floor(net / 2) per the rule.
         scripted([5, 5, 5, 1, 1, 1, 1, 1])
-        out = eng.decker_attribute_attack(
-            attacker_pool=5, security_code="Orange", target_status="intruding",
-            program_rating=6, target_attribute_rating=4)
+        out = eng.attribute_attack_core(
+            attacker_pool=5, resist_tn=6, security_code="Orange", target_status="intruding",
+            target_attribute_rating=4)
         assert out["shield_successes"] == 0
         assert out["reduction"] == out["net"] // 2
 

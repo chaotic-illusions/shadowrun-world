@@ -101,6 +101,7 @@ def _fresh_state(acifs=None, sec_code="Green", sec_value=6):
     return {
         "security_tally": 0,
         "alert_status": "none",
+        "logon_complete": True,
         "active_ic": [],
         "lurking_ic": [],
         "current_turn": 1,
@@ -1723,9 +1724,9 @@ class TestEnemyLocateAndIntent:
 
     def test_decker_crippler_reduction(self, scripted):
         scripted([6, 6, 6, 1, 1])  # attack 3 hits, attr resist ~0 -> net 3 -> reduction 1
-        r = eng.decker_attribute_attack(attacker_pool=6, security_code="Red",
-                                        target_status="intruding", program_rating=6,
-                                        target_attribute_rating=4)
+        r = eng.attribute_attack_core(attacker_pool=6, resist_tn=6, security_code="Red",
+                                      target_status="intruding",
+                                      target_attribute_rating=4)
         assert r["reduction"] == r["net"] // 2
 
     def test_hog_purge_tn_and_success(self, scripted):
@@ -5265,6 +5266,7 @@ class TestCompressor:
 
         if state is None:
             state = mr._initial_state(decker, host)
+        state["logon_complete"] = True
 
         class _StubRun:
             id = 7
@@ -5435,6 +5437,7 @@ class TestLocatePaydata:
 
         if state is None:
             state = mr._initial_state(decker, host)
+        state["logon_complete"] = True
 
         class _StubRun:
             id = 7
@@ -5655,52 +5658,25 @@ class TestOneShot:
         assert state["event_log"] == []
 
     def test_reactive_tar_resolution_wipes_one_shot(self, monkeypatch):
-        # The live resolve_reactive_ic handler must call _wipe_one_shot when the tar wins: a
-        # one-shot utility used against the tar is corrupted on every copy and cannot be reloaded.
-        import asyncio
-        from app.schemas.matrix_run import RunReactiveInput
+        # When a lurking Tar Baby wins, a one-shot utility used against it is corrupted on every
+        # copy and cannot be reloaded -- _resolve_lurking_tar must call _wipe_one_shot.
         decker = self._decker("attack", rating=6, one_shot=True)
         state = _fresh_state(); state["event_log"] = []
         state["storage_programs"] = [{"name": "attack", "rating": 6, "size": 4}]
-        state["lurking_ic"] = [{"id": "lc_tar", "type": "Tar Baby", "rating": 8,
-                                "status": "lurking"}]
-
-        class _StubRun:
-            id = 9
-            host_id = 3
-            status = "active"
-            owner_token_hash = None
-            decker_json = decker
-            state_json = state
-
-        run = _StubRun()
-
-        async def _fake_get_run(db, run_id):
-            return run
+        lurking = {"id": "lc_tar", "type": "Tar Baby", "rating": 8, "status": "lurking"}
+        state["lurking_ic"] = [lurking]
 
         def _fake_tar(**kw):
             return {"ic_wins": True, "ic_roll": {"successes": 3},
                     "util_roll": {"successes": 0}, "all_copies_corrupted": False}
 
-        monkeypatch.setattr(mr, "_get_run_or_404", _fake_get_run)
-        monkeypatch.setattr(mr, "_serialize_run", lambda r, a: r.state_json)
         monkeypatch.setattr(eng, "tar_baby_test", _fake_tar)
 
-        class _FakeDB:
-            async def commit(self):
-                pass
-
-            async def refresh(self, obj):
-                pass
-
-        body = RunReactiveInput(ic_id="lc_tar", utility_name="attack", utility_rating=6)
-        auth = {"is_admin": True, "is_user": False, "user_token": None}
-        result = asyncio.run(
-            mr.resolve_reactive_ic(run_id=9, body=body, auth=auth, db=_FakeDB()))
-        assert "attack" in result["one_shot_wiped"]
-        assert result["program_damage"]["attack"] == 6
-        assert result["storage_programs"] == []                 # storage copy wiped
-        assert any(e["type"] == "one_shot_wiped" for e in result["event_log"])
+        mr._resolve_lurking_tar(state, decker, lurking, "attack", 6)
+        assert "attack" in state["one_shot_wiped"]
+        assert state["program_damage"]["attack"] == 6
+        assert state["storage_programs"] == []                 # storage copy wiped
+        assert any(e["type"] == "one_shot_wiped" for e in state["event_log"])
 
     # -- (e) Swap Memory refuses to reload a tar-wiped one-shot ---------------
 

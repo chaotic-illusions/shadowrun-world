@@ -13,10 +13,13 @@ class LocationBase(BaseModel):
     controlling_org_id: Optional[int] = None
 
 
-LocationCreate = LocationBase
+class LocationCreate(LocationBase):
+    model_config = ConfigDict(extra="forbid")
 
 
 class LocationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(default=None, max_length=200)
     location_type: Optional[str] = Field(default=None, max_length=100)
     city: Optional[str] = Field(default=None, max_length=100)

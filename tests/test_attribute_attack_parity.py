@@ -1,10 +1,11 @@
 """Attribute-crippling family -- actor parity (Layer 2).
 
 Proves the "same mechanic, same math, whoever fires it" guarantee: the crippler IC
-(``eng.crippler_attack``) and the decker program (``eng.decker_attribute_attack``)
-resolve identical dice to identical net/reduction because both delegate to
-``eng.attribute_attack_core``; and the router seam ``mr._resolve_attribute_attack``
-reduces a PC persona and an enemy attribute by the same amount for the same roll.
+(``eng.crippler_attack``) and the shared ``eng.attribute_attack_core`` resolve identical
+dice to identical net/reduction because the IC wrapper delegates to that core; the live
+decker programs (Poison/Restrict/Reveal) route through the SAME core via ``eng.crippler_attack``
+in the router seam ``mr._resolve_attribute_attack``, which reduces a PC persona and an enemy
+attribute by the same amount for the same roll.
 Also asserts the single source-of-truth table covers every persona attribute so no
 actor can silently lack an option the others have.
 
@@ -61,7 +62,7 @@ def _pc_state() -> dict:
 
 
 # =============================================================================
-# Engine parity -- crippler_attack (IC) == decker_attribute_attack (decker)
+# Engine parity -- crippler_attack (IC) == attribute_attack_core (shared core)
 # =============================================================================
 
 @pytest.mark.parametrize("seq, exp_net, exp_reduction", [
@@ -69,18 +70,20 @@ def _pc_state() -> dict:
     ([6, 6, 6, 1, 1, 1, 1, 1], 3, 1),     # attack 3 succ, resist 0 -> net 3 -> 1 (round down)
     ([6, 6, 5, 1, 6, 1, 1, 1], 2, 1),     # attack 3 succ, resist 1 -> net 2 -> 1
 ])
-def test_crippler_and_decker_attribute_attack_share_core(scripted, seq, exp_net, exp_reduction):
-    """Given identical dice and identical inputs, the IC crippler and the decker program produce
-    the same attack roll, resist roll, net and reduction -- they are one test with two labels."""
+def test_crippler_wrapper_matches_shared_core(scripted, seq, exp_net, exp_reduction):
+    """Given identical dice and inputs, the IC crippler wrapper (eng.crippler_attack) and the
+    shared eng.attribute_attack_core produce the same attack roll, resist roll, net and reduction
+    -- the wrapper adds only a ripper rider, so the crippling math lives in one place. The live
+    decker programs (Poison/Restrict/Reveal) route through the SAME wrapper in the router seam."""
     # attack: 4 dice vs Orange-intruding TN 4; resist: 4 dice vs rating 6.
     scripted(seq)
     ic = eng.crippler_attack(
         security_value=4, security_code="Orange", target_status="intruding",
         target_attribute_rating=4, ic_rating=6)
     scripted(seq)
-    dk = eng.decker_attribute_attack(
-        attacker_pool=4, security_code="Orange", target_status="intruding",
-        program_rating=6, target_attribute_rating=4)
+    dk = eng.attribute_attack_core(
+        attacker_pool=4, resist_tn=6, security_code="Orange", target_status="intruding",
+        target_attribute_rating=4)
 
     assert ic["attack_roll"] == dk["attack_roll"]
     assert ic["defense_roll"] == dk["resist_roll"]      # same roll, wrapper key differs only
