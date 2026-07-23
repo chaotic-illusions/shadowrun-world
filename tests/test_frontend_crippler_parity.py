@@ -21,7 +21,7 @@ from app.routers import matrix_runs as mr
 
 _FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
 _RUN_HTML = (_FRONTEND / "matrix-run.html").read_text(encoding="utf-8")
-_WORKSHOP_HTML = (_FRONTEND / "deck-workshop.html").read_text(encoding="utf-8")
+_PROGRAM_CATALOG = (_FRONTEND / "matrix-programs.js").read_text(encoding="utf-8")
 
 
 def test_strike_back_offers_every_backend_attribute_program():
@@ -49,5 +49,5 @@ def test_config_and_field_map_expose_every_attribute_program():
 def test_deck_workshop_catalog_lists_every_attribute_program():
     """Each program appears in the deck-workshop build catalog so a decker can actually load it."""
     for program in mr._PROGRAM_ATTR:
-        assert f'name: "{program.capitalize()}"' in _WORKSHOP_HTML, (
+        assert f"display: '{program.capitalize()}'" in _PROGRAM_CATALOG, (
             f"deck-workshop program catalog is missing '{program.capitalize()}'")

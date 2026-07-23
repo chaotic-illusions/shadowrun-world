@@ -274,6 +274,18 @@ async function parseNarrative() {
   }
 }
 
+const CHANGE_TYPES = {
+  street_cred:      { cls: 'ct-street_cred',      label: 'street cred' },
+  notoriety:        { cls: 'ct-notoriety',        label: 'notoriety' },
+  public_awareness: { cls: 'ct-public_awareness', label: 'public awareness' },
+  org_standing:     { cls: 'ct-org_standing',     label: 'org standing' },
+  heat:             { cls: 'ct-heat',             label: 'heat' },
+};
+
+function changeTypeMeta(type) {
+  return CHANGE_TYPES[type] || { cls: '', label: 'unknown change' };
+}
+
 function renderParsedResults(data) {
   document.getElementById('pr-title').textContent    = data.title    || '--';
   document.getElementById('pr-outcome').textContent  = (data.outcome || '--').replace(/_/g,' ').toUpperCase();
@@ -288,18 +300,19 @@ function renderParsedResults(data) {
     return;
   }
   list.innerHTML = changes.map((c, i) => {
+    const meta = changeTypeMeta(c.type);
     const deltaClass = c.delta >= 0 ? 'change-delta-pos' : 'change-delta-neg';
     const deltaStr   = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;
     let label = '';
-    if (c.type === 'org_standing') label = `${c.org_name || 'org'} standing ${deltaStr}`;
-    else label = `${c.type.replace(/_/g,' ')} ${deltaStr}`;
+    if (c.type === 'org_standing') label = `${esc(c.org_name || 'org')} standing ${deltaStr}`;
+    else label = `${meta.label} ${deltaStr}`;
     return `
       <div class="change-item">
         <label>
           <input type="checkbox" class="chk-select" id="ch-${i}" data-idx="${i}" checked>
           <div>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:3px">
-              <span class="change-type ct-${c.type}">${c.type.replace(/_/g,' ')}</span>
+              <span class="change-type ${meta.cls}">${esc(meta.label)}</span>
               <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span></span>
             </div>
             <div class="change-reason">${esc(c.reason || '')}</div>
@@ -783,15 +796,16 @@ function buildRunDetail(run) {
   const excluded = run.changes_excluded || [];
 
   function changeRow(c, dimmed) {
+    const meta = changeTypeMeta(c.type);
     const deltaClass = c.delta >= 0 ? 'change-delta-pos' : 'change-delta-neg';
     const deltaStr   = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;
     let label = '';
-    if (c.type === 'org_standing') label = `${c.org_name || 'org'} standing ${deltaStr}`;
+    if (c.type === 'org_standing') label = `${esc(c.org_name || 'org')} standing ${deltaStr}`;
     else if (c.type === 'heat') label = `heat ${deltaStr}`;
-    else label = `${c.type.replace(/_/g,' ')} ${deltaStr}`;
+    else label = `${meta.label} ${deltaStr}`;
     const rippleTag = c.ripple ? `<span style="font-size:.58rem;color:var(--purple);border:1px solid #2a0044;padding:1px 5px;margin-left:6px">ripple</span>` : '';
     return `<div class="change-item" style="${dimmed ? 'opacity:.4' : ''}">
-      <span class="change-type ct-${c.type}">${c.type.replace(/_/g,' ')}</span>
+      <span class="change-type ${meta.cls}">${esc(meta.label)}</span>
       <div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">
           <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span></span>${rippleTag}

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.matrix_host import MatrixHost
@@ -30,9 +30,17 @@ def _ltg_full_address(entry: dict) -> str:
     return f"{entry.get('rtg', '') or ''} {entry.get('ltg', '') or ''}".strip()
 
 
+def _norm_addr(addr: str | None) -> str:
+    """Normalize an LTG address for matching: trimmed and lowercased. A host's ``ltg_address`` and
+    an org entry's composed ``"{rtg} {ltg}"`` are the only join key, so a casing/whitespace
+    divergence would otherwise silently skip the sync. RTG/LTG codes are ASCII, so ``lower()`` is a
+    stable case-insensitive key that also matches the SQL ``lower(trim(...))`` filter used below."""
+    return (addr or "").strip().lower()
+
+
 async def sync_host_reveal_to_org(db: AsyncSession, host: MatrixHost) -> None:
     """Push a host's ``is_visible_to_players`` onto its matching org LTG entry's ``revealed``."""
-    addr = (host.ltg_address or "").strip()
+    addr = _norm_addr(host.ltg_address)
     if not addr:
         return
     visible = bool(host.is_visible_to_players)
@@ -42,7 +50,7 @@ async def sync_host_reveal_to_org(db: AsyncSession, host: MatrixHost) -> None:
         rebuilt = []
         for entry in (org.ltgs or []):
             e = dict(entry)
-            if e.get("type") == "matrix_host" and _ltg_full_address(e) == addr:
+            if e.get("type") == "matrix_host" and _norm_addr(_ltg_full_address(e)) == addr:
                 if bool(e.get("revealed", False)) != visible:
                     e["revealed"] = visible
                     changed = True
@@ -57,14 +65,20 @@ async def sync_org_reveals_to_hosts(db: AsyncSession, org: Organization) -> None
     for entry in (org.ltgs or []):
         if entry.get("type") != "matrix_host":
             continue
-        addr = _ltg_full_address(entry)
+        addr = _norm_addr(_ltg_full_address(entry))
         if addr:
             by_addr[addr] = bool(entry.get("revealed", False))
     if not by_addr:
         return
-    result = await db.execute(select(MatrixHost))
+    # Only load the hosts this org actually references (normalized address match) instead of
+    # scanning every host row and filtering in Python.
+    result = await db.execute(
+        select(MatrixHost).where(
+            func.lower(func.trim(MatrixHost.ltg_address)).in_(list(by_addr.keys()))
+        )
+    )
     for host in result.scalars().all():
-        addr = (host.ltg_address or "").strip()
+        addr = _norm_addr(host.ltg_address)
         if addr in by_addr and bool(host.is_visible_to_players) != by_addr[addr]:
             host.is_visible_to_players = by_addr[addr]
 
@@ -90,7 +104,7 @@ async def sync_host_security_to_org(
     rating becomes visible to players. GM/Designer edits leave ``mark_revealed`` False so
     they never leak an undiscovered rating.
     """
-    addr = (host.ltg_address or "").strip()
+    addr = _norm_addr(host.ltg_address)
     rating = _host_security_rating(host)
     if not addr or not rating:
         return
@@ -100,7 +114,7 @@ async def sync_host_security_to_org(
         rebuilt = []
         for entry in (org.ltgs or []):
             e = dict(entry)
-            if e.get("type") == "matrix_host" and _ltg_full_address(e) == addr:
+            if e.get("type") == "matrix_host" and _norm_addr(_ltg_full_address(e)) == addr:
                 if (e.get("san_access_rating") or "") != rating:
                     e["san_access_rating"] = rating
                     changed = True
@@ -118,15 +132,20 @@ async def sync_org_security_to_hosts(db: AsyncSession, org: Organization) -> Non
     for entry in (org.ltgs or []):
         if entry.get("type") != "matrix_host":
             continue
-        addr = _ltg_full_address(entry)
+        addr = _norm_addr(_ltg_full_address(entry))
         m = _SAN_RATING_RE.match(entry.get("san_access_rating") or "")
         if addr and m:
             by_addr[addr] = (m.group(1), int(m.group(2)))
     if not by_addr:
         return
-    result = await db.execute(select(MatrixHost))
+    # Only load the hosts this org references (normalized address match), not every host row.
+    result = await db.execute(
+        select(MatrixHost).where(
+            func.lower(func.trim(MatrixHost.ltg_address)).in_(list(by_addr.keys()))
+        )
+    )
     for host in result.scalars().all():
-        addr = (host.ltg_address or "").strip()
+        addr = _norm_addr(host.ltg_address)
         if addr not in by_addr:
             continue
         code, val = by_addr[addr]

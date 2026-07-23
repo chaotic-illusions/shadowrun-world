@@ -179,7 +179,7 @@ def damage_resistance(
     trace(
         f"damage resist: power {power} - armor {armor_rating} = {effective_power}; "
         f"attacker succ {attacker_successes} - shield {shield_successes} = {net_attacker}; "
-        f"resist {bod}d6 vs {effective_power} -> {resist_roll['successes']} succ; "
+        f"resist {bod + max(0, defender_bonus_dice)}d6 vs {effective_power} -> {resist_roll['successes']} succ; "
         f"net {net} from base {base_damage_level} -> final {final} ({box_table[final]} boxes)"
     )
     return {
@@ -744,6 +744,8 @@ def generate_sheaf(
       cannot escalate (the ramp is small); late steps almost certainly do.
     - Shutdown is not guaranteed and is not forced onto the last step (it is operator-initiated).
     """
+    if step_count is not None and not 1 <= step_count <= 64:
+        raise ValueError("step_count must be between 1 and 64")
     if seed is None:
         return _generate_sheaf_impl(security_code, security_value, step_count)
     # Confine the seed to this call: save/restore the global RNG so a seeded
@@ -857,7 +859,8 @@ def attribute_attack_core(
     """Shared attribute-crippling core for BOTH the IC cripplers (Acid / Binder / Marker /
     Jammer) and the decker programs (Poison / Restrict / Reveal) -- the rules explicitly say the
     decker programs work "like" the matching crippler IC, so the dice math is modelled ONCE here
-    and both public entry points delegate to it (see crippler_attack / decker_attribute_attack).
+    and the public entry point crippler_attack delegates to it; the router's _resolve_attribute_attack
+    routes BOTH the IC cripplers and the decker programs (Poison / Restrict / Reveal) through it.
 
     - Attack: ``attacker_pool`` dice vs COMBAT_TN[security_code][target_status] (+ tn_modifier).
     - Resist: ``target_attribute_rating`` dice vs ``resist_tn`` (the attacker's program/IC rating).
@@ -1611,28 +1614,3 @@ def hog_purge_test(
     tn = max(2, (hog_rating - hardening) + infected_program_rating)
     roll = roll_dice(computer_skill, tn)
     return {"roll": roll, "tn": tn, "purged": roll["successes"] > 0}
-
-
-def decker_attribute_attack(
-    *,
-    attacker_pool: int,
-    security_code: str,
-    target_status: str,
-    program_rating: int,
-    target_attribute_rating: int,
-    shield_successes: int = 0,
-    tn_modifier: int = 0,
-) -> dict[str, Any]:
-    """Poison / Restrict / Reveal (vr2): the decker versions of the Acid / Binder / Marker
-    cripplers. Attack to hit, then the target resists with the targeted attribute (dice)
-    vs the program rating; the attacker's net successes // 2 reduce that attribute (until
-    logoff). Poison->Bod, Restrict->Evasion, Reveal->Masking. A defending Shield adds its
-    parry successes to the target's resistance side. ``tn_modifier`` is the combat-maneuver
-    adjustment to the attack TN (Parry raises it, Position lowers it); defaults to 0.
-
-    Shares attribute_attack_core with crippler_attack so the decker programs and the matching
-    crippler IC can never drift apart numerically (the 'model once' guarantee)."""
-    return attribute_attack_core(
-        attacker_pool=attacker_pool, resist_tn=program_rating, security_code=security_code,
-        target_status=target_status, target_attribute_rating=target_attribute_rating,
-        shield_successes=shield_successes, tn_modifier=tn_modifier)

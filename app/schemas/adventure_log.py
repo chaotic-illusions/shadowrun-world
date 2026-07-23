@@ -28,31 +28,35 @@ class AdventureLogBase(BaseModel):
 
 
 class AdventureLogCreate(AdventureLogBase):
+    model_config = ConfigDict(extra="forbid")
+
     participant_ids: list[int] = Field(default=[], max_length=50)
     location_ids: list[int] = Field(default=[], max_length=50)
     org_ids: list[int] = Field(default=[], max_length=50)
 
 
 class AdventureLogUpdate(BaseModel):
-    title: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(default=None, max_length=300)
     session_date: Optional[date] = None
     run_number: Optional[int] = None
     objective: Optional[str] = None
     result: Optional[str] = None
-    outcome: Optional[str] = None
-    payout: Optional[str] = None
+    outcome: Optional[OUTCOME_VALUES] = None
+    payout: Optional[str] = Field(default=None, max_length=300)
     casualties: Optional[str] = None
     outcome_tags: Optional[list[str]] = None
     consequences_active: Optional[list[str]] = None
-    heat: Optional[int] = None
-    tick_count: Optional[int] = None
-    employer: Optional[str] = None
+    heat: Optional[int] = Field(default=None, ge=0, le=10)
+    tick_count: Optional[int] = Field(default=None, ge=0)
+    employer: Optional[str] = Field(default=None, max_length=200)
     gm_notes: Optional[str] = None
     changes_applied: Optional[list[dict[str, Any]]] = None
     changes_excluded: Optional[list[dict[str, Any]]] = None
-    participant_ids: Optional[list[int]] = None
-    location_ids: Optional[list[int]] = None
-    org_ids: Optional[list[int]] = None
+    participant_ids: Optional[list[int]] = Field(default=None, max_length=50)
+    location_ids: Optional[list[int]] = Field(default=None, max_length=50)
+    org_ids: Optional[list[int]] = Field(default=None, max_length=50)
 
 
 class AdventureLogRead(AdventureLogBase):

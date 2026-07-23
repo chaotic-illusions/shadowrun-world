@@ -23,10 +23,13 @@ class OrganizationBase(BaseModel):
     notes: Optional[str] = None
 
 
-OrganizationCreate = OrganizationBase
+class OrganizationCreate(OrganizationBase):
+    model_config = ConfigDict(extra="forbid")
 
 
 class OrganizationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(default=None, max_length=200)
     org_type: Optional[str] = Field(default=None, max_length=100)
     tier: Optional[int] = Field(default=None, ge=1, le=6)
@@ -48,6 +51,8 @@ class OrganizationRead(OrganizationBase):
 
 
 class LtgSecurityUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     rtg: str
     ltg: str
     san_access_rating: str

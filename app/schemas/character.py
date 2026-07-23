@@ -4,7 +4,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class CharacterBase(BaseModel):
-    model_config = ConfigDict(extra='forbid')
     name: str = Field(max_length=200)
     is_pc: bool = True
     archetype: Optional[str] = Field(default=None, max_length=100)
@@ -36,7 +35,8 @@ class CharacterBase(BaseModel):
     organization_id: Optional[int] = None
 
 
-CharacterCreate = CharacterBase
+class CharacterCreate(CharacterBase):
+    model_config = ConfigDict(extra='forbid')
 
 
 class CharacterUpdate(BaseModel):

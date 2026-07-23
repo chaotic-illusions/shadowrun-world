@@ -3,7 +3,25 @@ import pytest
 from unittest.mock import MagicMock
 import httpx
 
-from seed import post, get_json, upsert_rtgs
+from seed import get_json, post, resolve_admin_token, upsert_rtgs
+
+
+class TestResolveAdminToken:
+    def test_explicit_token_overrides_environment(self, monkeypatch):
+        monkeypatch.setenv("BOOTSTRAP_ADMIN_KEY", "environment-token")
+
+        assert resolve_admin_token("explicit-token") == "explicit-token"
+
+    def test_uses_explicit_bootstrap_environment(self, monkeypatch):
+        monkeypatch.setenv("BOOTSTRAP_ADMIN_KEY", "bootstrap-token")
+
+        assert resolve_admin_token() == "bootstrap-token"
+
+    def test_missing_credential_fails_closed(self, monkeypatch):
+        monkeypatch.delenv("BOOTSTRAP_ADMIN_KEY", raising=False)
+
+        with pytest.raises(RuntimeError, match="Admin credential required"):
+            resolve_admin_token()
 
 
 class TestPost:

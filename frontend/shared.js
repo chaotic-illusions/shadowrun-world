@@ -1,11 +1,11 @@
 // Shared UI helpers -- included by all app pages
 
 // -- Polling helpers -----------------------------------------------------------
-let _pollPaused = false;
-function pausePoll()  { _pollPaused = true;  }
-function resumePoll() { _pollPaused = false; }
+let _pollPauseDepth = 0;
+function pausePoll()  { _pollPauseDepth++; }
+function resumePoll() { _pollPauseDepth = Math.max(0, _pollPauseDepth - 1); }
 function startPolling(loadFn, intervalMs = 2500) {
-  setInterval(() => { if (!_pollPaused) loadFn(); }, intervalMs);
+  setInterval(() => { if (_pollPauseDepth === 0) loadFn(); }, intervalMs);
 }
 
 // -- Auth constants ------------------------------------------------------------
@@ -323,9 +323,9 @@ function _confirmNewToken(token) {
 
 // -- Shared DOM helpers -------------------------------------------------------
 
-/** HTML-escape a string for safe insertion via innerHTML / template literals.
- *  Also escapes ' and ` so it's safe inside single-quoted or backtick-quoted
- *  attribute/JS-string contexts (e.g. onclick="f('${esc(x)}')"). */
+/** HTML-escape a string for safe insertion into HTML text and quoted HTML attributes.
+ *  Never interpolate data into inline JavaScript handlers; HTML entities are decoded before
+ *  those handlers are compiled. Use data attributes and addEventListener instead. */
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;')

@@ -3096,22 +3096,6 @@ main:has(.md3) { max-width: 1800px; }
 .stage-brief-label { font-size: 0.56rem; letter-spacing: 2px; color: var(--text-dim); display: block; margin-bottom: 3px; }
 .stage-brief-val { font-size: 0.92rem; color: var(--text-bright); }
 .stage-brief-sub { font-size: 0.72rem; color: var(--text-dim); line-height: 1.5; }
-/* Latest-result "game screen" card: what just happened + the dice behind it (center stage). */
-.stage-card { background: rgba(0,255,65,.03); border: 1px solid #1a2a1a; border-left: 3px solid var(--green-dim); border-radius: 4px; padding: 12px 14px; margin-bottom: 14px; }
-.stage-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.stage-card-title { font-size: 0.9rem; letter-spacing: 1.5px; color: var(--text-bright); text-transform: uppercase; }
-.stage-badge { font-size: 0.58rem; letter-spacing: 1.5px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 3px; text-transform: uppercase; white-space: nowrap; }
-.stage-card-desc { font-size: 0.8rem; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
-.stage-card-rolls { display: flex; flex-direction: column; gap: 5px; }
-.stage-roll { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.stage-roll-who { min-width: 82px; font-size: 0.6rem; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
-.stage-dice { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.stage-die { min-width: 18px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.68rem; color: var(--text-dim); background: #0a0a0a; border: 1px solid #222; border-radius: 3px; box-sizing: border-box; }
-.stage-die-hit { color: var(--green); border-color: #014a01; background: rgba(0,255,65,.08); }
-.stage-die-one { color: var(--red); border-color: #4a0101; background: rgba(255,51,51,.08); }
-.stage-roll-succ { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.5px; color: var(--text-bright); }
-.stage-card-net { margin-top: 8px; font-size: 0.6rem; letter-spacing: 1.5px; color: var(--text-dim); text-transform: uppercase; }
-.stage-card-net span { margin-left: 4px; font-size: 0.9rem; font-weight: 600; color: var(--cyan); }
 /* Required-action prompt on the game screen (e.g. choose which banked subsystem ratings to reveal). */
 .stage-cta { background: rgba(0,204,255,.05); border: 1px solid #045; border-radius: 4px; padding: 11px 13px; margin-bottom: 14px; }
 .stage-cta-label { font-size: 0.58rem; letter-spacing: 2px; color: var(--cyan); text-transform: uppercase; margin-bottom: 6px; }
@@ -3163,13 +3147,11 @@ main:has(.md3) { max-width: 1800px; }
   font-size: 0.6rem; letter-spacing: 0.5px; background: rgba(0,255,65,.15);
   color: var(--green); border: 1px solid #014a01;
 }
-.act-cost-tag.act-cost-short { background: rgba(255,153,0,.15); color: var(--amber); border-color: #5a3a00; }
 .act-hint { font-size: 0.68rem; color: var(--text-dim); letter-spacing: 1px; align-self: center; }
 .act-footer {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   margin-top: 10px; padding-top: 10px; border-top: 1px solid #1a2a1a;
 }
-.act-footer-sep { width: 1px; height: 22px; background: #1a2a1a; margin: 0 4px; }
 .act-newturn { color: var(--cyan); border-color: #004455; }
 /* End Pass / End Turn sits in the action row beside Perform (bottom-aligned, no wrap). */
 .act-endturn { align-self: flex-end; white-space: nowrap; }

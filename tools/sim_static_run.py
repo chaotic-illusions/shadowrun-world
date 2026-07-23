@@ -149,14 +149,6 @@ def _patch():
 # ---------------------------------------------------------------------------
 # Action helpers (call the real async endpoints).
 # ---------------------------------------------------------------------------
-def player_view() -> dict:
-    return mr._serialize_run(RUN, _PLAYER)
-
-
-def gm_view() -> dict:
-    return mr._serialize_run(RUN, _ADMIN)
-
-
 _LOOP = asyncio.new_event_loop()
 
 
@@ -475,7 +467,6 @@ if __name__ == "__main__":
     play()
 
     # ---- Reports -----------------------------------------------------------
-    gm = gm_view().get("state_json", {}) if False else RUN.state_json
     log = RUN.state_json.get("event_log", [])
     pv = mr._serialize_run(RUN, _PLAYER).get("state_json", {})
     player_log = pv.get("event_log", [])
@@ -517,7 +508,6 @@ if __name__ == "__main__":
             print(f"AAR detail        : {ev.get('description')}")
 
     # ---- Structured GM AAR (what the /matrix-runs2 review page renders) -----
-    import json
     print("\n\n########## STRUCTURED GM AAR (review-page payload) ##########")
     aar = mr._build_run_aar(RUN)
     print(json.dumps(aar, indent=2, default=str))

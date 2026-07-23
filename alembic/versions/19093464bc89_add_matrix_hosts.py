@@ -1,7 +1,7 @@
 """add_matrix_hosts
 
 Revision ID: 19093464bc89
-Revises: 
+Revises: 0f4c2a1b9d80
 Create Date: 2026-04-07 16:29:31.376215
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '19093464bc89'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = '0f4c2a1b9d80'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

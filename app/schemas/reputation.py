@@ -16,10 +16,14 @@ class ReputationBase(BaseModel):
 
 
 class ReputationCreate(ReputationBase):
+    model_config = ConfigDict(extra="forbid")
+
     character_id: int
 
 
 class ReputationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     street_cred: Optional[int] = Field(default=None, ge=0)
     notoriety: Optional[int] = Field(default=None, ge=0)
     public_awareness: Optional[int] = Field(default=None, ge=0)
@@ -47,10 +51,12 @@ class OrgStandingBase(BaseModel):
 
 
 class OrgStandingCreate(OrgStandingBase):
-    pass
+    model_config = ConfigDict(extra="forbid")
 
 
 class OrgStandingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     standing: Optional[int] = None
     standings_updated_at: Optional[date] = None
     standings_stamped_tick: Optional[int] = None

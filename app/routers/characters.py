@@ -16,6 +16,21 @@ from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
 
+_PLAYER_WRITABLE_FIELDS = {
+    "name", "archetype", "title", "race", "nationality", "gender",
+    "age", "description", "background", "notes", "is_active",
+}
+
+
+def _serialize_character(char: Character, ctx: dict) -> dict:
+    data = CharacterRead.model_validate(char, from_attributes=True).model_dump()
+    if ctx.get("is_admin") and not ctx.get("view_as_player"):
+        return data
+    data["notes"] = None
+    if not data.get("show_background"):
+        data["background"] = None
+    return data
+
 
 async def _load_character(db: AsyncSession, character_id: int) -> Character:
     """Load a character with its organization eagerly loaded (needed for organization_name)."""
@@ -33,6 +48,18 @@ def _is_owner_or_admin(char: Character, ctx: dict) -> bool:
         return True
     caller_hash = hash_token(ctx["user_token"])
     return bool(char.owner_token and char.owner_token == caller_hash)
+
+
+def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
+    if ctx["is_admin"]:
+        data = body.model_dump()
+        data.pop("owner_token", None)
+        return data
+
+    data = body.model_dump(include=_PLAYER_WRITABLE_FIELDS)
+    data["is_pc"] = True
+    data["owner_token"] = hash_token(ctx["user_token"])
+    return data
 
 
 @router.get("/mine")
@@ -84,6 +111,7 @@ async def update_deck_builder_state(
 async def list_characters(
     is_pc: bool | None = Query(None, description="Filter by PC (true) or NPC (false)"),
     is_active: bool | None = Query(None),
+    ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Character).options(selectinload(Character.organization))
@@ -92,7 +120,7 @@ async def list_characters(
     if is_active is not None:
         q = q.where(Character.is_active == is_active)
     result = await db.execute(q.order_by(Character.name))
-    return result.scalars().all()
+    return [_serialize_character(char, ctx) for char in result.scalars().all()]
 
 
 @router.post("/", response_model=CharacterRead, status_code=201)
@@ -101,32 +129,20 @@ async def create_character(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    data = body.model_dump()
-    if not ctx["is_admin"]:
-        data["computer_skill_enabled"] = False
-        data["computer_skill_rating"] = 0
-        data["software_skill_enabled"] = False
-        data["software_skill_rating"] = 0
-        data["matrix_skill_enabled"] = False
-        data["matrix_skill_rating"] = 0
-        data["computer_br_skill_enabled"] = False
-        data["computer_br_skill_rating"] = 0
-    # Store the caller's token hash as owner only when a non-admin player creates a PC.
-    # Admin-created PCs (including all seeded data) remain unclaimed so players can claim them.
-    if data.get("is_pc", True) and not ctx["is_admin"]:
-        data["owner_token"] = hash_token(ctx["user_token"])
-    else:
-        data.pop("owner_token", None)
-    char = Character(**data)
+    char = Character(**_character_create_data(body, ctx))
     db.add(char)
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
-    return char
+    return _serialize_character(char, ctx)
 
 
 @router.get("/{character_id}", response_model=CharacterRead)
-async def get_character(character_id: int, db: AsyncSession = Depends(get_db)):
-    return await _load_character(db, character_id)
+async def get_character(
+    character_id: int,
+    ctx: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    return _serialize_character(await _load_character(db, character_id), ctx)
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
@@ -146,15 +162,13 @@ async def update_character(
 
     # Non-admins may only update a limited set of fields on their own PC
     if not is_admin:
-        allowed = {"name", "archetype", "title", "race", "nationality", "gender",
-                    "age", "description", "background", "notes", "is_active"}
         submitted = body.model_dump(exclude_unset=True)
-        forbidden = set(submitted.keys()) - allowed
+        forbidden = set(submitted.keys()) - _PLAYER_WRITABLE_FIELDS
         if forbidden:
             raise HTTPException(status_code=403, detail=f"Players cannot modify: {', '.join(sorted(forbidden))}")
 
     await apply_update(db, char, body, exclude={"owner_token"})
-    return char
+    return _serialize_character(char, ctx)
 
 
 @router.delete("/{character_id}", status_code=204)
@@ -201,16 +215,23 @@ async def claim_character(
     """Player or admin claims a PC by writing their token hash onto it."""
     claim_hash = hash_token(ctx["user_token"])
 
-    char = await _load_character(db, character_id)
-    if not char.is_pc:
-        raise HTTPException(status_code=400, detail="Only PC characters can be claimed")
-    if char.owner_token and char.owner_token != claim_hash:
+    result = await db.execute(
+        sql_update(Character)
+        .where(
+            Character.id == character_id,
+            Character.is_pc.is_(True),
+            (Character.owner_token.is_(None)) | (Character.owner_token == claim_hash),
+        )
+        .values(owner_token=claim_hash)
+    )
+    if result.rowcount != 1:
+        char = await _load_character(db, character_id)
+        if not char.is_pc:
+            raise HTTPException(status_code=400, detail="Only PC characters can be claimed")
         raise HTTPException(status_code=409, detail="Character is already claimed by another player")
 
-    char.owner_token = claim_hash
     await db.commit()
-    await db.refresh(char, attribute_names=["organization"])
-    return char
+    return _serialize_character(await _load_character(db, character_id), ctx)
 
 
 @router.post("/{character_id}/unclaim", response_model=CharacterRead)
@@ -231,4 +252,4 @@ async def unclaim_character(
     char.owner_token = None
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
-    return char
+    return _serialize_character(char, ctx)

@@ -94,12 +94,13 @@ ACTION_ROLE: dict[str, str] = {
 
 # Cost keys that intentionally are NOT ActionType members. Cybercombat attacks go
 # through the dedicated /attack endpoint (pass-budget key "attack") and Scan Icon through
-# the dedicated /enemy-decker/scan endpoint (pass-budget key "scan_icon"); "attack_ic" is a
-# vestigial key derived from the SYSTEM_OPERATIONS display table and is superseded by it.
-# "logon_to_ltg" is a documented VR2 System Operation intentionally NOT surfaced as a run
-# action -- a run begins already on a host, so LTG-logon is out of run scope (retired from
-# ActionType; see docs/matrix-reconciliation-report.md).
-_NON_ACTION_COST_KEYS: set[str] = {"attack", "attack_ic", "scan_icon", "logon_to_ltg"}
+# the dedicated /enemy-decker/scan endpoint (pass-budget key "scan_icon"); trap-door entry uses
+# its dedicated /trap-door/{id} endpoint; "attack_ic" is a vestigial key derived from the
+# SYSTEM_OPERATIONS display table and is superseded by it.
+
+_NON_ACTION_COST_KEYS: set[str] = {
+    "attack", "attack_ic", "scan_icon", "logon_to_ltg", "trap_door_enter",
+}
 
 
 def test_action_role_registry_matches_schema():

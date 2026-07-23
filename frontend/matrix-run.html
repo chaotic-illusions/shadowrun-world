@@ -635,29 +635,6 @@
   </div>
 </div>
 
-<!-- -- Reactive IC Resolution Modal (GM) ------------ -->
-<div class="modal-overlay" id="reactiveModal">
-  <div class="mr-modal-box" style="border-top-color:var(--amber)">
-    <div class="mr-modal-title" style="color:var(--amber)">&gt;&gt; RESOLVE REACTIVE IC</div>
-    <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:12px" id="reactiveModalTarget"></div>
-    <div class="setup-grid" style="gap:10px">
-      <div class="mr-field">
-        <label>Utility Name</label>
-        <input type="text" id="reactive-util-name" placeholder="Attack" maxlength="40">
-      </div>
-      <div class="mr-field">
-        <label>Utility Rating</label>
-        <input type="number" id="reactive-util-rating" min="1" max="50" value="1">
-      </div>
-    </div>
-    <div class="mr-modal-actions">
-      <button class="btn btn-amber" id="reactiveConfirmBtn" onclick="submitReactive()">&gt;&gt; Trigger Resolution</button>
-      <button class="btn btn-red" onclick="closeReactiveModal()">Cancel</button>
-    </div>
-    <div id="reactiveModalAlert" class="alert" style="margin-top:8px"></div>
-  </div>
-</div>
-
 <!-- -- Graceful Logoff Modal ------------------------- -->
 <div class="modal-overlay" id="logoffModal">
   <div class="mr-modal-box logoff-theme">
@@ -699,6 +676,7 @@
 </div>
 
 <script src="shared.js"></script>
+<script src="matrix-programs.js"></script>
 <script>
 'use strict';
 
@@ -708,7 +686,6 @@ const API = '';
 let _hosts    = [];
 let _run      = null;   // current MatrixRunRead
 let _attackTargetId   = null;
-let _reactiveTargetId = null;
 let _savedDecks = [];
 let _savedLoadouts = [];
 let _runLoadoutDraft = null;
@@ -795,10 +772,6 @@ function loadScopedStore(baseKey) {
   return _parseStoreSafely(localStorage.getItem(getProgrammerScopedStoreKey(baseKey)));
 }
 
-function saveScopedStore(baseKey, data) {
-  localStorage.setItem(getProgrammerScopedStoreKey(baseKey), JSON.stringify(data || []));
-}
-
 function targetUsesActive(target) {
   return target === 'active' || target === 'both';
 }
@@ -846,10 +819,7 @@ function normalizeUtilityName(rawName) {
 }
 
 function getProgramTypeKey(rawName) {
-  const norm = normalizeUtilityName(rawName);
-  if (!norm) return '';
-  if (norm === 'read/write') return 'read_write';
-  return norm.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return MatrixPrograms.keyOf(rawName);
 }
 
 function parseProgramIdentity(item) {
@@ -1096,13 +1066,11 @@ function renderLoadoutDraftEditor() {
 // Operates on _runLoadoutDraft.items. Mirrors the Deck Workshop loadout planner:
 // two memory pools (Active RAM + Storage), drag/drop or buttons to re-target a
 // program, and a hard space check that REFUSES any move which would overflow a pool.
-const LAO_CAT = {
-  attack: 'off', crash: 'off',
-  armor: 'def', shield: 'def', restore: 'def', medic: 'def',
-  sleaze: 'spc', camo: 'spc',
-};
 const _LAO_ORDER = { off: 0, def: 1, ops: 2, spc: 3 };
-function laoCatKey(utilName) { return LAO_CAT[normalizeUtilityName(utilName)] || 'ops'; }
+const _LAO_CAT_BY_NAME = { Offensive: 'off', Defensive: 'def', Operational: 'ops', Special: 'spc' };
+function laoCatKey(utilName) {
+  return _LAO_CAT_BY_NAME[MatrixPrograms.get(utilName)?.category] || 'ops';
+}
 function laoSortCmp(a, b) {
   return (_LAO_ORDER[laoCatKey(a.utilName)] - _LAO_ORDER[laoCatKey(b.utilName)])
     || String(a.utilName || '').localeCompare(String(b.utilName || ''));
@@ -2612,6 +2580,9 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
   if (!visible.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
   const _apOk = _canAffordCost((_run && _run.state_json) || {}, 'Simple');
+  // Strike Back programs are decker-wide (not per-enemy); empty => no valid Strike Back this run
+  // (e.g. an Attack Limited to IC with no cripplers loaded), so the strike row is hidden below.
+  const strikeOpts = _strikeOptionsHtml();
 
   list.innerHTML = visible.map(e => {
     const cm = (e.condition_monitor || {});
@@ -2654,10 +2625,10 @@ function renderEnemyDeckers(enemies, runEnded, crashed) {
         <div style="display:flex;gap:3px;flex:1">${renderConditionBoxesHTML(phys, 10, 'physical')}</div>
         <div class="cond-count">${phys}/10</div></div>` : ''}
       ${canHit ? `
-      <div class="enemy-strike-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">
-        <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">${_strikeOptionsHtml()}</select>
+      ${strikeOpts ? `<div class="enemy-strike-row" style="display:flex;gap:6px;align-items:center;margin-top:6px">
+        <select id="strike-pgm-${esc(e.id)}" style="flex:1;font-size:.6rem">${strikeOpts}</select>
         <button class="btn btn-red btn-sm" onclick="strikeEnemyDecker('${esc(e.id)}')" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
-      </div>
+      </div>` : ''}
       <div style="margin-top:5px;display:flex;gap:6px;align-items:center">
         <button class="btn btn-cyan btn-sm" style="white-space:nowrap;flex-shrink:0" onclick="scanEnemyDecker('${esc(e.id)}')" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'Scan Icon -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">Scan Icon <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
         <span style="font-size:.5rem;color:var(--text-dim)">Computer vs Masking &mdash; reveals hidden ratings</span>
@@ -2670,12 +2641,8 @@ async function strikeEnemyDecker(eid) {
   if (!_run) return;
   const sel = document.getElementById('strike-pgm-' + eid);
   const program = (sel && sel.value) || 'attack';
-  // Limit option: an Attack utility Limited to IC cannot target enemy deckers (server enforces this too).
-  if (program === 'attack'
-      && (((_run.decker_json || {}).program_options || {}).attack || {}).limit_target === 'ic') {
-    showAlert(null, 'Your Attack utility is Limited to IC -- it cannot target enemy deckers.', true);
-    return;
-  }
+  // (An Attack Limited to IC is filtered out of the Strike Back picker in _strikeOptionsHtml, so
+  // "attack" can never reach here against a decker; the backend still enforces it as a backstop.)
   const labels = {
     attack: 'Attack (crash icon)', poison: 'Poison (vs Bod)',
     restrict: 'Restrict (vs Evasion)', reveal: 'Reveal (vs Masking)',
@@ -2724,12 +2691,15 @@ async function analyzeIC(id) {
 // programs the runner actually carries (an option the decker lacks can't be fired). Attack is the
 // baseline; the rest appear only when their utility is loaded.
 function _strikeOptionsHtml() {
+  // An Attack utility Limited to IC cannot target an enemy decker, so drop the "attack" program
+  // from the Strike Back picker in that case (cripplers / Hog / lethal programs are unaffected).
+  const attackLimitedToIc = (_attackOptions().limit_target === 'ic');
   const opts = [
     ['attack', 'Attack (crash icon)'], ['poison', 'Poison (vs Bod)'],
     ['restrict', 'Restrict (vs Evasion)'], ['reveal', 'Reveal (vs Masking)'],
     ['hog', 'Hog (virus)'],
     ['black_hammer', 'Black Hammer (lethal Physical)'], ['killjoy', 'Killjoy (lethal Stun)'],
-  ].filter(([p]) => _carriedStrikeRating(p) > 0);
+  ].filter(([p]) => _carriedStrikeRating(p) > 0 && !(p === 'attack' && attackLimitedToIc));
   return opts.map(([p, lbl]) => `<option value="${p}">${lbl}</option>`).join('');
 }
 
@@ -2881,6 +2851,8 @@ function renderDownloadsPanel() {
 
 // Title-case a utility key ("read_write" -> "Read Write") for the memory panel.
 function prettyProg(name) {
+  const display = MatrixPrograms.get(name)?.display;
+  if (display) return display;
   return String(name || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
@@ -2971,45 +2943,9 @@ function memMeterBar(label, used, cap) {
   return h;
 }
 
-// Short SR2 program descriptions (what each utility does) keyed by decker_json.utilities key.
-// Shown with the program's memory size in the memory-panel chip tooltips. Sourced from the VR2
-// utility tables (same notes as the Deck Workshop catalog), condensed to one ASCII-only line.
-const PROGRAM_DESC = {
-  sleaze:       'Passive. Raises your Detection Factor: (Masking + Sleaze) / 2.',
-  camo:         'Adds Rating to your Trace Factor; also lowers Redirect Datatrail TN.',
-  scanner:      'Lowers the TN to locate other deckers and frames (Locate Decker/Frame).',
-  deception:    'Lowers the TN for Access tests (Logon, Graceful Logoff).',
-  analyze:      'Lowers the TN for Systems Tests that identify IC, icons, programs and security.',
-  evaluate:     'Finds valuable paydata in a host (Locate Paydata). Degrades 1-3 after each run.',
-  decrypt:      'Lowers the TN to decrypt Scramble IC (Access/File/Slave).',
-  defuse:       'Lowers the TN to defuse data bombs (File/Slave subsystem test).',
-  crash:        'Lowers the TN to crash a program or host (Crash Application/Host).',
-  mirrors:      'Lowers the TN for decoy operations (Decoy).',
-  validate_pgm: 'Lowers the TN for administrative tests (Validate Passcode).',
-  read_write:   'Lowers the TN for data tests (Download/Upload Data, Edit File).',
-  relocate:     'Lowers the Control-test TN to spoof Trace IC during a location cycle.',
-  attack:       'Standard cybercombat attack program; damage level is set at build time.',
-  poison:       'Crippler vs an enemy decker: attacks the MPCP Bod attribute.',
-  restrict:     'Crippler vs an enemy decker: attacks the MPCP Evasion attribute.',
-  reveal:       'Crippler vs an enemy decker: attacks the MPCP Masking attribute.',
-  hog:          'Virus vs an enemy decker: drains and crashes its programs until purged.',
-  black_hammer: 'Lethal (Physical) attack vs enemy deckers. Max rating = ceil(Computer / 2).',
-  killjoy:      'Non-lethal (Stun) attack vs enemy deckers. Max rating = ceil(Computer / 2).',
-  steamroller:  'Inflicts (Rating)D to Tar-Baby / Tar-Pit IC; immune to the tar backlash.',
-  slow:         'Opposed test that makes a proactive IC lose actions / hang for the round.',
-  cloak:        'Maneuver aid. Lowers your Evasion-test TN when YOU maneuver.',
-  lock_on:      'Maneuver aid. Lowers your Sensor-test TN to hold a lock on an evading icon.',
-  armor:        'Reduces the Power of attacks vs your persona. Loses 1 rating per damaging hit.',
-  shield:       'Parries attacks, cutting attacker/crippler net successes. Loses 1 rating per use.',
-  restore:      'Repairs persona attribute (BEMS) damage from cripplers. 1 point per 2 successes.',
-  medic:        'Heals persona condition damage. Loses 1 rating per use.',
-  disinfect:    'Destroys worm IC and raises the worm-infection TN (passive defense).',
-  compressor:   'Halves a downloaded file stored size (cap Rating x 100 Mp).',
-};
-
 // Tooltip for a program chip: brief description + memory size. Either part is omitted if unknown.
 function progTip(name, size) {
-  const desc = PROGRAM_DESC[name] || '';
+  const desc = MatrixPrograms.get(name)?.description || '';
   const mp = size ? `${size} Mp` : '';
   return desc && mp ? `${desc}\n\n${mp}` : (desc || mp);
 }
@@ -3095,32 +3031,6 @@ async function enterTrapDoor(id) {
       true
     );
   }
-}
-
-async function fileTrapDoor(id) {
-  if (!_run) return;
-  try {
-    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/trap-door/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'file' }),
-    });
-    if (!res.ok) await apiThrow(res);
-    renderRunState(await res.json());
-  } catch (e) {
-    showAlert(
-      document.getElementById('runAlert') || document.getElementById('pageAlert'),
-      `Filing trap door failed: ${e.message}`,
-      true
-    );
-  }
-}
-
-function showSetupView() {
-  document.getElementById('runView').style.display = 'none';
-  document.getElementById('setupView').style.display = '';
-  document.body.classList.remove('mr-run-active');
-  _run = null;
-  sessionStorage.removeItem('active_run_id');
 }
 
 // -- Render entire run state ------------------------------------------------
@@ -3355,6 +3265,9 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
   const el = document.getElementById('run-ic-list');
   if (!el) return;
   const _apOk = _canAffordCost((_run && _run.state_json) || {}, 'Simple');
+  // An Attack utility Limited to deckers cannot target IC -- disable the per-IC Attack button
+  // rather than let a click hit a submit-time guard. Other IC actions (Analyze, Slow) still apply.
+  const _atkLimitedVsIc = (_attackOptions().limit_target === 'decker');
 
   if (!icList.length && !lurkingList.length) {
     el.innerHTML = '<div class="empty-msg">No IC active</div>';
@@ -3449,7 +3362,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       </div>
       ${canAtk ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-red btn-sm" onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})" ${_apOk ? '' : 'disabled'} data-tip="${_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh'}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
+        <button class="btn btn-red btn-sm" ${(_apOk && !_atkLimitedVsIc) ? `onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})"` : 'disabled'} data-tip="${_atkLimitedVsIc ? 'Your Attack utility is Limited to deckers -- it cannot target IC.' : (_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh')}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
         ${((ic.detection_level || 3) < 3) ? `<button class="btn btn-cyan btn-sm" onclick="analyzeIC('${esc(ic.id)}')" data-tip="Analyze IC -- a Free action; each success reveals more of this IC (presence, then type, then rating &amp; options)">&gt;&gt; Analyze <span style="font-size:.5rem;opacity:.75">Free</span></button>` : ''}
         ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this round (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
       </div>` : ''}
@@ -3492,9 +3405,8 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
   if (lurkingList.length) {
     html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Lurking -- Reactive</div>`;
     html += lurkingList.map(ic => {
-      const canResolve = gm && !runEnded && !crashed;
       const isTar = ic.type === 'Tar Baby' || ic.type === 'Tar Pit';
-      const canSteamroll = canResolve && isTar;
+      const canSteamroll = gm && !runEnded && !crashed && isTar;
       return `
       <div class="ic-card ic-lurking">
         <div class="ic-head">
@@ -3505,7 +3417,6 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
           <span style="color:var(--amber)">Triggers on utility use</span>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${canResolve ? `<button class="btn btn-amber btn-sm" onclick="openReactiveModal('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})">&gt;&gt; Resolve (GM)</button>` : ''}
           ${canSteamroll ? `<button class="btn btn-red btn-sm" onclick="steamrollTar('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})" data-tip="Crush this tar IC with the Steamroller utility ((Rating)D damage, immune to the tar crash-backlash)">&gt;&gt; Steamroll</button>` : ''}
         </div>
       </div>`;
@@ -3577,81 +3488,6 @@ function renderStage(state, decker) {
   }
   const cta = document.getElementById('mr-stream-cta');
   if (cta) cta.innerHTML = stageRequiredAction(state);
-}
-
-// Latest event as a prominent result card: title + outcome badge, the narrative line, and the
-// dice behind it. The host/opposing roll only appears when the server included it -- it is
-// redacted for players (see _redact_event_tally), so a player sees only their own roll here.
-function stageResultCard(ev) {
-  const b = stageBadge(ev);
-  let inner = `<div class="stage-card-head">`
-    + `<span class="stage-card-title">${esc(stageActionTitle(ev))}</span>`
-    + `<span class="stage-badge" style="color:${b.c}">${esc(b.t)}</span>`
-    + `</div>`;
-  if (ev.description) inner += `<div class="stage-card-desc">${esc(ev.description)}</div>`;
-  let rolls = stageDice(ev.decker_roll, 'You');
-  if (ev.ic_roll)          rolls += stageDice(ev.ic_roll, 'IC');
-  if (ev.host_roll)        rolls += stageDice(ev.host_roll, 'Host');
-  if (ev.maneuvering_roll) rolls += stageDice(ev.maneuvering_roll, 'Maneuver');
-  if (ev.opposing_roll)    rolls += stageDice(ev.opposing_roll, 'Oppose');
-  if (rolls) inner += `<div class="stage-card-rolls">${rolls}</div>`;
-  if (ev.net_successes != null) {
-    inner += `<div class="stage-card-net">NET SUCCESSES <span>${esc(String(ev.net_successes))}</span></div>`;
-  }
-  return `<div class="stage-card">${inner}</div>`;
-}
-
-// One dice line: the roller's label (+TN), each die (hits and 1s highlighted), then the hit count.
-// `dice` holds post-explosion per-die totals, so `die >= tn` is an honest hit and `die === 1` a one.
-function stageDice(roll, label) {
-  if (!roll) return '';
-  const tn   = parseInt(roll.tn, 10);
-  const dice = Array.isArray(roll.dice) ? roll.dice : [];
-  const pips = dice.map(d => {
-    const v = parseInt(d, 10);
-    let cls = 'stage-die';
-    if (Number.isFinite(tn) && v >= tn) cls += ' stage-die-hit';
-    else if (v === 1) cls += ' stage-die-one';
-    return `<span class="${cls}">${esc(String(v))}</span>`;
-  }).join('');
-  if (!pips && roll.successes == null) return '';
-  const tnTxt = Number.isFinite(tn) ? ` &middot; TN ${esc(String(tn))}` : '';
-  const succ  = roll.successes ?? 0;
-  return `<div class="stage-roll">`
-    + `<span class="stage-roll-who">${esc(label)}${tnTxt}</span>`
-    + (pips ? `<span class="stage-dice">${pips}</span>` : '')
-    + `<span class="stage-roll-succ">&rarr; ${esc(String(succ))} success${succ == 1 ? '' : 'es'}</span>`
-    + `</div>`;
-}
-
-// Outcome badge for the card. Action-style events carry a boolean `success`; other event types map
-// to a short label. Kept compact on purpose -- the Event Log (right) still has the full per-type badge.
-function stageBadge(ev) {
-  if (typeof ev.success === 'boolean') {
-    return ev.success ? { t: 'SUCCESS', c: 'var(--green)' } : { t: 'FAILED', c: 'var(--red)' };
-  }
-  const map = {
-    new_turn:  { t: 'NEW ROUND', c: 'var(--cyan)' },
-    new_pass:  { t: 'NEW TURN',  c: 'var(--cyan)' },
-    ic_attack: { t: 'IC ATTACK', c: 'var(--red)' },
-    ic_spawn:  { t: 'IC SPAWN',  c: 'var(--amber)' },
-    crash:     { t: 'CRASH',     c: 'var(--red)' },
-    alert:     { t: 'ALERT',     c: 'var(--amber)' },
-  };
-  const t = String(ev.type || '');
-  return map[t] || { t: (t.replace(/_/g, ' ').toUpperCase() || 'RESULT'), c: 'var(--text-dim)' };
-}
-
-// Human-readable title for the card header: the action name when present, else the event type.
-// Analyze Subsystem appends its targeted subsystem (e.g. "Analyze Subsystem - Files") to match the
-// event-log label, so the player can easily re-reference which subsystem they probed.
-function stageActionTitle(ev) {
-  const raw = ev.action || ev.type || 'result';
-  let title = String(raw).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  if (ev.action === 'analyze_subsystem' && ev.subsystem) {
-    title += ' - ' + String(ev.subsystem).replace(/\b\w/g, c => c.toUpperCase());
-  }
-  return title;
 }
 
 // A required-action prompt on the game screen. The only one today is a banked Analyze Host: when the
@@ -4075,7 +3911,6 @@ function onActionTypeChange() {
   if (tag) {
     // Hide the AP cost when the action can't be taken -- a dimmed Perform shows no cost.
     tag.textContent = usable ? (cost === 'Free' ? 'Free' : `${need} AP`) : '';
-    tag.classList.remove('act-cost-short');
   }
   if (btn) {
     btn.disabled = !usable;
@@ -4200,23 +4035,6 @@ async function slowIC(id, type, rating) {
     utility_rating: slow,
     hacking_pool_dice: hp,
     target_ic_id: id,
-  });
-}
-
-// Decompress a stored COMPRESSED downloaded file back to full size (Complex Action, no test --
-// pure storage bookkeeping). The deck must have room for the uncompressed file; the backend
-// rejects it with a clear message when storage is too full. idx indexes state.downloaded_files.
-async function decompressFile(idx) {
-  if (!_run) return;
-  const ledger = (_run.state_json && _run.state_json.downloaded_files) || [];
-  const f = ledger[idx];
-  if (!f || !f.compressed) return;
-  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
-    action_type: 'decompress_file',
-    subsystem: 'files',
-    utility_rating: 0,
-    hacking_pool_dice: 0,
-    target_file: f.name || '',
   });
 }
 
@@ -4515,12 +4333,8 @@ async function submitAttack() {
   const hpMax  = (_run?.state_json?.hackingPool_remaining) ?? 0;
   const hpDice = Math.max(0, Math.min(parseInt(document.getElementById('atk-hp-dice').value) || 0, hpMax));
 
-  // Limit option: an Attack utility Limited to deckers cannot target IC (server enforces this too).
-  if ((((_run.decker_json || {}).program_options || {}).attack || {}).limit_target === 'decker') {
-    showAlert(null, 'Your Attack utility is Limited to deckers -- it cannot target IC.', true);
-    return;
-  }
-
+  // (An Attack Limited to deckers disables the per-IC Attack button in renderActiveIC, so this
+  // modal never opens for an IC in that case; the backend still enforces it as a backstop.)
   const btn = document.getElementById('attackConfirmBtn');
   btn.disabled = true;
   const targetId = _attackTargetId;
@@ -4567,12 +4381,6 @@ const _NPC_BEAT_TYPES = new Set([
   'ic_attack', 'defense_pending', 'persona_crash', 'dump_shock', 'simsense_overload',
   'probe_ic', 'ic_activation', 'ic_spawn', 'shield_parry',
 ]);
-function _hasNarratable(before, run) {
-  const events = ((run.state_json || {}).event_log) || [];
-  return events.slice(before).some(e => e && _NPC_BEAT_TYPES.has(e.type))
-    || !!(run.state_json || {}).pending_defense;
-}
-
 // A little authored atmosphere for the icon that just struck ({L} = its label).
 const _IC_FLAVOR = {
   'Killer':    ['{L} sharpens into a blade of light and cuts at your icon.', '{L} rezzes into a chrome mantis and fixes on you.'],
@@ -5123,47 +4931,6 @@ async function postAction(url, body) {
     _applyRunResponse(before, await res.json());
   } catch(e) {
     showAlert(document.getElementById('pageAlert'), `>> ${e.message}`, true);
-  }
-}
-
-// -- Reactive IC modal (GM only) --------------------------------------------
-function openReactiveModal(icId, icType, icRating) {
-  _reactiveTargetId = icId;
-  document.getElementById('reactiveModalTarget').textContent =
-    `${icLabel(icType, icRating)} -- triggered against which utility?`;
-  document.getElementById('reactive-util-name').value   = '';
-  document.getElementById('reactive-util-rating').value = '1';
-  document.getElementById('reactiveModalAlert').className = 'alert';
-  document.getElementById('reactiveModal').classList.add('open');
-}
-
-function closeReactiveModal() {
-  document.getElementById('reactiveModal').classList.remove('open');
-  _reactiveTargetId = null;
-}
-
-async function submitReactive() {
-  if (!_run || !_reactiveTargetId) return;
-  const utilName   = document.getElementById('reactive-util-name').value.trim();
-  const utilRating = parseInt(document.getElementById('reactive-util-rating').value) || 0;
-  if (!utilName)     { showAlert(document.getElementById('reactiveModalAlert'), 'Enter utility name.', true); return; }
-  if (utilRating < 1){ showAlert(document.getElementById('reactiveModalAlert'), 'Utility rating must be >= 1.', true); return; }
-
-  const btn = document.getElementById('reactiveConfirmBtn');
-  btn.disabled = true;
-  try {
-    const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/resolve-reactive`, {
-      method: 'POST',
-      body: JSON.stringify({ ic_id: _reactiveTargetId, utility_name: utilName, utility_rating: utilRating }),
-    });
-    if (!res.ok) await apiThrow(res);
-    const updated = await res.json();
-    closeReactiveModal();
-    renderRunState(updated);
-  } catch(e) {
-    showAlert(document.getElementById('reactiveModalAlert'), e.message, true);
-  } finally {
-    btn.disabled = false;
   }
 }
 

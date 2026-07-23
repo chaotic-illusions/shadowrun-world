@@ -13,9 +13,9 @@ async def get_admin_token(
     _rl: None = Depends(enforce_rate_limit),
 ) -> str:
     if not x_admin_token or not await verify_admin_token(db, x_admin_token):
-        record_failure(request)
+        record_failure(request, "admin")
         raise HTTPException(status_code=403, detail="Admin token required")
-    record_success(request)
+    record_success(request, "admin")
     return x_admin_token
 
 
@@ -33,12 +33,14 @@ async def get_any_token(
     # admin-only guards still hold), and it can only ever REDUCE what is returned, never escalate.
     view_as_player = x_runner_view not in (None, "", "0", "false", "False")
     if x_admin_token and await verify_admin_token(db, x_admin_token):
-        record_success(request)
+        record_success(request, "admin")
         return {"is_admin": True, "is_user": True, "user_token": x_admin_token,
                 "view_as_player": view_as_player}
+    if x_admin_token:
+        record_failure(request, "admin")
     if x_user_token and await verify_user_token(db, x_user_token):
-        record_success(request)
+        record_success(request, "user")
         return {"is_admin": False, "is_user": True, "user_token": x_user_token,
                 "view_as_player": view_as_player}
-    record_failure(request)
+    record_failure(request, "user")
     raise HTTPException(status_code=401, detail="Valid token required")

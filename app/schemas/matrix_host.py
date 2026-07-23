@@ -49,6 +49,20 @@ class MatrixHostRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MatrixHostPlayerRead(BaseModel):
+    id: int
+    name: str
+    owner_org_id: Optional[int] = None
+    location_id: Optional[int] = None
+    is_visible_to_players: bool
+    ltg_address: Optional[str] = None
+    id_code: Optional[str] = None
+    is_trap_door_dest: bool = False
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class MatrixHostSummary(BaseModel):
     id: int
     name: str
