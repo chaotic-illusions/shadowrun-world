@@ -3620,7 +3620,7 @@ function stageDice(roll, label) {
   return `<div class="stage-roll">`
     + `<span class="stage-roll-who">${esc(label)}${tnTxt}</span>`
     + (pips ? `<span class="stage-dice">${pips}</span>` : '')
-    + `<span class="stage-roll-succ">&rarr; ${esc(String(succ))} hit${succ == 1 ? '' : 's'}</span>`
+    + `<span class="stage-roll-succ">&rarr; ${esc(String(succ))} success${succ == 1 ? '' : 'es'}</span>`
     + `</div>`;
 }
 
@@ -4609,8 +4609,14 @@ function _streamDiceHtml(roll, label) {
   if (!pips && !shieldPips) return '';
   const succ = roll.successes != null ? roll.successes : 0;
   const tnTxt = Number.isFinite(tn) ? ` <span class="mr-tn">vs TN ${esc(String(tn))}</span>` : '';
-  const shieldTxt = shieldPips ? ` <span style="color:var(--cyan)">+shield</span> ${shieldPips}` : '';
-  return `${esc(label)}${tnTxt} ${pips}${shieldTxt} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> hit${succ == 1 ? '' : 's'}`;
+  const base = `${esc(label)}${tnTxt} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> success${succ == 1 ? '' : 'es'}`;
+  if (!shieldPips) return base;
+  // Shield parry: show its OWN successes (cyan). They ADD to the persona's defence (crippler/ripper)
+  // or reduce the attacker's damage (cybercombat/black), so they are counted separately from the
+  // base roll rather than silently merged into its hit total.
+  const ss = parseInt(roll.shield_successes, 10);
+  const ssTxt = Number.isFinite(ss) ? ` &rarr; <b style="color:var(--cyan)">${esc(String(ss))}</b>` : '';
+  return `${base} <span style="color:var(--cyan)">+shield</span> ${shieldPips}${ssTxt}`;
 }
 
 function _beatClassFor(ev) {
