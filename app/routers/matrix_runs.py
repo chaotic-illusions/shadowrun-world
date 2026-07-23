@@ -1922,11 +1922,12 @@ def _shield_parry(state: dict, decker: dict, *, attacker_skill: int, context: st
     if rating <= 0:
         return 0
     res, succ, remaining = _shield_parry_core(state, rating=rating, attacker_skill=attacker_skill)
-    # Stash the Shield dice so the attacker's event can fold them into its resist/defence roll for
-    # display (the parry ADDS to the persona's defence, vr2). The caller pops this right after the
-    # strike resolves; the standalone shield_parry event is kept for the GM/AAR, but the client
-    # renders these dice inline (a distinct colour) on the resist line rather than a separate line.
-    state["_shield_dice_pending"] = list(res["roll"].get("dice", []))
+    # Stash the Shield dice + successes so the attacker's event can fold them into its resist/defence
+    # roll for display (the parry ADDS to the persona's defence / reduces the attacker, vr2). The
+    # caller pops this right after the strike resolves; the standalone shield_parry event is kept for
+    # the GM/AAR, but the client renders these dice inline (a distinct colour) with the shield's own
+    # success count on the resist line rather than a separate line.
+    state["_shield_dice_pending"] = {"dice": list(res["roll"].get("dice", [])), "successes": succ}
     _append_event(state, {
         "type": "shield_parry",
         "context": context,
@@ -5336,9 +5337,10 @@ def _resolve_ic_cybercombat(state: dict, decker: dict, ic: dict, *, ic_attack_po
 
     _add_cm_damage(state["condition_monitor"], "persona_boxes", boxes)
     _wear_armor(state, state, decker, boxes)
-    _sp_dice = state.pop("_shield_dice_pending", None)
-    if _sp_dice:
-        attack["resistance"]["resist_roll"]["shield_dice"] = _sp_dice
+    _sp = state.pop("_shield_dice_pending", None)
+    if _sp:
+        attack["resistance"]["resist_roll"]["shield_dice"] = _sp["dice"]
+        attack["resistance"]["resist_roll"]["shield_successes"] = _sp["successes"]
     _append_event(state, {
         "type": "ic_attack",
         "ic_id": ic["id"],
@@ -5635,9 +5637,10 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 mpcp_rating=decker.get("mpcp", 1),
                 hardening=decker.get("hardening", 0),
             )
-            _sp_dice = state.pop("_shield_dice_pending", None)
-            if _sp_dice and result.get("defense_roll"):
-                result["defense_roll"]["shield_dice"] = _sp_dice
+            _sp = state.pop("_shield_dice_pending", None)
+            if _sp and result.get("defense_roll"):
+                result["defense_roll"]["shield_dice"] = _sp["dice"]
+                result["defense_roll"]["shield_successes"] = _sp["successes"]
             reduction = result["reduction"]
             atk_succ = result["attack_roll"]["successes"]
             def_succ = result["defense_roll"]["successes"]
@@ -5701,9 +5704,10 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                 meat_pool=decker.get("willpower", 4) if is_non_lethal else decker.get("body", 4),
                 meat_is_stun=is_non_lethal,
             )
-            _sp_dice = state.pop("_shield_dice_pending", None)
-            if _sp_dice:
-                black["icon"]["resist_roll"]["shield_dice"] = _sp_dice   # parry folds into the persona (Bod) resist
+            _sp = state.pop("_shield_dice_pending", None)
+            if _sp:
+                black["icon"]["resist_roll"]["shield_dice"] = _sp["dice"]
+                black["icon"]["resist_roll"]["shield_successes"] = _sp["successes"]   # parry folds into the persona (Bod) resist
             persona_boxes = black["icon"]["boxes"]
             meat_boxes    = black["meat"]["boxes"]
             # vr2 L612: after the FIRST Black IC hit (even if no damage), jacking out stops being a
