@@ -246,12 +246,12 @@ def test_defend_zero_hp_resists_with_bod_alone(monkeypatch):
     assert state["pending_defense"] is None
 
 
-def test_defend_caps_hp_at_remaining(monkeypatch):
-    # Request more dice than remain -> capped at the pool, never negative.
-    run, pools = _run_defend(monkeypatch, 40)
-    state = run.state_json
-    assert 12 in pools                                    # Bod 6 + capped 6 Hacking Pool
-    assert state["hackingPool_remaining"] == 0
+def test_defend_rejects_hp_over_remaining(monkeypatch):
+    # Request more Hacking Pool dice than remain -> 400 (block, don't clamp), matching every other
+    # spendable-resource path in the app. _spend_hp raises before the strike resolves.
+    with pytest.raises(HTTPException) as ei:
+        _run_defend(monkeypatch, 40)
+    assert ei.value.status_code == 400
 
 
 def test_defend_without_pending_400(monkeypatch):
@@ -274,7 +274,8 @@ def test_defend_without_pending_400(monkeypatch):
 
 def test_pending_defense_ctx_redacted_for_player():
     """The prompt is player-visible, but its internal ctx (host Security code/value) must be
-    stripped server-side so an unanalyzed host's Security Rating cannot leak through it."""
+    stripped server-side, and an UNANALYZED attacker's identity (type/rating) must be masked so it
+    cannot leak through the prompt before an Analyze IC (M1)."""
     decker = _pc_decker()
     state = _pc_state(interactive=True)
     state["host_security_revealed"] = False
@@ -286,13 +287,78 @@ def test_pending_defense_ctx_redacted_for_player():
     pstate = view["state_json"]
     # host Security Rating stays hidden...
     assert "host_security_value" not in pstate
-    # ...and so does the pending prompt's internal ctx, while the display fields survive.
+    # ...the pending prompt's internal ctx is stripped...
     pend = pstate["pending_defense"]
     assert "ctx" not in pend
     assert "resume_logon_completed" not in pend
-    assert pend["attacker_label"] == "Killer-6"
+    # ...and an unidentified IC's identity is masked: label -> "Unknown IC", raw to-hit roll gone.
+    assert pend["attacker_label"] == "Unknown IC"
+    assert "to_hit_roll" not in pend
+    # The incoming force (successes + Power) is still shown so the player can size their defense.
     assert pend["attack_successes"] == 3
+    assert pend["power"] == 6
 
-    # An admin (GM) still sees the full ctx.
+    # Once the IC is identified (Analyze IC -> analyzed), the real label + roll are disclosed.
+    ic["analyzed"] = True
+    pend2 = mr._serialize_run(_RunStub(decker, state), _PLAYER)["state_json"]["pending_defense"]
+    assert pend2["attacker_label"] == "Killer-6"
+    assert "to_hit_roll" in pend2
+
+    # An admin (GM) always sees the full ctx.
     gm = mr._serialize_run(_RunStub(decker, state), _ADMIN)
     assert gm["state_json"]["pending_defense"]["ctx"]["sec_value"] == 6
+
+
+# -- Force-resolve a parked strike when the decker ends the run (logoff / jack out) -------------
+
+def test_force_resolve_pending_defense_resolves_parked_strike(monkeypatch):
+    """A parked IC strike must still resolve (Bod-only, no Hacking Pool) when the decker bails --
+    you cannot dodge a landed hit's consequences by logging off / jacking out."""
+    def _rd(pool, tn=4):
+        return {"pool": pool, "tn": tn, "dice": [], "successes": 0, "ones": 0}  # decker resists 0
+    monkeypatch.setattr(eng, "roll_dice", _rd)
+
+    decker = _pc_decker()
+    state = _pc_state(interactive=True)
+    ic = _killer()
+    ic["acted_pass"] = 1
+    state["active_ic"] = [ic]
+    state["pending_defense"] = _pending_for(state, ic, _to_hit(3))
+    run = _RunStub(decker, state)
+
+    ended = mr._force_resolve_pending_defense(state, decker, run)
+
+    assert state["pending_defense"] is None                                   # prompt consumed
+    assert any(e.get("type") == "ic_attack" for e in state["event_log"])      # strike resolved
+    assert state["condition_monitor"]["persona_boxes"] > 0                    # the hit landed
+    assert isinstance(ended, bool)
+
+
+def test_jack_out_resolves_parked_strike_first(monkeypatch):
+    """Jacking out while a defense is pending resolves the parked strike first (the L1 wiring),
+    then completes the jack-out -- the decker does not escape the landed hit."""
+    def _rd(pool, tn=4):
+        return {"pool": pool, "tn": tn, "dice": [], "successes": 0, "ones": 0}
+    monkeypatch.setattr(eng, "roll_dice", _rd)
+    monkeypatch.setattr(mr, "_apply_dump_shock",
+                        lambda *a, **k: {"final_level": "None", "boxes": 0})
+    monkeypatch.setattr(mr, "_finalize_run_end", lambda state: None)
+
+    decker = _pc_decker()
+    state = _pc_state(interactive=True)
+    ic = _killer()
+    ic["acted_pass"] = 1
+    state["active_ic"] = [ic]
+    state["pending_defense"] = _pending_for(state, ic, _to_hit(3))
+    run = _RunStub(decker, state)
+
+    async def _get(db, run_id):
+        return run
+    monkeypatch.setattr(mr, "_get_run_or_404", _get)
+
+    asyncio.run(mr.jack_out(run_id=1, auth=_ADMIN, db=_FakeDB()))
+
+    # The parked strike was resolved before jack-out completed: prompt gone, hit logged, run ended.
+    assert run.state_json["pending_defense"] is None
+    assert any(e.get("type") == "ic_attack" for e in run.state_json["event_log"])
+    assert run.state_json.get("run_ended") is True

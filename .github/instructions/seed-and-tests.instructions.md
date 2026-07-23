@@ -6,7 +6,7 @@ applyTo: "seed.py,tests/**"
 
 ## seed.py
 - Uses `httpx.Client` (sync) with `base_url` and `headers={"X-Admin-Token": token}`
-- Auth: `--admin-token` CLI arg overrides `BOOTSTRAP_ADMIN_KEY` env var (default `shadowrunner`)
+- Auth: `--admin-token` CLI arg overrides `BOOTSTRAP_ADMIN_KEY`; Docker Compose supplies `shadowrunner` by default, while direct local runs must set one explicitly
 - Seed order: RTGs -> Organizations -> (org ally/enemy links) -> Locations -> Characters -> Contacts -> Org Standings -> Adventure Logs
 - `post(client, path, payload)` -- raises `RuntimeError` on `HTTPStatusError` or `RequestError`
 - `patch(client, path, payload)` -- same error contract as `post`

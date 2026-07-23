@@ -1,4 +1,5 @@
 """Tests for the auth rate limiter."""
+import asyncio
 import time
 import pytest
 from unittest.mock import MagicMock
@@ -23,6 +24,11 @@ def _tok_request(token: str | None = None, ip: str = "127.0.0.1") -> MagicMock:
     req.client.host = ip
     req.headers = {"x-user-token": token} if token else {}
     return req
+
+
+def _throttle(req) -> None:
+    """Run the async throttle dependency to completion (it has no awaits)."""
+    asyncio.run(enforce_call_rate(req))
 
 
 @pytest.fixture(autouse=True)
@@ -70,8 +76,8 @@ class TestRecordFailure:
     def test_first_failure(self):
         req = _mock_request()
         record_failure(req)
-        assert "127.0.0.1" in _attempts
-        failures, _ = _attempts["127.0.0.1"]
+        assert ("127.0.0.1", "any") in _attempts
+        failures, _ = _attempts[("127.0.0.1", "any")]
         assert failures == 1
 
     def test_consecutive_failures(self):
@@ -79,29 +85,45 @@ class TestRecordFailure:
         record_failure(req)
         record_failure(req)
         record_failure(req)
-        failures, _ = _attempts["127.0.0.1"]
+        failures, _ = _attempts[("127.0.0.1", "any")]
         assert failures == 3
 
     def test_different_ips_independent(self):
         record_failure(_mock_request("1.1.1.1"))
         record_failure(_mock_request("2.2.2.2"))
         record_failure(_mock_request("2.2.2.2"))
-        assert _attempts["1.1.1.1"][0] == 1
-        assert _attempts["2.2.2.2"][0] == 2
+        assert _attempts[("1.1.1.1", "any")][0] == 1
+        assert _attempts[("2.2.2.2", "any")][0] == 2
+
+    def test_credential_scopes_are_independent(self):
+        req = _mock_request()
+        record_failure(req, "admin")
+        record_failure(req, "user")
+        record_failure(req, "admin")
+        assert _attempts[("127.0.0.1", "admin")][0] == 2
+        assert _attempts[("127.0.0.1", "user")][0] == 1
 
 
 class TestRecordSuccess:
     def test_clears_entry(self):
         req = _mock_request()
         record_failure(req)
-        assert "127.0.0.1" in _attempts
+        assert ("127.0.0.1", "any") in _attempts
         record_success(req)
-        assert "127.0.0.1" not in _attempts
+        assert ("127.0.0.1", "any") not in _attempts
 
     def test_noop_when_clean(self):
         req = _mock_request()
         record_success(req)  # should not raise
-        assert "127.0.0.1" not in _attempts
+        assert ("127.0.0.1", "any") not in _attempts
+
+    def test_user_success_does_not_clear_admin_failures(self):
+        req = _mock_request()
+        record_failure(req, "admin")
+        record_failure(req, "user")
+        record_success(req, "user")
+        assert ("127.0.0.1", "admin") in _attempts
+        assert ("127.0.0.1", "user") not in _attempts
 
 
 class TestBackoffCalculation:
@@ -124,24 +146,24 @@ class TestCallRateThrottle:
     def test_allows_up_to_limit(self):
         req = _tok_request("tokenA")
         for _ in range(CALL_LIMIT):
-            enforce_call_rate(req)  # should not raise
+            _throttle(req)  # should not raise
         assert len(_calls[_throttle_key(req)]) == CALL_LIMIT
 
     def test_blocks_over_limit(self):
         req = _tok_request("tokenA")
         for _ in range(CALL_LIMIT):
-            enforce_call_rate(req)
+            _throttle(req)
         with pytest.raises(HTTPException) as exc:
-            enforce_call_rate(req)
+            _throttle(req)
         assert exc.value.status_code == 429
 
     def test_tokens_have_separate_buckets(self):
         a = _tok_request("tokenA")
         b = _tok_request("tokenB")
         for _ in range(CALL_LIMIT):
-            enforce_call_rate(a)
+            _throttle(a)
         # A is full, but B is a fresh bucket and must still be allowed.
-        enforce_call_rate(b)  # should not raise
+        _throttle(b)  # should not raise
         assert len(_calls[_throttle_key(b)]) == 1
 
     def test_key_prefers_token_over_shared_ip(self):
@@ -163,9 +185,9 @@ class TestCallRateThrottle:
     def test_window_expiry_allows_again(self):
         req = _tok_request("tokenA")
         for _ in range(CALL_LIMIT):
-            enforce_call_rate(req)
+            _throttle(req)
         key = _throttle_key(req)
         # Backdate every recorded call to before the window -> they all prune on the next hit.
         _calls[key] = [t - CALL_WINDOW - 1 for t in _calls[key]]
-        enforce_call_rate(req)  # window cleared -> allowed again
+        _throttle(req)  # window cleared -> allowed again
         assert len(_calls[key]) == 1

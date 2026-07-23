@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import UserToken
 
-DEFAULT_ADMIN_PASSWORD = os.environ.get("BOOTSTRAP_ADMIN_KEY", "shadowrunner")
+
+def _bootstrap_admin_key() -> str | None:
+    """Return the explicitly configured bootstrap key, or None when bootstrap is disabled."""
+    key = os.environ.get("BOOTSTRAP_ADMIN_KEY", "").strip()
+    return key or None
 
 
 def hash_token(token: str) -> str:
@@ -27,22 +31,23 @@ async def _active_admin_exists(db: AsyncSession) -> bool:
 
 
 async def verify_admin_token(db: AsyncSession, token: str) -> bool:
-    """Returns True if token matches any admin token, or the bootstrap default."""
+    """Returns True for an admin token, or an explicitly configured bootstrap key."""
     h = hash_token(token)
     result = await db.execute(
         select(UserToken).where(UserToken.token_hash == h, UserToken.is_admin == True)  # noqa: E712
     )
     if result.scalars().first():
         return True
-    # Fall back to bootstrap default only when no admin tokens exist yet
-    if not await _active_admin_exists(db):
-        return secrets.compare_digest(token, DEFAULT_ADMIN_PASSWORD)
+    # Bootstrap is opt-in and only available until the first admin token exists.
+    bootstrap_key = _bootstrap_admin_key()
+    if bootstrap_key and not await _active_admin_exists(db):
+        return secrets.compare_digest(token, bootstrap_key)
     return False
 
 
 async def is_default_admin_password(db: AsyncSession) -> bool:
-    """True if no admin tokens have been created yet -- user needs to set one."""
-    return not await _active_admin_exists(db)
+    """True while the explicitly configured bootstrap key is the active admin credential."""
+    return bool(_bootstrap_admin_key()) and not await _active_admin_exists(db)
 
 
 async def get_token_record(db: AsyncSession, token: str) -> UserToken | None:

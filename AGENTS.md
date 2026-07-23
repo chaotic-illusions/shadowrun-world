@@ -130,8 +130,9 @@ unbeatable** (a flat d6 maxes at 6) and the test silently always yields 0 succes
 - `requirements.txt` is pinned -- bump deliberately (the `anthropic`/`aiofiles`/
   `pytest-asyncio` lines are bounded ranges, not exact). For a real (exposed) deployment
   also: run the container as non-root (`USER` -- not yet done), and revisit `CORS_ORIGINS`
-  (`*` is safe with header auth) and the default `BOOTSTRAP_ADMIN_KEY=shadowrunner` before
-  going past the default `127.0.0.1` binding.
+  (`*` is safe with header auth) before going past the default `127.0.0.1` binding. Docker
+  Compose defaults `BOOTSTRAP_ADMIN_KEY` to `shadowrunner` so fresh installs are accessible;
+  override it before exposing the service beyond the local machine.
 
 ---
 

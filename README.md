@@ -14,7 +14,7 @@ A FastAPI + SQLite campaign management tool for **Shadowrun 2nd Edition** GMs. T
 
 | Variable | Default | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` | Initial admin password for first login and `seed.py` |
+| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` in Docker Compose | Initial admin password; also used by `seed.py` when `--admin-token` is omitted |
 | `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key for AI narrative parsing |
 | `CLAUDE_MODEL` | `claude-sonnet-4-6` | Claude model for the narrative parser |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins for CORS |
@@ -27,6 +27,10 @@ docker compose up --build
 ```
 
 The container runs uvicorn on port 8000, serves the frontend at `/ui/`, and stores the SQLite DB in `./data/`. Frontend files are mounted as a volume for live editing.
+
+For a fresh Compose install, the initial admin password is `shadowrunner`. Set
+`BOOTSTRAP_ADMIN_KEY` before `docker compose up` to override it. The bootstrap
+password stops working after the first real admin token is created.
 
 ### Encoding Guardrails (Prevent Mojibake)
 
@@ -73,6 +77,10 @@ The seed script populates a fresh database from `data/world_seed.json`:
 python seed.py [--url http://localhost:8000] [--file data/world_seed.json]
 ```
 
+Pass an existing admin credential with `--admin-token`, or set
+`BOOTSTRAP_ADMIN_KEY` before the first admin token is created. Docker Compose sets
+it to `shadowrunner` by default; direct local Python runs do not provide a default.
+
 Seed order: RTGs -> Organizations (+ ally/enemy links) -> Locations -> Characters (+ reputation records) -> Contacts -> Org Standings -> Adventure Logs.
 
 **`reseed.sh`** (Linux) and **`reseed.bat`** (Windows) provide a menu to either restart the container or do a full wipe-and-reseed. The Linux script runs `seed.py` inside the container so no host Python dependencies are needed.
@@ -88,7 +96,7 @@ Token-based access control with two roles:
 | **Admin** | `X-Admin-Token` | Full read/write on all data; manage tokens; see all characters, hidden Matrix hosts, GM notes |
 | **Player** | `X-User-Token` | Read-only on most data; edit own characters; see visible Matrix hosts only |
 
-On first boot, the `BOOTSTRAP_ADMIN_KEY` env var is accepted as the admin password. After that, GMs create named tokens via the Manage Tokens page. Tokens are stored as SHA-256 hashes -- the plaintext is shown once at creation and never again.
+On first boot, an explicitly configured `BOOTSTRAP_ADMIN_KEY` is accepted as the admin password. After the first admin token is created, the bootstrap key is ignored. GMs create named tokens via the Manage Tokens page. Tokens are stored as SHA-256 hashes -- the plaintext is shown once at creation and never again.
 
 Characters can be claimed by player tokens. Regenerating a token automatically reassigns all claimed characters to the new hash.
 

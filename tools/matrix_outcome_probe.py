@@ -96,9 +96,13 @@ class FixedRandom:
 
 
 ROLL = ScriptedRollDice()
-eng.roll_dice = ROLL
-eng.random = FixedRandom()
-mr.random = FixedRandom()
+# This probe deterministically drives the engine, so it monkeypatches the shared engine/router
+# RNG. Guarded under __main__ so merely IMPORTING this module never corrupts eng.roll_dice /
+# eng.random / mr.random for the rest of the process -- only running it as a script patches.
+if __name__ == "__main__":
+    eng.roll_dice = ROLL
+    eng.random = FixedRandom()
+    mr.random = FixedRandom()
 
 
 # --------------------------------------------------------------------- fake I/O

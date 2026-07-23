@@ -15,6 +15,7 @@ buffer has been started for the current context.
 """
 from __future__ import annotations
 
+import logging
 import os
 from contextvars import ContextVar
 from datetime import datetime, UTC
@@ -75,5 +76,9 @@ def flush_run(run_id: int, header: str, lines: list[str]) -> None:
         block.append("")
         with (_TRACE_DIR / f"run_{run_id}.log").open("a", encoding="utf-8") as fh:
             fh.write("\n".join(block) + "\n")
-    except Exception:
-        pass
+    except OSError:
+        # Observability must never break gameplay, but a filesystem failure (bad path, full disk,
+        # permissions) should leave a breadcrumb rather than vanish silently. Debug-level only.
+        logging.getLogger(__name__).debug(
+            "run_trace: failed to write trace for run %s", run_id, exc_info=True
+        )

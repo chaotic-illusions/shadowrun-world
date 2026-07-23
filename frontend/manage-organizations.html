@@ -240,6 +240,7 @@ let hostCount = 0;
 let allOrgs = [];
 let allRTGs = [];
 let editingId = null;
+let orgEditRequestId = 0;
 
 const VIS_ORDER   = { listed: 0, unlisted: 1, black: 2 };
 const COLOR_ORDER = { blue: 0, green: 1, orange: 2, red: 3, black: 4 };
@@ -278,7 +279,7 @@ function updateModalBadge(orgType, tier) {
   if (!orgType && !tier) { badge.innerHTML = ''; return; }
   const typeLabel = (orgType || 'UNKNOWN').toUpperCase();
   badge.innerHTML = `
-    <span class="cc-race-prof text-amber">${typeLabel}</span>
+    <span class="cc-race-prof text-amber">${esc(typeLabel)}</span>
     <span class="dim-meta">&#183;</span>
     <span style="color:#6699cc;font-size:0.65rem;letter-spacing:1px;padding:2px 7px;border:1px solid #1a2a44">TIER ${tier} // ${(TIER_NAMES[tier]||'').toUpperCase()}</span>
     `;
@@ -471,8 +472,9 @@ function getRevealed(containerId) {
 
 // -- Modal open/close ------------------------------------------
 function openModal(id) {
+  const requestId = ++orgEditRequestId;
   if (id) {
-    loadOrgForEdit(id);
+    loadOrgForEdit(id, requestId);
   } else {
     resetForm();
   }
@@ -482,6 +484,7 @@ function openModal(id) {
 }
 
 function closeModal() {
+  orgEditRequestId++;
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
@@ -514,12 +517,15 @@ function resetForm() {
   renderOrgChecks(allOrgs);
 }
 
-async function loadOrgForEdit(id) {
+async function loadOrgForEdit(id, requestId) {
   try {
     const res = await apiFetch(`${API}/organizations/${id}`);
     if (!res.ok) throw new Error('Not found');
-    populateForm(await res.json());
+    const org = await res.json();
+    if (requestId !== orgEditRequestId) return;
+    populateForm(org);
   } catch(e) {
+    if (requestId !== orgEditRequestId) return;
     showAlert(document.getElementById('alert'), `>> LOAD FAILED // ${e.message}`, true);
   }
 }

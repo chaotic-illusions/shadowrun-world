@@ -1,13 +1,15 @@
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db
-from app.models.adventure_log import AdventureLog
+from app.models.adventure_log import AdventureLog, AdventureRunCounter
 from app.models.character import Character
 from app.models.location import Location
 from app.models.organization import Organization
@@ -22,7 +24,7 @@ from app.services.heat_calculator import (
     decay_pa, decay_standing, decay_heat, pc_rep_label, team_rep_label, pa_label,
     LYING_LOW_DECAY_ACCEL,
 )
-from app.auth.dependencies import get_admin_token
+from app.auth.dependencies import get_admin_token, get_any_token
 
 
 # -- Narrative parsing schemas ---------------------------------
@@ -31,7 +33,7 @@ class NarrativeParseRequest(BaseModel):
 
 
 class ChangeItem(BaseModel):
-    type: str
+    type: Literal["street_cred", "notoriety", "public_awareness", "org_standing", "heat"]
     character_id: int
     character_name: Optional[str] = None
     delta: int
@@ -97,6 +99,28 @@ async def _resolve_relations(
             missing = sorted(set(org_ids) - found_ids)
             raise HTTPException(status_code=422, detail=f"Unknown organization IDs: {missing}")
         log.orgs_involved = found
+
+
+async def _allocate_run_number(db: AsyncSession) -> int:
+    next_existing = (
+        select(func.coalesce(func.max(AdventureLog.run_number), 0) + 1)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        sqlite_insert(AdventureRunCounter)
+        .values(id=1, last_run_number=next_existing)
+        .on_conflict_do_update(
+            index_elements=[AdventureRunCounter.id],
+            set_={
+                "last_run_number": func.max(
+                    AdventureRunCounter.last_run_number + 1,
+                    next_existing,
+                )
+            },
+        )
+        .returning(AdventureRunCounter.last_run_number)
+    )
+    return result.scalar_one()
 
 
 @router.get("/party-stats")
@@ -221,10 +245,7 @@ async def create_log(
     _: str = Depends(get_admin_token),
 ):
     data = body.model_dump(exclude={"participant_ids", "location_ids", "org_ids"})
-
-    max_run_result = await db.execute(select(func.max(AdventureLog.run_number)))
-    max_run = max_run_result.scalar() or 0
-    data["run_number"] = max_run + 1
+    data["run_number"] = await _allocate_run_number(db)
 
     if data.get("outcome_tags"):
         data["consequences_suggested"] = suggest(data["outcome_tags"])
@@ -244,7 +265,11 @@ async def create_log(
     await _resolve_relations(db, log, body.participant_ids, body.location_ids, body.org_ids)
 
     db.add(log)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Adventure run number already exists") from exc
     return await _get_or_404(db, log.id)
 
 
@@ -388,8 +413,18 @@ async def apply_world_changes(
 
 
 @router.get("/{log_id}", response_model=AdventureLogRead)
-async def get_log(log_id: int, db: AsyncSession = Depends(get_db)):
-    return await _get_or_404(db, log_id)
+async def get_log(
+    log_id: int,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    log = await _get_or_404(db, log_id)
+    data = AdventureLogRead.model_validate(log, from_attributes=True).model_dump()
+    if not (auth.get("is_admin") and not auth.get("view_as_player")):
+        data["gm_notes"] = None
+        data["changes_applied"] = []
+        data["changes_excluded"] = []
+    return data
 
 
 @router.patch("/{log_id}", response_model=AdventureLogRead)
@@ -409,14 +444,17 @@ async def update_log(
         if hasattr(log, field):
             setattr(log, field, value)
 
-    await _resolve_relations(
-        db, log,
-        body.participant_ids if body.participant_ids is not None else None,
-        body.location_ids if body.location_ids is not None else None,
-        body.org_ids if body.org_ids is not None else None,
-    )
-
-    await db.commit()
+    try:
+        await _resolve_relations(
+            db, log,
+            body.participant_ids if body.participant_ids is not None else None,
+            body.location_ids if body.location_ids is not None else None,
+            body.org_ids if body.org_ids is not None else None,
+        )
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Adventure run number already exists") from exc
     return await _get_or_404(db, log.id)
 
 

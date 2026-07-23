@@ -24,10 +24,13 @@ class ContactBase(BaseModel):
         return v
 
 
-ContactCreate = ContactBase
+class ContactCreate(ContactBase):
+    model_config = ConfigDict(extra="forbid")
 
 
 class ContactUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(default=None, max_length=200)
     profession: Optional[str] = Field(default=None, max_length=100)
     race: Optional[str] = Field(default=None, max_length=50)

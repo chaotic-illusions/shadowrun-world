@@ -25,7 +25,7 @@ from app.models.matrix_host import MatrixHost
 from app.models.character import Character
 from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary, MatrixRunAAR,
-    RunActionInput, RunAttackInput, RunDefendInput, RunLogoffInput, RunReactiveInput,
+    RunActionInput, RunAttackInput, RunDefendInput, RunLogoffInput,
     RunSuppressInput, RunRevealHostRatingsInput, RunEnemyAttackInput,
     RunEnemyScanInput, RunAreaAttackInput,
     RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
@@ -78,7 +78,8 @@ _PERSONA_CARRY_KEYS = {
     "hackingPool_total", "hackingPool_remaining", "storage_free_mp", "storage_used_mp",
     "downloaded_files", "storage_programs", "active_memory_cap", "program_sizes",
     "squeeze_keys", "squeezed_active",
-    "detection_factor", "interactive_defense",
+    "detection_factor", "interactive_defense", "program_damage", "dinab_damage",
+    "one_shot_wiped",
 }
 
 # Single source of truth for the attribute-crippling family. Each persona attribute maps to the
@@ -452,10 +453,22 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
         # ctx, which would leak the still-secret host Security Rating. Strip it to display fields.
         pend = state.get("pending_defense")
         if isinstance(pend, dict):
-            state["pending_defense"] = {
-                k: v for k, v in pend.items()
-                if k not in ("ctx", "resume_logon_completed")
-            }
+            proj = {k: v for k, v in pend.items()
+                    if k not in ("ctx", "resume_logon_completed")}
+            # If the attacking IC is not yet identified (detection level < 2), mask its identity in
+            # the prompt too: attacker_label ("Killer-6") and the raw to-hit roll (dice + TN) would
+            # otherwise leak the IC type/rating that active_ic and the event log both redact. Power
+            # is kept -- the incoming attack force is legitimately felt, matching the redacted event
+            # text -- so the player can still size their Hacking-Pool defense against an Unknown IC.
+            atk_ic = next(
+                (ic for ic in (state.get("active_ic") or [])
+                 if isinstance(ic, dict) and ic.get("id") == pend.get("ic_id")),
+                None,
+            )
+            if atk_ic is not None and _ic_detection_level(atk_ic) < 2:
+                proj["attacker_label"] = "Unknown IC"
+                proj.pop("to_hit_roll", None)
+            state["pending_defense"] = proj
         if isinstance(state.get("active_ic"), list):
             redacted = [_redact_ic(ic) for ic in state["active_ic"] if isinstance(ic, dict)]
             state["active_ic"] = [ic for ic in redacted if ic is not None]
@@ -505,8 +518,14 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
 # player otherwise never sees a raw enemy rating -- _redact_enemy_decker hides them until scanned.
 _SCAN_REVEAL_ORDER = ["mpcp", "bod", "evasion", "masking", "sensor", "response_increase"]
 # The crippler-targetable persona attributes -> the PC-side program that attacks each. An enemy
-# that has scanned the PC (see _enemy_scan_pc) focuses the weakest of these it can attack.
-_ATTR_CRIPPLER = {"bod": "Poison", "evasion": "Restrict", "masking": "Reveal"}
+# that has scanned the PC (see _enemy_scan_pc) focuses the weakest of these it can attack. Derived
+# from _ATTRIBUTE_ATTACK (title-cased program name) so it can never drift from the single crippler
+# map (poison->Bod, restrict->Evasion, reveal->Masking).
+_ATTR_CRIPPLER = {
+    attr: str(m["program"]).title()
+    for attr, m in _ATTRIBUTE_ATTACK.items()
+    if m["program"]
+}
 
 
 def _enemy_name_revealed(e: dict) -> bool:
@@ -646,6 +665,7 @@ _ACTION_COST.update({
     "scan_icon": "Simple",                    # vr2: Scan Icon (read a hostile decker) is a Simple Action
     "medic": "Complex", "restore": "Complex", "disinfect": "Complex",
     "defuse_data_bomb": "Complex",
+    "trap_door_enter": "Complex",
     "steamroller": "Simple", "slow": "Simple", "decompress_file": "Complex",
     "dinab": "Free",                          # DINAB: a Free action runs one program autonomously
     # Combat maneuvers (vr2 L1982) are Simple Actions.
@@ -896,6 +916,15 @@ def _spend_hp(state: dict, requested: int) -> None:
     state["hackingPool_remaining"] = available - requested
 
 
+def _assert_logged_on(state: dict) -> None:
+    """Reject Matrix operations until Logon to Host succeeds."""
+    if not state.get("logon_complete"):
+        raise HTTPException(400, "Logon to Host must succeed before performing Matrix operations")
+
+
+_MAX_EVENT_LOG_ENTRIES = 750
+
+
 def _append_event(state: dict, event: dict) -> None:
     """Append a timestamped event to the state log.
 
@@ -909,7 +938,10 @@ def _append_event(state: dict, event: dict) -> None:
         if acting_init is not None:
             event["init"] = acting_init
     event["ts"] = datetime.now(UTC).isoformat()
-    state["event_log"].append(event)
+    event_log = state["event_log"]
+    event_log.append(event)
+    if len(event_log) > _MAX_EVENT_LOG_ENTRIES:
+        del event_log[:-_MAX_EVENT_LOG_ENTRIES]
 
 
 def _completed_trace_count(state: dict) -> int:
@@ -2665,7 +2697,7 @@ def _apply_disinfect(state: dict, decker: dict, *, subsystem: str, subsystem_rat
 
     # Failed Disinfect: the worm may infect the MPCP. The Worm Infection Test is the HOST's
     # Security Value dice vs the deck's MPCP rating, with Hardening subtracted from the worm's
-    # successes (net > 1 infects) -- see eng.worm_attack (vr2_rules.md L548-550 + user ruling).
+    # successes (net > 0 infects) -- see eng.worm_attack (vr2_rules.md L548-550 + user ruling).
     wr = eng.worm_attack(
         security_value=state.get("host_security_value", 1),
         mpcp_rating=decker.get("mpcp", 1),
@@ -4969,9 +5001,14 @@ async def get_run_aar(run_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/{run_id}/aar/acknowledge", response_model=MatrixRunAAR,
              dependencies=[Depends(get_admin_token)])
 async def acknowledge_run_aar(run_id: int, db: AsyncSession = Depends(get_db)):
-    """Acknowledge a run's after-action report: clears the run-start gate for that decker and
-    removes the ended run so the GM review queue only ever holds outstanding reports. The AAR is
-    returned one last time in the response so the caller can display what was just cleared."""
+    """Acknowledge a run's after-action report and PURGE the run.
+
+    This PERMANENTLY DELETES the ended run row (and its frozen state_json) from the database. The
+    AAR is computed on demand from that state, so once purged the report cannot be regenerated or
+    re-reviewed -- there is no archived copy kept. Acknowledging therefore both clears the run-start
+    gate for that decker AND drops the run from the GM review queue (which only holds outstanding
+    reports). The AAR is returned one last time in the response so the caller can display what was
+    just cleared before it is gone."""
     run = await _get_run_or_404(db, run_id)
     if run.status == "active":
         raise HTTPException(400, "Run is still active -- nothing to acknowledge yet.")
@@ -4994,10 +5031,39 @@ async def start_run(
     if not auth.get("is_admin") and not host.is_visible_to_players:
         raise HTTPException(404, "Matrix host not found")
 
-    await _assert_no_unacknowledged_run(db, auth, body.decker.model_dump())
+    decker_dict = body.decker.model_dump()
+    if not auth.get("is_admin"):
+        decker_dict = await _authoritative_player_decker(db, auth, decker_dict)
 
-    run = await _create_run(db, auth, host, body.decker.model_dump())
+    await _assert_no_unacknowledged_run(db, auth, decker_dict)
+
+    run = await _create_run(db, auth, host, decker_dict)
     return _serialize_run(run, auth)
+
+
+async def _authoritative_player_decker(db: AsyncSession, auth: dict, decker_dict: dict) -> dict:
+    """Validate a player-owned active PC and replace client-controlled identity/attributes."""
+    character_id = decker_dict.get("character_id")
+    if character_id is None:
+        raise HTTPException(400, "character_id is required to start a player Matrix run")
+    character = await db.get(Character, character_id)
+    if character is None or not character.is_pc or not character.is_active:
+        raise HTTPException(404, "Active player character not found")
+    token = auth.get("user_token")
+    if not token or character.owner_token != hash_token(token):
+        raise HTTPException(404, "Active player character not found")
+
+    authoritative = dict(decker_dict)
+    authoritative.update({
+        "character_id": character.id,
+        "name": character.name,
+        "computer_skill": character.computer_skill_rating,
+        "intelligence": character.intelligence,
+        "quickness": character.quickness,
+        "willpower": character.willpower,
+        "body": character.body,
+    })
+    return authoritative
 
 
 async def _assert_no_unacknowledged_run(db: AsyncSession, auth: dict, decker_dict: dict) -> None:
@@ -5910,6 +5976,8 @@ async def perform_action(
         raise HTTPException(400, "Run has already ended")
     if state.get("icon_crashed"):
         raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+    if body.action_type != "logon_to_host":
+        _assert_logged_on(state)
 
     # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
     # the shared helper and return -- mirroring POST /{run_id}/logoff. Without this the
@@ -6957,9 +7025,10 @@ async def defend(
     eff = _get_decker_effective(decker, state)
 
     ctx = pending.get("ctx", {})
-    # Hacking Pool dice actually applied to the icon's resistance, capped at what remains in the
-    # pool (the schema also bounds the request). 0 = resist with Bod alone / decline the offer.
-    hp = min(int(body.hacking_pool_dice or 0), state.get("hackingPool_remaining", 0))
+    # Hacking Pool dice applied to the icon's resistance. Reject an over-request (block, don't
+    # clamp) to match every other spendable-resource path in the app -- _spend_hp raises 400 when
+    # the pool is short. 0 = resist with Bod alone / decline the offer.
+    hp = int(body.hacking_pool_dice or 0)
     if hp > 0:
         _spend_hp(state, hp)
 
@@ -7124,6 +7193,7 @@ async def attack_ic(
 
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
+    _assert_logged_on(state)
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
 
@@ -7433,12 +7503,49 @@ def _apply_swap_memory(
     return False, "Swap Memory -- no program to load or reload."
 
 
+def _force_resolve_pending_defense(state: dict, decker: dict, run: MatrixRun) -> bool:
+    """Immediately resolve a parked IC strike with NO Hacking Pool allocation (Bod resistance
+    only). Used when the decker ends the run (graceful logoff / jack out) while a defense is
+    pending: the to-hit already landed, so the hit still resolves before the run ends -- the decker
+    cannot dodge a landed strike's permanent consequences (MPCP burn / physical damage / dump
+    shock) by bailing out. Reuses the parked to-hit verbatim (no re-roll) and does NOT resume the
+    rest of the NPC pass (the decker is leaving). Returns True if resolving the strike ended the
+    run."""
+    pending = state.get("pending_defense")
+    if not pending:
+        return bool(state.get("run_ended"))
+    state["_acting_init"] = state.get("decker_initiative")
+    eff = _get_decker_effective(decker, state)
+    ctx = pending.get("ctx", {})
+    sec_code = state.get("host_security_code")
+    sec_value = state.get("host_security_value")
+    state["pending_defense"] = None
+    ic = next((x for x in state.get("active_ic", []) if x.get("id") == pending.get("ic_id")), None)
+    if ic is None:
+        return bool(state.get("run_ended"))
+    return _resolve_ic_cybercombat(
+        state, decker, ic,
+        ic_attack_pool=ctx.get("ic_attack_pool", sec_value),
+        ic_target_status=ctx.get("ic_target_status", _pc_target_status(state)),
+        eff=eff,
+        atk_power_delta=ctx.get("atk_power_delta", 0),
+        atk_tn_delta=ctx.get("atk_tn_delta", 0),
+        cluster_penalty=ctx.get("cluster_penalty", 0),
+        ic_category=ctx.get("ic_category", "white"),
+        sec_code=ctx.get("sec_code", sec_code),
+        sec_value=ctx.get("sec_value", sec_value),
+        precomputed_attack_roll=pending.get("to_hit_roll"),
+        defender_bonus_dice=0,
+    )
+
+
 def _apply_graceful_logoff(
     state: dict,
     decker: dict,
     *,
     hacking_pool_dice: int,
     deception_utility: int,
+    finalize_run: bool = True,
 ) -> bool:
     """Resolve a Graceful Logoff Access Test (vr2). Mutates ``state`` in place and returns
     True on success. On success the run is marked ended with all traces cleared; on failure
@@ -7477,7 +7584,8 @@ def _apply_graceful_logoff(
     if test["success"]:
         state["run_ended"] = True
         state["end_reason"] = "graceful_logoff"
-        _finalize_run_end(state)
+        if finalize_run:
+            _finalize_run_end(state)
         state.pop("has_legitimate_status", None)  # Host deletes passcode on logoff
         state["decoy_successes"] = 0
         state["decoy_hp"] = 0
@@ -7519,6 +7627,18 @@ async def graceful_logoff(
 
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
+    _assert_logged_on(state)
+    # A parked IC strike resolves before the decker can leave -- you cannot dodge a landed hit's
+    # permanent consequences (MPCP burn / physical / dump shock) by logging off. If it ends the
+    # run, the logoff is moot.
+    if _force_resolve_pending_defense(state, decker, run):
+        run.status = state.get("end_reason", "crashed")
+        if state.get("active_download"):
+            _corrupt_active_download(state)
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
     _spend_pass_action(state, "graceful_logoff")   # vr2: Graceful Logoff is a Complex Action
     success = _apply_graceful_logoff(
         state, decker,
@@ -7559,6 +7679,10 @@ def _push_host_stack(state: dict, current_host: MatrixHost, dest_host: MatrixHos
     for k in _PERSONA_CARRY_KEYS:
         if k in state:
             fresh[k] = copy.deepcopy(state[k])
+    fresh["hog_infections"] = copy.deepcopy([
+        infection for infection in (state.get("hog_infections") or [])
+        if infection.get("target_id", "pc") == "pc"
+    ])
     fresh["host_stack"] = stack + [snapshot]
     fresh["_stack_current_host_name"] = dest_host.name
     return fresh
@@ -7578,6 +7702,15 @@ def _pop_host_stack(state: dict) -> tuple[dict, int | None] | None:
     for k in _PERSONA_CARRY_KEYS:
         if k in state:
             parent[k] = copy.deepcopy(state[k])
+    parent_host_infections = [
+        infection for infection in (parent.get("hog_infections") or [])
+        if infection.get("target_id", "pc") != "pc"
+    ]
+    current_pc_infections = [
+        infection for infection in (state.get("hog_infections") or [])
+        if infection.get("target_id", "pc") == "pc"
+    ]
+    parent["hog_infections"] = copy.deepcopy(parent_host_infections + current_pc_infections)
     parent["host_stack"] = stack
     parent["run_ended"] = False
     parent["end_reason"] = None
@@ -7618,6 +7751,7 @@ async def trap_door_action(
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     if state.get("run_ended"):
         raise HTTPException(400, "Run has already ended")
+    _assert_logged_on(state)
     door = next((d for d in (state.get("trap_doors") or []) if str(d.get("id")) == str(td_id)), None)
     if door is None:
         raise HTTPException(404, "Trap door not found")
@@ -7654,10 +7788,19 @@ async def trap_door_action(
     dest_host = await _get_host_or_404(db, dest_id)
     src_host = await _get_host_or_404(db, run.host_id) if run.host_id else None
 
+    if _force_resolve_pending_defense(state, run.decker_json, run):
+        run.status = state.get("end_reason", "crashed")
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
+    _spend_pass_action(state, "trap_door_enter")
+
     success = _apply_graceful_logoff(
         state, run.decker_json,
         hacking_pool_dice=body.hacking_pool_dice,
         deception_utility=body.deception_utility,
+        finalize_run=False,
     )
     if not success:
         # Logoff failed -- still logged on to the current host; transit aborted.
@@ -8380,46 +8523,6 @@ def _resolve_lurking_tar(state: dict, decker: dict, lurking: dict,
         })
 
 
-@router.post("/{run_id}/resolve-reactive", response_model=MatrixRunRead,
-             dependencies=[Depends(get_admin_token), Depends(trace_action)])
-async def resolve_reactive_ic(
-    run_id: int,
-    body: RunReactiveInput,
-    auth: dict = Depends(get_any_token),
-    db: AsyncSession = Depends(get_db),
-):
-    """TEST HARNESS (admin-only) -- deterministically trigger a lurking Tar Baby / Tar Pit / Worm.
-
-    There is no human GM: lurking ambush IC now fire AUTOMATICALLY -- Tar Baby / Tar Pit on utility
-    use (perform_action) and Worm each Combat Turn (new_turn). This endpoint remains ONLY so the
-    reactive-IC resolution can be triggered on demand with known inputs while we validate that
-    auto-fire behaves correctly in play. MARK FOR DELETION once auto-fire is confirmed satisfactory.
-    """
-    run = await _get_run_or_404(db, run_id)
-    if run.status != "active":
-        raise HTTPException(400, "Run is not active")
-
-    state  = copy.deepcopy(run.state_json)
-    decker = run.decker_json
-
-    lurking = next(
-        (ic for ic in state.get("lurking_ic", []) if ic["id"] == body.ic_id),
-        None,
-    )
-    if not lurking:
-        raise HTTPException(404, f"Lurking IC {body.ic_id} not found")
-
-    if lurking["type"] == "Worm":
-        _resolve_lurking_worm(state, decker, lurking)
-    else:
-        _resolve_lurking_tar(state, decker, lurking, body.utility_name, body.utility_rating)
-
-    run.state_json = state
-    await db.commit()
-    await db.refresh(run)
-    return _serialize_run(run, auth)
-
-
 def _highest_running_utility(decker: dict, program_damage: dict) -> tuple[str | None, int]:
     """Return (name, effective_rating) of the decker's highest-rated still-running utility
     (for Hog to target). Excludes already-crashed programs."""
@@ -9043,6 +9146,7 @@ async def attack_enemy_decker(
         raise HTTPException(400, "Run is not active")
     state = copy.deepcopy(run.state_json)
     decker = run.decker_json
+    _assert_logged_on(state)
     if state.get("icon_crashed"):
         raise HTTPException(400, "Your icon is crashed -- you can only jack out")
     enemy = next((e for e in state.get("enemy_deckers", [])
@@ -9310,6 +9414,7 @@ async def scan_enemy_decker(
         raise HTTPException(400, "Run is not active")
     state = copy.deepcopy(run.state_json)
     decker = run.decker_json
+    _assert_logged_on(state)
     if state.get("icon_crashed"):
         raise HTTPException(400, "Your icon is crashed -- you can only jack out")
     enemy = next((e for e in state.get("enemy_deckers", [])
@@ -9389,6 +9494,7 @@ async def area_attack(
 
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
+    _assert_logged_on(state)
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
 
@@ -9604,6 +9710,7 @@ async def reveal_host_ratings(
         raise HTTPException(400, "Run is not active")
 
     state = copy.deepcopy(run.state_json)
+    _assert_logged_on(state)
     sec_before = bool(state.get("host_security_revealed"))
     _reveal_host_ratings(state, body.subsystems)
     if state.get("host_security_revealed") and not sec_before:
@@ -9705,6 +9812,17 @@ async def jack_out(
     decker = run.decker_json
     sec_code = state["host_security_code"]
     sec_value = state["host_security_value"]
+
+    # Resolve any parked IC strike first (Bod-only, no Hacking Pool) -- you cannot jack out to
+    # dodge a landed hit's permanent consequences. If it ends the run, that IS the outcome.
+    if _force_resolve_pending_defense(state, decker, run):
+        run.status = state.get("end_reason", "crashed")
+        if state.get("active_download"):
+            _corrupt_active_download(state)
+        run.state_json = state
+        await db.commit()
+        await db.refresh(run)
+        return _serialize_run(run, auth)
 
     # -- Black IC jack-out gate (vr2 L612-614) --------------------------------------------------
     black_ic = _highest_engaged_black_ic(state) if state.get("black_ic_engaged") else None

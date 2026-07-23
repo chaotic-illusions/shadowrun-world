@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # -- Decker input ---------------------------------------------------------------
 
-class DeckerUtilities(BaseModel):
+class _StrictModel(BaseModel):
+    """Base for request-body schemas: reject undeclared fields (extra='forbid') so a stale or
+    renamed client field surfaces as a loud 422 instead of being silently dropped."""
+    model_config = ConfigDict(extra="forbid")
+
+
+class DeckerUtilities(_StrictModel):
     # Stealth / detection
     sleaze:     int = Field(0, ge=0)
     camo:       int = Field(0, ge=0)
@@ -44,18 +50,18 @@ class DeckerUtilities(BaseModel):
     compressor: int = Field(0, ge=0)   # special: halves a downloaded file's stored size (cap Rating*100 Mp); decompress before use
 
 
-class MemoryProgram(BaseModel):
+class MemoryProgram(_StrictModel):
     """A program the decker carries that Swap Memory can move between storage and active
     memory mid-run. size is its FULL (decompressed) active-memory footprint in Mp. A Squeezed
     program is stored at half that size but must be decompressed (Complex Action) to full size
     before it can be used once loaded into active memory (vr2 Squeeze option, L1673)."""
     name:   str = Field("", max_length=40)   # utility key, e.g. "analyze", "read_write"
     rating: int = Field(0, ge=0, le=50)
-    size:   int = Field(0, ge=0)             # full (decompressed) active footprint in Mp
+    size:   int = Field(0, ge=0, le=100000)  # full (decompressed) active footprint in Mp
     squeezed: bool = False                   # built with the Squeeze option: half storage, needs decompress after a swap-in
 
 
-class ProgramOptions(BaseModel):
+class ProgramOptions(_StrictModel):
     """Run-relevant program options carried from the Deck Workshop into a run, keyed by
     utility type (e.g. "attack"). Optimization stays build-time-only (pure size/cost); Squeeze
     IS carried (as ``squeeze``) because it changes run-time behaviour -- a squeezed program takes
@@ -93,7 +99,7 @@ class ProgramOptions(BaseModel):
         return v
 
 
-class MpcpInfection(BaseModel):
+class MpcpInfection(_StrictModel):
     """A persistent Worm infection lodged in the deck's MPCP, carried across runs until the chip
     is replaced. variant drives the ongoing effect (deathworm = cybercombat-TN penalty; tapeworm =
     paydata erasure at run end; standard = chip degraded only)."""
@@ -103,7 +109,7 @@ class MpcpInfection(BaseModel):
 
 
 
-class DeckerStats(BaseModel):
+class DeckerStats(_StrictModel):
     name: str = "Ghost"
     # Deck provenance so run consequences (MPCP damage, chip burn, worm infection) can be written
     # back to the owning character's persisted deck at run end. Both are optional (legacy/ad-hoc
@@ -149,14 +155,15 @@ class DeckerStats(BaseModel):
     linked_passcode:   bool = False   # stolen linked passcode: -2 TN to Logon w/ Deception (vr2)
     utilities:         DeckerUtilities = Field(default_factory=DeckerUtilities)
     # Programs sitting in storage memory (NOT active at logon). Swap Memory can load one of
-    # these into active memory mid-run (and push an active program back to storage).
-    storage_programs:  list[MemoryProgram] = Field(default_factory=list)
+    # these into active memory mid-run (and push an active program back to storage). Capped to
+    # keep the client-supplied payload bounded (mirrors mpcp_infections).
+    storage_programs:  list[MemoryProgram] = Field(default_factory=list, max_length=64)
     # util key -> active-memory size (Mp) for every program carried (active + storage), so the
     # engine can enforce the active-memory cap when swapping a program in.
-    program_sizes:     dict[str, int] = Field(default_factory=dict)
+    program_sizes:     dict[str, int] = Field(default_factory=dict, max_length=128)
     # util key -> run-relevant program options (Skulk / Targeting / Penetration / Chaser / Area
     # / etc.), read automatically by the engine instead of asking the player each action.
-    program_options:   dict[str, ProgramOptions] = Field(default_factory=dict)
+    program_options:   dict[str, ProgramOptions] = Field(default_factory=dict, max_length=128)
     # Persistent MPCP infections carried on the deck from previous runs (Deathworm / Tapeworm).
     # An infection is permanent until the MPCP chip is replaced, so the client re-sends it every
     # run: a Deathworm keeps degrading cybercombat TNs and a Tapeworm keeps erasing paydata until
@@ -166,7 +173,7 @@ class DeckerStats(BaseModel):
 
 # -- Run creation ---------------------------------------------------------------
 
-class MatrixRunCreate(BaseModel):
+class MatrixRunCreate(_StrictModel):
     host_id: int
     decker: DeckerStats
 
@@ -191,7 +198,7 @@ ActionType = Literal[
 SubsystemType = Literal["access", "control", "index", "files", "slave"]
 
 
-class RunActionInput(BaseModel):
+class RunActionInput(_StrictModel):
     action_type: ActionType
     subsystem: SubsystemType
     utility_rating: int = Field(0, ge=0, le=50)
@@ -216,7 +223,7 @@ class RunActionInput(BaseModel):
     suppress_trace: bool = False
 
 
-class RunAttackInput(BaseModel):
+class RunAttackInput(_StrictModel):
     target_ic_id: str = Field(..., max_length=64)
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
@@ -225,19 +232,19 @@ class RunAttackInput(BaseModel):
     # Attack program's options (decker.program_options["attack"]) -- no manual entry.
 
 
-class RunLogoffInput(BaseModel):
+class RunLogoffInput(_StrictModel):
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     deception_utility: int = Field(0, ge=0, le=50)
 
 
-class RunDefendInput(BaseModel):
+class RunDefendInput(_StrictModel):
     # Hacking Pool dice the decker spends on the resist test surfaced by state["pending_defense"]
     # (the interactive per-attack defense flow). vr2: HP may be added to a defense test -- capped
     # server-side at the remaining pool; 0 = resist with Bod alone (or just decline the offer).
     hacking_pool_dice: int = Field(0, ge=0, le=40)
 
 
-class RunTrapDoorInput(BaseModel):
+class RunTrapDoorInput(_StrictModel):
     # "enter": graceful logoff through the concealing subsystem, then arrive on the destination
     # host (a fresh linked run; destination revealed only on arrival).
     # "file":  record the door for intel -- reveals only whether the destination has LTG access.
@@ -246,18 +253,12 @@ class RunTrapDoorInput(BaseModel):
     deception_utility: int = Field(0, ge=0, le=50)   # enter only: Deception utility for the logoff
 
 
-class RunReactiveInput(BaseModel):
-    ic_id: str = Field(..., max_length=64)
-    utility_name: str = Field(..., max_length=80)
-    utility_rating: int = Field(..., ge=1, le=50)
-
-
-class RunSuppressInput(BaseModel):
+class RunSuppressInput(_StrictModel):
     ic_id: str = Field(..., max_length=64)  # crashed/hung IC id OR a non-IC suppression entry id (data bomb)
     release: bool = Field(False)  # False = suppress (DF -1); True = release (restore DF, +tally)
 
 
-class RunRevealHostRatingsInput(BaseModel):
+class RunRevealHostRatingsInput(_StrictModel):
     # Two-phase Analyze Host: when a successful Analyze Host banked fewer net successes than there
     # are still-hidden items, the decker chooses which to reveal (one per banked credit). subsystems
     # = the chosen names: the ACIFS ratings ("access"/"control"/"index"/"files"/"slave") and/or
@@ -265,7 +266,7 @@ class RunRevealHostRatingsInput(BaseModel):
     subsystems: list[str] = Field(..., min_length=1, max_length=6)
 
 
-class RunEnemyAttackInput(BaseModel):
+class RunEnemyAttackInput(_StrictModel):
     enemy_id: str = Field(..., max_length=64)
     attack_pool: int = Field(..., ge=1, le=40)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
@@ -280,7 +281,7 @@ class RunEnemyAttackInput(BaseModel):
                      "black_hammer", "killjoy"] = "attack"
 
 
-class RunEnemyScanInput(BaseModel):
+class RunEnemyScanInput(_StrictModel):
     """Scan Icon vs a revealed enemy decker (vr2 L1895): a Computer Test vs the target's Masking
     (adjusted by the target's Sleaze minus the PC's Scanner). Each net success reveals one of the
     enemy's hidden ratings (MPCP / a Persona rating / Response Increase); 3+ successes reveal all.
@@ -289,7 +290,7 @@ class RunEnemyScanInput(BaseModel):
     hacking_pool_dice: int = Field(0, ge=0, le=40)
 
 
-class RunAreaAttackInput(BaseModel):
+class RunAreaAttackInput(_StrictModel):
     """One Area-option Attack burst against several icons at once (vr2 Area utility). The
     ``target_ids`` mix active IC ids and revealed enemy-decker ids; the caller must keep the
     count within the Attack utility's Area rating (enforced server-side)."""
@@ -343,7 +344,7 @@ class SheafStep(BaseModel):
 
 
 class SheaveSaveInput(BaseModel):
-    sheaf: list[SheafStep]
+    sheaf: list[SheafStep] = Field(max_length=64)
     security_code: str
     security_value: int
     acifs: list[int] = Field(default_factory=list)  # [A, C, I, F, S]
@@ -354,7 +355,7 @@ class SheafGenerateInput(BaseModel):
     security_code: str
     security_value: int
     owner_type: str = "corp"
-    step_count: int | None = None
+    step_count: int | None = Field(default=None, ge=1, le=64)
     seed: int | None = None
 
 

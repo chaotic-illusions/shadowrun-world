@@ -1,4 +1,3 @@
-import logging
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
@@ -46,20 +45,41 @@ async def _migrate_plaintext_owner_tokens():
         print(f"[startup] Hashed {len(rows)} plaintext owner_token(s)")
 
 
+async def _ensure_sqlite_column(table: str, column: str, definition: str) -> bool:
+    """Ensure a legacy SQLite column exists and verify the postcondition.
+
+    Two app processes may observe the missing column concurrently. The loser may
+    receive a duplicate-column error; re-reading the schema distinguishes that
+    harmless race from a migration failure.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
+        if column in {row[1] for row in rows.fetchall()}:
+            return False
+        try:
+            await conn.exec_driver_sql(
+                f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+            )
+        except Exception:
+            rows = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
+            if column not in {row[1] for row in rows.fetchall()}:
+                raise
+
+        rows = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
+        if column not in {row[1] for row in rows.fetchall()}:
+            raise RuntimeError(f"startup schema guard did not create {table}.{column}")
+    return True
+
+
 async def _ensure_character_deck_builder_state_column():
     """Startup safety migration for deck_builder_state on SQLite deployments.
 
     Some local/container setups may run newer app code against older DB files
     before Alembic is applied. Add the JSON column in place when missing.
     """
-    async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(characters)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "deck_builder_state" in cols:
-            return
-        await conn.exec_driver_sql(
-            "ALTER TABLE characters ADD COLUMN deck_builder_state JSON NOT NULL DEFAULT '{}'"
-        )
+    if await _ensure_sqlite_column(
+        "characters", "deck_builder_state", "JSON NOT NULL DEFAULT '{}'"
+    ):
         print("[startup] Added characters.deck_builder_state column")
 
 
@@ -69,14 +89,9 @@ async def _ensure_matrix_run_version_column():
     create_all only creates missing tables; it won't add a column to an existing
     matrix_runs table. Add it in place when an older DB file predates the column.
     """
-    async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "version" in cols:
-            return
-        await conn.exec_driver_sql(
-            "ALTER TABLE matrix_runs ADD COLUMN version INTEGER NOT NULL DEFAULT 0"
-        )
+    if await _ensure_sqlite_column(
+        "matrix_runs", "version", "INTEGER NOT NULL DEFAULT 0"
+    ):
         print("[startup] Added matrix_runs.version column")
 
 
@@ -88,20 +103,21 @@ async def _ensure_matrix_run_owner_token_hash_column():
     and since the model selects it on every query, EVERY matrix-run request 500s until
     it exists. Add the column (and its declared index) in place, idempotently.
     """
+    added = await _ensure_sqlite_column(
+        "matrix_runs", "owner_token_hash", "VARCHAR(64)"
+    )
     async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "owner_token_hash" not in cols:
-            await conn.exec_driver_sql(
-                "ALTER TABLE matrix_runs ADD COLUMN owner_token_hash VARCHAR(64)"
-            )
-            print("[startup] Added matrix_runs.owner_token_hash column")
         # The model declares this column indexed; mirror that so reflection/create_all and
         # owner lookups match the ORM intent (idempotent via IF NOT EXISTS).
         await conn.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_matrix_runs_owner_token_hash "
             "ON matrix_runs (owner_token_hash)"
         )
+        rows = await conn.exec_driver_sql("PRAGMA index_list(matrix_runs)")
+        if "ix_matrix_runs_owner_token_hash" not in {row[1] for row in rows.fetchall()}:
+            raise RuntimeError("startup schema guard did not create matrix owner index")
+    if added:
+        print("[startup] Added matrix_runs.owner_token_hash column")
 
 
 async def _ensure_matrix_run_aar_acknowledged_column():
@@ -111,14 +127,9 @@ async def _ensure_matrix_run_aar_acknowledged_column():
     The run-start gate and the GM AAR review view both read this column, so an older DB file that
     predates it would 500 on those paths until it exists. Add it in place, idempotently.
     """
-    async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_runs)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "aar_acknowledged" in cols:
-            return
-        await conn.exec_driver_sql(
-            "ALTER TABLE matrix_runs ADD COLUMN aar_acknowledged BOOLEAN NOT NULL DEFAULT 0"
-        )
+    if await _ensure_sqlite_column(
+        "matrix_runs", "aar_acknowledged", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
         print("[startup] Added matrix_runs.aar_acknowledged column")
 
 
@@ -128,14 +139,7 @@ async def _ensure_matrix_host_id_code_column():
     create_all only creates missing tables; it won't add a column to an existing
     matrix_hosts table. Add it in place when an older DB file predates the column.
     """
-    async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_hosts)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "id_code" in cols:
-            return
-        await conn.exec_driver_sql(
-            "ALTER TABLE matrix_hosts ADD COLUMN id_code VARCHAR(20)"
-        )
+    if await _ensure_sqlite_column("matrix_hosts", "id_code", "VARCHAR(20)"):
         print("[startup] Added matrix_hosts.id_code column")
 
 
@@ -145,14 +149,12 @@ async def _ensure_matrix_host_trap_dest_column():
     create_all only creates missing tables; it won't add a column to an existing
     matrix_hosts table. Add it in place when an older DB file predates the column.
     """
+    added = await _ensure_sqlite_column(
+        "matrix_hosts", "is_trap_door_dest", "BOOLEAN NOT NULL DEFAULT 0"
+    )
+    if added:
+        print("[startup] Added matrix_hosts.is_trap_door_dest column")
     async with engine.begin() as conn:
-        rows = await conn.exec_driver_sql("PRAGMA table_info(matrix_hosts)")
-        cols = {row[1] for row in rows.fetchall()}
-        if "is_trap_door_dest" not in cols:
-            await conn.exec_driver_sql(
-                "ALTER TABLE matrix_hosts ADD COLUMN is_trap_door_dest BOOLEAN NOT NULL DEFAULT 0"
-            )
-            print("[startup] Added matrix_hosts.is_trap_door_dest column")
         # Reconcile is_trap_door_dest to the canonical truth: a host is a trap-door destination IFF
         # some host's trap_doors_json names it. The flag is fully derived now (the manual toggles
         # were removed), so flip BOTH directions -- set it on referenced hosts and clear it on
@@ -176,6 +178,52 @@ async def _ensure_matrix_host_trap_dest_column():
             print(f"[startup] Reconciled {result.rowcount} trap-door destination flag(s)")
 
 
+async def _ensure_adventure_run_number_schema():
+    """Establish atomic run allocation invariants on legacy SQLite databases."""
+    async with engine.begin() as conn:
+        await conn.exec_driver_sql(
+            """
+            WITH duplicate_rows AS (
+                SELECT id,
+                       ROW_NUMBER() OVER (ORDER BY run_number, id) AS offset
+                  FROM adventure_logs
+                 WHERE id NOT IN (
+                           SELECT MIN(id)
+                             FROM adventure_logs
+                            WHERE run_number IS NOT NULL
+                            GROUP BY run_number
+                       )
+                   AND run_number IS NOT NULL
+            ), maximum AS (
+                SELECT COALESCE(MAX(run_number), 0) AS value FROM adventure_logs
+            )
+            UPDATE adventure_logs
+               SET run_number = (SELECT value FROM maximum)
+                                + (SELECT offset FROM duplicate_rows WHERE duplicate_rows.id = adventure_logs.id)
+             WHERE id IN (SELECT id FROM duplicate_rows)
+            """
+        )
+        await conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_adventure_logs_run_number "
+            "ON adventure_logs (run_number)"
+        )
+        rows = await conn.exec_driver_sql("PRAGMA index_list(adventure_logs)")
+        indexes = {row[1]: bool(row[2]) for row in rows.fetchall()}
+        if not indexes.get("ux_adventure_logs_run_number"):
+            raise RuntimeError("startup schema guard did not create unique adventure run index")
+        await conn.exec_driver_sql(
+            "INSERT INTO adventure_run_counter (id, last_run_number) VALUES "
+            "(1, (SELECT COALESCE(MAX(run_number), 0) FROM adventure_logs)) "
+            "ON CONFLICT(id) DO UPDATE SET last_run_number = "
+            "MAX(adventure_run_counter.last_run_number, excluded.last_run_number)"
+        )
+        row = await conn.exec_driver_sql(
+            "SELECT last_run_number FROM adventure_run_counter WHERE id = 1"
+        )
+        if row.scalar_one_or_none() is None:
+            raise RuntimeError("startup schema guard did not seed adventure run counter")
+
+
 async def _ensure_campaign_state():
     """Seed the single CampaignState row at startup for timeline continuity.
 
@@ -188,42 +236,22 @@ async def _ensure_campaign_state():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    os.makedirs("data", exist_ok=True)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     try:
+        os.makedirs("data", exist_ok=True)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         await _migrate_plaintext_owner_tokens()
-    except Exception:
-        logging.getLogger(__name__).exception("owner-token migration failed")
-    try:
         await _ensure_character_deck_builder_state_column()
-    except Exception:
-        logging.getLogger(__name__).exception("deck-builder-state migration failed")
-    try:
         await _ensure_matrix_run_version_column()
-    except Exception:
-        logging.getLogger(__name__).exception("matrix-run version-column migration failed")
-    try:
         await _ensure_matrix_run_owner_token_hash_column()
-    except Exception:
-        logging.getLogger(__name__).exception("matrix-run owner-token-hash-column migration failed")
-    try:
         await _ensure_matrix_run_aar_acknowledged_column()
-    except Exception:
-        logging.getLogger(__name__).exception("matrix-run aar-acknowledged-column migration failed")
-    try:
         await _ensure_matrix_host_id_code_column()
-    except Exception:
-        logging.getLogger(__name__).exception("matrix-host id_code-column migration failed")
-    try:
         await _ensure_matrix_host_trap_dest_column()
-    except Exception:
-        logging.getLogger(__name__).exception("matrix-host trap-dest-column migration failed")
-    try:
+        await _ensure_adventure_run_number_schema()
         await _ensure_campaign_state()
-    except Exception:
-        logging.getLogger(__name__).exception("campaign-state seed failed")
-    yield
+        yield
+    finally:
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -249,8 +277,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token", "X-User-Token"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-User-Token", "X-Runner-View"],
 )
 
 
