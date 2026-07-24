@@ -3,8 +3,7 @@
 How to add code to this project safely. This is the **process / pitfalls / checklist**
 guide. For *what the code is* (stack, models, services, auth), see the path-scoped
 references in [.github/instructions/](.github/instructions/) and
-[.github/copilot-instructions.md](.github/copilot-instructions.md). For the deferred-work
-backlog, see [docs/refactor-notes.md](docs/refactor-notes.md).
+[.github/copilot-instructions.md](.github/copilot-instructions.md).
 
 Golden rule: **reuse before you write.** Most "new" UI styling, DB helpers, and auth
 checks already exist. Search first; add second.
@@ -20,7 +19,6 @@ checks already exist. Search first; add second.
 | A DB load / update | `app/dependencies.py`: `get_db`, `get_or_404`, `apply_update` | hand-roll a PATCH loop |
 | Auth on an endpoint | `app/auth/dependencies.py`: `get_admin_token`, `get_any_token` | re-derive token hashing |
 | The shape of a new resource | an existing `models/` + `schemas/` + `routers/` trio | invent a new pattern |
-| Refactoring a big/flagged area | `docs/refactor-notes.md` (e.g. R1 `perform_action`) | churn code that's deliberately deferred |
 
 ---
 
