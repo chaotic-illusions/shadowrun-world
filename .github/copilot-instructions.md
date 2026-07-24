@@ -30,7 +30,7 @@ app/
                      narrative_parser.py, secrets.py
   data/            -- consequence_tags.py (SINGLE_TAG_RULES, COMPOUND_TAG_RULES)
 alembic/           -- env.py uses async engine; versions/ holds the migration chain (keep a single head)
-tests/             -- pytest + pytest-asyncio; conftest.py is empty (no shared fixtures yet)
+tests/             -- pytest + pytest-asyncio; no shared fixtures currently
 frontend/          -- static files served at /ui/
 data/              -- world_seed.json, shadowrun.db (gitignored)
 seed.py            -- populates DB via API; uses httpx.Client; accepts --admin-token CLI arg

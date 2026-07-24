@@ -1384,8 +1384,7 @@ class TestActionEconomyEnforcement:
 
 
 class TestInitiativeFoundation:
-    """Gap D (foundation) -- Matrix initiative + action passes tracked; action costs surfaced.
-    (Full action-economy ENFORCEMENT is the documented next step.)"""
+    """Matrix initiative, action passes, and per-pass action economy are enforced."""
 
     def test_reaction_is_roundup_avg_quickness_intelligence(self):
         assert mr._decker_reaction({"quickness": 3, "intelligence": 5}) == 4   # ceil(8/2)
@@ -7801,7 +7800,7 @@ class TestAreaAttack:
         assert captured["armor"] == 3                           # single target -> no Area bonus
 
 
-# -- Enemy-decker loadout overhaul (docs/enemy-decker-loadout-spec.md) ----------
+# -- Enemy-decker loadout behavior ---------------------------------------------
 
 class TestEnemyDeckerLoadoutBands:
     """Task 1 -- centered per-tier loadout bands. Every generated decker stays inside its tier's
