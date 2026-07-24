@@ -13,7 +13,7 @@ applyTo: "seed.py,tests/**"
 
 ## Test Suite
 - Runner: `pytest -v`; all tests are **sync** (no async fixtures)
-- `conftest.py` is empty -- no shared fixtures
+- No shared pytest fixtures are currently needed
 
 ### test_seed.py
 - Mocks `httpx.Client` methods directly: `mock_client.post.return_value`

@@ -315,10 +315,10 @@ EXCLUSIONS: dict[str, dict] = {
                   "DINAB covers single-program autonomy instead. Scanner's 'Locate Frame' clause is "
                   "therefore inert.", "vr2": 1694},
     # --- Sub-variants that the engine treats identically (flavor only) ---------------
-    "Worm sub-variants (Dataworm/Deathworm/Tapeworm)": {"kind": "variant",
-        "reason": "IC_CATALOG['Worm'] summary names the three book variants, but no code branches on "
-                  "them -- worm_attack resolves all worms identically. The distinction is narrative "
-                  "only; there is no separate mechanic to reconcile.", "vr2": 544},
+    "Dataworm variant": {"kind": "variant",
+        "reason": "Dataworm reporting is narrative-only. Deathworm and Tapeworm are modeled as "
+                  "persistent MPCP infections with distinct runtime effects and test coverage.",
+        "vr2": 554},
     "Psychotropic Black IC": {"kind": "variant",
         "reason": "VR2 psychotropic Black IC (L649) is not a separate buildable option; the designer "
                   "offers only Lethal + Non-Lethal Black IC, both resolved by black_attack.", "vr2": 649},
@@ -335,7 +335,7 @@ EXCLUSIONS: dict[str, dict] = {
 # These are NOT auto-fixed. They are code-vs-rules or shared-resolver divergences that
 # may be intentional house rules. The contract test asserts this registry is non-drifting
 # (each id is still present in the code at the cited location), so a divergence cannot be
-# silently "resolved" by deleting the evidence. See docs/matrix-reconciliation-report.md.
+# silently "resolved" by deleting the evidence.
 # status: open (awaiting ruling) | accepted (house rule) | fixed
 DIVERGENCES: list[dict] = [
     {"id": "dinab_attack_ic_bypass", "kind": "shared_resolver", "status": "fixed",
