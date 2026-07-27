@@ -126,7 +126,6 @@ function renderAars(aars) {
       doors.forEach(d => {
         const dest = d.destination_label || d.destination_ltg || 'unknown host';
         const tags = [];
-        if (d.filed) tags.push('filed');
         if (d.entered) tags.push('followed');
         const tag = tags.length ? ` (${tags.join(', ')})` : '';
         const sub = d.subsystem ? ` on ${d.subsystem}` : '';

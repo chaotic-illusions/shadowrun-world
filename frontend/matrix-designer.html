@@ -667,6 +667,18 @@ function icDisplayName(icType) {
   return icType;
 }
 
+function canonicalIcPayload(icType) {
+  if (icType === 'Black IC (Lethal)') return { ic_type: 'Black IC', mode: 'lethal' };
+  if (icType === 'Black IC (Non-Lethal)') return { ic_type: 'Black IC', mode: 'non_lethal' };
+  return { ic_type: icType };
+}
+
+function designerIcType(icType, mode) {
+  if (icType === 'Black IC' && mode === 'non_lethal') return 'Black IC (Non-Lethal)';
+  if (icType === 'Black IC') return 'Black IC (Lethal)';
+  return icType;
+}
+
 function icBadgeClass(cat, icType) {
   if (cat === 'white') return 'ic-white-badge';
   if (cat === 'black') {
@@ -2091,12 +2103,13 @@ function _syncPassiveIcFromPaydataDefenses() {
   const fileScrambles = [];
   for (const p of paydata) {
     const d = _ensurePaydataDefenseShape(p);
+    const target = p.id || p.name;
     if (d.data_bomb_rating != null) {
-      fileBombs.push({ target: `${DB_TARGET_FILE_PREFIX}${p.name}`, rating: d.data_bomb_rating });
+      fileBombs.push({ target: `${DB_TARGET_FILE_PREFIX}${target}`, rating: d.data_bomb_rating });
     }
     if (d.scramble_rating != null) {
       fileScrambles.push({
-        target_key: _encodeScrambleTargetKey('Files', 'file', p.name),
+        target_key: _encodeScrambleTargetKey('Files', 'file', target),
         rating: d.scramble_rating,
         variant: d.scramble_variant === 'poison' ? 'poison' : 'exploding',
       });
@@ -2108,22 +2121,26 @@ function _syncPassiveIcFromPaydataDefenses() {
 }
 
 function _hydratePaydataDefensesFromPassiveIc() {
-  const byName = new Map(paydata.map(p => [p.name, p]));
+  const byTarget = new Map();
+  for (const p of paydata) {
+    if (p.id) byTarget.set(p.id, p);
+    if (!byTarget.has(p.name)) byTarget.set(p.name, p);
+  }
   for (const p of paydata) _ensurePaydataDefenseShape(p);
 
   for (const db of dataBombs) {
     const dec = _decodeDataBombTarget(db.target);
     const name = dec.name || '';
-    if ((dec.scope === 'files' || dec.scope === 'files_legacy') && byName.has(name)) {
-      _ensurePaydataDefenseShape(byName.get(name)).data_bomb_rating = parseInt(db.rating, 10) || 1;
+    if ((dec.scope === 'files' || dec.scope === 'files_legacy') && byTarget.has(name)) {
+      _ensurePaydataDefenseShape(byTarget.get(name)).data_bomb_rating = parseInt(db.rating, 10) || 1;
     }
   }
 
   for (const sc of scrambles) {
     const dec = _decodeScrambleTargetKey(sc.target_key);
     const name = dec?.file || '';
-    if (dec && dec.scope === 'file' && byName.has(name)) {
-      const d = _ensurePaydataDefenseShape(byName.get(name));
+    if (dec && dec.scope === 'file' && byTarget.has(name)) {
+      const d = _ensurePaydataDefenseShape(byTarget.get(name));
       d.scramble_rating = parseInt(sc.rating, 10) || 1;
       d.scramble_variant = sc.variant === 'poison' ? 'poison' : 'exploding';
     }
@@ -2856,6 +2873,7 @@ let _autoSaveTimer = null;
 let _autoSaveInFlight = false;
 let _autoSavePending = false;
 let _designerReady = false;   // suppress auto-save during initial host load
+let _designerRevision = 0;
 
 function _setSaveStatus(state) {
   const el = $('saveStatus');
@@ -2904,6 +2922,7 @@ function _buildConfigPayload() {
 
 function _scheduleAutoSave() {
   if (!_designerReady || !currentHost) return;
+  _designerRevision += 1;
   _setSaveStatus('saving');
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(_autoSaveNow, 1000);
@@ -2913,10 +2932,13 @@ async function _autoSaveNow() {
   if (!currentHost) return;
   if (_autoSaveInFlight) { _autoSavePending = true; return; }   // coalesce overlapping saves
   _autoSaveInFlight = true;
+  const hostId = currentHost.id;
+  const revision = _designerRevision;
+  const submittedPaydata = paydata.slice();
   try {
     const cfg = _buildConfigPayload();
     const ltgAddress = (currentHost.ltg_address || '').trim() || null;
-    const res = await apiFetch(`/matrix-hosts/${currentHost.id}`, {
+    const res = await apiFetch(`/matrix-hosts/${hostId}`, {
       method: 'PATCH',
       body: JSON.stringify({
         config_json:     cfg,
@@ -2926,11 +2948,17 @@ async function _autoSaveNow() {
     });
     if (!res.ok) await apiThrow(res);
     const updated = await res.json();
-    const idx = hosts.findIndex(h => h.id === currentHost.id);
+    const returnedPaydata = updated.config_json?.paydata || [];
+    submittedPaydata.forEach((item, index) => {
+      if (paydata.includes(item) && returnedPaydata[index]?.id) item.id = returnedPaydata[index].id;
+    });
+    const idx = hosts.findIndex(h => h.id === hostId);
     if (idx >= 0) hosts[idx] = updated;
-    currentHost = updated;
-    _setSaveStatus('saved');
-    checkRunReady();
+    if (currentHost?.id === hostId && _designerRevision === revision) {
+      currentHost = updated;
+      _setSaveStatus('saved');
+      checkRunReady();
+    }
   } catch (e) {
     _setSaveStatus('error');
   } finally {
@@ -3007,8 +3035,37 @@ async function generateSheaf() {
 function checkRunReady() {
   if (!currentHost) { $('runReadyBanner').classList.remove('show'); return; }
   const cfg = safeConfig(currentHost);
-  const ready = cfg.security_code && cfg.security_value && cfg.acifs && cfg.sheaf && cfg.sheaf.length > 0;
+  const ready = cfg.security_code && cfg.security_value && cfg.acifs && cfg.sheaf && cfg.sheaf.length > 0
+    && !hostCompositeErrors(cfg).length;
   $('runReadyBanner').classList.toggle('show', !!ready);
+}
+
+function hostCompositeErrors(cfg) {
+  const sv = Math.max(1, parseInt(cfg.security_value, 10) || 1);
+  const capacity = sv * 2, maxRating = Math.ceil(sv * 2 / 3), maxParty = Math.max(1, Math.floor(sv / 2));
+  const maxThreat = ({ Blue: 0, Green: 1, Orange: 2, Red: 3, Black: 4 })[cfg.security_code] ?? 4;
+  const errors = [];
+  for (const step of (cfg.sheaf || [])) for (const ev of (step.events || [])) {
+    if (ev.type !== 'construct' && ev.type !== 'party_ic') continue;
+    const components = (ev.components || []).filter(c => c && typeof c === 'object');
+    if (components.length < (ev.type === 'construct' ? 2 : 1)) errors.push('component count');
+    if (ev.type === 'party_ic' && components.length > maxParty) errors.push('party count');
+    let used = 0;
+    for (const component of components) {
+      const type = component.ic_type || component.type || '';
+      const rating = parseInt(component.rating, 10) || 0;
+      if (rating < 1 || rating > maxRating) errors.push('component rating');
+      used += Math.max(0, rating) + _groupIcCost(type);
+      if (ev.type === 'party_ic') used += (component.options || component.defenses || []).length;
+    }
+    if (ev.type === 'construct') {
+      used += (ev.defenses || []).length * 2;
+      const threat = parseInt(ev.threat_rating, 10) || 0;
+      if (threat < 0 || threat > maxThreat) errors.push('threat rating');
+    }
+    if (used > capacity) errors.push('capacity');
+  }
+  return errors;
 }
 
 // --- IC options rendering helper ---------------------------------------------
@@ -3206,7 +3263,7 @@ function renderEventHTML(ev, si, ei) {
 
   if (type === 'construct') {
     const threat  = ev.threat_rating != null ? ev.threat_rating : '?';
-    const comps   = (ev.components || []).map(c => `${esc(c.ic_type)}-${c.rating}`).join(', ');
+    const comps   = (ev.components || []).map(c => `${esc(designerIcType(c.ic_type || c.type || '', c.mode))}-${c.rating}`).join(', ');
     const defs    = (ev.defenses || []).map(d => esc(d)).join(' ');
     const expStr  = ev.expert
       ? ` | <span class="ic-opt-badge ic-opt-expert">EXP ${ev.expert.type === 'offense' ? '+' : '-'}${ev.expert.value}</span>`
@@ -3220,8 +3277,8 @@ function renderEventHTML(ev, si, ei) {
 
   if (type === 'party_ic') {
     const comps = (ev.components || []).map(c => {
-      const defs = (c.defenses || []).join('/');
-      return `${esc(c.ic_type)}-${c.rating}${defs ? '/' + defs : ''}`;
+      const defs = (c.options || c.defenses || []).join('/');
+      return `${esc(designerIcType(c.ic_type || c.type || '', c.mode))}-${c.rating}${defs ? '/' + defs : ''}`;
     }).join(', ');
     return `
       <div class="sheaf-event" style="position:relative" data-si="${si}" data-ei="${ei}">
@@ -3366,7 +3423,7 @@ function commitAddEvent(si) {
     if (isNaN(rating) || rating < 1) rating = 6;
     rating = Math.min(rating, 20);
     // Auto-add with a sensible default rating, then open the real-time IC Inspector.
-    _addAndInspect(si, { type: 'ic', ic_type: icType, rating }, (s, e) => openIcEditModal(s, e));
+    _addAndInspect(si, { type: 'ic', ...canonicalIcPayload(icType), rating }, (s, e) => openIcEditModal(s, e));
     return;
   } else if (raw === 'bouncer') {
     const allowed = bouncerAllowedCodes(currentSecurityCode());
@@ -3541,7 +3598,8 @@ function openIcEditModal(si, ei) {
   _inspCtx = null;   // clear any in-progress composite editor
   _icEditStepIndex = si;
   _icEditEventIndex = ei;
-  $('icEditHeader').textContent = `Edit IC Event: ${icDisplayName(ev.ic_type || 'IC')}`;
+  const displayType = designerIcType(ev.ic_type || 'IC', ev.mode);
+  $('icEditHeader').textContent = `Edit IC Event: ${icDisplayName(displayType)}`;
   $('icEditRating').value = ev.rating != null ? String(ev.rating) : '';
   const opts = Array.isArray(ev.options) ? ev.options : [];
   $('icEditArmor').checked = opts.includes('Armor');
@@ -3550,10 +3608,10 @@ function openIcEditModal(si, ei) {
   $('icEditCasc').checked = !!ev.cascading;
   $('icEditExpertType').value = ev.expert?.type || '';
   $('icEditExpertVal').value = ev.expert?.value != null ? String(ev.expert.value) : '1';
-  _icEditCascadeAllowed = canUseCascade(ev.ic_type || '');
-  _icEditExpertAllowed = canUseExpert(ev.ic_type || '');
+  _icEditCascadeAllowed = canUseCascade(displayType);
+  _icEditExpertAllowed = canUseExpert(displayType);
   syncIcEditExpertUI();
-  $('icEditTip').textContent = _icTypeTip(ev.ic_type || 'IC');
+  $('icEditTip').textContent = _icTypeTip(displayType);
   // Prefer the right-pane Inspector; fall back to the centred overlay if absent.
   if (!inspectorMountIcEditor()) $('icEditOverlay').classList.add('open');
   _markSelectedEvent(si, ei);
@@ -3663,7 +3721,7 @@ function _stepAddIc(si, icType) {
   if (!sheafSteps[si].events) sheafSteps[si].events = [];
   let rating = parseInt(guessRating(), 10);
   if (isNaN(rating) || rating < 1) rating = 6;
-  sheafSteps[si].events.push({ type: 'ic', ic_type: icType, rating: Math.min(rating, 20) });
+  sheafSteps[si].events.push({ type: 'ic', ...canonicalIcPayload(icType), rating: Math.min(rating, 20) });
   const ei = sheafSteps[si].events.length - 1;
   renderSheaf(); updateSummary(); _scheduleAutoSave();
   inspectEvent(si, ei);   // focus the newly-added IC in the inspector for editing
@@ -4201,14 +4259,17 @@ function _inspCommitComposite() {
     const MAX_THREAT = { Blue: 0, Green: 1, Orange: 2, Red: 3, Black: 4 };
     const code = $('secCode').value, maxThreat = code ? (MAX_THREAT[code] ?? 4) : 4;
     ev.threat_rating = Math.min(Math.max(0, d.threat_rating || 0), maxThreat);
-    ev.components = d.components.map(x => ({ ic_type: x.ic_type, rating: x.rating }));
+    ev.components = d.components.map(x => ({ type: canonicalIcPayload(x.ic_type).ic_type, rating: x.rating, ...(canonicalIcPayload(x.ic_type).mode ? { mode: canonicalIcPayload(x.ic_type).mode } : {}) }));
     ev.defenses = [...d.defenses];
     if (d.expert) ev.expert = { ...d.expert }; else delete ev.expert;
   } else if (c.kind === 'party') {
-    ev.components = d.components.map(x => ({ ic_type: x.ic_type, rating: x.rating, ...(d.defenses.length ? { defenses: [...d.defenses] } : {}) }));
+    ev.components = d.components.map(x => ({ type: canonicalIcPayload(x.ic_type).ic_type, rating: x.rating, ...(canonicalIcPayload(x.ic_type).mode ? { mode: canonicalIcPayload(x.ic_type).mode } : {}), ...(d.defenses.length ? { options: [...d.defenses] } : {}) }));
   } else if (c.kind === 'trap') {
     ev.surface_ic_type = d.surface_ic_type;
     ev.hidden_ic_type  = d.hidden_ic_type;
+    const hiddenCanonical = canonicalIcPayload(d.hidden_ic_type);
+    ev.hidden_ic_type = hiddenCanonical.ic_type;
+    if (hiddenCanonical.mode) ev.hidden_ic_mode = hiddenCanonical.mode; else delete ev.hidden_ic_mode;
     if (d.surface_ic_rating >= 1 && d.surface_ic_rating <= 20) ev.surface_ic_rating = d.surface_ic_rating;
     if (d.hidden_ic_rating  >= 1 && d.hidden_ic_rating  <= 20) ev.hidden_ic_rating  = d.hidden_ic_rating;
     if (d.hidden_ic_options.length) ev.hidden_ic_options = [...d.hidden_ic_options]; else delete ev.hidden_ic_options;
@@ -4321,7 +4382,7 @@ function inspectConstruct(si, ei, keep) {
   if (!keep || !_inspCtx || _inspCtx.kind !== 'construct' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
     _inspCtx = { kind: 'construct', si, ei, draft: {
       threat_rating: ev.threat_rating ?? 0,
-      components: (ev.components || []).map(c => ({ ic_type: c.ic_type, rating: c.rating })),
+      components: (ev.components || []).map(c => ({ ic_type: designerIcType(c.ic_type || c.type || '', c.mode), rating: c.rating })),
       defenses: [...(ev.defenses || [])],
       expert: ev.expert ? { ...ev.expert } : null,
     }};
@@ -4367,8 +4428,8 @@ function inspectParty(si, ei, keep) {
   if (!ev || ev.type !== 'party_ic') return;
   if (!keep || !_inspCtx || _inspCtx.kind !== 'party' || _inspCtx.si !== si || _inspCtx.ei !== ei) {
     _inspCtx = { kind: 'party', si, ei, draft: {
-      components: (ev.components || []).map(c => ({ ic_type: c.ic_type, rating: c.rating })),
-      defenses: [...((ev.components && ev.components[0] && ev.components[0].defenses) || [])],
+      components: (ev.components || []).map(c => ({ ic_type: designerIcType(c.ic_type || c.type || '', c.mode), rating: c.rating })),
+      defenses: [...((ev.components && ev.components[0] && (ev.components[0].options || ev.components[0].defenses)) || [])],
     }};
   }
   const d = _inspCtx.draft;

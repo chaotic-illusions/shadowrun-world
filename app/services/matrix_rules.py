@@ -340,7 +340,7 @@ IC_CATALOG: dict[str, dict] = {
         "summary": (
             "Booby traps a subsystem. Any System Test against an infected subsystem: "
             "Security Value dice vs. MPCP (Hardening raises required successes). "
-            "On success: MPCP infected. Chip must be replaced. Dataworm/Deathworm/Tapeworm variants exist."
+            "On success: MPCP infected. Chip must be replaced. Deathworm and Tapeworm variants exist."
         ),
     },
     "Trace": {
@@ -376,6 +376,19 @@ IC_CATALOG: dict[str, dict] = {
 
 #  System Operations (summary for display)
 # subsystem: access | control | index | files | slave | special
+# Utility program multipliers used to derive authoritative object-code footprints. Attack uses
+# its selected Damage Level multiplier (2/3/4/5) instead of this table's default.
+PROGRAM_MULTIPLIERS: dict[str, int] = {
+    "analyze": 3, "crash": 3, "defuse": 2, "deception": 2, "decrypt": 1,
+    "disinfect": 2, "evaluate": 2, "mirrors": 3, "read_write": 2,
+    "relocate": 2, "scanner": 3, "validate_pgm": 4, "compressor": 2,
+    "sleaze": 3, "attack": 2, "black_hammer": 20, "hog": 3, "killjoy": 10,
+    "lock_on": 3, "poison": 3, "restrict": 3, "reveal": 3, "slow": 4,
+    "steamroller": 3, "armor": 3, "camo": 3, "cloak": 3, "medic": 4,
+    "restore": 3, "shield": 4,
+}
+
+#  System Operations (summary for display)
 SYSTEM_OPERATIONS: list[dict] = [
     {"name": "Logon to Host",       "subsystem": "access",  "utility": "Deception", "action": "Complex",
      "tip": "Opposed Access Test vs. host Access Rating. Required before any host operations."},
@@ -403,8 +416,8 @@ SYSTEM_OPERATIONS: list[dict] = [
      "tip": "Safe exit. Clears your traces. Adds trace IC rating to TN if trace is running. "
              "On success: immune to trace IC after logoff."},
     {"name": "Crash Host",          "subsystem": "control", "utility": "Crash",     "action": "Complex",
-     "tip": "Successes - 10 = turns before shutdown. Host makes SV Test vs. MPCP each turn to abort. "
-             "All IC 2 rating during countdown."},
+         "tip": "Shutdown in ceil(10 / decker successes) turns. Host makes SV Test vs. MPCP each turn "
+             "to abort; all IC are Rating -2 during countdown. Completion dumps the decker with Dump Shock."},
     {"name": "Validate Passcode",   "subsystem": "control", "utility": "Validate",  "action": "Complex",
      "tip": "Plants a fake passcode -> Legitimate status: IC attack your persona on the Legitimate "
              "to-hit column until you log off or trigger an active alert. Lasts 1D6 x successes days."},

@@ -27,7 +27,7 @@
     .mr-stamp { color:var(--steel-blue); font-size:0.78em; letter-spacing:0.5px; }
     .mr-tn { color:#d9b44a; }
     .mr-s-hdr { color:var(--green); text-shadow:0 0 8px #00ff4166; letter-spacing:1px; margin:8px 0 2px; }
-    .mr-s-dim { color:var(--text-dim); }
+    .mr-s-data { color:#91a9a1; }
     .mr-s-cyan { color:var(--cyan); }
     .mr-s-amber { color:var(--amber); }
     .mr-s-red { color:var(--red); text-shadow:0 0 6px #ff333344; }
@@ -40,6 +40,7 @@
       color:#5f7d5f; border-bottom:1px solid #163016; }
     .mr-die.hit { color:var(--text-bright); border-color:var(--green); text-shadow:0 0 6px #00ff4155; }
     .mr-die.mr-die-shield { color:var(--cyan); border-bottom-color:#024a4a; text-shadow:none; }
+    .mr-die.mr-die-shield.hit { color:var(--text-bright); border-bottom-color:var(--green); text-shadow:0 0 6px #00ff4155; }
     .mr-cursor { display:inline-block; width:8px; height:14px; background:var(--green);
       animation:mrBlink 1s steps(1) infinite; vertical-align:-2px; }
     @keyframes mrBlink { 50% { opacity:0; } }
@@ -476,7 +477,6 @@
           <div style="font-size:0.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;padding-top:8px;border-top:1px solid #1a2a1a">Deck Stats</div>
           <div class="deck-stats-row" id="run-deck-stats"></div>
           <div class="ds-damage-row" id="run-mpcp-damage"></div>
-          <div class="ds-damage-row" id="run-persona-damage"></div>
         </div>
 
         <!-- Host info -->
@@ -514,10 +514,10 @@
       <!-- -- RIGHT: Discovered board ------ -->
       <div class="mr-col-right">
 
-        <!-- Active IC -->
+        <!-- Known IC and subsystem defenses -->
         <div class="mr-panel">
-          <div class="panel-title panel-title-green">&gt;&gt; ACTIVE IC <span id="area-strike-slot" style="float:right"></span></div>
-          <div id="run-ic-list"><div class="empty-msg">No IC active</div></div>
+          <div class="panel-title panel-title-green">&gt;&gt; KNOWN IC &amp; DEFENSES <span id="area-strike-slot" style="float:right"></span></div>
+          <div id="run-ic-list"><div class="empty-msg">No security identified</div></div>
         </div>
 
         <!-- Suppressions (data bombs / crashed IC held down) -->
@@ -581,7 +581,7 @@
      No action cost either way. Persistent Suppress/Release controls remain on the board afterward. -->
 <div class="modal-overlay" id="suppressModal">
   <div class="mr-modal-box">
-    <div class="mr-modal-title">&gt;&gt; SUPPRESS?</div>
+    <div class="mr-modal-title" id="suppressModalTitle">&gt;&gt; SUPPRESS?</div>
     <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:8px" id="suppressModalLabel"></div>
     <div style="font-size:0.72rem;margin-bottom:12px" id="suppressModalDf"></div>
     <div id="suppressModalReleaseWrap" style="display:none;margin-bottom:12px">
@@ -602,8 +602,8 @@
     <div style="font-size:0.72rem;margin-bottom:10px" class="text-dim" id="areaStrikeInfo"></div>
     <div class="setup-grid" style="gap:10px">
       <div class="mr-field">
-        <label>Attack Pool</label>
-        <input type="number" id="area-pool" min="0" max="30" value="0">
+        <label>Loaded Attack Rating</label>
+        <div id="area-attack-rating" class="text-bright">--</div>
       </div>
       <div class="mr-field">
         <label>Hacking Pool Dice</label>
@@ -646,9 +646,7 @@
         <input type="number" id="logoff-hp-dice" min="0" max="50" value="0">
       </div>
       <div class="mr-field">
-        <label>Deception Utility Rating</label>
-        <input type="number" id="logoff-deception" min="0" max="50" value="0">
-        <span class="tip">Pre-filled from your deck config.</span>
+        <span class="text-bright">Using Deception-<output id="logoff-deception">0</output> from active memory.</span>
       </div>
     </div>
     <div class="mr-modal-actions">
@@ -805,7 +803,7 @@ function computeLoadoutUsage(items) {
     .reduce((sum, i) => sum + _itemFullSize(i), 0);
 
   const storageUsed = normalized
-    .filter(i => targetUsesStorage(i.target))
+    .filter(i => isOneShotItem(i) ? i.target === 'storage' : targetUsesStorage(i.target))
     .reduce((sum, i) => sum + _itemStoreSize(i), 0);
 
   return { activeUsed, storageUsed };
@@ -873,6 +871,7 @@ function validateLoadoutRules(loadout) {
   const items = Array.isArray(loadout?.items) ? loadout.items : [];
 
   const normalTypes = new Set();
+  const oneShotBuilds = new Map();
   items.forEach(item => {
     const target = item?.target || 'active';
     const parsed = parseProgramIdentity(item);
@@ -883,6 +882,24 @@ function validateLoadoutRules(loadout) {
         issues.push(`Duplicate non-One-Shot type: ${parsed.utilName || parsed.typeKey}`);
       } else {
         normalTypes.add(parsed.typeKey);
+      }
+    } else {
+      const options = parseRunProgramOpts(item?.mods, parsed.baseRating) || {};
+      if (parsed.typeKey === 'attack') {
+        options.damage_level = ({ 2: 'Light', 3: 'Moderate', 4: 'Serious', 5: 'Deadly' })[parseInt(item?.attackDamage, 10)] || '';
+      }
+      const signature = JSON.stringify([
+        parsed.baseRating,
+        Object.entries(options).sort(([a], [b]) => a.localeCompare(b)),
+        _itemStoreSize(item),
+        _itemFullSize(item),
+        _itemSqueezed(item),
+      ]);
+      const prior = oneShotBuilds.get(parsed.typeKey);
+      if (prior !== undefined && prior !== signature) {
+        issues.push(`Mixed One-Shot builds: ${parsed.utilName || parsed.typeKey}`);
+      } else {
+        oneShotBuilds.set(parsed.typeKey, signature);
       }
     }
 
@@ -1261,7 +1278,7 @@ function laoLibraryHtml() {
       <div class="lao-empty">No coded programs found for this decker. Code programs in the Deck Workshop.</div></div>`;
   }
   const loadedKeys = new Set((_runLoadoutDraft?.items || []).map(laoKey));
-  const avail = compiled.filter(a => !loadedKeys.has(laoKey(a)));
+  const avail = compiled.filter(a => a.isOneShot || !loadedKeys.has(laoKey(a)));
   const cards = avail.length
     ? avail.slice().sort(laoSortCmp).map(laoLibCardHtml).join('')
     : '<div class="lao-empty">Every coded program is already in this load-out.</div>';
@@ -1423,6 +1440,12 @@ function updateRunStartEligibility() {
   if (!deck || !loadout) {
     startBtn.disabled = true;
     statusEl.textContent = 'Select a deck build and a load-out from Deck Builder to start a run.';
+    return;
+  }
+
+  if (_runLoadoutDraft) {
+    startBtn.disabled = true;
+    statusEl.textContent = 'Save load-out changes in Deck Workshop before starting a run.';
     return;
   }
 
@@ -1727,6 +1750,19 @@ function _liveIC(s)     { return (s.active_ic || []).filter(ic => ic.status !== 
 function _tarIC(s)      { return _allIC(s).filter(ic => ic.type === 'Tar Baby' || ic.type === 'Tar Pit'); }
 function _wormIC(s)     { return _allIC(s).filter(ic => /worm/i.test(ic.type || '')); }
 function _traceIC(s)    { return _liveIC(s).filter(ic => /trace/i.test(ic.type || '')); }
+function _traceTargetable(ic) {
+  const isTrace = /trace/i.test(ic.type || '') || ic.trace_phase != null;
+  if (!isTrace) return true;
+  return ['hunt', 'hunting', 'hunt_hit'].includes(String(ic.trace_phase || 'hunt').toLowerCase());
+}
+function _slowEligibleIC(s) {
+  const reactive = new Set(['Probe', 'Data Bomb', 'Scramble', 'Worm', 'Tar Baby', 'Tar Pit']);
+  return _liveIC(s).filter(ic => {
+    if (!ic || !ic.type || ic.type === 'Unknown IC' || reactive.has(ic.type)) return false;
+    if (/trace/i.test(ic.type)) return _traceTargetable(ic);
+    return true;
+  });
+}
 // Relocate only affects a Trace IC that is in its LOCATION cycle (trace_phase 'locate'); it cannot
 // touch a trace during its hunt cycle, and targets ONE trace at a time.
 function _locatingTraceIC(s) { return _traceIC(s).filter(ic => (ic.trace_phase || '') === 'locate'); }
@@ -1757,10 +1793,9 @@ function _discoveredBombs(s) {
     });
 }
 // Scrambles the decker has DISCOVERED (via Analyze Subsystem on the Files/Slave subsystem that
-// holds them). Players get a redacted discovered_scrambles list ({target_key, subsystem, label});
+// holds them). Players get a redacted list ({scramble_ref, subsystem, label});
 // an admin/GM view instead carries the raw scrambles (with discovered flags) -- derive the same
-// shape from it, decoding the label exactly as the backend _scramble_label does. Decrypt File
-// sends target_key (the FULL key) so the backend matches the RIGHT scramble, never scrambles[0].
+// shape from it. Decrypt File sends the opaque player ref; raw admin state keeps using target_key.
 function _scrambleSubsystem(tk) {
   const seg = String(tk || '').split('::', 1)[0].trim().toLowerCase();
   return (seg === 'access' || seg === 'slave' || seg === 'files') ? seg : 'files';
@@ -1780,7 +1815,7 @@ function _discoveredScrambles(s) {
   if (Array.isArray(s.discovered_scrambles)) return s.discovered_scrambles;
   return (s.scrambles || [])
     .filter(sc => sc && sc.discovered)
-    .map(sc => ({ target_key: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key) }));
+    .map(sc => ({ scramble_ref: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key) }));
 }
 function _liveUtils()   { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
   return Object.keys(u).filter(k => (parseInt(u[k], 10) || 0) > 0).map(k => ({ key: k, rating: parseInt(u[k], 10) || 0 })); }
@@ -1797,9 +1832,11 @@ function _activeWear(s) { const u = (_run && _run.decker_json && _run.decker_jso
 // utilities (state.program_sizes); `cap` = state.active_memory_cap (0 = untracked/unlimited).
 function _activeMem(s)  { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
   const sz = (s && s.program_sizes) || {};
+  const copies = (s && s.one_shot_active) || {};
   const used = Object.keys(u)
     .filter(k => (parseInt(u[k], 10) || 0) > 0)
-    .reduce((t, k) => t + (parseInt(sz[k], 10) || 0), 0)
+    .reduce((t, k) => t + (parseInt(sz[k], 10) || 0)
+      * (Object.prototype.hasOwnProperty.call(copies, k) ? Math.max(0, parseInt(copies[k], 10) || 0) : 1), 0)
     + _squeezedActive(s).reduce((t, p) => t + (parseInt(p.size, 10) || 0), 0);
   return { used, cap: parseInt(s && s.active_memory_cap, 10) || 0 }; }
 // Squeezed programs swapped into active memory but NOT yet decompressed: they occupy full active
@@ -1841,7 +1878,7 @@ function _icTgt(list, label) {
 // after logon; when there is no located file or known device there is nothing to scan, so
 // Analyze Icon is unavailable (see its "valid" gate below).
 function _analyzeIconTargets(s) {
-  const opts = _locPaydata(s).map(p => ({ value: 'files::' + p.name, label: 'File: ' + String(p.name) }));
+  const opts = _locPaydata(s).map(p => ({ value: 'files::' + (p.id || p.name), label: 'File: ' + String(p.name) }));
   const devices = Array.isArray(s.slave_devices) ? s.slave_devices.filter(d => String(d).trim()) : [];
   devices.forEach(d => opts.push({ value: 'slave::' + d, label: 'Device: ' + String(d) }));
   return opts;
@@ -1898,10 +1935,8 @@ const ACTION_CATALOG = [
     target: s => ({ mode: 'select', label: 'Passcode to erase', options: _invalidateTargets(s) }) },
   { v: 'decoy',             l: 'Decoy',                   cost: 'Complex' },
   { v: 'redirect_datatrail',l: 'Redirect Datatrail',      cost: 'Complex',
-    valid: s => _traceIC(s).length > 0 && !(parseInt(s.redirects_placed, 10) > 0),
-    reason: s => (parseInt(s.redirects_placed, 10) > 0
-      ? 'datatrail already redirected on this host'
-      : 'no trace running') },
+    valid: s => !(parseInt(s.redirects_placed, 10) > 0),
+    reason: 'datatrail already redirected on this host' },
   { v: 'null_operation',    l: 'Null Operation (idle)',   cost: 'Complex' },
   { v: 'medic',             l: 'Medic (heal icon)',       cost: 'Complex',
     valid: s => _personaHurt(s) && _liveUtils().some(u => u.key === 'medic'), reason: 'need icon damage + Medic loaded' },
@@ -1917,13 +1952,13 @@ const ACTION_CATALOG = [
     reason: s => _carriedStrikeRating('steamroller') > 0 ? 'no tar IC' : 'no Steamroller loaded',
     target: s => _icTgt(_tarIC(s), 'Tar IC to crush') },
   { v: 'slow',              l: 'Slow (cripple IC)',       cost: 'Simple',
-    valid: s => _carriedStrikeRating('slow') > 0 && _liveIC(s).length > 0,
-    reason: s => _carriedStrikeRating('slow') > 0 ? 'no active IC' : 'no Slow utility loaded',
-    target: s => _icTgt(_liveIC(s), 'IC to slow') },
+    valid: s => _carriedStrikeRating('slow') > 0 && _slowEligibleIC(s).length > 0,
+    reason: s => _carriedStrikeRating('slow') > 0 ? 'no identified eligible IC' : 'no Slow utility loaded',
+    target: s => _icTgt(_slowEligibleIC(s), 'IC to slow') },
   { v: 'defuse_data_bomb',  l: 'Defuse Data Bomb',        cost: 'Complex',
     valid: s => _discoveredBombs(s).length > 0, reason: 'none discovered',
     target: s => ({ mode: 'select', label: 'Bomb to defuse', options: _discoveredBombs(s).map(b => ({ value: b.target, label: `${b.scope === 'slave' ? 'Slave' : 'Files'} - ${b.name || b.target}` })) }) },
-  { v: 'decompress_file',   l: 'Decompress',              cost: 'Complex',
+  { v: 'decompress_file',   l: 'Decompress',              cost: 'Complex', noTest: true,
     valid: s => _compFiles(s).length > 0 || _squeezedActive(s).length > 0, reason: 'nothing compressed to decompress',
     target: s => ({ mode: 'select', label: 'Compressed program / file', options:
       _squeezedActive(s).map(p => ({ value: 'prog::' + p.name, label: `Program: ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` }))
@@ -1938,27 +1973,26 @@ const ACTION_CATALOG = [
       const c = _compressorRating();
       let note = full + 'Mp';
       if (c > 0) { note += (full <= c * 100) ? (' -> ' + _storedSizeMp(full) + 'Mp compressed') : (' -- over ' + (c * 100) + 'Mp cap, stored full'); }
-      return { value: p.name, label: p.name + ' (' + note + ')' };
+      return { value: p.id || p.name, label: p.name + ' (' + note + ')' };
     }) }) },
   { v: 'edit_file',         l: 'Edit File',               cost: 'Simple', editMode: true,
     valid: s => _locPaydata(s).length > 0, reason: 'nothing located',
-    target: s => ({ mode: 'select', label: 'File to edit', options: _locPaydata(s).map(p => ({ value: p.name, label: String(p.name) })) }) },
+    target: s => ({ mode: 'select', label: 'File to edit', options: _locPaydata(s).map(p => ({ value: p.id || p.name, label: String(p.name) })) }) },
   { v: 'decrypt_file',      l: 'Decrypt File',            cost: 'Simple',
     valid: s => _discoveredScrambles(s).length > 0, reason: 'no scramble discovered -- Analyze Files/Slave',
-    target: s => ({ mode: 'select', label: 'Scramble to decrypt', options: _discoveredScrambles(s).map(sc => ({ value: sc.target_key, label: String(sc.label) })) }) },
+    target: s => ({ mode: 'select', label: 'Scramble to decrypt', options: _discoveredScrambles(s).map(sc => ({ value: sc.scramble_ref, label: String(sc.label) })) }) },
   { v: 'relocate',          l: 'Relocate (vs Trace IC)',  cost: 'Simple', relocateMode: true,
     valid: s => _locatingTraceIC(s).length > 0, reason: 'no trace in its location cycle',
     target: s => _icTgt(_locatingTraceIC(s), 'Trace IC to relocate') },
   // Combat maneuvers (vr2 L1982): a Simple Action opposed Evasion-vs-Sensor test against ONE
-  // opposing icon. They roll the decker's fixed Evasion attribute (Hacking Pool is not applied),
-  // so the HP Dice field is hidden (noTest). Position Attack adds a -TN / +Power choice.
-  { v: 'evade_detection',   l: 'Evade Detection',         cost: 'Simple', maneuver: true, noTest: true,
+  // opposing icon. Hacking Pool may augment the decker's Evasion dice.
+  { v: 'evade_detection',   l: 'Evade Detection',         cost: 'Simple', maneuver: true,
     valid: s => _maneuverTargets(s).length > 0, reason: 'no IC or revealed enemy decker',
     target: s => ({ mode: 'select', label: 'Icon to evade', options: _maneuverTargets(s) }) },
-  { v: 'parry_attack',      l: 'Parry Attack',            cost: 'Simple', maneuver: true, noTest: true,
+  { v: 'parry_attack',      l: 'Parry Attack',            cost: 'Simple', maneuver: true,
     valid: s => _maneuverTargets(s).length > 0, reason: 'no IC or revealed enemy decker',
     target: s => ({ mode: 'select', label: 'Icon to parry', options: _maneuverTargets(s) }) },
-  { v: 'position_attack',   l: 'Position Attack',         cost: 'Simple', maneuver: true, noTest: true, posChoice: true,
+  { v: 'position_attack',   l: 'Position Attack',         cost: 'Simple', maneuver: true, posChoice: true,
     valid: s => _maneuverTargets(s).length > 0, reason: 'no IC or revealed enemy decker',
     target: s => ({ mode: 'select', label: 'Icon to outposition', options: _maneuverTargets(s) }) },
   // Swap Memory is a no-test Simple Action (RAW): load a stored program into active memory, OR
@@ -1992,8 +2026,6 @@ const ACTION_CATALOG = [
   { v: 'analyze_icon',      l: 'Analyze Icon',            cost: 'Free',
     valid: s => _analyzeIconTargets(s).length > 0, reason: 'no icon to scan',
     target: s => ({ mode: 'select', label: 'Icon to scan', options: _analyzeIconTargets(s) }) },
-  { v: 'analyze_ic',        l: 'Analyze IC',              cost: 'Free',
-    valid: s => _allIC(s).length > 0, reason: 'no IC visible', target: s => _icTgt(_allIC(s), 'IC to analyze') },
   // Unload Program (RAW, Free): push an ACTIVE program out to storage to free active memory. No
   // dice test. The complementary load is Swap Memory (Simple) above. The option label shows the
   // active-memory footprint (state.program_sizes) so the decker sees how much Mp unloading frees.
@@ -2004,7 +2036,7 @@ const ACTION_CATALOG = [
   // DINAB (Free): run ONE DINAB-equipped program this pass at no action cost. Only programs whose
   // loadout carries a DINAB rating (and that are loaded, uncrashed, unworn) qualify; the label
   // shows the effective pool (DINAB rating minus accrued wear).
-  { v: 'dinab',             l: 'DINAB (run program free)',cost: 'Free',
+  { v: 'dinab',             l: 'DINAB (run program free)',cost: 'Free', noTest: true,
     valid: s => _dinabUtils(s).length > 0, reason: 'no DINAB-equipped program',
     target: s => ({ mode: 'select', label: 'Program to run', options: _dinabUtils(s).map(u => ({ value: u.key, label: `${prettyProg(u.key)} DINAB-${u.eff}` })) }) },
 ];
@@ -2369,10 +2401,12 @@ async function startRun() {
 
   // Program memory: storage-only inventory + per-program active-memory sizes, so Swap Memory can
   // move a stored program into active memory mid-run and the engine can police the active cap.
-  // Active programs always keep a storage copy, so a swap only shifts active usage.
+  // Regular active programs keep a retained storage copy. Each One-Shot row is one literal copy
+  // occupying either storage or active memory.
   const program_sizes = {};
   const storage_programs = [];
   const program_options = {};
+  const one_shot_active = {};
   const _optRank = {};   // typeKey -> rank of the chosen source (2 = active-loaded, 1 = storage)
   _loadoutItems.forEach(item => {
     const ident = parseProgramIdentity(item);
@@ -2408,6 +2442,9 @@ async function startRun() {
       if (program_options[ident.typeKey] === undefined || rank > (_optRank[ident.typeKey] || 0)) {
         program_options[ident.typeKey] = merged;
         _optRank[ident.typeKey] = rank;
+      }
+      if (merged.one_shot && targetUsesActive(item?.target || 'active')) {
+        one_shot_active[ident.typeKey] = (one_shot_active[ident.typeKey] || 0) + 1;
       }
     }
   });
@@ -2452,6 +2489,7 @@ async function startRun() {
     name, mpcp, bod, evasion, masking, sensor,
     character_id: getSavedProgrammerProfile()?.characterId ? parseInt(getSavedProgrammerProfile().characterId, 10) : null,
     deck_name: getSelectedDeck()?.name || '',
+    loadout_name: getSelectedLoadout()?.name || '',
     computer_skill: computer,
     intelligence: intel,
     quickness: quick,
@@ -2474,17 +2512,20 @@ async function startRun() {
     storage_programs,
     program_sizes,
     program_options,
+    one_shot_active,
   };
 
   // Carry the deck's persistent MPCP infections into the run so a Deathworm keeps degrading
   // cybercombat TNs and a Tapeworm keeps erasing paydata every run until the chip is replaced.
   const _deckInf = getSelectedDeck()?.mpcp_infections;
   if (Array.isArray(_deckInf) && _deckInf.length) {
-    decker.mpcp_infections = _deckInf.map(i => ({
-      variant: String(i.variant || 'standard'),
+    decker.mpcp_infections = _deckInf
+      .filter(i => i && ['deathworm', 'tapeworm'].includes(String(i.variant)))
+      .map(i => ({
+      variant: String(i.variant),
       rating: parseInt(i.rating, 10) || 6,
       ic_id: String(i.ic_id || ''),
-    }));
+      }));
   }
 
   const btn = document.getElementById('startRunBtn');
@@ -2548,27 +2589,20 @@ function renderTrapDoorsPanel() {
     const srcBadge = `<span style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px">[${sub}${src ? ' / ' + src : ''}]</span>`;
 
     // Discovered door -- transit controls. The destination stays concealed until arrival.
-    const filed = !!td.filed;
     const destLine = `<span style="font-size:.72rem;color:var(--cyan)">-&gt; concealed port to another system</span>`;
-    const intel = filed
-      ? `<span style="font-size:.58rem;letter-spacing:1px;color:var(--amber)">FILED &mdash; via trap door only</span>`
-      : '';
-    const idArg = esc(String(td.id));
+    const idAttr = esc(String(td.id));
     const enterBtn = runActive
-      ? `<button class="btn btn-ghost btn-sm" onclick="enterTrapDoor('${idArg}')" style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -&gt;</button>`
+      ? `<button class="btn btn-ghost btn-sm" data-trap-door-enter="${idAttr}" style="padding:2px 8px;font-size:.62rem;color:var(--cyan)">Enter -&gt;</button>`
       : '';
-    // File Away removed: it only set a cosmetic "filed" marker for the rest of the run (no
-    // persisted cross-run intel, and it does NOT reveal LTG access -- that needs entering the door
-    // and running Analyze Access on the far side). Enter is the only meaningful action.
-    const fileBtn = '';
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
       ${srcBadge}
       ${destLine}
       ${enterBtn}
-      ${fileBtn}
-      ${intel}
     </div>`;
   }).join('') : '');
+  list.querySelectorAll('[data-trap-door-enter]').forEach(button => {
+    button.addEventListener('click', () => enterTrapDoor(button.dataset.trapDoorEnter || ''));
+  });
 }
 
 // -- Enemy deckers (vr2 #5) --------------------------------------------------
@@ -2649,15 +2683,12 @@ async function strikeEnemyDecker(eid) {
     hog: 'Hog (virus)',
     black_hammer: 'Black Hammer (lethal Physical)', killjoy: 'Killjoy (lethal Stun)',
   };
-  const carried = _carriedStrikeRating(program);
-  const def = carried > 0 ? String(carried) : '12';
-  const src = program === 'attack' ? 'Attack utility' : program.replace('_', ' ') + ' rating';
-  const raw = prompt('Dice pool for ' + (labels[program] || program) + ' -- ' + src + ' + Hacking Pool:', def);
+  const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const raw = prompt('Hacking Pool dice to add to ' + (labels[program] || program) + ` (0-${hpMax}):`, '0');
   if (raw === null) return;
-  const pool = parseInt(raw, 10) || 0;
-  if (pool < 1) return;
+  const hp = Math.max(0, Math.min(parseInt(raw, 10) || 0, hpMax));
   await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`,
-    { enemy_id: eid, attack_pool: pool, hacking_pool_dice: 0, program });
+    { enemy_id: eid, hacking_pool_dice: hp, program });
 }
 
 // Scan Icon vs an enemy decker (Computer Test vs Masking): the server rolls the decker's Computer
@@ -2678,10 +2709,14 @@ async function scanEnemyDecker(eid) {
 // the decker's ID of that IC (presence -> type -> rating + options), the same as the dropdown action.
 async function analyzeIC(id) {
   if (!_run) return;
+  if ((parseInt((_run.decker_json.utilities || {}).analyze, 10) || 0) <= 0) {
+    showAlert(document.getElementById('runAlert'),
+      '>> No Analyze utility loaded -- load a copy before analyzing IC.', true);
+    return;
+  }
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'analyze_ic',
     subsystem: ACTION_SUBSYSTEM.analyze_ic || 'control',
-    utility_rating: _autoUtilRating('analyze_ic'),
     hacking_pool_dice: 0,
     target_ic_id: id,
   });
@@ -2785,7 +2820,7 @@ function renderDownloadsPanel() {
   }
 
   const rows = located.length ? located : gmPaydata.map(p => ({
-    name: p.name, size_mp: p.density || 0, is_key: !!p.is_key,
+    id: p.id, name: p.name, size_mp: p.density || 0, is_key: !!p.is_key,
     downloaded: !!p.downloaded, destroyed: !!p.destroyed, tampered: !!p.tampered,
   }));
   if (rows.length) {
@@ -2877,20 +2912,24 @@ function renderMemoryPanel() {
   // is the accrued per-use degradation (state.program_damage) -- Shield/Armor/Medic lose rating
   // as they are used, so the chip shows the EFFECTIVE (worn-down) rating, not the loaded base.
   const pdmg = state.program_damage || {};
+  const oneShotActive = state.one_shot_active || {};
   const active = Object.keys(utils)
-    .filter(k => (parseInt(utils[k], 10) || 0) > 0)
+    .filter(k => (parseInt(utils[k], 10) || 0) > 0
+      && (!Object.prototype.hasOwnProperty.call(oneShotActive, k) || (parseInt(oneShotActive[k], 10) || 0) > 0))
     .map(k => ({ name: k, rating: parseInt(utils[k], 10) || 0, size: parseInt(sizes[k], 10) || 0,
-                 worn: parseInt(pdmg[k], 10) || 0 }));
+                 worn: parseInt(pdmg[k], 10) || 0,
+                 copies: Object.prototype.hasOwnProperty.call(oneShotActive, k)
+                   ? Math.max(0, parseInt(oneShotActive[k], 10) || 0) : 1 }));
   // Squeezed programs swapped in but not yet decompressed: full active footprint, unusable.
   const pending = _squeezedActive(state).map(p => ({ name: p.name, rating: parseInt(p.rating, 10) || 0,
                                                      size: parseInt(p.size, 10) || 0 }));
-  const activeUsed = active.reduce((s, p) => s + p.size, 0) + pending.reduce((s, p) => s + p.size, 0);
+  const activeUsed = active.reduce((s, p) => s + p.size * p.copies, 0) + pending.reduce((s, p) => s + p.size, 0);
 
   if (!active.length && !pending.length && !storage.length && !files.length) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  // A squeezed program keeps only a HALF-size copy in storage (ceil), whether it sits in storage,
-  // is pending decompress, or is decompressed in active memory. squeeze_keys lists every such key.
+  // Squeezed stored programs use a HALF-size footprint (ceil). Active copies use full active
+  // memory; regular active programs also retain storage, while One-Shot active copies do not.
   const squeezeKeys = new Set((state.squeeze_keys || []).map(k => String(k).toLowerCase()));
   const storeFoot = (name, size) => squeezeKeys.has(String(name).toLowerCase())
     ? Math.floor(((parseInt(size, 10) || 0) + 1) / 2) : (parseInt(size, 10) || 0);
@@ -2898,26 +2937,36 @@ function renderMemoryPanel() {
   // ACTIVE MEMORY -- meter + program chips (name-rating; size + description on hover). Pending
   // squeezed programs render as amber COMPRESSED chips (occupy active memory but unusable).
   let html = memMeterBar('ACTIVE MEMORY', activeUsed, activeCap);
-  const activeChips = active.map(p => progChip(p.name, p.rating, p.size, p.worn))
+  const activeChips = active.map(p => progChip(p.name, p.rating, p.size, p.worn, p.copies))
     .concat(pending.map(p => `<span class="mem-chip mem-chip-squeezed" data-tip="${esc(`Compressed in active memory (${p.size} Mp). Decompress (Complex Action) before use.`)}">${esc(prettyProg(p.name))}${p.rating ? '-' + p.rating : ''} [COMPRESSED]</span>`));
   html += activeChips.length
     ? `<div class="mem-chips">${activeChips.join('')}</div>`
     : `<div class="empty-msg" style="font-size:.62rem">No active utilities</div>`;
 
-  // OFFLINE STORAGE -- meter + stored-program chips and downloaded paydata files (by name).
-  // Offline storage holds a backup copy of every loaded utility (active + pending each keep one,
-  // squeezed at half) PLUS storage-only programs (squeezed at half) PLUS downloaded paydata.
-  // cap = that plus the free paydata budget the deck reported at jack-in (state.storage_free_mp
-  // is static; -1 = untracked/unlimited).
-  const activeBackup = active.concat(pending).reduce((s, p) => s + storeFoot(p.name, p.size), 0);
+  // STORAGE -- regular active programs retain a copy here; One-Shot copies occupy storage OR
+  // active, never both. Explicit storage entries contain one row per stored static copy.
+  // Capacity is fixed at jack-in. Legacy runs without the snapshot retain the derived fallback.
+  const oneShotKeys = new Set(Object.keys(oneShotActive));
+  const activeBackup = active.concat(pending)
+    .filter(p => !oneShotKeys.has(String(p.name).toLowerCase()))
+    .reduce((s, p) => s + storeFoot(p.name, p.size), 0);
   const storedProgMp = storage.reduce((s, p) => s + storeFoot(p.name, p.size), 0);
   const downloadsMp  = Math.max(0, parseInt(state.storage_used_mp, 10) || 0);
   const freeBudget   = state.storage_free_mp;
   const storTracked  = (typeof freeBudget === 'number' && freeBudget >= 0);
   const storUsed = activeBackup + storedProgMp + downloadsMp;
-  const storCap  = storTracked ? (activeBackup + storedProgMp + freeBudget) : 0;
+  const fixedCap = parseInt(state.storage_capacity_mp, 10);
+  const storCap  = Number.isFinite(fixedCap) && fixedCap >= 0
+    ? fixedCap : (storTracked ? (activeBackup + storedProgMp + freeBudget) : 0);
   html += `<div class="mem-section-gap">${memMeterBar('STORAGE', storUsed, storCap)}</div>`;
-  const chips = storage.map(p => progChip(p.name, parseInt(p.rating, 10) || 0, storeFoot(p.name, p.size)))
+  const storedGroups = new Map();
+  storage.forEach(p => {
+    const key = `${String(p.name || '').toLowerCase()}|${parseInt(p.rating, 10) || 0}|${parseInt(p.size, 10) || 0}`;
+    if (!storedGroups.has(key)) storedGroups.set(key, { ...p, copies: 0 });
+    storedGroups.get(key).copies += 1;
+  });
+  const chips = Array.from(storedGroups.values())
+    .map(p => progChip(p.name, parseInt(p.rating, 10) || 0, storeFoot(p.name, p.size), 0, p.copies))
     .concat(files.map(f => fileChip(f.name, !!f.is_key, !!f.compressed)));
   html += chips.length
     ? `<div class="mem-chips">${chips.join('')}</div>`
@@ -2965,7 +3014,7 @@ function progDmgCode(name) {
 // (state.program_damage): when set, the chip shows the EFFECTIVE (worn-down) rating in straw so a
 // used-up Shield/Armor/Medic reads its current strength, not its loaded base. Size + description
 // show on hover via the shared in-app tooltip (data-tip; styled #app-tooltip, not the OS title).
-function progChip(name, rating, size, worn) {
+function progChip(name, rating, size, worn, copies = 1) {
   const wear = parseInt(worn, 10) || 0;
   const eff  = wear > 0 ? Math.max(0, rating - wear) : rating;
   const degraded = wear > 0 && eff < rating;
@@ -2976,7 +3025,8 @@ function progChip(name, rating, size, worn) {
     : tipBase;
   const dmg = rating ? progDmgCode(name) : '';
   const cls = degraded ? 'mem-chip mem-chip-worn' : 'mem-chip';
-  return `<span class="${cls}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${esc(prettyProg(name))}${rating ? '-' + eff : ''}${esc(dmg)}</span>`;
+  const copyTag = copies > 1 ? ` x${copies}` : '';
+  return `<span class="${cls}"${tip ? ` data-tip="${esc(tip)}"` : ''}>${esc(prettyProg(name))}${rating ? '-' + eff : ''}${esc(dmg)}${copyTag}</span>`;
 }
 // A downloaded-paydata chip (by file name); key files get a star, compressed files a down-arrow.
 function fileChip(name, isKey, compressed) {
@@ -2996,12 +3046,10 @@ async function enterTrapDoor(id) {
   if (!ok) return;
 
   try {
-    // VR2: the logoff out through a trap door uses the decker's loaded Deception utility by default.
-    const deception = parseInt(_run?.decker_json?.utilities?.deception, 10) || 0;
     const prevHostId = _run.host_id;
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/trap-door/${encodeURIComponent(id)}`, {
       method: 'POST',
-      body: JSON.stringify({ action: 'enter', hacking_pool_dice: 0, deception_utility: deception }),
+      body: JSON.stringify({ action: 'enter', hacking_pool_dice: 0 }),
     });
     if (!res.ok) await apiThrow(res);
     const result = await res.json();
@@ -3080,6 +3128,20 @@ function renderRunState(run) {
 
   // Condition monitor
   const cm = state.condition_monitor || {};
+  const pdmg = cm.persona_damage || {};
+  const personaMode = decker.persona_mode || state.persona_mode || 'none';
+  const personaModeMult = {
+    bod:     { bod: 1.5, evasion: 0.5, masking: 0.5, sensor: 0.5 },
+    evasion: { bod: 0.5, evasion: 1.5, masking: 0.5, sensor: 0.5 },
+    masking: { bod: 1, evasion: 0.5, masking: 1.5, sensor: 0.5 },
+    sensor:  { bod: 0.5, evasion: 0.5, masking: 0.5, sensor: 1.5 },
+  }[personaMode] || {};
+  const serializedPersona = state.effective_persona || {};
+  const currentPersona = name => {
+    if (serializedPersona[name] != null) return parseInt(serializedPersona[name], 10) || 1;
+    const base = Math.max(1, Math.ceil((decker[name] || 0) * (personaModeMult[name] || 1)));
+    return Math.max(1, base - (parseInt(pdmg[name], 10) || 0));
+  };
   renderConditionBoxes('persona-boxes',  cm.persona_boxes  || 0, 10, 'persona');
   renderConditionBoxes('stun-boxes',     cm.stun_boxes     || 0, 10, 'stun');
   renderConditionBoxes('physical-boxes', cm.physical_boxes || 0, 10, 'physical');
@@ -3091,12 +3153,14 @@ function renderRunState(run) {
   const hpTotal     = state.hackingPool_total     ?? Math.floor(((decker.intelligence || 0) + (decker.mpcp || 0)) / 3);
   const hpRemaining = state.hackingPool_remaining ?? hpTotal;
   const sleaze = (decker.utilities || {}).sleaze || 0;
-  const baseDf = Math.ceil(((decker.masking || 0) + sleaze) / 2);
+  const baseDf = state.base_detection_factor
+    ?? Math.ceil((currentPersona('masking') + sleaze) / 2);
   // Each active suppression (a crashed IC held down, or a suppressed data-bomb entry) costs 1
   // Detection Factor, floored at 1 -- mirrors _effective_detection_factor server-side.
-  const supActive = (state.active_ic || []).filter(ic => ic.suppressed && !ic.suppression_released).length
-    + (state.suppressions || []).filter(s => s.suppressed && !s.released).length;
-  const effDf = Math.max(1, baseDf - supActive);
+  const supActive = state.suppression_count
+    ?? ((state.active_ic || []).filter(ic => ic.suppressed && !ic.suppression_released).length
+      + (state.suppressions || []).filter(s => s.suppressed && !s.released).length);
+  const effDf = state.detection_factor ?? Math.max(1, baseDf - supActive);
   const hpEl = document.getElementById('run-hp');
   hpEl.textContent = `${hpRemaining}/${hpTotal}`;
   // Match the glow to the state: depleted = red glow, partial = amber, full = green (CSS default).
@@ -3118,27 +3182,23 @@ function renderRunState(run) {
 
   // Deck stats
   const mpcpDmg = cm.mpcp_damage || 0;
-  const pdmg    = cm.persona_damage || {};
+  const personaStat = (label, name) => {
+    const damaged = (parseInt(pdmg[name], 10) || 0) > 0 ? ' ds-stat-damaged' : '';
+    return `<span class="ds-stat">${label}: <span class="${damaged.trim()}">${currentPersona(name)}</span></span>`;
+  };
   const liveBW     = state.icon_bandwidth;
   const bwTraceMod = state.bandwidth_modifier ?? 0;
   const bwTraceTxt = bwTraceMod > 0 ? `+${bwTraceMod}` : String(bwTraceMod);
   document.getElementById('run-deck-stats').innerHTML =
     `<span class="ds-stat">MPCP: <span>${decker.mpcp || 0}</span></span>` +
-    `<span class="ds-stat">BOD: <span>${decker.bod || 0}</span></span>` +
-    `<span class="ds-stat">EVA: <span>${decker.evasion || 0}</span></span>` +
-    `<span class="ds-stat">MASK: <span>${decker.masking || 0}</span></span>` +
-    `<span class="ds-stat">SENS: <span>${decker.sensor || 0}</span></span>` +
+    personaStat('BOD', 'bod') +
+    personaStat('EVA', 'evasion') +
+    personaStat('MASK', 'masking') +
+    personaStat('SENS', 'sensor') +
     `<span class="ds-stat">Icon BW: <span>${liveBW ?? '--'}</span></span>` +
     `<span class="ds-stat">BW Trace: <span>${bwTraceTxt}</span></span>`;
   document.getElementById('run-mpcp-damage').innerHTML =
     mpcpDmg > 0 ? `MPCP Damage: <span>${mpcpDmg}</span>` : '';
-  const pdmgParts = [];
-  if (pdmg.bod)     pdmgParts.push(`BOD:${pdmg.bod}`);
-  if (pdmg.evasion) pdmgParts.push(`EVA:${pdmg.evasion}`);
-  if (pdmg.masking) pdmgParts.push(`MASK:${pdmg.masking}`);
-  if (pdmg.sensor)  pdmgParts.push(`SENS:${pdmg.sensor}`);
-  document.getElementById('run-persona-damage').innerHTML =
-    pdmgParts.length ? `Persona Dmg: <span>${pdmgParts.join(' ')}</span>` : '';
 
   // Host status -- a clean slate until the decker is logged on. Before logon the run sheet is
   // just the deck + programs; nothing about the target host is known, so the panel reads blank.
@@ -3178,13 +3238,13 @@ function renderRunState(run) {
   // Crash Host countdown banner (visible once the decker initiates a crash)
   renderCrashCountdown(state.crash_host_countdown);
 
-  // Active IC (including lurking reactive IC; players also see revealed tar IC)
-  renderActiveIC(state.active_ic || [], [].concat(state.lurking_ic || [], state.revealed_lurking_ic || []), state.run_ended, crashed);
+  // Known security: active IC, detected lurking IC, and discovered subsystem-bound defenses.
+  renderActiveIC(state.active_ic || [], [].concat(state.lurking_ic || [], state.revealed_lurking_ic || []), _discoveredScrambles(state), state.run_ended, crashed);
   renderSuppressions(state, crashed);
   renderEnemyDeckers(state.enemy_deckers || [], state.run_ended, crashed);
   renderAreaStrikeSlot(state.run_ended, crashed);
   renderTrapDoorsPanel();
-  checkSuppressionModal(state, decker);
+  if (!checkSuppressionOverflow(state)) checkSuppressionModal(state, decker);
 
   // Paydata: located -> downloaded -> destroyed, all driven by engine state (located_paydata
   // carries the server-set `destroyed` flag when a Poison Scramble wipes a file).
@@ -3260,17 +3320,19 @@ function renderCrashCountdown(cd) {
     + `HOST CRASH: ${esc(String(t))} round${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each round</div>`;
 }
 
-// -- Active IC --------------------------------------------------------------
-function renderActiveIC(icList, lurkingList, runEnded, crashed) {
+// -- Known IC and defenses --------------------------------------------------
+function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
   const el = document.getElementById('run-ic-list');
   if (!el) return;
   const _apOk = _canAffordCost((_run && _run.state_json) || {}, 'Simple');
+  const _freeOk = _canAffordCost((_run && _run.state_json) || {}, 'Free');
+  const _analyzeOk = (parseInt(((_run && _run.decker_json.utilities) || {}).analyze, 10) || 0) > 0;
   // An Attack utility Limited to deckers cannot target IC -- disable the per-IC Attack button
   // rather than let a click hit a submit-time guard. Other IC actions (Analyze, Slow) still apply.
   const _atkLimitedVsIc = (_attackOptions().limit_target === 'decker');
 
-  if (!icList.length && !lurkingList.length) {
-    el.innerHTML = '<div class="empty-msg">No IC active</div>';
+  if (!icList.length && !lurkingList.length && !scrambleList.length) {
+    el.innerHTML = '<div class="empty-msg">No security identified</div>';
     return;
   }
 
@@ -3296,7 +3358,7 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     // solidifies at a full ID; the colour is the "unknown" hue until the threat class is learned.
     const partialId   = ic.detection_level != null && ic.detection_level < 3;
     const boxes       = renderConditionBoxesHTML(ic.boxes || 0, 10, 'ic');
-    const canAtk      = !runEnded && !crashed && !isCrashed;
+    const canAtk      = !runEnded && !crashed && !isCrashed && _traceTargetable(ic);
 
     // Trap badge -- GM sees hidden IC type; player sees [TRAP]
     let trapBadge = '';
@@ -3363,8 +3425,8 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
       ${canAtk ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-red btn-sm" ${(_apOk && !_atkLimitedVsIc) ? `onclick="openAttackModal('${esc(ic.id)}', '${esc(ic.type)}', ${ic.rating || 0})"` : 'disabled'} data-tip="${_atkLimitedVsIc ? 'Your Attack utility is Limited to deckers -- it cannot target IC.' : (_apOk ? 'One cybercombat attack -- a Simple action (1 AP)' : 'No action points left this pass -- End Turn to refresh')}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
-        ${((ic.detection_level || 3) < 3) ? `<button class="btn btn-cyan btn-sm" onclick="analyzeIC('${esc(ic.id)}')" data-tip="Analyze IC -- a Free action; each success reveals more of this IC (presence, then type, then rating &amp; options)">&gt;&gt; Analyze <span style="font-size:.5rem;opacity:.75">Free</span></button>` : ''}
-        ${_carriedSlow() > 0 ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this round (reactive IC are immune; a trace IC only during its hunt cycle)">&gt;&gt; Slow</button>` : ''}
+        ${((ic.detection_level || 3) < 3) ? `<button class="btn btn-cyan btn-sm" ${(_freeOk && _analyzeOk) ? `onclick="analyzeIC('${esc(ic.id)}')"` : 'disabled'} data-tip="${!_analyzeOk ? 'No Analyze utility loaded -- load a copy before analyzing IC' : (_freeOk ? 'Analyze IC -- a Free action; each success reveals more of this IC (presence, then type, then rating &amp; options)' : 'No Free action left this pass -- End Turn to refresh')}">&gt;&gt; Analyze <span style="font-size:.5rem;opacity:.75">Free</span></button>` : ''}
+        ${(_carriedSlow() > 0 && _slowEligibleIC({ active_ic: [ic] }).length) ? `<button class="btn btn-sm" style="color:var(--amber);border-color:#442200" onclick="slowIC('${esc(ic.id)}','${esc(ic.type)}',${ic.rating || 0})" data-tip="Slow this proactive IC: an opposed test; on a win it loses actions or HANGS this round (reactive IC are immune; a trace IC must be targetable)">&gt;&gt; Slow</button>` : ''}
       </div>` : ''}
       ${isCrashed && !ic.suppressed && !ic.suppression_released ? `
       <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -3402,20 +3464,26 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
   }
 
   // Lurking (reactive) IC section
+  // Detected but unidentified IC must not leak behavior through section/card labels.
   if (lurkingList.length) {
-    html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Lurking -- Reactive</div>`;
+    html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Detected IC</div>`;
     html += lurkingList.map(ic => {
       const isTar = ic.type === 'Tar Baby' || ic.type === 'Tar Pit';
+      const typeKnown = (parseInt(ic.detection_level, 10) || 0) >= 2;
+      const triggerSummary = !typeKnown ? ''
+        : (ic.type === 'Worm' ? 'Triggers on System Tests'
+          : (isTar ? 'Triggers on utility use' : ''));
       const canSteamroll = gm && !runEnded && !crashed && isTar;
       return `
       <div class="ic-card ic-lurking">
         <div class="ic-head">
           <span class="ic-type-name">${esc(ic.type)}${(parseInt(ic.rating, 10) > 0) ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : ''}</span>
           <span class="ic-badge" style="color:var(--amber);border-color:#442200">LURKING</span>
+          ${typeKnown ? `<span class="ic-badge" style="color:var(--amber);border-color:#442200">LURKING</span>` : ''}
         </div>
-        <div class="ic-meta">
-          <span style="color:var(--amber)">Triggers on utility use</span>
-        </div>
+        ${triggerSummary ? `<div class="ic-meta">
+          <span style="color:var(--amber)">${triggerSummary}</span>
+        </div>` : ''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${canSteamroll ? `<button class="btn btn-red btn-sm" onclick="steamrollTar('${esc(ic.id)}','${esc(ic.type)}',${ic.rating||0})" data-tip="Crush this tar IC with the Steamroller utility ((Rating)D damage, immune to the tar crash-backlash)">&gt;&gt; Steamroll</button>` : ''}
         </div>
@@ -3423,7 +3491,22 @@ function renderActiveIC(icList, lurkingList, runEnded, crashed) {
     }).join('');
   }
 
-  el.innerHTML = html || '<div class="empty-msg">No IC active</div>';
+  if (scrambleList.length) {
+    html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;border-top:1px solid #003344;margin:10px 0 6px;padding-top:8px">Subsystem Defenses</div>`;
+    html += scrambleList.map(scramble => `
+      <div class="ic-card ic-lurking">
+        <div class="ic-head">
+          <span class="ic-type-name">Scramble</span>
+          <span class="ic-badge" style="color:var(--cyan);border-color:#003344">${esc(String(scramble.subsystem || 'files').toUpperCase())}</span>
+        </div>
+        <div class="ic-meta">
+          <span>${esc(scramble.label || 'Protected target')}</span>
+          <span style="color:var(--cyan)">DETECTED / RATING UNKNOWN</span>
+        </div>
+      </div>`).join('');
+  }
+
+  el.innerHTML = html || '<div class="empty-msg">No security identified</div>';
 }
 
 function renderConditionBoxesHTML(filled, total, type) {
@@ -3473,14 +3556,14 @@ function renderStage(state, decker) {
       + '<div class="mr-stream-feed" id="mr-stream-feed"></div>'
       + '<div id="mr-stream-cta"></div>'
       + '</div>';
-    events.forEach(ev => _eventToBeats(ev).forEach(b => { if (!b.stop) _emitBeat(b, true); }));
+    _eventsToBeats(events).forEach(b => { if (!b.stop) _emitBeat(b, true); });
     _streamRendered = events.length;
     if (state.pending_defense) _renderStreamPrompt();
     const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
   } else {
     const ph = document.getElementById('mr-stream-phase'); if (ph) ph.innerHTML = headerHtml;
     if (events.length > _streamRendered) {
-      events.slice(_streamRendered).forEach(ev => _eventToBeats(ev).forEach(b => { if (!b.stop) _emitBeat(b, true); }));
+      _eventsToBeats(events.slice(_streamRendered)).forEach(b => { if (!b.stop) _emitBeat(b, true); });
       _streamRendered = events.length;
       const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
       if (state.pending_defense && !document.querySelector('.mr-prompt')) _renderStreamPrompt();
@@ -3491,7 +3574,7 @@ function renderStage(state, decker) {
 }
 
 // A required-action prompt on the game screen. The only one today is a banked Analyze Host: when the
-// decker scored fewer net successes than the host had hidden ratings, it may CHOOSE which still-hidden
+// decker scored fewer successes than the host had hidden ratings, it may CHOOSE which still-hidden
 // items to reveal (the 5 ACIFS ratings + the Security Rating). This is the relocated reveal button.
 function stageRequiredAction(state) {
   const pending = state.host_analyze_pending || null;
@@ -3597,7 +3680,7 @@ function _terminatedOutcome(reason) {
     graceful_logoff:        ['Logged out successfully, connection closed.',       'crt-good'],
     jack_out:               ['User interrupt, connection lost!!',                 'crt-amber'],
     host_shutdown:          ['Target host shutdown -- connection lost.',          'crt-amber'],
-    host_crashed:           ['Target host crashed, all processes stopped -- connection lost.', 'crt-amber'],
+    host_crashed:           ['Target host crashed -- you were dumped with Dump Shock.', 'crt-amber'],
     persona_crashed:        ['Icon damage threshold exceeded -- crashed.',        'crt-bad'],
     icon_crashed_by_decker: ['Icon damage threshold exceeded -- crashed.',        'crt-bad'],
     black_ic_unconscious:   [dangerUnconscious,                                   'crt-bad'],
@@ -3670,8 +3753,9 @@ function renderRunTerminated(state) {
   // Persistent MPCP worm infections: state.mpcp_infections [{variant, rating, ic_id}].
   const worms = Array.isArray(state.mpcp_infections) ? state.mpcp_infections : [];
   if (worms.length) {
+    const wormLabels = { deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
     const tags = worms.map(w => {
-      const v = (w && w.variant) ? String(w.variant) : 'worm';
+      const v = wormLabels[String(w.variant)];
       const r = parseInt(w && w.rating, 10);
       return Number.isFinite(r) ? `${v} (R${r})` : v;
     });
@@ -3691,6 +3775,10 @@ function renderRunTerminated(state) {
     +   `<div class="crt-line crt-node">&gt; Connection to ${esc(node)} closed.</div>`
     +   `<div class="crt-line ${outcomeCls}">&gt; ${esc(outcomeText)}</div>`
     +   statusLines.map(([t, c]) => `<div class="crt-line ${c}">&gt; ${esc(t)}</div>`).join('')
+    +   `<div class="crt-actions">`
+    +     `<a href="world-state.html">$ cd /world</a>`
+    +     `<button type="button" onclick="startAnotherRun()">$ exec matrix-run --new</button>`
+    +   `</div>`
     +   `<div class="crt-prompt">`
     +     `<span class="crt-user">${esc(userName)}@${esc(deckName)}</span> `
     +     `<span class="crt-path">~</span> `
@@ -3698,6 +3786,17 @@ function renderRunTerminated(state) {
     +     `<span class="crt-cursor">&nbsp;</span>`
     +   `</div>`
     + `</div>`;
+}
+
+function startAnotherRun() {
+  sessionStorage.removeItem('active_run_id');
+  _run = null;
+  document.body.classList.remove('mr-run-active');
+  document.getElementById('runView').style.display = 'none';
+  document.getElementById('setupView').style.display = '';
+  const layout = document.querySelector('#runView .mr-layout');
+  if (layout) layout.classList.remove('mr-terminated');
+  loadHosts();
 }
 
 // Normalize a display name into a shell-token: lowercase, spaces/punct -> hyphens, trimmed.
@@ -3763,8 +3862,6 @@ function renderActionArea(state, decker, crashed) {
         }).join('')
       + `</optgroup>`;
   }).join('');
-  const deception = (decker.utilities || {}).deception || 0;
-
   // End button closes ONE initiative pass (now labelled a "Turn") at a time. Only the decker's
   // LAST pass ends the whole Combat Round, so the label + tooltip reflect which this click does.
   // (SR2 rolls initiative ONCE per encounter -- ending a Turn or a Round never re-rolls it.)
@@ -3833,7 +3930,7 @@ function renderActionArea(state, decker, crashed) {
       <button class="btn act-newturn act-endturn" onclick="doEndTurn()" data-tip="${esc(_endTip)}">&gt;&gt; ${esc(_endLabel)}</button>
     </div>
     <div class="act-footer">
-      <button class="btn btn-amber btn-sm" onclick="openLogoffModal(${deception})" ${_canAffordCost(state, 'Complex') ? '' : 'disabled'} data-tip="${_canAffordCost(state, 'Complex') ? 'Graceful Logoff -- a Complex action (2 AP)' : 'Graceful Logoff is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Graceful Logoff</button>
+      <button class="btn btn-amber btn-sm" onclick="openLogoffModal()" ${_canAffordCost(state, 'Complex') ? '' : 'disabled'} data-tip="${_canAffordCost(state, 'Complex') ? 'Graceful Logoff -- a Complex action (2 AP)' : 'Graceful Logoff is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Graceful Logoff</button>
       <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
     </div>`;
 
@@ -3942,7 +4039,6 @@ async function performAction() {
   const body = {
     action_type: actionType,
     subsystem,
-    utility_rating: _autoUtilRating(actionType),
     hacking_pool_dice: hpDice,
   };
 
@@ -3995,7 +4091,6 @@ async function steamrollTar(id, type, rating) {
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'steamroller',
     subsystem: 'control',
-    utility_rating: sr,
     hacking_pool_dice: 0,
     target_ic_id: id,
   });
@@ -4032,7 +4127,6 @@ async function slowIC(id, type, rating) {
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'slow',
     subsystem: 'control',
-    utility_rating: slow,
     hacking_pool_dice: hp,
     target_ic_id: id,
   });
@@ -4043,11 +4137,9 @@ async function doLogon() {
   const hpInput = document.getElementById('logonHpDice');
   const hpDice  = hpInput ? (parseInt(hpInput.value) || 0) : 0;
   // VR2: Logon to Host uses the Deception utility to reduce the Access TN.
-  const deception = (_run.decker_json && _run.decker_json.utilities && _run.decker_json.utilities.deception) || 0;
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'logon_to_host',
     subsystem:   'access',
-    utility_rating: deception,
     hacking_pool_dice: hpDice,
   });
 }
@@ -4215,16 +4307,16 @@ function checkSuppressionModal(state, decker) {
   const pending = _pendingSuppressibles(state).filter(p => !_suppressDismissed.has(p.id));
   if (!pending.length) return;
   const p = pending[0];
-  const sleaze = (decker.utilities || {}).sleaze || 0;
-  const baseDf = Math.ceil(((decker.masking || 0) + sleaze) / 2);
-  const supActive = (state.active_ic || []).filter(ic => ic.suppressed && !ic.suppression_released).length
-    + (state.suppressions || []).filter(s => s.suppressed && !s.released).length;
-  const curDf = Math.max(1, baseDf - supActive);
+  const baseDf = parseInt(state.base_detection_factor, 10) || 1;
+  const supActive = parseInt(state.suppression_count, 10) || 0;
+  const curDf = parseInt(state.detection_factor, 10) || Math.max(1, baseDf - supActive);
   const afterDf = Math.max(1, baseDf - (supActive + 1));
   const noRoom = curDf <= 1;   // DF already at the floor -- can't spend another point to suppress
+  document.getElementById('suppressModalTitle').textContent = '>> SUPPRESS?';
   document.getElementById('suppressModalLabel').textContent = p.label;
   const yes = document.getElementById('suppressModalYes');
   const no = document.getElementById('suppressModalNo');
+  no.style.display = '';
   const relWrap = document.getElementById('suppressModalReleaseWrap');
   const relList = document.getElementById('suppressModalReleaseList');
   relWrap.style.display = 'none';
@@ -4270,6 +4362,39 @@ function checkSuppressionModal(state, decker) {
     }
   };
   document.getElementById('suppressModal').classList.add('open');
+}
+
+function checkSuppressionOverflow(state) {
+  const overflow = Math.max(0, parseInt(state.suppression_overflow, 10) || 0);
+  if (!overflow) return false;
+
+  const baseDf = Math.max(1, parseInt(state.base_detection_factor, 10) || 1);
+  const active = Math.max(0, parseInt(state.suppression_count, 10) || 0);
+  const affordable = Math.max(0, baseDf - 1);
+  const candidates = _releaseCandidates(state);
+  document.getElementById('suppressModalTitle').textContent = '>> SUPPRESSION OVERLOAD';
+  document.getElementById('suppressModalLabel').textContent =
+    `Masking damage reduced your Detection Factor. You are suppressing ${active} `
+    + `source${active === 1 ? '' : 's'}, but can now maintain only ${affordable}.`;
+  document.getElementById('suppressModalDf').innerHTML =
+    `<span style="color:var(--red)">Release ${overflow} suppression${overflow === 1 ? '' : 's'} `
+    + `before continuing.</span>`;
+  const relWrap = document.getElementById('suppressModalReleaseWrap');
+  const relList = document.getElementById('suppressModalReleaseList');
+  relWrap.style.display = '';
+  relList.innerHTML = candidates.map(c => `
+    <div class="rel-card">
+      <div class="rel-card-info">
+        <span class="rel-card-name">${esc(c.label)}</span>
+        <span class="rel-card-cost">${esc(c.note)}</span>
+      </div>
+      <button class="btn btn-sm" style="color:var(--amber);border-color:#442200"
+              onclick="_releaseFromSuppressModal('${esc(c.id)}')">&gt;&gt; Release</button>
+    </div>`).join('');
+  document.getElementById('suppressModalYes').style.display = 'none';
+  document.getElementById('suppressModalNo').style.display = 'none';
+  document.getElementById('suppressModal').classList.add('open');
+  return true;
 }
 
 // Release a suppressed item chosen from inside the Suppress-at-DF-floor modal. Closes the modal so
@@ -4343,7 +4468,6 @@ async function submitAttack() {
       method: 'POST',
       body: JSON.stringify({
         target_ic_id:     targetId,
-        attack_pool:      attackPool,
         hacking_pool_dice:hpDice,
       }),
     });
@@ -4402,51 +4526,75 @@ function _flavorFor(icType, label) {
 
 // Stream dice: post-explosion per-die totals, hits (die >= tn) highlighted -- the same figures the
 // Event Log already shows, so nothing hidden is revealed.
+function _streamPipsHtml(dice, tn, successes, extraClass) {
+  const values = (Array.isArray(dice) ? dice : []).map(d => parseInt(d, 10));
+  const knownTn = Number.isFinite(tn);
+  const successCount = Math.max(0, parseInt(successes, 10) || 0);
+  const hiddenTnHits = new Set(
+    knownTn ? [] : values
+      .map((value, index) => ({ value, index }))
+      .sort((left, right) => right.value - left.value)
+      .slice(0, successCount)
+      .map(entry => entry.index)
+  );
+  return values.map((value, index) => {
+    const hit = knownTn ? value >= tn : hiddenTnHits.has(index);
+    return `<span class="mr-die${extraClass || ''}${hit ? ' hit' : ''}">${esc(String(value))}</span>`;
+  }).join('');
+}
+
 function _streamDiceHtml(roll, label) {
   if (!roll) return '';
   const tn = parseInt(roll.tn, 10);
-  const pips = (Array.isArray(roll.dice) ? roll.dice : []).map(d => {
-    const v = parseInt(d, 10);
-    const hit = Number.isFinite(tn) && v >= tn;
-    return `<span class="mr-die${hit ? ' hit' : ''}">${esc(String(v))}</span>`;
-  }).join('');
+  const persona = parseInt(roll.persona_successes, 10);
+  const successes = Number.isFinite(persona) ? persona : roll.successes;
+  const pips = _streamPipsHtml(roll.dice, tn, successes, '');
   // Shield parry dice fold into the defence (vr2: they ADD to the resist), shown in a distinct
   // colour right after the base dice so you can see the parry that softened the hit.
-  const shieldPips = (Array.isArray(roll.shield_dice) ? roll.shield_dice : [])
-    .map(d => `<span class="mr-die mr-die-shield">${esc(String(parseInt(d, 10)))}</span>`).join('');
-  if (!pips && !shieldPips) return '';
-  const succ = roll.successes != null ? roll.successes : 0;
-  const tnTxt = Number.isFinite(tn) ? ` <span class="mr-tn">vs TN ${esc(String(tn))}</span>` : '';
-  const base = `${esc(label)}${tnTxt} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> success${succ == 1 ? '' : 'es'}`;
-  if (!shieldPips) return base;
-  // Shield parry: show its OWN successes (cyan). They ADD to the persona's defence (crippler/ripper)
-  // or reduce the attacker's damage (cybercombat/black), so they are counted separately from the
-  // base roll rather than silently merged into its hit total.
   const ss = parseInt(roll.shield_successes, 10);
-  const ssTxt = Number.isFinite(ss) ? ` &rarr; <b style="color:var(--cyan)">${esc(String(ss))}</b>` : '';
-  return `${base} <span style="color:var(--cyan)">+shield</span> ${shieldPips}${ssTxt}`;
+  const shieldPips = _streamPipsHtml(roll.shield_dice, tn, ss, ' mr-die-shield');
+  if (!pips && !shieldPips) return '';
+  const succ = parseInt(roll.successes, 10) || 0;
+  const tnTxt = Number.isFinite(tn) ? ` <span class="mr-tn">vs TN ${esc(String(tn))}</span>` : '';
+  if (!shieldPips) return `${esc(label)}${tnTxt} ${pips} &rarr; <b style="color:var(--green)">${esc(String(succ))}</b> success${succ == 1 ? '' : 'es'}`;
+  const baseSuccesses = Number.isFinite(persona) ? persona : succ;
+  const combined = baseSuccesses + (Number.isFinite(ss) ? ss : 0);
+  return `${esc(label)}${tnTxt} ${pips} &rarr; <span class="mr-s-data">${esc(String(baseSuccesses))} persona</span>; <span style="color:var(--cyan)">+ shield</span> ${shieldPips} &rarr; <b style="color:var(--green)">${esc(String(combined))}</b> total defense`;
 }
 
+const _GOOD_EVENT_TYPES = new Set([
+  'crash_host_complete', 'data_downloaded', 'file_decompressed', 'ic_crashed', 'ic_slowed',
+  'ic_suppressed', 'logoff_success', 'logon', 'medic_heal', 'paydata_secured',
+  'program_decompressed', 'restore_repair', 'tar_steamrolled', 'worm_disinfected',
+]);
+const _INTEL_EVENT_TYPES = new Set([
+  'data_bomb_clear', 'data_bomb_found', 'host_analyzed', 'host_ltg_revealed', 'ic_analyzed',
+  'ic_detected', 'icon_scanned', 'paydata_located', 'scramble_found', 'security_analyzed',
+  'trap_door_found',
+]);
+const _WARNING_EVENT_TYPES = new Set([
+  'alert', 'bouncer_scheduled', 'bouncer_warning', 'crash_host_aborted', 'crash_host_started',
+  'crash_host_tick', 'ic_activation', 'ic_spawn', 'probe_ic', 'reactive_ic_armed',
+  'shutdown_detected', 'shutdown_initiated', 'shutdown_tick', 'shutdown_warning',
+]);
+const _DANGER_EVENT_TYPES = new Set([
+  'data_bomb', 'decker_crippled', 'decker_hog', 'decker_lethal', 'download_corrupted',
+  'dump_shock', 'one_shot_wiped', 'persona_crash', 'shutdown', 'simsense_overload',
+  'tapeworm_payload_loss', 'tar_pit_corruption', 'worm_resolved',
+]);
+
 function _beatClassFor(ev) {
+  if (_GOOD_EVENT_TYPES.has(ev.type)) return ev.success === false ? 'mr-s-amber' : 'mr-s-good';
+  if (_INTEL_EVENT_TYPES.has(ev.type)) return 'mr-s-cyan';
+  if (_WARNING_EVENT_TYPES.has(ev.type)) return 'mr-s-amber';
+  if (_DANGER_EVENT_TYPES.has(ev.type)) return 'mr-s-red';
   switch (ev.type) {
     case 'action':             return ev.success ? 'mr-s-good' : 'mr-s-amber';
-    case 'paydata_located':
-    case 'trap_door_found':
-    case 'scramble_found':
-    case 'host_ltg_revealed':  return 'mr-s-cyan';
     case 'ic_attack':          return (ev.trace_phase || ev.trace_action) ? 'mr-s-amber' : 'mr-s-red';
-    case 'persona_crash':
-    case 'dump_shock':         return 'mr-s-red';
-    case 'simsense_overload':  return 'mr-s-amber';
     case 'shield_parry':       return 'mr-s-cyan';
-    case 'file_decompressed':
-    case 'program_decompressed': return 'mr-s-cyan';
-    case 'probe_ic':           return ev.tally_increase ? 'mr-s-amber' : 'mr-s-dim';
-    case 'ic_detected':        return 'mr-s-sensor';
-    case 'ic_activation':
-    case 'ic_spawn':           return 'mr-s-amber';
-    case 'logon':              return 'mr-s-good';
-    default:                   return 'mr-s-dim';
+    case 'enemy_decker':       return ev.outcome === 'fled' ? 'mr-s-good' : 'mr-s-enemy';
+    case 'maneuver':           return ev.success === false ? 'mr-s-amber' : 'mr-s-white';
+    default:                   return 'mr-s-white';
   }
 }
 
@@ -4484,8 +4632,15 @@ function _rollLabelFor(key, ev) {
   return '> ' + key.replace(/_roll$/, '').replace(/_/g, ' ');
 }
 
-// One real event -> stream beats: an optional flavour lead, the mechanical description (stamped with
-// round/initiative), then every roll behind it. defense_pending becomes the hard-stop marker.
+function _hasStreamDice(roll) {
+  return !!roll && (
+    (Array.isArray(roll.dice) && roll.dice.length > 0)
+    || (Array.isArray(roll.shield_dice) && roll.shield_dice.length > 0)
+  );
+}
+
+// One real event -> stream beats. IC attacks read in resolution order: narration, supporting
+// rolls, then the mechanical result. defense_pending becomes the hard-stop marker.
 function _eventToBeats(ev) {
   if (!ev || typeof ev !== 'object') return [];
   if (ev.type === 'defense_pending') return [{ stop: true }];
@@ -4498,12 +4653,16 @@ function _eventToBeats(ev) {
   const beats = [];
   const cls = _beatClassFor(ev);
   const stamp = _eventStamp(ev);
-  if (ev.type === 'ic_attack' && ev.ic_type) {
+  const resultBeat = ev.description
+    ? { h: stamp + esc(ev.description), c: cls, d: 1200 }
+    : null;
+  if (resultBeat && ev.type !== 'ic_attack') beats.push(resultBeat);
+  if (ev.type === 'ic_attack' && ev.ic_type
+      && (ev.ic_type !== 'Trace' || ev.trace_phase === 'hunting')) {
     const label = `${ev.ic_type}${ev.ic_rating ? '-' + ev.ic_rating : ''}`;
     const flav = _flavorFor(ev.ic_type, label);
-    if (flav) beats.push({ t: flav, c: cls, d: 1000 });
+    if (flav) beats.push({ t: flav, c: 'mr-s-data', d: 1000, sub: true });
   }
-  if (ev.description) beats.push({ h: stamp + esc(ev.description), c: cls, d: 1200 });
   // Render every roll-shaped field (a dict with a dice[] array): the known keys in a stable order,
   // then a generic `roll`, then any other *_roll not already shown.
   const seen = new Set();
@@ -4511,12 +4670,34 @@ function _eventToBeats(ev) {
     if (seen.has(k)) return;
     seen.add(k);
     const html = _streamDiceHtml(ev[k], _rollLabelFor(k, ev));
-    if (html) beats.push({ h: html, c: 'mr-s-dim', d: 900, sub: true });
+    if (html) beats.push({ h: html, c: 'mr-s-data', d: 900, sub: true });
   };
-  _STREAM_ROLL_ORDER.forEach(k => { if (ev[k] && ev[k].dice) pushRoll(k); });
-  if (ev.roll && ev.roll.dice) pushRoll('roll');
-  Object.keys(ev).forEach(k => { if (/_roll$/.test(k) && ev[k] && ev[k].dice) pushRoll(k); });
+  _STREAM_ROLL_ORDER.forEach(k => { if (_hasStreamDice(ev[k])) pushRoll(k); });
+  if (_hasStreamDice(ev.roll)) pushRoll('roll');
+  Object.keys(ev).forEach(k => { if (/_roll$/.test(k) && _hasStreamDice(ev[k])) pushRoll(k); });
+  if (resultBeat && ev.type === 'ic_attack') beats.push(resultBeat);
   if (!beats.length) beats.push({ h: stamp + esc(ev.description || ev.type || 'event'), c: cls, d: 1000 });
+  return beats;
+}
+
+// Shield resolves inside an attack before the attack event itself is appended. Present that
+// adjacent pair in player-facing causal order, with wear last: IC narration -> attack roll ->
+// defense roll -> result -> Shield wear. The persisted event chronology remains unchanged.
+function _eventsToBeats(events) {
+  const beats = [];
+  for (let index = 0; index < events.length; index++) {
+    const event = events[index];
+    const attack = events[index + 1];
+    const pairedShield = event?.type === 'shield_parry'
+      && attack?.type === 'ic_attack'
+      && (!event.ic_id || !attack.ic_id || event.ic_id === attack.ic_id);
+    if (pairedShield) {
+      beats.push(..._eventToBeats(attack), ..._eventToBeats(event));
+      index++;
+    } else {
+      beats.push(..._eventToBeats(event));
+    }
+  }
   return beats;
 }
 
@@ -4534,7 +4715,7 @@ function _emitBeat(b, instant) {
   const feed = _streamFeed(); if (!feed) return;
   _clearStreamCursor();
   const d = document.createElement('div');
-  d.className = 'mr-ln ' + (b.c || 'mr-s-dim') + (b.sub ? ' mr-sub' : '') + (instant ? ' mr-ln-instant' : '');
+  d.className = 'mr-ln ' + (b.c || 'mr-s-white') + (b.sub ? ' mr-sub' : '') + (instant ? ' mr-ln-instant' : '');
   if (b.h != null) d.innerHTML = b.h; else d.textContent = b.t;
   feed.appendChild(d);
   feed.scrollTop = feed.scrollHeight;
@@ -4567,7 +4748,7 @@ function _pushNewEvents(run) {
     return;
   }
   _streamRendered = events.length;
-  const beats = newEvents.flatMap(_eventToBeats);
+  const beats = _eventsToBeats(newEvents);
   const hasNpc = newEvents.some(e => e && _NPC_BEAT_TYPES.has(e.type)) || !!(run.state_json || {}).pending_defense;
   if (!hasNpc) {
     // routine player result -- write it into the log instantly, no lock, no typewriter
@@ -4606,7 +4787,7 @@ function _renderStreamPrompt() {
   box.innerHTML =
     `<div class="q"><b>${esc(pend.attacker_label || 'IC')}</b> strikes your icon &mdash; `
     + `${succ} attack success${succ === 1 ? '' : 'es'} at Power ${esc(String(power))}.</div>`
-    + (diceHtml ? `<div class="mr-s-dim" style="margin-bottom:8px">${diceHtml}</div>` : '')
+    + (diceHtml ? `<div class="mr-s-data" style="margin-bottom:8px">${diceHtml}</div>` : '')
     + '<div class="mr-prompt-step">'
     +   '<span class="lbl">HACKING POOL DICE</span>'
     +   '<button type="button" data-a="-">-</button><span class="n" id="mr-def-n">0</span><button type="button" data-a="+">+</button>'
@@ -4651,7 +4832,7 @@ async function _streamDefend(box, hp) {
     _run = updated;
     const row = box.querySelector('.row'); if (row) row.innerHTML = '';
     const events = ((updated.state_json || {}).event_log) || [];
-    const newBeats = events.slice(_streamRendered).flatMap(_eventToBeats);
+    const newBeats = _eventsToBeats(events.slice(_streamRendered));
     _streamRendered = events.length;         // claim these before renderRunState can catch them up
     renderRunState(updated);                 // side panels + header; the running log persists
     _stream.beats.push(...newBeats);          // animate the strike's outcome + any following strike
@@ -4668,6 +4849,11 @@ async function _streamDefend(box, hp) {
 // (routine results instantly, host responses narrated), then refresh the side panels. Used by the
 // action + End-Turn paths.
 function _applyRunResponse(before, updated) {
+  // A successful action/pass transition supersedes transient errors from the prior state.
+  ['pageAlert', 'runAlert'].forEach(id => {
+    const alert = document.getElementById(id);
+    if (alert) { alert.textContent = ''; alert.className = 'alert'; }
+  });
   _run = updated;
   _pushNewEvents(updated);   // claim + narrate new events (advances _streamRendered) before the sync render
   renderRunState(updated);   // side panels + center header; renderStage catch-up is now a no-op
@@ -4689,7 +4875,9 @@ function _areaValidTargets() {
   const out = [];
   if (lim !== 'decker') {
     (st.active_ic || []).forEach(ic => {
-      if (ic && ic.status === 'active') out.push({ id: ic.id, kind: 'ic', label: `${ic.type}-${ic.rating || '?'}` });
+      if (ic && ic.status === 'active' && _traceTargetable(ic)) {
+        out.push({ id: ic.id, kind: 'ic', label: `${ic.type}-${ic.rating || '?'}` });
+      }
     });
   }
   if (lim !== 'ic') {
@@ -4736,8 +4924,8 @@ function openAreaStrikeModal() {
       + `<span class="${kindCls}">${esc(t.label)}</span>`
       + `<span class="text-dim" style="font-size:.58rem">${kindLbl}</span></label>`;
   }).join('');
-  // Prefill the pool with the loaded Attack utility rating (parity with the single-target modal).
-  document.getElementById('area-pool').value    = (_run?.decker_json?.utilities?.attack) || 0;
+  document.getElementById('area-attack-rating').textContent =
+    String((_run?.decker_json?.utilities?.attack) || 0);
   document.getElementById('area-hp-dice').value = 0;
   document.getElementById('areaStrikeModalAlert').className = 'alert';
   document.getElementById('areaStrikeModal').classList.add('open');
@@ -4767,7 +4955,6 @@ async function submitAreaStrike() {
   const ids = Array.from(document.querySelectorAll('.area-tgt-cb'))
     .filter(b => b.checked).map(b => b.value);
   if (!ids.length) return;
-  const attackPool = parseInt(document.getElementById('area-pool').value) || 0;
   const hpDice     = parseInt(document.getElementById('area-hp-dice').value) || 0;
   const btn = document.getElementById('areaStrikeConfirmBtn');
   btn.disabled = true;
@@ -4778,7 +4965,7 @@ async function submitAreaStrike() {
   try {
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/area-attack`, {
       method: 'POST',
-      body: JSON.stringify({ target_ids: ids, attack_pool: attackPool, hacking_pool_dice: hpDice }),
+      body: JSON.stringify({ target_ids: ids, hacking_pool_dice: hpDice }),
     });
     if (!res.ok) await apiThrow(res);
     let updated = await res.json();
@@ -4808,7 +4995,7 @@ async function submitAreaStrike() {
 }
 
 // -- Analyze Host: reveal-subsystem selection modal -------------------------
-// When Analyze Host banks fewer net successes than there are still-hidden items, the decker
+// When Analyze Host banks fewer successes than there are still-hidden items, the decker
 // CHOOSES which to reveal -- exactly min(credits, hiddenCount) of them. The revealable set is the
 // 5 ACIFS ratings PLUS the host Security Rating (a 6th item, gated by host_security_revealed).
 const _ACIFS_ORDER = [['access','Access'],['control','Control'],['index','Index'],['files','Files'],['slave','Slave']];
@@ -4887,9 +5074,12 @@ async function submitRevealHostRatings() {
 }
 
 // -- Logoff modal -----------------------------------------------------------
-function openLogoffModal(deceptionUtility) {
-  document.getElementById('logoff-hp-dice').value   = 0;
-  document.getElementById('logoff-deception').value = deceptionUtility || 0;
+function openLogoffModal() {
+  const hpInput = document.getElementById('logoff-hp-dice');
+  const hpAvailable = Math.max(0, parseInt(_run?.state_json?.hackingPool_remaining, 10) || 0);
+  hpInput.max = String(hpAvailable);
+  hpInput.value = 0;
+  document.getElementById('logoff-deception').textContent = String(_autoUtilRating('graceful_logoff'));
   document.getElementById('logoffModalAlert').className = 'alert';
   document.getElementById('logoffModal').classList.add('open');
 }
@@ -4900,13 +5090,14 @@ function closeLogoffModal() {
 
 async function submitLogoff() {
   if (!_run) return;
-  const hpDice    = parseInt(document.getElementById('logoff-hp-dice').value) || 0;
-  const deception = parseInt(document.getElementById('logoff-deception').value) || 0;
+  const hpAvailable = Math.max(0, parseInt(_run.state_json?.hackingPool_remaining, 10) || 0);
+  const hpDice = Math.min(hpAvailable, Math.max(0,
+    parseInt(document.getElementById('logoff-hp-dice').value, 10) || 0));
 
   try {
     const res = await apiFetch(`${API}/matrix-runs2/${_run.id}/logoff`, {
       method: 'POST',
-      body: JSON.stringify({ hacking_pool_dice: hpDice, deception_utility: deception }),
+      body: JSON.stringify({ hacking_pool_dice: hpDice }),
     });
     if (!res.ok) await apiThrow(res);
     const updated = await res.json();

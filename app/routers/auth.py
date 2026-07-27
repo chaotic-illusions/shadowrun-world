@@ -11,6 +11,7 @@ from app.auth.dependencies import get_admin_token, get_any_token
 from app.auth.rate_limit import enforce_rate_limit, record_failure, record_success
 from app.models.auth import UserToken
 from app.models.character import Character
+from app.models.matrix_run import MatrixRun
 from app.schemas.auth import (
     VerifyRequest, VerifyResponse, UserTokenCreate,
     UserTokenRead, UserTokenCreateResponse, UserTokenLabelUpdate,
@@ -34,11 +35,9 @@ async def verify(body: VerifyRequest, request: Request, db: AsyncSession = Depen
         raise HTTPException(status_code=401, detail="No valid token")
 
     if is_admin:
-        record_success(request, "admin")
+        record_success(request, None)
     else:
-        record_success(request, "user")
-        if body.admin_token:
-            record_failure(request, "admin")
+        record_success(request, None)
     used_token = body.admin_token if is_admin else body.user_token
     token_record = await get_token_record(db, used_token) if used_token else None
 
@@ -132,6 +131,11 @@ async def regenerate_token(
     )
     for char in char_result.scalars().all():
         char.owner_token = new_hash
+    run_result = await db.execute(
+        select(MatrixRun).where(MatrixRun.owner_token_hash == ut.token_hash)
+    )
+    for run in run_result.scalars().all():
+        run.owner_token_hash = new_hash
     ut.token_hash = new_hash
     await db.commit()
     await db.refresh(ut)

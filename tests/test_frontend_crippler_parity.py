@@ -51,3 +51,14 @@ def test_deck_workshop_catalog_lists_every_attribute_program():
     for program in mr._PROGRAM_ATTR:
         assert f"display: '{program.capitalize()}'" in _PROGRAM_CATALOG, (
             f"deck-workshop program catalog is missing '{program.capitalize()}'")
+
+
+def test_ic_attack_stream_orders_rolls_before_result_and_shield_wear_last():
+    event_renderer = _RUN_HTML[
+        _RUN_HTML.index("function _eventToBeats"):
+        _RUN_HTML.index("function _streamFeed")
+    ]
+
+    assert event_renderer.index("if (resultBeat && ev.type === 'ic_attack')") > (
+        event_renderer.index("_STREAM_ROLL_ORDER.forEach"))
+    assert "beats.push(..._eventToBeats(attack), ..._eventToBeats(event));" in event_renderer

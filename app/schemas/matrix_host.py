@@ -14,7 +14,7 @@ class MatrixHostCreate(BaseModel):
     id_code: Optional[str] = Field(default=None, max_length=8)
     trap_doors_json: Optional[list[dict[str, Any]]] = None
     is_visible_to_players: bool = False
-    is_trap_door_dest: bool = False
+    model_config = ConfigDict(extra="forbid")
 
 
 class MatrixHostUpdate(BaseModel):
@@ -28,7 +28,7 @@ class MatrixHostUpdate(BaseModel):
     ltg_address: Optional[str] = Field(default=None, max_length=100)
     id_code: Optional[str] = Field(default=None, max_length=8)
     trap_doors_json: Optional[list[dict[str, Any]]] = None
-    is_trap_door_dest: Optional[bool] = None
+    model_config = ConfigDict(extra="forbid")
 
 
 class MatrixHostRead(BaseModel):

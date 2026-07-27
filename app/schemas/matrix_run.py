@@ -74,7 +74,7 @@ class ProgramOptions(_StrictModel):
     targeting:   bool = False                  # -2 to-hit TN on attacks made with this utility
     penetration: bool = False                  # defeats Shield (Shift then adds +2)
     chaser:      bool = False                  # defeats Shift (Shield then adds +2)
-    one_shot:    bool = False                  # single-use copy: consumed on use (reload via Swap Memory; Tar IC wipes every copy)
+    one_shot:    bool = False                  # single-use copy: consumed on use; Tar Baby crashes active copies, Tar Pit can corrupt on-deck copies
     squeeze:     bool = False                   # built compressed: half storage footprint; must be decompressed (Complex Action, no test) after a mid-run swap into active memory
     limit_target: str = Field("", max_length=8)  # Limit option: "" (none) / "ic" / "decker" -- the ONLY target type this utility may affect
     # Attack utility only: its OWN base Damage Level (vr2 Attack-6L/-6M/-6S/-6D), chosen at code
@@ -102,8 +102,8 @@ class ProgramOptions(_StrictModel):
 class MpcpInfection(_StrictModel):
     """A persistent Worm infection lodged in the deck's MPCP, carried across runs until the chip
     is replaced. variant drives the ongoing effect (deathworm = cybercombat-TN penalty; tapeworm =
-    paydata erasure at run end; standard = chip degraded only)."""
-    variant: Literal["standard", "deathworm", "tapeworm"] = "standard"
+    paydata erasure at run end)."""
+    variant: Literal["deathworm", "tapeworm"]
     rating:  int = Field(6, ge=1, le=50)
     ic_id:   str = Field("", max_length=40)
 
@@ -116,6 +116,7 @@ class DeckerStats(_StrictModel):
     # runs may omit them) -- damage write-back is skipped when either is missing.
     character_id: int | None = None
     deck_name:    str = Field("", max_length=120)
+    loadout_name: str = Field("", max_length=120)
     # Deck persona programs
     mpcp:              int = Field(..., ge=1, le=50)
     bod:               int = Field(..., ge=1, le=50)
@@ -131,6 +132,7 @@ class DeckerStats(_StrictModel):
     # Hardware options
     deck_mode:         Literal["hot", "cool", "tortoise"] = "hot"
     iccm:              bool = False
+    reality_filter:    bool = False
     hardening:         int = Field(0, ge=0)
     response_increase: int = Field(0, ge=0, le=3)
     active_memory:     int = Field(0, ge=0)          # Mp; limits loaded utilities
@@ -164,6 +166,17 @@ class DeckerStats(_StrictModel):
     # util key -> run-relevant program options (Skulk / Targeting / Penetration / Chaser / Area
     # / etc.), read automatically by the engine instead of asking the player each action.
     program_options:   dict[str, ProgramOptions] = Field(default_factory=dict, max_length=128)
+    # util key -> active One-Shot copies. Each copy is independent consumable object code;
+    # storage_programs separately contains one entry per stored copy.
+    one_shot_active:   dict[str, int] = Field(default_factory=dict, max_length=128)
+
+    @field_validator("one_shot_active")
+    @classmethod
+    def _validate_one_shot_active(cls, counts: dict[str, int]) -> dict[str, int]:
+        if any(count < 0 or count > 64 for count in counts.values()):
+            raise ValueError("one_shot_active counts must be between 0 and 64")
+        return counts
+
     # Persistent MPCP infections carried on the deck from previous runs (Deathworm / Tapeworm).
     # An infection is permanent until the MPCP chip is replaced, so the client re-sends it every
     # run: a Deathworm keeps degrading cybercombat TNs and a Tapeworm keeps erasing paydata until
@@ -201,9 +214,9 @@ SubsystemType = Literal["access", "control", "index", "files", "slave"]
 class RunActionInput(_StrictModel):
     action_type: ActionType
     subsystem: SubsystemType
-    utility_rating: int = Field(0, ge=0, le=50)
+    utility_rating: int | None = Field(None, ge=0, le=50)  # legacy; derived from the run snapshot
     hacking_pool_dice: int = Field(0, ge=0, le=40)
-    extra_tn_modifier: int = Field(0, ge=-6, le=6)
+    extra_tn_modifier: int | None = Field(None, ge=-6, le=6)  # legacy; never player-controlled
     note: str = Field("", max_length=500)
     target_ic_id: str = Field("", max_length=64)  # Analyze IC: which IC to reveal (blank = first unknown)
     target_file: str = Field("", max_length=160)   # Decrypt File: scramble target_key / paydata name (blank = first scramble)
@@ -225,7 +238,7 @@ class RunActionInput(_StrictModel):
 
 class RunAttackInput(_StrictModel):
     target_ic_id: str = Field(..., max_length=64)
-    attack_pool: int = Field(..., ge=1, le=40)
+    attack_pool: int | None = Field(None, ge=1, le=40)  # legacy; derived from the loaded Attack
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     armor_utility: int = Field(0, ge=0, le=50)
     # Penetration / Chaser / Skulk / Targeting / Area are now read automatically from the
@@ -247,8 +260,7 @@ class RunDefendInput(_StrictModel):
 class RunTrapDoorInput(_StrictModel):
     # "enter": graceful logoff through the concealing subsystem, then arrive on the destination
     # host (a fresh linked run; destination revealed only on arrival).
-    # "file":  record the door for intel -- reveals only whether the destination has LTG access.
-    action: Literal["enter", "file"]
+    action: Literal["enter"]
     hacking_pool_dice: int = Field(0, ge=0, le=40)   # enter only: dice for the logoff Access Test
     deception_utility: int = Field(0, ge=0, le=50)   # enter only: Deception utility for the logoff
 
@@ -268,7 +280,7 @@ class RunRevealHostRatingsInput(_StrictModel):
 
 class RunEnemyAttackInput(_StrictModel):
     enemy_id: str = Field(..., max_length=64)
-    attack_pool: int = Field(..., ge=1, le=40)
+    attack_pool: int | None = Field(None, ge=1, le=40)  # legacy; derived from the selected program
     hacking_pool_dice: int = Field(0, ge=0, le=40)
     # "attack" (default) crashes the enemy icon; the three cripplers attack the enemy's
     # Bod / Evasion / Masking respectively (Poison / Restrict / Reveal). Black Hammer
@@ -295,7 +307,7 @@ class RunAreaAttackInput(_StrictModel):
     ``target_ids`` mix active IC ids and revealed enemy-decker ids; the caller must keep the
     count within the Attack utility's Area rating (enforced server-side)."""
     target_ids: list[str] = Field(..., min_length=1, max_length=16)
-    attack_pool: int = Field(..., ge=1, le=40)
+    attack_pool: int | None = Field(None, ge=1, le=40)  # legacy; derived from the loaded Attack
     hacking_pool_dice: int = Field(0, ge=0, le=40)
 
     @field_validator("target_ids")
