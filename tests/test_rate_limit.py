@@ -28,7 +28,14 @@ def _tok_request(token: str | None = None, ip: str = "127.0.0.1") -> MagicMock:
 
 def _throttle(req) -> None:
     """Run the async throttle dependency to completion (it has no awaits)."""
-    asyncio.run(enforce_call_rate(req))
+    token = req.headers.get("x-user-token")
+    auth = {"user_token": token} if token else None
+    asyncio.run(enforce_call_rate(req, auth))
+
+
+def _auth_key(req) -> str:
+    token = req.headers.get("x-user-token")
+    return _throttle_key(req, {"user_token": token} if token else None)
 
 
 @pytest.fixture(autouse=True)
@@ -117,12 +124,12 @@ class TestRecordSuccess:
         record_success(req)  # should not raise
         assert ("127.0.0.1", "any") not in _attempts
 
-    def test_user_success_does_not_clear_admin_failures(self):
+    def test_any_valid_credential_clears_all_scopes(self):
         req = _mock_request()
         record_failure(req, "admin")
         record_failure(req, "user")
-        record_success(req, "user")
-        assert ("127.0.0.1", "admin") in _attempts
+        record_success(req, None)
+        assert ("127.0.0.1", "admin") not in _attempts
         assert ("127.0.0.1", "user") not in _attempts
 
 
@@ -147,7 +154,7 @@ class TestCallRateThrottle:
         req = _tok_request("tokenA")
         for _ in range(CALL_LIMIT):
             _throttle(req)  # should not raise
-        assert len(_calls[_throttle_key(req)]) == CALL_LIMIT
+        assert len(_calls[_auth_key(req)]) == CALL_LIMIT
 
     def test_blocks_over_limit(self):
         req = _tok_request("tokenA")
@@ -164,17 +171,24 @@ class TestCallRateThrottle:
             _throttle(a)
         # A is full, but B is a fresh bucket and must still be allowed.
         _throttle(b)  # should not raise
-        assert len(_calls[_throttle_key(b)]) == 1
+        assert len(_calls[_auth_key(b)]) == 1
 
     def test_key_prefers_token_over_shared_ip(self):
         # Two callers sharing one IP but with different tokens must NOT share a bucket.
         a = _tok_request("tokenA", ip="10.0.0.9")
         b = _tok_request("tokenB", ip="10.0.0.9")
-        assert _throttle_key(a) != _throttle_key(b)
+        assert _auth_key(a) != _auth_key(b)
+
+    def test_authenticated_token_ignores_rotating_raw_headers(self):
+        req = _tok_request("bogus-user-a")
+        auth = {"is_admin": True, "user_token": "valid-admin"}
+        first = _throttle_key(req, auth)
+        req.headers["x-user-token"] = "bogus-user-b"
+        assert _throttle_key(req, auth) == first
 
     def test_key_never_contains_plaintext_token(self):
         req = _tok_request("supersecret")
-        key = _throttle_key(req)
+        key = _auth_key(req)
         assert "supersecret" not in key
         assert key.startswith("tok:")
 
@@ -186,7 +200,7 @@ class TestCallRateThrottle:
         req = _tok_request("tokenA")
         for _ in range(CALL_LIMIT):
             _throttle(req)
-        key = _throttle_key(req)
+        key = _auth_key(req)
         # Backdate every recorded call to before the window -> they all prune on the next hit.
         _calls[key] = [t - CALL_WINDOW - 1 for t in _calls[key]]
         _throttle(req)  # window cleared -> allowed again

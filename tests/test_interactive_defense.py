@@ -179,7 +179,33 @@ def test_advance_npc_pass_no_park_when_disabled(monkeypatch):
     mr._advance_npc_pass(state, decker, _RunStub(decker, state), eff=eff,
                          sec_code="Green", sec_value=6, det_factor=4, allow_defense_pause=True)
     assert state["pending_defense"] is None                                        # never paused
-    assert any(e.get("type") == "ic_attack" for e in state["event_log"])           # resolved inline
+    attack = next(e for e in state["event_log"] if e.get("type") == "ic_attack")
+    assert attack["net_successes"] == 2
+    assert "Net Successes: 2" in attack["description"]
+
+
+def test_ic_attack_narrates_negative_net_and_singular_box(monkeypatch):
+    rolls = iter([3, 6])
+
+    def _rd(pool, tn=4):
+        successes = next(rolls)
+        return {"pool": pool, "tn": tn, "dice": [], "successes": successes, "ones": 0}
+
+    monkeypatch.setattr(eng, "roll_dice", _rd)
+    state = _pc_state(interactive=False)
+    state["active_ic"] = [_killer()]
+    decker = _pc_decker()
+
+    mr._advance_npc_pass(
+        state, decker, _RunStub(decker, state),
+        eff=mr._get_decker_effective(decker, state),
+        sec_code="Green", sec_value=6, det_factor=4,
+    )
+
+    attack = next(e for e in state["event_log"] if e.get("type") == "ic_attack")
+    assert attack["net_successes"] == -3
+    assert "Net Successes: -3" in attack["description"]
+    assert "Damage: Light (1 box)." in attack["description"]
 
 
 # -- POST /defend --------------------------------------------------------------
@@ -243,7 +269,101 @@ def test_defend_zero_hp_resists_with_bod_alone(monkeypatch):
     state = run.state_json
     assert pools == [6]                                   # Bod alone, no Hacking Pool added
     assert state["hackingPool_remaining"] == 6            # nothing spent
-    assert state["pending_defense"] is None
+
+
+def test_defend_resumes_global_count_window_without_replaying_attacker(monkeypatch):
+    def _rd(pool, tn=4):
+        return {"pool": pool, "tn": tn, "dice": [], "successes": 1, "ones": 0}
+
+    monkeypatch.setattr(eng, "roll_dice", _rd)
+    decker = _pc_decker()
+    state = _pc_state(interactive=True, hp=6)
+    first = _killer("first")
+    first["initiative"] = 15
+    second = _killer("second")
+    second["initiative"] = 5
+    state["active_ic"] = [first, second]
+    run = _RunStub(decker, state)
+
+    mr._advance_npc_count_window(
+        state, decker, run,
+        eff=mr._get_decker_effective(decker, state),
+        sec_code="Green", sec_value=6, det_factor=4,
+        upper_count=None, lower_count=0, allow_defense_pause=True,
+    )
+    assert state["pending_defense"]["ic_id"] == "first"
+    assert state["pending_defense"]["acting_count"] == 15
+
+    async def _get(db, run_id):
+        return run
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _get)
+    asyncio.run(mr.defend(
+        run_id=1, body=RunDefendInput(hacking_pool_dice=6), auth=_ADMIN, db=_FakeDB(),
+    ))
+
+    attacks = [e for e in run.state_json["event_log"] if e.get("type") == "ic_attack"]
+    assert [(event["ic_id"], event["init"]) for event in attacks] == [
+        ("first", 15), ("first", 5), ("second", 5),
+    ]
+    persisted = {ic["id"]: ic for ic in run.state_json["active_ic"]}
+    assert persisted["first"]["actions_taken_turn"] == 2
+    assert persisted["second"]["actions_taken_turn"] == 1
+    assert run.state_json["pending_defense"] is None
+
+
+@pytest.mark.parametrize(
+    ("player_initiative", "initiative_passes", "ic_initiative", "expected_pass", "expected_round",
+     "transition_event"),
+    [
+        (20, 2, 15, 2, 1, "new_pass"),
+        (10, 1, 5, 1, 2, "new_turn"),
+    ],
+)
+def test_end_turn_defense_completes_phase_transition_once(
+    monkeypatch, player_initiative, initiative_passes, ic_initiative,
+    expected_pass, expected_round, transition_event,
+):
+    def _rd(pool, tn=4):
+        return {"pool": pool, "tn": tn, "dice": [], "successes": 1, "ones": 0}
+
+    monkeypatch.setattr(eng, "roll_dice", _rd)
+    decker = _pc_decker()
+    state = _pc_state(interactive=True, hp=6)
+    state.update({
+        "decker_initiative": player_initiative,
+        "initiative_passes": initiative_passes,
+        "current_turn": 1,
+        "pass_action_points": 0,
+        "pass_free": 0,
+        "actions_this_turn": 1,
+        "sheaf": [],
+    })
+    attacker = _killer("phase-attacker")
+    attacker["initiative"] = ic_initiative
+    state["active_ic"] = [attacker]
+    run = _RunStub(decker, state)
+
+    async def _get(db, run_id):
+        return run
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _get)
+    asyncio.run(mr.new_turn(run_id=1, auth=_ADMIN, db=_FakeDB()))
+    assert run.state_json["pending_defense"]["ic_id"] == "phase-attacker"
+    assert run.state_json["current_pass"] == 1
+    assert run.state_json.get("current_turn", 1) == 1
+
+    asyncio.run(mr.defend(
+        run_id=1, body=RunDefendInput(hacking_pool_dice=6), auth=_ADMIN, db=_FakeDB(),
+    ))
+
+    assert run.state_json["pending_defense"] is None
+    assert run.state_json["current_pass"] == expected_pass
+    assert run.state_json["current_turn"] == expected_round
+    transitions = [
+        event for event in run.state_json["event_log"] if event.get("type") == transition_event
+    ]
+    assert len(transitions) == 1
 
 
 def test_defend_rejects_hp_over_remaining(monkeypatch):
@@ -281,7 +401,11 @@ def test_pending_defense_ctx_redacted_for_player():
     state["host_security_revealed"] = False
     ic = _killer()
     state["active_ic"] = [ic]
-    state["pending_defense"] = _pending_for(state, ic, _to_hit(3))
+    mr._park_pending_defense(
+        state, decker, ic, to_hit=_to_hit(3),
+        ic_attack_pool=6, ic_target_status="intruding", atk_power_delta=0, atk_tn_delta=0,
+        cluster_penalty=0, ic_category="white", sec_code="Green", sec_value=6,
+    )
 
     view = mr._serialize_run(_RunStub(decker, state), _PLAYER)
     pstate = view["state_json"]
@@ -294,15 +418,24 @@ def test_pending_defense_ctx_redacted_for_player():
     # ...and an unidentified IC's identity is masked: label -> "Unknown IC", raw to-hit roll gone.
     assert pend["attacker_label"] == "Unknown IC"
     assert "to_hit_roll" not in pend
+    projected_event = next(e for e in pstate["event_log"] if e["type"] == "defense_pending")
+    assert projected_event["ic_type"] == "Unknown IC"
+    assert "attack_roll" not in projected_event
     # The incoming force (successes + Power) is still shown so the player can size their defense.
     assert pend["attack_successes"] == 3
     assert pend["power"] == 6
 
-    # Once the IC is identified (Analyze IC -> analyzed), the real label + roll are disclosed.
-    ic["analyzed"] = True
+    # A partial Sensor ID reveals type, but not rating or raw roll details.
+    ic["detection_level"] = 2
     pend2 = mr._serialize_run(_RunStub(decker, state), _PLAYER)["state_json"]["pending_defense"]
-    assert pend2["attacker_label"] == "Killer-6"
-    assert "to_hit_roll" in pend2
+    assert pend2["attacker_label"] == "Killer"
+    assert "to_hit_roll" not in pend2
+
+    # Once the IC is fully identified, the real label + roll are disclosed.
+    ic["analyzed"] = True
+    pend3 = mr._serialize_run(_RunStub(decker, state), _PLAYER)["state_json"]["pending_defense"]
+    assert pend3["attacker_label"] == "Killer-6"
+    assert "to_hit_roll" in pend3
 
     # An admin (GM) always sees the full ctx.
     gm = mr._serialize_run(_RunStub(decker, state), _ADMIN)

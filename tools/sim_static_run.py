@@ -533,8 +533,6 @@ if __name__ == "__main__":
                 await db.refresh(row)
                 return row.id
 
-        new_id = _run(_persist())
-        print(f"\n[persist] Saved run #{new_id} to data/shadowrun.db "
+                new_id = _run(_persist())
+                print(f"\n[persist] Saved run #{new_id} to data/shadowrun.db "
               f"(status={RUN.status}) -- available in the GM Run Reports queue.")
-
-

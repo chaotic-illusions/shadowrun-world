@@ -17,12 +17,18 @@ Covers test-matrix items:
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
+import math
+from types import SimpleNamespace
+
 import pytest
 
 from app.services import matrix_engine as eng
 from app.services import matrix_rules as rules
 from app.routers import matrix_runs as mr
+from app.schemas.matrix_run import MpcpInfection
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 
 # -- Deterministic dice helper (mirrors test_matrix_engine._ScriptedRandom) -----
@@ -142,7 +148,10 @@ class TestEveryICType:
         """
         scripted([3])  # deterministic initiative roll
         state = _fresh_state()
-        step = {"trigger": 10, "events": [{"type": "ic", "ic_type": ic_type, "rating": 6}]}
+        ic_event = {"type": "ic", "ic_type": ic_type, "rating": 6}
+        if ic_type == "Worm":
+            ic_event["variant"] = "deathworm"
+        step = {"trigger": 10, "events": [ic_event]}
         events = mr._activate_sheaf_step(state, step, state["host_security_code"])
         assert events, f"{ic_type} produced no event"
         if ic_type in ("Tar Baby", "Tar Pit", "Worm"):
@@ -230,6 +239,43 @@ class TestTrapPartyConstruct:
         cid = clustered[0]["cluster_id"]
         assert mr._cluster_size(state, cid) == len(clustered)
 
+    def test_designer_party_keys_and_defenses_are_normalized(self, scripted):
+        scripted([3])
+        state = _fresh_state()
+        step = {"events": [{
+            "type": "party_ic",
+            "components": [{"ic_type": "Blaster", "rating": 5, "defenses": ["Armor"]}],
+        }]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        ic = state["active_ic"][0]
+        assert ic["type"] == "Blaster"
+        assert ic["options"] == ["Armor"]
+
+    def test_designer_black_ic_label_preserves_non_lethal_mode(self, scripted):
+        scripted([3])
+        state = _fresh_state()
+        step = {"events": [{
+            "type": "ic", "ic_type": "Black IC (Non-Lethal)", "rating": 6,
+        }]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        ic = state["active_ic"][0]
+        assert ic["type"] == "Black IC"
+        assert ic["mode"] == "non_lethal"
+
+    def test_trap_hidden_options_survive_spawn(self, scripted):
+        scripted([3, 3])
+        state = _fresh_state()
+        state["event_log"] = []
+        step = {"events": [{
+            "type": "trap_ic", "surface_ic_type": "Probe", "surface_ic_rating": 5,
+            "hidden_ic_type": "Blaster", "hidden_ic_rating": 6,
+            "hidden_ic_options": ["Shielding"], "hidden_ic_cascading": True,
+        }]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        hidden = mr._spawn_trap_hidden(state, state["active_ic"][0], state["host_security_code"])
+        assert hidden["shield"] is True
+        assert hidden["cascading"] is True
+
     def test_construct_is_single_icon(self, scripted):
         scripted([3])
         state = _fresh_state()
@@ -240,6 +286,152 @@ class TestTrapPartyConstruct:
         events = mr._activate_sheaf_step(state, step, state["host_security_code"])
         assert len(state["active_ic"]) == 1  # one combined icon
         assert events
+
+    def test_construct_initiative_uses_lowest_component_rating(self, monkeypatch):
+        captured = {}
+
+        def _initiative(rating, security_code):
+            captured.update(rating=rating, security_code=security_code)
+            return 11
+
+        monkeypatch.setattr(eng, "ic_initiative_roll", _initiative)
+        state = _fresh_state(sec_code="Red", sec_value=8)
+        step = {"trigger": 16, "events": [{
+            "type": "construct", "threat_rating": 3,
+            "components": [
+                {"ic_type": "Blaster", "rating": 6},
+                {"ic_type": "Killer", "rating": 4},
+            ],
+        }]}
+        mr._activate_sheaf_step(state, step, state["host_security_code"])
+        construct = state["active_ic"][0]
+        assert captured == {"rating": 4, "security_code": "Red"}
+        assert construct["initiative_rating"] == 4
+        assert construct["construct_components"][0]["type"] == "Blaster"
+        assert construct["boxes"] == 0 and len(state["active_ic"]) == 1
+
+    def test_construct_test_pools_use_security_value_plus_threat(self):
+        construct = {
+            "type": "Construct", "threat_rating": 3,
+            "expert": {"type": "defense", "value": 2},
+        }
+        assert mr._ic_test_pool(construct, 8, defense=False) == 9
+        assert mr._ic_test_pool(construct, 8, defense=True) == 13
+
+    def test_construct_attack_uses_component_effect_rating(self, monkeypatch):
+        state = _fresh_state(sec_code="Red", sec_value=8)
+        state.update({
+            "event_log": [], "current_pass": 1, "initiative_passes": 1,
+            "npc_combat_maneuvers": False, "decoy_successes": 0, "decoy_hp": 0,
+            "active_ic": [{
+                "id": "c1", "type": "Construct", "rating": 3, "threat_rating": 3,
+                "status": "active", "initiative": 12, "boxes": 0,
+                "construct_components": [
+                    {"type": "Blaster", "rating": 6},
+                    {"type": "Killer", "rating": 4},
+                ],
+            }],
+        })
+        decker = {
+            "bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 6,
+            "utilities": {}, "deck_mode": "cool",
+        }
+        captured = {}
+        monkeypatch.setattr(
+            eng, "roll_dice",
+            lambda pool, tn=4: {"pool": pool, "tn": tn, "dice": [], "successes": 0, "ones": 0},
+        )
+
+        def _resolve(*args, **kwargs):
+            captured.update(kwargs)
+            return False
+
+        monkeypatch.setattr(mr, "_resolve_ic_cybercombat", _resolve)
+        mr._advance_npc_pass(
+            state, decker, object(), eff={"bod": 6, "evasion": 6, "masking": 6, "sensor": 6},
+            sec_code="Red", sec_value=8, det_factor=4,
+        )
+        assert captured["ic_attack_pool"] == 11
+        assert captured["effect_type"] == "Blaster"
+        assert captured["effect_rating"] == 6
+
+    def test_crippler_attack_latches_observed_family(self, monkeypatch):
+        state = _fresh_state(sec_code="Red", sec_value=8)
+        state.update({
+            "event_log": [], "current_pass": 1, "initiative_passes": 1,
+            "npc_combat_maneuvers": False, "decoy_successes": 0, "decoy_hp": 0,
+            "active_ic": [{
+                "id": "m1", "type": "Crippler (Marker)", "rating": 6,
+                "status": "active", "initiative": 12, "boxes": 0, "detection_level": 1,
+            }],
+        })
+        decker = {"bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 6,
+                  "utilities": {}, "deck_mode": "cool"}
+        monkeypatch.setattr(mr, "_resolve_attribute_attack", lambda *args, **kwargs: {
+            "attack_roll": {"successes": 1}, "defense_roll": {"successes": 1},
+            "shield_successes": 0, "net_successes": 0, "reduction": 0,
+        })
+        mr._advance_npc_pass(
+            state, decker, object(),
+            eff={"bod": 6, "evasion": 6, "masking": 6, "sensor": 6},
+            sec_code="Red", sec_value=8, det_factor=4,
+        )
+        assert state["active_ic"][0]["observed_type"] == "Marker"
+        assert state["active_ic"][0]["detection_level"] == 2
+
+    def test_construct_damage_crashes_one_shared_icon(self, monkeypatch):
+        import asyncio
+        from app.schemas.matrix_run import RunAttackInput
+
+        def _roll(pool, tn=4):
+            return {"successes": 30 if pool >= 20 else 0, "ones": 0,
+                    "rolls": [], "pool": pool, "tn": tn}
+
+        monkeypatch.setattr(eng, "roll_dice", _roll)
+        decker = {
+            "name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6,
+            "sensor": 6, "computer_skill": 8, "intelligence": 5, "body": 5,
+            "hardening": 0, "utilities": {"attack": 20},
+        }
+        state = _fresh_state(sec_code="Red", sec_value=9)
+        state["event_log"] = []
+        state["active_ic"] = [{
+            "id": "c1", "type": "Construct", "rating": 3, "threat_rating": 3,
+            "status": "active", "boxes": 5,
+            "construct_components": [
+                {"type": "Blaster", "rating": 6},
+                {"type": "Killer", "rating": 4},
+            ],
+        }]
+
+        class _StubRun:
+            id = 7
+            host_id = 3
+            status = "active"
+            owner_token_hash = None
+            decker_json = decker
+            state_json = state
+
+        async def _get_run(db, run_id):
+            return _StubRun()
+
+        class _FakeDB:
+            async def commit(self): pass
+            async def refresh(self, obj): pass
+
+        monkeypatch.setattr(mr, "_get_run_or_404", _get_run)
+        monkeypatch.setattr(mr, "_serialize_run", lambda run, auth: run.state_json)
+        result = asyncio.run(mr.attack_ic(
+            run_id=7,
+            body=RunAttackInput(target_ic_id="c1", attack_pool=20, hacking_pool_dice=0),
+            auth={"is_admin": True, "is_user": False, "user_token": None},
+            db=_FakeDB(),
+        ))
+        construct = result["active_ic"][0]
+        assert construct["status"] == "crashed"
+        assert construct["boxes"] >= 10
+        assert all("boxes" not in component and "status" not in component
+                   for component in construct["construct_components"])
 
 
 # -- #8 Passive/Active Alert escalation -----------------------------------------
@@ -304,21 +496,56 @@ class TestAlertEscalation:
 # -- Bouncer: mid-run host security upgrade (vr2 L300) --------------------------
 
 class TestBouncer:
-    """vr2 Bouncer (L300) -- a triggered sheaf step HARDENS the host, upgrading the security
-    code/value the whole engine reads from (host_security_code / host_security_value) for the
-    rest of the run. Previously buildable in the designer but inert in the run engine."""
+    """vr2 Bouncer (L300) -- trigger, secret warning, one-turn delayed host hardening."""
 
-    def test_bouncer_upgrades_host_security(self):
+    def test_bouncer_schedules_upgrade_for_next_turn(self):
         state = _fresh_state(sec_code="Green", sec_value=6)
+        state["current_turn"] = 3
         step = {"trigger": 20, "events": [{
             "type": "bouncer", "new_security_code": "Red", "new_security_value": 9}]}
         events = mr._activate_sheaf_step(state, step, state["host_security_code"])
+        assert state["host_security_code"] == "Green"
+        assert state["host_security_value"] == 6
+        assert state["pending_bouncer"]["complete_turn"] == 4
+        assert state["pending_bouncer"]["new_security_code"] == "Red"
+        assert events[0]["type"] == "bouncer_scheduled" and events[0]["gm_only"] is True
+
+    def test_bouncer_sensor_warning_reveals_no_rating_or_roll(self, monkeypatch):
+        state = _fresh_state(sec_code="Green", sec_value=6)
+        state["event_log"] = []
+        state["pending_bouncer"] = {
+            "new_security_code": "Red", "new_security_value": 9,
+            "complete_turn": 2, "sensor_checked": False,
+        }
+        monkeypatch.setattr(eng, "roll_dice", lambda pool, tn: {"successes": 1})
+        mr._run_reactive_activation_sensor_checks(state, {"sensor": 5})
+        warning = next(e for e in state["event_log"] if e["type"] == "bouncer_warning")
+        assert warning["description"] == "Your Sensors detect that host security is rising."
+        assert "roll" not in warning and "tn" not in warning
+        assert "Red" not in warning["description"] and "9" not in warning["description"]
+        assert state["pending_bouncer"]["sensor_checked"] is True
+
+    def test_bouncer_completes_when_due_and_requires_fresh_analyze_host(self):
+        state = _fresh_state(sec_code="Green", sec_value=6)
+        state["event_log"] = []
+        state.update({
+            "current_turn": 2,
+            "host_security_revealed": True,
+            "pending_bouncer": {
+                "new_security_code": "Red", "new_security_value": 9,
+                "complete_turn": 2, "sensor_checked": True,
+            },
+        })
+        mr._complete_pending_bouncer(state)
         assert state["host_security_code"] == "Red"
         assert state["host_security_value"] == 9
-        ev = next((e for e in events if e.get("type") == "bouncer"), None)
-        assert ev is not None
-        assert ev["old_security_code"] == "Green" and ev["old_security_value"] == 6
-        assert ev["new_security_code"] == "Red" and ev["new_security_value"] == 9
+        assert state["host_security_revealed"] is False
+        assert "pending_bouncer" not in state
+
+        run = TestHostSecurityRedaction()._run(**state)
+        projected = mr._serialize_run(run, TestHostSecurityRedaction._PLAYER)["state_json"]
+        assert "host_security_code" not in projected and "host_security_value" not in projected
+        assert not any(e["type"] == "bouncer_completed" for e in projected["event_log"])
 
     def test_bouncer_missing_payload_leaves_host_unchanged(self):
         # A malformed bouncer (no payload) must not blank the host -- it falls back to current.
@@ -503,7 +730,36 @@ class TestWormVariants:
         assert state.get("mpcp_infected") is True
         assert any(i["variant"] == "deathworm" for i in state["mpcp_infections"])
         assert worm not in state["lurking_ic"]
+        visible = next(ic for ic in state["active_ic"] if ic["id"] == "w1")
+        assert visible["status"] == "resolved"
+        assert visible["detection_level"] == 2 and not visible.get("analyzed")
+        projected = mr._redact_ic(visible)
+        assert projected["type"] == "Deathworm" and projected["rating"] is None
+        event = next(item for item in state["event_log"] if item["type"] == "worm_resolved")
+        assert "successes; Hardening-0 reduced that to" in event["description"]
         assert mr._deathworm_tn_bonus(state) == 2
+
+    def test_repelled_worm_becomes_type_known_and_logs_gm_detail(self, monkeypatch):
+        state = _fresh_state(sec_value=6)
+        state["event_log"] = []
+        worm = {"id": "w1", "type": "Worm", "variant": "tapeworm",
+                "rating": 6, "status": "lurking"}
+        state["lurking_ic"] = [worm]
+        monkeypatch.setattr(eng, "worm_attack", lambda **kw: {
+            "mpcp_infected": False, "tn": 6, "net_successes": 0,
+            "roll": {"pool": 6, "dice": [6, 1, 1, 1, 1, 1], "successes": 1},
+        })
+
+        mr._resolve_lurking_worm(state, {"mpcp": 6, "hardening": 1}, worm)
+
+        assert worm in state["lurking_ic"]
+        assert "located" not in worm and worm["detection_level"] == 2
+        projected = mr._redact_ic(worm)
+        assert projected["type"] == "Tapeworm" and projected["rating"] is None
+        description = state["event_log"][-1]["description"]
+        assert "1 success" in description
+        assert "Hardening-1" in description
+        assert "0 net successes" in description
 
     # -- RAW trigger: a System Test against the infested subsystem risks infection --
 
@@ -511,7 +767,7 @@ class TestWormVariants:
         # vr2 L548: a worm on Files only rolls its Infection Test on a Files System Test.
         state = _fresh_state(sec_value=6)
         state["event_log"] = []
-        worm = {"id": "w1", "type": "Worm", "variant": "standard", "rating": 6,
+        worm = {"id": "w1", "type": "Worm", "variant": "deathworm", "rating": 6,
                 "subsystem": "files", "status": "lurking"}
         state["lurking_ic"] = [worm]
         decker = {"mpcp": 2, "hardening": 0}
@@ -528,7 +784,8 @@ class TestWormVariants:
         # A worm authored without a subsystem (legacy gap) covers any System Test.
         state = _fresh_state(sec_value=6)
         state["event_log"] = []
-        worm = {"id": "w1", "type": "Worm", "variant": "standard", "rating": 6, "status": "lurking"}
+        worm = {"id": "w1", "type": "Worm", "variant": "tapeworm", "rating": 6,
+            "status": "lurking"}
         state["lurking_ic"] = [worm]
         mr._trigger_subsystem_worms(state, {"mpcp": 2, "hardening": 0}, "control")
         assert state.get("mpcp_infected") is True
@@ -537,7 +794,7 @@ class TestWormVariants:
 
     def test_no_deathworm_gives_zero_bonus(self):
         state = _fresh_state()
-        state["mpcp_infections"] = [{"variant": "standard", "rating": 6, "ic_id": "a"}]
+        state["mpcp_infections"] = []
         assert mr._deathworm_tn_bonus(state) == 0
 
     def test_one_infected_deathworm_gives_two(self):
@@ -557,7 +814,7 @@ class TestWormVariants:
 
     def test_tapeworm_not_infected_is_noop(self):
         state = self._dl_state([{"name": "f1", "is_key": False}])
-        state["mpcp_infections"] = [{"variant": "standard", "rating": 6, "ic_id": "a"}]
+        state["mpcp_infections"] = []
         mr._apply_tapeworm_run_end(state)
         assert len(state["downloaded_files"]) == 1
         assert not state.get("tapeworm_resolved")
@@ -608,6 +865,28 @@ class TestWormVariants:
         state = mr._initial_state(decker, host)
         assert state["mpcp_infected"] is True
         assert mr._deathworm_tn_bonus(state) == 2
+
+    @pytest.mark.parametrize("variant", [None, "standard", "dataworm", ""])
+    def test_infection_schema_rejects_unsupported_variant(self, variant):
+        with pytest.raises(ValidationError):
+            MpcpInfection.model_validate({"variant": variant, "rating": 6, "ic_id": "old"})
+
+    def test_initial_state_skips_unsupported_worm_data(self):
+        from app.models.matrix_host import MatrixHost
+        host = MatrixHost(name="H", config_json={
+            "security_code": "Green", "security_value": 6,
+            "worms": [
+                {"target": "Files", "rating": 6, "variant": "standard"},
+                {"target": "Control", "rating": 5},
+            ],
+        })
+        decker = {
+            "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
+            "mpcp_infections": [{"variant": "standard", "rating": 5, "ic_id": "old"}],
+        }
+        state = mr._initial_state(decker, host)
+        assert state["lurking_ic"] == []
+        assert state["mpcp_infections"] == []
 
 
 class TestRunDeckDamageWriteback:
@@ -680,6 +959,13 @@ class TestRunDeckDamageWriteback:
         out, _ = self._apply(deck, state)
         assert out["mpcp_infections"] == [{"variant": "deathworm", "rating": 5, "ic_id": "w1"}]
 
+    def test_unsupported_infection_is_not_written_to_deck(self):
+        deck = {"name": "Cobra", "mpcp": 6}
+        state = _fresh_state()
+        state["mpcp_infections"] = [{"variant": "standard", "rating": 5, "ic_id": "w1"}]
+        out, _ = self._apply(deck, state)
+        assert "mpcp_infections" not in out
+
     def test_idempotent_no_double_apply(self):
         deck = {"name": "Cobra", "mpcp": 6}
         state = _fresh_state()
@@ -709,6 +995,34 @@ class TestRunDeckDamageWriteback:
         run = self._run(state)
         asyncio.run(mr._apply_run_damage_to_deck(db, run, {"is_admin": False, "is_user": True, "user_token": "someone-else"}))
         assert "damage" not in char.deck_builder_state["stores"]["sr2_decks_v1"][0]
+
+    def test_acknowledgment_applies_damage_before_deleting_run(self, monkeypatch):
+        import asyncio
+
+        deck = {"name": "Cobra", "mpcp": 6}
+        char = self._char(deck)
+        db = self._fake_db(char)
+        state = _fresh_state()
+        state["condition_monitor"] = {"mpcp_damage": 2}
+        run = self._run(state)
+        run.status = "crashed"
+        deleted = []
+
+        async def _get_run(_db, _run_id):
+            return run
+
+        async def _delete(obj):
+            deleted.append(obj)
+
+        db.delete = _delete
+        monkeypatch.setattr(mr, "_get_run_or_404", _get_run)
+        monkeypatch.setattr(mr, "_build_run_aar", lambda _run: {"acknowledged": False})
+
+        asyncio.run(mr.acknowledge_run_aar(run_id=run.id, db=db))
+
+        saved = char.deck_builder_state["stores"]["sr2_decks_v1"][0]
+        assert saved["damage"]["mpcp"] == 4
+        assert deleted == [run]
 
 
 class TestShieldShift:
@@ -780,13 +1094,13 @@ class TestTarBabyTarPit:
 
     def test_tar_pit_wipes_all_copies_on_pit_success(self, scripted):
         # IC wins the duel, then the pit roll scores a hit vs MPCP -> all copies gone
-        scripted([6, 6, 1, 1, 6])
+        scripted([6, 6, 1, 1, 1, 1] + [1] * 6 + [6] + [1] * 5)
         r = eng.tar_baby_test(ic_rating=6, utility_rating=6, is_tar_pit=True, mpcp_rating=4)
         assert r["ic_wins"] is True
         assert r["all_copies_corrupted"] is True  # the full deck-wipe representation
 
     def test_tar_pit_no_wipe_when_pit_misses(self, scripted):
-        scripted([6, 6, 1, 1, 1])  # pit roll misses vs MPCP
+        scripted([6, 6, 1, 1, 1, 1] + [1] * 6 + [1] * 6)  # pit roll misses vs MPCP
         r = eng.tar_baby_test(ic_rating=6, utility_rating=6, is_tar_pit=True, mpcp_rating=8)
         assert r["ic_wins"] is True
         assert r["all_copies_corrupted"] is False
@@ -819,14 +1133,33 @@ class TestLurkingTarApplication:
     def test_ic_wins_crashes_utility_and_removes_tar(self, scripted):
         # ic 6d @ TN(util=6) all 6s -> 6 hits; util 6d @ TN(ic=6) all 1s -> 0 hits -> IC wins.
         scripted([6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1])
+        decker = self._decker()
         state = self._state_with_tars(
             [{"id": "lc_t", "type": "Tar Baby", "rating": 6, "status": "lurking"}])
+        state.update({
+            "active_memory_cap": 10,
+            "program_sizes": {"analyze": 6, "attack": 5},
+            "storage_programs": [{"name": "attack", "rating": 5, "size": 5}],
+        })
         tar = state["lurking_ic"][0]
-        mr._resolve_lurking_tar(state, self._decker(), tar, "analyze", 6)
+        mr._resolve_lurking_tar(state, decker, tar, "analyze", 6)
         assert state["lurking_ic"] == []                       # tar crashed + removed
         ev = state["event_log"][-1]
         assert ev["type"] == "reactive_ic_resolved"
         assert ev["outcome"] == "ic_wins" and ev["ic_type"] == "Tar Baby"
+        assert decker["utilities"]["analyze"] == 0            # active copy gone; 6 Mp freed
+        assert mr._effective_program_rating(decker, state, "analyze") == 0
+        assert "analyze" not in state.get("program_damage", {})
+        assert not state.get("one_shot_wiped")
+        assert state["storage_programs"] == [
+            {"name": "attack", "rating": 5, "size": 5},
+            {"name": "analyze", "rating": 6, "size": 6, "squeezed": False},
+        ]
+        # Freed active memory is immediately reusable.
+        mr._apply_swap_memory(state, decker, target_program="attack", swap_out_program="")
+        assert decker["utilities"]["attack"] == 5
+        mr._apply_swap_memory(state, decker, target_program="analyze", swap_out_program="attack")
+        assert mr._effective_program_rating(decker, state, "analyze") == 6
         # A plain Tar Baby crash emits no all-copies corruption event.
         assert not any(e["type"] == "tar_pit_corruption" for e in state["event_log"])
 
@@ -842,14 +1175,11 @@ class TestLurkingTarApplication:
 
     # -- Tar Pit: corrupt-all-copies + One-Shot deck wipe -----------------------
 
-    def test_tar_pit_corrupts_all_copies_and_wipes_one_shot(self, scripted):
+    def test_tar_pit_corrupts_all_active_and_storage_copies(self, scripted):
         # ic 6d @ TN(util=5) all 6s -> 6 hits; util 5d @ TN(ic=6) all 1s -> 0 -> IC wins;
         # pit 6d @ TN(mpcp4+hard0=4) all 6s -> corrupt all copies.
         scripted([6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 6, 6, 6, 6, 6, 6])
-        decker = self._decker(
-            utilities={"attack": 5},
-            program_options={"attack": {"one_shot": True}},
-        )
+        decker = self._decker(utilities={"attack": 5})
         state = self._state_with_tars(
             [{"id": "lc_p", "type": "Tar Pit", "rating": 6, "status": "lurking"}])
         state["storage_programs"] = [
@@ -861,8 +1191,8 @@ class TestLurkingTarApplication:
         assert state["lurking_ic"] == []
         types = [e["type"] for e in state["event_log"]]
         assert "tar_pit_corruption" in types                    # every copy corrupted
-        assert "one_shot_wiped" in types                        # deck copies destroyed
-        assert state["program_damage"]["attack"] == 5           # active copy -> effective 0
+        assert decker["utilities"]["attack"] == 0              # active copy removed; Mp freed
+        assert "attack" not in state.get("program_damage", {})
         assert "attack" in state["one_shot_wiped"]              # Swap Memory refuses to reload
         names = [p["name"] for p in state["storage_programs"]]
         assert names == ["analyze"]                             # storage copy dropped, others kept
@@ -1268,6 +1598,54 @@ class TestICExtrasRunSide:
         assert ev["type"] == "construct"          # _ScriptedRandom.choice -> first option
         assert isinstance(ev["defenses"], list) and set(ev["defenses"]) == {"Armor", "Shifting"}
 
+    @pytest.mark.parametrize("security_code,max_threat", [
+        ("Blue", 0), ("Green", 1), ("Orange", 2), ("Red", 3), ("Black", 4),
+    ])
+    def test_generated_group_is_raw_legal(self, scripted, security_code, max_threat):
+        scripted([6, 6, 1, 1, 1, 1])
+        sv = 6
+        event = eng._build_construct_or_party_event(sv, security_code)
+        components = event["components"]
+        assert len(components) <= max(1, sv // 2)
+        assert all(component["rating"] <= math.ceil(sv * 2 / 3) for component in components)
+        used = sum(
+            component["rating"]
+            + (2 if rules.IC_CATALOG.get(component["type"], {}).get("category") == "black" else
+               1 if rules.IC_CATALOG.get(component["type"], {}).get("category") == "gray" else 0)
+            for component in components
+        )
+        if event["type"] == "construct":
+            used += len(event.get("defenses", [])) * 2
+            assert event["threat_rating"] <= max_threat
+        else:
+            used += sum(len(component.get("options", [])) for component in components)
+        assert used <= sv * 2
+
+    def test_host_composite_validator_accepts_legal_groups(self):
+        config = {"security_code": "Orange", "security_value": 6, "sheaf": [{"events": [
+            {"type": "construct", "threat_rating": 2, "components": [
+                {"type": "Killer", "rating": 3}, {"type": "Blaster", "rating": 3},
+            ], "defenses": ["Armor"]},
+            {"type": "party_ic", "components": [
+                {"type": "Killer", "rating": 3, "options": ["Armor"]},
+                {"type": "Trace", "rating": 2},
+            ]},
+        ]}]}
+        assert mr._host_composite_errors(config) == []
+
+    @pytest.mark.parametrize("event", [
+        {"type": "construct", "threat_rating": 0, "components": [{"type": "Killer", "rating": 3}]},
+        {"type": "construct", "threat_rating": 2, "components": [
+            {"type": "Killer", "rating": 3}, {"type": "Blaster", "rating": 3},
+        ]},
+        {"type": "party_ic", "components": [
+            {"type": "Killer", "rating": 4}, {"type": "Killer", "rating": 4},
+        ]},
+    ])
+    def test_host_composite_validator_rejects_invalid_groups(self, event):
+        config = {"security_code": "Green", "security_value": 3, "sheaf": [{"events": [event]}]}
+        assert mr._host_composite_errors(config)
+
 
 class TestICOptionsAndDefensesTables:
     """vr2 IC Options Table + IC Defenses Table -- now rolled when generating combat IC."""
@@ -1400,6 +1778,8 @@ class TestInitiativeFoundation:
         assert mr._ACTION_COST["analyze_host"] == "Complex"
         assert mr._ACTION_COST["analyze_ic"] == "Free"
         assert mr._ACTION_COST["analyze_security"] == "Simple"
+        assert mr._ACTION_UTILITY["analyze_subsystem"] == "Analyze"
+        assert mr._action_program_key("analyze_subsystem") == "analyze"
         assert mr._ACTION_COST["swap_memory"] == "Simple"
         assert mr._ACTION_COST["purge_hog"] == "Complex"
 
@@ -2121,6 +2501,12 @@ class TestPersonaModes:
         eff = mr._get_decker_effective(self._decker("none"), self._state())
         assert eff == {"bod": 6, "evasion": 6, "masking": 6, "sensor": 6, "mpcp": 6}
 
+    def test_odd_persona_ratings_round_up(self):
+        decker = {"bod": 5, "evasion": 5, "masking": 5, "sensor": 5, "mpcp": 5,
+                  "persona_mode": "bod", "utilities": {}}
+        eff = mr._get_decker_effective(decker, self._state())
+        assert eff == {"bod": 8, "evasion": 3, "masking": 3, "sensor": 3, "mpcp": 5}
+
 
 class TestScramblePaydata:
     """vr2 #6 -- Decrypt vs Scramble IC; Poison wipes key data on failure."""
@@ -2171,9 +2557,9 @@ class TestScramblePaydata:
         det = eng.data_bomb_detonate(ic_rating=8, target_bod=6)
         assert det["tally_increase"] == 8 and det["damage_level"] == "Moderate"
 
-    def test_standard_failure_no_destruction(self):
-        c = eng.scramble_failure_consequence(variant="standard", is_key=True)
-        assert c["data_destroyed"] is False
+    def test_unsupported_variant_is_rejected(self):
+        with pytest.raises(ValueError, match="Unsupported Scramble variant"):
+            eng.scramble_failure_consequence(variant="standard", is_key=True)
 
     def test_initial_state_loads_paydata_and_scrambles(self):
         class _Host:
@@ -2211,7 +2597,7 @@ class TestScramblePaydata:
         door = st["trap_doors"][0]
         assert door["id"] == "12345"            # normalized to str for path round-trip
         assert door["subsystem"] == "slave"
-        assert door["discovered"] is False and door["filed"] is False
+        assert door["discovered"] is False
         assert door["destination_label"] == "Shiseki Clan Host"
 
     def test_initial_state_host_ltg_hidden_until_revealed(self):
@@ -2241,8 +2627,8 @@ class TestScramblePaydata:
 
 class TestTrapDoorHostStack:
     """B34: entering a trap door SUSPENDS the current host onto a stack (persona carried), and a
-    graceful logoff / host crash on the deeper host POPS back to it. host_stack is GM-only; only a
-    host_stack_depth count reaches the player."""
+    graceful logoff on the deeper host POPS back to it. A forced host crash dumps the decker from
+    the full stack. host_stack is GM-only; only a host_stack_depth count reaches the player."""
 
     class _Host:
         def __init__(self, hid, name):
@@ -2253,6 +2639,72 @@ class TestTrapDoorHostStack:
 
     def _decker(self):
         return {"masking": 4, "intelligence": 5, "mpcp": 6, "utilities": {}, "computer_skill": 6}
+
+    def test_graceful_logoff_caps_hp_and_uses_effective_loaded_deception(self, monkeypatch):
+        decker = self._decker()
+        decker["utilities"]["deception"] = 6
+        state = mr._initial_state(decker, self._Host(1, "Alpha"))
+        state["hackingPool_remaining"] = 2
+        state.setdefault("program_damage", {})["deception"] = 3
+        captured = {}
+
+        def _fake_test(**kwargs):
+            captured.update(kwargs)
+            return {
+                "success": True,
+                "decker_roll": {"successes": 1, "tn": kwargs["subsystem_rating"]},
+                "host_roll": {"successes": 0},
+                "decker_net_successes": 1,
+                "tally_increase": 0,
+            }
+
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        assert mr._apply_graceful_logoff(state, decker, hacking_pool_dice=40)
+        assert captured["decker_pool"] == decker["computer_skill"] + 2
+        assert captured["extra_tn_modifier"] == -3
+        assert state["hackingPool_remaining"] == 0
+
+    def test_graceful_logoff_without_loaded_deception_uses_zero(self, monkeypatch):
+        decker = self._decker()
+        state = mr._initial_state(decker, self._Host(1, "Alpha"))
+        captured = {}
+
+        def _fake_test(**kwargs):
+            captured.update(kwargs)
+            return {
+                "success": False,
+                "decker_roll": {"successes": 0, "tn": kwargs["subsystem_rating"]},
+                "host_roll": {"successes": 0},
+                "decker_net_successes": 0,
+                "tally_increase": 0,
+            }
+
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        assert not mr._apply_graceful_logoff(state, decker, hacking_pool_dice=0)
+        assert captured["extra_tn_modifier"] == 0
+
+    def test_graceful_logoff_ignores_suppressed_trace(self, monkeypatch):
+        decker = self._decker()
+        state = mr._initial_state(decker, self._Host(1, "Alpha"))
+        state["active_ic"] = [
+            {"type": "Trace and Report", "rating": 5, "status": "active", "suppressed": True},
+            {"type": "Trace and Dump", "rating": 3, "status": "active", "suppressed": False},
+        ]
+        captured = {}
+
+        def _fake_test(**kwargs):
+            captured.update(kwargs)
+            return {
+                "success": True,
+                "decker_roll": {"successes": 1, "tn": kwargs["subsystem_rating"]},
+                "host_roll": {"successes": 0},
+                "decker_net_successes": 1,
+                "tally_increase": 0,
+            }
+
+        monkeypatch.setattr(eng, "system_test", _fake_test)
+        assert mr._apply_graceful_logoff(state, decker, hacking_pool_dice=0)
+        assert captured["extra_tn_modifier"] == 3
 
     def test_push_suspends_current_and_carries_persona(self):
         decker = self._decker()
@@ -2389,8 +2841,8 @@ class TestScrambleDiscovery:
     # -- Analyze Subsystem discovery ------------------------------------------
 
     def test_analyze_files_discovers_only_the_files_scramble(self, monkeypatch):
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding"},
+                {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison"}]
         out, _ = self._drive(monkeypatch, self._state(scr),
                              action_type="analyze_subsystem", subsystem="files")
         by_key = {s["target_key"]: s for s in out["scrambles"]}
@@ -2398,11 +2850,13 @@ class TestScrambleDiscovery:
         assert by_key[self.SLAVE_KEY].get("discovered") in (None, False)
         found = [e for e in out["event_log"] if e["type"] == "scramble_found"]
         assert len(found) == 1 and found[0]["subsystem"] == "files"
-        assert found[0]["target_key"] == self.FILES_KEY
+        assert found[0]["scramble_ref"] == "scramble_1"
+        assert "target_key" not in found[0]
+        assert "Lone Star IC Design" not in found[0]["description"]
 
     def test_analyze_slave_discovers_only_the_slave_scramble(self, monkeypatch):
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding"},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison"}]
         out, _ = self._drive(monkeypatch, self._state(scr),
                              action_type="analyze_subsystem", subsystem="slave")
         by_key = {s["target_key"]: s for s in out["scrambles"]}
@@ -2417,7 +2871,7 @@ class TestScrambleDiscovery:
         from types import SimpleNamespace
         from datetime import datetime, UTC
         scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard"}]  # undiscovered
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "exploding"}]  # undiscovered
         run = SimpleNamespace(id=1, host_id=3, status="active",
                               decker_json=self._decker(), state_json=self._state(scr),
                               created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
@@ -2427,10 +2881,27 @@ class TestScrambleDiscovery:
         ds = st["discovered_scrambles"]
         assert len(ds) == 1                                # only the DISCOVERED one is surfaced
         entry = ds[0]
-        assert entry["target_key"] == self.FILES_KEY
+        assert entry["scramble_ref"] == "scramble_1"
         assert entry["subsystem"] == "files"
-        assert entry["label"] == "File: Lone Star IC Design"
+        assert entry["label"] == "Scramble IC protecting an unidentified file"
+        assert "target_key" not in entry
         assert "rating" not in entry and "variant" not in entry   # never leak the GM-only bits
+
+    def test_serialize_names_scramble_after_paydata_is_located(self):
+        scr = [{"target_key": self.FILES_KEY, "rating": 6,
+                "variant": "poison", "discovered": True}]
+        state = self._state(scr)
+        state["paydata"] = [{"name": "Lone Star IC Design", "located": True}]
+        run = SimpleNamespace(
+            id=1, host_id=3, status="active", decker_json=self._decker(), state_json=state,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+
+        out = mr._serialize_run(
+            run, {"is_admin": False, "is_user": True, "user_token": None})
+
+        assert out["state_json"]["discovered_scrambles"][0]["label"] == (
+            "File: Lone Star IC Design")
 
     def test_serialize_admin_view_keeps_raw_scrambles(self):
         from types import SimpleNamespace
@@ -2447,8 +2918,8 @@ class TestScrambleDiscovery:
     def test_decrypt_targets_scramble_by_key_removes_the_correct_one(self, monkeypatch):
         # Two discovered scrambles; target the SECOND by its full key -> only it is removed, and the
         # decrypt runs vs ITS rating (5) -- proving no silent fallback to scrambles[0] (rating 6).
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "standard", "discovered": True}]
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding", "discovered": True},
+               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison", "discovered": True}]
         out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
                                  subsystem="files", target_file=self.SLAVE_KEY,
                                  decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
@@ -2458,9 +2929,22 @@ class TestScrambleDiscovery:
         assert calls and calls[0]["scramble_rating"] == 5  # decrypt ran vs the slave scramble
         assert any(e["type"] == "decrypt" and e.get("success") for e in out["event_log"])
 
+    def test_decrypt_targets_scramble_by_opaque_player_ref(self, monkeypatch):
+        scr = [{"target_key": self.FILES_KEY, "rating": 6,
+            "variant": "exploding", "discovered": True}]
+
+        out, calls = self._drive(
+            monkeypatch, self._state(scr), action_type="decrypt_file", subsystem="files",
+            target_file="scramble_1",
+            decrypt_result={"decrypted": True, "roll": {"successes": 4, "ones": 0}},
+        )
+
+        assert calls and calls[0]["scramble_rating"] == 6
+        assert out["scrambles"] == []
+
     def test_decrypt_matches_discovered_scramble_by_bare_name(self, monkeypatch):
         # A bare, differently-cased name still matches the discovered scramble by its trailing segment.
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True}]
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True}]
         out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
                                  subsystem="files", target_file="lone star ic design",
                                  decrypt_result={"decrypted": True, "roll": {"successes": 4, "ones": 0}})
@@ -2470,7 +2954,7 @@ class TestScrambleDiscovery:
     def test_decrypt_undiscovered_scramble_is_refused(self, monkeypatch):
         # The protecting scramble exists but has NOT been discovered: decrypt must not run the test,
         # must not remove any scramble, and must emit the "No discovered scramble" guard event.
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard"}]  # discovered=False
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding"}]  # discovered=False
         out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
                                  subsystem="files", target_file=self.FILES_KEY,
                                  decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
@@ -2484,7 +2968,7 @@ class TestScrambleDiscovery:
 
     def test_decrypt_wrong_target_among_discovered_is_refused(self, monkeypatch):
         # A discovered scramble exists, but the requested target matches none of the discovered keys.
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "standard", "discovered": True}]
+        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True}]
         out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
                                  subsystem="files", target_file="slave::piece::Nonexistent",
                                  decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
@@ -2618,6 +3102,10 @@ class TestAnalyzeGatedICReveal:
         return {"id": "ic_2", "type": "Probe", "rating": 6, "category": "white",
                 "status": "active", **kw}
 
+    def _trace(self, **kw):
+        return {"id": "ic_t", "type": "Trace", "rating": 6, "category": "white",
+                "status": "active", **kw}
+
     # -- proactive IC betray themselves (visible, rating still hidden) --
     def test_proactive_ic_visible_as_unknown(self):
         out = mr._redact_ic(self._proactive())
@@ -2640,26 +3128,204 @@ class TestAnalyzeGatedICReveal:
         assert mr._redact_ic(self._reactive()) is None
 
     def test_reactive_level1_shows_presence_only(self):
-        out = mr._redact_ic(self._reactive(detection_level=1))
+        out = mr._redact_ic(self._reactive(detection_level=1, subsystem="files"))
         assert out is not None
         assert out["type"] == "Unknown IC" and out["rating"] is None
         assert out["category"] is None  # threat class withheld below level 2
+        assert "subsystem" not in out
+
+    def test_level1_sensor_notice_does_not_classify_unknown_ic(self, monkeypatch):
+        state = {"event_log": []}
+        ic = self._reactive(detection_level=0)
+        monkeypatch.setattr(eng, "roll_dice", lambda pool, tn: {
+            "pool": pool, "tn": tn, "dice": [6], "successes": 1, "ones": 0,
+        })
+        mr._secret_sensor_test(state, {"sensor": 6}, ic)
+        notice = state["event_log"][-1]["description"]
+        assert notice == "Sensor sweep detects IC activity. Type: Unknown."
+        assert "lurking" not in notice.lower()
+
+    @pytest.mark.parametrize(("attribute", "expected"), [
+        ("bod", "Acid"), ("evasion", "Binder"),
+        ("masking", "Marker"), ("sensor", "Jammer"),
+    ])
+    def test_observed_crippler_attack_reveals_type_only(self, attribute, expected):
+        ic = self._proactive(observed_type=expected, detection_level=2)
+        out = mr._redact_ic(ic)
+        assert out["type"] == expected
+        assert out["rating"] is None
+        assert "category" not in out
+        assert "options" not in out
+
+        ic["analyzed"] = True
+        out = mr._redact_ic(ic)
+        assert out["type"] == "Killer"
+        assert out["rating"] == 6
 
     def test_reactive_level2_shows_type_not_rating(self):
         out = mr._redact_ic(self._reactive(detection_level=2))
         assert out["type"] == "Probe" and out["rating"] is None
         assert out["category"] == "white"  # type known -> threat class revealed
 
+    @pytest.mark.parametrize(("variant", "expected"), [
+        ("deathworm", "Deathworm"),
+        ("tapeworm", "Tapeworm"),
+    ])
+    def test_reactive_level2_shows_worm_variant_as_type(self, variant, expected):
+        out = mr._redact_ic({
+            "id": "worm_1", "type": "Worm", "variant": variant, "rating": 6,
+            "category": "white", "status": "lurking", "detection_level": 2,
+        })
+        assert out["type"] == expected
+        assert out["rating"] is None
+
+    @pytest.mark.parametrize(("variant", "expected"), [
+        ("deathworm", "Deathworm"),
+        ("tapeworm", "Tapeworm"),
+    ])
+    def test_reactive_level3_shows_worm_variant_and_rating(self, variant, expected):
+        out = mr._redact_ic({
+            "id": "worm_1", "type": "Worm", "variant": variant, "rating": 6,
+            "category": "white", "status": "lurking", "detection_level": 3,
+        })
+        assert out["type"] == expected
+        assert out["rating"] == 6
+
+    def test_level2_deathworm_sensor_event_keeps_variant_label(self):
+        event = {
+            "type": "ic_detected", "ic_id": "worm_1", "detection_level": 2,
+            "description": "Sensor sweep identifies a lurking IC. Type: Deathworm.",
+        }
+        out = mr._redact_event_ic(
+            event, {"worm_1": {"level": 2, "type": "Deathworm", "rating": 6}},
+        )
+        assert out["description"] == event["description"]
+
     def test_reactive_level3_full_reveal(self):
         out = mr._redact_ic(self._reactive(detection_level=3))
         assert out["type"] == "Probe" and out["rating"] == 6
 
+    def test_trace_hunt_is_type_known_but_rating_hidden(self):
+        out = mr._redact_ic(self._trace(trace_phase="hunt"))
+        assert out["type"] == "Trace"
+        assert out["rating"] is None
+        assert out["trace_phase"] == "hunt"
+        assert out["detection_level"] == 2
+
+    def test_trace_hunt_success_reveals_location_transition_not_rating_or_countdown(self):
+        event = {
+            "type": "ic_attack", "ic_id": "ic_t", "ic_type": "Trace", "ic_rating": 6,
+            "trace_phase": "hunt_hit", "hunt_roll": {"tn": 8, "dice": [8, 2], "successes": 1},
+            "description": "Trace-6 HUNT CYCLE HIT (1 success) -- Location Cycle: 10 rounds.",
+        }
+        out = mr._redact_event_ic(
+            event, {"ic_t": {"level": 2, "type": "Trace", "rating": 6}},
+        )
+        assert out["ic_type"] == "Trace"
+        assert out["trace_phase"] == "hunt_hit"
+        assert out["description"] == (
+            "Trace IC Hunt Cycle succeeded -- it enters its Location Cycle."
+        )
+        assert "ic_rating" not in out and "hunt_roll" not in out
+        assert "10" not in out["description"] and "TN" not in out["description"]
+
+    @pytest.mark.parametrize("level", [1, 2, 3])
+    def test_ic_projection_drops_unknown_engine_fields(self, level):
+        out = mr._redact_ic(self._reactive(detection_level=level, gm_secret="future value"))
+        assert out is not None
+        assert "gm_secret" not in out
+
+    @pytest.mark.parametrize("level", [1, 2, 3])
+    def test_ic_event_projection_drops_unknown_engine_fields(self, level):
+        event = {
+            "type": "ic_attack", "ic_id": "ic_2", "ic_type": "Probe", "ic_rating": 6,
+            "description": "Probe-6 attacks.", "turn": 2, "init": 16,
+            "gm_secret": "future value",
+        }
+        out = mr._redact_event_ic(event, {"ic_2": {"level": level, "type": "Probe", "rating": 6}})
+        assert "gm_secret" not in out
+        assert out["turn"] == 2 and out["init"] == 16
+        assert ("ic_rating" in out) is (level == 3)
+
     def test_detection_level_derivation(self):
         assert mr._ic_detection_level(self._reactive()) == 0          # reactive default
         assert mr._ic_detection_level(self._proactive()) == 1         # proactive default
+        assert mr._ic_detection_level(self._trace()) == 2             # Trace visible in Hunt
         assert mr._ic_detection_level(self._reactive(analyzed=True)) == 3
 
+    @pytest.mark.parametrize(("current_pass", "expected"), [(1, 26), (2, 16), (3, 6)])
+    def test_event_stamp_uses_current_initiative_count(self, current_pass, expected):
+        state = {"current_turn": 2, "current_pass": current_pass,
+                 "_acting_init": 26, "event_log": []}
+        mr._append_event(state, {"type": "test", "description": "timing"})
+        assert state["event_log"][0]["turn"] == 2
+        assert state["event_log"][0]["init"] == expected
+
+    def test_shared_clock_uses_every_actors_effective_initiative(self):
+        state = {
+            "decker_initiative": 20,
+            "current_pass": 1,
+            "condition_monitor": {
+                "persona_boxes": 1, "stun_boxes": 0, "physical_boxes": 0,
+            },
+            "active_ic": [
+                {"id": "ic24", "type": "Killer", "rating": 6, "status": "active",
+                 "initiative": 25, "boxes": 1},
+                {"id": "ic13", "type": "Killer", "rating": 6, "status": "active",
+                 "initiative": 13, "boxes": 0},
+            ],
+            "enemy_deckers": [{
+                "id": "enemy17", "status": "active", "initiative": 18,
+                "condition_monitor": {
+                    "persona_boxes": 1, "stun_boxes": 0, "physical_boxes": 0,
+                },
+            }],
+        }
+
+        assert mr._decker_effective_initiative(state) == 19
+        assert mr._decker_action_count(state) == 19
+        above_player = mr._hostile_action_schedule(state, upper_count=None, lower_count=19)
+        after_first_player = mr._hostile_action_schedule(state, upper_count=19, lower_count=9)
+        after_last_player = mr._hostile_action_schedule(state, upper_count=9, lower_count=0)
+
+        assert [(count, actor["id"]) for count, _, actor, _ in above_player] == [(24, "ic24")]
+        assert [(count, actor["id"]) for count, _, actor, _ in after_first_player] == [
+            (17, "enemy17"), (14, "ic24"), (13, "ic13"),
+        ]
+        assert [(count, actor["id"]) for count, _, actor, _ in after_last_player] == [
+            (7, "enemy17"), (4, "ic24"), (3, "ic13"),
+        ]
+
     # -- secret Sensor Test raises level + emits graduated notice --
+    @pytest.mark.parametrize(("successes", "ic", "expected"), [
+        (1, {"type": "Probe", "rating": 4},
+         "Sensor sweep detects IC activity. Type: Unknown."),
+        (2, {"type": "Probe", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Probe."),
+        (3, {"type": "Probe", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Probe-4. Location pinpointed."),
+        (2, {"type": "Worm", "variant": "deathworm", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Deathworm."),
+        (3, {"type": "Worm", "variant": "deathworm", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Deathworm-4. Location pinpointed."),
+        (2, {"type": "Worm", "variant": "tapeworm", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Tapeworm."),
+        (3, {"type": "Worm", "variant": "tapeworm", "rating": 4},
+         "Sensor sweep identifies a lurking IC. Type: Tapeworm-4. Location pinpointed."),
+    ])
+    def test_secret_sensor_notice_uses_consistent_type_verbiage(
+            self, monkeypatch, successes, ic, expected):
+        monkeypatch.setattr(
+            eng, "roll_dice",
+            lambda pool, tn: {"dice": [tn] * successes, "successes": successes},
+        )
+        state = _fresh_state(); state["event_log"] = []
+        state["condition_monitor"] = {"persona_damage": {}, "mpcp_damage": 0}
+        target = {"id": "ic_sensor", "status": "lurking", **ic}
+
+        assert mr._secret_sensor_test(state, {"sensor": 6}, target) == successes
+        assert state["event_log"][-1]["description"] == expected
+
     def test_secret_sensor_test_raises_level_and_notifies(self, scripted):
         # IC rating 4 (TN 4); 6 Sensor dice scripted to exactly 2 successes (no rule-of-6)
         scripted([4, 5, 1, 1, 1, 1])
@@ -2680,6 +3346,44 @@ class TestAnalyzeGatedICReveal:
         ic = self._reactive(detection_level=2)
         lvl = mr._secret_sensor_test(state, {"sensor": 6}, ic)
         assert lvl == 2  # stays at 2, not lowered to 0
+
+    def test_reactive_activation_sensor_test_runs_only_once(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(eng, "roll_dice",
+                            lambda pool, tn: calls.append((pool, tn)) or
+                            {"dice": [1] * pool, "successes": 0})
+        state = _fresh_state()
+        state["event_log"] = []
+        state["condition_monitor"] = {"persona_damage": {}, "mpcp_damage": 0}
+        ic = self._reactive(rating=5)
+        state["active_ic"] = [ic]
+
+        mr._run_reactive_activation_sensor_checks(state, {"sensor": 6})
+        mr._run_reactive_activation_sensor_checks(state, {"sensor": 6})
+
+        assert calls == [(6, 5)]
+        assert ic["sensor_checked"] is True
+
+    def test_located_lurking_worm_is_serialized_as_unknown_ic(self):
+        state = _fresh_state()
+        state["lurking_ic"] = [{
+            "id": "worm_1", "type": "Worm", "rating": 6,
+            "status": "lurking", "detection_level": 1, "located": True,
+        }]
+        run = SimpleNamespace(
+            id=1, host_id=3, status="active", decker_json={}, state_json=state,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+
+        serialized = mr._serialize_run(
+            run, {"is_admin": False, "is_user": True, "user_token": None})
+
+        assert "lurking_ic" not in serialized["state_json"]
+        assert serialized["state_json"]["revealed_lurking_ic"] == [{
+            "id": "worm_1", "type": "Unknown IC", "rating": None,
+            "status": "lurking", "detection_level": 1, "located": True,
+            "category": None,
+        }]
 
 
 class TestLiveDetectionFactor:
@@ -2728,6 +3432,31 @@ class TestLiveDetectionFactor:
         state["condition_monitor"] = {"persona_damage": {"masking": 5}, "mpcp_damage": 0}
         state["active_ic"] = [{"status": "active", "suppressed": True} for _ in range(9)]
         assert mr._effective_detection_factor(state, self._decker(6, 0)) == 1
+
+    def test_serialized_state_reports_suppression_overflow_after_masking_damage(self):
+        state = _fresh_state()
+        state["condition_monitor"] = {
+            "persona_damage": {"masking": 4}, "mpcp_damage": 0,
+        }
+        state["active_ic"] = [
+            {"id": f"ic-{i}", "status": "crashed", "suppressed": True}
+            for i in range(3)
+        ]
+        run = SimpleNamespace(
+            id=1, host_id=3, status="active", decker_json=self._decker(6, 0),
+            state_json=state, owner_token_hash=None, aar_acknowledged=False, version=1,
+            created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+
+        serialized = mr._serialize_run(
+            run, {"is_admin": False, "is_user": True, "user_token": None},
+        )["state_json"]
+
+        assert serialized["effective_persona"]["masking"] == 2
+        assert serialized["base_detection_factor"] == 1
+        assert serialized["detection_factor"] == 1
+        assert serialized["suppression_count"] == 3
+        assert serialized["suppression_overflow"] == 3
 
     def test_suppress_then_release_round_trips_df_and_tally(self):
         # suppressing one IC drops DF by 1; the math reflects the flag immediately
@@ -3482,24 +4211,26 @@ class TestDisinfect:
     # -- active Disinfect operation -------------------------------------------
 
     def test_disinfect_test_tn_reduced_by_utility_and_floored(self, scripted):
-        scripted([6])
-        r = eng.disinfect_test(decker_pool=8, subsystem_rating=9, disinfect_utility=4)
+        scripted([6, 1])
+        r = eng.disinfect_test(decker_pool=8, subsystem_rating=9, disinfect_utility=4,
+                               security_value=1, det_factor=4)
         assert r["tn"] == 5                                     # 9 - 4
         assert r["worm_destroyed"] is True                     # all 6s vs TN 5
-        scripted([1])
-        r2 = eng.disinfect_test(decker_pool=4, subsystem_rating=3, disinfect_utility=9)
+        scripted([1, 1])
+        r2 = eng.disinfect_test(decker_pool=4, subsystem_rating=3, disinfect_utility=9,
+                    security_value=1, det_factor=4)
         assert r2["tn"] == 2                                    # floored at 2
         assert r2["worm_destroyed"] is False
 
     def test_disinfect_destroys_worm_on_success_no_tally_add(self, scripted):
         # System Test vs files-8 reduced by Disinfect-6 -> TN 2; pool rolls 6 successes.
-        scripted([4, 4, 4, 4, 4, 4])
+        scripted([4, 4, 4, 4, 4, 4] + [1] * 6)
         decker = self._decker(disinfect=6)
         state = self._state_with_worm(rating=5, tally=7)
         mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
                             decker_pool=6, target_ic_id="")
         assert state["lurking_ic"] == []                       # worm destroyed + removed
-        assert state["security_tally"] == 7                    # NO tally add (not a crash)
+        assert state["security_tally"] == 7                    # host scored 0; no Worm crash tally
         assert not state.get("mpcp_infected")
         ev = state["event_log"][-1]
         assert ev["type"] == "worm_disinfected"
@@ -3519,6 +4250,28 @@ class TestDisinfect:
         assert [ic["id"] for ic in state["lurking_ic"]] == ["lc_a"]   # only the named worm removed
         ev = state["event_log"][-1]
         assert ev["ic_id"] == "lc_b" and ev["destroyed"] is True
+
+    def test_disinfect_derives_subsystem_from_selected_worm(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(eng, "disinfect_test", lambda **kwargs: captured.update(kwargs) or {
+            "success": True, "worm_destroyed": True, "decker_net_successes": 1,
+            "tn": 4, "roll": {"successes": 1}, "decker_roll": {"successes": 1},
+            "host_roll": {"successes": 0},
+            "tally_increase": 0,
+        })
+        state = _fresh_state()
+        state["event_log"] = []
+        state["host_acifs"] = [3, 4, 5, 9, 7]
+        state["lurking_ic"] = [
+            {"id": "lc_w", "type": "Worm", "rating": 4, "status": "lurking",
+             "subsystem": "files"},
+        ]
+        mr._apply_disinfect(
+            state, self._decker(), subsystem="access", subsystem_rating=3,
+            decker_pool=6, target_ic_id="lc_w",
+        )
+        assert captured["subsystem_rating"] == 9
+        assert state["event_log"][-1]["subsystem"] == "files"
 
     def test_failed_disinfect_can_infect_mpcp(self, scripted):
         # Disinfect fails (TN 5, rolls 1s) -> Worm Infection Test (TN 4+1=5, rolls 6s) infects.
@@ -3549,7 +4302,7 @@ class TestDisinfect:
         assert ev["destroyed"] is False
 
     def test_disinfect_no_worm_reports_clean(self, scripted):
-        scripted([6, 6, 6, 6])             # dice must NOT be consumed -- no worm to test
+        scripted([6] * 6 + [1] * 6)        # a clean sweep is still an opposed System Test
         decker = self._decker(disinfect=6)
         state = _fresh_state(); state["event_log"] = []; state["security_tally"] = 3
         mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
@@ -3560,16 +4313,17 @@ class TestDisinfect:
         assert "clean" in ev["description"].lower()
         assert state["security_tally"] == 3
 
-    def test_offline_disinfect_does_nothing(self, scripted):
-        scripted([6, 6, 6, 6])             # would-be successes -- must NOT be rolled
+    def test_disinfect_without_utility_still_attempts_operation(self, scripted):
+        scripted([6, 2, 6, 2, 6, 2, 6, 2] + [1] * 6)
         decker = {"utilities": {"armor": 4}, "computer_skill": 6, "mpcp": 4, "hardening": 0}
         state = self._state_with_worm(rating=5)
         mr._apply_disinfect(state, decker, subsystem="files", subsystem_rating=8,
-                            decker_pool=6, target_ic_id="")
-        assert len(state["lurking_ic"]) == 1                   # worm untouched (no Disinfect loaded)
+                            decker_pool=4, target_ic_id="")
+        assert state["lurking_ic"] == []
         ev = state["event_log"][-1]
         assert ev["type"] == "worm_disinfected"
-        assert "offline" in ev["description"].lower()
+        assert ev["destroyed"] is True
+        assert ev["target_number"] == 9                         # no utility means no TN reduction
 
 
 class TestSteamroller:
@@ -4085,6 +4839,28 @@ class TestAnalyzeIcon:
         s["data_bombs"] = bombs
         return s
 
+    def test_slave_device_names_require_slave_subsystem_analysis(self):
+        state = self._state([])
+        state["logon_complete"] = True
+        state["slave_devices"] = ["Camera 1", "Maglock 2"]
+        run = SimpleNamespace(
+            id=1,
+            host_id=3,
+            status="active",
+            decker_json={},
+            state_json=state,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        auth = {"is_admin": False, "is_user": True, "user_token": None}
+
+        hidden = mr._serialize_run(run, auth)
+        assert hidden["state_json"]["slave_devices"] == []
+
+        state["analyzed_subsystems"] = ["slave"]
+        revealed = mr._serialize_run(run, auth)
+        assert revealed["state_json"]["slave_devices"] == ["Camera 1", "Maglock 2"]
+
     def test_analyze_file_reveals_file_bomb(self):
         state = self._state([{"target": "files::Monthly Payroll", "rating": 6}])
         mr._apply_analyze_icon(state, target_file="files::Monthly Payroll")
@@ -4161,8 +4937,8 @@ class TestAnalyzeIcon:
 
 
 class TestAnalyzeHostReveal:
-    """vr2 Analyze Host (Control test, Analyze utility), USER OVERRIDE: successes reveal the host's
-    subsystem ratings -- the 5 ACIFS ratings PLUS the host Security Rating (6 items in all); 6+ net
+    """vr2 Analyze Host (Control test, Analyze utility): decker successes reveal the host's
+    subsystem ratings -- the 5 ACIFS ratings PLUS the host Security Rating (6 items in all); 6+
     successes (or enough to cover every still-hidden item) reveals ALL, otherwise the credits are
     banked and the decker CHOOSES which hidden items to reveal in a second phase. The Security Rating
     is gated by ``host_security_revealed`` (its code/value stay redacted until it flips); VM status
@@ -4181,7 +4957,7 @@ class TestAnalyzeHostReveal:
         return s
 
     def test_six_plus_reveals_all_including_security(self):
-        # net >= 6 auto-reveals every ACIFS rating AND the Security Rating, banking no pending.
+        # 6+ decker successes reveal every ACIFS rating AND the Security Rating.
         state = self._state()
         out = mr._apply_analyze_host(state, 6)
         assert set(state["host_ratings_revealed"]) == {"access", "control", "index", "files", "slave"}
@@ -4193,8 +4969,8 @@ class TestAnalyzeHostReveal:
         assert {"subsystem": "security", "rating": "Green-6"} in out["revealed"]
         assert state["event_log"][-1]["type"] == "host_analyzed"
 
-    def test_five_net_with_security_hidden_banks_choice(self):
-        # net=5 but 6 items hidden (5 ACIFS + security): a genuine choice exists -> bank 5 credits,
+    def test_five_successes_with_security_hidden_banks_choice(self):
+        # 5 successes but 6 items hidden (5 ACIFS + security): bank 5 credits,
         # reveal NOTHING yet (5 < 6, so it is no longer an auto-reveal-all).
         state = self._state()
         out = mr._apply_analyze_host(state, 5)
@@ -4205,7 +4981,7 @@ class TestAnalyzeHostReveal:
         assert "choose 5" in state["event_log"][-1]["description"]
 
     def test_partial_success_banks_pending_and_reveals_nothing(self):
-        # net=2 with all 5 hidden: bank 2 credits, reveal NOTHING yet (a genuine choice exists).
+        # 2 successes with all 6 items hidden: bank 2 credits and reveal nothing yet.
         state = self._state()
         out = mr._apply_analyze_host(state, 2)
         assert state["host_ratings_revealed"] == {}
@@ -4214,6 +4990,14 @@ class TestAnalyzeHostReveal:
         assert out["pending"] == 2 and out["revealed"] == []
         ev = state["event_log"][-1]
         assert ev["type"] == "host_analyzed" and "choose 2" in ev["description"]
+
+    def test_host_successes_do_not_reduce_information_credits(self):
+        # A tied 3-vs-3 System Test succeeds; Analyze Host uses the decker's three rolled
+        # successes, while the host's three successes only increase the security tally.
+        state = self._state()
+        out = mr._apply_analyze_host(state, 3)
+        assert out["pending"] == 3
+        assert state["host_analyze_pending"]["credits"] == 3
 
     def test_reveal_chosen_ratings_clears_pending(self):
         # After banking 2 credits, revealing Files + Slave yields their true ACIFS ratings and
@@ -4255,7 +5039,7 @@ class TestAnalyzeHostReveal:
             mr._reveal_host_ratings(state, ["files"])
 
     def test_net_at_least_hidden_count_reveals_all_remaining(self):
-        # net=3 with only 2 ratings still hidden (net >= U): auto-reveal both, bank no pending.
+        # 3 successes with only 2 ratings still hidden: auto-reveal both, bank no pending.
         # Security already revealed, so the hidden set is exactly the 2 remaining ACIFS ratings.
         state = self._state(revealed={"access": 8, "control": 9, "index": 8}, security_revealed=True)
         out = mr._apply_analyze_host(state, 3)
@@ -4293,6 +5077,77 @@ class TestAnalyzeHostReveal:
         mr._apply_analyze_host(state, 2)
         with pytest.raises(HTTPException):
             mr._reveal_host_ratings(state, ["files", "security"])
+
+
+class TestAnalyzeCrashSuccessPresentation:
+    def _run(self, event):
+        return SimpleNamespace(
+            id=1, host_id=1, status="active", owner_token_hash=None,
+            decker_json={}, state_json={
+                "event_log": [event], "active_ic": [], "lurking_ic": [],
+                "enemy_deckers": [], "paydata": [], "security_tally": 3,
+            }, created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+        )
+
+    @pytest.mark.parametrize("action", ["analyze_host", "crash_host"])
+    def test_player_sees_own_successes_not_net(self, action):
+        event = {
+            "type": "action", "host_system_test": True, "action": action,
+            "action_label": mr._action_label(action), "subsystem": "control",
+            "success": True, "net_successes": 0,
+            "decker_roll": {"successes": 3}, "host_roll": {"successes": 3},
+            "tally_increase": 3, "tally_total": 3,
+            "description": "Tied test. Tally +3 -> 3.",
+        }
+        projected = mr._serialize_run(
+            self._run(event), {"is_admin": False, "is_user": True, "user_token": None},
+        )["state_json"]["event_log"][-1]
+        assert "Player Successes: 3" in projected["description"]
+        assert "Net Successes" not in projected["description"]
+        assert "Security tally increased" in projected["description"]
+        assert "host_roll" not in projected
+
+
+class TestCrashHostRaw:
+    def test_countdown_uses_decker_successes_not_net(self):
+        state = _fresh_state()
+        state["event_log"] = []
+        run = SimpleNamespace(decker_json={"mpcp": 6})
+        body = SimpleNamespace(action_type="crash_host")
+        test = {
+            "success": True, "decker_roll": {"successes": 3},
+            "host_roll": {"successes": 3}, "decker_net_successes": 0,
+        }
+        mr._apply_control_action_result(state, {}, run, body, test)
+        assert state["crash_host_countdown"]["total_turns"] == 4
+        assert "3 successes" in state["event_log"][-1]["description"]
+
+    def test_completed_countdown_dumps_decker_with_dump_shock(self, monkeypatch):
+        state = _fresh_state(sec_code="Red", sec_value=8)
+        state.update({
+            "event_log": [], "crash_host_countdown": {
+                "turns_remaining": 1, "total_turns": 1, "decker_mpcp": 6,
+            },
+        })
+        decker = {"body": 4, "deck_mode": "hot"}
+        rolls = iter([
+            {"successes": 0},
+        ])
+        monkeypatch.setattr(eng, "roll_dice", lambda *a, **k: next(rolls))
+        monkeypatch.setattr(mr, "_apply_dump_shock", lambda *a, **k: {
+            "final_level": "Serious", "boxes": 6,
+        })
+        mr._process_crash_countdown(state, decker)
+        assert state["run_ended"] is True
+        assert state["end_reason"] == "host_crashed"
+        event = state["event_log"][-1]
+        assert event["type"] == "crash_host_complete"
+        assert event["dump_shock"]["boxes"] == 6
+        assert "Dump shock: Serious" in event["description"]
+
+        run = SimpleNamespace(status="active")
+        mr._apply_round_end_status(state, run)
+        assert run.status == "dumped"
 
 
 class TestAnalyzeAccessLtgReveal:
@@ -4462,6 +5317,399 @@ class TestHostSecurityRedaction:
         st = out["state_json"]
         assert st["host_ltg_address"] == "LTG 4080"
         assert st["host_has_ltg"] is True
+
+    @staticmethod
+    def _system_test_event():
+        return {
+            "type": "action", "host_system_test": True,
+            "action": "locate_paydata", "action_label": "Locate Paydata",
+            "subsystem": "index", "success": True, "net_successes": 1,
+            "target_number": 8,
+            "decker_roll": {"dice": [8, 2], "tn": 8, "successes": 2},
+            "host_roll": {"dice": [6], "tn": 4, "successes": 1},
+            "tally_increase": 1, "tally_total": 1,
+            "description": "Locate Paydata -- SUCCESS (2 vs 1 successes). Tally +1 -> 1.",
+        }
+
+    def test_player_system_test_shows_net_without_opposed_rolls_or_unknown_tn(self):
+        out = mr._serialize_run(self._run(event_log=[self._system_test_event()]), self._PLAYER)
+        event = out["state_json"]["event_log"][-1]
+        assert event["net_successes"] == 1
+        assert "Net Successes: 1" in event["description"]
+        assert "target_number" not in event and "Target Number" not in event["description"]
+        assert "decker_roll" not in event and "host_roll" not in event
+        assert "tally_increase" not in event and "tally_total" not in event
+
+    def test_player_system_test_shows_tn_after_target_subsystem_is_revealed(self):
+        out = mr._serialize_run(
+            self._run(
+                event_log=[self._system_test_event()],
+                host_ratings_revealed={"index": 8},
+            ),
+            self._PLAYER,
+        )
+        event = out["state_json"]["event_log"][-1]
+        assert event["target_number"] == 8
+        assert "Target Number: 8" in event["description"]
+        assert "decker_roll" not in event and "host_roll" not in event
+
+    def test_player_system_test_hides_tn_when_a_modifier_is_still_concealed(self):
+        event = self._system_test_event()
+        event["target_number_concealed"] = True
+        out = mr._serialize_run(
+            self._run(event_log=[event], host_ratings_revealed={"index": 8}),
+            self._PLAYER,
+        )
+        event = out["state_json"]["event_log"][-1]
+        assert "target_number" not in event and "target_number_concealed" not in event
+        assert "Target Number" not in event["description"]
+
+    @pytest.mark.parametrize("event", [
+        {
+            "type": "ic_slowed", "outcome": "hung", "success": True,
+            "net_successes": 3, "decker_roll": {"successes": 4},
+            "ic_roll": {"successes": 1}, "description": "Slow wins; IC hangs.",
+        },
+        {
+            "type": "maneuver", "maneuver": "position_attack", "success": True,
+            "net_successes": 2, "maneuvering_roll": {"successes": 3},
+            "opposing_roll": {"successes": 1}, "description": "Position succeeds.",
+        },
+    ])
+    def test_player_projection_does_not_relabel_icon_opposition_as_system_test(self, event):
+        out = mr._serialize_run(self._run(event_log=[event]), self._PLAYER)
+        projected = out["state_json"]["event_log"][-1]
+        assert projected["description"] == event["description"]
+        assert "System Test" not in projected["description"]
+
+    def test_unidentified_ic_maneuver_hides_opponent_roll_and_rating(self):
+        ic = {
+            "id": "ic1", "type": "Killer", "rating": 6, "status": "active",
+            "detection_level": 1,
+        }
+        event = {
+            "type": "maneuver", "maneuver": "parry_attack", "initiator": "pc",
+            "target_id": "ic1", "target": "Killer", "success": True,
+            "net_successes": 2,
+            "maneuvering_roll": {"pool": 5, "tn": 6, "successes": 3},
+            "opposing_roll": {"pool": 6, "tn": 5, "successes": 1},
+            "description": "Parry success against Killer-6.",
+        }
+        projected = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert projected["target"] == "Unknown IC"
+        assert "Killer" not in projected["description"]
+        assert "opposing_roll" not in projected
+        assert projected["maneuvering_roll"] == event["maneuvering_roll"]
+
+        ic["detection_level"] = 3
+        revealed = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert revealed["target"] == "Killer"
+        assert revealed["opposing_roll"] == event["opposing_roll"]
+
+    def test_unidentified_construct_activation_hides_component_types_and_threat(self):
+        ic = {
+            "id": "c1", "type": "Construct", "rating": 1, "status": "active",
+            "detection_level": 1,
+            "construct_components": [
+                {"type": "Acid", "rating": 4},
+                {"type": "Binder", "rating": 4},
+                {"type": "Killer", "rating": 2},
+            ],
+        }
+        event = {
+            "type": "ic_activation", "ic_id": "c1", "ic_type": "Construct", "ic_rating": 1,
+            "construct_components": ic["construct_components"],
+            "description": "Construct activated: Threat 1 [Acid-4, Binder-4, Killer-2]",
+        }
+
+        projected = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+
+        assert projected["description"] == "Unknown IC activated: 3 unidentified components."
+        assert "construct_components" not in projected
+
+    def test_party_activation_hides_component_types_and_ratings(self):
+        event = {
+            "type": "party_ic_activation", "cluster_id": "party1", "cluster_size": 2,
+            "description": "Party IC (2 programs): Killer-3, Blaster-4",
+        }
+
+        projected = mr._serialize_run(
+            self._run(event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+
+        assert projected["description"] == "Party IC activated: 2 unidentified components."
+
+    def test_unidentified_construct_crippler_hides_component_identity(self):
+        ic = {
+            "id": "c1", "type": "Construct", "rating": 1, "status": "active",
+            "detection_level": 1,
+            "construct_components": [{"type": "Acid", "rating": 4}],
+        }
+        event = {
+            "type": "ic_attack", "ic_id": "c1", "ic_type": "Construct", "ic_rating": 1,
+            "attribute_target": "bod", "attribute_reduction": 1,
+            "attack_successes": 3, "defense_successes": 2, "shield_successes": 0,
+            "net_successes": 1, "defense_margin": 0,
+            "description": (
+                "Acid-4 Construct component vs BOD: 3 attack / 2 total defense "
+                "(2 persona + 0 Shield). Net Successes: 1. Defense Margin: 0. BOD -1."
+            ),
+        }
+
+        projected = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+
+        assert projected["description"].startswith("Unknown IC component vs BOD:")
+        assert "Acid" not in projected["description"]
+        assert projected["attribute_target"] == "bod"
+
+    def test_observed_marker_attack_reveals_family_but_not_ripper_identity(self):
+        ic = {
+            "id": "ic1", "type": "Mark-rip", "observed_type": "Marker",
+            "rating": 6, "category": "gray", "status": "active", "detection_level": 2,
+        }
+        event = {
+            "type": "ic_attack", "ic_id": "ic1", "ic_type": "Mark-rip", "ic_rating": 6,
+            "attribute_target": "masking", "attribute_reduction": 1,
+            "attack_successes": 3, "defense_successes": 2, "shield_successes": 0,
+            "net_successes": 1, "defense_margin": 0,
+            "description": "Mark-rip-6 Construct component vs MASKING: MASKING -1.",
+        }
+        state = self._run(active_ic=[ic], event_log=[event])
+        projected_state = mr._serialize_run(state, self._PLAYER)["state_json"]
+        projected_ic = projected_state["active_ic"][0]
+        projected_event = projected_state["event_log"][-1]
+        assert projected_ic["type"] == "Marker"
+        assert projected_ic["rating"] is None
+        assert "category" not in projected_ic
+        assert projected_event["ic_type"] == "Marker"
+        assert projected_event["description"].startswith("Marker vs MASKING:")
+        assert "Mark-rip" not in projected_event["description"]
+
+    @staticmethod
+    def _shield_crippler_events():
+        return [
+            {
+                "type": "shield_parry", "ic_id": "ic1", "ic_type": "Crippler (Marker)",
+                "ic_rating": 6, "context": "Crippler (Marker)", "shield_rating": 4,
+                "shield_remaining": 3, "successes": 1,
+                "roll": {"pool": 4, "tn": 6, "dice": [1, 3, 6, 4], "successes": 1},
+                "description": (
+                    "Shield-4 contributes 1 defense success against Crippler (Marker) (TN 6). "
+                    "Shield worn to 3 -- reload via Swap Memory."
+                ),
+            },
+            {
+                "type": "ic_attack", "ic_id": "ic1", "ic_type": "Crippler (Marker)",
+                "ic_rating": 6, "attack_successes": 2, "defense_successes": 3,
+                "shield_successes": 1, "net_successes": 0, "defense_margin": 1,
+                "attribute_target": "masking", "attribute_reduction": 0,
+                "attack_roll": {"pool": 6, "tn": 5, "dice": [1, 3, 3, 2, 5, 5], "successes": 2},
+                "defense_roll": {
+                    "pool": 6, "tn": 6, "dice": [2, 6, 5, 6, 4, 2], "successes": 2,
+                    "shield_dice": [1, 3, 6, 4], "shield_successes": 1,
+                },
+                "description": (
+                    "Crippler (Marker)-6 Construct component vs MASKING: 2 attack / 3 total "
+                    "defense (2 persona + 1 Shield). Net Successes: 0. Defense Margin: 1. "
+                    "MASKING -0."
+                ),
+            },
+        ]
+
+    def test_admin_crippler_event_counts_shield_in_total_defense(self):
+        events = self._shield_crippler_events()
+        ic = {"id": "ic1", "type": "Crippler (Marker)", "rating": 6,
+              "status": "active", "detection_level": 1}
+        projected = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=events), self._ADMIN,
+        )["state_json"]["event_log"]
+        attack = projected[-1]
+        assert attack["attack_successes"] == 2
+        assert attack["defense_successes"] == 3
+        assert attack["shield_successes"] == 1
+        assert attack["net_successes"] == 0
+        assert attack["defense_margin"] == 1
+        assert attack["defense_roll"]["shield_dice"] == [1, 3, 6, 4]
+        assert "2 attack / 3 total defense" in attack["description"]
+
+    def test_legacy_split_shield_event_is_normalized_without_mutating_state(self):
+        events = self._shield_crippler_events()
+        parry, attack = events
+        parry.pop("ic_id")
+        parry.pop("ic_type")
+        parry.pop("ic_rating")
+        parry["description"] = (
+            "Shield-4 parries the Crippler (Marker) hit: 1 success (TN 6). "
+            "Shield worn to 3 -- reload via Swap Memory."
+        )
+        attack["defense_roll"].pop("shield_dice")
+        attack["defense_roll"].pop("shield_successes")
+        for key in ("attack_successes", "defense_successes", "shield_successes",
+                    "net_successes", "defense_margin"):
+            attack.pop(key)
+        attack["description"] = (
+            "Crippler (Marker)-6 vs MASKING: 2 atk / 2 def -> MASKING -0."
+        )
+        run = self._run(event_log=events)
+        projected = mr._serialize_run(run, self._ADMIN)["state_json"]["event_log"]
+        assert projected[-1]["defense_successes"] == 3
+        assert projected[-1]["net_successes"] == 0
+        assert projected[-1]["defense_margin"] == 1
+        assert projected[-1]["defense_roll"]["shield_dice"] == [1, 3, 6, 4]
+        assert "contributes 1 defense success" in projected[-2]["description"]
+        assert "shield_dice" not in run.state_json["event_log"][-1]["defense_roll"]
+        assert "parries the" in run.state_json["event_log"][-2]["description"]
+
+    def test_unidentified_crippler_keeps_owned_shield_data_without_leaking_ic(self):
+        events = self._shield_crippler_events()
+        ic = {"id": "ic1", "type": "Crippler (Marker)", "rating": 6,
+              "status": "active", "detection_level": 1}
+        projected = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=events), self._PLAYER,
+        )["state_json"]["event_log"]
+        parry, attack = projected
+        assert "Unknown IC" in parry["description"]
+        assert "Crippler" not in parry["description"] and "TN 6" not in parry["description"]
+        assert "roll" not in parry and "ic_rating" not in parry
+        assert attack["ic_type"] == "Unknown IC"
+        assert "Crippler" not in attack["description"] and "-6" not in attack["description"]
+        assert attack["net_successes"] == 0 and attack["defense_successes"] == 3
+        assert "attack_roll" not in attack
+        assert attack["defense_roll"] == {
+            "successes": 0, "persona_successes": 2,
+            "dice": [2, 6, 5, 6, 4, 2],
+            "shield_dice": [1, 3, 6, 4], "shield_successes": 1,
+        }
+
+    def test_analyzed_crippler_restores_complete_defense_roll(self):
+        events = self._shield_crippler_events()
+        ic = {"id": "ic1", "type": "Crippler (Marker)", "rating": 6,
+              "status": "active", "detection_level": 3}
+        attack = mr._serialize_run(
+            self._run(active_ic=[ic], event_log=events), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert attack["attack_roll"] == events[-1]["attack_roll"]
+        assert attack["defense_roll"] == events[-1]["defense_roll"]
+
+    def test_analyze_ic_retroactively_reveals_earlier_attacks(self):
+        parry, attack = self._shield_crippler_events()
+        activation = {
+            "type": "ic_activation", "ic_id": "ic1", "ic_type": "Crippler (Marker)",
+            "ic_rating": 6, "description": "IC activated: Crippler (Marker) Rating 6.",
+        }
+        analyzed = {
+            "type": "ic_analyzed", "ic_id": "ic1", "ic_type": "Crippler (Marker)",
+            "ic_rating": 6, "description": "IC analyzed: Crippler (Marker) Rating 6 revealed.",
+        }
+        later_attack = {**attack, "description": attack["description"].replace("MASKING -0", "MASKING -1")}
+        ic = {"id": "ic1", "type": "Crippler (Marker)", "rating": 6,
+              "status": "active", "detection_level": 3, "analyzed": True}
+        projected = mr._serialize_run(
+            self._run(
+                active_ic=[ic],
+                event_log=[activation, parry, attack, analyzed, later_attack],
+            ),
+            self._PLAYER,
+        )["state_json"]["event_log"]
+        assert projected[0]["ic_type"] == "Crippler (Marker)"
+        assert "Crippler (Marker)" in projected[1]["description"]
+        assert projected[2]["ic_type"] == "Crippler (Marker)"
+        assert projected[2]["attack_roll"] == attack["attack_roll"]
+        assert projected[3]["ic_type"] == "Crippler (Marker)"
+        assert projected[4]["ic_type"] == "Crippler (Marker)"
+        assert projected[4]["attack_roll"] == later_attack["attack_roll"]
+
+    def test_unidentified_worm_event_hides_variant_rating_and_host_roll(self):
+        worm = {
+            "id": "w1", "type": "Worm", "variant": "deathworm", "rating": 6,
+            "status": "lurking", "detection_level": 1,
+        }
+        event = {
+            "type": "worm_resolved", "ic_id": "w1", "ic_type": "Worm",
+            "ic_rating": 6, "variant": "deathworm", "outcome": "mpcp_infected",
+            "subsystem": "files",
+            "roll": {"pool": 8, "tn": 6, "successes": 3},
+            "description": "Deathworm-6 infected the MPCP; host 8d6 vs MPCP TN 6.",
+        }
+        projected = mr._serialize_run(
+            self._run(lurking_ic=[worm], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert projected["ic_type"] == "Unknown IC"
+        assert "variant" not in projected and "ic_rating" not in projected
+        assert "roll" not in projected
+        assert "Deathworm" not in projected["description"]
+        assert "8d6" not in projected["description"] and "TN 6" not in projected["description"]
+
+        worm["detection_level"] = 3
+        revealed = mr._serialize_run(
+            self._run(lurking_ic=[worm], event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert revealed["variant"] == "deathworm"
+        assert revealed["roll"] == event["roll"]
+
+        gm = mr._serialize_run(
+            self._run(lurking_ic=[worm], event_log=[event]), self._ADMIN,
+        )["state_json"]["event_log"][-1]
+        assert gm == event
+
+    @pytest.mark.parametrize(("event", "label", "net"), [
+        ({
+            "type": "dinab_op", "host_system_test": True,
+            "action_label": "DINAB Deception", "subsystem": "control",
+            "success": True, "net_successes": 1, "target_number": 8,
+            "decker_roll": {"successes": 3}, "host_roll": {"successes": 2},
+            "tally_increase": 2, "description": "DINAB succeeds (3 vs 2).",
+        }, "DINAB Deception", 1),
+        ({
+            "type": "null_operation", "host_system_test": True,
+            "action_label": "Auto Null Operation", "subsystem": "control",
+            "success": False, "net_successes": -2, "target_number": 8,
+            "decker_roll": {"successes": 0}, "host_roll": {"successes": 2},
+            "tally_increase": 2, "description": "Null failed (0 vs 2).",
+        }, "Auto Null Operation", -2),
+        ({
+            "type": "data_bomb", "host_system_test": True,
+            "action_label": "Defuse Data Bomb", "subsystem": "files",
+            "outcome": "defused", "success": True, "net_successes": 1,
+            "target_number": 8, "decker_roll": {"successes": 3},
+            "host_roll": {"successes": 2}, "tally_increase": 2,
+            "description": "Data bomb DEFUSED; 3 vs 2.",
+        }, "Defuse Data Bomb", 1),
+    ])
+    def test_player_special_host_tests_show_only_signed_net(self, event, label, net):
+        out = mr._serialize_run(self._run(event_log=[event]), self._PLAYER)
+        projected = out["state_json"]["event_log"][-1]
+        assert projected["net_successes"] == net
+        assert projected["description"].startswith(label)
+        assert f"Net Successes: {net}" in projected["description"]
+        assert "decker_roll" not in projected and "host_roll" not in projected
+        assert "3 vs 2" not in projected["description"]
+
+    @pytest.mark.parametrize(("decker_successes", "success", "expected"), [
+        (1, True, "Nonzero tie: ties favor the decker"),
+        (0, False, "No successes on either side: task fails"),
+    ])
+    def test_zero_net_system_test_explains_tie_or_whiff_without_roll_leak(
+            self, decker_successes, success, expected):
+        event = {
+            "type": "action", "host_system_test": True, "action_label": "Validate Passcode",
+            "subsystem": "control", "success": success, "net_successes": 0,
+            "decker_roll": {"successes": decker_successes},
+            "host_roll": {"successes": decker_successes},
+        }
+        projected = mr._serialize_run(
+            self._run(event_log=[event]), self._PLAYER,
+        )["state_json"]["event_log"][-1]
+        assert expected in projected["description"]
+        assert f"{decker_successes}-{decker_successes}" not in projected["description"]
 
 
 class TestValidatePasscode:
@@ -4976,6 +6224,16 @@ class TestSlow:
         assert state["event_log"][-1]["outcome"] == "slowed"
         assert ic["actions_lost"] == 1
 
+    def test_location_cycle_trace_cannot_be_slowed(self):
+        state = self._state_with_ic(ic_type="Trace", rating=4, initiative=12, ic_id="tr1",
+                                    trace_phase="locate")
+        state["active_ic"][0]["located"] = True
+        with pytest.raises(HTTPException) as exc:
+            mr._apply_slow(state, self._decker(slow=4), sec_code="Green", decker_pool=6,
+                           target_ic_id="tr1")
+        assert exc.value.status_code == 400
+        assert "Relocate" in exc.value.detail
+
     def test_accumulates_within_a_turn_then_hangs(self, scripted):
         # Two Slow strikes the same Combat Turn stack actions_lost up to the IC's pass count, then
         # HANG -- proving the slow_turn-scoped accumulation.
@@ -4994,11 +6252,9 @@ class TestSlow:
 
 
 class TestSlowHangLoop:
-    """Definition-of-Done clause 2: the proactive-IC loop INSIDE ``perform_action`` must RESPECT the
-    hang. Proven against the REAL handler with a Trace IC in its Hunt Cycle (which acts every Combat
-    Turn on its initiative and -- in either hunt outcome -- emits an ``ic_attack`` event): with no
-    actions lost it acts; once ``actions_lost`` has drained its passes it is SKIPPED and stays
-    silent. The player's own action's System Test is stubbed so only the IC loop drives the result."""
+    """The hostile initiative driver must respect Slow/Hang action loss. Proven against the real
+    action + End Turn handlers with a Trace IC in its Hunt Cycle: with no actions lost it acts when
+    the player closes the phase; once ``actions_lost`` drains its passes it stays silent."""
 
     class _Host:
         config_json = {"security_code": "Green", "security_value": 6}
@@ -5018,6 +6274,7 @@ class TestSlowHangLoop:
         state["logon_complete"] = True
         state["has_legitimate_status"] = True
         state["current_pass"] = 1
+        state["decker_initiative"] = 35
         state["initiative_passes"] = 4
         state["pass_action_points"] = 2
         state["pass_free"] = 1
@@ -5062,6 +6319,7 @@ class TestSlowHangLoop:
         inp = RunActionInput(action_type="null_operation", subsystem="control", utility_rating=6)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.perform_action(run_id=11, body=inp, auth=auth, db=_FakeDB()))
+        asyncio.run(mr.new_turn(run_id=11, auth=auth, db=_FakeDB()))
         return run.state_json
 
     def test_active_trace_ic_acts_when_not_hung(self, monkeypatch):
@@ -5074,6 +6332,32 @@ class TestSlowHangLoop:
         st = self._drive(monkeypatch, actions_lost=4)
         assert not any(e.get("type") == "ic_attack" and e.get("ic_id") == "trace1"
                        for e in st["event_log"]), "a hung IC must take NO action this turn"
+
+    def test_trace_hunt_consumes_one_active_one_shot_camo_copy(self, monkeypatch):
+        decker = self._decker()
+        decker["utilities"]["camo"] = 3
+        decker["program_options"] = {"camo": {"one_shot": True}}
+        state = mr._initial_state(decker, self._Host())
+        state.update({
+            "active_ic": [{
+                "id": "trace1", "type": "Trace", "rating": 5, "status": "active",
+                "initiative": 30, "trace_phase": "hunt",
+            }],
+            "current_pass": 1,
+            "initiative_passes": 1,
+            "one_shot_active": {"camo": 2},
+        })
+        monkeypatch.setattr(eng, "random", _ScriptedRandom([3]))
+
+        mr._advance_npc_pass(
+            state, decker, object(),
+            eff=mr._get_decker_effective(decker, state),
+            sec_code="Green", sec_value=6,
+            det_factor=mr._effective_detection_factor(state, decker),
+        )
+
+        assert state["one_shot_active"]["camo"] == 1
+        assert decker["utilities"]["camo"] == 3
 
 
 class TestSlowResume:
@@ -5250,7 +6534,8 @@ class TestCompressor:
     def _host(self, *, density=100, name="Paydata", is_key=False):
         class _Host:
             config_json = {"security_code": "Green", "security_value": 6,
-                           "paydata": [{"name": name, "density": density, "is_key": is_key}]}
+                           "paydata": [{"name": name, "density": density, "is_key": is_key,
+                                        "located": True}]}
             ltg_address = None
             trap_doors_json = None
         return _Host()
@@ -5497,6 +6782,15 @@ class TestLocatePaydata:
                             action=self._action(), net=1)
         assert sum(1 for p in state["paydata"] if p.get("located")) == 1
 
+    def test_zero_net_tie_fails_and_reveals_nothing(self, monkeypatch):
+        state = self._drive(monkeypatch, decker=self._decker(), host=self._host(self._paydata(5)),
+                            action=self._action(), net=0)
+        assert not any(p.get("located") for p in state["paydata"])
+        action = next(e for e in reversed(state["event_log"])
+                      if e.get("action") == "locate_paydata")
+        assert action["success"] is False
+        assert not any(e.get("type") == "paydata_located" for e in state["event_log"])
+
     def test_reproducible_for_fixed_inputs(self, monkeypatch):
         # Identical run id / turn / tally / already-located -> the LOCAL seeded RNG picks the SAME
         # set (deterministic given fixed inputs).
@@ -5516,24 +6810,27 @@ class TestLocatePaydata:
         state = self._drive(monkeypatch, decker=decker, host=host, action=self._action(),
                             state=state, net=2)
         assert sum(1 for p in state["paydata"] if p.get("located")) == 3
+        assert self._last_locate_event(state)["all_located"] is True
+        assert "All paydata on this host is now located" in self._last_locate_event(state)["description"]
         # Third locate finds nothing left -> empty-pool branch.
         state = self._drive(monkeypatch, decker=decker, host=host, action=self._action(),
                             state=state, net=2)
         assert "no further paydata found" in self._last_locate_event(state)["description"]
 
 
-# -- #15 One-Shot program option (single-use; Tar IC wipes every copy) ----------
+# -- #15 One-Shot program option (single-use; Tar targets memory locations) -----
 
 class TestOneShot:
     """vr2_rules.md L1667 -- One-Shot is a single-use program OPTION: the utility executes ONCE
     then "vanishes from active memory"; the decker must Swap Memory a fresh copy to use it again.
-    A Tar Baby / Tar Pit crash wipes ALL copies of a one-shot program on the deck (it can never be
-    reloaded for the rest of the run).
+    Tar Baby wipes every active copy of its target but leaves storage copies intact. Tar Pit wipes
+    every active and storage copy only when its MPCP corruption test succeeds, preventing reload
+    for the rest of the run. Neither changes the character's offline workshop archive.
 
-    "Spent" is expressed through state['program_damage'][util] == its base rating, so a spent
-    one-shot reads as effective-0 -- the same gate every _effective_<util> helper already uses --
-    and a Swap Memory reload clears it. The helpers/handlers are unit-tested directly (mirrors
-    TestSteamroller); the tar-wipe wiring is driven through the live resolve_reactive_ic handler."""
+    Modern runs track literal active-copy counts and one storage row per stored copy. Using an
+    active copy destroys it; Swap Memory moves one surviving copy between pools. Legacy runs
+    without the count map retain the program-damage fallback. The helpers/handlers are tested
+    directly; tar-wipe wiring is driven through the live reactive-IC resolver."""
 
     def _decker(self, util, rating=6, one_shot=True, **utils):
         return {"utilities": {util: rating, **utils},
@@ -5614,6 +6911,40 @@ class TestOneShot:
         assert len(spent) == 1
         assert state["program_damage"]["slow"] == 5
 
+    def test_spend_one_shot_consumes_active_copies_in_sequence(self):
+        decker = self._decker("slow", rating=5, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state.update({
+            "one_shot_active": {"slow": 2},
+            "program_sizes": {"slow": 5},
+            "storage_programs": [],
+        })
+        mr._spend_one_shot(state, decker, "slow")
+        assert state["one_shot_active"]["slow"] == 1
+        assert mr._effective_program_rating(decker, state, "slow") == 5
+        assert state["storage_programs"] == []
+        mr._spend_one_shot(state, decker, "slow")
+        assert state["one_shot_active"]["slow"] == 0
+        assert mr._effective_program_rating(decker, state, "slow") == 0
+        assert decker["utilities"]["slow"] == 0
+        assert state["storage_programs"] == []
+        assert [e["copies_remaining"] for e in state["event_log"]
+                if e["type"] == "one_shot_spent"] == [1, 0]
+
+    def test_spent_final_copy_frees_active_memory_for_swap(self):
+        decker = self._decker("slow", rating=5, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state.update({
+            "one_shot_active": {"slow": 0}, "program_damage": {"slow": 5},
+            "program_sizes": {"slow": 5, "analyze": 10}, "active_memory_cap": 10,
+            "storage_programs": [{"name": "analyze", "rating": 5, "size": 10}],
+        })
+        changed, _ = mr._apply_swap_memory(
+            state, decker, target_program="analyze", swap_out_program="",
+        )
+        assert changed is True
+        assert decker["utilities"]["analyze"] == 5
+
     def test_spend_one_shot_noop_for_non_one_shot(self):
         decker = self._decker("slow", rating=5, one_shot=False)
         state = _fresh_state(); state["event_log"] = []
@@ -5627,26 +6958,58 @@ class TestOneShot:
         scripted([6])
         decker = self._decker("medic", rating=6, one_shot=True)
         state = self._damaged_state()
+        state.update({
+            "one_shot_active": {"medic": 1},
+            "program_sizes": {"medic": 6},
+            "storage_programs": [
+                {"name": "medic", "rating": 6, "size": 6, "squeezed": False},
+            ],
+        })
         mr._apply_medic(state, decker)
         assert mr._effective_medic(decker, state) == 0          # spent
+        assert state["storage_programs"][0]["name"] == "medic"
         mr._apply_swap_memory(state, decker, target_program="medic", swap_out_program="")
         assert mr._effective_medic(decker, state) == 6          # fresh copy reloaded
+        assert state["one_shot_active"]["medic"] == 1
+        assert state["storage_programs"] == []
         assert state["program_damage"].get("medic", 0) == 0
 
-    # -- (d) Tar IC wipes EVERY copy ------------------------------------------
+    # -- (d) Successful Tar Pit corruption wipes EVERY on-deck copy -----------
 
     def test_tar_wipe_corrupts_all_copies_and_clears_storage(self):
         decker = self._decker("attack", rating=6, one_shot=True)
         state = _fresh_state(); state["event_log"] = []
         state["storage_programs"] = [{"name": "attack", "rating": 6, "size": 4},
                                      {"name": "medic", "rating": 5, "size": 3}]
+        state["program_sizes"] = {"attack": 24}
+        state["storage_free_mp"] = 10
         mr._wipe_one_shot(state, decker, "Attack")              # spaced/cased name normalizes
+        assert decker["utilities"]["attack"] == 0
         assert "attack" in state["one_shot_wiped"]
-        assert state["program_damage"]["attack"] == 6
+        assert "attack" not in state.get("program_damage", {})
         # The wiped one-shot's storage copy is gone; the unrelated program survives.
         assert [p["name"] for p in state["storage_programs"]] == ["medic"]
+        assert state["storage_free_mp"] == 14
         assert any(e["type"] == "one_shot_wiped" and e["utility"] == "attack"
                    for e in state["event_log"])
+
+    def test_storage_capacity_is_fixed_when_program_copy_is_destroyed(self):
+        decker = self._decker("attack", rating=6, one_shot=False)
+        decker.update({"storage_free_mp": 976, "program_sizes": {"attack": 24}})
+        host = SimpleNamespace(config_json={}, ltg_address=None, trap_doors_json=None)
+        state = mr._initial_state(decker, host)
+        assert state["storage_capacity_mp"] == 1000
+        mr._wipe_all_copies(state, decker, "attack")
+        assert state["storage_capacity_mp"] == 1000
+        assert state["storage_free_mp"] == 1000
+
+    def test_full_tracked_storage_keeps_zero_free_space(self):
+        decker = self._decker("attack", rating=6, one_shot=False)
+        decker.update({"storage_free_mp": 0, "program_sizes": {"attack": 24}})
+        host = SimpleNamespace(config_json={}, ltg_address=None, trap_doors_json=None)
+        state = mr._initial_state(decker, host)
+        assert state["storage_free_mp"] == 0
+        assert state["storage_capacity_mp"] == 24
 
     def test_tar_wipe_noop_for_non_one_shot(self):
         decker = self._decker("attack", rating=6, one_shot=False)
@@ -5657,11 +7020,15 @@ class TestOneShot:
         assert state["event_log"] == []
 
     def test_reactive_tar_resolution_wipes_one_shot(self, monkeypatch):
-        # When a lurking Tar Baby wins, a one-shot utility used against it is corrupted on every
-        # copy and cannot be reloaded -- _resolve_lurking_tar must call _wipe_one_shot.
+        # Tar Baby wipes every active One-Shot instance and leaves stored copies untouched.
         decker = self._decker("attack", rating=6, one_shot=True)
         state = _fresh_state(); state["event_log"] = []
-        state["storage_programs"] = [{"name": "attack", "rating": 6, "size": 4}]
+        state["one_shot_active"] = {"attack": 3}
+        state["program_sizes"] = {"attack": 4}
+        state["storage_programs"] = [
+            {"name": "attack", "rating": 6, "size": 4, "squeezed": False},
+            {"name": "attack", "rating": 6, "size": 4, "squeezed": False},
+        ]
         lurking = {"id": "lc_tar", "type": "Tar Baby", "rating": 8, "status": "lurking"}
         state["lurking_ic"] = [lurking]
 
@@ -5672,10 +7039,86 @@ class TestOneShot:
         monkeypatch.setattr(eng, "tar_baby_test", _fake_tar)
 
         mr._resolve_lurking_tar(state, decker, lurking, "attack", 6)
+        assert decker["utilities"]["attack"] == 0
+        assert state["one_shot_active"]["attack"] == 0
+        assert "attack" not in state.get("program_damage", {})
+        assert not state.get("one_shot_wiped")
+        assert len(state["storage_programs"]) == 2
+        mr._apply_swap_memory(state, decker, target_program="attack", swap_out_program="")
+        assert len(state["storage_programs"]) == 1
+        assert state["one_shot_active"]["attack"] == 1
+        assert mr._effective_program_rating(decker, state, "attack") == 6
+        assert not any(e["type"] == "one_shot_wiped" for e in state["event_log"])
+
+    def test_one_shot_copy_inventory_sequence(self, monkeypatch):
+        decker = self._decker("attack", rating=6, one_shot=True)
+        state = _fresh_state(); state["event_log"] = []
+        state.update({
+            "one_shot_active": {"attack": 2},
+            "program_sizes": {"attack": 4},
+            "storage_free_mp": 20,
+            "storage_used_mp": 0,
+            "storage_programs": [
+                {"name": "attack", "rating": 6, "size": 4, "squeezed": False}
+                for _ in range(8)
+            ],
+        })
+        mr._spend_one_shot(state, decker, "attack")
+        assert state["one_shot_active"]["attack"] == 1
+        assert len(state["storage_programs"]) == 8
+
+        tar_baby = {"id": "baby", "type": "Tar Baby", "rating": 8, "status": "lurking"}
+        monkeypatch.setattr(eng, "tar_baby_test", lambda **kw: {
+            "ic_wins": True, "ic_roll": {"successes": 2},
+            "util_roll": {"successes": 0}, "all_copies_corrupted": False,
+        })
+        mr._resolve_lurking_tar(state, decker, tar_baby, "attack", 6)
+        assert state["one_shot_active"]["attack"] == 0
+        assert len(state["storage_programs"]) == 8
+
+        mr._apply_swap_memory(state, decker, target_program="attack", swap_out_program="")
+        assert state["one_shot_active"]["attack"] == 1
+        assert len(state["storage_programs"]) == 7
+
+        mr._wipe_all_copies(state, decker, "attack")
+        assert state["one_shot_active"]["attack"] == 0
+        assert not any(p["name"] == "attack" for p in state["storage_programs"])
         assert "attack" in state["one_shot_wiped"]
-        assert state["program_damage"]["attack"] == 6
-        assert state["storage_programs"] == []                 # storage copy wiped
-        assert any(e["type"] == "one_shot_wiped" for e in state["event_log"])
+
+    def test_tar_baby_preserves_distinct_regular_storage_copy(self):
+        decker = self._decker("analyze", rating=6, one_shot=False)
+        state = _fresh_state(); state["event_log"] = []
+        state.update({
+            "program_sizes": {"analyze": 24},
+            "storage_programs": [
+                {"name": "analyze", "rating": 6, "size": 24, "squeezed": False},
+            ],
+        })
+        mr._wipe_active_copies(state, decker, "analyze")
+        copies = [p for p in state["storage_programs"] if p["name"] == "analyze"]
+        assert len(copies) == 2
+        assert decker["utilities"]["analyze"] == 0
+
+    def test_squeezed_one_shot_reload_becomes_active_after_decompress(self):
+        decker = self._decker("attack", rating=6, one_shot=True)
+        decker["utilities"]["attack"] = 0
+        state = _fresh_state(); state["event_log"] = []
+        state.update({
+            "one_shot_active": {"attack": 0},
+            "program_sizes": {"attack": 8},
+            "active_memory_cap": 20,
+            "squeeze_keys": ["attack"],
+            "squeezed_active": [],
+            "storage_programs": [
+                {"name": "attack", "rating": 6, "size": 8, "squeezed": True},
+            ],
+        })
+        mr._apply_swap_memory(state, decker, target_program="attack", swap_out_program="")
+        assert state["one_shot_active"]["attack"] == 0
+        assert decker["utilities"]["attack"] == 0
+        assert mr._apply_decompress_program(state, decker, target_program="attack") is True
+        assert state["one_shot_active"]["attack"] == 1
+        assert mr._effective_program_rating(decker, state, "attack") == 6
 
     # -- (e) Swap Memory refuses to reload a tar-wiped one-shot ---------------
 
@@ -5932,6 +7375,19 @@ class TestDINAB:
         assert not st.get("dinab_damage")
         assert any(e["type"] == "dinab_op" and e["success"] for e in st["event_log"])
 
+    def test_operational_one_shot_dinab_consumes_one_active_copy(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        decker["program_options"]["deception"]["one_shot"] = True
+        state = self._state(decker)
+        state["one_shot_active"] = {"deception": 2}
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, op_success=True)
+
+        assert st["one_shot_active"]["deception"] == 1
+        assert decker["utilities"]["deception"] == 5
+
     def test_operational_fail_degrades(self, monkeypatch):
         from app.schemas.matrix_run import RunActionInput
         decker = self._decker()
@@ -5952,6 +7408,23 @@ class TestDINAB:
         assert "deception" not in st.get("dinab_damage", {})
         assert any(e["type"] == "dinab_crashed" for e in st["event_log"])
 
+    def test_one_shot_dinab_crash_leaves_surviving_active_copy_usable(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        decker["program_options"]["deception"]["one_shot"] = True
+        state = self._state(decker)
+        state["one_shot_active"] = {"deception": 2}
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="deception")
+
+        st = self._drive(
+            monkeypatch, decker=decker, state=state, action=act,
+            op_success=False, all_ones=True,
+        )
+
+        assert st["one_shot_active"]["deception"] == 1
+        assert "deception" not in st.get("program_damage", {})
+        assert mr._effective_dinab(decker, st, "deception") == 4
+
     # -- offensive route -------------------------------------------------------
 
     def test_offensive_attack_degrades_on_miss(self, monkeypatch):
@@ -5963,6 +7436,20 @@ class TestDINAB:
         st = self._drive(monkeypatch, decker=decker, state=state, action=act, all_ones=False)
         assert st["dinab_damage"]["attack"] == 1
         assert any(e["type"] == "dinab_attack" for e in st["event_log"])
+
+    def test_offensive_one_shot_dinab_consumes_one_active_copy(self, monkeypatch):
+        from app.schemas.matrix_run import RunActionInput
+        decker = self._decker()
+        decker["program_options"]["attack"]["one_shot"] = True
+        ic = {"id": "ic1", "type": "Killer", "rating": 5, "status": "active", "boxes": 0}
+        state = self._state(decker, active_ic=[ic])
+        state["one_shot_active"] = {"attack": 2}
+        act = RunActionInput(action_type="dinab", subsystem="control", target_program="attack")
+
+        st = self._drive(monkeypatch, decker=decker, state=state, action=act, all_ones=False)
+
+        assert st["one_shot_active"]["attack"] == 1
+        assert decker["utilities"]["attack"] == 5
 
     def test_offensive_attack_all_ones_crashes(self, monkeypatch):
         from app.schemas.matrix_run import RunActionInput
@@ -6025,7 +7512,7 @@ class TestSkulkCrashTally:
 
         decker = {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
                   "computer_skill": 8, "intelligence": 5, "body": 5, "hardening": 0,
-                  "utilities": {"attack": 6}}
+                  "utilities": {"attack": attack_pool}}
         if skulk is not None:
             decker["program_options"] = {"attack": {"skulk": skulk}}
         state = _fresh_state(sec_code="Red", sec_value=9)
@@ -6089,13 +7576,13 @@ class TestTargetingToHitTN:
     Read automatically from decker.program_options['attack'].targeting. It must lower ONLY the
     attacker's to-hit TN (not the IC's resist TN), clamp at 2 (rule-of-6 minimum), and not bleed
     into any other utility. Drives the real /attack path in app.routers.matrix_runs.attack_ic and
-    captures the TN handed to each eng.roll_dice call (attack_pool=12 = to-hit, pool=9 = resist)."""
+    captures the TN handed to each eng.roll_dice call (Attack-6 = to-hit, pool=9 = resist)."""
 
     def _attack(self, monkeypatch, *, targeting):
         import asyncio
         from app.schemas.matrix_run import RunAttackInput
 
-        calls = []  # (pool, tn) per roll: pool 12 = to-hit, pool 9 = IC resist
+        calls = []  # (pool, tn) per roll: pool 6 = to-hit, pool 9 = IC resist
         def _fake_roll(pool, tn=4):
             calls.append((pool, tn))
             return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
@@ -6136,7 +7623,7 @@ class TestTargetingToHitTN:
         inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
-        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        to_hit_tn = next(tn for pool, tn in calls if pool == 6)
         resist_tn = next(tn for pool, tn in calls if pool == 9)
         return to_hit_tn, resist_tn
 
@@ -6166,13 +7653,13 @@ class TestPenetrationVsShield:
     penalty), and Shift is EXTRA-effective against Penetration (+4 instead of +2). Read automatically
     from decker.program_options['attack'].penetration. Must change ONLY the attacker's to-hit TN
     (not the IC's resist TN). Drives the real /attack path (app.routers.matrix_runs.attack_ic) and
-    captures the TN handed to each eng.roll_dice (attack_pool=12 = to-hit, sec_value=9 = resist)."""
+    captures the TN handed to each eng.roll_dice (Attack-6 = to-hit, sec_value=9 = resist)."""
 
     def _attack(self, monkeypatch, *, defense, penetration):
         import asyncio
         from app.schemas.matrix_run import RunAttackInput
 
-        calls = []  # (pool, tn) per roll: pool 12 = to-hit, pool 9 = IC resist
+        calls = []  # (pool, tn) per roll: pool 6 = to-hit, pool 9 = IC resist
         def _fake_roll(pool, tn=4):
             calls.append((pool, tn))
             return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
@@ -6212,7 +7699,7 @@ class TestPenetrationVsShield:
         inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
-        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        to_hit_tn = next(tn for pool, tn in calls if pool == 6)
         resist_tn = next(tn for pool, tn in calls if pool == 9)
         return to_hit_tn, resist_tn
 
@@ -6242,13 +7729,13 @@ class TestChaserVsShift:
     to-hit penalty), while Shield is EXTRA-effective vs Chaser (+4 instead of +2). Cannot combine
     with Penetration. Read automatically from decker.program_options['attack'].chaser. Must change
     ONLY the attacker's to-hit TN, not the IC's resist TN. Drives the real /attack path
-    (app.routers.matrix_runs.attack_ic): attack_pool=12 = to-hit, sec_value=9 = IC resist."""
+    (app.routers.matrix_runs.attack_ic): Attack-6 = to-hit, sec_value=9 = IC resist."""
 
     def _attack(self, monkeypatch, *, defense, chaser, penetration=False):
         import asyncio
         from app.schemas.matrix_run import RunAttackInput
 
-        calls = []  # (pool, tn): pool 12 = to-hit, pool 9 = IC resist
+        calls = []  # (pool, tn): pool 6 = to-hit, pool 9 = IC resist
         def _fake_roll(pool, tn=4):
             calls.append((pool, tn))
             return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
@@ -6290,7 +7777,7 @@ class TestChaserVsShift:
         inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
-        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        to_hit_tn = next(tn for pool, tn in calls if pool == 6)
         resist_tn = next(tn for pool, tn in calls if pool == 9)
         return to_hit_tn, resist_tn
 
@@ -6320,13 +7807,13 @@ class TestAreaClusterToHit:
     In this single-target engine it offsets the cluster's to-hit penalty up to the Area rating
     (easing the attacker only); the IC's resist TN keeps the FULL cluster penalty. Read from
     decker.program_options['attack'].area. vr2 also makes Armor extra-effective vs an Area utility
-    (+2 effective Armor). Drives the real /attack path (attack_pool=12 = to-hit, sec_value=9 = resist)."""
+    (+2 effective Armor). Drives the real /attack path (Attack-6 = to-hit, sec_value=9 = resist)."""
 
     def _attack(self, monkeypatch, *, area, cluster=2, armor=False):
         import asyncio
         from app.schemas.matrix_run import RunAttackInput
 
-        calls = []  # (pool, tn): pool 12 = to-hit, pool 9 = IC resist
+        calls = []  # (pool, tn): pool 6 = to-hit, pool 9 = IC resist
         def _fake_roll(pool, tn=4):
             calls.append((pool, tn))
             return {"successes": 0, "ones": 0, "rolls": [], "pool": pool, "tn": tn}
@@ -6375,7 +7862,7 @@ class TestAreaClusterToHit:
         inp = RunAttackInput(target_ic_id="ic1", attack_pool=12, hacking_pool_dice=0)
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.attack_ic(run_id=7, body=inp, auth=auth, db=_FakeDB()))
-        to_hit_tn = next(tn for pool, tn in calls if pool == 12)
+        to_hit_tn = next(tn for pool, tn in calls if pool == 6)
         resist_tn = next(tn for pool, tn in calls if pool == 9)
         return to_hit_tn, resist_tn
 
@@ -6541,6 +8028,19 @@ class TestCombatManeuvers:
         ic = {"id": "ic1", "type": "Barrier", "rating": 5, "status": "active"}
         ic.update(over)
         return ic
+
+    def test_pc_maneuver_adds_hacking_pool_to_evasion_dice(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(eng, "maneuver_test", self._capture(2, 1, captured))
+        state = self._mk_state(active_ic=[self._ic()])
+        body = self._body("parry_attack", maneuver_target="ic1", hacking_pool_dice=3)
+        mr._apply_maneuver(state, {}, self._EFF, body)
+        assert captured["maneuvering_evasion_dice"] == 8
+
+    @pytest.mark.parametrize("action_type", sorted(mr._HP_INELIGIBLE_ACTIONS))
+    def test_roll_free_action_rejects_hacking_pool(self, action_type):
+        with pytest.raises(HTTPException, match="Hacking Pool cannot be used"):
+            mr._assert_hp_eligible(action_type, 1)
 
     # -- Evade Detection -------------------------------------------------------
 
@@ -6725,6 +8225,22 @@ class TestCombatManeuvers:
         assert seen["cloak"] == 3        # the PC maneuvers, so its Cloak lowers its Evasion-test TN
         assert seen["lock_on"] == 0      # the opposing IC has no Lock-On to raise that TN
 
+    def test_one_shot_cloak_consumes_one_active_copy_per_pc_maneuver(self, monkeypatch):
+        st = self._mk_state(active_ic=[self._ic()], one_shot_active={"cloak": 2})
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))
+        decker = {
+            "utilities": {"cloak": 3},
+            "program_options": {"cloak": {"one_shot": True}},
+        }
+
+        mr._apply_maneuver(
+            st, decker, self._EFF,
+            self._body("parry_attack", maneuver_target="ic1"),
+        )
+
+        assert st["one_shot_active"]["cloak"] == 1
+        assert decker["utilities"]["cloak"] == 3
+
     def test_pc_maneuver_reads_the_opposing_enemy_deckers_lock_on(self, monkeypatch):
         seen: dict = {}
         enemy = {"id": "e1", "name": "Cutter", "sensor": 4, "evasion": 4, "status": "active",
@@ -6756,6 +8272,21 @@ class TestCombatManeuvers:
         mr._resolve_npc_maneuver(st, decker, self._EFF, ic, "parry_attack", is_ic=True)
         assert seen["cloak"] == 0        # IC carry no utilities
         assert seen["lock_on"] == 2      # the PC's Lock-On helps it hold the lock on the evading IC
+
+    def test_one_shot_lock_on_consumes_one_active_copy_per_opposing_maneuver(self, monkeypatch):
+        st = self._mk_state(active_ic=[self._ic()], one_shot_active={"lock_on": 2})
+        monkeypatch.setattr(eng, "maneuver_test", self._win(3, 1))
+        decker = {
+            "utilities": {"lock_on": 2},
+            "program_options": {"lock_on": {"one_shot": True}},
+        }
+
+        mr._resolve_npc_maneuver(
+            st, decker, self._EFF, st["active_ic"][0], "parry_attack", is_ic=True,
+        )
+
+        assert st["one_shot_active"]["lock_on"] == 1
+        assert decker["utilities"]["lock_on"] == 2
 
     def test_maneuver_test_cloak_and_lock_on_reduce_the_tns_and_floor_at_two(self, monkeypatch):
         # Cloak lowers the maneuvering icon's Evasion-test TN (vs the opposing Sensor Rating);
@@ -6824,13 +8355,25 @@ class TestLocateReDetect:
         assert any(e.get("type") == "ic_relocate" and e.get("outcome") == "fail"
                    for e in st["event_log"])
 
-    def test_locate_ic_no_evaded_ic_reports_none(self):
-        # A visible (non-evaded) IC must NOT be affected -- Locate IC only re-detects evaded IC.
+    def test_locate_ic_no_hidden_ic_reports_none(self):
+        # A visible IC is already located, so a successful sweep does not alter it.
         ic = {"id": "ic1", "type": "Killer", "rating": 6, "status": "active", "detection_level": 3}
         st = self._state(active_ic=[ic])
         mr._apply_locate_ic(st, test_success=True)
         assert "evaded" not in ic
         assert any(e.get("type") == "ic_relocate" and e.get("outcome") == "none"
+                   for e in st["event_log"])
+
+    def test_locate_ic_reveals_lurking_worm_presence(self):
+        worm = {"id": "worm1", "type": "Worm", "rating": 6, "status": "lurking"}
+        st = self._state(lurking_ic=[worm])
+
+        mr._apply_locate_ic(st, test_success=True)
+
+        assert worm["located"] is True
+        assert worm["detection_level"] == 1
+        assert worm in st["lurking_ic"]
+        assert any(e.get("type") == "ic_relocate" and e.get("outcome") == "located"
                    for e in st["event_log"])
 
     # -- Locate Decker (Index test + #6 opposed Sensor test) -------------------
@@ -6939,6 +8482,8 @@ class TestDownloadMultiTurn:
         decker = self._decker(io_speed=io_speed, compressor=compressor, storage_free=storage_free)
         st = mr._initial_state(decker, self._host(paydata))
         st["logon_complete"] = True
+        for item in st["paydata"]:
+            item["located"] = True
         # These tests exercise per-Combat-Turn download mechanics; pin the decker to a single
         # initiative pass so one End Turn ends the whole Combat Turn (End Turn now only ends the
         # turn on the decker's LAST pass -- _initial_state otherwise rolls a random pass count).
@@ -7290,7 +8835,9 @@ class TestAmbushTarAutoFire:
     def _decker(self):
         return {"name": "Ghost", "mpcp": 6, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
                 "computer_skill": 6, "intelligence": 5, "quickness": 4, "willpower": 4, "body": 5,
-                "hardening": 0, "deck_mode": "cool", "utilities": {"analyze": 6, "sleaze": 4}}
+                "hardening": 0, "deck_mode": "cool", "active_memory": 40,
+                "utilities": {"analyze": 6, "sleaze": 4},
+                "program_sizes": {"analyze": 24, "sleaze": 16}}
 
     def _state(self):
         st = mr._initial_state(self._decker(), _AutoGMHost())
@@ -7334,18 +8881,40 @@ class TestAmbushTarAutoFire:
                              utility_rating=utility_rating, hacking_pool_dice=0, target_file="")
         auth = {"is_admin": True, "is_user": False, "user_token": None}
         asyncio.run(mr.perform_action(run_id=7, body=inp, auth=auth, db=_AutoGMDB()))
-        return run.state_json
+        return run
 
     def test_tar_fires_on_utility_use(self, monkeypatch):
-        out = self._drive(monkeypatch, self._state(), utility_rating=6)
+        out = self._drive(monkeypatch, self._state(), utility_rating=6).state_json
         assert any(e.get("type") == "reactive_ic_resolved" and e.get("ic_id") == "tar1"
                    for e in out["event_log"]), "a lurking Tar must auto-fire when a utility runs"
 
-    def test_tar_silent_when_no_utility_ran(self, monkeypatch):
-        out = self._drive(monkeypatch, self._state(), utility_rating=0)
-        assert not any(e.get("type") == "reactive_ic_resolved" for e in out["event_log"]), \
-            "no reducible utility ran (rating 0) -> the tar must not fire"
-        assert any(ic["id"] == "tar1" for ic in out["lurking_ic"]), "the tar is still lurking"
+    def test_forged_zero_rating_does_not_silence_tar(self, monkeypatch):
+        out = self._drive(monkeypatch, self._state(), utility_rating=0).state_json
+        assert any(e.get("type") == "reactive_ic_resolved" and e.get("ic_id") == "tar1"
+                   for e in out["event_log"]), \
+            "the server-derived Analyze rating must override a forged compatibility value"
+
+    def test_tar_baby_moves_active_program_to_reloadable_storage(self, monkeypatch):
+        monkeypatch.setattr(eng, "tar_baby_test", lambda **kw: {
+            "ic_wins": True,
+            "ic_roll": {"successes": 2},
+            "util_roll": {"successes": 0},
+            "all_copies_corrupted": False,
+        })
+
+        run = self._drive(monkeypatch, self._state(), utility_rating=6)
+        assert run.decker_json["utilities"]["analyze"] == 0
+        assert run.state_json["storage_programs"] == [
+            {"name": "analyze", "rating": 6, "size": 24, "squeezed": False},
+        ]
+        assert "analyze" not in run.state_json.get("one_shot_wiped", [])
+
+        mr._apply_swap_memory(
+            run.state_json, run.decker_json,
+            target_program="analyze", swap_out_program="",
+        )
+        assert run.decker_json["utilities"]["analyze"] == 6
+        assert run.state_json["storage_programs"] == []
 
 
 class TestWormAutoTickPerTurn:
@@ -7767,6 +9336,14 @@ class TestAreaAttack:
         with pytest.raises(mr.HTTPException) as exc:
             self._run_area(monkeypatch, decker=decker, active_ic=[self._ic("ic1")], enemies=[],
                           target_ids=["ic1", "ghost"])
+        assert exc.value.status_code == 404
+
+    def test_location_cycle_trace_is_not_area_target(self, monkeypatch):
+        decker = self._decker(area=3)
+        trace = self._ic("tr1", type="Trace", trace_phase="locate", located=True)
+        with pytest.raises(mr.HTTPException) as exc:
+            self._run_area(monkeypatch, decker=decker, active_ic=[trace], enemies=[],
+                           target_ids=["tr1"])
         assert exc.value.status_code == 404
 
     # -- Area armor: +2 effective vs a burst, none on a single target ---------
@@ -8249,9 +9826,8 @@ class TestScanIcon:
 
 
 class TestTraceVisibilityGate:
-    """vr2 Trace IC visibility (user ruling 2026-07-10): a Trace is targetable while VISIBLE --
-    during its Hunt Cycle, or once a Locate IC re-acquires it in its Location Cycle. A trace that
-    has vanished into an un-located Location Cycle is off-sensors and cannot be attacked/slowed."""
+    """vr2 Trace IC visibility: a Trace is visible and targetable only during its Hunt Cycle.
+    Once it enters its Location Cycle it vanishes and becomes reactive; only Relocate affects it."""
 
     @staticmethod
     def _trace(**over):
@@ -8267,15 +9843,15 @@ class TestTraceVisibilityGate:
     def test_unlocated_locating_trace_is_not_targetable(self):
         assert mr._trace_is_targetable(self._trace(trace_phase="locate")) is False
 
-    def test_located_locating_trace_is_targetable(self):
-        assert mr._trace_is_targetable(self._trace(trace_phase="locate", located=True)) is True
+    def test_located_flag_does_not_make_locating_trace_targetable(self):
+        assert mr._trace_is_targetable(self._trace(trace_phase="locate", located=True)) is False
 
-    def test_locate_ic_reacquires_hidden_trace(self):
+    def test_locate_ic_cannot_reacquire_hidden_trace(self):
         ic = self._trace(trace_phase="locate")
         st = {"active_ic": [ic], "event_log": []}
         mr._apply_locate_ic(st, test_success=True)
-        assert ic.get("located") is True
-        assert any(e.get("outcome") == "trace_reacquired" for e in st["event_log"])
+        assert not ic.get("located")
+        assert st["event_log"][-1]["outcome"] == "none"
 
     def test_failed_locate_ic_leaves_trace_hidden(self):
         ic = self._trace(trace_phase="locate")
@@ -8515,6 +10091,27 @@ class TestSuppressionDfFloor:
         assert st["active_ic"][1].get("suppressed") is True
         assert mr._effective_detection_factor(st, dk) == 1
 
+    def test_masking_damage_requires_release_before_continuing(self):
+        st = self._state()
+        dk = self._decker()
+        dk["masking"] = 6  # base DF 3: two suppressions initially fit above the floor
+        self._crash(st, "ic-1")
+        self._crash(st, "ic-2")
+        mr._toggle_ic_suppression(st, dk, ic_id="ic-1", release=False)
+        mr._toggle_ic_suppression(st, dk, ic_id="ic-2", release=False)
+        assert mr._suppression_overflow(st, dk) == 0
+
+        st["condition_monitor"]["persona_damage"]["masking"] = 2
+        assert mr._suppression_overflow(st, dk) == 1
+        with pytest.raises(HTTPException) as exc_info:
+            mr._assert_suppression_capacity(st, dk)
+        assert exc_info.value.status_code == 409
+        assert "release 1 suppression" in exc_info.value.detail
+
+        mr._toggle_ic_suppression(st, dk, ic_id="ic-1", release=True)
+        assert mr._suppression_overflow(st, dk) == 0
+        mr._assert_suppression_capacity(st, dk)
+
 
 class TestNpcPositionBonus:
     """vr2_rules.md L2004 -- the Position Attack winner may take -TN OR +Power. The shared NPC
@@ -8528,13 +10125,3 @@ class TestNpcPositionBonus:
     def test_badly_wounded_pc_gives_power(self):
         st = {"condition_monitor": {"persona_boxes": 5}}
         assert mr._npc_position_bonus(st, 2) == {"power_bonus": 2}
-
-
-
-
-
-
-
-
-
-

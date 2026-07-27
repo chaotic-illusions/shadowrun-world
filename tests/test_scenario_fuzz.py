@@ -152,7 +152,7 @@ def _maximal_host():
             {"name": "black_files", "density": 80, "is_key": True, "defense": 0, "located": True},
         ],
         "scrambles": [
-            {"target_key": "files::black_files", "rating": 6, "variant": "standard",
+            {"target_key": "files::black_files", "rating": 6, "variant": "poison",
              "discovered": True},
         ],
         "data_bombs": [
@@ -426,8 +426,6 @@ def test_hacking_pool_not_refilled_out_of_combat(monkeypatch):
         assert run.state_json["hackingPool_remaining"] == 5
     finally:
         random.setstate(_global_rng)
-
-
 def _probe_run(monkeypatch, *, active_ic, sheaf, action_tally, probe_tally, seed):
     """Drive one analyze_security action through the REAL perform_action with system_test and
     probe_test stubbed to fixed outcomes, so a Probe Test's tally contribution is unmistakable.
@@ -511,9 +509,8 @@ def test_active_probe_ic_tests_each_system_test(monkeypatch):
 def test_sheaf_spawned_ic_does_not_act_on_the_spawning_action(monkeypatch):
     """vr2 initiative: an IC that first activates as a consequence of the decker's action (its tally
     bump crossing a sheaf step) has not yet reached its own initiative segment, so it must not act in
-    the same pass it spawned. It is stamped acted_pass == current_pass and launches no cybercombat
-    until its next pass/turn. Regression for proactive IC (Killer/Crippler/Trace) attacking on the
-    very action that created them."""
+    the same action it spawned. A lower, still-upcoming count is marked pending until End Turn;
+    a count that already passed waits until the next round."""
     _global_rng = random.getstate()
     try:
         rng = random.Random(3131)
@@ -545,13 +542,94 @@ def test_sheaf_spawned_ic_does_not_act_on_the_spawning_action(monkeypatch):
         st = run.state_json
         killers = [ic for ic in st["active_ic"] if ic["type"] == "Killer"]
         assert killers, "the sheaf step should have spawned the Killer IC"
-        # Held back: stamped as already-acted this pass, so the NPC driver skipped it...
-        assert killers[0].get("acted_pass") == st.get("current_pass", 1)
+        # Held back from the spawning action; because its count is lower than the decker's, End
+        # Turn may release it later in this same pass.
+        assert killers[0].get("spawn_pending_pass") == st.get("current_pass", 1)
         # ...and it launched no cybercombat on the action that spawned it.
         assert not [e for e in st["event_log"]
                     if e.get("type") == "ic_attack" and e.get("ic_type") == "Killer"]
     finally:
         random.setstate(_global_rng)
+
+
+def test_spawn_holdback_uses_current_initiative_count():
+    state = {
+        "current_pass": 1,
+        "decker_initiative": 23,
+        "active_ic": [
+            {"id": "upcoming", "initiative": 12, "status": "active"},
+            {"id": "missed", "initiative": 24, "status": "active"},
+        ],
+        "enemy_deckers": [],
+    }
+
+    mr._hold_back_new_hostiles(state, set(), set())
+
+    upcoming, missed = state["active_ic"]
+    assert upcoming["spawn_pending_pass"] == 1
+    assert "acted_pass" not in upcoming
+    assert missed["acted_pass"] == 1
+    assert missed["actions_taken_turn"] == 1        # missed i24
+    assert missed["spawn_pending_pass"] == 1        # but i14 is still upcoming
+
+    mr._release_spawned_hostiles_for_pass(state, 1)
+
+    assert "spawn_pending_pass" not in upcoming
+    assert "spawn_pending_pass" not in missed
+    assert missed["acted_pass"] == 1
+
+
+def test_logon_starts_first_round_on_shared_initiative_clock(monkeypatch):
+    decker = _maximal_decker()
+    state = mr._initial_state(decker, _maximal_host())
+    state.update({
+        "logon_complete": False,
+        "decker_initiative": 20,
+        "initiative_passes": 2,
+        "current_pass": 1,
+        "sheaf": [],
+        "active_ic": [
+            {"id": "fast", "type": "Trace", "rating": 5, "status": "active",
+             "initiative": 24, "boxes": 0, "trace_phase": "hunt", "analyzed": True},
+            {"id": "slow", "type": "Trace", "rating": 5, "status": "active",
+             "initiative": 13, "boxes": 0, "trace_phase": "hunt", "analyzed": True},
+        ],
+        "enemy_deckers": [],
+        "event_log": [],
+    })
+    state["condition_monitor"]["persona_boxes"] = 1     # effective player initiative 19
+    run = _StubRun(decker, state)
+
+    async def _get(db, run_id):
+        return run
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _get)
+    monkeypatch.setattr(eng, "system_test", lambda **kwargs: {
+        "success": True, "decker_net_successes": 1, "tally_increase": 0,
+        "decker_roll": {"successes": 1, "ones": 0},
+        "host_roll": {"successes": 0, "ones": 0},
+    })
+    monkeypatch.setattr(eng, "trace_hunt_cycle_attack", lambda *args, **kwargs: {
+        "hit": False, "roll": {"successes": 0, "ones": 0},
+    })
+
+    asyncio.run(mr.perform_action(
+        run_id=1,
+        body=RunActionInput(
+            action_type="logon_to_host", subsystem="access", utility_rating=6,
+            hacking_pool_dice=0,
+        ),
+        auth=_ADMIN,
+        db=_FakeDB(),
+    ))
+
+    attacks = [event for event in run.state_json["event_log"] if event.get("type") == "ic_attack"]
+    assert [(event["ic_id"], event["init"]) for event in attacks] == [("fast", 24)]
+    active = {ic["id"]: ic for ic in run.state_json["active_ic"]}
+    assert active["fast"]["actions_taken_turn"] == 1
+    assert "actions_taken_turn" not in active["slow"]
+    assert run.state_json["logon_complete"] is True
+    assert run.state_json["pass_action_points"] == 2
 
 
 def test_relocate_suppress_pauses_trace_in_place_and_release_resumes(monkeypatch):
@@ -770,4 +848,3 @@ def test_relocate_spoofs_one_trace_for_the_turn_without_resetting_it(monkeypatch
         assert tb.get("trace_locate_remaining") == 2
     finally:
         random.setstate(_global_rng)
-

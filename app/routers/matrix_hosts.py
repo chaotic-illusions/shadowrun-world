@@ -9,6 +9,7 @@ from app.schemas.matrix_host import (
     MatrixHostCreate, MatrixHostUpdate, MatrixHostRead, MatrixHostPlayerRead, MatrixHostSummary,
 )
 from app.services.host_visibility import sync_host_reveal_to_org, sync_host_security_to_org
+from app.services.matrix_host_config import normalize_host_config
 from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
@@ -84,8 +85,14 @@ async def list_hosts(
 @router.post("/", response_model=MatrixHostRead, status_code=201,
              dependencies=[Depends(get_admin_token)])
 async def create_host(body: MatrixHostCreate, db: AsyncSession = Depends(get_db)):
-    host = MatrixHost(**body.model_dump())
+    values = body.model_dump()
+    values["config_json"] = normalize_host_config(values.get("config_json"))
+    host = MatrixHost(**values, is_trap_door_dest=False)
     db.add(host)
+    await db.flush()
+    destinations = _dest_ids(host.trap_doors_json)
+    if destinations:
+        await _recompute_trap_dest_flags(db, destinations)
     await db.commit()
     await db.refresh(host)
     return host
@@ -156,6 +163,8 @@ async def update_host(
     was_reachable = bool((host.ltg_address or "").strip()) or bool(host.is_trap_door_dest)
     old_dest_ids = _dest_ids(host.trap_doors_json)
     updates = body.model_dump(exclude_unset=True)
+    if "config_json" in updates:
+        updates["config_json"] = normalize_host_config(updates["config_json"], host.config_json)
     for field, value in updates.items():
         setattr(host, field, value)
     now_reachable = bool((host.ltg_address or "").strip()) or bool(host.is_trap_door_dest)
@@ -202,9 +211,19 @@ async def update_host(
                dependencies=[Depends(get_admin_token)])
 async def delete_host(host_id: int, db: AsyncSession = Depends(get_db)):
     host = await _get_or_404(db, host_id)
-    # Deleting a parent removes its trap doors, so re-derive its children's destination flag after
-    # the row is gone (an off-grid child left with no inbound link surfaces as Unreachable).
+    # Remove every inbound edge to the deleted destination. JSON has no FK, so leaving these rows
+    # untouched would preserve dead links in surviving parents indefinitely.
+    result = await db.execute(select(MatrixHost).where(MatrixHost.id != host_id))
+    parents = result.scalars().all()
     affected = _dest_ids(host.trap_doors_json)
+    for parent in parents:
+        doors = parent.trap_doors_json or []
+        cleaned = [
+            door for door in doors
+            if not (isinstance(door, dict) and door.get("destination_host_id") == host_id)
+        ]
+        if len(cleaned) != len(doors):
+            parent.trap_doors_json = cleaned or None
     await db.delete(host)
     await db.flush()
     if affected:

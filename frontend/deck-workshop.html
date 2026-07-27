@@ -2405,6 +2405,7 @@ function calcDeck() {
   if (evasion > mpcp) errors.push(`Evasion (${evasion}) > MPCP (${mpcp})`);
   if (masking > mpcp) errors.push(`Masking (${masking}) > MPCP (${mpcp})`);
   if (sensor  > mpcp) errors.push(`Sensor (${sensor}) > MPCP (${mpcp})`);
+  if (ioSpeed % 10 !== 0) errors.push(`I/O Speed (${ioSpeed}) must be a multiple of 10 Mp`);
 
   const personaSum  = bod + evasion + masking + sensor;
   const personaCap  = personaCapMpcp * 3;
@@ -2454,9 +2455,6 @@ function calcDeck() {
   let totalCost = 0;
   let corePresent = true;
 
-  // Effective MPCP for cost (Reality Filter adds +2)
-  const costMpcp = hasRf ? mpcp + 2 : mpcp;
-
   // MPCP Core
   {
     const size  = mpcp * mpcp * 8;
@@ -2496,14 +2494,14 @@ function calcDeck() {
   if (deckType !== 'tortoise') {
     const isHot = deckType === 'hot';
     const asistMult = isHot ? 2 : 1;
-    const size  = costMpcp * costMpcp * asistMult;
+    const size  = mpcp * mpcp * asistMult;
     const occ   = size * 20;
-    const plcBase = isHot ? costMpcp * 2 : costMpcp;
+    const plcBase = isHot ? mpcp * 2 : mpcp;
     const plc   = 25 * plcBase;
     const apu   = 1250;
     const sub   = occ + plc + apu;
-    const cook  = costMpcp;
-    const inst  = costMpcp;
+    const cook  = mpcp;
+    const inst  = mpcp;
     rows.push({
       key: 'asist',
       name: `ASIST (${isHot ? 'Hot' : 'Cold'})`,
@@ -2515,13 +2513,21 @@ function calcDeck() {
     corePresent = false; // tortoise has no ASIST
   }
 
-  // Reality Filter note row (no cost, just annotation)
+  // Reality Filter is constructed as its own MPCP-style component at MPCP + 2.
   if (hasRf) {
+    const rfRating = mpcp + 2;
+    const size = rfRating * rfRating * 8;
+    const occ = size * 20;
+    const plc = 25 * rfRating * rfRating;
+    const dtc = 10 * rfRating * rfRating;
+    const sub = occ + plc + dtc;
     rows.push({
-      name: 'Reality Filter [NOTE]',
-      size: 0, occ: 0, plcDtc: 0, other: 0, sub: 0, cook: 0, inst: 0,
-      note: '+1 eff RI, +2 MPCP cost, -1 persona cap'
+      key: 'realityFilter', name: `Reality Filter (Rtg ${rfRating})`,
+      size, occ, plcDtc: plc + dtc, other: 0, sub,
+      cook: rfRating * 3, inst: rfRating * 2,
+      note: '+2 Reaction, +1D6 Initiative, -1 persona cap'
     });
+    totalCost += sub;
   }
 
   // Hardening
@@ -2540,27 +2546,27 @@ function calcDeck() {
 
   // ICCM Filter
   if (hasIccm) {
-    const size  = costMpcp * costMpcp * 4;
+    const size  = mpcp * mpcp * 4;
     const occ   = size * 20;
-    const plc   = 25 * costMpcp * costMpcp;
-    const dtc   = 10 * costMpcp * costMpcp;
+    const plc   = 25 * mpcp * mpcp;
+    const dtc   = 10 * mpcp * mpcp;
     const bio   = 5000;
     const sub   = occ + plc + dtc + bio;
-    const cook  = costMpcp * 2;
-    const inst  = costMpcp * 2;
+    const cook  = mpcp * 2;
+    const inst  = mpcp * 2;
     rows.push({ key: 'iccm', name: 'ICCM Filter', size, occ, plcDtc: plc + dtc, other: bio, sub, cook, inst, otherLabel: 'Bioscanner 5k' });
     totalCost += sub;
   }
 
   // Response Increase
   if (ri > 0) {
-    const size  = costMpcp * costMpcp * (ri * 2);
+    const size  = mpcp * mpcp * (ri * 2);
     const occ   = size * 20;
     const plc   = 25 * ri * 3;
     const dtc   = 10 * ri * 3;
     const sub   = occ + plc + dtc;
-    const cook  = costMpcp * ri;
-    const inst  = costMpcp + ri;
+    const cook  = mpcp * ri;
+    const inst  = mpcp + ri;
     rows.push({ key: 'responseInc', name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
     totalCost += sub;
   }
@@ -2587,8 +2593,11 @@ function calcDeck() {
 
   // Offline Storage
   if (offlineStorage > 0) {
-    const sub  = offlineStorage * 5;
-    rows.push({ key: 'offlineStorage', name: `Offline Storage (${fmtN(offlineStorage)} Mp OMC)`, size: offlineStorage, occ: 0, plcDtc: 0, other: sub, sub, cook: 0, inst: 0, otherLabel: `OMC ${fmtY(sub)}` });
+    const omc = offlineStorage * 5;
+    const plc = 25 * Math.ceil(offlineStorage / 10);
+    const sub = omc + plc;
+    const inst = Math.ceil(offlineStorage / 100);
+    rows.push({ key: 'offlineStorage', name: `Storage Memory (${fmtN(offlineStorage)} Mp)`, size: offlineStorage, occ: 0, plcDtc: plc, other: omc, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omc)}` });
     totalCost += sub;
   }
 
@@ -2602,14 +2611,14 @@ function calcDeck() {
   if (hasSatlink) {
     // Software Task: Rating = MPCP, Multiplier 2. Cook: OCC @ program size, MPCP days.
     // Install: PLC + DTC @ MPCP Rating, MPCP days. External dish (800) billed separately.
-    const size = costMpcp * costMpcp * 2;
+    const size = mpcp * mpcp * 2;
     const occ  = size * 20;
-    const plc  = 25 * costMpcp;
-    const dtc  = 10 * costMpcp;
+    const plc  = 25 * mpcp;
+    const dtc  = 10 * mpcp;
     const dish = 800;
     const sub  = occ + plc + dtc + dish;
-    const cook = costMpcp;
-    const inst = costMpcp;
+    const cook = mpcp;
+    const inst = mpcp;
     rows.push({ key: 'satlink', name: 'Satlink Interface', size, occ, plcDtc: plc + dtc, other: dish, sub, cook, inst, otherLabel: 'Dish 800' });
     totalCost += sub;
   }
@@ -3144,8 +3153,12 @@ function getProgramIdentityKey(item) {
   const typeKey = String(item?.programTypeKey || getProgramTypeKey(item?.utilName || '')).trim().toLowerCase();
   const baseRating = Math.max(0, parseInt(item?.baseRating, 10) || 0);
   const mods = String(item?.mods || '').trim().toLowerCase();
+  const attackDamage = typeKey === 'attack' ? Math.max(0, parseInt(item?.attackDamage, 10) || 0) : 0;
+  const limitTarget = item?.hasLimit ? String(item?.limitTarget || '').trim().toLowerCase() : '';
   const label = String(item?.label || '').trim().toLowerCase();
-  if (typeKey && baseRating > 0) return `${typeKey}|${baseRating}|${mods}`;
+  if (typeKey && baseRating > 0) {
+    return `${typeKey}|${baseRating}|${mods}|damage:${attackDamage}|limit:${limitTarget}`;
+  }
   return label;
 }
 
@@ -3165,20 +3178,9 @@ function computeLoadUsage(items) {
   const activeUsed = normalized
     .filter(i => targetIsActive(i.target))
     .reduce((s, i) => s + activeSize(i), 0);
-  // Storage: a one-shot program keeps a single storage master, so its footprint counts
-  // ONCE no matter how many copies run in active memory; normal programs count each copy.
-  const oneShotCounted = new Set();
   const storageUsed = normalized
-    .filter(i => targetHasStorage(i.target))
-    .reduce((s, i) => {
-      const sz = parseInt(i.actualSize, 10) || 0;
-      if (isOneShotProgram(i)) {
-        const k = getProgramIdentityKey(i);
-        if (oneShotCounted.has(k)) return s;
-        oneShotCounted.add(k);
-      }
-      return s + sz;
-    }, 0);
+    .filter(i => isOneShotProgram(i) ? i.target === 'storage' : targetHasStorage(i.target))
+    .reduce((s, i) => s + (parseInt(i.actualSize, 10) || 0), 0);
   return { activeUsed, storageUsed };
 }
 
@@ -3235,7 +3237,15 @@ function _buildLoadItemFromEntry(entry, target) {
 function addEntryToActive(key) {
   const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(e => e.key === key);
   if (!entry) return;
-  if (!entry.isOneShot) {
+  if (entry.isOneShot) {
+    if (entry.storageIdx.length === 0) {
+      showAlert(null, '>> NO STORED COPY // Add another One-Shot copy from the offline library.', true);
+      return;
+    }
+    loadPlannerItems[entry.storageIdx[0]].target = 'active';
+    recalcLoadPlannerWithWarnings();
+    return;
+  } else {
     if (entry.activeIdx.length > 0) {
       showAlert(null, '>> DUPLICATE BLOCKED // Program is already loaded to Active memory.', true);
       return;
@@ -3255,7 +3265,7 @@ function removeEntryFromActive(key) {
   if (!entry || entry.activeIdx.length === 0) return;
   if (entry.isOneShot) {
     const idx = entry.activeIdx[entry.activeIdx.length - 1];
-    loadPlannerItems.splice(idx, 1);
+    loadPlannerItems[idx].target = 'storage';
     recalcLoadPlannerWithWarnings();
     return;
   }
@@ -3264,9 +3274,15 @@ function removeEntryFromActive(key) {
   recalcLoadPlannerWithWarnings();
 }
 
-function removeEntryFromStorage(key) {
+function removeEntryFromStorage(key, source) {
   const entry = aggregateLoadPlannerEntries(loadPlannerItems).find(e => e.key === key);
   if (!entry) return;
+  if (entry.isOneShot) {
+    const indexes = source === 'active' ? entry.activeIdx : entry.storageIdx;
+    if (indexes.length > 0) loadPlannerItems.splice(indexes[indexes.length - 1], 1);
+    recalcLoadPlannerWithWarnings();
+    return;
+  }
   loadPlannerItems = loadPlannerItems.filter(item => getProgramIdentityKey(item) !== key);
   recalcLoadPlannerWithWarnings();
 }
@@ -3282,6 +3298,18 @@ function addProgramToLoadPlanner(item) {
   const isOneShot = isOneShotProgram(item);
 
   const finalizeLoadPlannerChange = () => { recalcLoadPlannerWithWarnings(); return true; };
+
+  if (isOneShot) {
+    const mixedBuild = loadPlannerItems.some(existingItem =>
+      isOneShotProgram(existingItem)
+      && (existingItem.programTypeKey || getProgramTypeKey(existingItem.utilName || '')) === normalized.programTypeKey
+      && getProgramIdentityKey(existingItem) !== itemKey
+    );
+    if (mixedBuild) {
+      showAlert(null, `>> MIXED COPIES BLOCKED // All One-Shot ${getProgramTypeLabelFromKey(normalized.programTypeKey)} copies on a deck must use the same build.`, true);
+      return false;
+    }
+  }
 
   // One per program type for normal utilities across the deck load plan.
   if (!isOneShot) {
@@ -3318,14 +3346,6 @@ function addProgramToLoadPlanner(item) {
   if (!isOneShot && existing.length > 0) {
     showAlert(null, '>> DUPLICATE BLOCKED // Non-One-Shot programs can only be loaded once.', true);
     return false;
-  }
-
-  if (isOneShot && normalized.target === 'storage') {
-    const existingStorageCopy = existing.some(existingItem => existingItem.target === 'storage' || existingItem.target === 'both');
-    if (existingStorageCopy) {
-      showAlert(null, '>> DUPLICATE BLOCKED // One-Shot storage copy already exists. Add extra copies to Active.', true);
-      return false;
-    }
   }
 
   loadPlannerItems.push(normalized);
@@ -3482,18 +3502,19 @@ function lpTagsHtml(o) {
 function lpCardHtml(o, mode, mpcp) {
   const rating = parseInt(o.baseRating, 10) || 0;
   const over = !!(mpcp && mpcp.built > 0 && rating > mpcp.effective);
-  const osActive = !!(o.isOneShot && mode === 'active');
+  const osCopies = !!(o.isOneShot && mode !== 'lib');
   const cls = `lp2-tile ${lpCatClass(o.utilName)}${mode === 'active' ? ' live' : ''}${over ? ' over' : ''}`;
   const nm = lpProgName(o);
   const unit = Math.max(0, parseInt(o.actualSize, 10) || 0);
-  const totalMp = osActive ? ((parseInt(o.copies, 10) || 0) * unit) : unit;
+  const totalMp = osCopies ? ((parseInt(o.copies, 10) || 0) * unit) : unit;
   const dataFrom = mode === 'active' ? 'active' : (mode === 'bench' ? 'bench' : 'lib');
   const ttl = over
     ? `${nm} exceeds the deck MPCP ${mpcp.effective} -- cannot load on deck`
     : `${nm} -- ${fmtN(unit)} Mp -- drag to move`;
   let meta = lpTagsHtml(o);
-  if (osActive) {
-    meta += '<span class="copies" title="Copies loaded in active memory">'
+  if (osCopies) {
+    const pool = mode === 'active' ? 'active memory' : 'storage memory';
+    meta += `<span class="copies" title="Copies in ${pool}">`
       + '<span class="st" data-cstep="dec" draggable="false">&lsaquo;</span>'
       + `<b>&times;${parseInt(o.copies, 10) || 0}</b>`
       + '<span class="st" data-cstep="inc" draggable="false">&rsaquo;</span>'
@@ -3662,7 +3683,7 @@ function lpWireDragOnce() {
     // it back on the library). Library cards (from === 'lib') released in empty space do
     // nothing. Deck cards carry from === 'active' or 'bench'.
     if (d && !_lpDropHandled && d.from !== 'lib') {
-      removeEntryFromStorage(d.key);
+      removeEntryFromStorage(d.key, d.from);
     }
     _lpDrag = null;
     _lpDropHandled = false;
@@ -3708,7 +3729,7 @@ function lpHandleDrop(slot) {
     else if (d.from === 'active') removeEntryFromActive(d.key);
     // dragging a bench card onto storage is a no-op (already there).
   } else if (slot === 'lib') {
-    if (d.from !== 'lib') removeEntryFromStorage(d.key);
+    if (d.from !== 'lib') removeEntryFromStorage(d.key, d.from);
   }
 }
 function lpIncCopies(key) {
@@ -3729,10 +3750,10 @@ function renderLoadLibrary() {
   if (!loadPlannerDeckName) { area.innerHTML = '<div class="lp2-empty">Select a deck to load programs onto.</div>'; return; }
   const allCompiled = _loadStore(COMPILED_STORE).slice();
   if (!allCompiled.length) { area.innerHTML = '<div class="lp2-empty">No coded or street software yet. Build or buy programs first.</div>'; return; }
-  // A program already placed in the load plan leaves the library, so the rail only shows
-  // what you could still add. Identity-keyed so a swapped/removed copy returns here.
+  // Regular programs already on the deck leave the library. One-Shot source artifacts remain
+  // available because each drag copies another independent static instance onto the deck.
   const loadedKeys = new Set((loadPlannerItems || []).map(i => getProgramIdentityKey(i)));
-  const compiled = allCompiled.filter(a => !loadedKeys.has(getProgramIdentityKey(a)));
+  const compiled = allCompiled.filter(a => a.isOneShot || !loadedKeys.has(getProgramIdentityKey(a)));
   if (!compiled.length) { area.innerHTML = '<div class="lp2-empty">Every coded/street program is already in this load plan. Drag one back to the library to free it.</div>'; return; }
   const mpcp = getLoadoutDeckMpcp();
   const cards = lpSortForBar(compiled).map(a => lpCardHtml({
@@ -3773,18 +3794,10 @@ function renderLoadPlanner() {
 
   // Bar segments are drawn straight off the items so each bar totals to its live meter.
   const activeSegs = lpSortForBar(loadPlannerItems.filter(i => targetIsActive(i.target || 'active')));
-  // Storage collapses one-shot copies to a single master segment so the bar matches the
-  // deduped storage meter (a one-shot's footprint is counted once however many copies run).
-  const _storageSeen = new Set();
   const storageSegs = lpSortForBar(loadPlannerItems
-    .filter(i => targetHasStorage(i.target || 'active'))
-    .filter(i => {
-      if (!isOneShotProgram(i)) return true;
-      const k = getProgramIdentityKey(i);
-      if (_storageSeen.has(k)) return false;
-      _storageSeen.add(k);
-      return true;
-    }));
+    .filter(i => isOneShotProgram(i)
+      ? (i.target || 'active') === 'storage'
+      : targetHasStorage(i.target || 'active')));
   const segHtml = (item, base) => {
     const sz = Math.max(0, parseInt(item.actualSize, 10) || 0);
     const pct = base > 0 ? Math.max(0, (sz / base) * 100) : 0;
@@ -3851,7 +3864,7 @@ function renderLoadPlanner() {
     return true;
   };
   const activeEntries = aggregated.filter(e => e.activeIdx.length > 0 && showInZone(e, 'active'));
-  const reserveEntries = aggregated.filter(e => e.activeIdx.length === 0 && e.storageIdx.length > 0 && showInZone(e, 'bench'));
+  const reserveEntries = aggregated.filter(e => e.storageIdx.length > 0 && showInZone(e, 'bench'));
   const entryCard = (entry, mode) => lpCardHtml({
     key: entry.key,
     utilName: entry.utilName,
@@ -3860,7 +3873,7 @@ function renderLoadPlanner() {
     actualSize: entry.actualSize,
     isOneShot: entry.isOneShot,
     limitTarget: entry.limitTarget,
-    copies: entry.activeIdx.length,
+    copies: mode === 'active' ? entry.activeIdx.length : entry.storageIdx.length,
   }, mode, mpcp);
 
   const free = Math.max(0, caps.activeCap - usage.activeUsed);
@@ -3883,7 +3896,7 @@ function renderLoadPlanner() {
     + '</div>'
     + '</div>';
 
-  html += `<div class="dim-label" style="margin-top:10px">Loaded Sleaze rating: <span style="color:var(--text-bright)">${sleaze || '&mdash;'}</span> &middot; active programs also consume storage &middot; drag a card onto Active or Storage, or off the deck (anywhere) to remove it.</div>`;
+  html += `<div class="dim-label" style="margin-top:10px">Loaded Sleaze rating: <span style="color:var(--text-bright)">${sleaze || '&mdash;'}</span> &middot; regular active programs retain storage; One-Shot copies occupy one pool at a time &middot; drag to move or remove one copy.</div>`;
   if (!loadPlannerItems.length) {
     html += '<div class="dim-label" style="margin-top:6px">Load plan is empty. Drag a program from the library below.</div>';
   }
@@ -4850,14 +4863,16 @@ function getDeckDamageList(deck) {
 
 function isDeckDamaged(deck) { return getDeckDamageList(deck).length > 0 || deckHasInfection(deck); }
 
-// Persistent MPCP Worm infections stamped on the deck by a matrix run (Deathworm / Tapeworm /
-// standard). The MPCP is compromised until the chip is replaced (a Deck Workshop refit/repair).
+// Persistent MPCP Worm infections stamped on the deck by a matrix run (Deathworm / Tapeworm).
+// The MPCP is compromised until the chip is replaced (a Deck Workshop refit/repair).
 function getDeckInfections(deck) {
   const inf = deck && deck.mpcp_infections;
-  return Array.isArray(inf) ? inf.filter(i => i && typeof i === 'object') : [];
+  return Array.isArray(inf)
+    ? inf.filter(i => i && typeof i === 'object' && ['deathworm', 'tapeworm'].includes(String(i.variant)))
+    : [];
 }
 function deckHasInfection(deck) { return getDeckInfections(deck).length > 0; }
-const INFECTION_LABEL = { standard: 'Worm', deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
+const INFECTION_LABEL = { deathworm: 'Deathworm', tapeworm: 'Tapeworm' };
 
 // Per-component provenance: deck.sources = { mpcp, pBod, pEvasion, pMasking, pSensor }
 // (true = source on file -> bench-upgradeable). A deck can be mixed -- e.g. built, then a
@@ -4989,7 +5004,7 @@ function renderDeckDamagePanel(deck) {
     infRow.style.cssText = 'gap:22px;margin-top:8px';
     for (const inf of infections) {
       const item = document.createElement('div');
-      const label = INFECTION_LABEL[String(inf.variant || 'standard')] || 'Worm';
+      const label = INFECTION_LABEL[String(inf.variant)];
       const rating = parseInt(inf.rating, 10) || 0;
       item.innerHTML = `MPCP <span class="text-red">${esc(label)}</span>`
         + (rating ? ` <span class="text-dim">R${rating}</span>` : '')
@@ -5643,7 +5658,7 @@ function newLoadout() {
             <div class="dw-f dw-grow"><label>Loadout name</label><input type="text" id="loadSaveName" placeholder="e.g. Datasteal Special"></div>
             <button class="btn btn-green" onclick="saveLoadout()">&gt;&gt; Save loadout</button>
           </div>
-          <div class="tip">Drag programs from the library onto the deck's Active or Storage memory. Active programs also consume storage. Only one program of each type may run; One-Shot utilities stack copies in Active via the card stepper.</div>
+          <div class="tip">Drag programs from the library onto the deck's Active or Storage memory. Regular active programs retain storage; each One-Shot copy occupies one pool and is consumed when used.</div>
         </div>
         <div class="mx-panel">
           <div class="dw-row" style="justify-content:space-between;align-items:center">
@@ -5797,7 +5812,7 @@ var DETAIL = {
   'opt-skulk': { t:'Option: Skulk (leveled)', b:'When this utility crashes IC, reduce the security tally increase by [Skulk].', r:'A.k.a. Stealth in the sourcebook. Eff Rating +[Skulk]. Table cap: 14.' },
   'opt-limit': { t:'Option: Limit', b:'Restricts the utility to ONE target type: IC programs or deckers. Useless against the other.', r:'Eff Rating -1, so actual size shrinks too. No Limit = works on both. (Frames intentionally out of scope for this campaign.)' },
   'opt-optimization': { t:'Option: Optimization', b:'Hand-tuned object code: actual size halves, design size doubles (you pay in bench time).', r:'Design &times;2.0, Actual &times;0.5. No rating change.' },
-  'opt-oneshot': { t:'Option: One-Shot', b:'Each loaded copy fires once per run, then reloads from storage. Multiple copies may be active at once.', r:'Design &times;1.5, Actual &times;0.25. Tar Baby crashes the firing copy only; Tar Pit corrupts all copies in active and storage for the rest of the run.' },
+  'opt-oneshot': { t:'Option: One-Shot', b:'Each static copy executes once and is consumed. Copies move individually between Storage and Active; multiple copies may be active at once.', r:'Design &times;1.5, Actual &times;0.25. Tar Baby destroys all active copies; successful Tar Pit corruption destroys every remaining on-deck copy. Offline archive software survives.' },
   'opt-squeeze': { t:'Option: Squeeze', b:'Self-compressed: uploads at 50% size, must decompress (Complex Action) before use.', r:'+1 affects design size only. Deck needs room for the full decompressed program.' },
   'mpcp': { t:'MPCP', b:'The deck\'s brain; caps persona and loaded utilities. Size = Rating&sup2; &times; 8 Mp.', r:'Cap: highest of Computer / Software conc. / Matrix Programming spec., &times;1.5. Your cap follows your dominant programming skill.' },
   'bod': { t:'Bod (persona)', b:'The icon\'s toughness. Bod is the dice pool for the Bod Resistance Test that soaks cybercombat damage from IC (rolled against the IC Rating). More Bod means your persona shrugs off more Matrix damage before it crashes.', r:'No higher than MPCP; counts toward the MPCP &times; 3 persona budget. Hardening and Armor cut the Power before you roll Bod.' },
@@ -5807,7 +5822,7 @@ var DETAIL = {
   'hardening': { t:'Hardening', b:'Subtracts from IC attack power before resistance.', r:'PF basis: MPCP. Max = MPCP / 2 (round down).' },
   'active': { t:'Active Memory', b:'Total Mp of utilities running at once.', r:'Cap MPCP &times; 100. Multiples of 10.' },
   'tools': { t:'Task multiplier &middot; tool bonuses', b:'Software side (Programming Tools table): doubled-memory PC +1 &middot; kit +1 (1,500&yen;) &middot; shop +2 (15,000&yen;) &middot; mainframe host +4 (100&yen; &times; SV/day) &middot; Programming Suite +5 (300,000&yen;). Hardware side (Tool Availability table): having a better tool unit than the task requires grants its own bonus. Multiplier = 1 + total bonus, capped &times;10.', r:'Whether bonuses stack is GM discretion &mdash; the rules don\'t say, so this field doesn\'t either. Tools are bought like any gear through the fixer pipe; when the decker invests, bump the multiplier on their jobs.' },
-  'omc': { t:'Archive &middot; OMC off-line storage', b:'Your chip rack: every program you own lives on off-line OMC chips, separate from any deck. The meter sums your library against OMC capacity only &mdash; deck storage is the deck\'s. Loadouts copy FROM the archive TO a deck. Need more shelf? Order OMC through your fixer (50 nuyen + 0.5/Mp); on GM approval the capacity bumps automatically.', r:'OMC doubles as Tar Pit insurance: a backup chip carried on the run is the only thing that survives a full viral corruption.' },
+  'omc': { t:'Archive &middot; OMC off-line storage', b:'Your chip rack: every program you own lives on off-line OMC chips, separate from any deck. The meter sums your library against OMC capacity only &mdash; deck storage is the deck\'s. Loadouts copy FROM the archive TO a deck. Need more shelf? Order OMC through your fixer (50 nuyen + 0.5/Mp); on GM approval the capacity bumps automatically.', r:'OMC is offline Tar Pit insurance: archive chips stay outside the run and survive corruption of every copy on the cyberdeck.' },
   'iccm': { t:'ICCM Biofeedback Filter', b:'IC countermeasures: lets you resist Black IC damage with Willpower instead of Body, and changes the jack-out procedure while under Black IC attack.', r:'Priced off MPCP rating. The difference between a bad night and a body bag.' },
   'rfilter': { t:'Reality Filter', b:'Runs the entire Matrix through your chosen metaphor (cyberpunk swordsman, jazz club, take your pick). +2 Reaction and +1d6 Matrix Initiative, but costs 1 point of MPCP rating (may force persona cuts). Toggle is a Free Action at the start of a Combat Turn; shutting it off mid-run halves your current Initiative.', r:'Edge case on sculpted hosts whose metaphor differs: MPCP Test vs Security Value &mdash; win, your filter dominates; lose, -2 Reaction / -1d6 Init for the run. Built as MPCP+2 rating, mult 8 (expensive).' },
   'satlink': { t:'Satlink Interface', b:'Jack in via satellite uplink &mdash; requires an external dish. Connecting takes a Computer Test vs conditions (TN 2 open country with clear horizon, worse with obstruction), base time 3 minutes; on a failure, wait 5 minutes to retry.', r:'Why bother: mobile jackpoints and a friendlier Trace Factor (+2).' },
