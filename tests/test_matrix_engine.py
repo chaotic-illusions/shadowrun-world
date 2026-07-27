@@ -176,16 +176,14 @@ class TestSystemTest:
         assert t["decker_net_successes"] == 3
 
     def test_tie_goes_to_decker(self, scripted):
-        # House rule (vr2 line 152, modified): decker 1 success, host 1 success -> tie -> the
-        # decker SUCCEEDS; tally still += host successes.
+        # Decker 1 success, host 1 success -> tie -> the decker SUCCEEDS; tally still rises.
         scripted([4, 1, 6])  # decker: [4,1] vs TN4 -> 1 success; host: [6] vs TN5 -> 1
         t = eng.system_test(decker_pool=2, subsystem_rating=4, security_value=1, det_factor=5)
         assert t["success"] is True
         assert t["tally_increase"] == 1
 
     def test_zero_vs_zero_tie_is_a_mutual_whiff(self, scripted):
-        # House rule edge: a 0-vs-0 tie means EVERYTHING missed -> nothing happened -> the task
-        # fails. The decker needs at least 1 success for a tie to count.
+        # A 0-vs-0 tie means everything missed, so the task fails.
         scripted([1, 1, 1])  # decker: [1,1] vs TN4 -> 0 success; host: [1] vs TN5 -> 0
         t = eng.system_test(decker_pool=2, subsystem_rating=4, security_value=1, det_factor=5)
         assert t["success"] is False
@@ -619,6 +617,37 @@ class TestTarBaby:
         out = eng.tar_baby_test(ic_rating=2, utility_rating=2, is_tar_pit=True, mpcp_rating=6)
         assert out["ic_wins"] is True
         assert out["all_copies_corrupted"] is True
+
+    def test_nonzero_tie_favors_utility(self, scripted):
+        scripted([6, 1, 6, 1])
+        out = eng.tar_baby_test(ic_rating=2, utility_rating=2)
+        assert out["ic_roll"]["successes"] == 1
+        assert out["util_roll"]["successes"] == 1
+        assert out["ic_wins"] is False
+        assert out["utility_crashed"] is False and out["ic_crashed"] is False
+
+
+class TestLocateDeckerTies:
+    def test_nonzero_tie_favors_pc_locator(self, scripted):
+        scripted([6, 1, 6, 1])
+        out = eng.pc_locate_decker_test(
+            sensor_rating=2, scanner_rating=0, enemy_mask_sleaze=2, enemy_evasion=2)
+        assert out["pc_roll"]["successes"] == out["enemy_roll"]["successes"] == 1
+        assert out["located"] is True
+
+    def test_nonzero_tie_favors_pc_target(self, scripted):
+        scripted([6, 1, 6, 1])
+        out = eng.enemy_locate_test(
+            computer_skill=2, scanner_rating=0, sensor_rating=2,
+            pc_detection_factor=2, pc_evasion=2)
+        assert out["enemy_roll"]["successes"] == out["pc_roll"]["successes"] == 1
+        assert out["located"] is False
+
+    def test_zero_tie_locates_nobody(self, scripted):
+        scripted([1, 1, 1, 1])
+        pc = eng.pc_locate_decker_test(
+            sensor_rating=2, scanner_rating=0, enemy_mask_sleaze=2, enemy_evasion=2)
+        assert pc["located"] is False
 
 
 class TestSteamroller:

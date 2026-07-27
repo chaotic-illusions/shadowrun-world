@@ -1214,6 +1214,8 @@ Hardening protects the deck from gray IC that targets the MPCP. Each point of Ha
 - Increases the target number for all tests made by gray IC against the MPCP by 1 (effectively: TN = MPCP Rating + Hardening).
 - Reduces the Power of sparky and black IC damage to the decker.
 
+**Maximum Rating:** Hardening cannot exceed half the deck's MPCP Rating, rounded down. This is an intentional carry-over from the original *Virtual Realities* construction rules.
+
 **Software Task:**
 - Rating: Hardening Rating
 - Multiplier: 8

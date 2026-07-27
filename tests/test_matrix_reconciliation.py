@@ -57,6 +57,33 @@ DESIGNER = (ROOT / "frontend" / "matrix-designer.html").read_text(encoding="utf-
 ACTION_TYPES = set(typing.get_args(ActionType))
 
 
+def test_unidentified_lurking_ic_does_not_leak_reactive_behavior():
+    assert "Lurking -- Reactive" not in RUN_UI
+    assert "const triggerSummary = !typeKnown ? ''" in RUN_UI
+    assert "Triggers on System Tests" in RUN_UI
+
+
+def test_storage_meter_uses_fixed_capacity_snapshot():
+    assert "state.storage_capacity_mp" in RUN_UI
+
+
+def test_one_shot_storage_and_tar_help_match_rules():
+    assert "isOneShotItem(i) ? i.target === 'storage' : targetUsesStorage(i.target)" in RUN_UI
+    assert "const one_shot_active = {};" in RUN_UI
+    assert "one_shot_active[ident.typeKey] = (one_shot_active[ident.typeKey] || 0) + 1;" in RUN_UI
+    assert "One-Shot copies occupy one pool at a time" in WORKSHOP
+    assert "Tar Baby destroys all active copies" in WORKSHOP
+    assert "archive chips stay outside the run" in WORKSHOP
+    assert "Tar Baby crashes the firing copy only" not in WORKSHOP
+    assert "offline archive software survives" in PROGRAM_CATALOG
+    assert "Tar Baby/Tar Pit crashes wipe all copies" not in PROGRAM_CATALOG
+    assert "storage master" not in WORKSHOP.lower()
+    assert "storage master" not in PROGRAM_CATALOG.lower()
+    assert "MIXED COPIES BLOCKED" in WORKSHOP
+    assert "Mixed One-Shot builds" in RUN_UI
+    assert "damage:${attackDamage}|limit:${limitTarget}" in WORKSHOP
+
+
 def _js_array(text: str, name: str) -> str:
     """Return the source of the JS array literal ``name = [ ... ]`` (up to the first ``];``)."""
     m = re.search(name + r"\s*=\s*\[", text)
@@ -76,6 +103,7 @@ WORKSHOP_OPTIONS = set(re.findall(r"id:\s*'([^']+)'", _js_array(PROGRAM_CATALOG,
 DEDICATED_CONTROLS = {
     "logon_to_host": "doLogon",     # >> Log On to Host button + doLogon()
     "graceful_logoff": "/logoff",   # logoff modal POSTs /logoff
+    "analyze_ic": "analyzeIC",      # Analyze button on each visible IC card
 }
 
 #: Multi-actor mechanics that MUST resolve through a single shared engine primitive (req 4).
@@ -195,6 +223,74 @@ def test_req2_every_action_type_is_reachable_or_documented():
 def test_req2_action_registry_matches_existing_coverage_contract():
     assert ACTION_TYPES == COV_ACTIONS
     assert CONSOLE_ACTIONS <= ACTION_TYPES        # no console key outside the schema Literal
+
+
+def test_req2_contextual_ic_actions_are_target_gated():
+    catalog = _js_array(RUN_UI, "ACTION_CATALOG")
+    assert "function _slowEligibleIC" in RUN_UI
+    assert "_slowEligibleIC(s).length > 0" in catalog
+    assert "_tarIC(s).length > 0" in catalog
+    assert "analyze_ic" not in CONSOLE_ACTIONS
+    assert "onclick=\"analyzeIC(" in RUN_UI
+    assert "valid: s => !(parseInt(s.redirects_placed, 10) > 0)" in RUN_UI
+
+
+def test_req2_run_ui_enforces_free_actions_and_hunt_only_trace_targeting():
+    trace_helper = RUN_UI[RUN_UI.index("function _traceTargetable"):RUN_UI.index("function _slowEligibleIC")]
+    assert "ic.trace_phase != null" in trace_helper
+    assert "['hunt', 'hunting', 'hunt_hit'].includes" in trace_helper
+    assert "!!ic.located" not in RUN_UI
+    assert "const _freeOk = _canAffordCost" in RUN_UI
+    assert "const _analyzeOk =" in RUN_UI
+    assert "(_freeOk && _analyzeOk) ? `onclick=\"analyzeIC(" in RUN_UI
+    assert "No Analyze utility loaded -- load a copy before analyzing IC" in RUN_UI
+    assert "No Free action left this pass -- End Turn to refresh" in RUN_UI
+    assert "&& _traceTargetable(ic)" in RUN_UI
+    response_helper = RUN_UI[RUN_UI.index("function _applyRunResponse"):RUN_UI.index("// -- Area Strike")]
+    assert "['pageAlert', 'runAlert'].forEach" in response_helper
+    assert "alert.className = 'alert'" in response_helper
+
+
+def test_req2_scramble_refs_and_shield_display_do_not_leak_or_split_results():
+    assert "value: sc.scramble_ref" in RUN_UI
+    assert "value: sc.target_key" not in RUN_UI
+    stream = RUN_UI[RUN_UI.index("function _streamDiceHtml"):RUN_UI.index("function _beatClassFor")]
+    assert "const combined = baseSuccesses +" in stream
+    assert "persona</span>;" in stream
+    assert "+ shield" in stream
+    assert "String(combined)" in stream
+    assert "total defense" in stream
+    assert "function _hasStreamDice" in RUN_UI
+    assert "roll.shield_dice" in RUN_UI
+    assert "_streamPipsHtml(roll.shield_dice, tn, ss, ' mr-die-shield')" in stream
+    assert "hiddenTnHits.has(index)" in RUN_UI
+    assert ".mr-die.mr-die-shield.hit" in RUN_UI
+    assert "ssTxt" not in stream
+
+
+def test_req2_known_security_pane_includes_discovered_scrambles():
+    assert "&gt;&gt; KNOWN IC &amp; DEFENSES" in RUN_UI
+    assert "No security identified" in RUN_UI
+    assert "_discoveredScrambles(state), state.run_ended" in RUN_UI
+    renderer = RUN_UI[RUN_UI.index("function renderActiveIC"):RUN_UI.index("function renderConditionBoxesHTML")]
+    assert "Subsystem Defenses" in renderer
+    assert "DETECTED / RATING UNKNOWN" in renderer
+    assert "scramble.label" in renderer
+
+
+def test_req2_event_stamp_shows_round_and_initiative_count():
+    stamp = RUN_UI[RUN_UI.index("function _eventStamp"):RUN_UI.index("// Roll fields an event")]
+    assert "'R' + esc(String(ev.turn))" in stamp
+    assert "' i' + esc(String(ev.init))" in stamp
+
+
+def test_req2_logoff_values_and_terminated_navigation_are_safe_and_reachable():
+    assert 'Using Deception-<output id="logoff-deception">0</output> from active memory.' in RUN_UI
+    assert "_autoUtilRating('graceful_logoff')" in RUN_UI
+    assert "body: JSON.stringify({ hacking_pool_dice: hpDice })" in RUN_UI
+    assert 'href="world-state.html">$ cd /world' in RUN_UI
+    assert 'onclick="startAnotherRun()"' in RUN_UI
+    assert "sessionStorage.removeItem('active_run_id')" in RUN_UI
 
 
 # ============================================================ REQ 4 -- ONE SHARED SEAM

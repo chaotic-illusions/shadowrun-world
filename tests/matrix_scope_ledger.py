@@ -71,7 +71,7 @@ ACTORS = ("pc_decker", "enemy_decker", "ic", "dinab")
 PROGRAMS: dict[str, dict] = {
     # --- Operational (12): reduce the TN of / enable a System Operation -----------
     "Analyze":    {"slot": "analyze",      "cat": "Operational", "cfg": "cfg-u-analyze",
-                   "invoke": [{"kind": "console", "key": "analyze_ic"}],
+                   "invoke": [{"kind": "raw", "key": "analyzeIC"}],
                    "resolver": "system_test", "vr2": 1447},
     "Crash":      {"slot": "crash",        "cat": "Operational", "cfg": "cfg-u-crash",
                    "invoke": [{"kind": "console", "key": "crash_host"}],

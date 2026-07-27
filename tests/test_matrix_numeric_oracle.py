@@ -280,14 +280,16 @@ def _p_worm_attack(mp):
 
 
 def _p_disinfect_test(mp):
-    # SUCCESS: TN = subsystem 6 - Disinfect 2 = 4; 2 successes -> worm destroyed, no tally.
-    r = _run(mp, [6, 6, 2, 2, 2], eng.disinfect_test,
-             decker_pool=5, subsystem_rating=6, disinfect_utility=2)
-    assert r["tn"] == 4 and r["worm_destroyed"] is True
-    # FAILURE: no Disinfect, TN = subsystem 6; 0 successes -> the worm survives.
-    r = _run(mp, [2, 2, 2, 2], eng.disinfect_test,
-             decker_pool=4, subsystem_rating=6, disinfect_utility=0)
-    assert r["tn"] == 6 and r["worm_destroyed"] is False
+    # SUCCESS: 2 decker successes beat 0 host successes; host tally stays flat.
+    r = _run(mp, [6, 6, 2, 2, 2, 1, 1], eng.disinfect_test,
+             decker_pool=5, subsystem_rating=6, disinfect_utility=2,
+             security_value=2, det_factor=4)
+    assert r["tn"] == 4 and r["worm_destroyed"] is True and r["tally_increase"] == 0
+    # FAILURE: no decker successes vs 2 host successes; worm survives and tally rises by 2.
+    r = _run(mp, [2, 2, 2, 2, 4, 4], eng.disinfect_test,
+             decker_pool=4, subsystem_rating=6, disinfect_utility=0,
+             security_value=2, det_factor=4)
+    assert r["tn"] == 6 and r["worm_destroyed"] is False and r["tally_increase"] == 2
 
 
 def _p_scramble_decrypt_test(mp):

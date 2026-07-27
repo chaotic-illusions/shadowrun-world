@@ -89,9 +89,14 @@ def record_failure(request: Request, scope: str = "any") -> None:
     _attempts[key] = (failures + 1, time.monotonic())
 
 
-def record_success(request: Request, scope: str = "any") -> None:
-    """Call after a successful auth to reset the backoff counter."""
-    _attempts.pop((_client_ip(request), scope), None)
+def record_success(request: Request, scope: str | None = "any") -> None:
+    """Call after a successful auth to reset one scope, or every scope when ``scope`` is None."""
+    ip = _client_ip(request)
+    if scope is None:
+        for key in [key for key in _attempts if key[0] == ip]:
+            del _attempts[key]
+        return
+    _attempts.pop((ip, scope), None)
 
 
 # -- Per-caller call-rate throttle (expensive authenticated endpoints) ---------
@@ -107,12 +112,9 @@ CALL_LIMIT = 30        # max calls per key per window (accommodates the live-pre
 _calls: dict[str, list[float]] = {}
 
 
-def _throttle_key(request: Request) -> str:
-    """Bucket key for the call-rate throttle: prefer the caller's (already auth-validated)
-    token so the limit is per-token, falling back to the client IP when no token header is
-    present. The token is keyed only by its SHA-256 hash -- never store the plaintext.
-    """
-    tok = request.headers.get("x-user-token") or request.headers.get("x-admin-token")
+def _throttle_key(request: Request, auth: dict | None = None) -> str:
+    """Bucket key for the call-rate throttle, derived from authenticated context when present."""
+    tok = auth.get("user_token") if auth else None
     if tok:
         return "tok:" + hash_token(tok)
     return "ip:" + _client_ip(request)
@@ -126,7 +128,7 @@ def _prune_calls() -> None:
         del _calls[k]
 
 
-async def enforce_call_rate(request: Request) -> None:
+async def enforce_call_rate(request: Request, auth: dict | None = None) -> None:
     """FastAPI dependency -- throttle an expensive authenticated endpoint to CALL_LIMIT calls
     per CALL_WINDOW seconds per caller. Raises 429 when the window is full.
 
@@ -136,7 +138,7 @@ async def enforce_call_rate(request: Request) -> None:
     """
     _prune_calls()
     now = time.monotonic()
-    key = _throttle_key(request)
+    key = _throttle_key(request, auth)
     recent = [t for t in _calls.get(key, ()) if now - t < CALL_WINDOW]
     if len(recent) >= CALL_LIMIT:
         retry = int(CALL_WINDOW - (now - recent[0])) + 1

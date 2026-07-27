@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -46,6 +47,8 @@ class _DB:
 def _decker() -> dict:
     return {
         "character_id": 7,
+        "deck_name": "Cipher Rig",
+        "loadout_name": "Quiet Entry",
         "name": "Spoofed",
         "computer_skill": 1,
         "intelligence": 1,
@@ -58,6 +61,7 @@ def _decker() -> dict:
         "masking": 6,
         "sensor": 6,
         "utilities": {},
+            "base_bandwidth": 20,
     }
 
 
@@ -73,15 +77,156 @@ def test_player_decker_uses_owned_active_pc_identity_and_attributes():
         quickness=6,
         willpower=5,
         body=4,
+        deck_builder_state={
+            "stores": {
+                "sr2_decks_v1": [{
+                    "name": "Cipher Rig", "status": "ready", "deckType": "hot",
+                    "mpcp": 6, "pBod": 4, "pEvasion": 3, "pMasking": 4, "pSensor": 4,
+                    "hardening": 2, "respIncrease": 1, "activeMem": 200,
+                    "ioSpeed": 20, "offlineStorage": 300, "realityFilter": True,
+                }],
+                "sr2_loadouts_v1": [{
+                    "name": "Quiet Entry", "deckName": "Cipher Rig", "items": [{
+                        "programTypeKey": "attack", "utilName": "Attack", "baseRating": 4,
+                        "actualSize": 20, "target": "active", "mods": "Targeting",
+                        "attackDamage": 4,
+                    }],
+                }],
+            },
+        },
     )
+    payload = _decker()
+    payload["utilities"] = {"attack": 50}
+    payload["program_options"] = {"attack": {"area": 50}}
     result = asyncio.run(mr._authoritative_player_decker(
-        _DB(character), {"user_token": "player-token"}, _decker()
+        _DB(character), {"user_token": "player-token"}, payload
     ))
     assert result["character_id"] == 7
     assert result["name"] == "Cipher"
     assert result["computer_skill"] == 8
     assert (result["intelligence"], result["quickness"], result["willpower"], result["body"]) == (7, 6, 5, 4)
     assert result["mpcp"] == 6
+    assert result["reality_filter"] is True
+    assert result["utilities"] == {"attack": 4}
+    assert result["program_options"]["attack"]["targeting"] is True
+    assert result["program_options"]["attack"]["area"] == 0
+    assert result["program_sizes"]["attack"] == 144
+
+
+@pytest.mark.parametrize("field,value,match", [
+    ("hardening", 4, "Hardening"),
+    ("ioSpeed", 25, "I/O Speed"),
+    ("respIncrease", 2, "Response Increase"),
+    ("pBod", 7, "persona ratings"),
+])
+def test_persisted_deck_rejects_invalid_hardware_or_persona(field, value, match):
+    deck = {
+        "mpcp": 6, "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+        "hardening": 2, "respIncrease": 1, "activeMem": 200,
+        "ioSpeed": 20, "offlineStorage": 300, "deckType": "hot",
+    }
+    deck[field] = value
+    with pytest.raises(HTTPException, match=match):
+        mr._validated_deck_values(deck)
+
+
+def test_program_size_matches_javascript_half_up_rounding():
+    item = {"mods": "One-Shot", "attackDamage": 2}
+    assert mr._program_actual_size(item, "attack", 3) == 5
+
+
+def test_persisted_loadout_preserves_multiple_active_one_shot_copies():
+    program = {
+        "programTypeKey": "attack", "utilName": "Attack", "baseRating": 3,
+        "target": "active", "mods": "One-Shot", "attackDamage": 2,
+    }
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 20,
+            "ioSpeed": 20, "offlineStorage": 5,
+        }],
+        "sr2_loadouts_v1": [{
+            "name": "Copies", "deckName": "Copy Rig", "items": [program, dict(program)],
+        }],
+    }})
+    request = {"deck_name": "Copy Rig", "loadout_name": "Copies", "base_bandwidth": 20}
+    result = mr._decker_from_persisted_loadout(character, request)
+    assert result["one_shot_active"] == {"attack": 2}
+    assert result["storage_free_mp"] == 5
+    assert result["storage_programs"] == []
+
+
+def test_persisted_loadout_honors_structured_one_shot_flag():
+    program = {
+        "programTypeKey": "analyze", "utilName": "Analyze", "baseRating": 4,
+        "target": "active", "mods": "", "isOneShot": True,
+    }
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 100,
+            "ioSpeed": 20, "offlineStorage": 100,
+        }],
+        "sr2_loadouts_v1": [{
+            "name": "Copies", "deckName": "Copy Rig", "items": [program],
+        }],
+    }})
+    request = {"deck_name": "Copy Rig", "loadout_name": "Copies", "base_bandwidth": 20}
+    result = mr._decker_from_persisted_loadout(character, request)
+    assert result["program_options"]["analyze"]["one_shot"] is True
+    assert result["one_shot_active"] == {"analyze": 1}
+
+
+def test_persisted_loadout_preserves_each_stored_one_shot_copy():
+    program = {
+        "programTypeKey": "attack", "utilName": "Attack", "baseRating": 3,
+        "target": "storage", "mods": "One-Shot", "attackDamage": 2,
+    }
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 20,
+            "ioSpeed": 20, "offlineStorage": 15,
+        }],
+        "sr2_loadouts_v1": [{
+            "name": "Copies", "deckName": "Copy Rig", "items": [program, dict(program)],
+        }],
+    }})
+    result = mr._decker_from_persisted_loadout(
+        character, {"deck_name": "Copy Rig", "loadout_name": "Copies", "base_bandwidth": 20},
+    )
+    assert result["one_shot_active"] == {}
+    assert [p["name"] for p in result["storage_programs"]] == ["attack", "attack"]
+    assert result["storage_free_mp"] == 5
+
+
+def test_persisted_loadout_rejects_mixed_one_shot_builds_of_same_type():
+    light = {
+        "programTypeKey": "attack", "utilName": "Attack", "baseRating": 3,
+        "target": "active", "mods": "One-Shot", "attackDamage": 2,
+    }
+    serious = {**light, "target": "storage", "attackDamage": 4}
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 100,
+            "ioSpeed": 20, "offlineStorage": 100,
+        }],
+        "sr2_loadouts_v1": [{
+            "name": "Mixed Copies", "deckName": "Copy Rig", "items": [light, serious],
+        }],
+    }})
+
+    with pytest.raises(HTTPException, match="must use the same build"):
+        mr._decker_from_persisted_loadout(
+            character,
+            {"deck_name": "Copy Rig", "loadout_name": "Mixed Copies", "base_bandwidth": 20},
+        )
 
 
 def test_admin_start_run_preserves_ad_hoc_decker(monkeypatch):
@@ -101,7 +246,11 @@ def test_admin_start_run_preserves_ad_hoc_decker(monkeypatch):
     monkeypatch.setattr(mr, "_assert_no_unacknowledged_run", _gate)
     monkeypatch.setattr(mr, "_create_run", _create)
     monkeypatch.setattr(mr, "_serialize_run", lambda run, auth: run.state_json)
-    body = MatrixRunCreate(host_id=1, decker=_decker())
+    body = MatrixRunCreate(host_id=1, decker={
+        **_decker(),
+        "program_options": {"attack": {"one_shot": True}},
+        "one_shot_active": {"attack": 2},
+    })
 
     asyncio.run(mr.start_run(
         body=body,
@@ -110,6 +259,7 @@ def test_admin_start_run_preserves_ad_hoc_decker(monkeypatch):
     ))
     assert captured["gate"]["name"] == "Spoofed"
     assert captured["create"]["computer_skill"] == 1
+    assert captured["create"]["one_shot_active"] == {"attack": 2}
 
 
 @pytest.mark.parametrize("change", [
@@ -181,6 +331,128 @@ def test_generic_host_operation_is_blocked_before_logon(monkeypatch):
             auth={"is_admin": True, "is_user": False, "user_token": None},
             db=_DB(),
         ))
+
+
+def test_generic_operation_ignores_client_rating_and_modifier(monkeypatch):
+    decker = _decker()
+    decker["utilities"] = {"deception": 5}
+    state = mr._initial_state(decker, _Host(1, "Host"))
+    state.update({"logon_complete": True, "program_damage": {"deception": 2}})
+    run = SimpleNamespace(status="active", state_json=state, decker_json=decker,
+                          owner_token_hash=None, host_id=1)
+    captured = {}
+
+    async def _run(db, run_id):
+        return run
+
+    def _test(**kwargs):
+        captured.update(kwargs)
+        return {
+            "success": True, "decker_net_successes": 1, "tally_increase": 0,
+            "decker_roll": {"successes": 1, "tn": 7},
+            "host_roll": {"successes": 0},
+        }
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _run)
+    monkeypatch.setattr(mr, "_serialize_run", lambda current, auth: current.state_json)
+    monkeypatch.setattr(mr, "_advance_npc_pass", lambda *args, **kwargs: None)
+    monkeypatch.setattr(eng, "system_test", _test)
+    body = RunActionInput(
+        action_type="null_operation", subsystem="control",
+        utility_rating=50, extra_tn_modifier=-6,
+    )
+    asyncio.run(mr.perform_action(
+        run_id=1, body=body,
+        auth={"is_admin": True, "is_user": False, "user_token": None}, db=_DB(),
+    ))
+    assert captured["extra_tn_modifier"] == -3
+
+
+def test_attack_ignores_client_pool(monkeypatch):
+    from app.schemas.matrix_run import RunAttackInput
+
+    decker = _decker()
+    decker["utilities"] = {"attack": 5}
+    state = mr._initial_state(decker, _Host(1, "Host"))
+    state.update({
+        "logon_complete": True,
+        "program_damage": {"attack": 2},
+        "active_ic": [{
+            "id": "ic1", "type": "Killer", "rating": 4,
+            "status": "active", "boxes": 0,
+        }],
+    })
+    run = SimpleNamespace(status="active", state_json=state, decker_json=decker,
+                          owner_token_hash=None, host_id=1)
+    captured = {}
+
+    async def _run(db, run_id):
+        return run
+
+    def _attack(**kwargs):
+        captured.update(kwargs)
+        return {
+            "attack_roll": {"successes": 0, "ones": 0, "pool": kwargs["attacker_pool"]},
+            "resistance": {
+                "resist_roll": {"successes": 0},
+                "final_damage_level": "None", "boxes": 0,
+            },
+        }
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _run)
+    monkeypatch.setattr(mr, "_serialize_run", lambda current, auth: current.state_json)
+    monkeypatch.setattr(eng, "cybercombat_attack", _attack)
+    asyncio.run(mr.attack_ic(
+        run_id=1,
+        body=RunAttackInput(target_ic_id="ic1", attack_pool=40, hacking_pool_dice=1),
+        auth={"is_admin": True, "is_user": False, "user_token": None}, db=_DB(),
+    ))
+    assert captured["attacker_pool"] == 4
+
+
+@pytest.mark.parametrize(
+    ("action_type", "subsystem", "target_file"),
+    [
+        ("download_data", "files", "Hidden File"),
+        ("edit_file", "files", "Hidden File"),
+        ("analyze_icon", "control", "files::Hidden File"),
+        ("analyze_icon", "control", "slave::Unknown Camera"),
+    ],
+)
+def test_hidden_targets_are_rejected_without_spending_or_mutating(
+    monkeypatch, action_type, subsystem, target_file,
+):
+    decker = _decker()
+    state = mr._initial_state(decker, _Host(1, "Host"))
+    state.update({
+        "logon_complete": True,
+        "paydata": [{"name": "Hidden File", "density": 10, "located": False}],
+        "slave_devices": ["Known Camera"],
+        "analyzed_subsystems": ["slave"],
+    })
+    original = copy.deepcopy(state)
+    run = SimpleNamespace(status="active", state_json=state, decker_json=decker,
+                          owner_token_hash=None, host_id=1)
+
+    async def _run(db, run_id):
+        return run
+
+    def _unexpected_test(**kwargs):
+        pytest.fail("hidden target reached the Matrix test engine")
+
+    monkeypatch.setattr(mr, "_get_run_or_404", _run)
+    monkeypatch.setattr(eng, "system_test", _unexpected_test)
+    body = RunActionInput(
+        action_type=action_type, subsystem=subsystem, target_file=target_file,
+        hacking_pool_dice=2,
+    )
+    with pytest.raises(HTTPException, match="not located|not visible") as exc:
+        asyncio.run(mr.perform_action(
+            run_id=1, body=body,
+            auth={"is_admin": True, "is_user": False, "user_token": None}, db=_DB(),
+        ))
+    assert exc.value.status_code == 400
+    assert run.state_json == original
 
 
 def test_host_stack_carries_deck_damage_and_only_pc_hog_infections():

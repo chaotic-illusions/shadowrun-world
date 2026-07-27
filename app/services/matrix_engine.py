@@ -93,9 +93,8 @@ def system_test(
     host_roll = roll_dice(security_value, det_factor)
 
     decker_net = decker_roll["successes"] - host_roll["successes"]
-    # House rule (vr2 line 152, modified): a TIE goes to the decker -- the task succeeds. RAW is
-    # decker_net > 0 (tie fails); we relax it to >= 0 to ease player deckers. BUT a 0-vs-0 tie is
-    # a mutual whiff -- nothing happened -- so the decker must score at least 1 success to win.
+    # A nonzero tie goes to the decker; a 0-vs-0 tie is a mutual whiff, so the decker must
+    # score at least one success for the task to succeed.
     success = decker_net >= 0 and decker_roll["successes"] > 0
 
     trace(
@@ -596,20 +595,39 @@ def _build_trap_ic_event(surface_type: str, security_value: int) -> dict:
     }
 
 
-def _build_construct_or_party_event(security_value: int) -> dict:
+def _build_construct_or_party_event(security_value: int, security_code: str = "Black") -> dict:
     components_allowed = _proactive_ic_types()
 
     kind = random.choice(["construct", "party_ic"])
-    component_count = 2 if kind == "construct" else random.choice([2, 3])
-    rating = _ic_rating(security_value)
+    capacity = max(2, security_value * 2)
+    max_rating = max(1, math.ceil(security_value * 2 / 3))
+    max_party_count = max(1, security_value // 2)
+    component_count = 2 if kind == "construct" else min(random.choice([2, 3]), max_party_count)
+    rating = min(_ic_rating(security_value), max_rating)
+
+    picked = _pick_unique_components(components_allowed, component_count)
+    components = []
+    remaining = capacity
+    for ic_type in picked:
+        surcharge = 2 if IC_CATALOG.get(ic_type, {}).get("category") == "black" else (
+            1 if IC_CATALOG.get(ic_type, {}).get("category") == "gray" else 0
+        )
+        component_rating = min(rating, max(1, remaining - surcharge))
+        if component_rating + surcharge > remaining:
+            break
+        components.append({"type": ic_type, "rating": component_rating})
+        remaining -= component_rating + surcharge
 
     if kind == "construct":
-        components = [{"type": ic_type, "rating": rating}
-                      for ic_type in _pick_unique_components(components_allowed, component_count)]
-        threat_rating = max(1, min(4, rating // 3))
+        max_threat = {"Blue": 0, "Green": 1, "Orange": 2, "Red": 3, "Black": 4}.get(
+            security_code, 4,
+        )
+        threat_rating = min(max_threat, max(0, rating // 3))
         # Roll the IC Defenses Table for the construct's single combined icon (vr2).
         defense = _table_pick(IC_DEFENSE_TABLE, _roll_2d6())
         defenses = [d for d in ("Armor", "Shifting", "Shielding") if d in defense]
+        while defenses and len(defenses) * 2 > remaining:
+            defenses.pop()
         return {
             "type": "construct",
             "threat_rating": threat_rating,
@@ -618,8 +636,17 @@ def _build_construct_or_party_event(security_value: int) -> dict:
         }
 
     # Party IC: each component is its own combat icon -- roll Options + Defenses for each.
-    components = [{"type": ic_type, "rating": rating, **_roll_ic_extras()}
-                  for ic_type in _pick_unique_components(components_allowed, component_count)]
+    for component in components:
+        extras = _roll_ic_extras()
+        options = list(extras.get("options") or [])
+        while options and len(options) > remaining:
+            options.pop()
+        if options:
+            extras["options"] = options
+            remaining -= len(options)
+        else:
+            extras.pop("options", None)
+        component.update(extras)
     return {
         "type": "party_ic",
         "components": components,
@@ -648,7 +675,7 @@ def _roll_ic_extras() -> dict[str, Any]:
     return extras
 
 
-def _build_ic_event(family: str, security_value: int) -> dict | None:
+def _build_ic_event(family: str, security_value: int, security_code: str = "Black") -> dict | None:
     rating = _ic_rating(security_value)
 
     if family == "reactive_white":
@@ -668,7 +695,7 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
         if result == "Trap Probe":
             return _build_trap_ic_event("Probe", security_value)
         if result == "Construct/Party IC":
-            return _build_construct_or_party_event(security_value)
+            return _build_construct_or_party_event(security_value, security_code)
         return None
 
     if family == "reactive_gray":
@@ -690,7 +717,7 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
         if result in {"Blaster", "Sparky"}:
             return {"type": "ic", "ic_type": result, "rating": rating, **_roll_ic_extras()}
         if result == "Construct/Party IC":
-            return _build_construct_or_party_event(security_value)
+            return _build_construct_or_party_event(security_value, security_code)
         return None
 
     if family == "black_ic":
@@ -700,7 +727,7 @@ def _build_ic_event(family: str, security_value: int) -> dict | None:
         if result == "Non-Lethal":
             return {"type": "ic", "ic_type": "Black IC", "rating": rating, "mode": "non_lethal", **_roll_ic_extras()}
         if result == "Construct/Party IC":
-            return _build_construct_or_party_event(security_value)
+            return _build_construct_or_party_event(security_value, security_code)
         return None
 
     return None
@@ -803,7 +830,7 @@ def _generate_sheaf_impl(
             events.append({"type": "shutdown"})
         else:
             level_steps += 1
-            candidate = _build_ic_event(outcome, security_value)
+            candidate = _build_ic_event(outcome, security_value, security_code)
             if candidate:
                 events.append(candidate)
         sheaf.append({"trigger": trig, "events": events})
@@ -953,9 +980,8 @@ def tar_baby_test(
     ic_roll = roll_dice(ic_rating, utility_rating)
     util_roll = roll_dice(utility_rating, ic_rating)
 
-    # A tie goes to the IC (the attacker), BUT a 0-vs-0 tie is a mutual whiff -- nothing happens,
-    # so the IC must land at least 1 success to crash the utility.
-    ic_wins = ic_roll["successes"] >= util_roll["successes"] and ic_roll["successes"] > 0
+    # Ties favor the decker's utility. Tar must score strictly more successes to crash it.
+    ic_wins = ic_roll["successes"] > util_roll["successes"]
     result: dict[str, Any] = {
         "ic_roll": ic_roll,
         "util_roll": util_roll,
@@ -1160,16 +1186,23 @@ def disinfect_test(
     decker_pool: int,
     subsystem_rating: int,
     disinfect_utility: int = 0,
+    security_value: int,
+    det_factor: int,
 ) -> dict[str, Any]:
-    """Active Disinfect operation (vr2): a System Test against the subsystem hosting the worm,
-    with the Disinfect utility reducing the target number (TN = subsystem rating - Disinfect,
-    floored at 2). Uses the rule-of-6 dice via roll_dice. Success destroys the worm IC with NO
-    security-tally cost (this is a Disinfect, not a cybercombat crash). On failure the worm may
-    infect the MPCP -- resolve that separately via worm_attack.
-    """
-    tn = max(2, subsystem_rating - disinfect_utility)
-    roll = roll_dice(decker_pool, tn)
-    return {"roll": roll, "tn": tn, "worm_destroyed": roll["successes"] > 0}
+    """Resolve Disinfect as an opposed host System Test with its utility TN reduction."""
+    result = system_test(
+        decker_pool=decker_pool,
+        subsystem_rating=subsystem_rating,
+        security_value=security_value,
+        det_factor=det_factor,
+        extra_tn_modifier=-disinfect_utility,
+    )
+    return {
+        **result,
+        "roll": result["decker_roll"],
+        "tn": result["decker_roll"]["tn"],
+        "worm_destroyed": result["success"],
+    }
 
 
 # -- Scramble IC (paydata protection) ------------------------------------------
@@ -1198,8 +1231,9 @@ def scramble_failure_consequence(
       protected data; if the Poison Test FAILS the data is safe (the poison is suppressed for
       this attempt). Key data lost this way is permanent and mission-critical.
     - Exploding: linked to a data bomb that detonates (data not wiped by the Scramble).
-    - Standard/other: no destruction -- the decker simply failed to decrypt.
     """
+    if variant not in {"exploding", "poison"}:
+        raise ValueError(f"Unsupported Scramble variant: {variant!r}")
     if variant == "poison":
         poison_tn = max(2, decker_computer_skill)
         poison_roll = roll_dice(scramble_rating, poison_tn)
@@ -1230,13 +1264,11 @@ def scramble_failure_consequence(
                 f"{scramble_rating}d6 vs TN {poison_tn}) on the failed decrypt."
             ),
         }
-    if variant == "exploding":
-        return {
-            "data_destroyed": False,
-            "detonate_data_bomb": True,
-            "message": "Exploding Scramble triggered -- its linked data bomb detonates.",
-        }
-    return {"data_destroyed": False, "message": "Decrypt failed; the Scramble holds."}
+    return {
+        "data_destroyed": False,
+        "detonate_data_bomb": True,
+        "message": "Exploding Scramble triggered -- its linked data bomb detonates.",
+    }
 
 
 # -- Enemy decker (security decker antagonist) ---------------------------------
@@ -1444,23 +1476,26 @@ def _locate_opposed(
     locator_scanner: int,
     target_evasion_dice: int,
     locator_sensor: int,
+    player_is_locator: bool,
 ) -> dict[str, Any]:
     """Shared opposed locate resolution used by BOTH directions (the PC locating an enemy decker and
     an enemy decker locating the PC). The locator rolls its locate dice vs the target's hidden rating
     (the PC's Detection Factor, or an enemy's full Masking + Sleaze) minus the locator's Scanner
-    utility; the target resists with Evasion dice vs the locator's Sensor. Any net locator success
-    pinpoints the target -- a single opposed test, no cumulative threshold. Rolls the locator first
-    so a scripted die sequence is consumed locator-then-target."""
+    utility; the target resists with Evasion dice vs the locator's Sensor. A nonzero tie favors
+    the player: it locates when the PC is the locator and blocks location when the PC is the target.
+    Rolls the locator first so a scripted die sequence is consumed locator-then-target."""
     target_tn = max(2, target_hidden_rating - locator_scanner)
     locator_roll = roll_dice(locator_dice, target_tn)
     target_roll = roll_dice(target_evasion_dice, locator_sensor)
-    net = max(0, locator_roll["successes"] - target_roll["successes"])
+    raw_net = locator_roll["successes"] - target_roll["successes"]
+    nonzero_tie = raw_net == 0 and locator_roll["successes"] > 0
+    located = raw_net > 0 or (nonzero_tie and player_is_locator)
     return {
         "locator_roll": locator_roll,
         "target_roll": target_roll,
         "target_tn": target_tn,
-        "net_successes": net,
-        "located": net > 0,
+        "net_successes": max(0, raw_net),
+        "located": located,
     }
 
 
@@ -1484,6 +1519,7 @@ def enemy_locate_test(
         locator_scanner=scanner_rating,
         target_evasion_dice=pc_evasion,
         locator_sensor=sensor_rating,
+        player_is_locator=False,
     )
     return {
         "enemy_roll": r["locator_roll"],
@@ -1516,6 +1552,7 @@ def pc_locate_decker_test(
         locator_scanner=scanner_rating,
         target_evasion_dice=enemy_evasion,
         locator_sensor=sensor_rating,
+        player_is_locator=True,
     )
     return {
         "pc_roll": r["locator_roll"],
