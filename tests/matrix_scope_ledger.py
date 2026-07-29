@@ -69,21 +69,24 @@ ACTORS = ("pc_decker", "enemy_decker", "ic", "dinab")
 #            or "passive" (no test of its own)
 # vr2   = vr2_rules.md line for the governing rule
 PROGRAMS: dict[str, dict] = {
-    # --- Operational (12): reduce the TN of / enable a System Operation -----------
+    # --- Operational (13): reduce the TN of / enable a System Operation -----------
     "Analyze":    {"slot": "analyze",      "cat": "Operational", "cfg": "cfg-u-analyze",
                    "invoke": [{"kind": "raw", "key": "analyzeIC"}],
                    "resolver": "system_test", "vr2": 1447},
+    "Browse":     {"slot": "browse",       "cat": "Operational", "cfg": "cfg-u-browse",
+                   "invoke": [{"kind": "console", "key": "locate_file"}],
+                   "resolver": "system_test", "vr2": 1885},
     "Crash":      {"slot": "crash",        "cat": "Operational", "cfg": "cfg-u-crash",
                    "invoke": [{"kind": "console", "key": "crash_host"}],
                    "resolver": "system_test", "vr2": 1447},
     "Defuse":     {"slot": "defuse",       "cat": "Operational", "cfg": "cfg-u-defuse",
-                   "invoke": [{"kind": "console", "key": "defuse_data_bomb"}],
+                   "invoke": [{"kind": "raw", "key": "defuseBomb"}],
                    "resolver": "data_bomb_defuse", "vr2": 1447},
     "Deception":  {"slot": "deception",    "cat": "Operational", "cfg": "cfg-u-deception",
                    "invoke": [{"kind": "raw", "key": "doLogon"}],
                    "resolver": "system_test", "vr2": 1447},
     "Decrypt":    {"slot": "decrypt",      "cat": "Operational", "cfg": "cfg-u-decrypt",
-                   "invoke": [{"kind": "console", "key": "decrypt_file"}],
+                   "invoke": [{"kind": "raw", "key": "decryptScramble"}],
                    "resolver": "scramble_decrypt_test", "vr2": 1447},
     "Disinfect":  {"slot": "disinfect",    "cat": "Operational", "cfg": "cfg-u-disinfect",
                    "invoke": [{"kind": "console", "key": "disinfect"}],
@@ -295,17 +298,12 @@ EXCLUSIONS: dict[str, dict] = {
                   "there is no way to build a program carrying it, so nothing to reconcile in-run.",
         "vr2": 1629},
     # --- VR2 utilities / programs the app intentionally does not model ---------------
-    "Browse (program)": {"kind": "program",
-        "reason": "Culled operational utility; the app models data discovery via Locate Paydata "
-                  "(Evaluate) + Analyze instead of a separate Browse program.", "vr2": 1447},
     "Commlink (program)": {"kind": "program",
         "reason": "Culled operational utility; not modelled (no comm-relay play in the run engine).",
         "vr2": 1447},
     "Spoof (program)": {"kind": "program",
         "reason": "Culled operational utility and its slave-spoof operations are not modelled.",
         "vr2": 1447},
-    "Locate File (program)": {"kind": "program",
-        "reason": "Culled; file discovery folds into Locate Paydata / Analyze Subsystem.", "vr2": 1447},
     "Track (program)": {"kind": "program",
         "reason": "Not modelled; PC-side trace-back play is out of scope for the run engine.",
         "vr2": 1447},

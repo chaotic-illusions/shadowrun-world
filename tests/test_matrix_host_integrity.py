@@ -86,6 +86,76 @@ def test_unsupported_scramble_variants_are_dropped():
     ]
 
 
+def test_slave_scrambles_and_slave_data_bombs_are_dropped():
+    # Slave-subsystem defenses are unreachable in a run (no slave-control action exists), so the
+    # normalizer strips slave scrambles AND slave data bombs -- keeping Files/Access defenses.
+    normalized = normalize_host_config({
+        "paydata": [],
+        "scrambles": [
+            {"target_key": "slave::entire", "rating": 6, "variant": "exploding"},
+            {"target_key": "slave::piece::Camera", "rating": 5, "variant": "exploding"},
+            {"target_key": "access::entire", "rating": 6, "variant": "exploding"},
+        ],
+        "data_bombs": [
+            {"target": "slave::Camera", "rating": 5},
+            {"target": "__slave__", "rating": 4},
+        ],
+    })
+    assert normalized["scrambles"] == [
+        {"target_key": "access::entire", "rating": 6, "variant": "exploding"},
+    ]
+    assert normalized["data_bombs"] is None   # every bomb here was slave-scoped
+
+
+def test_exploding_plus_data_bomb_collapses_to_data_bomb_only():
+    # A file cannot have both an Exploding Scramble and a standalone Data Bomb (two bombs); the
+    # normalizer keeps ONLY the Data Bomb and drops the Exploding Scramble.
+    normalized = normalize_host_config({
+        "paydata": [{
+            "name": "Blueprints",
+            "defense": {"data_bomb_rating": 6, "scramble_rating": 6,
+                        "scramble_variant": "exploding"},
+        }],
+    })
+    pid = normalized["paydata"][0]["id"]
+    assert normalized["data_bombs"] == [{"target": f"files::{pid}", "rating": 6}]
+    assert normalized["scrambles"] is None   # the Exploding Scramble was dropped
+
+
+def test_poison_plus_data_bomb_combo_is_kept():
+    # Poison + Data Bomb is a valid combo (the Poison Scramble is not itself a bomb), so BOTH survive.
+    normalized = normalize_host_config({
+        "paydata": [{
+            "name": "Ledger",
+            "defense": {"data_bomb_rating": 5, "scramble_rating": 7, "scramble_variant": "poison"},
+        }],
+    })
+    pid = normalized["paydata"][0]["id"]
+    assert normalized["data_bombs"] == [{"target": f"files::{pid}", "rating": 5}]
+    assert normalized["scrambles"] == [
+        {"target_key": f"files::file::{pid}", "rating": 7, "variant": "poison"},
+    ]
+
+
+def test_subsystem_wide_data_bombs_survive_normalization():
+    # Subsystem-wide bombs (the Files datastore + the Access subsystem) are NOT per-file, so they
+    # survive even when per-file paydata defenses are present (those re-derive the per-file bombs).
+    normalized = normalize_host_config({
+        "paydata": [{
+            "name": "Ledger",
+            "defense": {"data_bomb_rating": 5, "scramble_rating": None, "scramble_variant": None},
+        }],
+        "data_bombs": [
+            {"target": "files::__entire__", "rating": 8},
+            {"target": "access::__all__", "rating": 7},
+        ],
+    })
+    pid = normalized["paydata"][0]["id"]
+    assert {b["target"] for b in normalized["data_bombs"]} == {
+        "access::__all__", "files::__entire__", f"files::{pid}",
+    }
+
+
 def test_duplicate_name_target_id_selects_only_requested_row():
     state = {"paydata": [
         {"id": "pd_first", "name": "Payroll", "located": True},

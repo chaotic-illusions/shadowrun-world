@@ -2767,7 +2767,7 @@ class TestScrambleDiscovery:
     the op outright when no discovered scramble matches (no test, no tally)."""
 
     FILES_KEY = "files::file::Lone Star IC Design"
-    SLAVE_KEY = "slave::piece::LAN to Payroll"
+    ACCESS_KEY = "access::entire"
 
     def _decker(self):
         return {"name": "Static", "mpcp": 8, "bod": 6, "evasion": 6, "masking": 6, "sensor": 6,
@@ -2840,30 +2840,31 @@ class TestScrambleDiscovery:
 
     # -- Analyze Subsystem discovery ------------------------------------------
 
-    def test_analyze_files_discovers_only_the_files_scramble(self, monkeypatch):
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding"},
-                {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison"}]
+    def test_analyze_files_discovers_subsystem_scramble_not_individual_files(self, monkeypatch):
+        # Analyze Subsystem (Files) reveals a SUBSYSTEM-WIDE scramble (files::entire), never the other
+        # subsystem's, and NOT an individual-file scramble (files::file -- that is an Analyze Icon find).
+        scr = [{"target_key": "files::entire", "rating": 6, "variant": "poison"},
+               {"target_key": self.FILES_KEY, "rating": 4, "variant": "poison"},
+               {"target_key": self.ACCESS_KEY, "rating": 5, "variant": "exploding"}]
         out, _ = self._drive(monkeypatch, self._state(scr),
                              action_type="analyze_subsystem", subsystem="files")
         by_key = {s["target_key"]: s for s in out["scrambles"]}
-        assert by_key[self.FILES_KEY]["discovered"] is True
-        assert by_key[self.SLAVE_KEY].get("discovered") in (None, False)
+        assert by_key["files::entire"]["discovered"] is True
+        assert by_key[self.FILES_KEY].get("discovered") in (None, False)   # per-file: Analyze Icon only
+        assert by_key[self.ACCESS_KEY].get("discovered") in (None, False)  # other subsystem untouched
         found = [e for e in out["event_log"] if e["type"] == "scramble_found"]
         assert len(found) == 1 and found[0]["subsystem"] == "files"
-        assert found[0]["scramble_ref"] == "scramble_1"
         assert "target_key" not in found[0]
-        assert "Lone Star IC Design" not in found[0]["description"]
 
-    def test_analyze_slave_discovers_only_the_slave_scramble(self, monkeypatch):
-        scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding"},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison"}]
-        out, _ = self._drive(monkeypatch, self._state(scr),
-                             action_type="analyze_subsystem", subsystem="slave")
-        by_key = {s["target_key"]: s for s in out["scrambles"]}
-        assert by_key[self.SLAVE_KEY]["discovered"] is True
-        assert by_key[self.FILES_KEY].get("discovered") in (None, False)
-        found = [e for e in out["event_log"] if e["type"] == "scramble_found"]
-        assert len(found) == 1 and found[0]["subsystem"] == "slave"
+    def test_analyze_subsystem_reveals_standalone_files_datastore_bomb(self, monkeypatch):
+        # A Files datastore bomb planted directly (not linked to a Scramble) is found by an Analyze
+        # Subsystem on Files, so the decker can defuse it before downloading.
+        state = self._state([])
+        state["data_bombs"] = [{"target": "files::__entire__", "rating": 8}]
+        out, _ = self._drive(monkeypatch, state,
+                             action_type="analyze_subsystem", subsystem="files")
+        assert out["data_bombs"][0].get("discovered") is True
+        assert any(e["type"] == "data_bomb_found" for e in out["event_log"])
 
     # -- Serializer redaction --------------------------------------------------
 
@@ -2871,7 +2872,7 @@ class TestScrambleDiscovery:
         from types import SimpleNamespace
         from datetime import datetime, UTC
         scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "poison", "discovered": True},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "exploding"}]  # undiscovered
+               {"target_key": self.ACCESS_KEY, "rating": 5, "variant": "exploding"}]  # undiscovered
         run = SimpleNamespace(id=1, host_id=3, status="active",
                               decker_json=self._decker(), state_json=self._state(scr),
                               created_at=datetime.now(UTC), updated_at=datetime.now(UTC))
@@ -2919,14 +2920,14 @@ class TestScrambleDiscovery:
         # Two discovered scrambles; target the SECOND by its full key -> only it is removed, and the
         # decrypt runs vs ITS rating (5) -- proving no silent fallback to scrambles[0] (rating 6).
         scr = [{"target_key": self.FILES_KEY, "rating": 6, "variant": "exploding", "discovered": True},
-               {"target_key": self.SLAVE_KEY, "rating": 5, "variant": "poison", "discovered": True}]
+               {"target_key": self.ACCESS_KEY, "rating": 5, "variant": "exploding", "discovered": True}]
         out, calls = self._drive(monkeypatch, self._state(scr), action_type="decrypt_file",
-                                 subsystem="files", target_file=self.SLAVE_KEY,
+                                 subsystem="files", target_file=self.ACCESS_KEY,
                                  decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
         remaining = [s["target_key"] for s in out["scrambles"]]
-        assert self.SLAVE_KEY not in remaining             # the TARGETED scramble was removed
+        assert self.ACCESS_KEY not in remaining            # the TARGETED scramble was removed
         assert self.FILES_KEY in remaining                 # the other stays untouched
-        assert calls and calls[0]["scramble_rating"] == 5  # decrypt ran vs the slave scramble
+        assert calls and calls[0]["scramble_rating"] == 5  # decrypt ran vs the access scramble
         assert any(e["type"] == "decrypt" and e.get("success") for e in out["event_log"])
 
     def test_decrypt_targets_scramble_by_opaque_player_ref(self, monkeypatch):
@@ -2974,6 +2975,58 @@ class TestScrambleDiscovery:
                                  decrypt_result={"decrypted": True, "roll": {"successes": 5, "ones": 0}})
         assert calls == []                                 # no matching discovered scramble -> no test
         assert len(out["scrambles"]) == 1                  # the discovered one is untouched
+
+    def test_file_scramble_blocks_download_before_decryption(self):
+        state = self._state([{
+            "target_key": self.FILES_KEY, "rating": 6, "variant": "poison",
+        }])
+        state["paydata"] = [{"id": "pd-1", "name": "Lone Star IC Design", "located": True}]
+        body = mr.RunActionInput(
+            action_type="download_data", subsystem="files", target_file="pd-1",
+        )
+
+        with pytest.raises(HTTPException, match="File access blocked by Scramble IC"):
+            mr._assert_file_not_scrambled(state, body)
+
+    def test_entire_files_scramble_blocks_edit_but_unrelated_file_scramble_does_not(self):
+        body = mr.RunActionInput(action_type="edit_file", subsystem="files", target_file="Payroll")
+        entire = self._state([{
+            "target_key": "files::entire", "rating": 5, "variant": "exploding",
+        }])
+        unrelated = self._state([{
+            "target_key": self.FILES_KEY, "rating": 6, "variant": "poison",
+        }])
+
+        with pytest.raises(HTTPException, match="File access blocked by Scramble IC"):
+            mr._assert_file_not_scrambled(entire, body)
+        mr._assert_file_not_scrambled(unrelated, body)
+
+    def test_exploding_scramble_decrypt_detonates_linked_bomb_when_not_defused(self, monkeypatch):
+        # RAW L491: decrypting an Exploding Scramble WITHOUT defusing its linked bomb first
+        # detonates the bomb -- even here on a FAILED decrypt.
+        state = self._state([{"target_key": self.FILES_KEY, "rating": 6,
+                              "variant": "exploding", "discovered": True}])
+        state["data_bombs"] = [{"target": "files::Lone Star IC Design", "rating": 6}]
+        state["defused_bombs"] = []
+        out, _ = self._drive(monkeypatch, state, action_type="decrypt_file",
+                             subsystem="files", target_file=self.FILES_KEY,
+                             decrypt_result={"decrypted": False, "roll": {"successes": 0, "ones": 0}})
+        assert out["data_bombs"] == []                       # linked bomb detonated (consumed)
+        assert any(e.get("outcome") == "detonated" for e in out["event_log"])
+        assert any("linked data bomb" in (e.get("description") or "").lower()
+                   for e in out["event_log"] if e.get("type") == "decrypt")
+
+    def test_exploding_scramble_is_safe_once_linked_bomb_defused(self, monkeypatch):
+        # Defuse the linked bomb FIRST, and the same decrypt is clean -- no detonation.
+        state = self._state([{"target_key": self.FILES_KEY, "rating": 6,
+                              "variant": "exploding", "discovered": True}])
+        state["data_bombs"] = [{"target": "files::Lone Star IC Design", "rating": 6}]
+        state["defused_bombs"] = ["files::Lone Star IC Design"]
+        out, _ = self._drive(monkeypatch, state, action_type="decrypt_file",
+                             subsystem="files", target_file=self.FILES_KEY,
+                             decrypt_result={"decrypted": True, "roll": {"successes": 4, "ones": 0}})
+        assert out["scrambles"] == []                        # decrypted cleanly
+        assert not any(e.get("outcome") == "detonated" for e in out["event_log"])
 
 
 class TestEditFile:
@@ -3120,6 +3173,27 @@ class TestAnalyzeGatedICReveal:
 
     def test_trap_hidden_still_collapsed(self):
         out = mr._redact_ic(self._proactive(analyzed=True, trap_hidden={"type": "Blaster", "rating": 6}))
+        assert out["trap_hidden"] is True
+
+    def test_trap_hidden_withheld_from_passive_detection(self):
+        # vr2 L695: a trapped icon detected only by passive sensors must NOT reveal it is trapped --
+        # the trap marker leaks only after an Analyze IC (or a crash). Regression for the Trap Trace
+        # that flashed [TRAP] straight from a sensor sweep, before it was ever Analyzed.
+        out = mr._redact_ic(self._proactive(detection_level=2,
+                                            trap_hidden={"type": "Blaster", "rating": 6}))
+        assert out is not None and out["type"] == "Killer"
+        assert "trap_hidden" not in out
+
+    def test_trap_trace_hidden_not_leaked_by_passive_detection(self):
+        out = mr._redact_ic(self._trace(detection_level=2, trace_phase="hunt",
+                                        trap_hidden={"type": "Killer", "rating": 5}))
+        assert out is not None and out["type"] == "Trace"
+        assert "trap_hidden" not in out
+
+    def test_trap_hidden_revealed_on_crash(self):
+        # Crashing the surface icon springs the trap -- the decker plainly learns it was trapped.
+        out = mr._redact_ic(self._proactive(status="crashed",
+                                            trap_hidden={"type": "Blaster", "rating": 6}))
         assert out["trap_hidden"] is True
 
     # -- reactive IC are invisible until detected --
@@ -6705,7 +6779,9 @@ class TestLocatePaydata:
         return _Host()
 
     def _paydata(self, n):
-        return [{"name": f"File{i}", "density": 10 * (i + 1), "is_key": (i == 0)}
+        # All random loot (no is_key): Locate Paydata is the random sweep and no longer surfaces
+        # KEY/target files (those are Locate File's job) -- keep this fixture to sweep mechanics.
+        return [{"name": f"File{i}", "density": 10 * (i + 1), "is_key": False}
                 for i in range(n)]
 
     def _action(self):

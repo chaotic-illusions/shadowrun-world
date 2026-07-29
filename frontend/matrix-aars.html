@@ -94,6 +94,17 @@ function renderAars(aars) {
       lines.push(_line('No paydata recovered.', 'text-amber'));
     }
 
+    const tfiles = Array.isArray(a.target_files) ? a.target_files : [];
+    if (tfiles.length) {
+      lines.push(_line(`Target files found: ${tfiles.length}`, 'text-cyan'));
+      tfiles.forEach(f => {
+        const nm = (f && f.name) ? f.name : 'file';
+        const st = (f && f.destroyed) ? ' [DESTROYED]' : ((f && f.downloaded) ? ' [downloaded]' : ' [located]');
+        lines.push(_line(`  - ${nm}${st}`, 'text-bright'));
+        if (f && f.narrative) lines.push(_line(`    ${f.narrative}`, 'text-dim'));
+      });
+    }
+
     if (a.traced) {
       if (a.physical_trace_immune) {
         lines.push(_line('Traced in the Matrix -- physical location protected (satellite uplink).', 'text-amber'));

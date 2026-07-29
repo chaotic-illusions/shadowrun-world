@@ -63,6 +63,7 @@ ACTION_ROLE: dict[str, str] = {
     "analyze_security": "system_op",
     "analyze_subsystem": "system_op",
     "locate_paydata": "system_op",
+    "locate_file": "system_op",
     "locate_ic": "system_op",
     "locate_decker": "system_op",
     "download_data": "system_op",
@@ -152,6 +153,7 @@ UTILITY_ROLE: dict[str, str] = {
     "scanner": "operational",   # Sensor aid for Locate Decker
     # operations
     "deception": "operational",
+    "browse": "operational",
     "analyze": "operational",
     "evaluate": "operational",
     "decrypt": "operational",

@@ -20,6 +20,9 @@ def normalize_host_config(
             if (
                 isinstance(scramble, dict)
                 and scramble.get("variant") in {"exploding", "poison"}
+                # Slave-subsystem Scramble is unreachable in a run (no slave-control action exists),
+                # so drop it here -- only Access/Files scrambles survive into a run.
+                and not str(scramble.get("target_key") or "").startswith("slave::")
             )
         ]
     paydata = normalized.get("paydata")
@@ -59,12 +62,27 @@ def normalize_host_config(
 
     bombs = normalized.get("data_bombs")
     if isinstance(bombs, list):
+        # Slave-device data bombs are unreachable in a run (no slave-control action, and a trap door
+        # on a device traverses via a graceful logoff -- not a device-access test), so drop them.
+        bombs[:] = [
+            bomb for bomb in bombs
+            if not (
+                isinstance(bomb, dict)
+                and (
+                    str(bomb.get("target") or "").startswith("slave::")
+                    or str(bomb.get("target") or "") == "__slave__"
+                )
+            )
+        ]
         if has_embedded_defenses:
+            # Per-file Data Bombs are re-derived from the paydata rows below, so drop the old ones.
+            # The subsystem-wide Files datastore bomb ("files::__entire__") is NOT per-file -- keep it.
             bombs[:] = [
                 bomb for bomb in bombs
                 if not (
                     isinstance(bomb, dict)
                     and str(bomb.get("target") or "").startswith("files::")
+                    and str(bomb.get("target") or "") != "files::__entire__"
                 )
             ]
         for bomb in bombs:
@@ -106,16 +124,20 @@ def normalize_host_config(
             continue
         paydata_id = item["id"]
         bomb_rating = defense.get("data_bomb_rating")
+        scramble_rating = defense.get("scramble_rating")
+        variant = "poison" if defense.get("scramble_variant") == "poison" else "exploding"
+        # A file cannot carry BOTH an Exploding Scramble and a standalone Data Bomb -- that is two
+        # bombs. Per the design ruling this collapses to JUST the Data Bomb (drop the Exploding
+        # Scramble). Poison + Data Bomb is a valid combo and is kept.
+        if bomb_rating is not None and scramble_rating is not None and variant == "exploding":
+            scramble_rating = None
         if bomb_rating is not None:
             bombs.append({"target": f"files::{paydata_id}", "rating": bomb_rating})
-        scramble_rating = defense.get("scramble_rating")
         if scramble_rating is not None:
             scrambles.append({
                 "target_key": f"files::file::{paydata_id}",
                 "rating": scramble_rating,
-                "variant": (
-                    "poison" if defense.get("scramble_variant") == "poison" else "exploding"
-                ),
+                "variant": variant,
             })
 
     if not bombs:
