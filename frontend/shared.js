@@ -768,25 +768,44 @@ document.addEventListener('DOMContentLoaded', () => {
   initNumSteppers(document);
 });
 
-// -- Custom tooltip (data-tip) -------------------------------------------------
+// -- Custom tooltip (data-tip) -- appears after a short hover delay (Task 4) -------------------
 (function () {
-  let _tip = null;
+  const DELAY_MS = 1500;                 // hover this long before the tip appears (avoids flicker)
+  let _tip = null, _timer = null, _target = null, _mx = 0, _my = 0;
   function tip() {
     if (!_tip) { _tip = document.createElement('div'); _tip.id = 'app-tooltip'; document.body.appendChild(_tip); }
     return _tip;
   }
+  function place() {
+    const t = tip(); const G = 14;
+    let x = _mx + G, y = _my + G;
+    if (x + t.offsetWidth  > window.innerWidth)  x = _mx - t.offsetWidth  - G;
+    if (y + t.offsetHeight > window.innerHeight) y = _my - t.offsetHeight - G;
+    t.style.left = Math.max(2, x) + 'px'; t.style.top = Math.max(2, y) + 'px';
+  }
+  function hide() {
+    if (_timer) { clearTimeout(_timer); _timer = null; }
+    _target = null;
+    tip().classList.remove('tip-on');
+  }
   document.addEventListener('mouseover', e => {
     const el = e.target.closest('[data-tip]');
-    if (el) { tip().textContent = el.dataset.tip; tip().classList.add('tip-on'); }
-    else     { tip().classList.remove('tip-on'); }
+    if (el === _target) return;            // still over the same tipped element -- nothing to do
+    hide();                                // moved to a new target (or off one): reset + restart
+    if (el && el.dataset.tip) {
+      _target = el;
+      _timer = setTimeout(() => {
+        const t = tip();
+        t.textContent = el.dataset.tip;
+        t.classList.add('tip-on');
+        place();
+      }, DELAY_MS);
+    }
   });
   document.addEventListener('mousemove', e => {
-    const t = tip();
-    if (!t.classList.contains('tip-on')) return;
-    const G = 14;
-    let x = e.clientX + G, y = e.clientY + G;
-    if (x + t.offsetWidth  > window.innerWidth)  x = e.clientX - t.offsetWidth  - G;
-    if (y + t.offsetHeight > window.innerHeight) y = e.clientY - t.offsetHeight - G;
-    t.style.left = x + 'px'; t.style.top = y + 'px';
+    _mx = e.clientX; _my = e.clientY;
+    if (tip().classList.contains('tip-on')) place();
   });
+  // A stale tip during a scroll is distracting -- drop it and let the hover re-arm.
+  window.addEventListener('scroll', hide, true);
 })();

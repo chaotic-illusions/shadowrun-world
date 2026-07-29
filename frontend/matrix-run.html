@@ -276,6 +276,11 @@
           <span class="tip">Analyze IC / Host / Security. Locate IC.</span>
         </div>
         <div class="mr-field">
+          <label>Browse</label>
+          <input type="number" id="cfg-u-browse" min="0" max="50" value="0">
+          <span class="tip">Locate File (find a known target file).</span>
+        </div>
+        <div class="mr-field">
           <label>Evaluate</label>
           <input type="number" id="cfg-u-evaluate" min="0" max="50" value="0">
           <span class="tip">Locate Paydata.</span>
@@ -687,6 +692,7 @@ let _attackTargetId   = null;
 let _savedDecks = [];
 let _savedLoadouts = [];
 let _runLoadoutDraft = null;
+let _runLoadoutDraftAccepted = false;
 
 // Thousands-formatter (matches deck-workshop). Defined here because matrix-run only loads
 // shared.js/ambiance.js, neither of which provides it -- the load-out draft editor and the
@@ -713,6 +719,7 @@ const UTIL_FIELD_MAP = {
   sleaze: 'cfg-u-sleaze',
   camo: 'cfg-u-camo',
   deception: 'cfg-u-deception',
+  browse: 'cfg-u-browse',
   analyze: 'cfg-u-analyze',
   evaluate: 'cfg-u-evaluate',
   decrypt: 'cfg-u-decrypt',
@@ -965,13 +972,14 @@ function applySelectedDeckToConfig(deck) {
 // Populate the decker's name, Computer skill, and physical attributes from the active
 // programmer profile's character (deck stats come from the deck; skill/attrs come from
 // the PC). Without this the run used the hardcoded defaults (Computer 4, "Ghost").
-async function applyActiveCharacterToConfig() {
-  const profile = getSavedProgrammerProfile();
-  if (!profile?.characterId) return;
+async function applyActiveCharacterToConfig(characterId) {
+  const requestedId = String(characterId || '');
+  if (!requestedId) return;
   try {
-    const res = await apiFetch(`${API}/characters/${profile.characterId}`);
+    const res = await apiFetch(`${API}/characters/${requestedId}`);
     if (!res.ok) return;
     const c = await res.json();
+    if (String(getSavedProgrammerProfile()?.characterId || '') !== requestedId) return;
     const set = (id, v) => { const e = document.getElementById(id); if (e && v !== undefined && v !== null && v !== '' && v !== 0) e.value = String(v); };
     const nameEl = document.getElementById('cfg-name');
     if (nameEl && c.name) nameEl.value = c.name;
@@ -1022,11 +1030,26 @@ function cloneLoadout(loadout) {
     name: loadout.name,
     savedAt: loadout.savedAt,
     deckMem: loadout.deckMem,
-    items: (Array.isArray(loadout.items) ? loadout.items : []).map(item => ({
+    items: (Array.isArray(loadout.items) ? loadout.items : []).map((item, index) => ({
       ...item,
       target: item?.target || 'active',
+      _runSource: 'loadout',
+      _runSourceIndex: index,
     })),
   };
+}
+
+function runProgramSourceSignature(item) {
+  const parsed = parseProgramIdentity(item);
+  return [
+    parsed.typeKey,
+    parsed.baseRating,
+    String(item?.mods || 'None').trim().toLowerCase(),
+    item?.isOneShot ? 1 : 0,
+    item?.hasLimit ? 1 : 0,
+    parseInt(item?.attackDamage, 10) || 0,
+    parseInt(item?.actualSize, 10) || 0,
+  ].join('|');
 }
 
 function getEffectiveLoadout() {
@@ -1041,6 +1064,7 @@ function openLoadoutAdjuster() {
   }
   if (!_runLoadoutDraft) {
     _runLoadoutDraft = cloneLoadout(selected);
+    _runLoadoutDraftAccepted = false;
   }
   const overlay = document.getElementById('loadoutModal');
   if (overlay) overlay.classList.add('open');
@@ -1064,6 +1088,7 @@ function laoOk() { applyDraftTemporarily(); closeLoadoutModal(); }
 
 function applyDraftTemporarily() {
   if (!_runLoadoutDraft) return;
+  _runLoadoutDraftAccepted = true;
   setUtilityFieldsFromLoadout(_runLoadoutDraft);
   updateComputedStats();
   renderDeckSummary();
@@ -1123,6 +1148,7 @@ function laoOverCap(simItems) {
 // OK button (applyDraftTemporarily) stays the single commit point so a stray
 // drag never silently changes what an un-applied run would fire.
 function laoCommit() {
+  _runLoadoutDraftAccepted = false;
   renderLoadoutModal();
   renderDeckSummary();
   updateRunStartEligibility();
@@ -1288,11 +1314,23 @@ function laoLibraryHtml() {
   </div>`;
 }
 
-function laoAddFromLibrary(cid, target) {
+async function laoAddFromLibrary(cid, target) {
   if (!_runLoadoutDraft) return;
   const a = _loadCompiled().find(x => String(x.id) === String(cid));
   if (!a) return;
   const want = target === 'storage' ? 'storage' : 'active';
+  let limitTarget = '';
+  if (a.hasLimit) {
+    const entered = await showPrompt('Limit target for this run (decker or ic):', 'decker', {
+      title: '>> LIMIT TARGET', okLabel: 'Set Target', okClass: 'btn-amber',
+    });
+    if (entered == null) return;
+    limitTarget = entered.trim().toLowerCase();
+    if (!['decker', 'ic'].includes(limitTarget)) {
+      laoToast('Limit target must be "decker" or "ic".');
+      return;
+    }
+  }
   const item = {
     label: a.name || (a.utilName ? `${a.utilName}-${parseInt(a.baseRating, 10) || 0}` : 'program'),
     actualSize: Math.max(0, parseInt(a.actualSize, 10) || 0),
@@ -1303,8 +1341,10 @@ function laoAddFromLibrary(cid, target) {
     mods: a.mods || 'None',
     isOneShot: !!a.isOneShot,
     hasLimit: !!a.hasLimit,
-    limitTarget: a.hasLimit ? (a.limitTarget || 'decker') : '',
+    limitTarget,
     target: want,
+    _runSource: 'compiled',
+    _runArtifactId: String(a.id),
   };
   const items = _runLoadoutDraft.items || [];
   const reason = laoOverCap(items.concat([item]));
@@ -1443,9 +1483,9 @@ function updateRunStartEligibility() {
     return;
   }
 
-  if (_runLoadoutDraft) {
+  if (_runLoadoutDraft && !_runLoadoutDraftAccepted) {
     startBtn.disabled = true;
-    statusEl.textContent = 'Save load-out changes in Deck Workshop before starting a run.';
+    statusEl.textContent = 'Finish adjusting the load-out and select OK before starting the run.';
     return;
   }
 
@@ -1469,7 +1509,8 @@ function updateRunStartEligibility() {
   }
 
   startBtn.disabled = false;
-  statusEl.textContent = `Load-out valid: Active ${usage.activeUsed}/${activeCap} Mp, Storage ${usage.storageUsed}/${storageCap} Mp (active utilities require storage).`;
+  const adjusted = _runLoadoutDraftAccepted ? 'Adjusted load-out valid for this run' : 'Load-out valid';
+  statusEl.textContent = `${adjusted}: Active ${usage.activeUsed}/${activeCap} Mp, Storage ${usage.storageUsed}/${storageCap} Mp (active utilities require storage).`;
 }
 
 function renderDeckAndLoadoutSelectors() {
@@ -1505,8 +1546,12 @@ function renderDeckAndLoadoutSelectors() {
 }
 
 function onDeckSelectionChange() {
+  _runLoadoutDraft = null;
+  _runLoadoutDraftAccepted = false;
   const deck = getSelectedDeck();
   if (deck) applySelectedDeckToConfig(deck);
+  setUtilityFieldsFromLoadout(getSelectedLoadout());
+  renderDeckSummary();
   updateJackpointOptions();   // gate Satellite jackpoint on deck.satlink (may reset the selection)
   onJackpointChange();   // re-apply jackpoint trace factor; updateComputedStats recomputes Icon Bandwidth
   updateRunStartEligibility();
@@ -1515,6 +1560,7 @@ function onDeckSelectionChange() {
 function onLoadoutSelectionChange() {
   const loadout = getSelectedLoadout();
   _runLoadoutDraft = null;
+  _runLoadoutDraftAccepted = false;
   renderLoadoutDraftEditor();
   if (loadout) setUtilityFieldsFromLoadout(loadout);
   updateComputedStats();
@@ -1525,19 +1571,21 @@ function onLoadoutSelectionChange() {
 // U2: a fresh browser session has empty localStorage, so the deck/load-out dropdowns come up
 // blank. Pull the active PC's saved decks/load-outs from the backend deck-builder-state into
 // the scoped localStorage keys this page reads. Fill-only: never clobber unsynced local data.
-async function hydrateDeckLoadoutFromBackend() {
-  const profile = getSavedProgrammerProfile();
-  if (!profile?.characterId) return;
+async function hydrateDeckLoadoutFromBackend(characterId) {
+  const requestedId = String(characterId || '');
+  if (!requestedId) return;
+  const scopedKey = baseKey => `${baseKey}_${requestedId}`;
   try {
-    const res = await apiFetch(`${API}/characters/${profile.characterId}/deck-builder-state`);
+    const res = await apiFetch(`${API}/characters/${requestedId}/deck-builder-state`);
     if (!res.ok) return;
     const stores = ((await res.json())?.state || {}).stores || {};
+    if (String(getSavedProgrammerProfile()?.characterId || '') !== requestedId) return;
 
     // Load-outs: fill-only. The player edits load-out drafts on THIS page (written straight to
     // localStorage under the programmer-scoped key), so unsynced local edits must win -- only
     // seed from the backend when local is empty.
     {
-      const scoped = getProgrammerScopedStoreKey(LOADOUT_STORE);
+      const scoped = scopedKey(LOADOUT_STORE);
       let localHas = false;
       try { localHas = (JSON.parse(localStorage.getItem(scoped) || '[]') || []).length > 0; } catch (_) {}
       const backendVal = stores[LOADOUT_STORE] || stores[scoped];
@@ -1553,7 +1601,7 @@ async function hydrateDeckLoadoutFromBackend() {
     // deck and it never appears as runnable, even though deck-workshop (which reads the
     // backend) lists it as Ready.
     {
-      const scoped = getProgrammerScopedStoreKey(DECK_STORE);
+      const scoped = scopedKey(DECK_STORE);
       const backendDecks = stores[DECK_STORE] || stores[scoped];
       if (Array.isArray(backendDecks) && backendDecks.length) {
         let localDecks = [];
@@ -1568,7 +1616,7 @@ async function hydrateDeckLoadoutFromBackend() {
     // Compiled programs (the load-out library source): reconcile by id, backend wins. matrix-run
     // never codes programs, so the backend artifact list is authoritative for the library.
     {
-      const scoped = getProgrammerScopedStoreKey(COMPILED_STORE);
+      const scoped = scopedKey(COMPILED_STORE);
       const backendCompiled = stores[COMPILED_STORE] || stores[scoped];
       if (Array.isArray(backendCompiled) && backendCompiled.length) {
         let localCompiled = [];
@@ -1583,10 +1631,17 @@ async function hydrateDeckLoadoutFromBackend() {
 }
 
 function refreshDeckLoadoutSources() {
+  _runLoadoutDraft = null;
+  _runLoadoutDraftAccepted = false;
   _savedDecks = loadScopedStore(DECK_STORE);
   _savedLoadouts = loadScopedStore(LOADOUT_STORE);
   renderLoadoutDraftEditor();
   renderDeckAndLoadoutSelectors();
+  const deck = getSelectedDeck();
+  if (deck) applySelectedDeckToConfig(deck);
+  setUtilityFieldsFromLoadout(getSelectedLoadout());
+  updateComputedStats();
+  renderDeckSummary();
   updateRunStartEligibility();
 }
 
@@ -1613,10 +1668,20 @@ function setActiveDecker(characterId, label) {
 
 async function selectDecker(characterId, label) {
   if (!characterId) return;
-  setActiveDecker(characterId, label);
-  await hydrateDeckLoadoutFromBackend();
+  const selectedId = String(characterId);
+  setActiveDecker(selectedId, label);
+  _runLoadoutDraft = null;
+  _runLoadoutDraftAccepted = false;
+  _savedDecks = [];
+  _savedLoadouts = [];
+  renderDeckAndLoadoutSelectors();
+  renderDeckSummary();
+  updateRunStartEligibility();
+  await hydrateDeckLoadoutFromBackend(selectedId);
+  if (String(getSavedProgrammerProfile()?.characterId || '') !== selectedId) return;
   refreshDeckLoadoutSources();
-  await applyActiveCharacterToConfig();
+  await applyActiveCharacterToConfig(selectedId);
+  if (String(getSavedProgrammerProfile()?.characterId || '') !== selectedId) return;
   updateJackpointOptions();
   onJackpointChange();
   updateRunStartEligibility();
@@ -1691,6 +1756,7 @@ const ACTION_SUBSYSTEM = {
   analyze_icon:      'control',
   analyze_security:  'control',
   analyze_subsystem: 'access',
+  locate_file:       'index',
   locate_paydata:    'index',
   locate_ic:         'index',
   locate_decker:     'index',
@@ -1725,6 +1791,7 @@ const ACTION_UTILITY = {
   logon_to_host: 'deception', graceful_logoff: 'deception',
   analyze_host: 'analyze', analyze_ic: 'analyze', analyze_icon: 'analyze', analyze_security: 'analyze', analyze_subsystem: 'analyze',
   locate_paydata: 'evaluate', locate_ic: 'analyze', locate_decker: 'scanner',
+  locate_file: 'browse',
   download_data: 'read_write', edit_file: 'read_write',
   decompress_file: 'compressor',
   null_operation: 'deception', crash_host: 'crash', validate_passcode: 'validate_pgm',
@@ -1769,8 +1836,8 @@ function _locatingTraceIC(s) { return _traceIC(s).filter(ic => (ic.trace_phase |
 // Hog viruses infecting the PC's OWN deck (target_id 'pc'); mirrors the backend purge_hog filter.
 // Purge Hog wipes one -- a virus drains the deck's highest running program every Combat Turn.
 function _pcHogInfections(s) { return (s.hog_infections || []).filter(i => (i.target_id || 'pc') === 'pc'); }
-function _undownPaydata(s){ return (s.located_paydata || []).filter(p => !p.downloaded && !p.destroyed); }
-function _locPaydata(s) { return (s.located_paydata || []).filter(p => !p.destroyed); }
+function _undownPaydata(s){ return (s.located_paydata || []).filter(p => !p.downloaded && !p.destroyed && !p.encrypted); }
+function _locPaydata(s) { return (s.located_paydata || []).filter(p => !p.destroyed && !p.encrypted); }
 function _compFiles(s)  { return (s.downloaded_files || []).filter(f => f.compressed); }
 // Compressor (vr2 L1512): loaded rating, and the stored footprint of a file of the given density
 // -- half size (round up) within the Rating x 100 Mp cap. Mirrors the backend _compressed_store_size
@@ -1815,7 +1882,7 @@ function _discoveredScrambles(s) {
   if (Array.isArray(s.discovered_scrambles)) return s.discovered_scrambles;
   return (s.scrambles || [])
     .filter(sc => sc && sc.discovered)
-    .map(sc => ({ scramble_ref: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key) }));
+    .map(sc => ({ scramble_ref: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key), rating: sc.rating }));
 }
 function _liveUtils()   { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
   return Object.keys(u).filter(k => (parseInt(u[k], 10) || 0) > 0).map(k => ({ key: k, rating: parseInt(u[k], 10) || 0 })); }
@@ -1878,10 +1945,9 @@ function _icTgt(list, label) {
 // after logon; when there is no located file or known device there is nothing to scan, so
 // Analyze Icon is unavailable (see its "valid" gate below).
 function _analyzeIconTargets(s) {
-  const opts = _locPaydata(s).map(p => ({ value: 'files::' + (p.id || p.name), label: 'File: ' + String(p.name) }));
-  const devices = Array.isArray(s.slave_devices) ? s.slave_devices.filter(d => String(d).trim()) : [];
-  devices.forEach(d => opts.push({ value: 'slave::' + d, label: 'Device: ' + String(d) }));
-  return opts;
+  // Files only: Slave-device data bombs were removed (no slave-control action makes them reachable),
+  // so a device scan would never find anything. Analyze Icon now scans located files for a data bomb.
+  return (s.located_paydata || []).filter(p => !p.destroyed).map(p => ({ value: 'files::' + (p.id || p.name), label: 'File: ' + String(p.name) }));
 }
 
 // Combat-maneuver opposing icons (vr2 L1982): any active (non-crashed) IC plus every REVEALED
@@ -1923,6 +1989,7 @@ const ACTION_CATALOG = [
   // -- Complex actions (2 AP) --
   { v: 'analyze_host',      l: 'Analyze Host',            cost: 'Complex' },
   { v: 'locate_paydata',    l: 'Locate Paydata',          cost: 'Complex' },
+  { v: 'locate_file',       l: 'Locate File (target data)',cost: 'Complex' },
   { v: 'locate_ic',         l: 'Locate IC',               cost: 'Complex' },
   { v: 'locate_decker',     l: 'Locate Decker',           cost: 'Complex' },
   { v: 'crash_host',        l: 'Crash Host',              cost: 'Complex' },
@@ -1955,9 +2022,6 @@ const ACTION_CATALOG = [
     valid: s => _carriedStrikeRating('slow') > 0 && _slowEligibleIC(s).length > 0,
     reason: s => _carriedStrikeRating('slow') > 0 ? 'no identified eligible IC' : 'no Slow utility loaded',
     target: s => _icTgt(_slowEligibleIC(s), 'IC to slow') },
-  { v: 'defuse_data_bomb',  l: 'Defuse Data Bomb',        cost: 'Complex',
-    valid: s => _discoveredBombs(s).length > 0, reason: 'none discovered',
-    target: s => ({ mode: 'select', label: 'Bomb to defuse', options: _discoveredBombs(s).map(b => ({ value: b.target, label: `${b.scope === 'slave' ? 'Slave' : 'Files'} - ${b.name || b.target}` })) }) },
   { v: 'decompress_file',   l: 'Decompress',              cost: 'Complex', noTest: true,
     valid: s => _compFiles(s).length > 0 || _squeezedActive(s).length > 0, reason: 'nothing compressed to decompress',
     target: s => ({ mode: 'select', label: 'Compressed program / file', options:
@@ -1978,9 +2042,6 @@ const ACTION_CATALOG = [
   { v: 'edit_file',         l: 'Edit File',               cost: 'Simple', editMode: true,
     valid: s => _locPaydata(s).length > 0, reason: 'nothing located',
     target: s => ({ mode: 'select', label: 'File to edit', options: _locPaydata(s).map(p => ({ value: p.id || p.name, label: String(p.name) })) }) },
-  { v: 'decrypt_file',      l: 'Decrypt File',            cost: 'Simple',
-    valid: s => _discoveredScrambles(s).length > 0, reason: 'no scramble discovered -- Analyze Files/Slave',
-    target: s => ({ mode: 'select', label: 'Scramble to decrypt', options: _discoveredScrambles(s).map(sc => ({ value: sc.scramble_ref, label: String(sc.label) })) }) },
   { v: 'relocate',          l: 'Relocate (vs Trace IC)',  cost: 'Simple', relocateMode: true,
     valid: s => _locatingTraceIC(s).length > 0, reason: 'no trace in its location cycle',
     target: s => _icTgt(_locatingTraceIC(s), 'Trace IC to relocate') },
@@ -2041,6 +2102,64 @@ const ACTION_CATALOG = [
     target: s => ({ mode: 'select', label: 'Program to run', options: _dinabUtils(s).map(u => ({ value: u.key, label: `${prettyProg(u.key)} DINAB-${u.eff}` })) }) },
 ];
 const _ACTION_BY_V = Object.fromEntries(ACTION_CATALOG.map(a => [a.v, a]));
+
+// Functional grouping for the action menu (Task 2). Category per action key; anything not listed
+// falls into 'System'. ACTION_CATEGORY_ORDER controls optgroup order in the dropdown.
+const ACTION_CATEGORY = {
+  analyze_host: 'Recon', analyze_security: 'Recon', analyze_subsystem: 'Recon',
+  analyze_icon: 'Recon', locate_paydata: 'Recon', locate_file: 'Recon',
+  locate_ic: 'Recon', locate_decker: 'Recon',
+  download_data: 'Files & Data', edit_file: 'Files & Data', decompress_file: 'Files & Data',
+  slow: 'IC & Combat', steamroller: 'IC & Combat', disinfect: 'IC & Combat', purge_hog: 'IC & Combat',
+  relocate: 'Trace & Stealth', redirect_datatrail: 'Trace & Stealth', decoy: 'Trace & Stealth',
+  evade_detection: 'Trace & Stealth', parry_attack: 'Trace & Stealth',
+  position_attack: 'Trace & Stealth', validate_passcode: 'Trace & Stealth',
+  invalidate_passcode: 'Trace & Stealth',
+  swap_memory: 'Deck & Memory', unload_program: 'Deck & Memory', dinab: 'Deck & Memory',
+  medic: 'Deck & Memory', restore: 'Deck & Memory',
+  crash_host: 'System', null_operation: 'System',
+};
+const ACTION_CATEGORY_ORDER = ['Recon', 'Files & Data', 'IC & Combat', 'Trace & Stealth', 'Deck & Memory', 'System'];
+
+// Task 4: one-line "what it does / what it discovers" per action, shown as a helper line under the
+// Action dropdown (a native <select> cannot carry a custom hover tooltip on its options, so the
+// selected action's description renders inline instead). Kept RAW-accurate and concise; ASCII only.
+const ACTION_INFO = {
+  analyze_host: 'Scan the host to reveal its subsystem ratings (Access/Control/Index/Files/Slave) and Security Code -- each success reveals one.',
+  analyze_security: 'Read the current security tally and alert status right now.',
+  analyze_subsystem: 'Deep-scan one subsystem to expose what it hides: Access (LTG link), Files/Slave (scramble, worm, trap doors).',
+  analyze_icon: 'Scan one located file or the Slave device to reveal a data bomb or scramble on it BEFORE you trip it.',
+  locate_paydata: 'Sweep the host for valuable data you did not come for (random paydata). Uses Evaluate.',
+  locate_file: 'Find a specific KNOWN target file -- the mission data you came for. Uses Browse.',
+  locate_ic: 'Re-acquire hidden or evaded IC so you can act on them (each then needs Analyze IC to identify).',
+  locate_decker: 'Sensor-sweep for a hostile decker that has evaded you. Uses Scanner.',
+  crash_host: 'Attack the host system itself to force a shutdown -- drastic, and it escalates the alarm.',
+  validate_passcode: 'Forge legitimate credentials so the host treats you as an authorized user (better to-hit column).',
+  invalidate_passcode: 'Strip the credentials from a Legitimate IC or enemy decker, flipping them to intruder status.',
+  decoy: 'Project a decoy icon that draws proactive IC attacks away from you. Uses Mirrors.',
+  redirect_datatrail: 'Scramble your datatrail: +1 Trace Factor from now on (trace IC locate you less easily). Once per host.',
+  null_operation: 'Do nothing this action -- idle / pass the beat.',
+  medic: 'Heal persona Condition Monitor boxes. The Medic utility loses 1 rating per use.',
+  restore: 'Repair BEMS attribute damage inflicted by crippler IC -- 1 point per 2 successes.',
+  disinfect: 'Destroy a worm IC infecting the host.',
+  purge_hog: 'Wipe a Hog virus infecting your deck before it drains more of your programs.',
+  steamroller: 'Crush a Tar Baby / Tar Pit IC for (Rating)D damage, immune to the tar crash-backlash.',
+  slow: 'Cripple a proactive IC speed -- it loses actions (1 per 2 net successes) and HANGS at zero. Reactive IC are immune.',
+  decompress_file: 'Decompress a squeezed program or a compressed file so it can be used or read.',
+  download_data: 'Copy a located file into your storage -- the loot you extract from the run.',
+  edit_file: 'Alter a located file on the host: ERASE it, or MODIFY (falsify) it in place.',
+  relocate: 'Against a trace in its LOCATION cycle: spoof it this turn, or suppress it. Cannot touch a trace still hunting.',
+  evade_detection: 'Combat maneuver: break an icon lock on you (opposed Evasion vs Sensor).',
+  parry_attack: 'Combat maneuver: set up to blunt the next attack against you.',
+  position_attack: 'Combat maneuver: outposition an icon for -TN or +Power on your follow-up attack.',
+  swap_memory: 'Load a stored program into active memory, or reload a worn Shield/Medic/Armor. No test.',
+  unload_program: 'Push an active program out to storage to free active memory.',
+  dinab: 'Run one DINAB-equipped program autonomously this pass at no action cost.',
+};
+
+// Task 2: the last action the decker executed this run (persisted per run) becomes the default
+// selection so the dropdown does not reset to the top of the list on every poll.
+let _lastActionType = null;
 
 // -- Boot -------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2394,6 +2513,16 @@ async function startRun() {
   // cap (unlimited); a tracked-but-full deck reports 0 and can download nothing.
   const _stCaps  = laoCaps();
   const _loadoutItems = getEffectiveLoadout()?.items || [];
+  const runLoadoutItems = _runLoadoutDraftAccepted
+    ? _loadoutItems.map(item => ({
+        source: item._runSource,
+        source_index: item._runSource === 'loadout' ? item._runSourceIndex : null,
+        artifact_id: item._runSource === 'compiled' ? String(item._runArtifactId || '') : '',
+        source_signature: item._runSource === 'loadout' ? runProgramSourceSignature(item) : '',
+        target: targetUsesActive(item.target || 'active') ? 'active' : 'storage',
+        limit_target: item.hasLimit ? String(item.limitTarget || 'decker').toLowerCase() : '',
+      }))
+    : null;
   const _stUsage = computeLoadoutUsage(_loadoutItems);
   const storageFreeMp = _stCaps.storageCap > 0
     ? Math.max(0, _stCaps.storageCap - _stUsage.storageUsed)
@@ -2456,6 +2585,7 @@ async function startRun() {
     scanner:    gn('cfg-u-scanner'),
     // Operations
     deception:  gn('cfg-u-deception'),
+    browse:     gn('cfg-u-browse'),
     analyze:    gn('cfg-u-analyze'),
     evaluate:   gn('cfg-u-evaluate'),
     decrypt:    gn('cfg-u-decrypt'),
@@ -2536,7 +2666,7 @@ async function startRun() {
   try {
     const res = await apiFetch(`${API}/matrix-runs2/`, {
       method: 'POST',
-      body: JSON.stringify({ host_id: hostId, decker }),
+      body: JSON.stringify({ host_id: hostId, decker, run_loadout_items: runLoadoutItems }),
     });
     if (!res.ok) await apiThrow(res);
     _run = await res.json();
@@ -2705,6 +2835,59 @@ async function scanEnemyDecker(eid) {
     { enemy_id: eid, hacking_pool_dice: hp });
 }
 
+// Crash a discovered Scramble IC in cybercombat instead of Decrypting it (vr2 L495: crashing adds
+// its rating to the security tally). A Poison scramble reacts to EACH attack (may erase the data);
+// an Exploding scramble's linked bomb detonates on the crash unless defused first -- so Analyze Icon
+// then Defuse before crashing an Exploding one.
+async function crashScramble(ref) {
+  if (!_run) return;
+  if (_carriedStrikeRating('attack') <= 0) {
+    showAlert(document.getElementById('runAlert'),
+      '>> No Attack program loaded -- you need one to crash a Scramble.', true);
+    return;
+  }
+  const raw = prompt('Crash Scramble: how many Hacking Pool dice to add to your Attack rating?', '0');
+  if (raw === null) return;
+  const hp = parseInt(raw, 10);
+  if (!Number.isFinite(hp) || hp < 0) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/scramble/attack`,
+    { scramble_ref: ref, hacking_pool_dice: hp });
+}
+
+// Decrypt a discovered Scramble IC directly from its card (Task 3) -- fires the SAME decrypt_file
+// action as the (removed) menu entry. TN is the scramble's rating; the Decrypt utility lowers it. A
+// Poison scramble may erase the data on a failed decrypt; an EXPLODING scramble detonates its linked
+// data bomb on ANY decrypt unless you Defuse that bomb first (its own card + this card's hint say so).
+async function decryptScramble(ref) {
+  if (!_run) return;
+  const raw = prompt('Decrypt Scramble: how many Hacking Pool dice to add?', '0');
+  if (raw === null) return;
+  const hp = parseInt(raw, 10);
+  if (!Number.isFinite(hp) || hp < 0) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'decrypt_file',
+    subsystem: ACTION_SUBSYSTEM.decrypt_file || 'files',
+    hacking_pool_dice: hp,
+    target_file: ref,
+  });
+}
+
+// Defuse a discovered Data Bomb directly from its card (Task 3) -- fires the SAME defuse_data_bomb
+// action as the (removed) menu entry. The backend derives the bomb's subsystem from the target.
+async function defuseBomb(target) {
+  if (!_run) return;
+  const raw = prompt('Defuse Data Bomb: how many Hacking Pool dice to add?', '0');
+  if (raw === null) return;
+  const hp = parseInt(raw, 10);
+  if (!Number.isFinite(hp) || hp < 0) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'defuse_data_bomb',
+    subsystem: ACTION_SUBSYSTEM.defuse_data_bomb || 'files',
+    hacking_pool_dice: hp,
+    target_file: target,
+  });
+}
+
 // Analyze IC on a specific active-IC chip -- a Free action (target_ic_id). Each success advances
 // the decker's ID of that IC (presence -> type -> rating + options), the same as the dropdown action.
 async function analyzeIC(id) {
@@ -2829,9 +3012,11 @@ function renderDownloadsPanel() {
       const color  = p.destroyed ? 'var(--red)' : (p.downloaded ? 'var(--green)' : 'var(--amber)');
       const tag    = p.destroyed ? '[DESTROYED]' : (p.downloaded ? '[DOWNLOADED]' : '');
       const struck = p.destroyed ? 'text-decoration:line-through' : '';
+      const sizeTxt = p.encrypted ? '??? Mp' : ((parseInt(p.size_mp, 10) || 0) + 'Mp');
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">`
-        + `<span style="font-size:.72rem;color:${color};${struck}">${esc(p.name || '?')}</span>`
-        + `<span style="font-size:.58rem;color:var(--text-dim)">${parseInt(p.size_mp, 10) || 0}Mp</span>`
+        + `<span style="font-size:.72rem;color:${p.encrypted ? 'var(--cyan)' : color};${struck}">${esc(p.name || '?')}</span>`
+        + `<span style="font-size:.58rem;color:var(--text-dim)">${sizeTxt}</span>`
+        + (p.encrypted ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--cyan)" title="Encrypted by a Scramble IC -- use the Decrypt button on its Subsystem Defenses card before you can download it">ENCRYPTED</span>` : '')
         + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
         + (tag ? `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>` : '')
         + (p.tampered && !p.destroyed ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--red)">[TAMPERED]</span>` : '')
@@ -3320,6 +3505,50 @@ function renderCrashCountdown(cd) {
     + `HOST CRASH: ${esc(String(t))} round${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each round</div>`;
 }
 
+// A Trace IC that has hit and entered its Location Cycle has "vanished and become reactive"
+// (vr2 Trace IC): the IC itself can no longer be targeted, but its location cycle keeps counting
+// down. Rather than dropping the card, re-skin it to represent the LOCATION being traced -- the
+// decker's counter is now Relocate (spoof the datatrail this turn, or suppress the trace) or a
+// Graceful Logoff. Suppressed traces are shown only in the Suppressions panel (filtered out here).
+function _locatingTraceCard(ic, runEnded, crashed) {
+  const ratingTxt = (parseInt(ic.rating, 10) > 0)
+    ? `<span style="color:var(--text-dim)">-${parseInt(ic.rating, 10)}</span>` : '';
+  // The exact countdown is a level-3 / admin reveal; players see only that a trace is progressing.
+  const remain = (ic.trace_locate_remaining != null) ? parseInt(ic.trace_locate_remaining, 10) : null;
+  const countLine = (remain != null && remain >= 0)
+    ? `Location cycle: ${remain} round${remain === 1 ? '' : 's'} to completion`
+    : 'Location cycle in progress -- your jackpoint is being traced';
+  const canAct = !runEnded && !crashed;
+  return `
+    <div class="ic-card ic-white ic-partial" style="border-style:dashed">
+      <div class="ic-head">
+        <span class="ic-type-name">Trace${ratingTxt} <span style="color:var(--amber);font-size:0.58rem;letter-spacing:1px">&mdash; LOCATION</span></span>
+        <span class="ic-badge" style="color:var(--amber);border-color:#442200">TRACING</span>
+      </div>
+      <div class="ic-meta"><span style="color:var(--amber)">${countLine}</span></div>
+      <div style="font-size:0.62rem;color:var(--text-dim);margin:4px 0 6px;line-height:1.35">
+        The Trace IC has locked your datatrail and gone reactive -- it can no longer be attacked.
+        Disrupt it with <span style="color:var(--cyan)">Relocate</span> (spoof it this turn, or
+        suppress it), or break contact with a Graceful Logoff.
+      </div>
+      ${canAct ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-cyan btn-sm" onclick="relocateFromCard('${esc(ic.id)}')" data-tip="Relocate: a Simple action Control Test against this trace's location cycle. Win to spoof it (no trace progress this turn) or, if you choose, suppress it (-1 Detection Factor, paused until released).">&gt;&gt; Relocate</button>
+      </div>` : ''}
+    </div>`;
+}
+
+// Card shortcut: jump the action panel to Relocate, pre-targeted at this location-cycle trace.
+function relocateFromCard(icId) {
+  const sel = document.getElementById('actionType');
+  if (!sel) return;
+  sel.value = 'relocate';
+  onActionTypeChange();
+  const tsel = document.getElementById('actionTargetSelect');
+  if (tsel) tsel.value = icId;
+  sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 // -- Known IC and defenses --------------------------------------------------
 function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
   const el = document.getElementById('run-ic-list');
@@ -3331,7 +3560,12 @@ function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
   // rather than let a click hit a submit-time guard. Other IC actions (Analyze, Slow) still apply.
   const _atkLimitedVsIc = (_attackOptions().limit_target === 'decker');
 
-  if (!icList.length && !lurkingList.length && !scrambleList.length) {
+  // Currently-suppressed IC are surfaced in the Suppressions panel (renderSuppressions); don't
+  // duplicate them here in the Known IC list. Active / crashed-but-unsuppressed / released IC still
+  // show. (A trace paused via Relocate is suppressed, so it too lives only in the Suppressions panel.)
+  const _visibleIC = (icList || []).filter(ic => !(ic.suppressed && !ic.suppression_released));
+
+  if (!_visibleIC.length && !lurkingList.length && !scrambleList.length) {
     el.innerHTML = '<div class="empty-msg">No security identified</div>';
     return;
   }
@@ -3342,14 +3576,20 @@ function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
 
   // Determine cluster sizes for Party IC penalty display
   const clusterCounts = {};
-  icList.forEach(ic => {
+  _visibleIC.forEach(ic => {
     if (ic.cluster_id && ic.status === 'active') {
       clusterCounts[ic.cluster_id] = (clusterCounts[ic.cluster_id] || 0) + 1;
     }
   });
 
-  const _cardHtml = icList.map(ic => {
+  const _cardHtml = _visibleIC.map(ic => {
     const isCrashed = ic.status === 'crashed';
+    // A trace that hit and entered its Location Cycle has gone reactive: re-skin the card to the
+    // LOCATION being traced (no direct Attack; Relocate is the tool). Suppressed traces are already
+    // filtered out of _visibleIC above (they live in the Suppressions panel).
+    if (!isCrashed && ic.type === 'Trace' && ic.trace_phase === 'locate') {
+      return _locatingTraceCard(ic, runEnded, crashed);
+    }
     const isConstruct = ic.type === 'Construct';
     const isParty     = !!ic.cluster_id;
     const cardCat     = isConstruct ? 'construct' : isParty ? 'party' : (ic.category ? String(ic.category).toLowerCase() : 'unknown');
@@ -3445,11 +3685,11 @@ function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
   // cluster and share the TN penalty.
   let html = '';
   let gi = 0;
-  while (gi < icList.length) {
-    const cid = icList[gi].cluster_id ? String(icList[gi].cluster_id) : null;
+  while (gi < _visibleIC.length) {
+    const cid = _visibleIC[gi].cluster_id ? String(_visibleIC[gi].cluster_id) : null;
     if (cid) {
       const parts = [];
-      while (gi < icList.length && (icList[gi].cluster_id ? String(icList[gi].cluster_id) : null) === cid) {
+      while (gi < _visibleIC.length && (_visibleIC[gi].cluster_id ? String(_visibleIC[gi].cluster_id) : null) === cid) {
         parts.push(_cardHtml[gi]); gi++;
       }
       const sz = clusterCounts[cid] || parts.length;
@@ -3493,17 +3733,62 @@ function renderActiveIC(icList, lurkingList, scrambleList, runEnded, crashed) {
 
   if (scrambleList.length) {
     html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;border-top:1px solid #003344;margin:10px 0 6px;padding-top:8px">Subsystem Defenses</div>`;
-    html += scrambleList.map(scramble => `
+    html += scrambleList.map(scramble => {
+      const ratingTxt = (scramble.rating != null) ? `RATING ${parseInt(scramble.rating, 10) || 0}` : 'RATING UNKNOWN';
+      const canAnalyze = scramble.rating == null && scramble.scramble_ref;
+      const variant = (scramble.variant === 'poison' || scramble.variant === 'exploding') ? scramble.variant : null;
+      const variantLabel = variant ? (variant === 'exploding' ? 'EXPLODING' : 'POISON') : null;
+      const typeName = variant ? `${variant === 'exploding' ? 'Exploding' : 'Poison'} Scramble` : 'Scramble';
+      // How-to-clear hint: only Exploding forces an order (defuse the linked bomb BEFORE decrypt/crash).
+      const clearHint = !variant ? 'Analyze Icon (file) to reveal its variant and any data bomb.'
+        : variant === 'exploding'
+          ? 'EXPLODING: Analyze Icon to find the linked data bomb, DEFUSE it, THEN Decrypt (or crash). Decrypt/crash before defusing detonates it.'
+          : 'POISON: Decrypt to clear it. A failed decrypt (or crashing it) may erase the protected data.';
+      return `
       <div class="ic-card ic-lurking">
         <div class="ic-head">
-          <span class="ic-type-name">Scramble</span>
+          <span class="ic-type-name">${esc(typeName)}</span>
           <span class="ic-badge" style="color:var(--cyan);border-color:#003344">${esc(String(scramble.subsystem || 'files').toUpperCase())}</span>
         </div>
         <div class="ic-meta">
           <span>${esc(scramble.label || 'Protected target')}</span>
-          <span style="color:var(--cyan)">DETECTED / RATING UNKNOWN</span>
+          <span style="color:var(--cyan)">DETECTED / ${ratingTxt}${variantLabel ? ` / ${variantLabel}` : ''}</span>
         </div>
-      </div>`).join('');
+        <div style="font-size:0.58rem;color:var(--text-dim);margin:3px 0 2px">${esc(clearHint)}</div>
+        ${(!runEnded && !crashed && scramble.scramble_ref) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">
+          ${canAnalyze ? `<button class="btn btn-cyan btn-sm" onclick="analyzeIC('${esc(String(scramble.scramble_ref))}')" data-tip="Analyze IC (Free) -- reveals the Scramble's rating (the Decrypt TN).">&gt;&gt; Analyze <span style="font-size:.5rem;opacity:.75">Free</span></button>` : ''}
+          <button class="btn btn-green btn-sm" ${_apOk ? `onclick="decryptScramble('${esc(String(scramble.scramble_ref))}')"` : 'disabled'} data-tip="${_apOk ? 'Decrypt this Scramble (Simple, 1 AP) to reach the protected data. TN = the scramble rating; the Decrypt utility lowers it. Poison: a failed decrypt may erase the data. Exploding: Defuse its linked data bomb FIRST.' : 'No action points left this pass -- End Turn to refresh'}">&gt;&gt; Decrypt <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
+          <button class="btn btn-red btn-sm" ${(_apOk && !_atkLimitedVsIc) ? `onclick="crashScramble('${esc(String(scramble.scramble_ref))}')"` : 'disabled'} data-tip="${_atkLimitedVsIc ? 'Your Attack utility is Limited to deckers -- it cannot target IC.' : (_apOk ? 'Crash it with your Attack program instead of Decrypting -- LOUD (adds its rating to the tally). Poison may erase the data as you attack; Exploding detonates its linked bomb unless you defused it first.' : 'No action points left this pass -- End Turn to refresh')}">&gt;&gt; Attack <span style="font-size:.5rem;opacity:.75">1 AP</span></button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Data Bombs the decker has discovered (Analyze Icon) -- each gets a Defuse button (Task 3). A
+  // bomb detonates when a matching access / download / edit SUCCEEDS unless it is defused first.
+  const _bombList = _discoveredBombs((_run && _run.state_json) || {});
+  if (_bombList.length) {
+    const _defuseOk = _canAffordCost((_run && _run.state_json) || {}, 'Complex');
+    html += `<div style="font-size:0.6rem;letter-spacing:2px;color:var(--amber);text-transform:uppercase;border-top:1px solid #2a1a00;margin:10px 0 6px;padding-top:8px">Data Bombs</div>`;
+    html += _bombList.map(bomb => {
+      const scope = bomb.scope === 'slave' ? 'slave' : 'files';
+      const where = scope === 'slave' ? 'access the device' : 'download or edit the file';
+      return `
+      <div class="ic-card ic-lurking">
+        <div class="ic-head">
+          <span class="ic-type-name">Data Bomb</span>
+          <span class="ic-badge" style="color:var(--amber);border-color:#442200">${esc(scope.toUpperCase())}</span>
+        </div>
+        <div class="ic-meta">
+          <span>${esc(String(bomb.name || bomb.target || 'protected target'))}</span>
+          <span style="color:var(--amber)">ARMED</span>
+        </div>
+        <div style="font-size:0.58rem;color:var(--text-dim);margin:3px 0 2px">Defuse it before you ${where} -- a successful access trips it otherwise.</div>
+        ${(!runEnded && !crashed) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">
+          <button class="btn btn-green btn-sm" ${_defuseOk ? `onclick="defuseBomb('${esc(String(bomb.target))}')"` : 'disabled'} data-tip="${_defuseOk ? 'Defuse this data bomb -- a Complex action (2 AP). The Defuse utility lowers the TN (subsystem rating minus Defuse). A failed attempt leaves it primed; rolling all 1s detonates it.' : 'Defuse is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Defuse <span style="font-size:.5rem;opacity:.75">2 AP</span></button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
   }
 
   el.innerHTML = html || '<div class="empty-msg">No security identified</div>';
@@ -3791,6 +4076,12 @@ function renderRunTerminated(state) {
 function startAnotherRun() {
   sessionStorage.removeItem('active_run_id');
   _run = null;
+  _runLoadoutDraft = null;
+  _runLoadoutDraftAccepted = false;
+  setUtilityFieldsFromLoadout(getSelectedLoadout());
+  updateComputedStats();
+  renderDeckSummary();
+  updateRunStartEligibility();
   document.body.classList.remove('mr-run-active');
   document.getElementById('runView').style.display = 'none';
   document.getElementById('setupView').style.display = '';
@@ -3836,29 +4127,28 @@ function renderActionArea(state, decker, crashed) {
   // cost, invalid ones disabled with a reason) + the conditional sub-field the chosen action
   // needs. Util rating is applied automatically; HP dice are capped to the remaining pool.
   const hpRem = state.hackingPool_remaining ?? 0;
-  // Two independent gates decide if an action is selectable: game state (a.valid -> gray reason,
-  // e.g. "no trace running") and the per-pass action budget (enough AP / a Free slot -> dark-red
-  // "insufficient action points"). A game-state block takes precedence when both apply.
+  // Two gates decide an action's fate: game state (a.valid) and the per-pass action budget (enough
+  // AP / a Free slot). Game-state-invalid actions are HIDDEN entirely (Task 2); a valid-but-
+  // unaffordable action stays listed but disabled with a dark-red "insufficient action points".
   const rows  = ACTION_CATALOG.map(a => ({
     a,
     okGame: a.valid ? !!a.valid(state) : true,
     afford: _canAffordCost(state, a.cost),
   }));
-  const buckets = { Complex: [], Simple: [], Free: [] };
-  rows.forEach(r => (buckets[r.a.cost] || buckets.Complex).push(r));
-  const groupLabel = { Complex: 'Complex -- 2 AP', Simple: 'Simple -- 1 AP', Free: 'Free Action' };
-  const optHtml = ['Complex', 'Simple', 'Free'].map(cost => {
-    const items = buckets[cost];
-    if (!items.length) return '';
-    return `<optgroup label="${groupLabel[cost]}">`
-      + items.map(r => {
-          const disabled = !r.okGame || !r.afford;
-          // Native <option> can't color only part of its text, so an affordability block dark-reds
-          // the whole row via .opt-noap; a game-state block keeps the default gray + its reason.
-          let label = esc(r.a.l), cls = '';
-          if (!r.okGame)      label += ' -- ' + esc((typeof r.a.reason === 'function' ? r.a.reason(state) : r.a.reason) || 'n/a');
-          else if (!r.afford) { label += ' -- insufficient action points'; cls = ' class="opt-noap"'; }
-          return `<option value="${r.a.v}"${disabled ? ' disabled' : ''}${cls}>${label}</option>`;
+  // Task 2: show only actions that are APPLICABLE in the current game-state (hide the long tail of
+  // "no trace / no worm / nothing located" entries), grouped by FUNCTIONAL category rather than by
+  // AP cost. Actions that are applicable but momentarily unaffordable stay listed (disabled, dark
+  // red) because their budget refreshes next pass; a game-state-invalid action is hidden entirely.
+  const visibleRows = rows.filter(r => r.okGame);
+  const _costHint = { Complex: '2 AP', Simple: '1 AP', Free: 'Free' };
+  const byCat = {};
+  visibleRows.forEach(r => { const c = ACTION_CATEGORY[r.a.v] || 'System'; (byCat[c] = byCat[c] || []).push(r); });
+  const optHtml = ACTION_CATEGORY_ORDER.filter(c => byCat[c] && byCat[c].length).map(c => {
+    return `<optgroup label="${esc(c)}">`
+      + byCat[c].map(r => {
+          const cls = !r.afford ? ' class="opt-noap"' : '';
+          const suffix = !r.afford ? ' -- insufficient action points' : ` [${_costHint[r.a.cost] || ''}]`;
+          return `<option value="${r.a.v}"${!r.afford ? ' disabled' : ''}${cls}>${esc(r.a.l)}${suffix}</option>`;
         }).join('')
       + `</optgroup>`;
   }).join('');
@@ -3878,6 +4168,7 @@ function renderActionArea(state, decker, crashed) {
         <label>Action</label>
         <select id="actionType" onchange="onActionTypeChange()">${optHtml}</select>
       </div>
+      <div id="actionDesc" class="act-desc" style="font-size:0.6rem;color:var(--text-dim);line-height:1.35;margin:-2px 0 7px"></div>
       <div class="mr-field act-sub" id="actionSubsystemWrap" style="display:none">
         <label>Subsystem</label>
         <!-- Analyze Subsystem (the only action using this picker) can only usefully target a
@@ -3934,11 +4225,17 @@ function renderActionArea(state, decker, crashed) {
       <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
     </div>`;
 
-  // Default to the first FULLY-USABLE action (valid by game state AND affordable this pass), then
-  // lay out its sub-fields + cost tag. If none is usable, leave the browser's default selection so
-  // onActionTypeChange still wires the panel.
+  // Default selection (Task 2): prefer the LAST action the decker executed if it is still shown and
+  // usable this pass, so the choice persists across polls instead of resetting to the top each time.
+  // Otherwise fall back to the first fully-usable action. If none is usable, keep the browser default
+  // so onActionTypeChange still wires the panel.
   const sel = document.getElementById('actionType');
-  const firstOk = rows.find(r => r.okGame && r.afford);
+  if (_lastActionType == null && _run && _run.id != null) {
+    try { _lastActionType = localStorage.getItem('mr_last_action_' + _run.id) || null; } catch (_) {}
+  }
+  const _usable = r => r.okGame && r.afford;
+  const _lastRow = _lastActionType && visibleRows.find(r => r.a.v === _lastActionType && _usable(r));
+  const firstOk = _lastRow || rows.find(_usable);
   if (sel && firstOk) sel.value = firstOk.a.v;
   onActionTypeChange();
 }
@@ -3948,6 +4245,10 @@ function onActionTypeChange() {
   if (!sel) return;
   const entry = _ACTION_BY_V[sel.value] || {};
   const state = (_run && _run.state_json) || {};
+
+  // Task 4: show the selected action's one-line description under the dropdown.
+  const _descEl = document.getElementById('actionDesc');
+  if (_descEl) _descEl.textContent = ACTION_INFO[sel.value] || '';
 
   // Subsystem selector: only when the action lets the player pick it (Analyze Subsystem).
   const subWrap = document.getElementById('actionSubsystemWrap');
@@ -4025,6 +4326,9 @@ async function performAction() {
   if (!actionType) return;
   // Guard against a disabled (contextually-invalid) option somehow being active.
   if (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].disabled) return;
+  // Task 2: remember this as the last executed action so the menu defaults back to it next poll.
+  _lastActionType = actionType;
+  try { if (_run && _run.id != null) localStorage.setItem('mr_last_action_' + _run.id, actionType); } catch (_) {}
 
   const entry = _ACTION_BY_V[actionType] || {};
   const state = (_run && _run.state_json) || {};
@@ -4565,12 +4869,12 @@ function _streamDiceHtml(roll, label) {
 const _GOOD_EVENT_TYPES = new Set([
   'crash_host_complete', 'data_downloaded', 'file_decompressed', 'ic_crashed', 'ic_slowed',
   'ic_suppressed', 'logoff_success', 'logon', 'medic_heal', 'paydata_secured',
-  'program_decompressed', 'restore_repair', 'tar_steamrolled', 'worm_disinfected',
+  'program_decompressed', 'restore_repair', 'scramble_crashed', 'tar_steamrolled', 'worm_disinfected',
 ]);
 const _INTEL_EVENT_TYPES = new Set([
   'data_bomb_clear', 'data_bomb_found', 'host_analyzed', 'host_ltg_revealed', 'ic_analyzed',
-  'ic_detected', 'icon_scanned', 'paydata_located', 'scramble_found', 'security_analyzed',
-  'trap_door_found',
+  'ic_detected', 'icon_scanned', 'paydata_located', 'scramble_analyzed', 'scramble_found',
+  'security_analyzed', 'trap_door_found',
 ]);
 const _WARNING_EVENT_TYPES = new Set([
   'alert', 'bouncer_scheduled', 'bouncer_warning', 'crash_host_aborted', 'crash_host_started',
@@ -4579,7 +4883,7 @@ const _WARNING_EVENT_TYPES = new Set([
 ]);
 const _DANGER_EVENT_TYPES = new Set([
   'data_bomb', 'decker_crippled', 'decker_hog', 'decker_lethal', 'download_corrupted',
-  'dump_shock', 'one_shot_wiped', 'persona_crash', 'shutdown', 'simsense_overload',
+  'dump_shock', 'one_shot_wiped', 'persona_crash', 'scramble_poison', 'shutdown', 'simsense_overload',
   'tapeworm_payload_loss', 'tar_pit_corruption', 'worm_resolved',
 ]);
 
@@ -4590,6 +4894,7 @@ function _beatClassFor(ev) {
   if (_DANGER_EVENT_TYPES.has(ev.type)) return 'mr-s-red';
   switch (ev.type) {
     case 'action':             return ev.success ? 'mr-s-good' : 'mr-s-amber';
+    case 'scramble_attack':    return ev.success ? 'mr-s-good' : 'mr-s-amber';
     case 'ic_attack':          return (ev.trace_phase || ev.trace_action) ? 'mr-s-amber' : 'mr-s-red';
     case 'shield_parry':       return 'mr-s-cyan';
     case 'enemy_decker':       return ev.outcome === 'fled' ? 'mr-s-good' : 'mr-s-enemy';
