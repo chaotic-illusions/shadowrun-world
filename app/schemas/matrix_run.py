@@ -20,6 +20,7 @@ class DeckerUtilities(_StrictModel):
     scanner:    int = Field(0, ge=0)   # Locate Decker: Sensor-aided search for hostile deckers
     # Operations
     deception:  int = Field(0, ge=0)
+    browse:     int = Field(0, ge=0)   # Locate File: Index search for a specific known datafile
     analyze:    int = Field(0, ge=0)
     evaluate:   int = Field(0, ge=0)
     decrypt:    int = Field(0, ge=0)
@@ -186,9 +187,19 @@ class DeckerStats(_StrictModel):
 
 # -- Run creation ---------------------------------------------------------------
 
+class RunLoadoutSelection(_StrictModel):
+    source: Literal["loadout", "compiled"]
+    source_index: int | None = Field(None, ge=0, le=63)
+    artifact_id: str = Field("", max_length=120)
+    source_signature: str = Field("", max_length=500)
+    target: Literal["active", "storage"]
+    limit_target: Literal["", "ic", "decker"] = ""
+
+
 class MatrixRunCreate(_StrictModel):
     host_id: int
     decker: DeckerStats
+    run_loadout_items: list[RunLoadoutSelection] | None = Field(None, max_length=64)
 
 
 # -- Action input --------------------------------------------------------------
@@ -196,7 +207,7 @@ class MatrixRunCreate(_StrictModel):
 ActionType = Literal[
     "logon_to_host",
     "analyze_host", "analyze_ic", "analyze_icon", "analyze_security", "analyze_subsystem",
-    "locate_paydata", "locate_ic", "locate_decker",
+    "locate_file", "locate_paydata", "locate_ic", "locate_decker",
     "download_data", "edit_file",
     "null_operation", "graceful_logoff", "crash_host",
     "validate_passcode", "invalidate_passcode", "decoy",
@@ -299,6 +310,14 @@ class RunEnemyScanInput(_StrictModel):
     enemy's hidden ratings (MPCP / a Persona rating / Response Increase); 3+ successes reveal all.
     Decker-only target, so it doubles as the Analyze-Icon read for a hostile decker."""
     enemy_id: str = Field(..., max_length=64)
+    hacking_pool_dice: int = Field(0, ge=0, le=40)
+
+
+class RunScrambleAttackInput(_StrictModel):
+    """Crash a DISCOVERED Scramble IC in cybercombat instead of Decrypting it (vr2 L495: crashing
+    with an Attack program adds the Scramble's rating to the security tally). Targets the scramble by
+    its redacted player ref (``scramble_N``) or -- for an admin -- its raw target_key."""
+    scramble_ref: str = Field(..., max_length=96)
     hacking_pool_dice: int = Field(0, ge=0, le=40)
 
 
@@ -419,6 +438,7 @@ class MatrixRunAAR(BaseModel):
     mpcp_infections: list[dict[str, Any]]
     enemy_deckers: list[dict[str, Any]] = []
     trap_doors: list[dict[str, Any]] = []
+    target_files: list[dict[str, Any]] = []
     alert_status: str
     security_tally: int
     acknowledged: bool

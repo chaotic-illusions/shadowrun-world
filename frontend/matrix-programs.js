@@ -17,6 +17,7 @@
   const OPERATIONAL_OPTIONS = ['dinab', 'oneshot', 'optimization', 'squeeze'];
   const PROGRAMS = [
     { key: 'analyze', display: 'Analyze', category: 'Operational', description: 'Reduces TN for Systems Tests that identify IC, programs, and other host resources.\n\nValid Operations: Analyze [IC|Icon|Security], Locate IC.' },
+    { key: 'browse', display: 'Browse', category: 'Operational', description: 'Reduces TN for Index Tests that locate a specific known datafile.\n\nValid Operations: Locate File.' },
     { key: 'crash', display: 'Crash', category: 'Operational', description: 'Reduces TN on attempts to crash a program or host.\n\nValid Operations: Crash [Application|Host].' },
     { key: 'defuse', display: 'Defuse', category: 'Operational', description: 'Reduces TN to defuse data bombs.\n\nValid Operations: [File|Slave] Subsystem Test.' },
     { key: 'deception', display: 'Deception', category: 'Operational', description: 'Reduces TN for Access Tests.\n\nValid Operations: Graceful Logoff, Logon.' },

@@ -113,6 +113,85 @@ def test_player_decker_uses_owned_active_pc_identity_and_attributes():
     assert result["program_sizes"]["attack"] == 144
 
 
+def test_player_run_loadout_resolves_persisted_sources_with_adjusted_placement():
+    attack = {
+        "programTypeKey": "attack", "utilName": "Attack", "baseRating": 4,
+        "target": "active", "mods": "None", "attackDamage": 2,
+    }
+    analyze = {
+        "id": "bin-analyze", "programTypeKey": "analyze", "utilName": "Analyze",
+        "baseRating": 4, "mods": "None", "actualSize": 16,
+    }
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 100,
+            "ioSpeed": 20, "offlineStorage": 100,
+        }],
+        "sr2_loadouts_v1": [{
+            "name": "Copies", "deckName": "Copy Rig", "items": [attack],
+        }],
+        "sr2_compiled_programs_v1": [analyze],
+    }})
+    request = {"deck_name": "Copy Rig", "loadout_name": "Copies", "base_bandwidth": 20}
+    selections = [
+        {
+            "source": "loadout", "source_index": 0, "artifact_id": "",
+            "source_signature": mr._run_program_signature(attack),
+            "target": "storage", "limit_target": "",
+        },
+        {
+            "source": "compiled", "source_index": None, "artifact_id": "bin-analyze",
+            "source_signature": "", "target": "active", "limit_target": "",
+        },
+    ]
+
+    result = mr._decker_from_persisted_loadout(character, request, selections)
+
+    assert result["utilities"] == {"analyze": 4}
+    assert result["storage_programs"] == [
+        {"name": "attack", "rating": 4, "size": 32, "squeezed": False},
+    ]
+    assert result["program_sizes"] == {"attack": 32, "analyze": 48}
+
+
+def test_player_run_loadout_rejects_unknown_compiled_artifact():
+    character = SimpleNamespace(deck_builder_state={"stores": {
+        "sr2_decks_v1": [{
+            "name": "Copy Rig", "status": "ready", "deckType": "hot", "mpcp": 6,
+            "pBod": 4, "pEvasion": 4, "pMasking": 4, "pSensor": 4,
+            "hardening": 2, "respIncrease": 0, "activeMem": 100,
+            "ioSpeed": 20, "offlineStorage": 100,
+        }],
+        "sr2_loadouts_v1": [{"name": "Copies", "deckName": "Copy Rig", "items": []}],
+        "sr2_compiled_programs_v1": [],
+    }})
+    request = {"deck_name": "Copy Rig", "loadout_name": "Copies", "base_bandwidth": 20}
+    selections = [{
+        "source": "compiled", "source_index": None, "artifact_id": "spoofed",
+        "source_signature": "", "target": "active", "limit_target": "",
+    }]
+
+    with pytest.raises(HTTPException, match="unknown compiled program"):
+        mr._decker_from_persisted_loadout(character, request, selections)
+
+
+def test_player_run_loadout_rejects_stale_saved_item_signature():
+    loadout = {"items": [{
+        "programTypeKey": "analyze", "baseRating": 4, "mods": "None",
+        "actualSize": 48,
+    }]}
+    selection = [{
+        "source": "loadout", "source_index": 0, "artifact_id": "",
+        "source_signature": "analyze|5|none|0|0|0|75",
+        "target": "active", "limit_target": "",
+    }]
+
+    with pytest.raises(HTTPException, match="stale"):
+        mr._resolve_run_loadout_items({}, loadout, selection)
+
+
 @pytest.mark.parametrize("field,value,match", [
     ("hardening", 4, "Hardening"),
     ("ioSpeed", 25, "I/O Speed"),
@@ -597,3 +676,73 @@ def test_saved_sheaf_rejects_more_than_64_steps():
             security_value=6,
             sheaf=[step for _ in range(65)],
         )
+
+
+def _locate_state():
+    return {
+        "paydata": [
+            {"id": "pd1", "name": "Payroll", "density": 30, "is_key": False},
+            {"id": "pd2", "name": "Account 180k", "density": 20, "is_key": True},
+        ],
+        "event_log": [],
+        "current_turn": 1,
+        "security_tally": 0,
+    }
+
+
+def _locate_ok(net=3):
+    return {
+        "success": True, "decker_net_successes": net,
+        "decker_roll": {"successes": net, "ones": 0}, "host_roll": {"successes": 0},
+    }
+
+
+def test_locate_paydata_never_surfaces_key_target_files():
+    # vr2 L1888: the random Locate Paydata sweep locates ordinary paydata but must NOT reveal a
+    # KEY/target file -- those are found only via Locate File (Browse).
+    state = _locate_state()
+    body = RunActionInput(action_type="locate_paydata", subsystem="index")
+    mr._apply_file_action_result(state, {}, SimpleNamespace(id=5), body, _locate_ok())
+    located = {p["name"]: bool(p.get("located")) for p in state["paydata"]}
+    assert located["Payroll"] is True
+    assert located["Account 180k"] is False   # key file stays hidden to a paydata sweep
+
+
+def test_locate_file_finds_only_key_target_files():
+    # vr2 L1885: Locate File (Index/Browse) finds the specific KNOWN target files, and nothing
+    # from the random paydata pool.
+    state = _locate_state()
+    body = RunActionInput(action_type="locate_file", subsystem="index")
+    mr._apply_file_action_result(state, {}, SimpleNamespace(id=5), body, _locate_ok())
+    located = {p["name"]: bool(p.get("located")) for p in state["paydata"]}
+    assert located["Account 180k"] is True
+    assert located["Payroll"] is False        # random paydata is not a Locate File target
+    events = [e for e in state["event_log"] if e.get("type") == "file_located"]
+    assert events and "Account 180k" in events[0]["description"]
+
+
+def test_aar_surfaces_located_key_file_narrative():
+    # The GM-acknowledged AAR must carry the narrative of any LOCATED key/target file (finding it
+    # is the trigger), and must not surface unlocated key files or ordinary paydata.
+    from datetime import datetime, UTC
+    state = {
+        "paydata": [
+            {"id": "k1", "name": "Account 180k", "is_key": True, "located": True,
+             "narrative": "The account routes to a numbered ZurichOrbital drop.",
+             "downloaded": True},
+            {"id": "k2", "name": "Hidden Memo", "is_key": True, "located": False,
+             "narrative": "Never found."},
+            {"id": "p1", "name": "Payroll", "is_key": False, "located": True},
+        ],
+    }
+    run = SimpleNamespace(
+        id=9, host_id=3, status="escaped", decker_json={"name": "Static"}, state_json=state,
+        aar_acknowledged=False, created_at=datetime.now(UTC), updated_at=datetime.now(UTC),
+    )
+    aar = mr._build_run_aar(run)
+    names = {t["name"]: t for t in aar["target_files"]}
+    assert "Account 180k" in names             # located key file surfaces
+    assert "Hidden Memo" not in names          # unlocated key file does not
+    assert "Payroll" not in names              # non-key paydata does not
+    assert names["Account 180k"]["narrative"].startswith("The account routes")
+    assert names["Account 180k"]["downloaded"] is True

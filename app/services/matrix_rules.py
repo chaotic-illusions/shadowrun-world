@@ -379,7 +379,7 @@ IC_CATALOG: dict[str, dict] = {
 # Utility program multipliers used to derive authoritative object-code footprints. Attack uses
 # its selected Damage Level multiplier (2/3/4/5) instead of this table's default.
 PROGRAM_MULTIPLIERS: dict[str, int] = {
-    "analyze": 3, "crash": 3, "defuse": 2, "deception": 2, "decrypt": 1,
+    "analyze": 3, "browse": 1, "crash": 3, "defuse": 2, "deception": 2, "decrypt": 1,
     "disinfect": 2, "evaluate": 2, "mirrors": 3, "read_write": 2,
     "relocate": 2, "scanner": 3, "validate_pgm": 4, "compressor": 2,
     "sleaze": 3, "attack": 2, "black_hammer": 20, "hog": 3, "killjoy": 10,
@@ -402,6 +402,9 @@ SYSTEM_OPERATIONS: list[dict] = [
      "tip": "Inspects a file or Slave device for a Data Bomb before you access it. Detect one here, then Defuse Data Bomb it -- otherwise a successful access sets it off."},
     {"name": "Analyze Security",    "subsystem": "control", "utility": "Analyze",   "action": "Simple",
      "tip": "Reveals current security rating, your tally, and alert status. GM includes tally from this test."},
+    {"name": "Locate File",         "subsystem": "index",   "utility": "Browse",     "action": "Complex",
+     "tip": "Searches for a specific KNOWN datafile (a mission/target file you came here for). "
+             "Needs a meaningful search goal; finds target files that a random Locate Paydata sweep will not."},
     {"name": "Locate Paydata",      "subsystem": "index",   "utility": "Evaluate",  "action": "Complex",
      "tip": "Ongoing op. Each net success = 1 Paydata Point. Must download once located."},
     {"name": "Download Data",       "subsystem": "files",   "utility": "Read/Write","action": "Simple",

@@ -28,7 +28,7 @@ from app.schemas.matrix_run import (
     MatrixRunCreate, MatrixRunRead, MatrixRunSummary, MatrixRunAAR,
     RunActionInput, RunAttackInput, RunDefendInput, RunLogoffInput,
     RunSuppressInput, RunRevealHostRatingsInput, RunEnemyAttackInput,
-    RunEnemyScanInput, RunAreaAttackInput,
+    RunEnemyScanInput, RunAreaAttackInput, RunScrambleAttackInput,
     RunTrapDoorInput, SheaveSaveInput, SheafGenerateInput,
 )
 from app.services import matrix_engine as eng
@@ -275,6 +275,8 @@ def _paydata_for_target(state: dict, target: str) -> dict | None:
 
 
 def _paydata_label(state: dict, target: str) -> str:
+    if str(target or "").strip() == "__entire__":
+        return "Files datastore (all files)"
     item = _paydata_for_target(state, target)
     return str(item.get("name") or target) if item else str(target or "")
 
@@ -291,6 +293,8 @@ def _data_bomb_scope_name(target: str) -> tuple[str, str]:
     t = (target or "").strip()
     if t.startswith("files::"):
         return "files", t[len("files::"):]
+    if t.startswith("access::"):
+        return "access", t[len("access::"):]
     if t.startswith("slave::"):
         return "slave", t[len("slave::"):]
     if t == "__slave__":
@@ -383,6 +387,181 @@ def _scramble_player_label(state: dict, target_key: str) -> str:
 def _scramble_ref(index: int) -> str:
     """Stable run-local player reference that does not disclose a Scramble's target key."""
     return f"scramble_{index + 1}"
+
+
+def _file_scramble_for_target(state: dict, target_file: str) -> dict | None:
+    """Return unresolved Scramble IC that blocks access to the selected Files target."""
+    for scramble in (state.get("scrambles") or []):
+        if not isinstance(scramble, dict):
+            continue
+        target_key = str(scramble.get("target_key") or "")
+        if _scramble_subsystem(target_key) != "files":
+            continue
+        if target_key == "files::entire":
+            return scramble
+        protected_name = _target_file_name(target_key)
+        if protected_name.strip().lower() == str(target_file or "").strip().lower():
+            return scramble
+        if any(
+            _paydata_matches(item, target_file) and _paydata_matches(item, protected_name)
+            for item in (state.get("paydata") or []) if isinstance(item, dict)
+        ):
+            return scramble
+    return None
+
+
+def _assert_file_not_scrambled(state: dict, body: RunActionInput) -> None:
+    """Scramble is a lock: Decrypt File must remove it before Download/Edit can run."""
+    if body.action_type not in {"download_data", "edit_file"} or not body.target_file:
+        return
+    if _file_scramble_for_target(state, body.target_file) is not None:
+        raise HTTPException(
+            400,
+            "File access blocked by Scramble IC. Analyze the Files subsystem, then Decrypt it "
+            "from its Subsystem Defenses card before downloading or editing the protected file.",
+        )
+
+
+def _paydata_encrypted(state: dict, pd: dict) -> bool:
+    """A located file is ENCRYPTED while any unresolved Scramble IC still covers it (vr2: the
+    Scramble IS the encryption). Encryption is observable (garbled data) even before the scramble
+    has been formally discovered/analyzed."""
+    if not isinstance(pd, dict):
+        return False
+    return _file_scramble_for_target(state, str(pd.get("id") or pd.get("name") or "")) is not None
+
+
+def _reveal_located_file_encryption(state: dict, pd: dict) -> bool:
+    """On locating a file, report whether it is ENCRYPTED (its data is garbled by a covering
+    Scramble). This NO LONGER auto-discovers the Scramble: discovery now requires an **Analyze Icon**
+    on the file (which also reveals the variant and any linked/standalone data bomb) or an Analyze
+    Subsystem. The file still renders garbled via ``_paydata_encrypted`` regardless of discovery, so
+    the decker SEES the lock but must scan the icon to learn how to defeat it."""
+    return _paydata_encrypted(state, pd)
+
+
+def _scramble_protected_files(state: dict, scramble: dict) -> list[dict]:
+    """The paydata files a Scramble protects -- a per-file scramble guards its one file; a
+    ``files::entire`` scramble guards every still-present file. Access/other scopes protect no
+    downloadable data (return empty)."""
+    target_key = str(scramble.get("target_key") or "")
+    paydata = state.get("paydata") or []
+    if target_key == "files::entire":
+        return [item for item in paydata if isinstance(item, dict) and not item.get("destroyed")]
+    if target_key.startswith("files::file::"):
+        one = next(
+            (item for item in paydata
+             if isinstance(item, dict) and _paydata_matches(item, _target_file_name(target_key))),
+            None,
+        )
+        return [one] if one is not None else []
+    return []
+
+
+def _scramble_poison_react(state: dict, decker: dict, scramble: dict) -> bool:
+    """A Poison Scramble reacts to EACH cybercombat attack against it (hit OR miss, user ruling
+    2026-07-28 / vr2 L493): it rolls its Poison Test (rating dice vs the decker's Computer skill)
+    and, on a success, ERASES the data it protects -- one file for a per-file scramble, the whole
+    datastore for ``files::entire``. Returns True if data was destroyed; emits a player event."""
+    protected = _scramble_protected_files(state, scramble)
+    consequence = eng.scramble_failure_consequence(
+        variant="poison",
+        is_key=any(bool(f.get("is_key")) for f in protected),
+        scramble_rating=int(scramble.get("rating", 6) or 6),
+        decker_computer_skill=decker.get("computer_skill", 6),
+    )
+    destroyed = bool(consequence.get("data_destroyed"))
+    if destroyed:
+        for f in protected:
+            f["destroyed"] = True
+    _append_event(state, {
+        "type": "scramble_poison",
+        "success": False,
+        "data_destroyed": destroyed,
+        "key_data_lost": bool(consequence.get("key_data_lost")),
+        "files_destroyed": [f.get("name") for f in protected] if destroyed else [],
+        "description": (
+            "POISON Scramble reacted to your attack and ERASED the protected data -- it is gone."
+            if destroyed else
+            "POISON Scramble reacted to your attack but its erase test missed -- the data survives."
+        ),
+    })
+    return destroyed
+
+
+def _link_exploding_scramble_bombs(state: dict) -> None:
+    """RAW L491: an Exploding Scramble is linked to a data bomb. Ensure every exploding
+    ``files::file::<id>`` scramble has a data bomb on the same file so the decker can DISCOVER it
+    (Analyze Icon) and DEFUSE it (Defuse Data Bomb) before decrypting -- and so a decrypt/crash
+    WITHOUT defusing first detonates it. Idempotent; only creates a bomb when the file has none
+    (a designer-authored bomb on the same file already serves as the linked bomb)."""
+    scrambles = state.get("scrambles") or []
+    bombs = state.setdefault("data_bombs", [])
+    if not isinstance(bombs, list):
+        return
+    for scr in scrambles:
+        if not isinstance(scr, dict) or scr.get("variant") != "exploding":
+            continue
+        target_key = str(scr.get("target_key") or "")
+        if target_key.startswith("files::file::"):
+            file_id = _target_file_name(target_key)
+            bomb_target = f"files::{file_id}"
+            has_bomb = any(
+                isinstance(b, dict)
+                and _data_bomb_scope_name(b.get("target", ""))[0] == "files"
+                and _data_bomb_scope_name(b.get("target", ""))[1].strip().lower()
+                == file_id.strip().lower()
+                for b in bombs
+            )
+        elif target_key == "files::entire":
+            # One sentinel bomb guards the whole datastore: accessing ANY file -- or decrypting/
+            # crashing the scramble -- without defusing it first detonates it once.
+            bomb_target = "files::__entire__"
+            has_bomb = any(
+                isinstance(b, dict) and b.get("target") == bomb_target for b in bombs
+            )
+        elif target_key.startswith("access::"):
+            # An Access Exploding Scramble's linked bomb detonates on a successful Access operation
+            # (graceful logoff -- including a trap-door transit -- or Validate Passcode), or on a
+            # decrypt/crash of the scramble, unless defused first. Distinct sentinel ("__all__") so
+            # its Defuse handle never collides with the Files datastore bomb ("__entire__").
+            piece = _target_file_name(target_key) if "::piece::" in target_key else "__all__"
+            bomb_target = f"access::{piece}"
+            has_bomb = any(
+                isinstance(b, dict) and b.get("target") == bomb_target for b in bombs
+            )
+        else:
+            continue
+        if not has_bomb:
+            bombs.append({
+                "target": bomb_target,
+                "rating": int(scr.get("rating", 6) or 6),
+                "linked_scramble": target_key,
+            })
+
+
+def _armed_bomb_on_file(state: dict, scramble: dict) -> dict | None:
+    """The undefused data bomb protecting the same file as this Scramble (an Exploding Scramble's
+    linked bomb), or None once it has been defused."""
+    target_key = str(scramble.get("target_key") or "")
+    file_id = _target_file_name(target_key).strip().lower()
+    defused = set(state.get("defused_bombs") or [])
+    for b in (state.get("data_bombs") or []):
+        if not isinstance(b, dict) or b.get("target") in defused:
+            continue
+        # A subsystem-wide Exploding Scramble's sentinel bomb is matched by its linkage back to the
+        # scramble (there is no single filename to compare for a whole-datastore bomb).
+        if b.get("linked_scramble") == target_key:
+            return b
+        scope, name = _data_bomb_scope_name(b.get("target", ""))
+        if scope != "files":
+            continue
+        if name.strip().lower() == file_id or any(
+            _paydata_matches(item, file_id) and _paydata_matches(item, name)
+            for item in (state.get("paydata") or []) if isinstance(item, dict)
+        ):
+            return b
+    return None
 
 
 def _defuse_target_subsystem(state: dict, target_file: str) -> str | None:
@@ -845,17 +1024,24 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
         state = dict(data.get("state_json") or {})
         # Surface only the paydata the decker has actually LOCATED (name/size/key/downloaded) so
         # the player can make storage decisions; the full GM paydata list is then redacted below.
-        located_paydata = [
-            {"id": p.get("id"),
-             "name": p.get("name"),
-             "size_mp": max(0, int(p.get("density", 0) or 0)),
-             "is_key": bool(p.get("is_key")),
-             "downloaded": bool(p.get("downloaded")),
-             "destroyed": bool(p.get("destroyed")),
-             "tampered": bool(p.get("tampered"))}
-            for p in (state.get("paydata") or [])
-            if isinstance(p, dict) and p.get("located")
-        ]
+        # An ENCRYPTED file (unresolved Scramble) keeps its real NAME and size visible -- the
+        # Scramble encrypts the file's CONTENT, not its identity -- but carries `encrypted:true`
+        # so the UI tags it and Download/Edit stay blocked until the decker Decrypts it.
+        located_paydata = []
+        for p in (state.get("paydata") or []):
+            if not isinstance(p, dict) or not p.get("located"):
+                continue
+            enc = _paydata_encrypted(state, p)
+            located_paydata.append({
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "size_mp": max(0, int(p.get("density", 0) or 0)),
+                "encrypted": enc,
+                "is_key": bool(p.get("is_key")),
+                "downloaded": bool(p.get("downloaded")),
+                "destroyed": bool(p.get("destroyed")),
+                "tampered": bool(p.get("tampered")),
+            })
         # Surface only DISCOVERED trap doors, and even then without the destination -- the player
         # knows a port to "another system" exists, not where it leads. Filing only records it for
         # later (the destination is reachable ONLY through the door); the destination -- and
@@ -875,22 +1061,39 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
             if not isinstance(b, dict) or not b.get("discovered"):
                 continue
             scope, name = _data_bomb_scope_name(b.get("target", ""))
+            if scope == "files":
+                display = _paydata_label(state, name)
+            elif scope == "access":
+                display = "Access subsystem" if name == "__all__" else f"Access: {name}"
+            else:
+                display = name
             discovered_data_bombs.append({
                 "target": name,
                 "scope": scope,
-                "name": _paydata_label(state, name) if scope == "files" else name,
+                "name": display,
             })
         # Surface only DISCOVERED scrambles (found via Analyze Subsystem on the Files/Slave
         # subsystem that holds them). Redacted to target_key + subsystem + a human label -- enough
         # to offer Decrypt File against the RIGHT scramble -- WITHOUT leaking its rating or variant
         # (Poison/Exploding stay GM-only; scrambles is popped below with the other GM-only keys).
-        discovered_scrambles = [
-            {"scramble_ref": _scramble_ref(index),
-             "subsystem": _scramble_subsystem(s.get("target_key", "")),
-             "label": _scramble_player_label(state, s.get("target_key", ""))}
-            for index, s in enumerate(state.get("scrambles") or [])
-            if isinstance(s, dict) and s.get("discovered")
-        ]
+        discovered_scrambles = []
+        for index, s in enumerate(state.get("scrambles") or []):
+            if not isinstance(s, dict) or not s.get("discovered"):
+                continue
+            entry = {
+                "scramble_ref": _scramble_ref(index),
+                "subsystem": _scramble_subsystem(s.get("target_key", "")),
+                "label": _scramble_player_label(state, s.get("target_key", "")),
+            }
+            # Rating is disclosed only after an Analyze IC on the scramble. The variant
+            # (Poison/Exploding) is surfaced once an Analyze Icon (file) or Analyze Subsystem has
+            # revealed it -- the decker needs the variant to pick the safe order (defuse-before-
+            # decrypt for Exploding).
+            if s.get("rating_revealed"):
+                entry["rating"] = int(s.get("rating", 0) or 0)
+            if s.get("variant_revealed"):
+                entry["variant"] = s.get("variant")
+            discovered_scrambles.append(entry)
         # Lurking reactive IC remains GM-only until detected. A blown Tar ambush is fully known;
         # other detected/located lurkers use the same graduated redaction as active IC.
         revealed_lurking_ic = []
@@ -1116,7 +1319,8 @@ def _redact_ic(ic: dict) -> dict | None:
       1 -> presence known ("Unknown IC")          3 -> type + rating revealed
     Reactive IC running surreptitiously (Probe, Data Bomb, Scramble, Worm) stay invisible until
     detected, so nothing leaks that they are operating. Trace is visible during its Hunt Cycle at
-    level 2 (type and phase, not rating). trap_hidden always collapses to a bare marker.
+    level 2 (type and phase, not rating). A trapped icon only reveals that it is trapped once the
+    decker Analyzes it (Analyze IC) or crashes it -- passive detection never exposes the trap.
     """
     level = _ic_detection_level(ic)
     if level <= 0:
@@ -1142,7 +1346,10 @@ def _redact_ic(ic: dict) -> dict | None:
     }
     allowed = common_fields | (full_fields if level >= 3 else identity_fields if level >= 2 else set())
     out = {key: value for key, value in ic.items() if key in allowed}
-    if ic.get("trap_hidden"):
+    # Trap IC is a HIDDEN layer (vr2 L695): the decker learns an icon is trapped only by ANALYZING
+    # it (Analyze IC, which sets ``analyzed``) or by crashing it (the trap springs). Passive sensor
+    # detection reveals the surface IC but NOT that it conceals a trap.
+    if ic.get("trap_hidden") and (ic.get("analyzed") or ic.get("status") == "crashed"):
         out["trap_hidden"] = True
     if level == 1:
         out["type"] = "Unknown IC"
@@ -4960,6 +5167,44 @@ def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
         "Slave device" if slave_generic else
         (_paydata_label(state, want_name) if scope == "files" else want_name or "Slave device")
     )
+    # Analyze Icon on a FILE also reveals a file-specific Scramble on that icon -- its presence AND
+    # variant (Poison/Exploding), which the decker needs to pick the safe order (for Exploding you
+    # must defuse the linked bomb BEFORE you decrypt or crash it). Subsystem-wide Scramble stays an
+    # Analyze Subsystem finding.
+    if scope == "files":
+        scramble = None
+        for scr in (state.get("scrambles") or []):
+            if not isinstance(scr, dict):
+                continue
+            tk = str(scr.get("target_key") or "")
+            if not tk.startswith("files::file::"):
+                continue
+            sname = _target_file_name(tk)
+            if sname.strip().lower() == wn or any(
+                _paydata_matches(item, want_name) and _paydata_matches(item, sname)
+                for item in (state.get("paydata") or []) if isinstance(item, dict)
+            ):
+                scramble = scr
+                break
+        if scramble is not None:
+            already = scramble.get("discovered") and scramble.get("variant_revealed")
+            scramble["discovered"] = True
+            scramble["variant_revealed"] = True
+            if not already:
+                is_exploding = scramble.get("variant") == "exploding"
+                _append_event(state, {
+                    "type": "scramble_analyzed",
+                    "subsystem": "files",
+                    "variant": scramble.get("variant"),
+                    "description": (
+                        f"Analyze Icon on \"{icon_label}\" -- "
+                        + ("EXPLODING Scramble IC detected. Defuse its linked data bomb BEFORE you "
+                           "decrypt (or crash it), or it detonates."
+                           if is_exploding else
+                           "POISON Scramble IC detected. Decrypt it to reach the data; a failed "
+                           "decrypt may erase the file.")
+                    ),
+                })
     if bomb is not None:
         bomb["discovered"] = True
         _append_event(state, {
@@ -4977,7 +5222,7 @@ def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
             "type": "data_bomb_clear",
             "subsystem": scope,
             "description": (
-                f"Analyze Icon on \"{icon_label}\" -- nothing unusual; no data bomb on this "
+                f"Analyze Icon on \"{icon_label}\" -- no data bomb detected on this "
                 + ("file." if scope == "files" else "device.")
             ),
         })
@@ -5111,11 +5356,46 @@ def _trigger_access_data_bomb(state: dict, decker: dict, eff: dict, *, action_ty
                           for item in (state.get("paydata") or []) if isinstance(item, dict)
                       ))), None)
     if bomb is None:
+        # A Files-subsystem-wide Exploding Scramble's linked bomb triggers on accessing ANY file.
+        bomb = next(
+            (b for b in armed
+             if isinstance(b, dict) and b.get("target") == "files::__entire__"
+             and b.get("target") not in safe),
+            None,
+        )
+    if bomb is None:
         return False
     state["data_bombs"] = [b for b in armed if b is not bomb]  # one-shot
     _detonate_data_bomb(state, decker, eff, ic_rating=bomb.get("rating", 6),
                         sec_value=sec_value, sec_code=sec_code,
                         headline=f"DATA BOMB on {bomb.get('target')}")
+    return True
+
+
+def _trigger_access_subsystem_bomb(state: dict, decker: dict, *, op_label: str) -> bool:
+    """An Access Exploding Scramble's linked bomb detonates on a successful ACCESS operation the
+    decker did not defuse first -- a graceful logoff (which also covers a trap-door transit) or a
+    Validate Passcode (user ruling 2026-07-28). One-shot; returns True if a bomb detonated. Self-
+    contained (derives eff / Security Value / code from ``state``) so it can be called from the
+    logoff helper and the control-op handler without threading those through."""
+    armed = state.get("data_bombs") or []
+    safe = set(state.get("defused_bombs") or [])
+    bomb = next(
+        (b for b in armed
+         if isinstance(b, dict) and b.get("target") not in safe
+         and _data_bomb_scope_name(b.get("target", ""))[0] == "access"),
+        None,
+    )
+    if bomb is None:
+        return False
+    state["data_bombs"] = [b for b in armed if b is not bomb]  # one-shot
+    eff = _get_decker_effective(decker, state)
+    _detonate_data_bomb(
+        state, decker, eff, ic_rating=bomb.get("rating", 6),
+        sec_value=state.get("host_security_value", 6),
+        sec_code=state.get("host_security_code", "Green"),
+        headline=f"Access-subsystem DATA BOMB ({op_label})",
+    )
     return True
 
 
@@ -5851,6 +6131,20 @@ def _build_run_aar(run: MatrixRun) -> dict:
             "entered": bool(td.get("entered", False)),
         })
 
+    # Key/target files the decker LOCATED this run (found via Locate File). The GM-authored
+    # narrative rides here so the acknowledged AAR carries the mission flavor -- surfaced whether
+    # or not the file was downloaded (finding it is the trigger). GM-only, like the rest of the AAR.
+    target_files = []
+    for pd in (state.get("paydata") or []):
+        if not isinstance(pd, dict) or not pd.get("is_key") or not pd.get("located"):
+            continue
+        target_files.append({
+            "name": str(pd.get("name", "") or ""),
+            "narrative": str(pd.get("narrative", "") or ""),
+            "downloaded": bool(pd.get("downloaded")),
+            "destroyed": bool(pd.get("destroyed")),
+        })
+
     return {
         "run_id": run.id,
         "host_id": run.host_id,
@@ -5870,6 +6164,7 @@ def _build_run_aar(run: MatrixRun) -> dict:
         "mpcp_infections": infections,
         "enemy_deckers": enemy_deckers,
         "trap_doors": trap_doors,
+        "target_files": target_files,
         "alert_status": str(state.get("alert_status", "none") or "none"),
         "security_tally": int(state.get("security_tally", 0) or 0),
         "acknowledged": bool(run.aar_acknowledged),
@@ -5948,7 +6243,11 @@ async def start_run(
 
     decker_dict = body.decker.model_dump()
     if not auth.get("is_admin"):
-        decker_dict = await _authoritative_player_decker(db, auth, decker_dict)
+        selections = (
+            [item.model_dump() for item in body.run_loadout_items]
+            if body.run_loadout_items is not None else None
+        )
+        decker_dict = await _authoritative_player_decker(db, auth, decker_dict, selections)
 
     await _assert_no_unacknowledged_run(db, auth, decker_dict)
 
@@ -5956,7 +6255,12 @@ async def start_run(
     return _serialize_run(run, auth)
 
 
-async def _authoritative_player_decker(db: AsyncSession, auth: dict, decker_dict: dict) -> dict:
+async def _authoritative_player_decker(
+    db: AsyncSession,
+    auth: dict,
+    decker_dict: dict,
+    run_loadout_items: list[dict] | None = None,
+) -> dict:
     """Build a player run snapshot from the owned character's persisted deck and loadout."""
     character_id = decker_dict.get("character_id")
     if character_id is None:
@@ -5968,7 +6272,9 @@ async def _authoritative_player_decker(db: AsyncSession, auth: dict, decker_dict
     if not token or character.owner_token != hash_token(token):
         raise HTTPException(404, "Active player character not found")
 
-    authoritative = _decker_from_persisted_loadout(character, decker_dict)
+    authoritative = _decker_from_persisted_loadout(
+        character, decker_dict, run_loadout_items,
+    )
     authoritative.update({
         "character_id": character.id,
         "name": character.name,
@@ -5994,7 +6300,7 @@ _JACKPOINT_PROFILES = {
 def _program_key(item: dict) -> str:
     raw = str(item.get("programTypeKey") or item.get("utilName") or "").strip().lower()
     raw = raw.replace("/", "_").replace("-", "_").replace(" ", "_")
-    return {"read__write": "read_write"}.get(raw, raw)
+    return {"read__write": "read_write", "validate": "validate_pgm"}.get(raw, raw)
 
 
 def _program_options_from_item(item: dict, rating: int) -> dict:
@@ -6106,7 +6412,70 @@ def _validated_deck_values(deck: dict) -> dict[str, int | bool | str]:
     }
 
 
-def _decker_from_persisted_loadout(character: Character, request: dict) -> dict:
+def _resolve_run_loadout_items(
+    stores: dict,
+    loadout: dict,
+    selections: list[dict],
+) -> list[dict]:
+    loadout_items = loadout.get("items") or []
+    compiled_items = stores.get("sr2_compiled_programs_v1") or []
+    if not isinstance(loadout_items, list) or not isinstance(compiled_items, list):
+        raise HTTPException(400, "Persisted program stores are invalid")
+    resolved: list[dict] = []
+    for selection in selections:
+        source = selection.get("source")
+        if source == "loadout":
+            index = selection.get("source_index")
+            if index is None or index >= len(loadout_items):
+                raise HTTPException(400, "Adjusted loadout references an invalid saved item")
+            persisted = loadout_items[index]
+            if _run_program_signature(persisted) != selection.get("source_signature"):
+                raise HTTPException(400, "Adjusted loadout is stale; reopen it and try again")
+        elif source == "compiled":
+            artifact_id = str(selection.get("artifact_id") or "")
+            persisted = next((
+                item for item in compiled_items
+                if isinstance(item, dict) and str(item.get("id") or "") == artifact_id
+            ), None)
+            if persisted is None:
+                raise HTTPException(400, "Adjusted loadout references an unknown compiled program")
+        else:
+            raise HTTPException(400, "Adjusted loadout contains an invalid source")
+        if not isinstance(persisted, dict):
+            raise HTTPException(400, "Adjusted loadout references an invalid program")
+
+        item = copy.deepcopy(persisted)
+        item["target"] = selection.get("target")
+        limit_target = str(selection.get("limit_target") or "").lower()
+        if item.get("hasLimit"):
+            if limit_target not in {"ic", "decker"}:
+                raise HTTPException(400, "A Limited program requires an IC or decker target")
+            item["limitTarget"] = limit_target
+        elif limit_target:
+            raise HTTPException(400, "Only a Limited program can select a Limit target")
+        resolved.append(item)
+    return resolved
+
+
+def _run_program_signature(item: Any) -> str:
+    if not isinstance(item, dict):
+        return ""
+    return "|".join([
+        _program_key(item),
+        str(int(item.get("baseRating", 0) or 0)),
+        str(item.get("mods") or "None").strip().lower(),
+        "1" if item.get("isOneShot") else "0",
+        "1" if item.get("hasLimit") else "0",
+        str(int(item.get("attackDamage", 0) or 0)),
+        str(int(item.get("actualSize", 0) or 0)),
+    ])
+
+
+def _decker_from_persisted_loadout(
+    character: Character,
+    request: dict,
+    run_loadout_items: list[dict] | None = None,
+) -> dict:
     stores = ((character.deck_builder_state or {}).get("stores") or {})
     decks = stores.get("sr2_decks_v1") or []
     loadouts = stores.get("sr2_loadouts_v1") or []
@@ -6121,6 +6490,10 @@ def _decker_from_persisted_loadout(character: Character, request: dict) -> dict:
     if loadout is None or loadout.get("deckName") != deck_name:
         raise HTTPException(400, "Select a persisted loadout for the chosen deck")
     values = _validated_deck_values(deck)
+    selected_items = (
+        _resolve_run_loadout_items(stores, loadout, run_loadout_items)
+        if run_loadout_items is not None else loadout.get("items") or []
+    )
 
     profile = (
         int(request.get("trace_factor", 0) or 0),
@@ -6144,9 +6517,10 @@ def _decker_from_persisted_loadout(character: Character, request: dict) -> dict:
     one_shot_active: dict[str, int] = {}
     one_shot_signatures: dict[str, tuple] = {}
     option_rank: dict[str, int] = {}
+    normal_types: set[str] = set()
     active_used = 0
     storage_used = 0
-    for item in loadout.get("items") or []:
+    for item in selected_items:
         if not isinstance(item, dict):
             continue
         key = _program_key(item)
@@ -6171,6 +6545,10 @@ def _decker_from_persisted_loadout(character: Character, request: dict) -> dict:
                     400,
                     f"All One-Shot {_action_label(key)} copies in a loadout must use the same build",
                 )
+        elif key in normal_types:
+            raise HTTPException(400, f"Duplicate non-One-Shot utility: {_action_label(key)}")
+        else:
+            normal_types.add(key)
         active = target in {"active", "both"}
         if not options["one_shot"] or not active:
             storage_used += stored_size
@@ -6284,6 +6662,9 @@ async def _create_run(db: AsyncSession, auth: dict, host: MatrixHost, decker_dic
     if composite_errors:
         raise HTTPException(400, "Host is not run-ready: " + "; ".join(composite_errors))
     state = _initial_state(decker_dict, host)
+    # RAW: an Exploding Scramble is linked to a data bomb (defuse it before decrypting, or the
+    # decrypt detonates it). Seed that linked bomb so it can be found + defused during the run.
+    _link_exploding_scramble_bombs(state)
     # Real runs opt into interactive per-attack defense: a landing IC cybercombat strike pauses the
     # host response phase (state['pending_defense']) so the decker can allocate Hacking Pool dice to
     # the icon's resist before the hit lands (resolved via POST /{run_id}/defend). Tests build state
@@ -6876,10 +7257,9 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} Construct component HUNT CYCLE HIT "
-                            f"({_successes(hunt_successes)}) -- "
-                            f"Location Cycle: {locate_turns} round"
-                            f"{'s' if locate_turns != 1 else ''} to trace."
+                            f"{acting_type}-{acting_rating} HUNT CYCLE succeeded "
+                            f"({_successes(hunt_successes)}) -- it now switches to its LOCATION CYCLE: "
+                            f"{locate_turns} round{'s' if locate_turns != 1 else ''} to complete the trace."
                         ),
                         "trace_phase": "hunt_hit",
                         "hunt_roll": hunt["roll"],
@@ -6889,7 +7269,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} Construct component hunt cycle: searching... "
+                            f"{acting_type}-{acting_rating} HUNT CYCLE: searching for your datatrail... "
                             f"({hunt['roll']['successes']} hits vs TN {trace_tn})"
                         ),
                         "trace_phase": "hunting",
@@ -6903,7 +7283,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} Construct component location cycle SPOOFED this turn "
+                            f"{acting_type}-{acting_rating} LOCATION CYCLE SPOOFED this turn "
                             "-- no trace progress."
                         ),
                         "trace_phase": "spoofed",
@@ -6954,7 +7334,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} Construct component location cycle: "
+                            f"{acting_type}-{acting_rating} LOCATION CYCLE: "
                             f"{remaining} round{'s' if remaining != 1 else ''} to trace completion."
                         ),
                         "trace_phase": "locating",
@@ -7366,6 +7746,27 @@ async def _apply_analysis_action_result(
 ) -> None:
     """Apply successful or failed Analyze operation side effects."""
     if body.action_type == "analyze_ic" and test["success"]:
+        # A discovered Scramble can be Analyzed to learn its RATING (= the Decrypt target number).
+        # Its variant (Poison vs Exploding) was already revealed when the Scramble was discovered
+        # (Analyze Icon on the file, or Analyze Subsystem for a subsystem-wide Scramble).
+        scr_ref = body.target_ic_id or ""
+        scramble = None
+        for index, s in enumerate(state.get("scrambles") or []):
+            if not isinstance(s, dict) or not s.get("discovered"):
+                continue
+            if scr_ref and (_scramble_ref(index) == scr_ref or s.get("target_key") == scr_ref):
+                scramble = s
+                break
+        if scramble is not None:
+            scramble["rating_revealed"] = True
+            _append_event(state, {
+                "type": "ic_analyzed",
+                "description": (
+                    f"Scramble analyzed -- Rating {int(scramble.get('rating', 0) or 0)} "
+                    "(the Decrypt target number)."
+                ),
+            })
+            return
         active = [
             ic for ic in [*(state.get("active_ic") or []), *(state.get("lurking_ic") or [])]
             if ic.get("status") in ("active", "lurking") and _ic_detection_level(ic) > 0
@@ -7415,17 +7816,66 @@ async def _apply_analysis_action_result(
             (index, item) for index, item in enumerate(state.get("scrambles") or [])
             if not item.get("discovered")
             and _scramble_subsystem(item.get("target_key", "")) == subsystem
+            # An individual-file Scramble (files::file::<id>) rides a specific file icon, so it is an
+            # Analyze ICON finding (which also reveals its variant + any linked bomb). Analyze
+            # Subsystem surfaces only node-level scrambles: the whole Files datastore (files::entire)
+            # and Access-subsystem/piece scrambles.
+            and not str(item.get("target_key", "")).startswith("files::file::")
         ]:
             scramble["discovered"] = True
+            scramble["variant_revealed"] = True
             player_label = _scramble_player_label(state, scramble.get("target_key", ""))
+            is_exploding = scramble.get("variant") == "exploding"
             _append_event(state, {
                 "type": "scramble_found",
                 "scramble_ref": _scramble_ref(scramble_index),
                 "subsystem": subsystem,
+                "variant": scramble.get("variant"),
                 "description": (
-                    f"Scramble IC detected on the {subsystem.capitalize()} subsystem "
-                    f"({player_label}) -- Decrypt it before "
-                    "operating on the protected data."
+                    f"{'EXPLODING' if is_exploding else 'POISON'} Scramble IC detected on the "
+                    f"{subsystem.capitalize()} subsystem ({player_label}) -- "
+                    + ("defuse its linked data bomb before you decrypt or crash it."
+                       if is_exploding else
+                       "decrypt it before operating on the protected data.")
+                ),
+            })
+            if is_exploding:
+                linked = _armed_bomb_on_file(state, scramble)
+                if linked is not None and not linked.get("discovered"):
+                    linked["discovered"] = True
+                    _append_event(state, {
+                        "type": "data_bomb_found",
+                        "subsystem": subsystem,
+                        "description": (
+                            "Analyze Subsystem -- the Exploding Scramble's linked DATA BOMB is armed "
+                            "on this datastore. Defuse it before you decrypt or download."
+                        ),
+                    })
+
+        # Standalone subsystem-wide Data Bombs (planted directly in the designer, not linked to a
+        # Scramble) surface on the same Analyze Subsystem that reveals the subsystem's other
+        # defenses: the Files datastore bomb on a Files analyze, an Access-subsystem bomb on an
+        # Access analyze. (Per-file bombs stay an Analyze Icon finding.)
+        for bomb in (state.get("data_bombs") or []):
+            if not isinstance(bomb, dict) or bomb.get("discovered"):
+                continue
+            bscope, bname = _data_bomb_scope_name(bomb.get("target", ""))
+            reveal = (
+                (subsystem == "files" and bscope == "files" and bname == "__entire__")
+                or (subsystem == "access" and bscope == "access")
+            )
+            if not reveal:
+                continue
+            bomb["discovered"] = True
+            _append_event(state, {
+                "type": "data_bomb_found",
+                "subsystem": subsystem,
+                "description": (
+                    f"Analyze Subsystem -- a DATA BOMB is armed on the {subsystem.capitalize()} "
+                    "subsystem. Defuse it before you "
+                    + ("download or edit a file."
+                       if subsystem == "files" else
+                       "log off, transit a trap door, or validate a passcode.")
                 ),
             })
 
@@ -7537,6 +7987,9 @@ def _apply_control_action_result(
             "success": True,
             "description": "Validate Passcode successful -- Legitimate status granted.",
         })
+        # A successful Validate Passcode is an Access operation -- an undefused Access-subsystem
+        # Exploding Scramble's linked bomb goes off now (analyze + defuse first to be safe).
+        _trigger_access_subsystem_bomb(state, decker, op_label="validate passcode")
     elif body.action_type == "validate_passcode":
         _append_event(state, {
             "type": "validate_passcode",
@@ -7674,14 +8127,19 @@ def _apply_file_action_result(
 ) -> None:
     """Apply discovery, file-editing, and download operation side effects."""
     if body.action_type == "locate_paydata" and test["success"]:
+        # Locate Paydata is the RANDOM loot sweep (vr2 L1888). It deliberately never surfaces
+        # KEY/target files -- those are mission data you must know to look for, found only via
+        # Locate File (Browse). So is_key files are excluded from the pool here.
         pool = [
             paydata for paydata in (state.get("paydata") or [])
             if not paydata.get("located") and not paydata.get("destroyed")
+            and not paydata.get("is_key")
         ]
         if pool:
             net_successes = int(test["decker_net_successes"])
             already_located = sum(
-                1 for paydata in (state.get("paydata") or []) if paydata.get("located")
+                1 for paydata in (state.get("paydata") or [])
+                if paydata.get("located") and not paydata.get("is_key")
             )
             seed = (
                 (int(getattr(run, "id", 0) or 0) * 1_000_003)
@@ -7690,33 +8148,64 @@ def _apply_file_action_result(
                 ^ (already_located * 17)
             )
             newly_located = random.Random(seed).sample(pool, min(net_successes, len(pool)))
+            parts, files_payload = [], []
             for paydata in newly_located:
                 paydata["located"] = True
+                enc = _reveal_located_file_encryption(state, paydata)
+                disp = str(paydata.get("name", "?"))
+                size = max(0, int(paydata.get("density", 0) or 0))
+                parts.append(f"{disp} ({size} Mp{', ENCRYPTED' if enc else ''})")
+                files_payload.append({
+                    "name": disp, "size_mp": size,
+                    "is_key": bool(paydata.get("is_key")), "encrypted": enc,
+                })
             all_found = not any(
                 not paydata.get("located") and not paydata.get("destroyed")
+                and not paydata.get("is_key")
                 for paydata in (state.get("paydata") or [])
             )
             _append_event(state, {
                 "type": "paydata_located",
-                "description": "Paydata located: " + ", ".join(
-                    f"{paydata.get('name', '?')} "
-                    f"({max(0, int(paydata.get('density', 0) or 0))} Mp)"
-                    for paydata in newly_located
-                ) + "." + (" All paydata on this host is now located." if all_found else ""),
+                "description": "Paydata located: " + ", ".join(parts) + "."
+                    + (" All paydata on this host is now located." if all_found else ""),
                 "all_located": all_found,
-                "files": [
-                    {
-                        "name": paydata.get("name"),
-                        "size_mp": max(0, int(paydata.get("density", 0) or 0)),
-                        "is_key": bool(paydata.get("is_key")),
-                    }
-                    for paydata in newly_located
-                ],
+                "files": files_payload,
             })
         else:
             _append_event(state, {
                 "type": "paydata_located",
                 "description": "Search complete -- no further paydata found.",
+            })
+
+    if body.action_type == "locate_file" and test["success"]:
+        # Locate File (Index / Browse, vr2 L1885): finds specific KNOWN target files -- the mission
+        # data the decker came for -- which the random Locate Paydata sweep never surfaces. A
+        # success reveals every not-yet-located target (is_key) file on the host.
+        targets = [
+            paydata for paydata in (state.get("paydata") or [])
+            if paydata.get("is_key") and not paydata.get("located")
+            and not paydata.get("destroyed")
+        ]
+        if targets:
+            parts, files_payload = [], []
+            for paydata in targets:
+                paydata["located"] = True
+                enc = _reveal_located_file_encryption(state, paydata)
+                disp = str(paydata.get("name", "?"))
+                size = max(0, int(paydata.get("density", 0) or 0))
+                parts.append(f"{disp} ({size} Mp{', ENCRYPTED' if enc else ''})")
+                files_payload.append({
+                    "name": disp, "size_mp": size, "is_key": True, "encrypted": enc,
+                })
+            _append_event(state, {
+                "type": "file_located",
+                "description": "Target file located: " + ", ".join(parts) + ".",
+                "files": files_payload,
+            })
+        else:
+            _append_event(state, {
+                "type": "file_located",
+                "description": "Search complete -- no target file found for that search goal.",
             })
 
     if body.action_type == "locate_ic":
@@ -8011,7 +8500,50 @@ def _apply_direct_action(
         scramble_rating=scramble.get("rating", 6),
         decrypt_utility=_effective_program_rating(decker, state, "decrypt"),
     )
-    if decrypt_test["decrypted"]:
+    decrypted = decrypt_test["decrypted"]
+
+    # Exploding Scramble (vr2 L491): "if decrypted OR crashed without defusing first: boom." The
+    # linked data bomb detonates on ANY decrypt attempt -- success OR failure -- unless it was
+    # DEFUSED first (Analyze Icon to find it, then Defuse Data Bomb). Defuse it, then decrypt safe.
+    if scramble.get("variant") == "exploding":
+        linked_bomb = _armed_bomb_on_file(state, scramble)
+        if decrypted:
+            state["scrambles"] = [item for item in scrambles if item is not scramble]
+        if linked_bomb is not None:
+            state["data_bombs"] = [
+                b for b in (state.get("data_bombs") or []) if b is not linked_bomb
+            ]
+            _append_event(state, {
+                "type": "decrypt",
+                "success": bool(decrypted),
+                "decker_roll": decrypt_test["roll"],
+                "description": (
+                    "Scramble decrypted -- but its linked data bomb DETONATES (you did not defuse "
+                    "it first)." if decrypted else
+                    "Decrypt FAILED -- and the Exploding Scramble's linked data bomb DETONATES."
+                ),
+            })
+            _detonate_data_bomb(
+                state, decker, eff,
+                ic_rating=linked_bomb.get("rating", scramble.get("rating", 6)),
+                sec_value=sec_value, sec_code=sec_code,
+                headline="Exploding Scramble's linked data bomb",
+            )
+        else:
+            _append_event(state, {
+                "type": "decrypt",
+                "success": bool(decrypted),
+                "decker_roll": decrypt_test["roll"],
+                "description": (
+                    "Scramble decrypted -- protected data accessible." if decrypted else
+                    "Decrypt failed -- the Scramble holds. Try again."
+                ),
+            })
+        return True, None
+
+    # Poison Scramble: a SUCCESSFUL decrypt clears it; a FAILED decrypt lets the IC make its Poison
+    # Test (IC rating vs your Computer skill) -- a success destroys the protected data.
+    if decrypted:
         state["scrambles"] = [item for item in scrambles if item is not scramble]
         _append_event(state, {
             "type": "decrypt",
@@ -8021,41 +8553,34 @@ def _apply_direct_action(
         })
         return True, None
 
-    paydata = state.get("paydata") or []
-    protected = next(
-        (
-            item for item in paydata
-            if _paydata_matches(item, _target_file_name(scramble.get("target_key", "")))
-        ),
-        None,
-    )
+    target_key = scramble.get("target_key", "")
+    protected_files = _scramble_protected_files(state, scramble)
+    any_key = any(bool(f.get("is_key")) for f in protected_files)
     consequence = eng.scramble_failure_consequence(
         variant=scramble["variant"],
-        is_key=bool(protected and protected.get("is_key")),
+        is_key=any_key,
         scramble_rating=scramble.get("rating", 6),
         decker_computer_skill=decker.get("computer_skill", 6),
     )
-    if consequence.get("data_destroyed") and protected is not None:
-        protected["destroyed"] = True
+    destroyed = bool(consequence.get("data_destroyed"))
+    if destroyed:
+        for f in protected_files:
+            f["destroyed"] = True
+    entire = target_key == "files::entire"
     _append_event(state, {
         "type": "decrypt",
         "success": False,
         "decker_roll": decrypt_test["roll"],
         "key_data_lost": consequence.get("key_data_lost", False),
-        "data_destroyed": consequence.get("data_destroyed", False),
-        "file_name": (protected or {}).get("name"),
-        "description": consequence["message"],
+        "data_destroyed": destroyed,
+        "file_name": (protected_files[0].get("name") if (protected_files and not entire) else None),
+        "files_destroyed": ([f.get("name") for f in protected_files] if destroyed else []),
+        "description": (
+            "POISON Scramble triggered on the failed decrypt -- the ENTIRE Files datastore is wiped. "
+            "Every protected file is destroyed and cannot be recovered."
+            if (entire and destroyed) else consequence["message"]
+        ),
     })
-    if consequence.get("detonate_data_bomb"):
-        _detonate_data_bomb(
-            state,
-            decker,
-            eff,
-            ic_rating=scramble.get("rating", 6),
-            sec_value=sec_value,
-            sec_code=sec_code,
-            headline="Exploding Scramble's data bomb",
-        )
     return True, None
 
 
@@ -8109,6 +8634,7 @@ async def perform_action(
         _assert_logged_on(state)
 
     _assert_known_action_target(state, body)
+    _assert_file_not_scrambled(state, body)
     _assert_hp_eligible(body.action_type, body.hacking_pool_dice)
 
     # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
@@ -8824,6 +9350,140 @@ async def attack_ic(
     return _serialize_run(run, auth)
 
 
+@router.post("/{run_id}/scramble/attack", response_model=MatrixRunRead,
+             dependencies=[Depends(trace_action)])
+async def crash_scramble(
+    run_id: int,
+    body: RunScrambleAttackInput,
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crash a DISCOVERED Scramble IC in cybercombat instead of Decrypting it. vr2 L495: crashing a
+    Scramble with an Attack program ADDS its rating to the security tally (unlike the quiet Decrypt).
+    A POISON Scramble reacts to EACH attack (hit or miss) with its Poison Test, which may erase the
+    protected data; an EXPLODING Scramble's linked data bomb detonates when the scramble is crashed
+    unless it was defused first (vr2 L491-492)."""
+    run = await _get_run_or_404(db, run_id)
+    _assert_run_access(run, auth)
+    if run.status != "active":
+        raise HTTPException(400, "Run is not active")
+
+    state = copy.deepcopy(run.state_json)
+    decker = run.decker_json
+    _assert_logged_on(state)
+    sec_code = state["host_security_code"]
+    sec_value = state["host_security_value"]
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
+
+    scrambles = state.get("scrambles") or []
+    scramble = None
+    for index, s in enumerate(scrambles):
+        if not isinstance(s, dict) or not s.get("discovered"):
+            continue
+        if _scramble_ref(index) == body.scramble_ref or s.get("target_key") == body.scramble_ref:
+            scramble = s
+            break
+    if scramble is None:
+        raise HTTPException(404, "No discovered Scramble matches that reference")
+
+    if (((decker.get("program_options") or {}).get("attack") or {}).get("limit_target")) == "decker":
+        raise HTTPException(400, "This Attack utility is Limited to deckers -- it cannot target IC.")
+    _one_shot_block(state, decker, "attack")
+    _spend_pass_action(state, "attack")
+    _assert_not_dinab_locked(state, "attack")
+    _record_manual_program(state, "attack")
+    _spend_hp(state, body.hacking_pool_dice)
+
+    eff = _get_decker_effective(decker, state)
+    attack_rating = _effective_program_rating(decker, state, "attack")
+    if attack_rating <= 0:
+        raise HTTPException(400, "No usable Attack program is loaded")
+    attack_pool = attack_rating + body.hacking_pool_dice
+    variant = scramble.get("variant")
+    rating = int(scramble.get("rating", 6) or 6)
+    wound = _decker_wound_mod(state)
+
+    # A Scramble is a plain reactive lock: it resists with the host Security Value (like IC), has no
+    # Shield/Shift/Armor/Party mechanics, and is hit on the Legitimate column (host resident).
+    attack = eng.cybercombat_attack(
+        attacker_pool=attack_pool,
+        security_code=sec_code,
+        target_status="legitimate",
+        target_bod=sec_value,
+        armor_rating=0,
+        ic_rating=attack_rating,
+        attacker_is_ic=False,
+        tn_modifier=wound,
+        base_damage_level=_attack_damage_level(decker, sec_code),
+    )
+    attack_roll = attack["attack_roll"]
+    resist_roll = attack["resistance"]["resist_roll"]
+    net_successes = attack_roll["successes"] - resist_roll["successes"]
+    boxes = attack["resistance"]["boxes"]
+    scramble["boxes"] = int(scramble.get("boxes", 0) or 0) + boxes
+    crashed = scramble["boxes"] >= 10
+
+    _spend_one_shot(state, decker, "attack")
+
+    _append_event(state, {
+        "type": "scramble_attack",
+        "scramble_ref": body.scramble_ref,
+        "success": crashed,
+        "attack_roll": attack_roll,
+        "resist_roll": resist_roll,
+        "net_successes": net_successes,
+        "boxes": boxes,
+        "scramble_boxes": min(10, scramble["boxes"]),
+        "description": (
+            f"Attacked Scramble IC: Attack {attack_roll['successes']} vs Resist "
+            f"{resist_roll['successes']}. "
+            + ("No damage." if boxes <= 0 else f"Dealt {boxes} boxes.")
+            + f" Scramble: {min(10, scramble['boxes'])}/10."
+        ),
+    })
+
+    # vr2 L493 / user ruling: a POISON Scramble reacts to EVERY attack against it (hit or miss) with
+    # its erase test -- crashing it is not a clean escape.
+    if variant == "poison":
+        _scramble_poison_react(state, decker, scramble)
+
+    if crashed:
+        state["scrambles"] = [s for s in scrambles if s is not scramble]
+        applied = _bump_security_tally(state, rating)
+        sup_id = None
+        if applied > 0:
+            sup = _register_suppression(
+                state, source="scramble_crash",
+                label=f"Crashed Scramble IC (rating {rating})", rating=applied)
+            sup_id = sup.get("id")
+        _append_event(state, {
+            "type": "scramble_crashed",
+            "scramble_ref": body.scramble_ref,
+            "tally_increase": applied,
+            "suppression_id": sup_id,
+            "description": f"Scramble IC CRASHED. Tally +{applied} -> {state['security_tally']}.",
+        })
+        # vr2 L491-492: crashing an EXPLODING Scramble sets off its linked data bomb unless defused.
+        if variant == "exploding":
+            linked = _armed_bomb_on_file(state, scramble)
+            if linked is not None:
+                state["data_bombs"] = [
+                    b for b in (state.get("data_bombs") or []) if b is not linked]
+                _detonate_data_bomb(
+                    state, decker, eff,
+                    ic_rating=int(linked.get("rating", rating) or rating),
+                    sec_value=sec_value, sec_code=sec_code,
+                    headline="Exploding Scramble's linked data bomb")
+        _check_and_activate_sheaf(state, sec_code)
+
+    _run_reactive_activation_sensor_checks(state, decker)
+    run.state_json = state
+    await db.commit()
+    await db.refresh(run)
+    return _serialize_run(run, auth)
+
+
 def _apply_swap_memory(
     state: dict,
     decker: dict,
@@ -9096,6 +9756,10 @@ def _apply_graceful_logoff(
     tally_increase = _bump_security_tally(state, test["tally_increase"])
 
     if test["success"]:
+        # A successful Access Test is exactly what an undefused Access-subsystem Exploding Scramble's
+        # linked bomb waits for -- the decker eats the blast on the way out unless they analyzed and
+        # defused it first (a trap-door transit runs this same graceful logoff, so it is covered).
+        _trigger_access_subsystem_bomb(state, decker, op_label="graceful logoff")
         state["run_ended"] = True
         state["end_reason"] = "graceful_logoff"
         if finalize_run:

@@ -104,6 +104,8 @@ DEDICATED_CONTROLS = {
     "logon_to_host": "doLogon",     # >> Log On to Host button + doLogon()
     "graceful_logoff": "/logoff",   # logoff modal POSTs /logoff
     "analyze_ic": "analyzeIC",      # Analyze button on each visible IC card
+    "decrypt_file": "decryptScramble",   # Decrypt button on each Scramble card (Subsystem Defenses)
+    "defuse_data_bomb": "defuseBomb",     # Defuse button on each Data Bomb card
 }
 
 #: Multi-actor mechanics that MUST resolve through a single shared engine primitive (req 4).
@@ -252,8 +254,11 @@ def test_req2_run_ui_enforces_free_actions_and_hunt_only_trace_targeting():
 
 
 def test_req2_scramble_refs_and_shield_display_do_not_leak_or_split_results():
-    assert "value: sc.scramble_ref" in RUN_UI
-    assert "value: sc.target_key" not in RUN_UI
+    # Scramble cards fire Decrypt / Attack with the opaque player ref (scramble_ref), never the raw
+    # target_key -- so the client control cannot leak the underlying target.
+    assert "decryptScramble('${esc(String(scramble.scramble_ref))}')" in RUN_UI
+    assert "crashScramble('${esc(String(scramble.scramble_ref))}')" in RUN_UI
+    assert "scramble.target_key" not in RUN_UI
     stream = RUN_UI[RUN_UI.index("function _streamDiceHtml"):RUN_UI.index("function _beatClassFor")]
     assert "const combined = baseSuccesses +" in stream
     assert "persona</span>;" in stream
@@ -274,7 +279,8 @@ def test_req2_known_security_pane_includes_discovered_scrambles():
     assert "_discoveredScrambles(state), state.run_ended" in RUN_UI
     renderer = RUN_UI[RUN_UI.index("function renderActiveIC"):RUN_UI.index("function renderConditionBoxesHTML")]
     assert "Subsystem Defenses" in renderer
-    assert "DETECTED / RATING UNKNOWN" in renderer
+    assert "RATING UNKNOWN" in renderer
+    assert "scramble.rating" in renderer
     assert "scramble.label" in renderer
 
 
@@ -353,7 +359,7 @@ def test_req5_scope_and_exclusions_are_disjoint():
 def test_req5_excluded_items_are_truly_absent_from_the_builder():
     # The exclusions are provable: each excluded program/option is genuinely NOT buildable.
     assert "sensitive" not in {o.lower() for o in WORKSHOP_OPTIONS}
-    for absent in ("Browse", "Commlink", "Spoof", "Locate File", "Track"):
+    for absent in ("Commlink", "Spoof", "Track"):
         assert absent not in WORKSHOP_PROGRAMS, f"{absent} is excluded but present in the workshop"
 
 

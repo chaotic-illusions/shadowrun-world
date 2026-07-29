@@ -212,27 +212,27 @@
 
           <div class="mx-field">
             <label>Passive IC &mdash; Subsystem &amp; Device Protection</label>
-            <div class="tip" style="margin-bottom:9px">These attach to <strong>subsystems and slave devices</strong> &mdash; not the paydata files above. Data Bombs guard slave devices; Scramble guards Access/Slave pieces or the Files subsystem; Worms infect a whole subsystem.</div>
+            <div class="tip" style="margin-bottom:9px">These attach to <strong>subsystems</strong> &mdash; not the paydata files above. Data Bombs guard the Access or Files subsystem; Scramble guards Access pieces or the Files subsystem; Worms infect a whole subsystem. File-level Data Bomb / Scramble live on each paydata row above.</div>
             <div class="ic-cards">
 
               <div class="ic-card">
-                <div class="ic-card-hd" data-tip="Trigger: accessing the device without defusing -> (Rating)M to the persona. Detection: Analyze Icon. Removal: Files or Slave subsystem test.">Data Bombs</div>
+                <div class="ic-card-hd" data-tip="Subsystem-wide Data Bomb. Files: detonates on downloading/editing ANY file. Access: detonates on graceful logoff (or a trap-door transit) or validate passcode. Detection: Analyze Subsystem. Defuse it before you trigger it.">Data Bombs</div>
                 <div id="dataBombList" class="ic-card-list"></div>
                 <div class="ic-card-add">
-                  <select id="dbTarget" class="ic-target-select" data-tip="Slave device target for this Data Bomb."><option value="">-- target --</option></select>
+                  <select id="dbTarget" class="ic-target-select" data-tip="Access or Files subsystem for this Data Bomb."><option value="">-- target --</option></select>
                   <div class="ic-add-row">
                     <input type="number" id="dbRating" min="1" max="20" placeholder="Rtg" data-tip="Data Bomb rating (1-20).">
                     <button class="btn btn-ghost btn-sm md3-ctrl-btn" onclick="addDataBomb()" data-tip="Add this Data Bomb.">+ Add</button>
                   </div>
                 </div>
-                <div class="ic-card-tip">Device-level, one per device. File-level bombs live on each paydata row above.</div>
+                <div class="ic-card-tip">Subsystem-wide (Access / Files). Per-file bombs live on each paydata row above.</div>
               </div>
 
               <div class="ic-card">
                 <div class="ic-card-hd" data-tip="Trigger (Exploding): removal attempt without defusing -> Rating(M). Trigger (Poison): repeats data destruction until decrypted/crashed. Detection: Analyze Icon. Removal: decrypt or attack the IC.">Scramble IC</div>
                 <div id="scrambleList" class="ic-card-list"></div>
                 <div class="ic-card-add">
-                  <select id="scrTarget" class="ic-target-select" onchange="onScrTargetChange()" data-tip="Access, Slave, or Files target."><option value="">-- target --</option></select>
+                  <select id="scrTarget" class="ic-target-select" onchange="onScrTargetChange()" data-tip="Access or Files target."><option value="">-- target --</option></select>
                   <select id="scrVariant" onchange="this.dataset.tip = ({exploding:'Exploding Scramble: destroys the file if the crack fails.',poison:'Poison Scramble: repeats destruction until decrypted or crashed.'})[this.value]||''" data-tip="Scramble behavior. Poison is only offered when the target is Files - entire."><option value="exploding">Exploding</option></select>
                   <div class="ic-add-row">
                     <input type="number" id="scrRating" min="1" max="20" placeholder="Rtg" data-tip="Scramble rating (1-20, decrypt TN).">
@@ -1867,11 +1867,15 @@ async function quickFillAcifs() {
 
 const DB_TARGET_FILE_PREFIX = 'files::';
 const DB_TARGET_SLAVE_PREFIX = 'slave::';
+const DB_TARGET_ACCESS_PREFIX = 'access::';
 
 function _decodeDataBombTarget(target) {
   if (typeof target !== 'string') return { scope: 'unknown', name: String(target || '') };
   if (target.startsWith(DB_TARGET_FILE_PREFIX)) {
     return { scope: 'files', name: target.slice(DB_TARGET_FILE_PREFIX.length) };
+  }
+  if (target.startsWith(DB_TARGET_ACCESS_PREFIX)) {
+    return { scope: 'access', name: target.slice(DB_TARGET_ACCESS_PREFIX.length) };
   }
   if (target.startsWith(DB_TARGET_SLAVE_PREFIX)) {
     return { scope: 'slave', name: target.slice(DB_TARGET_SLAVE_PREFIX.length) };
@@ -1885,7 +1889,12 @@ function _decodeDataBombTarget(target) {
 
 function _dataBombTargetLabel(target) {
   const dec = _decodeDataBombTarget(target);
-  if (dec.scope === 'files' || dec.scope === 'files_legacy') return `Files - ${dec.name}`;
+  if (dec.scope === 'files' || dec.scope === 'files_legacy') {
+    return dec.name === '__entire__' ? 'Files - datastore' : `Files - ${dec.name}`;
+  }
+  if (dec.scope === 'access') {
+    return dec.name === '__all__' ? 'Access - subsystem' : `Access - ${dec.name}`;
+  }
   if (dec.scope === 'slave') return `Slave - ${dec.name}`;
   return dec.name;
 }
@@ -1899,7 +1908,11 @@ function renderDataBombs() {
     .map((db, idx) => ({ db, idx }))
     .filter(row => {
       const dec = _decodeDataBombTarget(row.db.target);
-      return dec.scope !== 'files' && dec.scope !== 'files_legacy';
+      // Show subsystem-wide bombs (Access, or the Files datastore); per-file bombs live on the
+      // paydata rows and legacy slave bombs are gone.
+      if (dec.scope === 'access') return true;
+      if ((dec.scope === 'files' || dec.scope === 'files_legacy') && dec.name === '__entire__') return true;
+      return false;
     });
   if (visible.length === 0) {
     list.innerHTML = '<div style="font-size:.68rem;color:var(--text-dim);margin-bottom:2px">None configured.</div>';
@@ -1988,7 +2001,7 @@ function addPaydata() {
   const name = ($('pdName')?.value || '').trim();
   if (!name) { showAlert(alertEl(), 'Enter a file name.', true); return; }
   const density = _rollPaydataDensity();
-  paydata.push({ name, density, is_key: false, defense: null });
+  paydata.push({ name, density, is_key: false, narrative: '', defense: null });
   $('pdName').value = '';
   renderPaydata();
   _rebuildTargetDropdowns();
@@ -2085,13 +2098,18 @@ function _applyPaydataDefenseMode(i, mode) {
   if (mode === 'data_bomb' || mode === 'combo') d.data_bomb_rating = _defaultDefenseRating();
   if (mode === 'scramble' || mode === 'combo') {
     d.scramble_rating = _defaultDefenseRating();
-    d.scramble_variant = _randomScrambleVariant();
+    // Combo (Data Bomb + Scramble) is only valid with Poison -- an Exploding Scramble is itself a
+    // bomb, so Exploding + Data Bomb would be two bombs (disallowed; collapses to a plain bomb).
+    d.scramble_variant = mode === 'combo' ? 'poison' : _randomScrambleVariant();
   }
 }
 
 function _syncPassiveIcFromPaydataDefenses() {
   const keepDataBombs = dataBombs.filter(db => {
     const dec = _decodeDataBombTarget(db.target);
+    // Keep subsystem-wide bombs (Access, Files datastore); only per-file Files bombs are re-derived
+    // from the paydata rows below.
+    if ((dec.scope === 'files' || dec.scope === 'files_legacy') && dec.name === '__entire__') return true;
     return dec.scope !== 'files' && dec.scope !== 'files_legacy';
   });
   const keepScrambles = scrambles.filter(sc => {
@@ -2393,13 +2411,14 @@ async function generatePaydata() {
 }
 
 function _rebuildTargetDropdowns() {
-  // A device that already carries a Data Bomb is excluded (one bomb per device).
+  // Subsystem-wide Data Bomb targets: the Access subsystem and the Files datastore (per-file bombs
+  // are set on each paydata row). One bomb per subsystem; an already-used target drops from the list.
   const usedDbTargets = new Set(dataBombs.map(db => db.target));
-  const dbTargets = slavePieces
-    .map(name => ({ value: `${DB_TARGET_SLAVE_PREFIX}${name}`, label: `Slave - ${name}` }))
-    .filter(t => !usedDbTargets.has(t.value));
+  const dbTargets = [
+    { value: 'files::__entire__', label: 'Files - datastore (all files)' },
+    { value: 'access::__all__',   label: 'Access - subsystem' },
+  ].filter(t => !usedDbTargets.has(t.value));
 
-  // Data Bomb: paydata files + individual slave devices (no subsystem-level target)
   const dbSel = $('dbTarget');
   if (dbSel) {
     const prev = dbSel.value;
@@ -2466,8 +2485,6 @@ function _buildScrambleTargetOptions(variant) {
   if (variant === 'exploding') {
     opts.push({ value: _encodeScrambleTargetKey('Access', 'entire'), label: 'Access - entire' });
     for (const p of accessPieces) opts.push({ value: _encodeScrambleTargetKey('Access', 'piece', p), label: `Access - ${p}` });
-    opts.push({ value: _encodeScrambleTargetKey('Slave', 'entire'), label: 'Slave - entire' });
-    for (const p of slavePieces) opts.push({ value: _encodeScrambleTargetKey('Slave', 'piece', p), label: `Slave - ${p}` });
   }
   opts.push({ value: _encodeScrambleTargetKey('Files', 'entire'), label: 'Files - entire' });
   return opts;
@@ -3878,15 +3895,16 @@ function _renderPaydataInspector() {
     <div class="md3-insp-title">Paydata File</div>
     <div class="md3-insp-sub">Hosted Data File</div>
     <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">File Name</span><input type="text" id="pdInspName" value="${esc(p.name)}" style="flex:1;min-width:0" data-tip="Rename this file" onchange="_pdSetName(this.value)"></div>
-    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Size (Mp)</span><span class="md3-cap" data-tip="Auto-rolled per the security table">${p.density} Mp</span></div>
+    <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Size (Mp)</span><input type="number" id="pdInspSize" class="md3-num" min="5" max="2500" step="5" value="${p.density}" data-tip="Auto-rolled initially; edit from 5 to 2500 Mp in 5 Mp increments" onchange="_pdSetSize(this)"></div>
     <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Key File</span>${_optBox(!!p.is_key, 'Key', false, '_pdToggleKey()')}</div>
+    <div class="md3-insp-row" style="flex-direction:column;align-items:stretch;gap:4px"><span class="md3-insp-label" style="margin:0">GM Narrative (AAR)</span><textarea id="pdInspNarr" rows="2" style="width:100%;resize:vertical" data-tip="GM-only flavor shown in the after-action report when this file is found" onchange="_pdSetNarrative(this.value)">${esc(p.narrative || '')}</textarea></div>
     <div class="md3-insp-sec"><span class="md3-insp-label">File-Level Protection</span>
       <div class="md3-insp-row" style="margin:0 0 10px;justify-content:flex-start;gap:10px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="_pdRollProtection()" data-tip="Roll this file's protection from the rules table">Roll Protection</button>
         <span class="md3-cap" id="pdProtResult">${esc(_pdProtectionLabel(p))}</span>
       </div>
       <div class="md3-opt-grid">
-        ${_optBox(d.data_bomb_rating != null, 'Data Bomb', false, "_pdToggleDef('data_bomb')")}
+        ${_optBox(d.data_bomb_rating != null, 'Data Bomb', d.scramble_variant === 'exploding', "_pdToggleDef('data_bomb')")}
         ${_optBox(d.scramble_rating != null, 'Scramble', false, "_pdToggleDef('scramble')")}
       </div>
       ${d.data_bomb_rating != null ? `<div class="md3-insp-row" style="margin-top:11px"><span class="md3-insp-label" style="margin:0">Data Bomb Rating</span><input type="number" id="pdInspDbRtg" class="md3-num" min="1" max="20" value="${d.data_bomb_rating}" oninput="_pdSetRating('data_bomb',this.value)"></div>` : ''}
@@ -3894,12 +3912,12 @@ function _renderPaydataInspector() {
         <div class="md3-insp-row" style="margin-top:11px"><span class="md3-insp-label" style="margin:0">Scramble Variant</span>
           <select id="pdInspScVar" onchange="_pdSetVariant(this.value)" style="width:130px">
             <option value="poison"${d.scramble_variant === 'poison' ? ' selected' : ''}>Poison</option>
-            <option value="exploding"${d.scramble_variant === 'exploding' ? ' selected' : ''}>Exploding</option>
+            ${d.data_bomb_rating != null ? '' : `<option value="exploding"${d.scramble_variant === 'exploding' ? ' selected' : ''}>Exploding</option>`}
           </select></div>
         <div class="md3-insp-row"><span class="md3-insp-label" style="margin:0">Scramble Rating</span><input type="number" id="pdInspScRtg" class="md3-num" min="1" max="20" value="${d.scramble_rating}" oninput="_pdSetRating('scramble',this.value)"></div>
         <div class="md3-insp-flavor">${scFlavor}</div>` : ''}
     </div>
-    <div class="md3-insp-note">Passive IC attaches to this file &mdash; it is not part of the sheaf. Size is auto-rolled per the security table; value is GM-assigned.</div>
+    <div class="md3-insp-note">Passive IC attaches to this file &mdash; it is not part of the sheaf. Initial size is auto-rolled per the security table and can be overridden here; value is GM-assigned.</div>
     <div class="md3-insp-actions"><button class="btn btn-ghost btn-sm" onclick="_pdDelete()" style="color:var(--red)">Delete File</button></div>`);
   _clearSelectedEvent();
   const row = document.querySelector(`#paydataList .pd-row[data-pd="${idx}"]`);
@@ -3912,15 +3930,33 @@ function _pdSetName(v) {
   _renamePaydata(_pdInspIdx, v);
   renderPaydata(); updateSummary();
 }
+function _pdSetSize(input) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  const size = parseInt(input?.value, 10);
+  if (Number.isNaN(size)) return;
+  const clamped = Math.max(5, Math.min(2500, Math.round(size / 5) * 5));
+  p.density = clamped;
+  if (input.value !== String(clamped)) input.value = String(clamped);
+  renderPaydata(); updateSummary();
+}
 function _pdToggleKey() {
   const p = paydata[_pdInspIdx]; if (!p) return;
   p.is_key = !p.is_key;
   renderPaydata(); updateSummary(); _renderPaydataInspector();
 }
+function _pdSetNarrative(v) {
+  const p = paydata[_pdInspIdx]; if (!p) return;
+  p.narrative = String(v || '');
+  _scheduleAutoSave();
+}
 function _pdToggleDef(kind) {
   const p = paydata[_pdInspIdx]; if (!p) return;
   const d = _ensurePaydataDefenseShape(p);
   if (kind === 'data_bomb') {
+    if (d.data_bomb_rating == null && d.scramble_rating != null && d.scramble_variant === 'exploding') {
+      showAlert(alertEl(), 'This file already has an Exploding Scramble (which is itself a bomb). Switch the Scramble to Poison first if you want a separate Data Bomb, or remove the Scramble.', true);
+      return;
+    }
     d.data_bomb_rating = d.data_bomb_rating != null ? null : _defaultDefenseRating();
   } else {
     if (d.scramble_rating != null) { d.scramble_rating = null; d.scramble_variant = null; }
@@ -3940,7 +3976,13 @@ function _pdSetRating(kind, val) {
 }
 function _pdSetVariant(v) {
   const p = paydata[_pdInspIdx]; if (!p) return;
-  _ensurePaydataDefenseShape(p).scramble_variant = v === 'exploding' ? 'exploding' : 'poison';
+  const d = _ensurePaydataDefenseShape(p);
+  if (v === 'exploding' && d.data_bomb_rating != null) {
+    showAlert(alertEl(), 'A file cannot have both an Exploding Scramble and a Data Bomb (that would be two bombs). Remove the Data Bomb first, or keep Poison.', true);
+    _renderPaydataInspector();   // revert the select back to Poison
+    return;
+  }
+  d.scramble_variant = v === 'exploding' ? 'exploding' : 'poison';
   _pdApply(); _renderPaydataInspector();
 }
 function _pdRollProtection() {
