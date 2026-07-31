@@ -4123,6 +4123,18 @@ function renderActionArea(state, decker, crashed) {
     return;
   }
 
+  // Icon crashed by Black IC (vr2 L612): the connection holds but every action is locked out --
+  // the decker can ONLY attempt to jack out (no graceful logoff). Mirrors the /action + /logoff
+  // backend guards.
+  if (state.icon_crashed) {
+    el.innerHTML = actionEconomyBar(state) + `
+      <div class="act-form" style="margin-top:10px">
+        <div class="act-desc" style="color:var(--amber);font-size:0.62rem;line-height:1.35;margin-bottom:7px">Your icon is crashed -- you can only jack out.</div>
+        <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
+      </div>`;
+    return;
+  }
+
   // -- Post-logon action console: economy bar + only the actions valid right now (grouped by
   // cost, invalid ones disabled with a reason) + the conditional sub-field the chosen action
   // needs. Util rating is applied automatically; HP dice are capped to the remaining pool.
