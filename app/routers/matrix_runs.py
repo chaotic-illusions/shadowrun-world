@@ -481,9 +481,9 @@ def _scramble_poison_react(state: dict, decker: dict, scramble: dict) -> bool:
         "key_data_lost": bool(consequence.get("key_data_lost")),
         "files_destroyed": [f.get("name") for f in protected] if destroyed else [],
         "description": (
-            "POISON Scramble reacted to your attack and ERASED the protected data -- it is gone."
+            "The Poison IC erased the protected data."
             if destroyed else
-            "POISON Scramble reacted to your attack but its erase test missed -- the data survives."
+            "The Poison IC attempted to erase the data, but failed."
         ),
     })
     return destroyed
@@ -1826,10 +1826,7 @@ def _wipe_one_shot(state: dict, decker: dict, util_name: str) -> None:
     _append_event(state, {
         "type": "one_shot_wiped",
         "utility": key,
-        "description": (
-            f"Tar IC corrupted ALL copies of the One-Shot {_action_label(key)} on the "
-            "deck -- it cannot be reloaded."
-        ),
+        "description": f"Tar Pit corrupted all copies of the One-Shot {_action_label(key)} on the deck.",
     })
 
 
@@ -1958,6 +1955,19 @@ def _reset_pass_budget(state: dict) -> None:
     # program keys the decker used by hand. Cleared here at every pass/turn boundary.
     state["dinab_prog_this_pass"] = ""
     state["manual_progs_this_pass"] = []
+
+
+def _complete_logon(state: dict, decker: dict, det_factor: int) -> None:
+    """Emit the logon-success event and refresh the entry budget (logon is the ENTRY step, not one
+    of Round 1's actions -- see _reset_pass_budget). Shared by the direct logon path (perform_action)
+    and the resume-after-defense-pause path (_advance_npc_count_window) so the two cannot drift."""
+    state["logon_complete"] = True
+    _append_event(state, {
+        "type": "logon",
+        "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
+    })
+    _reset_pass_budget(state)
+    _run_reactive_activation_sensor_checks(state, decker)
 
 
 def _spend_pass_action(state: dict, action_type: str) -> None:
@@ -3086,19 +3096,16 @@ def _wear_armor(state: dict, wear_owner: dict, utils_owner: dict, boxes: int,
         return  # already worn out -- nothing left to degrade
     pd["armor"] = pd.get("armor", 0) + 1
     remaining = max(0, base - pd["armor"])
+    event = {"type": "armor_wear", "armor_remaining": remaining}
     if gm_only:
-        _append_event(state, {
-            "type": "armor_wear", "gm_only": True, "armor_remaining": remaining,
-            "description": (f"GM: {actor or 'Security decker'} Armor worn to {remaining}"
-                            + (" -- burned out." if remaining == 0 else " by the hit.")),
-        })
+        event["gm_only"] = True
+        event["description"] = (f"{actor or 'Security decker'} Armor worn to {remaining}"
+                                + (" -- burned out." if remaining == 0 else " by the hit."))
     else:
-        _append_event(state, {
-            "type": "armor_wear", "armor_remaining": remaining,
-            "description": (f"Armor worn to {remaining} by the hit"
-                            + (" -- burned out; Swap Memory a fresh copy." if remaining == 0
-                               else " -- Swap Memory to restore full rating.")),
-        })
+        event["description"] = (f"Armor worn to {remaining} by the hit"
+                                + (" -- burned out; Swap Memory a fresh copy." if remaining == 0
+                                   else " -- Swap Memory to restore full rating."))
+    _append_event(state, event)
 
 
 def _enemy_sleaze(enemy: dict) -> int:
@@ -3274,7 +3281,7 @@ def _enemy_medic_heal(state: dict, enemy: dict) -> None:
     if healed > 0:
         desc = f"{name} repairs damage to their icon."
     else:
-        desc = f"{name} attempts to repair damage to their icon, but it fails."
+        desc = f"{name} attempts to repair damage to their icon, but fails."
     _append_event(state, {
         "type": "enemy_decker", "outcome": "medic", "enemy_id": enemy.get("id"),
         "description": desc,
@@ -3302,7 +3309,7 @@ def _enemy_nerve_check(state: dict, enemy: dict, boxes: int) -> bool:
                     "type": "enemy_decker", "outcome": "fled", "enemy_id": enemy.get("id"),
                     "description": (
                         f"{_enemy_display_name(enemy)} is wounded ({boxes}/10) and "
-                        f"its nerve breaks -- it jacks out, abandoning the hunt."
+                        "their nerve breaks. They jack out, abandoning the hunt."
                     ),
                 })
                 return True
@@ -3599,7 +3606,7 @@ def _enemy_restore_repair(state: dict, enemy: dict) -> None:
     if points > 0:
         desc = f"{name} repairs damage to their {attr.upper()}."
     else:
-        desc = f"{name} attempts to repair damage to their {attr.upper()}, but it fails."
+        desc = f"{name} attempts to repair damage to their {attr.upper()}, but fails."
     _append_event(state, {
         "type": "enemy_decker", "outcome": "restore", "enemy_id": enemy.get("id"),
         "description": desc,
@@ -3712,12 +3719,7 @@ def _apply_disinfect(state: dict, decker: dict, *, subsystem: str, subsystem_rat
             **event_base, "destroyed": False,
             "ic_id": worm["id"], "ic_type": "Worm",
             "infection_roll": wr["roll"],
-            "description": (
-                f"Disinfect-{rating} failed to destroy Worm-{worm['rating']} on the {subsystem} "
-                f"subsystem (TN {res['tn']}), but the MPCP shrugged off the infection (host "
-                f"{wr['roll']['pool']}d6 vs MPCP TN {wr['tn']}, net {wr['net_successes']}). "
-                f"The worm is still lurking."
-            ),
+            "description": "Disinfect failed -- MPCP not compromised; the worm is still lurking.",
         })
 
 
@@ -3826,8 +3828,7 @@ def _apply_steamroller(state: dict, decker: dict, *, sec_code: str,
             "ic_id": target["id"], "ic_type": target["type"], "decker_roll": res["to_hit_roll"],
             "description": (
                 f"{src}-{rating} hits {target['type']}-{target.get('rating', 0)} for "
-                f"{res['damage_level']} ({res['total_boxes']}/{res['tar_cm']}) -- it holds and "
-                f"stays lurking."
+                f"{res['damage_level']} ({res['total_boxes']}/{res['tar_cm']})."
             ),
         })
         return failed, all_ones
@@ -3844,11 +3845,21 @@ def _apply_steamroller(state: dict, decker: dict, *, sec_code: str,
         note = (f" (Stealth/Skulk-{skulk} masked the crash)"
                 if skulk > 0 and tally_increase < ic_rating else "")
     applied = _bump_security_tally(state, tally_increase)
+    # A fresh crash is a suppressible immediate query (like any crashed IC / crashed Scramble): the
+    # decker may absorb 1 Detection Factor to refund this tally. Register the entry so the /suppress
+    # endpoint can act on it afterward.
+    sup_id = None
+    if applied > 0:
+        sup = _register_suppression(
+            state, source="tar_crash",
+            label=f"Crashed {target['type']}-{ic_rating}", rating=applied)
+        sup_id = sup.get("id")
     _append_event(state, {
         "type": "tar_steamrolled", "destroyed": True,
         "ic_id": target["id"], "ic_type": target["type"], "decker_roll": res["to_hit_roll"],
+        "suppression_id": sup_id,
         "description": (
-            f"{src}-{rating} CRUSHES {target['type']}-{ic_rating} ({res['damage_level']}). "
+            f"{src}-{rating} crashes {target['type']}-{ic_rating} ({res['damage_level']}). "
             f"Tally +{applied} -> {state['security_tally']}{note}"
         ),
         "tally_increase": applied,
@@ -4266,10 +4277,7 @@ def _crash_dinab(state: dict, decker: dict, util: str) -> None:
     (state.get("dinab_damage") or {}).pop(key, None)
     _append_event(state, {
         "type": "dinab_crashed", "utility": key,
-        "description": (
-            f"The DINAB-driven {_action_label(key)} rolled all 1s and its executing copy CRASHED -- "
-            "use another active copy or reload one via Swap Memory before running it autonomously again."
-        ),
+        "description": "The DINAB attack fumbled and the construct crashed.",
     })
 
 
@@ -4513,7 +4521,7 @@ def _dinab_strike_decker(state: dict, decker: dict, enemy: dict, eff: int, sec_c
         elif res["infected"]:
             desc = f"DINAB Hog-{eff} infects {_enemy_display_name(enemy)} but it has no running program left to drain."
         else:
-            desc = f"DINAB Hog-{eff} fails to take hold on {_enemy_display_name(enemy)} this pass."
+            desc = f"DINAB Hog-{eff} fails to take hold on {_enemy_display_name(enemy)}."
         _append_event(state, {"type": "dinab_attack", "enemy_id": enemy["id"], "utility": "hog",
             "success": res["infected"], "decker_roll": ar, "description": desc})
         return (not res["infected"]), ar.get("ones", 0) >= ar.get("pool", 0) and ar["successes"] == 0
@@ -4693,10 +4701,8 @@ def _tick_active_download(state: dict, decker: dict, dl: dict) -> None:
         "file_name": dl.get("file"),
         "turns_left": left,
         "description": (
-            f"Auto Null Operation covers the ongoing download of \"{dl.get('file')}\" "
-            f"({'SUCCESS' if test['success'] else 'FAILED'}). "
-                + (f"{left} round{'s' if left != 1 else ''} of transfer remaining."
-                    if left > 0 else "Transfer complete.")
+            f"Download continuing -- {left} turn{'s' if left != 1 else ''} remaining."
+            if left > 0 else "Download complete."
         ),
     })
     _run_reactive_security_followup(
@@ -4780,11 +4786,8 @@ def _apply_decompress(state: dict, decker: dict, *, target_file: str) -> None:
     free2 = state.get("storage_free_mp", -1)
     tracked2 = free2 is not None and free2 >= 0
     remaining2 = max(0, free2 - state.get("storage_used_mp", 0)) if tracked2 else None
-    if tracked2:
-        desc = (f"Decompressed \"{entry.get('name')}\" -> {full} Mp. "
-                f"Storage used {state.get('storage_used_mp', 0)} Mp; {remaining2} Mp free.")
-    else:
-        desc = f"Decompressed \"{entry.get('name')}\" -> {full} Mp (storage untracked)."
+    desc = (f"Decompressed \"{entry.get('name')}\" -> {full} Mp. "
+            f"Storage used: {state.get('storage_used_mp', 0)} Mp.")
     _append_event(state, {
         "type": "file_decompressed", "outcome": "expanded",
         "file_name": entry.get("name"),
@@ -5198,11 +5201,9 @@ def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
                     "variant": scramble.get("variant"),
                     "description": (
                         f"Analyze Icon on \"{icon_label}\" -- "
-                        + ("EXPLODING Scramble IC detected. Defuse its linked data bomb BEFORE you "
-                           "decrypt (or crash it), or it detonates."
+                        + ("Exploding Scramble IC detected. Defuse its linked data bomb first, then decrypt."
                            if is_exploding else
-                           "POISON Scramble IC detected. Decrypt it to reach the data; a failed "
-                           "decrypt may erase the file.")
+                           "Poison Scramble IC detected. Decrypt it to reach the data.")
                     ),
                 })
     if bomb is not None:
@@ -5210,12 +5211,7 @@ def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
         _append_event(state, {
             "type": "data_bomb_found",
             "subsystem": scope,
-            "description": (
-                f"Analyze Icon on \"{icon_label}\" -- DATA BOMB detected. "
-                + ("Defuse it before you download or edit the file."
-                   if scope == "files" else
-                   "Defuse it before you access the device.")
-            ),
+            "description": f"Analyze Icon on \"{icon_label}\" -- data bomb detected. Defuse the bomb before attempting access.",
         })
     else:
         _append_event(state, {
@@ -5311,9 +5307,8 @@ def _apply_defuse_bomb(state: dict, decker: dict, eff: dict, *, subsystem: str,
             "target_number": df["tn"], "decker_roll": df["roll"],
             "host_roll": host_roll, "tally_increase": tally_applied,
             "description": (
-                f"Data bomb on {btarget} DEFUSED (opposed Computer Test TN {df['tn']} = {subsystem} "
-                f"{subsystem_rating} - Defuse {defuse_rating}; {decker_succ} vs {host_succ}). "
-                f"No bomb-rating tally -- no suppression needed.{tally_note}"
+                f"Data bomb on {btarget} defused (opposed Computer Test TN {df['tn']}; "
+                f"{decker_succ} vs {host_succ}).{tally_note}"
             ),
         })
         return
@@ -5368,7 +5363,7 @@ def _trigger_access_data_bomb(state: dict, decker: dict, eff: dict, *, action_ty
     state["data_bombs"] = [b for b in armed if b is not bomb]  # one-shot
     _detonate_data_bomb(state, decker, eff, ic_rating=bomb.get("rating", 6),
                         sec_value=sec_value, sec_code=sec_code,
-                        headline=f"DATA BOMB on {bomb.get('target')}")
+                        headline=f"Data bomb on {bomb.get('target')}")
     return True
 
 
@@ -5394,7 +5389,7 @@ def _trigger_access_subsystem_bomb(state: dict, decker: dict, *, op_label: str) 
         state, decker, eff, ic_rating=bomb.get("rating", 6),
         sec_value=state.get("host_security_value", 6),
         sec_code=state.get("host_security_code", "Green"),
-        headline=f"Access-subsystem DATA BOMB ({op_label})",
+        headline=f"Access-subsystem data bomb ({op_label})",
     )
     return True
 
@@ -5505,7 +5500,7 @@ def _complete_pending_bouncer(state: dict) -> None:
     _append_event(state, {
         "type": "bouncer_completed", "gm_only": True,
         "description": (
-            f"(GM) Bouncer upgrade complete: {state['host_security_code']} "
+            f"Bouncer upgrade complete: {state['host_security_code']} "
             f"{state['host_security_value']}."
         ),
     })
@@ -5816,7 +5811,7 @@ def _resolve_npc_maneuver(state: dict, decker: dict, eff: dict, actor: dict,
             ev["description"] = (f"{label} overreaches for position -- you turn it around "
                                  f"(-{opp_net} TN on your next attack).")
         else:
-            ev["description"] = f"{label} jockeys for position but gains no edge ({man_succ} vs {opp_succ})."
+            ev["description"] = f"{label} jockeys for position but gains no advantage ({man_succ} vs {opp_succ})."
     _append_event(state, ev)
     return True
 
@@ -5877,7 +5872,7 @@ def _apply_locate_ic(state: dict, *, test_success: bool, target_ic_id: str = "")
     if not test_success:
         _append_event(state, {
             "type": "ic_relocate", "outcome": "fail",
-            "description": "Locate IC failed -- the hidden IC stays off your sensors this pass.",
+            "description": "Locate IC failed -- the hidden IC stays off your sensors this turn.",
         })
         return
     for ic in hidden:
@@ -5918,7 +5913,7 @@ def _apply_locate_decker(state: dict, decker: dict, *, test_success: bool, scann
     if not test_success:
         _append_event(state, {
             "type": "enemy_decker", "outcome": "scan_fail",
-            "description": "Index sweep failed -- you can't re-acquire the decker that evaded you this pass.",
+            "description": "Index sweep failed -- you can't re-acquire the decker that evaded you.",
         })
         return
     found = []
@@ -5937,18 +5932,16 @@ def _apply_locate_decker(state: dict, decker: dict, *, test_success: bool, scann
             _clear_evade(state, e, redetected=True)   # clears evade + revealed=True + RE-DETECT notice
             found.append((e, res))
     if found:
-        names = ", ".join(f"{e['name']} (tier {e.get('tier', '?')})" for e, _ in found)
+        names = ", ".join(e["name"] for e, _ in found)
         _append_event(state, {
             "type": "enemy_decker", "outcome": "scan_hit", "enemy_id": found[0][0]["id"],
-            "description": f"Re-acquired evaded decker(s): {names}. You can Strike Back.",
+            "description": f"Re-acquired target: {names}.",
         })
     else:
+        slipped = ", ".join(e["name"] for e in evaded)
         _append_event(state, {
             "type": "enemy_decker", "outcome": "scan_fail",
-            "description": (
-                "Index sweep ran clean but your Sensor pass couldn't re-acquire the evaded decker "
-                "-- try again next pass."
-            ),
+            "description": f"Re-acquire failed. {slipped} slips past your sensors.",
         })
 
 
@@ -6916,7 +6909,7 @@ def _park_pending_defense(state: dict, decker: dict, ic: dict, *, to_hit: dict,
         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
         "description": (
             f"{label} strikes your icon -- {_successes(to_hit.get('successes', 0))}, "
-            f"Power {power}. Allocate Hacking Pool dice to resist (or defend with none)."
+            f"Power {power}."
         ),
         "attack_roll": to_hit,
         "hp_available": state.get("hackingPool_remaining", 0),
@@ -7025,7 +7018,7 @@ def _resolve_ic_cybercombat(state: dict, decker: dict, ic: dict, *, ic_attack_po
     if state["condition_monitor"]["persona_boxes"] >= 10:
         _append_event(state, {
             "type": "persona_crash",
-            "description": "PERSONA CRASHED -- decker dumped from the Matrix!",
+            "description": "Persona crashed -- decker dumped from the Matrix!",
         })
 
         # Blaster: MPCP damage test on persona crash (1 per 2 successes)
@@ -7257,9 +7250,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} HUNT CYCLE succeeded "
-                            f"({_successes(hunt_successes)}) -- it now switches to its LOCATION CYCLE: "
-                            f"{locate_turns} round{'s' if locate_turns != 1 else ''} to complete the trace."
+                            f"Trace IC has your data trail. {locate_turns} "
+                            f"round{'s' if locate_turns != 1 else ''} until jackpoint located."
                         ),
                         "trace_phase": "hunt_hit",
                         "hunt_roll": hunt["roll"],
@@ -7268,10 +7260,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                     _append_event(state, {
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
-                        "description": (
-                            f"{acting_type}-{acting_rating} HUNT CYCLE: searching for your datatrail... "
-                            f"({hunt['roll']['successes']} hits vs TN {trace_tn})"
-                        ),
+                        "description": "Trace IC is hunting your data trail.",
                         "trace_phase": "hunting",
                         "hunt_roll": hunt["roll"],
                     })
@@ -7282,10 +7271,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                     _append_event(state, {
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
-                        "description": (
-                            f"{acting_type}-{acting_rating} LOCATION CYCLE SPOOFED this turn "
-                            "-- no trace progress."
-                        ),
+                        "description": "Trace spoofed for one turn.",
                         "trace_phase": "spoofed",
                     })
                     continue
@@ -7305,10 +7291,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                             "type": "ic_attack",
                             "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                             "description": (
-                                f"{acting_type}: Satellite jackpoint located, but the decker's "
-                                f"PHYSICAL LOCATION is protected (satellite uplink) -- no physical "
-                                f"security can be dispatched. Proactive IC now hit at -1 TN; "
-                                f"every further tally increase +1."
+                                "Satlink traced. Physical location unknown. "
+                                "-1 to all Proactive IC TNs, +1 to all Security Tally increases."
                             ),
                             "trace_action": "report",
                             "physical_trace_immune": True,
@@ -7319,9 +7303,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                             "type": "ic_attack",
                             "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                             "description": (
-                                f"{acting_type}: Jackpoint TRACED -- physical location reported to "
-                                f"system operator. Proactive IC now hit at -1 TN; every further "
-                                f"tally increase +1."
+                                "Jackpoint traced, physical location reported. "
+                                "-1 to all Proactive IC TNs, +1 to all Security Tally increases."
                             ),
                             "trace_action": "report",
                             "traces_completed": state["traces_completed"],
@@ -7334,8 +7317,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         "type": "ic_attack",
                         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
                         "description": (
-                            f"{acting_type}-{acting_rating} LOCATION CYCLE: "
-                            f"{remaining} round{'s' if remaining != 1 else ''} to trace completion."
+                            f"Trace continues. {remaining} "
+                            f"round{'s' if remaining != 1 else ''} until jackpoint located."
                         ),
                         "trace_phase": "locating",
                     })
@@ -7527,7 +7510,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                         else "stun -- decker unconscious, connection dropping")
                 _append_event(state, {
                     "type": "persona_crash",
-                    "description": f"BLACK IC -- {crit}!",
+                    "description": f"Black IC -- {crit}!",
                 })
                 mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, acting_rating, pool_multiplier=2)
                 _append_event(state, {
@@ -7552,8 +7535,8 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
                     "type": "persona_crash",
                     "ic_id": ic["id"], "ic_type": "Black IC",
                     "description": (
-                        "ICON CRASHED by Black IC -- connection holds. Black IC effective "
-                        f"rating +2 (now {ic['rating']}). Decker can only attempt to jack out."
+                        "The IC crashes your icon and increases its rating (now "
+                        f"{ic['rating']}). Jack out now!"
                     ),
                 })
             continue  # Black IC handled -- skip the rest of the standard combat block
@@ -7592,16 +7575,7 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
 
     # Handle logon completion (player-action result; parameterized so new_turn's flush skips it).
     if logon_completed:
-        state["logon_complete"] = True
-        _append_event(state, {
-            "type": "logon",
-            "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
-        })
-        # Logging on is the ENTRY step, not one of Turn 1's actions: refresh the pass budget so the
-        # decker begins Round 1 Turn 1 with a full 2 AP + 1 Free (the logon test still rolled its
-        # dice and cost its Hacking Pool; it just no longer eats the first turn's action points).
-        _reset_pass_budget(state)
-        _run_reactive_activation_sensor_checks(state, decker)
+        _complete_logon(state, decker, det_factor)
 
     # Enemy deckers act automatically (app-as-GM), once per pass on the passes their OWN
     # initiative reaches (ceil(init/10) passes) -- they rolled initiative once when they entered.
@@ -7761,10 +7735,7 @@ async def _apply_analysis_action_result(
             scramble["rating_revealed"] = True
             _append_event(state, {
                 "type": "ic_analyzed",
-                "description": (
-                    f"Scramble analyzed -- Rating {int(scramble.get('rating', 0) or 0)} "
-                    "(the Decrypt target number)."
-                ),
+                "description": f"Scramble analyzed -- Rating {int(scramble.get('rating', 0) or 0)}.",
             })
             return
         active = [
@@ -7808,7 +7779,7 @@ async def _apply_analysis_action_result(
                 "description": (
                     f"Concealed port detected on the {subsystem.capitalize()} subsystem"
                     + (f" ({source_piece})" if source_piece else "")
-                    + " -- it links to another system. Destination unknown until you enter it."
+                    + " -- Destination unknown."
                 ),
             })
 
@@ -7832,11 +7803,11 @@ async def _apply_analysis_action_result(
                 "subsystem": subsystem,
                 "variant": scramble.get("variant"),
                 "description": (
-                    f"{'EXPLODING' if is_exploding else 'POISON'} Scramble IC detected on the "
-                    f"{subsystem.capitalize()} subsystem ({player_label}) -- "
-                    + ("defuse its linked data bomb before you decrypt or crash it."
+                    f"{'Exploding' if is_exploding else 'Poison'} Scramble IC found on the "
+                    f"{subsystem.capitalize()} subsystem ({player_label}). "
+                    + ("Defuse its linked data bomb first, then decrypt."
                        if is_exploding else
-                       "decrypt it before operating on the protected data.")
+                       "Decrypt it before operating on the protected data.")
                 ),
             })
             if is_exploding:
@@ -7902,10 +7873,7 @@ async def _apply_analysis_action_result(
                 _append_event(state, {
                     "type": "host_ltg_revealed",
                     "has_ltg": False,
-                    "description": (
-                        "Access subsystem analyzed -- this host has NO LTG access (reachable only "
-                        "via a direct line or trap door)."
-                    ),
+                    "description": "Access subsystem analyzed -- this host has no LTG access.",
                 })
 
     if (
@@ -7994,7 +7962,7 @@ def _apply_control_action_result(
         _append_event(state, {
             "type": "validate_passcode",
             "success": False,
-            "description": "Validate Passcode failed -- the host rejected the plant.",
+            "description": "Validate Passcode failed -- the host rejects your injected passcode.",
         })
 
     if body.action_type == "invalidate_passcode" and test["success"]:
@@ -8006,12 +7974,7 @@ def _apply_control_action_result(
                 "(target already Intruding, crashed, or gone)."
             )
         elif whole_list:
-            description = (
-                "Invalidate Passcode successful -- the entire passcode list is erased. "
-                f"{len(flipped)} security icon{'s' if len(flipped) != 1 else ''} flip to "
-                f"Intruding: {', '.join(flipped)}. "
-                "They stay Intruding for the rest of the run."
-            )
+            description = "Host passcode table erased. All host icons considered intruders."
         else:
             description = (
                 f"Invalidate Passcode successful -- {flipped[0]}'s passcode is erased; it flips "
@@ -8028,7 +7991,7 @@ def _apply_control_action_result(
         _append_event(state, {
             "type": "invalidate_passcode",
             "success": False,
-            "description": "Invalidate Passcode failed -- the host preserved its passcode tables.",
+            "description": "The host rejected your attempt to delete the passcode table.",
         })
 
     if body.action_type == "decoy" and test["success"]:
@@ -8076,11 +8039,8 @@ def _apply_control_action_result(
                     "type": "relocate",
                     "ic_id": target["id"],
                     "description": (
-                        "Relocate succeeded, but Detection Factor is at its minimum -- cannot "
-                        f"suppress {target['type']}-{target['rating']} yet. It was spoofed for this "
-                        "turn AND the suppress offer is HELD: release another suppression from the "
-                        "SUPPRESSIONS panel to free 1 DF, then Suppress this trace there (offer "
-                        "lapses at end of turn)."
+                        f"Relocate succeeded -- {target['type']}-{target['rating']} spoofed for this "
+                        "turn. Suppress is held: Detection Factor is at its minimum."
                     ),
                 })
             else:
@@ -8100,20 +8060,14 @@ def _apply_control_action_result(
             _append_event(state, {
                 "type": "relocate",
                 "ic_id": target["id"],
-                "description": (
-                    f"Relocate succeeded -- {target['type']}-{target['rating']} spoofed for this "
-                    "turn (no trace progress this turn; resumes next turn unless spoofed again)."
-                ),
+                "description": f"{target['type']}-{target['rating']} spoofed for this turn.",
             })
 
     if body.action_type == "redirect_datatrail" and test["success"]:
         state["redirects_placed"] = 1
         _append_event(state, {
             "type": "redirect_placed",
-            "description": (
-                "Redirect placed. Trace Factor +1 going forward (trace IC locates your "
-                "jackpoint less easily). You cannot redirect again on this host."
-            ),
+            "description": "Host redirect successfully placed. Trace Factor +1.",
             "redirects_total": state["redirects_placed"],
         })
 
@@ -8233,19 +8187,14 @@ def _apply_file_action_result(
                 _append_event(state, {
                     "type": "file_modified",
                     "file_name": paydata.get("name"),
-                    "description": (
-                        f"File \"{paydata.get('name')}\" altered on the host -- the owner's copy "
-                        "is now corrupted/falsified."
-                    ),
+                    "description": f"File \"{paydata.get('name')}\" altered on the host successfully.",
                 })
             else:
                 paydata["destroyed"] = True
                 _append_event(state, {
                     "type": "file_deleted",
                     "file_name": paydata.get("name"),
-                    "description": (
-                        f"File \"{paydata.get('name')}\" erased from the host -- the data is gone."
-                    ),
+                    "description": f"File \"{paydata.get('name')}\" erased from the host.",
                 })
 
     if body.action_type == "download_data" and test["success"] and body.target_file:
@@ -8260,7 +8209,6 @@ def _apply_file_action_result(
             if turns <= 1:
                 _complete_download(state, decker, paydata)
             else:
-                io_speed = int(decker.get("io_speed", 0) or 0)
                 state["active_download"] = {
                     "file_id": paydata.get("id"),
                     "file": paydata.get("name"),
@@ -8278,13 +8226,7 @@ def _apply_file_action_result(
                     "size_mp": stored,
                     "turns_total": turns,
                     "turns_left": turns - 1,
-                    "description": (
-                        f"Began downloading \"{paydata.get('name')}\" ({stored} Mp) at "
-                        f"{io_speed} Mp/turn -- about {turns} Combat Turns. The deck auto-runs a "
-                        "Null Operation each turn until it completes; only Free actions are "
-                        "available until then. Logging off or a host crash before it finishes "
-                        "corrupts the file."
-                    ),
+                    "description": f"Downloading of \"{paydata.get('name')}\" beginning. {turns} turns until completion.",
                 })
         elif paydata is not None:
             _append_event(state, {
@@ -8451,9 +8393,7 @@ def _apply_direct_action(
                     "wiped (reload via Swap Memory)."
                 )
             else:
-                description = (
-                    f"Purge FAILED (TN {purge['tn']}) -- Hog-{infection.get('rating')} persists."
-                )
+                description = "You are unable to purge the Hog virus from your deck."
             _append_event(state, {
                 "type": "purge_hog",
                 "decker_roll": purge["roll"],
@@ -8518,9 +8458,8 @@ def _apply_direct_action(
                 "success": bool(decrypted),
                 "decker_roll": decrypt_test["roll"],
                 "description": (
-                    "Scramble decrypted -- but its linked data bomb DETONATES (you did not defuse "
-                    "it first)." if decrypted else
-                    "Decrypt FAILED -- and the Exploding Scramble's linked data bomb DETONATES."
+                    "Decrypt succeeded -- and the attached data bomb detonates!" if decrypted else
+                    "Decrypt failed -- and the attached data bomb detonates!"
                 ),
             })
             _detonate_data_bomb(
@@ -8576,8 +8515,7 @@ def _apply_direct_action(
         "file_name": (protected_files[0].get("name") if (protected_files and not entire) else None),
         "files_destroyed": ([f.get("name") for f in protected_files] if destroyed else []),
         "description": (
-            "POISON Scramble triggered on the failed decrypt -- the ENTIRE Files datastore is wiped. "
-            "Every protected file is destroyed and cannot be recovered."
+            "Decrypt failed and the Poison IC has erased all files on the host."
             if (entire and destroyed) else consequence["message"]
         ),
     })
@@ -8899,13 +8837,7 @@ async def perform_action(
     # count. Ties and lower counts wait until the player closes the phase, just as in later rounds.
     logon_completed = body.action_type == "logon_to_host" and test["success"]
     if logon_completed:
-        state["logon_complete"] = True
-        _append_event(state, {
-            "type": "logon",
-            "description": f"Logged on to host successfully. Detection Factor: {det_factor}.",
-        })
-        _reset_pass_budget(state)
-        _run_reactive_activation_sensor_checks(state, decker)
+        _complete_logon(state, decker, det_factor)
         _advance_npc_count_window(
             state, decker, run,
             eff=eff, sec_code=sec_code, sec_value=sec_value, det_factor=det_factor,
@@ -9110,7 +9042,7 @@ def _spawn_trap_hidden(state: dict, source_ic: dict, sec_code: str) -> dict | No
         "ic_rating": h_rating,
         "is_trap_reveal": True,
         "description": (
-            f"TRAP TRIGGERED -- hidden {h_type}-{h_rating} revealed! "
+            f"Trap triggered -- hidden {h_type}-{h_rating} revealed! "
             f"(initiative {new_init})"
         ),
     })
@@ -9775,11 +9707,7 @@ def _apply_graceful_logoff(
             "net_successes": test["decker_net_successes"],
             "target_number": test["decker_roll"].get("tn"),
             "target_number_concealed": trace_tn_concealed,
-            "description": (
-                "Graceful logoff successful. "
-                f"Net Successes: {test['decker_net_successes']}. "
-                "All traces cleared. Run complete."
-            ),
+            "description": "You complete your logoff from the host. Run complete.",
             "decker_roll": test["decker_roll"],
             "host_roll": test["host_roll"],
             "tally_increase": tally_increase,
@@ -9793,11 +9721,7 @@ def _apply_graceful_logoff(
             "net_successes": test["decker_net_successes"],
             "target_number": test["decker_roll"].get("tn"),
             "target_number_concealed": trace_tn_concealed,
-            "description": (
-                f"Graceful logoff FAILED. Net Successes: {test['decker_net_successes']}. "
-                f"Tally +{tally_increase} -> {state['security_tally']}. "
-                "Still logged on -- try again or jack out (dump shock)."
-            ),
+            "description": "The host rejected your logoff request.",
             "decker_roll": test["decker_roll"],
             "host_roll": test["host_roll"],
             "tally_increase": tally_increase,
@@ -9823,6 +9747,8 @@ async def graceful_logoff(
     state = copy.deepcopy(run.state_json)  # deepcopy, not dict(): keep nested JSON mutations un-aliased so the UPDATE fires
     decker = run.decker_json
     _assert_logged_on(state)
+    if state.get("icon_crashed"):
+        raise HTTPException(400, "Your icon is crashed by Black IC -- you can only jack out")
     # A parked IC strike resolves before the decker can leave -- you cannot dodge a landed hit's
     # permanent consequences (MPCP burn / physical / dump shock) by logging off. If it ends the
     # run, the logoff is moot.
@@ -9912,10 +9838,7 @@ def _pop_host_stack(state: dict) -> tuple[dict, int | None] | None:
     child_name = state.get("_stack_current_host_name", "the deeper host")
     _append_event(parent, {
         "type": "trap_door_return",
-        "description": (
-            f"Dropped back through the trap door from \"{child_name}\" to \"{parent_name}\" "
-            "-- still jacked in."
-        ),
+        "description": f"Logged off \"{child_name}\", returned to \"{parent_name}\".",
     })
     return parent, host_id
 
@@ -10049,8 +9972,8 @@ def _complete_host_crash(state: dict, decker: dict) -> None:
         "type": "crash_host_complete",
         "dump_shock": dump_shock,
         "description": (
-            "HOST SUCCESSFULLY CRASHED -- the system goes down and dumps every online decker. "
-            f"Dump shock: {dump_shock['final_level']} ({dump_shock['boxes']} boxes). Run complete."
+            "Host crashed, dumped -- System Offline. Dump Shock: "
+            f"{dump_shock['final_level']} ({dump_shock['boxes']} boxes). Run complete."
         ),
     })
 
@@ -10121,8 +10044,8 @@ def _process_host_shutdown_countdown(state: dict, decker: dict) -> None:
         _append_event(state, {
             "type": "shutdown", "dump_shock": ds,
             "description": (
-                "HOST SHUTDOWN COMPLETE -- all online deckers are dumped (Dump Shock); every "
-                "frame and program crashes and all operations terminate."
+                "Host shutdown, dumped -- System Offline. Dump Shock: "
+                f"{ds['final_level']} ({ds['boxes']} boxes). Run complete."
             ),
         })
         return
@@ -10147,7 +10070,7 @@ def _process_host_shutdown_countdown(state: dict, decker: dict) -> None:
             _append_event(state, {
                 "type": "shutdown_detected", "turns_remaining": remaining, "roll": roll,
                 "description": (
-                    f"Your Sensors catch it: the HOST IS SHUTTING DOWN -- roughly {remaining} "
+                    f"Your Sensors catch it: the host is shutting down -- roughly {remaining} "
                     f"round{'s' if remaining != 1 else ''} until you are dumped. Get out."
                 ),
             })
@@ -10178,8 +10101,7 @@ def _open_next_decker_pass(state: dict, current_pass: int, total_passes: int) ->
     _append_event(state, {
         "type": "new_pass",
         "description": (
-            f"Turn {current_pass + 1}/{total_passes} begins -- actions refreshed "
-            "(2 AP + 1 Free) and Hacking Pool restored."
+            f"Turn {current_pass + 1}/{total_passes} begins -- Hacking Pool restored."
         ),
     })
 
@@ -10187,13 +10109,10 @@ def _open_next_decker_pass(state: dict, current_pass: int, total_passes: int) ->
 def _announce_new_combat_round(state: dict, old_hp: int) -> None:
     """Announce the player's first count after all faster round-opening actors have acted."""
     hacking_pool_total = state.get("hackingPool_total", 0)
-    init = _decker_effective_initiative(state)
-    passes = state.get("initiative_passes", 1)
     _append_event(state, {
         "type": "new_turn",
         "description": (
-            f"Round {state['current_turn']} begins. Actions refreshed (effective initiative {init}, "
-            f"{passes} turn{'s' if passes != 1 else ''}). "
+            f"Round {state['current_turn']} begins. "
             f"Hacking Pool ({old_hp} -> {hacking_pool_total})."
         ),
     })
@@ -10554,12 +10473,8 @@ def _apply_tapeworm_run_end(state: dict) -> None:
             _append_event(state, {
                 "type": "tapeworm_payload_loss", "ic_id": _wm.get("ic_id"),
                 "destroyed_files": [], "key_erased": False, "key_roll": key_roll,
-                "description": (
-                    f"Tapeworm-{_wm.get('rating')} activates on jack-out but finds nothing to "
-                    f"corrupt (rolled {n_delete} non-key deletions"
-                    + (f", key roll {key_roll}" if key else "")
-                    + ")."
-                ),
+                "delete_roll": n_delete,
+                "description": "The Tapeworm was unable to delete any data.",
             })
             continue
 
@@ -10571,9 +10486,9 @@ def _apply_tapeworm_run_end(state: dict) -> None:
             "type": "tapeworm_payload_loss", "ic_id": _wm.get("ic_id"),
             "destroyed_files": destroyed, "key_erased": key_erased, "key_roll": key_roll,
             "description": (
-                f"TAPEWORM-{_wm.get('rating')} corrupts your haul on jack-out: "
+                f"Tapeworm-{_wm.get('rating')} corrupts your haul on jack-out: "
                 f"{len(destroyed)} file(s) erased ({', '.join(destroyed)})"
-                + (" -- KEY DATA LOST." if key_erased else ".")
+                + (" -- key data lost." if key_erased else ".")
             ),
         })
 
@@ -10660,11 +10575,53 @@ def _finalize_paydata_haul(state: dict) -> None:
     state["active_download"] = None
 
 
+def _finalize_enemy_decker_aar(state: dict) -> None:
+    """GM run-AAR line for every security decker dispatched this run: its handle and final
+    disposition (killed / knocked out / crashed / fled / evaded / still active). GM-only, so a
+    player never learns a decker was dispatched. Idempotent (``enemy_aar_finalized``); skipped while
+    a trap-door host stack is still suspended, so it fires only at the true run end."""
+    if state.get("enemy_aar_finalized") or state.get("host_stack"):
+        return
+    enemies = state.get("enemy_deckers") or []
+    if not enemies:
+        return
+    state["enemy_aar_finalized"] = True
+
+    def _disposition(e: dict) -> str:
+        outcome = e.get("outcome")
+        if outcome == "killed":
+            return "killed (physical biofeedback)"
+        if outcome == "knocked_out":
+            return "knocked out (stun biofeedback)"
+        if outcome == "dumped" or e.get("status") == "crashed":
+            return "crashed (icon dumped)"
+        if e.get("status") == "fled":
+            return "fled (jacked out)"
+        if e.get("evaded"):
+            return "evaded (hidden at run end)"
+        return "still active at run end"
+
+    dispositions = [
+        {"enemy_id": e.get("id"), "handle": e.get("handle"), "disposition": _disposition(e)}
+        for e in enemies
+    ]
+    lines = "; ".join(f"{_enemy_gm_name(e)} -- {_disposition(e)}" for e in enemies)
+    _append_event(state, {
+        "type": "enemy_decker_aar", "gm_only": True, "count": len(enemies),
+        "dispositions": dispositions,
+        "description": (
+            f"GM AAR -- {len(enemies)} security decker(s) dispatched this run: {lines}."
+        ),
+    })
+
+
 def _finalize_run_end(state: dict) -> None:
-    """Single run-end hook: resolve Tapeworm payload loss, then secure the surviving paydata haul
-    (directive #6). Both steps are idempotent, so calling this on any run-end path is safe."""
+    """Single run-end hook: resolve Tapeworm payload loss, secure the surviving paydata haul
+    (directive #6), then log the GM enemy-decker AAR. All steps are idempotent, so calling this on
+    any run-end path is safe."""
     _apply_tapeworm_run_end(state)
     _finalize_paydata_haul(state)
+    _finalize_enemy_decker_aar(state)
 
 
 def _resolve_lurking_tar(state: dict, decker: dict, lurking: dict,
@@ -10708,10 +10665,7 @@ def _resolve_lurking_tar(state: dict, decker: dict, lurking: dict,
             _append_event(state, {
                 "type": "tar_pit_corruption",
                 "utility": _normalize_util_name(utility_name),
-                "description": (
-                    f"Tar Pit: ALL copies of {utility_name} corrupted -- gone for the rest of the "
-                    "run (cannot be reloaded via Swap Memory)."
-                ),
+                "description": f"All copies of {utility_name} lost.",
                 "tar_pit_roll": result.get("tar_pit_roll"),
             })
             # Viral corruption of every copy (active + storage): the program is gone for the run.
@@ -10816,6 +10770,13 @@ class _HogTarget:
             crashed = new_val <= 0
         return name, applied, crashed
 
+    def current_rating(self, name: str) -> int:
+        """Current effective (running) rating of a named program after any drain, floored at 0."""
+        for k, eff in self._running_pairs():
+            if k == name:
+                return max(0, eff)
+        return 0
+
 
 def _hog_target_for_pc(state: dict, decker: dict) -> _HogTarget:
     return _HogTarget(target_id="pc", name=decker.get("name", "Your icon"), kind="pc",
@@ -10878,7 +10839,8 @@ def _drain_all_hog_infections(state: dict, decker: dict) -> None:
             continue   # target crashed / logged off -> infection lapses
         name, applied, crashed = target.drain(inf.get("drain", 0))
         if name:
-            frag = f"{_action_label(name)} -{applied}{' (CRASHED)' if crashed else ''}"
+            label = _action_label(name)
+            frag = f"{label} -{applied} (crashed)" if crashed else f"{label} -{applied} (now {target.current_rating(name)})"
             if target.id == "pc":
                 _append_event(state, {
                     "type": "enemy_decker", "outcome": "hog",
@@ -10888,7 +10850,7 @@ def _drain_all_hog_infections(state: dict, decker: dict) -> None:
                 _append_event(state, {
                     "type": "enemy_decker", "outcome": "hog", "enemy_id": target.id,
                     "gm_only": True,
-                    "description": f"GM: your Hog virus drains {target.name}'s program: {frag}.",
+                    "description": f"Your Hog virus drains {target.name}'s program: {frag}.",
                 })
         survivors.append(inf)
     state["hog_infections"] = survivors
@@ -10930,18 +10892,14 @@ def _enemy_purge_hog(state: dict, enemy: dict) -> bool:
         enemy["hog_reload_pending"] = True
         _append_event(state, {
             "type": "enemy_decker", "outcome": "purge_hog", "enemy_id": enemy.get("id"),
-            "description": (
-                f"{_enemy_display_name(enemy)} purges your Hog-{inf.get('rating')} virus "
-                "off its deck -- it will reload the crashed program from storage next."
-            ),
+            "description": f"{_enemy_display_name(enemy)} purges your Hog program from their deck.",
         })
     else:
         _append_event(state, {
             "type": "enemy_decker", "outcome": "purge_hog", "enemy_id": enemy.get("id"),
-            "gm_only": True,
             "description": (
-                f"GM: {_enemy_gm_name(enemy)} tries to purge your Hog-"
-                f"{inf.get('rating')} (TN {purge['tn']}) but fails -- the virus keeps draining it."
+                f"{_enemy_display_name(enemy)} unsuccessfully attempts to purge your "
+                "Hog program from their deck."
             ),
         })
     return True
@@ -10963,10 +10921,7 @@ def _enemy_swap_reload(state: dict, enemy: dict) -> bool:
         pretty = ", ".join(_action_label(n) for n in restored)
         _append_event(state, {
             "type": "enemy_decker", "outcome": "swap_memory", "enemy_id": enemy.get("id"),
-            "description": (
-                f"{_enemy_display_name(enemy)} reloads {pretty} from storage (Swap Memory)"
-                " -- its programs are back to full strength."
-            ),
+            "description": f"{_enemy_display_name(enemy)} reloads {pretty}.",
         })
         return True
     return False
@@ -10991,10 +10946,7 @@ def _enemy_scan_pc(state: dict, enemy: dict, eff: dict) -> bool:
     enemy["pc_weakest_attr"] = weakest
     _append_event(state, {
         "type": "enemy_decker", "outcome": "scanned", "enemy_id": enemy["id"],
-        "description": (
-            f"{_enemy_display_name(enemy)} runs an Analyze on your icon -- it now has your {weakest.title()} "
-            "pegged as the soft spot and moves to exploit it."
-        ),
+        "description": f"{_enemy_display_name(enemy)} analyzes your icon and learns your weaknesses.",
     })
     return True
 
@@ -11045,10 +10997,8 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
                 enemy["revealed"] = True   # back in the open -- the PC can Strike Back at it again
                 _append_event(state, {
                     "type": "enemy_decker", "outcome": "reengage", "enemy_id": enemy.get("id"),
-                    "gm_only": True,
                     "description": (
-                        f"GM: {_enemy_gm_name(enemy)} has patched its icon to "
-                        f"{boxes}/10 and drops its hide to resume the hunt."
+                        f"{_enemy_display_name(enemy)} re-emerges from hiding to resume the hunt."
                     ),
                 })
                 return "end"
@@ -11073,22 +11023,21 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
             _append_event(state, {
                 "type": "enemy_decker", "outcome": "hunting", "enemy_id": enemy["id"],
                 "description": (
-                    f"ALERT -- a hostile decker ({_enemy_display_name(enemy)}) is hunting your icon. "
-                    "Evade (Relocate/Redirect), log off, or strike first."
+                    f"A hostile decker ({_enemy_display_name(enemy)}) is hunting your icon."
                 ),
             })
         if loc["located"]:
             enemy["located"] = True
             _append_event(state, {
                 "type": "enemy_decker", "outcome": "located", "enemy_id": enemy["id"],
-                "description": f"{_enemy_display_name(enemy)} has pinpointed your icon's position.",
+                "description": f"{_enemy_display_name(enemy)} has located your position.",
             })
         else:
             _append_event(state, {
                 "type": "enemy_decker", "outcome": "probing", "enemy_id": enemy["id"],
                 "gm_only": True,
                 "description": (
-                    f"{_enemy_display_name(enemy)} keeps searching but has not pinpointed your icon this pass."
+                    f"{_enemy_display_name(enemy)} has failed to locate you this turn."
                 ),
             })
         return "complex"
@@ -11308,7 +11257,7 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
                 mpcp_note = f" {program} fried the MPCP on the way out: -{mpcp_hit} (permanent)."
         _append_event(state, {
             "type": "persona_crash", "enemy_id": enemy["id"],
-            "description": f"PERSONA CRASHED by {_enemy_display_name(enemy)} -- dumped (dump shock: {shock}).{mpcp_note}",
+            "description": f"Persona Crashed by {_enemy_display_name(enemy)} -- dumped (dump shock: {shock}).{mpcp_note}",
         })
 
     if not state.get("run_ended"):
@@ -11408,7 +11357,7 @@ async def attack_enemy_decker(
                     f"{res['reduction']} off its highest running program each Combat Turn "
                     f"until it purges or crashes.")
         else:
-            desc = f"HOG -- your virus fails to take hold on {_enemy_display_name(enemy)} this pass."
+            desc = f"HOG -- your virus fails to take hold on {_enemy_display_name(enemy)} this turn."
         _append_event(state, {
             "type": "decker_hog", "outcome": "hog", "success": res["infected"],
             "enemy_id": enemy["id"], "program": "hog", "attack_roll": res["attack_roll"],
@@ -11855,11 +11804,11 @@ async def area_attack(
 
     crashed_n = sum(1 for r in results if r["crashed"])
     if is_burst:
-        head = (f"AREA STRIKE ({attack_roll['successes']} successes) hits {n_targets} icons "
+        head = (f"Area strike ({attack_roll['successes']} successes) hits {n_targets} icons "
                 f"[+{area_penalty} to-hit]")
     else:
         head = f"Attack ({attack_roll['successes']} successes)"
-    parts = [f"{r['label']} {r['final']} ({r['boxes']}b{'; CRASHED' if r['crashed'] else ''})"
+    parts = [f"{r['label']} {r['final']} ({r['boxes']}b{'; crashed' if r['crashed'] else ''})"
              for r in results]
     desc = f"{head}: " + "; ".join(parts) + f". {crashed_n} crashed." if parts else head
     _append_event(state, {
@@ -12058,11 +12007,7 @@ async def jack_out(
             state["pass_action_points"] = max(0, state.get("pass_action_points", 0) - 2)
             _append_event(state, {
                 "type": "jack_out_failed", "roll": wp_roll,
-                "description": (
-                    f"Jack-out BLOCKED by Black IC {black_ic.get('rating')} -- Willpower Test "
-                    f"(TN {tn}) failed ({wp_roll['successes']} success"
-                    f"{'es' if wp_roll['successes'] != 1 else ''}). Still jacked in."
-                ),
+                "description": "You are unable to sever your connection to the host as the Black IC grabs your icon and holds fast.",
             })
             run.state_json = state
             await db.commit()
