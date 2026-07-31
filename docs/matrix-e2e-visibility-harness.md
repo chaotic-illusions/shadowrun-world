@@ -1,6 +1,9 @@
 # Matrix Run -- End-to-End Visibility & Invariant Harness
 
-> Status: **design + Phase 1 foundation shipped** (`tests/test_matrix_visibility_e2e.py`).
+> Status: **Phase 1 + Phase 2 foundation shipped.** Three files:
+> `tests/matrix_visibility_invariants.py` (the shared canonical invariant battery),
+> `tests/test_matrix_visibility_e2e.py` (targeted regressions for the known bugs), and
+> `tests/test_matrix_visibility_fuzz.py` (the generative bug-discovery fuzzer).
 > This document is the architecture and the roadmap. The code is the executable contract.
 
 ## 1. Why this exists (the gap)
@@ -91,41 +94,51 @@ Each is a pure function; a scenario runs the whole battery after each step. `A` 
 ## 4. Architecture
 
 ```
-tests/test_matrix_visibility_e2e.py      (Phase 1 -- shipped)
+tests/matrix_visibility_invariants.py    the SHARED canonical battery (no test_ fns)
+  |   check_no_gm_key_leak / check_security_hidden / check_trap_ic_redaction /
+  |   check_progressive_disclosure / check_admin_parity / check_state_well_formed
+  |   check_all(run, ctx) -- serialize BOTH views once, run the whole battery
   |
-  |-- synthetic host fixture(s)           reveal-bearing: encrypted+scrambled file,
-  |                                        data-bomb file, plain paydata, trivial ACIFS
-  |-- capable decker fixture              high Computer/MPCP + TN-reducer programs loaded
-  |-- run setup                           _initial_state + stub run + fake DB + patched
-  |                                        _get_run_or_404/_assert_run_access + seeded RNG
-  |-- dual_view(run)                      -> (admin_state, player_state)
-  |-- INVARIANTS = [ ... ]                the pure-function library of section 3
-  |-- assert_all_invariants(run, ctx)     run the battery; called after every step
+  +--> tests/test_matrix_visibility_e2e.py     (Phase 1: targeted regressions)
+  |      synthetic reveal-bearing host + capable decker + seeded run setup
+  |      - DIRECT-STATE tests: hand-built state -> real _serialize_run (B/C/E/F)
+  |      - DRIVEN test: real perform_action(logon->locate->analyze), battery each step
+  |      - STATIC contract: literal-token pins of the C/D/F/A run-UI fixes
   |
-  |-- test_redaction_and_disclosure...    DIRECT-STATE: hand-built state, deterministic,
-  |                                        exercises the REAL _serialize_run redaction (B/C/E/F)
-  |-- test_driven_logon_locate_analyze    REAL ENDPOINTS: perform_action(logon)->locate->analyze,
-                                           battery after each step (integration proof)
+  +--> tests/test_matrix_visibility_fuzz.py    (Phase 2: generative discovery)
+         per seed: RANDOM host (code/ACIFS/paydata/scramble variants/bombs/slaves/IC)
+         + real logon + long RANDOM action script; check_all after EVERY step
 ```
 
-Two complementary test styles, on purpose:
+Both harnesses import the **same** `check_all`, so a new invariant added to the shared module is
+instantly enforced by every targeted regression **and** every fuzz seed. Determinism: the engine
+draws from the global `random` stream (seeded, module intact so production `random.Random(local)`
+still works); the fuzzer's own choices use a separate `random.Random` and it save/restores the
+global state so it never perturbs neighbouring tests.
+
+Two complementary styles, on purpose:
 
 - **Direct-state** tests hand-build a state and call the **real** `_serialize_run`. Deterministic,
   fast, zero dice. They pin the exact redaction logic where B/C/E/F lived.
-- **Driven** tests call the **real** `perform_action` / attack / logoff endpoints under a fixed
-  seed. They prove the whole stack wires together and that invariants hold on *engine-produced*
-  states, not just hand-built ones.
+- **Driven / fuzzed** tests call the **real** `perform_action` / attack / new-turn endpoints under a
+  fixed seed. They prove the whole stack wires together and that invariants hold on
+  *engine-produced* states across a huge randomized space -- the discovery engine.
 
 ## 5. Roadmap
 
-- **Phase 1 (shipped).** Invariant library + dual-view capture; direct-state regressions for
-  B/C/D/E/F; one driven logon->locate->analyze scenario. Runs in the normal `pytest` suite, so CI
-  catches any regression automatically.
-- **Phase 2.** A **scenario matrix**: one seeded run per host archetype (Green..Red x each IC type
-  x scramble variant {plain,poison,exploding} x data bomb x trace x trap door), each replaying the
-  full battery per step. Fold the existing `tools/matrix_outcome_probe.py` /
-  `tests/test_scenario_fuzz.py` machinery in as a property layer ("no seed, over N runs, ever leaks
-  a GM-only key / offers a forbidden action").
+- **Phase 1 (shipped).** Shared invariant battery + dual-view capture; direct-state regressions for
+  B/C/D/E/F; one driven logon->locate->analyze scenario; a static run-UI contract. Runs in the
+  normal `pytest` suite, so CI catches any regression automatically.
+- **Phase 2 foundation (shipped).** The generative fuzzer: a random host + a long random script per
+  seed, replaying the full battery after every step (`tests/test_matrix_visibility_fuzz.py`,
+  `FUZZ_SEEDS`). This is the "find the bugs I have not hit yet" engine. **To hunt deeper, widen
+  `FUZZ_SEEDS`** (it is fast -- 16 seeds in ~2s) or raise the per-run step count; every added seed
+  is a distinct host + script. A red run prints `seed=.. step=..` and reproduces exactly.
+- **Phase 2 next.** Grow the battery (each new invariant instantly applies to every fuzz seed):
+  action-availability (a rejected action was never offerable; Invalidate-all always offerable once
+  logged on; encrypted/downloaded files excluded from the Download target set), reveal-timing
+  (`discovered_scrambles` the instant the flag flips), and monotonic disclosure (a reveal never
+  un-reveals). Fold `tools/matrix_outcome_probe.py` in as a distribution check.
 - **Phase 3 (optional).** A thin **Playwright** layer: boot the app, log in as player and as admin,
   load `matrix-run.html` against a snapshotted run (`tools/snapshot_run.py`), and assert literal
   **button/card/badge** presence -- the only thing a headless state check cannot see (CSS/DOM).

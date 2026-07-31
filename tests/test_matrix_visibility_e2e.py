@@ -30,6 +30,8 @@ from app.routers import matrix_runs as mr
 from app.services import matrix_engine as eng
 from app.schemas.matrix_run import DeckerStats, RunActionInput
 
+from tests import matrix_visibility_invariants as inv
+
 SEED = 20260730
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,65 +168,19 @@ def _new_run(monkeypatch) -> _StubRun:
 # =============================================================================
 # Dual-view capture + the invariant library (see design doc, section 3).
 # =============================================================================
+# Dual-view capture + the invariant battery come from the shared canonical module
+# (tests/matrix_visibility_invariants.py) so these targeted regressions and the generative fuzzer
+# (tests/test_matrix_visibility_fuzz.py) enforce the IDENTICAL admin-vs-player rules.
+# =============================================================================
 def dual_view(run):
     admin = mr._serialize_run(run, AUTH_ADMIN).get("state_json", {})
     player = mr._serialize_run(run, AUTH_PLAYER).get("state_json", {})
     return admin, player
 
 
-def inv_no_gm_key_leak(admin, player):
-    """(1) Secrecy: no GM-only state key ever reaches the player payload."""
-    leaked = [k for k in mr._GM_ONLY_STATE_KEYS if k in player]
-    assert not leaked, f"GM-only keys leaked to player: {leaked}"
-
-
-def inv_security_hidden(admin, player):
-    """(1) Secrecy: raw tally/alert are never sent; host code/value hide until Analyze Host."""
-    assert "security_tally" not in player, "raw security tally leaked to player"
-    assert "alert_status" not in player, "raw alert status leaked to player"
-    if not player.get("host_security_revealed"):
-        assert "host_security_code" not in player, "host security code leaked before Analyze Host"
-        assert "host_security_value" not in player, "host security value leaked before Analyze Host"
-
-
-def inv_admin_parity(admin, player):
-    """(3) Parity: admin never sees FEWER located files than the player, and always with real size."""
-    a_ids = {p.get("id") for p in (admin.get("located_paydata") or [])}
-    p_ids = {p.get("id") for p in (player.get("located_paydata") or [])}
-    missing = p_ids - a_ids
-    assert not missing, f"admin located_paydata missing files the player sees: {missing}"
-    for p in (admin.get("located_paydata") or []):
-        assert p.get("size_mp") is not None, f"admin size_mp hidden for {p.get('name')}"
-
-
-def inv_progressive_disclosure(admin, player):
-    """(2) Disclosure: a located file's size stays hidden from the player until it is analyzed."""
-    for p in (player.get("located_paydata") or []):
-        if p.get("analyzed"):
-            assert p.get("size_mp") is not None, (
-                f"analyzed file '{p.get('name')}' still hides its size from the player")
-        else:
-            assert p.get("size_mp") is None, (
-                f"unanalyzed file '{p.get('name')}' leaked its size to the player")
-
-
-ALL_INVARIANTS = (
-    inv_no_gm_key_leak,
-    inv_security_hidden,
-    inv_admin_parity,
-    inv_progressive_disclosure,
-)
-
-
 def assert_invariants(run, label=""):
-    """Run the whole battery on the current run state; annotate any failure with the step label."""
-    admin, player = dual_view(run)
-    for inv in ALL_INVARIANTS:
-        try:
-            inv(admin, player)
-        except AssertionError as exc:
-            raise AssertionError(f"[{label}] {inv.__name__}: {exc}") from None
-    return admin, player
+    """Delegate to the shared canonical battery so a new invariant added there is enforced here too."""
+    return inv.check_all(run, label)
 
 
 def _file(view_list, name):
