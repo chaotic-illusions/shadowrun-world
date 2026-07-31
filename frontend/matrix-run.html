@@ -1285,12 +1285,21 @@ function laoWireHover(root) {
   });
 }
 
+// In-app tooltip text for a load-out program card: the program's real description (from
+// matrix-programs.js, via progTip) preceded by its label and followed by an optional drag hint.
+// Uses data-tip so the styled #app-tooltip (z 1000, above the modal overlay) shows what the
+// program actually DOES -- not the bare OS title with just name + size.
+function laoCardTip(label, utilName, sizeMp, hint) {
+  const base = progTip(utilName, parseInt(sizeMp, 10) || 0);   // "<description>\n\n<n> Mp"
+  return [label, base, hint].filter(Boolean).join('\n\n');
+}
+
 function laoLibCardHtml(a) {
   const cat = laoCatKey(a.utilName);
   const sz = Math.max(0, parseInt(a.actualSize, 10) || 0);
   const oneShot = !!a.isOneShot;
   const label = a.utilName ? `${a.utilName}-${parseInt(a.baseRating, 10) || 0}` : String(a.name || 'program');
-  return `<div class="lao-libcard cat-${cat}${oneShot ? ' shot' : ''}" draggable="true" data-from="lib" data-cid="${esc(String(a.id))}" data-lp="${esc(laoKey(a))}" data-rt="${parseInt(a.baseRating, 10) || 0}" title="${esc(label)} -- ${fmtN(sz)} Mp -- drag onto Active or Storage">
+  return `<div class="lao-libcard cat-${cat}${oneShot ? ' shot' : ''}" draggable="true" data-from="lib" data-cid="${esc(String(a.id))}" data-lp="${esc(laoKey(a))}" data-rt="${parseInt(a.baseRating, 10) || 0}" data-tip="${esc(laoCardTip(label, a.utilName, sz, 'Drag onto Active or Storage.'))}">
     <div class="tn">${esc(label)}</div>
     <div class="meta">${oneShot ? '<b class="lao-otag shot">1-SHOT</b>' : ''}</div>
     <div class="mp">${fmtN(sz)} Mp</div>
@@ -1360,7 +1369,7 @@ function laoBar(label, segItems, used, cap, over) {
     const sz = Math.max(0, parseInt(it.actualSize, 10) || 0);
     const pct = base > 0 ? Math.min(100, (sz / base) * 100) : 0;
     const cls = laoCatKey(it.utilName) + (isOneShotItem(it) ? ' shot' : '');
-    return `<i class="${cls}" data-lp="${esc(laoKey(it))}" style="width:${pct.toFixed(2)}%" title="${esc(laoItemLabel(it))} -- ${fmtN(sz)} Mp"></i>`;
+    return `<i class="${cls}" data-lp="${esc(laoKey(it))}" style="width:${pct.toFixed(2)}%" data-tip="${esc(laoCardTip(laoItemLabel(it), it.utilName, sz, ''))}"></i>`;
   }).join('');
   const capTxt = cap > 0 ? fmtN(cap) : '&infin;';
   return `<div class="lao-mem">
@@ -1377,7 +1386,7 @@ function laoTileHtml(item, idx, slot, caps) {
   const overMpcp = caps.mpcp > 0 && parsed.baseRating > caps.mpcp;
   const copyBtn = (oneShot && slot === 'active')
     ? `<button class="lao-cp" data-lao-cp="${idx}" title="Add a one-shot copy">+1</button>` : '';
-  return `<div class="lao-tile cat-${cat}${oneShot ? ' shot' : ''}${overMpcp ? ' over' : ''}" draggable="true" data-from="zone" data-lao-idx="${idx}" data-lp="${esc(laoKey(item))}" data-rt="${parsed.baseRating || 0}" title="Drag between Active and Storage; drag out to remove">
+  return `<div class="lao-tile cat-${cat}${oneShot ? ' shot' : ''}${overMpcp ? ' over' : ''}" draggable="true" data-from="zone" data-lao-idx="${idx}" data-lp="${esc(laoKey(item))}" data-rt="${parsed.baseRating || 0}" data-tip="${esc(laoCardTip(laoItemLabel(item), item.utilName, sz, 'Drag between Active and Storage; drag out to remove.'))}">
     <div class="tn">${esc(laoItemLabel(item))}</div>
     <div class="meta">${oneShot ? '<b class="lao-otag shot">1-SHOT</b>' : ''}${overMpcp ? '<b class="lao-otag over">&gt; MPCP</b>' : ''}</div>
     <div class="mp">${fmtN(sz)} Mp</div>
@@ -1947,7 +1956,9 @@ function _icTgt(list, label) {
 function _analyzeIconTargets(s) {
   // Files only: Slave-device data bombs were removed (no slave-control action makes them reachable),
   // so a device scan would never find anything. Analyze Icon now scans located files for a data bomb.
-  return (s.located_paydata || []).filter(p => !p.destroyed).map(p => ({ value: 'files::' + (p.id || p.name), label: 'File: ' + String(p.name) }));
+  // Once a file has been analyzed, drop it from the list -- re-scanning it is a wasted action
+  // (mirrors download_data / _undownPaydata).
+  return (s.located_paydata || []).filter(p => !p.destroyed && !p.analyzed).map(p => ({ value: 'files::' + (p.id || p.name), label: 'File: ' + String(p.name) }));
 }
 
 // Combat-maneuver opposing icons (vr2 L1982): any active (non-crashed) IC plus every REVEALED
@@ -1980,8 +1991,10 @@ function _invalidateSingles(s) {
 // backend whole-list branch and never collides with an IC ("ic_"/"td_") or enemy ("ed_") id.
 function _invalidateTargets(s) {
   const single = _invalidateSingles(s);
-  const opts = [];
-  if (single.length >= 2) opts.push({ value: '__all__', label: `ALL passcodes (+4 TN) -- flip ${single.length} icons` });
+  // Invalidate-all (vr2 L1879) can be run any time and wipes the WHOLE passcode table -- flipping
+  // every security icon on the host to Intruding, active or not, hidden or not. So it is always
+  // offered, regardless of how many icons are currently visible.
+  const opts = [{ value: '__all__', label: 'Entire system passcode table (+4 TN)' }];
   return opts.concat(single);
 }
 
@@ -1997,8 +2010,8 @@ const ACTION_CATALOG = [
     valid: s => !s.has_legitimate_status,
     reason: 'already have Legitimate status' },
   { v: 'invalidate_passcode', l: 'Invalidate Passcode',   cost: 'Complex',
-    valid: s => _invalidateSingles(s).length > 0,
-    reason: 'no Legitimate IC or enemy decker to invalidate',
+    // Always available: even with no visible Legitimate icon you can erase the whole passcode table
+    // (Entire system, +4 TN), which flips any IC on the host -- active, hidden, or not-yet-spawned.
     target: s => ({ mode: 'select', label: 'Passcode to erase', options: _invalidateTargets(s) }) },
   { v: 'decoy',             l: 'Decoy',                   cost: 'Complex' },
   { v: 'redirect_datatrail',l: 'Redirect Datatrail',      cost: 'Complex',
@@ -2814,7 +2827,7 @@ async function strikeEnemyDecker(eid) {
     black_hammer: 'Black Hammer (lethal Physical)', killjoy: 'Killjoy (lethal Stun)',
   };
   const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
-  const raw = prompt('Hacking Pool dice to add to ' + (labels[program] || program) + ` (0-${hpMax}):`, '0');
+  const raw = await showPrompt('Hacking Pool dice to add to ' + (labels[program] || program) + ` (0-${hpMax}):`, '0', { title: '>> HACKING POOL', inputType: 'number', okLabel: 'Strike' });
   if (raw === null) return;
   const hp = Math.max(0, Math.min(parseInt(raw, 10) || 0, hpMax));
   await postAction(`${API}/matrix-runs2/${_run.id}/enemy-decker/attack`,
@@ -2827,7 +2840,7 @@ async function strikeEnemyDecker(eid) {
 async function scanEnemyDecker(eid) {
   if (!_run) return;
   const cs = parseInt((_run.decker_json || {}).computer_skill, 10) || 0;
-  const raw = prompt('Scan Icon: Computer skill (' + cs + ') + how many Hacking Pool dice?', '0');
+  const raw = await showPrompt('Scan Icon: Computer skill (' + cs + ') + how many Hacking Pool dice?', '0', { title: '>> SCAN ICON', inputType: 'number', okLabel: 'Scan' });
   if (raw === null) return;
   const hp = parseInt(raw, 10);
   if (!Number.isFinite(hp) || hp < 0) return;
@@ -2846,7 +2859,7 @@ async function crashScramble(ref) {
       '>> No Attack program loaded -- you need one to crash a Scramble.', true);
     return;
   }
-  const raw = prompt('Crash Scramble: how many Hacking Pool dice to add to your Attack rating?', '0');
+  const raw = await showPrompt('Crash Scramble: how many Hacking Pool dice to add to your Attack rating?', '0', { title: '>> CRASH SCRAMBLE', inputType: 'number', okLabel: 'Attack' });
   if (raw === null) return;
   const hp = parseInt(raw, 10);
   if (!Number.isFinite(hp) || hp < 0) return;
@@ -2860,7 +2873,7 @@ async function crashScramble(ref) {
 // data bomb on ANY decrypt unless you Defuse that bomb first (its own card + this card's hint say so).
 async function decryptScramble(ref) {
   if (!_run) return;
-  const raw = prompt('Decrypt Scramble: how many Hacking Pool dice to add?', '0');
+  const raw = await showPrompt('Decrypt Scramble: how many Hacking Pool dice to add?', '0', { title: '>> DECRYPT SCRAMBLE', inputType: 'number', okLabel: 'Decrypt' });
   if (raw === null) return;
   const hp = parseInt(raw, 10);
   if (!Number.isFinite(hp) || hp < 0) return;
@@ -2876,7 +2889,7 @@ async function decryptScramble(ref) {
 // action as the (removed) menu entry. The backend derives the bomb's subsystem from the target.
 async function defuseBomb(target) {
   if (!_run) return;
-  const raw = prompt('Defuse Data Bomb: how many Hacking Pool dice to add?', '0');
+  const raw = await showPrompt('Defuse Data Bomb: how many Hacking Pool dice to add?', '0', { title: '>> DEFUSE DATA BOMB', inputType: 'number', okLabel: 'Defuse' });
   if (raw === null) return;
   const hp = parseInt(raw, 10);
   if (!Number.isFinite(hp) || hp < 0) return;
@@ -3012,11 +3025,17 @@ function renderDownloadsPanel() {
       const color  = p.destroyed ? 'var(--red)' : (p.downloaded ? 'var(--green)' : 'var(--amber)');
       const tag    = p.destroyed ? '[DESTROYED]' : (p.downloaded ? '[DOWNLOADED]' : '');
       const struck = p.destroyed ? 'text-decoration:line-through' : '';
-      const sizeTxt = p.encrypted ? '??? Mp' : ((parseInt(p.size_mp, 10) || 0) + 'Mp');
+      // Progressive disclosure (see C): a located file's size + encryption stay hidden until the
+      // decker runs Analyze Icon on it. The backend masks size_mp to null for a player until then
+      // (admins always get the real size), so "size known" is the single signal for
+      // "analyzed-or-admin" -- gate BOTH the size text and the ENCRYPTED badge on it.
+      const known   = p.size_mp !== null && p.size_mp !== undefined;
+      const sizeTxt = known ? ((parseInt(p.size_mp, 10) || 0) + ' Mp') : '??? Mp';
+      const showEnc = known && p.encrypted;
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">`
-        + `<span style="font-size:.72rem;color:${p.encrypted ? 'var(--cyan)' : color};${struck}">${esc(p.name || '?')}</span>`
+        + `<span style="font-size:.72rem;color:${showEnc ? 'var(--cyan)' : color};${struck}">${esc(p.name || '?')}</span>`
         + `<span style="font-size:.58rem;color:var(--text-dim)">${sizeTxt}</span>`
-        + (p.encrypted ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--cyan)" title="Encrypted by a Scramble IC -- use the Decrypt button on its Subsystem Defenses card before you can download it">ENCRYPTED</span>` : '')
+        + (showEnc ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--cyan)" data-tip="Encrypted by a Scramble IC -- use the Decrypt button on its Subsystem Defenses card before you can download it">ENCRYPTED</span>` : '')
         + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
         + (tag ? `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>` : '')
         + (p.tampered && !p.destroyed ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--red)">[TAMPERED]</span>` : '')
@@ -3500,9 +3519,18 @@ function renderCrashCountdown(cd) {
   if (!el) return;
   const t = cd && cd.turns_remaining;
   if (!cd || (t ?? 0) <= 0) { el.innerHTML = ''; return; }
+  // Escape guidance: Graceful Logoff is the ONLY clean exit -- but it is a Complex action, so the
+  // pass you spent crashing the host has no action points left for it (the button greys out). That
+  // is not a block: End Turn to refresh, then log off next round before the countdown hits 0.
+  // Jacking out now, or riding the crash to zero, both cost Dump Shock (see _complete_host_crash).
   el.innerHTML = `<div style="font-size:.62rem;letter-spacing:1px;margin-top:6px;padding:3px 7px;`
     + `background:rgba(255,40,40,.14);border:1px solid var(--red);color:var(--red);border-radius:3px">`
-    + `HOST CRASH: ${esc(String(t))} round${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each round</div>`;
+    + `HOST CRASH: ${esc(String(t))} round${t !== 1 ? 's' : ''} to shutdown &mdash; IC -2, host may abort each round`
+    + `<div style="color:var(--amber);margin-top:3px;letter-spacing:0;line-height:1.35">`
+    + `To get out clean, Graceful Logoff before the countdown ends. It is a Complex action, so if you `
+    + `just spent your action points crashing the host, End Turn first, then log off next round. `
+    + `Jacking out now &mdash; or riding the crash to zero &mdash; both cost you Dump Shock.`
+    + `</div></div>`;
 }
 
 // A Trace IC that has hit and entered its Location Cycle has "vanished and become reactive"
@@ -3844,13 +3872,13 @@ function renderStage(state, decker) {
     _eventsToBeats(events).forEach(b => { if (!b.stop) _emitBeat(b, true); });
     _streamRendered = events.length;
     if (state.pending_defense) _renderStreamPrompt();
-    const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+    _scrollFeedToBottom();
   } else {
     const ph = document.getElementById('mr-stream-phase'); if (ph) ph.innerHTML = headerHtml;
     if (events.length > _streamRendered) {
       _eventsToBeats(events.slice(_streamRendered)).forEach(b => { if (!b.stop) _emitBeat(b, true); });
       _streamRendered = events.length;
-      const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+      _scrollFeedToBottom();
       if (state.pending_defense && !document.querySelector('.mr-prompt')) _renderStreamPrompt();
     }
   }
@@ -4436,8 +4464,9 @@ async function slowIC(id, type, rating) {
     showAlert(alertBox, '>> No Slow utility loaded -- carry one to slow a proactive IC.', true);
     return;
   }
-  const raw = prompt(
-    `Hacking Pool dice to add to the Slow-${slow} to-hit roll vs ${type}-${rating} (0 = none):`, '0');
+  const raw = await showPrompt(
+    `Hacking Pool dice to add to the Slow-${slow} to-hit roll vs ${type}-${rating} (0 = none):`, '0',
+    { title: '>> SLOW IC', inputType: 'number', okLabel: 'Slow' });
   if (raw === null) return;
   const hp = Math.max(0, parseInt(raw, 10) || 0);
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
@@ -5019,6 +5048,20 @@ function _eventsToBeats(events) {
 }
 
 function _streamFeed() { return document.getElementById('mr-stream-feed'); }
+// Pin the running log to its newest entry. On wide screens (>=981px) the feed is its own bounded,
+// internally scrollable container, so scrollTop does the job. On the narrow/stacked layout -- and
+// when the browser is zoomed enough to drop below that breakpoint -- the feed instead grows with the
+// document and scrollTop is a no-op, so pull the newest line into view via the page scroll instead.
+function _scrollFeedToBottom() {
+  const feed = _streamFeed(); if (!feed) return;
+  feed.scrollTop = feed.scrollHeight;
+  if (feed.scrollHeight <= feed.clientHeight + 2) {
+    const last = feed.lastElementChild;
+    if (last && last.scrollIntoView && last.getBoundingClientRect().bottom > window.innerHeight) {
+      last.scrollIntoView({ block: 'end', inline: 'nearest' });
+    }
+  }
+}
 function _clearStreamCursor() {
   const feed = _streamFeed(); if (!feed) return;
   const c = feed.querySelector('.mr-cursor'); if (c) c.remove();
@@ -5026,7 +5069,7 @@ function _clearStreamCursor() {
 function _showStreamCursor() {
   const feed = _streamFeed(); if (!feed || feed.querySelector('.mr-cursor')) return;
   const c = document.createElement('span'); c.className = 'mr-cursor';
-  feed.appendChild(c); feed.scrollTop = feed.scrollHeight;
+  feed.appendChild(c); _scrollFeedToBottom();
 }
 function _emitBeat(b, instant) {
   const feed = _streamFeed(); if (!feed) return;
@@ -5035,7 +5078,7 @@ function _emitBeat(b, instant) {
   d.className = 'mr-ln ' + (b.c || 'mr-s-white') + (b.sub ? ' mr-sub' : '') + (instant ? ' mr-ln-instant' : '');
   if (b.h != null) d.innerHTML = b.h; else d.textContent = b.t;
   feed.appendChild(d);
-  feed.scrollTop = feed.scrollHeight;
+  _scrollFeedToBottom();
 }
 
 function _streamTick() {
@@ -5070,7 +5113,7 @@ function _pushNewEvents(run) {
   if (!hasNpc) {
     // routine player result -- write it into the log instantly, no lock, no typewriter
     beats.forEach(b => { if (!b.stop) _emitBeat(b, true); });
-    const f = _streamFeed(); if (f) f.scrollTop = f.scrollHeight;
+    _scrollFeedToBottom();
     return;
   }
   _stream.beats = beats;
@@ -5114,7 +5157,7 @@ function _renderStreamPrompt() {
     + '<div class="row"><button class="btn btn-red" id="mr-def-go">&gt;&gt; Resist Strike</button></div>'
     + '<div class="mr-prompt-hint">Auto-continues after you resolve. No dice to spare? Just hit Resist.</div>';
   feed.appendChild(box);
-  feed.scrollTop = feed.scrollHeight;
+  _scrollFeedToBottom();
 
   let n = 0;
   const nEl = box.querySelector('#mr-def-n');

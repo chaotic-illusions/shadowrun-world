@@ -6176,7 +6176,7 @@ class TestDecoyIntercept:
         assert st["decoy_hp"] == 0
         ev = st["event_log"][-1]
         assert ev["decoy_destroyed"] is True
-        assert "DECOY DESTROYED" in ev["description"]
+        assert "decoy destroyed" in ev["description"]
 
 
 # -- Slow (cripple proactive IC) -----------------------------------------------
