@@ -24,6 +24,7 @@ import datetime
 import random
 from pathlib import Path
 
+import pytest
 from fastapi import HTTPException
 
 from app.routers import matrix_runs as mr
@@ -328,6 +329,59 @@ def test_frontend_visibility_contracts_static():
 
     # F: an analyzed file is filtered out of the Analyze Icon target list.
     assert "(s.located_paydata || []).filter(p => !p.destroyed && !p.analyzed)" in RUN_UI
+
+    # A: the deck adjust-loadout program cards use the in-app tooltip with real descriptions.
+    assert "function laoCardTip(label, utilName, sizeMp, hint)" in RUN_UI
+    assert 'data-tip="${esc(laoCardTip(' in RUN_UI
+    assert 'title="Drag between Active and Storage; drag out to remove"' not in RUN_UI
+
+
+# =============================================================================
+# ACTION-AVAILABILITY contracts -- the server side of "the action a rule permits is offerable, the
+# ones it forbids are not" (Bugs D/F). Driven against the real perform_action so the gate the UI
+# relies on is proven at the source.
+# =============================================================================
+def test_download_gate_blocks_encrypted_allows_plain(monkeypatch):
+    """Download Data must reject an ENCRYPTED file (its Scramble IC is the lock) and must NOT reject
+    a plain located file for that reason -- so the UI can safely offer plain files and gate encrypted
+    ones behind Decrypt."""
+    run = _new_run(monkeypatch)
+    st = run.state_json
+    st["logon_complete"] = True
+    for p in st["paydata"]:
+        if p["name"] in (ENCRYPTED_FILE, PLAIN_FILE):
+            p["located"] = True
+
+    def _download(name):
+        body = RunActionInput(action_type="download_data", subsystem="files",
+                              utility_rating=6, hacking_pool_dice=0, target_file=name)
+        return asyncio.run(mr.perform_action(1, body, AUTH_ADMIN, _FakeDB()))
+
+    with pytest.raises(HTTPException) as excinfo:
+        _download(ENCRYPTED_FILE)
+    assert "Scramble" in str(excinfo.value.detail), "encrypted file was not blocked by its Scramble lock"
+
+    # The plain file is never rejected for the Scramble reason (a dice/AP failure is acceptable).
+    try:
+        _download(PLAIN_FILE)
+    except HTTPException as exc:
+        assert "Scramble" not in str(exc.detail), "plain file wrongly blocked as if encrypted"
+
+
+def test_invalidate_all_available_when_logged_on(monkeypatch):
+    """Bug D server contract: Invalidate Passcode for the ENTIRE system is available whenever logged
+    on -- it must never be rejected for lacking a visible Legitimate IC."""
+    run = _new_run(monkeypatch)
+    run.state_json["logon_complete"] = True
+    body = RunActionInput(action_type="invalidate_passcode", subsystem="access",
+                          utility_rating=6, hacking_pool_dice=0, target_ic_id="__all__")
+    try:
+        asyncio.run(mr.perform_action(1, body, AUTH_ADMIN, _FakeDB()))
+    except HTTPException as exc:
+        detail = str(exc.detail).lower()
+        assert not any(s in detail for s in ("not valid", "no legitimate", "nothing to",
+                                             "no ic", "cannot invalidate")), \
+            f"invalidate-all wrongly rejected as unavailable: {exc.detail}"
 
     # A: the deck adjust-loadout program cards use the in-app tooltip with real descriptions.
     assert "function laoCardTip(label, utilName, sizeMp, hint)" in RUN_UI
