@@ -132,8 +132,13 @@ Two complementary styles, on purpose:
 - **Phase 2 foundation (shipped).** The generative fuzzer: a random host + a long random script per
   seed -- now driving system operations, IC cybercombat, **enemy-decker combat (Hog/Black Hammer/
   cripplers), Scan Icon, area attacks, and worms** -- replaying the full battery after every step
-  (`tests/test_matrix_visibility_fuzz.py`). Default **128 seeds**; set `MATRIX_FUZZ_SEEDS` (e.g.
-  `1000`) for a deeper hunt. A red run prints `seed=.. step=..` and reproduces exactly.
+  (`tests/test_matrix_visibility_fuzz.py`). Each host is **representative**: randomized security code,
+  ACIFS spanning low-to-high security, multiple paydata files, per-file + subsystem-wide Scramble
+  variants, data bombs, slave pieces, trap doors, worms, and a real **defense sheaf** (IC / Trap IC /
+  Passive Alert steps that fire dynamically as the tally climbs). Any **5xx or unhandled exception
+  fails the seed** (only legal 4xx rejections are tolerated), so a 500 from any host is caught with a
+  reproducible `seed=.. step=..`. Default **128 seeds**; set `MATRIX_FUZZ_SEEDS` (e.g. `1000`) for a
+  deeper hunt.
 - **Phase 2 battery (shipped).** **16 invariants**, all shared through `check_all`:
   *secrecy* (no GM-only key; tally/alert; trap-IC; slave topology; LTG address; trap-door
   destination; GM-only events; enemy raw stats; graduated IC identity; pending-defense ctx),

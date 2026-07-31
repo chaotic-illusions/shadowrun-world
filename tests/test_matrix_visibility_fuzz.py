@@ -136,12 +136,36 @@ def _capable_decker() -> dict:
     }
 
 
+def _random_sheaf(rng: random.Random) -> list[dict]:
+    """A representative host defense sheaf: 0-4 steps at rising security-tally triggers, each firing
+    a real event type seen in shipped hosts -- a straight IC spawn, a Trap IC (surface + concealed),
+    or a Passive Alert. These fire dynamically on new_turn as the tally climbs, so the fuzz exercises
+    the trigger machinery and trap/alert redaction, not just pre-placed IC."""
+    steps: list[dict] = []
+    trigger = 0
+    for _ in range(rng.randint(0, 4)):
+        trigger += rng.randint(3, 6)
+        kind = rng.choice(["ic", "ic", "trap_ic", "passive_alert"])
+        if kind == "ic":
+            event = {"type": "ic", "ic_type": rng.choice(IC_TYPES), "rating": rng.randint(3, 8)}
+        elif kind == "trap_ic":
+            event = {"type": "trap_ic",
+                     "surface_ic_type": rng.choice(["Trace", "Probe", "Killer"]),
+                     "surface_ic_rating": rng.randint(3, 8),
+                     "hidden_ic_type": rng.choice(["Killer", "Black IC", "Tar Baby"]),
+                     "hidden_ic_rating": rng.randint(3, 8)}
+        else:
+            event = {"type": "passive_alert"}
+        steps.append({"trigger": trigger, "events": [event]})
+    return steps
+
+
 def _random_host(rng: random.Random) -> _HostNS:
     paydata, scrambles, data_bombs = [], [], []
-    for i in range(rng.randint(1, 4)):
+    for i in range(rng.randint(1, 6)):
         name = f"file{i}"
         paydata.append({"id": f"pd{i}", "name": name,
-                        "density": rng.choice([20, 40, 60, 80, 120]),
+                        "density": rng.choice([20, 40, 60, 80, 120, 200]),
                         "is_key": rng.random() < 0.4, "defense": 0})
         if rng.random() < 0.5:  # encrypt some files (Scramble IC)
             sc = {"target_key": f"files::file::{name}", "rating": rng.randint(3, 8)}
@@ -152,11 +176,18 @@ def _random_host(rng: random.Random) -> _HostNS:
         if rng.random() < 0.35:  # booby-trap some files (Data Bomb)
             data_bombs.append({"target": f"files::file::{name}", "rating": rng.randint(3, 8)})
     slaves = rng.sample(SLAVE_PIECES, rng.randint(0, 3))
+    # Occasionally a subsystem-wide Scramble (Files or a Slave device), not just per-file.
+    if rng.random() < 0.2:
+        scrambles.append({"target_key": "files::entire", "rating": rng.randint(3, 8),
+                          "variant": rng.choice(["poison", "exploding"])})
+    if slaves and rng.random() < 0.2:
+        scrambles.append({"target_key": f"slave::piece::{slaves[0]}", "rating": rng.randint(3, 8)})
     cfg = {
         "security_code": rng.choice(SECURITY_CODES),
-        "security_value": rng.randint(3, 9),
-        "acifs": [rng.randint(2, 10) for _ in range(5)],
-        "sheaf": [],
+        "security_value": rng.randint(3, 12),
+        # Cover low-to-high-security hosts (shipped hosts reach the low-to-mid teens).
+        "acifs": [rng.randint(3, 15) for _ in range(5)],
+        "sheaf": _random_sheaf(rng),
         "paydata": paydata,
         "scrambles": scrambles,
         "data_bombs": data_bombs,
@@ -173,13 +204,23 @@ def _random_host(rng: random.Random) -> _HostNS:
 
 
 # --------------------------------------------------------------------------- driving
+# One persistent event loop for the whole module. asyncio.run() creates AND tears down a fresh loop
+# on every call, and on Windows (ProactorEventLoop) tens of thousands of those leak OS handles and
+# progressively stall -- which is what made a long sweep hang partway through. Reusing a single loop
+# (the pattern tools/sim_static_run.py already uses) keeps every driven action O(1).
+_LOOP = asyncio.new_event_loop()
+
+
 def _call(coro) -> None:
-    """Drive one endpoint. A controlled HTTPException (illegal-in-context action) is fine; any
-    other exception propagates as a real bug (the harness never swallows unexpected failures)."""
+    """Drive one endpoint on the shared loop. A 4xx HTTPException is a legal "you can't do that right
+    now" rejection and is tolerated; a 5xx (server error) or ANY non-HTTP exception is a real bug and
+    propagates -- so a 500 / unhandled crash from any random host fails the seed with a reproducible
+    trace (full 404/500 coverage)."""
     try:
-        asyncio.run(coro)
-    except HTTPException:
-        pass
+        _LOOP.run_until_complete(coro)
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            raise
 
 
 def _pick_file(rng: random.Random, state: dict) -> str:
@@ -278,7 +319,11 @@ def test_random_hosts_preserve_visibility_invariants(monkeypatch, seed):
 
         async def _get(db, run_id):
             return run
+
+        async def _get_host(db, host_id):
+            return host
         monkeypatch.setattr(mr, "_get_run_or_404", _get)
+        monkeypatch.setattr(mr, "_get_host_or_404", _get_host)
         monkeypatch.setattr(mr, "_assert_run_access", lambda r, a: None)
 
         inv.check_all(run, f"seed={seed} step=boot")
