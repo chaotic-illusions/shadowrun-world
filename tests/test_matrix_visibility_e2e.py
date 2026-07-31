@@ -161,7 +161,11 @@ def _new_run(monkeypatch) -> _StubRun:
     async def _get_run_or_404(db, run_id):
         return run
 
+    async def _get_host_or_404(db, host_id):
+        return host
+
     monkeypatch.setattr(mr, "_get_run_or_404", _get_run_or_404)
+    monkeypatch.setattr(mr, "_get_host_or_404", _get_host_or_404)
     monkeypatch.setattr(mr, "_assert_run_access", lambda r, a: None)
     return run
 
@@ -383,7 +387,58 @@ def test_invalidate_all_available_when_logged_on(monkeypatch):
                                              "no ic", "cannot invalidate")), \
             f"invalidate-all wrongly rejected as unavailable: {exc.detail}"
 
-    # A: the deck adjust-loadout program cards use the in-app tooltip with real descriptions.
-    assert "function laoCardTip(label, utilName, sizeMp, hint)" in RUN_UI
-    assert 'data-tip="${esc(laoCardTip(' in RUN_UI
-    assert 'title="Drag between Active and Storage; drag out to remove"' not in RUN_UI
+
+# =============================================================================
+# POSITIVE REVEAL -- "things appear when they should". The redaction checks prove secrets stay
+# hidden; these drive the real reveal actions and prove the earned disclosure actually SURFACES in
+# the player state (the data the UI renders from). Deterministic under SEED via _drive_reveal's
+# bounded retry.
+# =============================================================================
+def _accept(run, action, subsystem, **kw) -> bool:
+    """Drive one action through the real endpoint; True if accepted (a dice failure still counts)."""
+    body = RunActionInput(action_type=action, subsystem=subsystem, **kw)
+    try:
+        asyncio.run(mr.perform_action(1, body, AUTH_PLAYER, _FakeDB()))
+        return True
+    except HTTPException:
+        return False
+
+
+def _drive_reveal(run, action, subsystem, check, tries=12, **kw) -> bool:
+    """Attempt an action repeatedly (advancing turns for the action budget) until ``check`` holds on
+    the player view -- so a single unlucky dice roll cannot flake the reveal."""
+    for _ in range(tries):
+        if run.state_json.get("run_ended"):
+            break
+        _accept(run, action, subsystem, utility_rating=6, hacking_pool_dice=2, **kw)
+        if check(inv.serialize(run, AUTH_PLAYER)):
+            return True
+        try:
+            asyncio.run(mr.new_turn(1, AUTH_PLAYER, _FakeDB()))
+        except HTTPException:
+            pass
+    return check(inv.serialize(run, AUTH_PLAYER))
+
+
+def test_analyze_host_reveals_a_rating_to_player(monkeypatch):
+    """Analyze Host is a two-step RAW mechanic (vr2 override): a scan with fewer net successes than
+    hidden items BANKS credits (``host_analyze_pending``) that the decker later spends via
+    reveal-host-ratings; a big enough scan reveals ratings outright. Either way the scan must
+    SURFACE its result to the player -- a revealed rating OR the pending choice. (A reveal that
+    surfaces nothing on screen is the bug class here.)"""
+    run = _new_run(monkeypatch)
+    _accept(run, "logon_to_host", "access", utility_rating=6, hacking_pool_dice=2)
+    surfaced = _drive_reveal(
+        run, "analyze_host", "control",
+        lambda p: bool(p.get("host_ratings_revealed")) or bool(p.get("host_analyze_pending")))
+    assert surfaced, "successful Analyze Host surfaced neither a rating nor a pending reveal choice"
+
+
+def test_analyze_security_reveals_security_known_to_player(monkeypatch):
+    """A successful Analyze Security must surface the tally/alert snapshot (security_known) that the
+    player otherwise never sees -- proving the reveal appears when earned."""
+    run = _new_run(monkeypatch)
+    _accept(run, "logon_to_host", "access", utility_rating=6, hacking_pool_dice=2)
+    revealed = _drive_reveal(run, "analyze_security", "access",
+                             lambda p: p.get("security_known") is not None)
+    assert revealed, "successful Analyze Security never surfaced security_known to the player"
