@@ -1546,6 +1546,35 @@ class TestPaydataHaulFinalization:
         assert st.get("paydata_finalized") is True
         assert st["paydata_secured"]["count"] == 1
 
+    def test_enemy_decker_aar_reports_dispositions(self):
+        st = self._state([])
+        st["enemy_deckers"] = [
+            {"id": "ed1", "handle": "Razor", "outcome": "killed"},
+            {"id": "ed2", "handle": "Byte", "status": "fled"},
+            {"id": "ed3", "handle": "Ghost", "status": "active", "evaded": True},
+            {"id": "ed4", "handle": "Nyx", "status": "active"},
+        ]
+        mr._finalize_enemy_decker_aar(st)
+        aar = next(e for e in st["event_log"] if e["type"] == "enemy_decker_aar")
+        assert aar["gm_only"] is True and aar["count"] == 4
+        disp = {d["enemy_id"]: d["disposition"] for d in aar["dispositions"]}
+        assert "killed" in disp["ed1"]
+        assert "fled" in disp["ed2"]
+        assert "evaded" in disp["ed3"]
+        assert "still active" in disp["ed4"]
+        assert "Razor" in aar["description"]                 # GM sees the real handle
+        mr._finalize_enemy_decker_aar(st)                    # idempotent
+        assert sum(1 for e in st["event_log"] if e["type"] == "enemy_decker_aar") == 1
+
+    def test_enemy_decker_aar_skipped_no_deckers_or_suspended_stack(self):
+        st = self._state([])
+        mr._finalize_enemy_decker_aar(st)                    # no deckers -> no AAR
+        assert not any(e["type"] == "enemy_decker_aar" for e in st["event_log"])
+        st["enemy_deckers"] = [{"id": "ed1", "handle": "Razor", "status": "active"}]
+        st["host_stack"] = [{"host_id": 1}]
+        mr._finalize_enemy_decker_aar(st)                    # trap-door stack suspended -> skip
+        assert not any(e["type"] == "enemy_decker_aar" for e in st["event_log"])
+
 
 class TestICExtrasRunSide:
     """Gap E -- run-side application of IC Options/Defenses (Armor / Expert / Cascading)
@@ -3013,7 +3042,7 @@ class TestScrambleDiscovery:
                              decrypt_result={"decrypted": False, "roll": {"successes": 0, "ones": 0}})
         assert out["data_bombs"] == []                       # linked bomb detonated (consumed)
         assert any(e.get("outcome") == "detonated" for e in out["event_log"])
-        assert any("linked data bomb" in (e.get("description") or "").lower()
+        assert any("attached data bomb" in (e.get("description") or "").lower()
                    for e in out["event_log"] if e.get("type") == "decrypt")
 
     def test_exploding_scramble_is_safe_once_linked_bomb_defused(self, monkeypatch):
@@ -4695,7 +4724,7 @@ class TestDefuseDataBomb:
         assert state["security_tally"] == 5                       # NO tally add (defuse is not a crash)
         ev = state["event_log"][-1]
         assert ev["type"] == "data_bomb" and ev["outcome"] == "defused"
-        assert "TN 4" in ev["description"] and "Defuse 4" in ev["description"]  # carried Defuse reduced TN
+        assert "TN 4" in ev["description"]  # carried Defuse-4 reduced the TN (Files 8 -> 4)
 
     def test_carried_defuse_reduces_the_tn(self, scripted):
         # Same bomb, same dice: bare decker fails (TN 8) but a Defuse-6 deck clears it (TN 2).
@@ -4855,7 +4884,7 @@ class TestDefuseDataBomb:
                               subsystem_rating=6, decker_pool=6, sec_value=6, sec_code="Green")
         ev = state["event_log"][-1]
         assert ev["type"] == "data_bomb"
-        assert "Defuse 0" in ev["description"]                   # bare TN, no carried reduction
+        assert "TN 6" in ev["description"]                       # bare Files rating (6), no carried reduction
 
     # -- slave-device bombs (hardened path) -----------------------------------
 
@@ -4887,7 +4916,7 @@ class TestDefuseDataBomb:
                               target_file="Maglock")
         assert state["data_bombs"] == []
         assert state["defused_bombs"] == ["slave::Maglock"]
-        assert "slave 8" in state["event_log"][-1]["description"]   # tested vs the Slave rating
+        assert "slave::Maglock" in state["event_log"][-1]["description"]   # tested vs the Slave device bomb
 
     def test_defuse_matches_legacy_slave_token_by_display_name(self, scripted):
         # Regression: the legacy "__slave__" encoding surfaces as "Slave device"; the defuse must
@@ -5217,7 +5246,7 @@ class TestCrashHostRaw:
         event = state["event_log"][-1]
         assert event["type"] == "crash_host_complete"
         assert event["dump_shock"]["boxes"] == 6
-        assert "Dump shock: Serious" in event["description"]
+        assert "Dump Shock: Serious" in event["description"]
 
         run = SimpleNamespace(status="active")
         mr._apply_round_end_status(state, run)

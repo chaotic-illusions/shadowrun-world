@@ -42,8 +42,10 @@ sys.path.insert(0, str(ROOT))
 from app.routers import matrix_runs as mr  # noqa: E402
 
 SRC = ROOT / "app" / "routers" / "matrix_runs.py"
-OUT_MD = ROOT / "docs" / "event-log-catalog.md"
-OUT_CSV = ROOT / "docs" / "event-log-catalog.csv"
+_SUFFIX = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--suffix=")), "")
+OUT_MD = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.md"
+OUT_CSV = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.csv"
+NOTES_SRC = ROOT / "docs" / "event-log-catalog.csv"  # reviewer notes are merged from the base CSV
 
 
 # ============================================================ sample rendering
@@ -260,7 +262,7 @@ SAMPLE.update({
     "pretty": "Attack", "_atk_letter": "M", "src": "Killer", "program": "attack",
     "stored": "attack", "file": "Payroll DB", "name": "Razor", "attr": "Bod",
     "attribute": "Bod", "attr_key": "bod", "util": "Attack", "utility": "Attack", "key": "attack",
-    "context": "the operation", "note": "", "headline": "System alert", "tail": "",
+    "context": "the operation", "note": "", "headline": "Data bomb on Files", "tail": "",
     "comp_note": "", "dmg_part": "", "child_name": "Frame", "parent_name": "Killer",
     "reveals": "Files 8",
     # numeric locals
@@ -271,13 +273,22 @@ SAMPLE.update({
     "overflow_after": 1, "n_delete": 1, "tar_cm": 2, "crashed_n": 1, "flushed": 1,
     "man_succ": 3, "opp_succ": 2,
     # more string locals
-    "disp": "Attack", "head": "System alert", "detail": "", "suffix": "", "actor": "Razor",
+    "disp": "Attack", "head": "Data bomb", "detail": "", "suffix": "", "actor": "Razor",
     "action_label": "Analyze Subsystem", "result_detail": "", "target_ref": "Razor",
     "names": "Payroll DB", "security_code": "Green", "player_label": "Razor", "weakest": "attack",
     "target_file": "Payroll DB", "_rlabel": "Worm", "source_piece": "Datastore", "bod": "Bod",
     "ic_type": "Killer", "address": "NA/UCAS-SEA-1234", "io_speed": 10, "fate": "burned",
     # containers
     "enemy": _SD({"handle": "Razor", "tier": "veteran", "intent": "hunt"}),
+})
+SAMPLE.update({
+    # conditional-suffix note vars -> empty so the base sentence renders cleanly
+    "tally_note": "", "mpcp_note": "", "floor_note": "",
+    "frag": "Attack -3 (CRASHED)",
+    "fate": "the hostile decker's icon crashes -- dumped and out of the run.",
+    "body": _SD({"program": "attack", "action_type": "attack", "subsystem": "files",
+                 "target_file": "Payroll DB", "edit_mode": "erase", "note": "",
+                 "suppress_trace": False}),
 })
 
 
@@ -438,20 +449,40 @@ def _contains(root, target):
 
 
 def _dict_assigns(func):
-    """{var: Dict node} and {var: value node} for simple + annotated assignments in a function."""
-    dicts, values = {}, {}
+    """Dict-literal assignments (name -> Dict) plus EVERY name assignment (name -> [(lineno, node)])
+    for simple + annotated assigns, so a `description: desc` name resolves to the NEAREST preceding
+    `desc = ...` (branch-local), not an arbitrary later reassignment elsewhere in the function."""
+    dicts = {}
+    name_assigns = collections.defaultdict(list)
     for n in ast.walk(func):
         name = val = None
         if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
             name, val = n.targets[0].id, n.value
         elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.value is not None:
             name, val = n.target.id, n.value
+        elif isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Tuple):
+            # Tuple-unpack (e.g. `changed, description = f(...)`): record each bound name against the
+            # (unresolvable) RHS so nearest-assign sees it -- the resolver then marks such a
+            # function-return description dynamic instead of grabbing a sibling branch's assignment.
+            for elt in n.targets[0].elts:
+                if isinstance(elt, ast.Name):
+                    name_assigns[elt.id].append((getattr(n, "lineno", 0), n.value))
+            continue
         if name is None:
             continue
-        values[name] = val
+        name_assigns[name].append((getattr(n, "lineno", 0), val))
         if isinstance(val, ast.Dict):
             dicts[name] = val
-    return dicts, values
+    return dicts, name_assigns
+
+
+def _nearest_assign(name_assigns, name, before_line):
+    """Value node assigned to `name` NEAREST above `before_line` (branch-local), else the last."""
+    cands = name_assigns.get(name) or []
+    before = [(ln, v) for ln, v in cands if ln < before_line]
+    if before:
+        return max(before, key=lambda t: t[0])[1]
+    return cands[-1][1] if cands else None
 
 
 def _subscript_str_assigns(func, name):
@@ -511,7 +542,7 @@ def main() -> None:
         fname = func.name if func else "<module>"
         cond = _guarding_condition(parents.parent, node)
         line = node.lineno
-        dict_assigns, name_values = _dict_assigns(func) if func else ({}, {})
+        dict_assigns, name_assigns = _dict_assigns(func) if func else ({}, {})
 
         arg = node.args[1] if len(node.args) >= 2 else None
         flat = _resolve_flat(arg, dict_assigns, func) if arg is not None else None
@@ -524,9 +555,22 @@ def main() -> None:
         etype = _const_str(flat.get("type")) or (
             f"(expr){_unparse(flat['type'])}" if "type" in flat else "(untyped)")
         desc_node = flat.get("description")
-        # description may be a bare name (e.g. `msg`) assigned an f-string/if-expr above.
-        if isinstance(desc_node, ast.Name) and desc_node.id in name_values:
-            desc_node = name_values[desc_node.id]
+        # description may be a bare name (e.g. `desc` / `msg`) reassigned per branch -- resolve it to
+        # the assignment NEAREST above this _append_event call, so each event renders its own branch.
+        if isinstance(desc_node, ast.Name):
+            resolved = _nearest_assign(name_assigns, desc_node.id, line)
+            if resolved is not None:
+                desc_node = resolved
+        # description built by a function return (e.g. `_, description = f(...)`): not statically
+        # renderable -- mark it dynamic rather than misattributing a sibling branch's assignment.
+        if isinstance(desc_node, ast.Call):
+            note = f"(dynamic -- description returned by {_unparse(desc_node.func)}())"
+            keys = [k for k in flat if k not in ("type", "description")]
+            gm_only = _unparse(flat["gm_only"]) if "gm_only" in flat else None
+            records.append({"type": etype, "func": fname, "line": line, "cond": cond, "keys": keys,
+                            "gm_only": gm_only, "template": _unparse(desc_node),
+                            "admin": note, "player": note})
+            continue
         # ...or `some_local_dict[level]` (graduated notices) -- render a representative branch.
         if (isinstance(desc_node, ast.Subscript) and isinstance(desc_node.value, ast.Name)
                 and desc_node.value.id in dict_assigns):
@@ -610,6 +654,19 @@ def _write_md(records, by_type):
 def _write_csv(records):
     cols = ["type", "function", "line", "condition", "gm_only", "admin_example",
             "player_example", "payload_keys", "template", "notes"]
+    # Preserve any reviewer notes already in the CSV (match by type + function + line) so a
+    # regeneration NEVER wipes annotations.
+    prior_notes = {}
+    if NOTES_SRC.exists():
+        try:
+            with NOTES_SRC.open(encoding="utf-8-sig", newline="") as fh:
+                for row in csv.DictReader(fh):
+                    note = (row.get("notes") or "").strip()
+                    if note:
+                        prior_notes[(row.get("type", ""), row.get("function", ""),
+                                     str(row.get("line", "")))] = row["notes"]
+        except Exception:
+            pass
     with OUT_CSV.open("w", encoding="utf-8-sig", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(cols)
@@ -617,8 +674,11 @@ def _write_csv(records):
             w.writerow([
                 r["type"], r["func"], r["line"], r["cond"].replace("`", ""),
                 (r["gm_only"] if r["gm_only"] not in (None, "False") else ""),
-                r["admin"], r["player"], ", ".join(r["keys"]), r["template"], "",
+                r["admin"], r["player"], ", ".join(r["keys"]), r["template"],
+                prior_notes.get((r["type"], r["func"], str(r["line"])), ""),
             ])
+    if prior_notes:
+        print(f"Preserved {len(prior_notes)} reviewer note(s) from the existing CSV.")
 
 
 if __name__ == "__main__":

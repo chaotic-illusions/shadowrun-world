@@ -208,10 +208,10 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  No armed data bomb on "Payroll DB" to defuse. Detect one first with Analyze Icon on the protected file/device.
   - Player: No armed data bomb on "Payroll DB" to defuse. Detect one first with Analyze Icon on the protected file/device.
 - **`_apply_defuse_bomb`** (line 5307) -- fires when `decker_succ >= host_succ and decker_succ > 0`.
-  - Admin:  Data bomb on Datastore DEFUSED (opposed Computer Test TN 4 = files 8 - Defuse 3; 3 vs 1). No bomb-rating tally -- no suppression needed.3
+  - Admin:  Data bomb on Datastore DEFUSED (opposed Computer Test TN 4 = files 8 - Defuse 3; 3 vs 1). No bomb-rating tally -- no suppression needed.
   - Player: Defuse Data Bomb -- SUCCESS (Net Successes: 3). Security tally increased.
 - **`_apply_defuse_bomb`** (line 5320) -- fires always (no local guard).
-  - Admin:  Defuse FAILED (opposed Computer Test TN 4 = files 8 - Defuse 3; 3 vs 1) -- the data bomb on Datastore stays primed. Try again, or it triggers if you successfully access the protected target.3
+  - Admin:  Defuse FAILED (opposed Computer Test TN 4 = files 8 - Defuse 3; 3 vs 1) -- the data bomb on Datastore stays primed. Try again, or it triggers if you successfully access the protected target.
   - Player: Defuse Data Bomb -- FAILED (Net Successes: -1).
 
 
@@ -258,8 +258,8 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  Attacked Killer-5: Attack 3 vs Resist 3. Net Successes: 3. Dealt M (2 boxes). IC: 2/10
   - Player: Attacked Killer: Attack 3 vs Resist 3. Net Successes: 3. Dealt M (2 boxes). IC: 2/10
 - **`attack_enemy_decker`** (line 11604) -- fires always (no local guard).
-  - Admin:  Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
-  - Player: Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
+  - Admin:  You strike Enemy Decker (Razor) -- M (2 boxes). Enemy persona 3/10.
+  - Player: You strike Enemy Decker (Razor) -- M (2 boxes). Enemy persona 3/10.
 
 
 ## `decker_crippled`
@@ -272,8 +272,8 @@ detection level (here **level 2** -- type known, rating hidden).
 ## `decker_hog`
 
 - **`attack_enemy_decker`** (line 11412) -- fires when `body.program == 'hog'`.
-  - Admin:  Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
-  - Player: Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
+  - Admin:  HOG -- your virus fails to take hold on Enemy Decker (Razor) this pass.
+  - Player: HOG -- your virus fails to take hold on Enemy Decker (Razor) this pass.
 
 
 ## `decker_lethal`
@@ -282,8 +282,8 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  Attack -- you drive lethal physical biofeedback into Enemy Decker (Razor): icon M (2 boxes), physical M (2). Enemy persona 3/10, physical 2/10.
   - Player: Attack -- you drive lethal physical biofeedback into Enemy Decker (Razor): icon M (2 boxes), physical M (2). Enemy persona 3/10, physical 2/10.
 - **`attack_enemy_decker`** (line 11562) -- fires when `meat_full or icon_crashed`.
-  - Admin:  burned3
-  - Player: burned3
+  - Admin:  the hostile decker's icon crashes -- dumped and out of the run.
+  - Player: the hostile decker's icon crashes -- dumped and out of the run.
 
 
 ## `decoy_deployed`
@@ -408,10 +408,10 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  Index sweep ran clean but your Sensor pass couldn't re-acquire the evaded decker -- try again next pass.
   - Player: Index sweep ran clean but your Sensor pass couldn't re-acquire the evaded decker -- try again next pass.
 - **`_drain_all_hog_infections`** (line 10883) -- fires when `target.id == 'pc'`.
-  - Admin:  Hog-5 virus drains your deck: 2.
-  - Player: Hog-5 virus drains your deck: 2.
+  - Admin:  Hog-5 virus drains your deck: Attack -3 (CRASHED).
+  - Player: Hog-5 virus drains your deck: Attack -3 (CRASHED).
 - **`_drain_all_hog_infections`** (line 10888) -- fires else of `target.id == 'pc'`.  **[ADMIN-ONLY]**
-  - Admin:  GM: your Hog virus drains Payroll DB's program: 2.
+  - Admin:  GM: your Hog virus drains Payroll DB's program: Attack -3 (CRASHED).
   - Player: (admin-only -- not shown to players)
 - **`_enemy_purge_hog`** (line 10931) -- fires when `purge['purged']`.
   - Admin:  Enemy Decker (Razor) purges your Hog-5 virus off its deck -- it will reload the crashed program from storage next.
@@ -441,11 +441,11 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  Enemy Decker (Razor)'s icon is crashing (2/10) -- it is dumped from the host.
   - Player: Enemy Decker (Razor)'s icon is crashing (2/10) -- it is dumped from the host.
 - **`_enemy_decker_take_turn`** (line 11198) -- fires when `program == 'Hog'`.
-  - Admin:  Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
-  - Player: Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
+  - Admin:  HOG -- Enemy Decker (Razor)'s virus fails to take hold this turn.
+  - Player: HOG -- Enemy Decker (Razor)'s virus fails to take hold this turn.
 - **`_enemy_decker_take_turn`** (line 11222) -- fires when `program in ('Poison', 'Restrict', 'Reveal')`.
-  - Admin:  Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
-  - Player: Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
+  - Admin:  ATTACK -- Enemy Decker (Razor)'s crippler attack is resisted.
+  - Player: ATTACK -- Enemy Decker (Razor)'s crippler attack is resisted.
 - **`_enemy_decker_take_turn`** (line 11290) -- fires else of `program in ('Poison', 'Restrict', 'Reveal')`.
   - Admin:  Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
   - Player: Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
@@ -614,8 +614,8 @@ detection level (here **level 2** -- type known, rating hidden).
 ## `ic_released`
 
 - **`_toggle_ic_suppression`** (line 4164) -- fires when `release`.
-  - Admin:  Suppressed IC released -- Detection Factor restored; 3.
-  - Player: Suppressed IC released -- Detection Factor restored; 3.
+  - Admin:  Suppressed IC released -- Detection Factor restored; .
+  - Player: Suppressed IC released -- Detection Factor restored; .
 
 
 ## `ic_relocate`
@@ -818,8 +818,8 @@ detection level (here **level 2** -- type known, rating hidden).
   - Admin:  ICON CRASHED by Black IC -- connection holds. Black IC effective rating +2 (now 5). Decker can only attempt to jack out.
   - Player: ICON CRASHED by Black IC -- connection holds. Black IC effective rating +2 (now 5). Decker can only attempt to jack out.
 - **`_enemy_decker_take_turn`** (line 11309) -- fires when `did_icon_damage and (not state.get('run_ended')) and (cm.get('persona_boxes', 0) >= 10)`.
-  - Admin:  PERSONA CRASHED by Enemy Decker (Razor) -- dumped (dump shock: 2).3
-  - Player: PERSONA CRASHED by Enemy Decker (Razor) -- dumped (dump shock: 2).3
+  - Admin:  PERSONA CRASHED by Enemy Decker (Razor) -- dumped (dump shock: 2).
+  - Player: PERSONA CRASHED by Enemy Decker (Razor) -- dumped (dump shock: 2).
 
 
 ## `probe_ic`
@@ -1002,8 +1002,8 @@ detection level (here **level 2** -- type known, rating hidden).
 ## `suppression_released`
 
 - **`_toggle_entry_suppression`** (line 4039) -- fires when `not _finalize_data_bomb_suppression(state, entry, suppressed=False)`.
-  - Admin:  Suppression released (Attack) -- Detection Factor restored; 3.
-  - Player: Suppression released (Attack) -- Detection Factor restored; 3.
+  - Admin:  Suppression released (Attack) -- Detection Factor restored; .
+  - Player: Suppression released (Attack) -- Detection Factor restored; .
 
 
 ## `suppressions_flushed`
