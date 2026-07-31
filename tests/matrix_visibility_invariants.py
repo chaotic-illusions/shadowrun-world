@@ -162,6 +162,21 @@ def check_progressive_disclosure(admin: dict, player: dict, ctx: str = "") -> No
                 f"unanalyzed file {p.get('name')!r} leaked its size to the player {ctx}")
 
 
+def check_reveal_positively(admin: dict, player: dict, ctx: str = "") -> None:
+    """(2) POSITIVE reveal -- the complement of the secrecy checks: once a reveal flag is set, the
+    value it gates must actually be PRESENT in the player view. A flag flipped with no surfaced
+    value is a "reveal that did not reveal" bug (the thing does not appear in the UI though it
+    should). Guards Analyze Host / Analyze Subsystem-on-Access disclosures."""
+    if player.get("host_security_revealed"):
+        assert player.get("host_security_code") is not None, (
+            f"host_security_revealed set but the code never surfaced to the player {ctx}")
+        assert player.get("host_security_value") is not None, (
+            f"host_security_revealed set but the value never surfaced to the player {ctx}")
+    if player.get("host_ltg_revealed"):
+        assert "host_has_ltg" in player, (
+            f"host_ltg_revealed set but host_has_ltg never surfaced to the player {ctx}")
+
+
 # --------------------------------------------------------------------------- parity
 def check_admin_parity(admin: dict, player: dict, ctx: str = "") -> None:
     """(3) The admin never knows FEWER located files than the player, and always with a real size
@@ -236,6 +251,7 @@ BATTERY = (
     check_ic_identity_redaction,
     check_pending_defense_redaction,
     check_progressive_disclosure,
+    check_reveal_positively,
     check_admin_parity,
     check_located_file_parity,
     check_state_well_formed,
