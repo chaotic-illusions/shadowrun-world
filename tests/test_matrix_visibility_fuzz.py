@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import os
 import random
 import typing
 
@@ -29,18 +30,26 @@ import pytest
 from fastapi import HTTPException
 
 from app.routers import matrix_runs as mr
-from app.schemas.matrix_run import ActionType, DeckerUtilities, RunActionInput, RunAttackInput
+from app.schemas.matrix_run import (
+    ActionType, DeckerUtilities, RunActionInput, RunAreaAttackInput, RunAttackInput,
+    RunEnemyAttackInput, RunEnemyScanInput,
+)
 
 from tests import matrix_visibility_invariants as inv
 
 # One seed = one full random run. Broad rather than deep; each seed is a distinct host + script.
-FUZZ_SEEDS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597]
+# Default 128 seeds sweeps a wide space each CI run; for a deeper hunt set MATRIX_FUZZ_SEEDS
+# (e.g. 1000) -- every added seed is a brand-new host + action stream.
+FUZZ_SEEDS = list(range(1, int(os.environ.get("MATRIX_FUZZ_SEEDS", "80")) + 1))
 
 SECURITY_CODES = ["Blue", "Green", "Orange", "Red"]
 SUBSYSTEMS = ["access", "files", "slave", "index", "control"]
 SCRAMBLE_VARIANTS = [None, "poison", "exploding"]
 SLAVE_PIECES = ["camera", "maglock", "sensor", "turnstile", "elevator"]
 IC_TYPES = ["Probe", "Killer", "Acid", "Marker", "Tar Baby", "Trace", "Worm", "Black IC"]
+WORM_VARIANTS = ["deathworm", "tapeworm"]
+# Offensive programs the PC can hand-fire at an enemy decker (mirrors RunEnemyAttackInput).
+STRIKE_PROGRAMS = ["attack", "poison", "restrict", "reveal", "hog", "black_hammer", "killjoy"]
 
 # Actions driven through /action. Reveal-heavy on purpose: those are the paths that gate disclosure.
 DISCLOSURE_ACTIONS = [
@@ -153,6 +162,9 @@ def _random_host(rng: random.Random) -> _HostNS:
         "data_bombs": data_bombs,
         "slave_pieces": slaves,
     }
+    if rng.random() < 0.3:  # booby-trap a subsystem with a persistent Worm
+        cfg["worms"] = [{"variant": rng.choice(WORM_VARIANTS), "rating": rng.randint(3, 7),
+                        "target": rng.choice(["access", "control", "index", "files", "slave"])}]
     trap_doors = None
     if slaves and rng.random() < 0.4:
         trap_doors = [{"id": "td1", "source_piece": slaves[0], "subsystem": "slave",
@@ -182,6 +194,18 @@ def _pick_ic(rng: random.Random, state: dict) -> str:
     return rng.choice(ics) if ics else ""
 
 
+def _pick_enemy(rng: random.Random, state: dict) -> str:
+    es = [e.get("id") for e in (state.get("enemy_deckers") or [])
+          if isinstance(e, dict) and e.get("status") == "active" and e.get("revealed") and e.get("id")]
+    return rng.choice(es) if es else ""
+
+
+def _area_targets(state: dict, limit: int = 3) -> list[str]:
+    ids = [ic.get("id") for ic in (state.get("active_ic") or [])
+           if isinstance(ic, dict) and ic.get("status") == "active" and ic.get("id")]
+    return ids[:limit]
+
+
 def _action_body(rng: random.Random, action: str, state: dict) -> RunActionInput:
     ic = _pick_ic(rng, state)
     target_file = _pick_file(rng, state)
@@ -200,16 +224,33 @@ def _action_body(rng: random.Random, action: str, state: dict) -> RunActionInput
 def _random_step(rng: random.Random, run: _StubRun) -> None:
     state = run.state_json
     roll = rng.random()
-    if roll < 0.72:
+    if roll < 0.55:
         action = rng.choice(DISCLOSURE_ACTIONS)
         if action in _VALID_ACTIONS:
             _call(mr.perform_action(run_id=1, body=_action_body(rng, action, state),
                                     auth=inv.AUTH_ADMIN, db=_FakeDB()))
-    elif roll < 0.85:
+    elif roll < 0.68:
         ic = _pick_ic(rng, state)
         if ic:
             _call(mr.attack_ic(run_id=1, body=RunAttackInput(
                 target_ic_id=ic, attack_pool=8, hacking_pool_dice=1, armor_utility=6),
+                auth=inv.AUTH_ADMIN, db=_FakeDB()))
+    elif roll < 0.80:
+        enemy = _pick_enemy(rng, state)
+        if enemy:
+            _call(mr.attack_enemy_decker(run_id=1, body=RunEnemyAttackInput(
+                enemy_id=enemy, attack_pool=8, hacking_pool_dice=1,
+                program=rng.choice(STRIKE_PROGRAMS)), auth=inv.AUTH_ADMIN, db=_FakeDB()))
+    elif roll < 0.87:
+        enemy = _pick_enemy(rng, state)
+        if enemy:
+            _call(mr.scan_enemy_decker(run_id=1, body=RunEnemyScanInput(
+                enemy_id=enemy, hacking_pool_dice=1), auth=inv.AUTH_ADMIN, db=_FakeDB()))
+    elif roll < 0.93:
+        tids = _area_targets(state)
+        if tids:
+            _call(mr.area_attack(run_id=1, body=RunAreaAttackInput(
+                target_ids=tids, attack_pool=10, hacking_pool_dice=1),
                 auth=inv.AUTH_ADMIN, db=_FakeDB()))
     else:
         _call(mr.new_turn(run_id=1, auth=inv.AUTH_ADMIN, db=_FakeDB()))
@@ -253,12 +294,21 @@ def test_random_hosts_preserve_visibility_invariants(monkeypatch, seed):
             step = {"trigger": 0, "events": [{"type": "ic",
                     "ic_type": rng.choice(IC_TYPES), "rating": rng.randint(3, 8)}]}
             mr._activate_sheaf_step(state, step, sec)
-        inv.check_all(run, f"seed={seed} step=ic-spread")
+        # Sometimes dispatch a security decker (revealed or still hidden) so enemy-icon redaction is
+        # exercised alongside IC.
+        if rng.random() < 0.5:
+            enemy = mr._spawn_enemy_decker(state, sec)
+            if isinstance(enemy, dict) and rng.random() < 0.6:
+                enemy["revealed"] = True
+        _, prev_player = inv.check_all(run, f"seed={seed} step=ic-spread")
+        inv.check_serialization_pure(run, f"seed={seed} step=ic-spread")
 
-        for i in range(45):
+        for i in range(55):
             if run.status != "active" or run.state_json.get("run_ended"):
                 break
             _random_step(rng, run)
-            inv.check_all(run, f"seed={seed} step={i}")
+            _, cur_player = inv.check_all(run, f"seed={seed} step={i}")
+            inv.check_monotonic_disclosure(prev_player, cur_player, f"seed={seed} step={i}")
+            prev_player = cur_player
     finally:
         random.setstate(_saved_rng)

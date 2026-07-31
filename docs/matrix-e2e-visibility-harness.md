@@ -130,15 +130,22 @@ Two complementary styles, on purpose:
   B/C/D/E/F; one driven logon->locate->analyze scenario; a static run-UI contract. Runs in the
   normal `pytest` suite, so CI catches any regression automatically.
 - **Phase 2 foundation (shipped).** The generative fuzzer: a random host + a long random script per
-  seed, replaying the full battery after every step (`tests/test_matrix_visibility_fuzz.py`,
-  `FUZZ_SEEDS`). This is the "find the bugs I have not hit yet" engine. **To hunt deeper, widen
-  `FUZZ_SEEDS`** (it is fast -- 16 seeds in ~2s) or raise the per-run step count; every added seed
-  is a distinct host + script. A red run prints `seed=.. step=..` and reproduces exactly.
-- **Phase 2 next.** Grow the battery (each new invariant instantly applies to every fuzz seed):
-  action-availability (a rejected action was never offerable; Invalidate-all always offerable once
-  logged on; encrypted/downloaded files excluded from the Download target set), reveal-timing
-  (`discovered_scrambles` the instant the flag flips), and monotonic disclosure (a reveal never
-  un-reveals). Fold `tools/matrix_outcome_probe.py` in as a distribution check.
+  seed -- now driving system operations, IC cybercombat, **enemy-decker combat (Hog/Black Hammer/
+  cripplers), Scan Icon, area attacks, and worms** -- replaying the full battery after every step
+  (`tests/test_matrix_visibility_fuzz.py`). Default **128 seeds**; set `MATRIX_FUZZ_SEEDS` (e.g.
+  `1000`) for a deeper hunt. A red run prints `seed=.. step=..` and reproduces exactly.
+- **Phase 2 battery (shipped).** **16 invariants**, all shared through `check_all`:
+  *secrecy* (no GM-only key; tally/alert; trap-IC; slave topology; LTG address; trap-door
+  destination; GM-only events; enemy raw stats; graduated IC identity; pending-defense ctx),
+  *disclosure* (progressive size reveal + cross-view file parity + admin parity),
+  *well-formedness* (condition monitors, tally/pool, Detection Factor >= 1),
+  *serialization purity* (redaction never mutates the stored state), and *temporal* cross-step
+  **monotonic disclosure** (a reveal never un-reveals). Plus driven **action-availability**
+  contracts (Download blocks encrypted / allows plain; Invalidate-all available once logged on). A
+  ~400-seed sweep runs ~400k checks clean.
+- **Phase 2 next.** Fold `tools/matrix_outcome_probe.py` in as a distribution check, and add a
+  *generative* action-availability layer (probe every action's accept/reject against the UI `valid`
+  predicate) once those predicates are mirrored server-side.
 - **Phase 3 (optional).** A thin **Playwright** layer: boot the app, log in as player and as admin,
   load `matrix-run.html` against a snapshotted run (`tools/snapshot_run.py`), and assert literal
   **button/card/badge** presence -- the only thing a headless state check cannot see (CSS/DOM).
