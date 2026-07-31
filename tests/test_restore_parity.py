@@ -160,4 +160,4 @@ class TestRestoreWrapperParity:
         assert pc_ev["attribute"] == "bod" and pc_ev["repaired"] == 2
         assert en_ev["type"] == "enemy_decker" and en_ev["outcome"] == "restore"
         assert not en_ev.get("gm_only")
-        assert "repairs damage to their BOD" in en_ev["description"]
+        assert "repairs damage to their Bod" in en_ev["description"]
