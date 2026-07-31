@@ -7,18 +7,18 @@ Working tracker for the reviewer pass over every `_append_event(...)` site in
 
 | File | Role | Rule |
 |---|---|---|
-| `docs/event-log-catalog.csv` | Your annotated original (136 notes) | **Do not overwrite** -- source of truth for the notes |
-| `docs/event-log-catalog-v2.csv` | Corrected renders + your notes merged | Regenerate any time; safe to overwrite |
-| `docs/event-log-catalog-v2.md` | Human-readable version of v2 | Regenerate any time |
+| `docs/event-log-catalog-final.csv` | Current renders + your notes -- the working review form | Annotate THIS; a regen preserves the notes already in it |
+| `docs/event-log-catalog-final.md` | Human-readable version of the above | Regenerate any time |
+| `docs/event-log-catalog.csv` | Your original annotations (committed backup) | Frozen backup -- leave as-is |
 
-Regenerate the corrected copy with:
+Add more comments to `-final.csv`, then refresh the renders (notes are kept) with:
 
 ```
-python tools/gen_event_catalog.py --suffix=-v2
+python tools/gen_event_catalog.py --suffix=-final
 ```
 
-The generator now always merges reviewer notes from the base CSV, so a regen never
-touches your annotated file.
+The generator round-trips reviewer notes from the OUTPUT file itself, so re-running never
+drops the comments you have added.
 
 ## Scope
 

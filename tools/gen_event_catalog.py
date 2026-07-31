@@ -45,7 +45,10 @@ SRC = ROOT / "app" / "routers" / "matrix_runs.py"
 _SUFFIX = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--suffix=")), "")
 OUT_MD = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.md"
 OUT_CSV = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.csv"
-NOTES_SRC = ROOT / "docs" / "event-log-catalog.csv"  # reviewer notes are merged from the base CSV
+# Reviewer notes round-trip: preserve from the OUTPUT file itself once it exists (so annotating a
+# derived catalog like -final and re-running keeps those notes); seed from the base CSV the first
+# time a new derived file is created.
+NOTES_SRC = OUT_CSV if OUT_CSV.exists() else ROOT / "docs" / "event-log-catalog.csv"
 
 
 # ============================================================ sample rendering
