@@ -129,801 +129,801 @@ detection level (here **level 2** -- type known, rating hidden).
 
 ## `access_analysis_blocked`
 
-- **`_apply_analysis_action_result`** (line 7885) -- fires when `body.action_type == 'analyze_subsystem' and (not test['success']) and (body.subsystem == 'access') and (not state.get('host_ltg_revealed'))`.
-  - Admin:  Access subsystem analysis failed -- the host blocked the discovery attempt. You can try again.
-  - Player: Access subsystem analysis failed -- the host blocked the discovery attempt. You can try again.
+- **`_apply_analysis_action_result`** (line 7931) -- fires when `body.action_type == 'analyze_subsystem' and (not test['success']) and (body.subsystem == 'access') and (not state.get('host_ltg_revealed'))`.
+  - Admin:  Access subsystem analysis failed -- the host blocked the discovery attempt.
+  - Player: Access subsystem analysis failed -- the host blocked the discovery attempt.
 
 
 ## `action`
 
-- **`perform_action`** (line 8795) -- fires always (no local guard).
+- **`perform_action`** (line 8837) -- fires always (no local guard).
   - Admin:  Analyze Subsystem -- SUCCESS (3 vs 3 successes). Tally +1 -> 5.
-  - Player: Analyze Subsystem -- SUCCESS (Net Successes: 3). Security tally increased.
+  - Player: Analyze Subsystem -- succeeded (Net Successes: 3). Security tally increased.
 
 
 ## `area_attack`
 
-- **`area_attack`** (line 11814) -- fires always (no local guard).
+- **`area_attack`** (line 11855) -- fires always (no local guard).
   - Admin:  Data bomb: . 1 crashed.
   - Player: Data bomb: . 1 crashed.
 
 
 ## `armor_wear`
 
-- **`_wear_armor`** (line 3108) -- fires always (no local guard).  **[ADMIN-ONLY]**
+- **`_wear_armor`** (line 3143) -- fires always (no local guard).  **[ADMIN-ONLY]**
   - Admin:  Armor worn to 2 by the hit -- Swap Memory to restore full rating.
   - Player: (admin-only -- not shown to players)
 
 
 ## `bouncer_completed`
 
-- **`_complete_pending_bouncer`** (line 5500) -- fires always (no local guard).  **[ADMIN-ONLY]**
+- **`_complete_pending_bouncer`** (line 5546) -- fires always (no local guard).  **[ADMIN-ONLY]**
   - Admin:  Bouncer upgrade complete: Orange 6.
   - Player: (admin-only -- not shown to players)
 
 
 ## `bouncer_warning`
 
-- **`_run_reactive_activation_sensor_checks`** (line 5474) -- fires when `roll.get('successes', 0) > 0`.
+- **`_run_reactive_activation_sensor_checks`** (line 5520) -- fires when `roll.get('successes', 0) > 0`.
   - Admin:  Your Sensors detect that host security is rising.
   - Player: Your Sensors detect that host security is rising.
 
 
 ## `crash_host_aborted`
 
-- **`_process_crash_countdown`** (line 9996) -- fires when `abort_roll['successes'] > 0`.
-  - Admin:  Host ABORTED the crash (Security Value 3 vs MPCP 3: 3 successes). IC ratings restored; countdown cancelled.
-  - Player: Host ABORTED the crash (Security Value 3 vs MPCP 3: 3 successes). IC ratings restored; countdown cancelled.
+- **`_process_crash_countdown`** (line 10039) -- fires when `abort_roll['successes'] > 0`.
+  - Admin:  Host aborted the crash (Security Value 3 vs MPCP 3: 3 successes). IC ratings restored; countdown cancelled.
+  - Player: Host aborted the crash (Security Value 3 vs MPCP 3: 3 successes). IC ratings restored; countdown cancelled.
 
 
 ## `crash_host_complete`
 
-- **`_complete_host_crash`** (line 9971) -- fires always (no local guard).
+- **`_complete_host_crash`** (line 10014) -- fires always (no local guard).
   - Admin:  Host crashed, dumped -- System Offline. Dump Shock: 3 (2 boxes). Run complete.
   - Player: Host crashed, dumped -- System Offline. Dump Shock: 3 (2 boxes). Run complete.
 
 
 ## `crash_host_started`
 
-- **`_apply_control_action_result`** (line 7941) -- fires when `body.action_type == 'crash_host' and test['success']`.
+- **`_apply_control_action_result`** (line 7986) -- fires when `body.action_type == 'crash_host' and test['success']`.
   - Admin:  Crash Host initiated -- host shutdown in 3 turns (3 successes). All IC ratings -2 during the countdown.
   - Player: Crash Host initiated -- host shutdown in 3 turns (3 successes). All IC ratings -2 during the countdown.
 
 
 ## `crash_host_tick`
 
-- **`_process_crash_countdown`** (line 10009) -- fires else of `cd['turns_remaining'] <= 0`.
+- **`_process_crash_countdown`** (line 10052) -- fires else of `cd['turns_remaining'] <= 0`.
   - Admin:  Host crash countdown: 3 rounds until shutdown (host failed to abort: Security Value 3 vs MPCP 3).
   - Player: Host crash countdown: 3 rounds until shutdown (host failed to abort: Security Value 3 vs MPCP 3).
 
 
 ## `data_bomb`
 
-- **`_detonate_data_bomb`** (line 4911) -- fires always (no local guard).
+- **`_detonate_data_bomb`** (line 4948) -- fires always (no local guard).
   - Admin:  Data bomb on Files detonated -- Suppression pending.
   - Player: Data bomb on Files detonated -- Suppression pending.
-- **`_apply_defuse_bomb`** (line 5258) -- fires when `bomb is None`.
+- **`_apply_defuse_bomb`** (line 5304) -- fires when `bomb is None`.
   - Admin:  No armed data bomb on "Payroll DB" to defuse. Detect one first with Analyze Icon on the protected file/device.
   - Player: No armed data bomb on "Payroll DB" to defuse. Detect one first with Analyze Icon on the protected file/device.
-- **`_apply_defuse_bomb`** (line 5303) -- fires when `decker_succ >= host_succ and decker_succ > 0`.
-  - Admin:  Data bomb on Datastore defused (opposed Computer Test TN 4; 3 vs 1).
-  - Player: Defuse Data Bomb -- SUCCESS (Net Successes: 3). Security tally increased.
-- **`_apply_defuse_bomb`** (line 5315) -- fires always (no local guard).
-  - Admin:  Defuse FAILED (opposed Computer Test TN 4 = files 8 - Defuse 3; 3 vs 1) -- the data bomb on Datastore stays primed. Try again, or it triggers if you successfully access the protected target.
-  - Player: Defuse Data Bomb -- FAILED (Net Successes: -1).
+- **`_apply_defuse_bomb`** (line 5349) -- fires when `decker_succ >= host_succ and decker_succ > 0`.
+  - Admin:  [could not render: f"Data bomb on {btarget} defused (opposed Computer Test TN {df['tn']}; {decker_succ} vs {host_succ}).{tally_note}"]
+  - Player: Defuse Data Bomb -- succeeded (Net Successes: 3). Security tally increased.
+- **`_apply_defuse_bomb`** (line 5361) -- fires always (no local guard).
+  - Admin:  [could not render: f"Defuse FAILED (opposed Computer Test TN {df['tn']} = {subsystem} {subsystem_rating} - Defuse {defuse_rating}; {decker_succ} vs {host_succ}) -- the data bomb on {btarget} stays primed. Try again, or it triggers if you successfully access the protected target.{tally_note}"]
+  - Player: Defuse Data Bomb -- failed (Net Successes: -1).
 
 
 ## `data_bomb_clear`
 
-- **`_apply_analyze_icon`** (line 5217) -- fires else of `bomb is not None`.
+- **`_apply_analyze_icon`** (line 5263) -- fires else of `bomb is not None`.
   - Admin:  Analyze Icon on "Payroll DB" -- no data bomb detected on this device.
   - Player: Analyze Icon on "Payroll DB" -- no data bomb detected on this device.
 
 
 ## `data_bomb_defuse`
 
-- **`_apply_defuse_bomb`** (line 5284) -- fires when `df['detonated']`.
+- **`_apply_defuse_bomb`** (line 5330) -- fires when `df['detonated']`.
   - Admin:  Defuse Data Bomb botched -- the protected bomb detonates.
-  - Player: Defuse Data Bomb -- FAILED (Net Successes: 3). Security tally increased.
+  - Player: Defuse Data Bomb -- failed (Net Successes: 3). Security tally increased.
 
 
 ## `data_bomb_found`
 
-- **`_apply_analyze_icon`** (line 5211) -- fires when `bomb is not None`.
+- **`_apply_analyze_icon`** (line 5257) -- fires when `bomb is not None`.
   - Admin:  Analyze Icon on "Payroll DB" -- data bomb detected. Defuse the bomb before attempting access.
   - Player: Analyze Icon on "Payroll DB" -- data bomb detected. Defuse the bomb before attempting access.
-- **`_apply_analysis_action_result`** (line 7817) -- fires when `linked is not None and (not linked.get('discovered'))`.
-  - Admin:  Analyze Subsystem -- the Exploding Scramble's linked DATA BOMB is armed on this datastore. Defuse it before you decrypt or download.
-  - Player: Analyze Subsystem -- the Exploding Scramble's linked DATA BOMB is armed on this datastore. Defuse it before you decrypt or download.
-- **`_apply_analysis_action_result`** (line 7841) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
-  - Admin:  Analyze Subsystem -- a DATA BOMB is armed on the Files subsystem. Defuse it before you download or edit a file.
-  - Player: Analyze Subsystem -- a DATA BOMB is armed on the Files subsystem. Defuse it before you download or edit a file.
+- **`_apply_analysis_action_result`** (line 7863) -- fires when `linked is not None and (not linked.get('discovered'))`.
+  - Admin:  Analyze Subsystem -- the Exploding Scramble's linked data bomb is armed on this datastore. Defuse it before you decrypt or download.
+  - Player: Analyze Subsystem -- the Exploding Scramble's linked data bomb is armed on this datastore. Defuse it before you decrypt or download.
+- **`_apply_analysis_action_result`** (line 7887) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
+  - Admin:  Analyze Subsystem -- a data bomb is armed on the Files subsystem. Defuse it before you download or edit a file.
+  - Player: Analyze Subsystem -- a data bomb is armed on the Files subsystem. Defuse it before you download or edit a file.
 
 
 ## `data_downloaded`
 
-- **`_complete_download`** (line 4620) -- fires always (no local guard).
-  - Admin:  Downloaded "Payroll DB" (attack Mp, KEY DATA). Storage used 90 Mp; 2 Mp free.
-  - Player: Downloaded "Payroll DB" (attack Mp, KEY DATA). Storage used 90 Mp; 2 Mp free.
-- **`_apply_file_action_result`** (line 8232) -- fires when `paydata is not None`.
+- **`_complete_download`** (line 4657) -- fires always (no local guard).
+  - Admin:  Downloaded "Payroll DB" (attack Mp, key data). Storage used 90 Mp; 2 Mp free.
+  - Player: Downloaded "Payroll DB" (attack Mp, key data). Storage used 90 Mp; 2 Mp free.
+- **`_apply_file_action_result`** (line 8274) -- fires when `paydata is not None`.
   - Admin:  "Payroll DB" already downloaded -- no additional storage used.
   - Player: "Payroll DB" already downloaded -- no additional storage used.
 
 
 ## `decker_attack`
 
-- **`attack_ic`** (line 9258) -- fires else of `crashed`.
+- **`attack_ic`** (line 9301) -- fires else of `crashed`.
   - Admin:  Attacked Killer-5: Attack 3 vs Resist 3. Net Successes: 3. Dealt M (2 boxes). IC: 2/10
   - Player: Attacked Killer: Attack 3 vs Resist 3. Net Successes: 3. Dealt M (2 boxes). IC: 2/10
-- **`attack_enemy_decker`** (line 11553) -- fires always (no local guard).
+- **`attack_enemy_decker`** (line 11594) -- fires always (no local guard).
   - Admin:  You strike Enemy Decker (Razor) -- M (2 boxes). Enemy persona 3/10.
   - Player: You strike Enemy Decker (Razor) -- M (2 boxes). Enemy persona 3/10.
 
 
 ## `decker_crippled`
 
-- **`attack_enemy_decker`** (line 11401) -- fires when `body.program in _PROGRAM_ATTR`.
+- **`attack_enemy_decker`** (line 11442) -- fires when `body.program in _PROGRAM_ATTR`.
   - Admin:  Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
   - Player: Attack -- Enemy Decker (Razor) resists your crippler; Bod holds.
 
 
 ## `decker_hog`
 
-- **`attack_enemy_decker`** (line 11361) -- fires when `body.program == 'hog'`.
-  - Admin:  HOG -- your virus fails to take hold on Enemy Decker (Razor) this turn.
-  - Player: HOG -- your virus fails to take hold on Enemy Decker (Razor) this turn.
+- **`attack_enemy_decker`** (line 11402) -- fires when `body.program == 'hog'`.
+  - Admin:  Hog -- your virus fails to take hold on Enemy Decker (Razor) this turn.
+  - Player: Hog -- your virus fails to take hold on Enemy Decker (Razor) this turn.
 
 
 ## `decker_lethal`
 
-- **`attack_enemy_decker`** (line 11478) -- fires when `body.program in ('black_hammer', 'killjoy')`.
+- **`attack_enemy_decker`** (line 11519) -- fires when `body.program in ('black_hammer', 'killjoy')`.
   - Admin:  Attack -- you drive lethal physical biofeedback into Enemy Decker (Razor): icon M (2 boxes), physical M (2). Enemy persona 3/10, physical 2/10.
   - Player: Attack -- you drive lethal physical biofeedback into Enemy Decker (Razor): icon M (2 boxes), physical M (2). Enemy persona 3/10, physical 2/10.
-- **`attack_enemy_decker`** (line 11511) -- fires when `meat_full or icon_crashed`.
-  - Admin:  the hostile decker's icon crashes -- dumped and out of the run.
-  - Player: the hostile decker's icon crashes -- dumped and out of the run.
+- **`attack_enemy_decker`** (line 11552) -- fires when `meat_full or icon_crashed`.
+  - Admin:  Attack crashes Enemy Decker (Razor)'s icon -- the hostile decker is dumped and taken out of the run.
+  - Player: Attack crashes Enemy Decker (Razor)'s icon -- the hostile decker is dumped and taken out of the run.
 
 
 ## `decoy_deployed`
 
-- **`_apply_control_action_result`** (line 8001) -- fires when `body.action_type == 'decoy' and test['success']`.
+- **`_apply_control_action_result`** (line 8049) -- fires when `body.action_type == 'decoy' and test['success']`.
   - Admin:  Decoy deployed with 3 successes. Each proactive IC attack: roll 1D6 -- if result <= successes, IC hits decoy (10-box CM).
   - Player: Decoy deployed with 3 successes. Each proactive IC attack: roll 1D6 -- if result <= successes, IC hits decoy (10-box CM).
 
 
 ## `decoy_intercepted`
 
-- **`_decoy_intercept`** (line 5116) -- fires always (no local guard).
-  - Admin:  D6=4 <= 2 -- Killer-5 hits DECOY! 1 (3 boxes). Decoy: 0/10 -- DECOY DESTROYED.
-  - Player: D6=4 <= 2 -- Killer hits DECOY! 1 (3 boxes). Decoy: 0/10 -- DECOY DESTROYED.
+- **`_decoy_intercept`** (line 5153) -- fires always (no local guard).
+  - Admin:  D6=4 <= 2 -- Killer-5 hits decoy! 1 (3 boxes). Decoy: 0/10 -- decoy destroyed.
+  - Player: D6=4 <= 2 -- Killer hits decoy! 1 (3 boxes). Decoy: 0/10 -- decoy destroyed.
 
 
 ## `decrypt`
 
-- **`_apply_direct_action`** (line 8429) -- fires when `scramble is None`.
+- **`_apply_direct_action`** (line 8471) -- fires when `scramble is None`.
   - Admin:  No discovered scramble on that target -- Analyze the Files/Slave subsystem first.
   - Player: No discovered scramble on that target -- Analyze the Files/Slave subsystem first.
-- **`_apply_direct_action`** (line 8456) -- fires when `linked_bomb is not None`.
+- **`_apply_direct_action`** (line 8498) -- fires when `linked_bomb is not None`.
   - Admin:  Decrypt succeeded -- and the attached data bomb detonates!
   - Player: Decrypt succeeded -- and the attached data bomb detonates!
-- **`_apply_direct_action`** (line 8472) -- fires else of `linked_bomb is not None`.
+- **`_apply_direct_action`** (line 8514) -- fires else of `linked_bomb is not None`.
   - Admin:  Scramble decrypted -- protected data accessible.
   - Player: Scramble decrypted -- protected data accessible.
-- **`_apply_direct_action`** (line 8487) -- fires when `decrypted`.
+- **`_apply_direct_action`** (line 8529) -- fires when `decrypted`.
   - Admin:  Scramble decrypted -- protected data accessible.
   - Player: Scramble decrypted -- protected data accessible.
-- **`_apply_direct_action`** (line 8509) -- fires always (no local guard).
+- **`_apply_direct_action`** (line 8551) -- fires always (no local guard).
   - Admin:  Decrypt failed and the Poison IC has erased all files on the host.
   - Player: Decrypt failed and the Poison IC has erased all files on the host.
 
 
 ## `defense_pending`
 
-- **`_park_pending_defense`** (line 6907) -- fires always (no local guard).
+- **`_park_pending_defense`** (line 6953) -- fires always (no local guard).
   - Admin:  Attack strikes your icon -- 0 successes, Power 6.
   - Player: Attack strikes your icon -- 0 successes, Power 6.
 
 
 ## `dinab_attack`
 
-- **`_dinab_attack_ic`** (line 4474) -- fires always (no local guard).
+- **`_dinab_attack_ic`** (line 4511) -- fires always (no local guard).
   - Admin:  DINAB Attack-5 hits Killer-5: M (2 boxes), IC 2/10.
   - Player: DINAB Attack hits Killer-5: M (2 boxes), IC 2/10.
-- **`_dinab_strike_decker`** (line 4505) -- fires when `util in _PROGRAM_ATTR`.
+- **`_dinab_strike_decker`** (line 4542) -- fires when `util in _PROGRAM_ATTR`.
   - Admin:  Enemy Decker (Razor) resisted your DINAB Attack.
   - Player: Enemy Decker (Razor) resisted your DINAB Attack.
-- **`_dinab_strike_decker`** (line 4525) -- fires when `util == 'hog'`.
+- **`_dinab_strike_decker`** (line 4562) -- fires when `util == 'hog'`.
   - Admin:  DINAB Hog-5 fails to take hold on Enemy Decker (Razor).
   - Player: DINAB Hog-5 fails to take hold on Enemy Decker (Razor).
-- **`_dinab_strike_decker`** (line 4547) -- fires always (no local guard).
+- **`_dinab_strike_decker`** (line 4584) -- fires always (no local guard).
   - Admin:  DINAB attack fully resisted. DINAB rating reduced as enemy learns attack patterns!
   - Player: DINAB attack fully resisted. DINAB rating reduced as enemy learns attack patterns!
 
 
 ## `dinab_crashed`
 
-- **`_crash_dinab`** (line 4278) -- fires always (no local guard).
+- **`_crash_dinab`** (line 4315) -- fires always (no local guard).
   - Admin:  The DINAB attack fumbled and the construct crashed.
   - Player: The DINAB attack fumbled and the construct crashed.
 
 
 ## `dinab_degraded`
 
-- **`_dinab_resolve_failure`** (line 4293) -- fires else of `all_ones`.
+- **`_dinab_resolve_failure`** (line 4330) -- fires else of `all_ones`.
   - Admin:  The DINAB-driven Attack failed -- its rating drops 1 (now 0).
   - Player: The DINAB-driven Attack failed -- its rating drops 1 (now 0).
 
 
 ## `dinab_op`
 
-- **`_dinab_operate`** (line 4370) -- fires always (no local guard).
+- **`_dinab_operate`** (line 4407) -- fires always (no local guard).
   - Admin:  DINAB Attack-5 runs the files subsystem itself -- SUCCESS (3 vs 3). Tally +1 -> 5.
-  - Player: DINAB Attack-5 runs the files subsystem itself -- SUCCESS (Net Successes: 3). Security tally increased.
+  - Player: DINAB Attack-5 runs the files subsystem itself -- succeeded (Net Successes: 3). Security tally increased.
 
 
 ## `download_corrupted`
 
-- **`_corrupt_active_download`** (line 4662) -- fires always (no local guard).
+- **`_corrupt_active_download`** (line 4699) -- fires always (no local guard).
   - Admin:  Transfer of "Payroll DB" interrupted before completion -- the partial copy is corrupted and worthless. No data recovered.
   - Player: Transfer of "Payroll DB" interrupted before completion -- the partial copy is corrupted and worthless. No data recovered.
 
 
 ## `download_started`
 
-- **`_apply_file_action_result`** (line 8223) -- fires else of `turns <= 1`.
+- **`_apply_file_action_result`** (line 8265) -- fires else of `turns <= 1`.
   - Admin:  Downloading of "Payroll DB" beginning. 3 turns until completion.
   - Player: Downloading of "Payroll DB" beginning. 3 turns until completion.
 
 
 ## `dump_shock`
 
-- **`_resolve_ic_cybercombat`** (line 7067) -- fires when `not ds.get('immune')`.
+- **`_resolve_ic_cybercombat`** (line 7113) -- fires when `not ds.get('immune')`.
   - Admin:  Dump shock: 3 (2 boxes stun). Stun: 2
   - Player: Dump shock: 3 (2 boxes stun). Stun: 2
 
 
 ## `enemy_decker`
 
-- **`_enemy_medic_heal`** (line 3285) -- fires always (no local guard).
+- **`_enemy_medic_heal`** (line 3320) -- fires always (no local guard).
   - Admin:  Razor attempts to repair damage to their icon, but fails.
   - Player: Razor attempts to repair damage to their icon, but fails.
-- **`_enemy_nerve_check`** (line 3308) -- fires when `random.random() < flee_chance`.
+- **`_enemy_nerve_check`** (line 3343) -- fires when `random.random() < flee_chance`.
   - Admin:  Enemy Decker (Razor) is wounded (2/10) and their nerve breaks. They jack out, abandoning the hunt.
   - Player: Enemy Decker (Razor) is wounded (2/10) and their nerve breaks. They jack out, abandoning the hunt.
-- **`_enemy_restore_repair`** (line 3610) -- fires always (no local guard).
-  - Admin:  Razor attempts to repair damage to their BOD, but fails.
-  - Player: Razor attempts to repair damage to their BOD, but fails.
-- **`_apply_locate_decker`** (line 5908) -- fires when `not evaded`.
+- **`_enemy_restore_repair`** (line 3645) -- fires always (no local guard).
+  - Admin:  Razor attempts to repair damage to their Bod, but fails.
+  - Player: Razor attempts to repair damage to their Bod, but fails.
+- **`_apply_locate_decker`** (line 5954) -- fires when `not evaded`.
   - Admin:  Index sweep for evaded icons -- no decker has slipped your sensors to re-locate.
   - Player: Index sweep for evaded icons -- no decker has slipped your sensors to re-locate.
-- **`_apply_locate_decker`** (line 5914) -- fires when `not test_success`.
+- **`_apply_locate_decker`** (line 5960) -- fires when `not test_success`.
   - Admin:  Index sweep failed -- you can't re-acquire the decker that evaded you.
   - Player: Index sweep failed -- you can't re-acquire the decker that evaded you.
-- **`_apply_locate_decker`** (line 5936) -- fires when `found`.
+- **`_apply_locate_decker`** (line 5982) -- fires when `found`.
   - Admin:  Re-acquired target: Payroll DB.
   - Player: Re-acquired target: Payroll DB.
-- **`_apply_locate_decker`** (line 5942) -- fires else of `found`.
-  - Admin:  Re-acquire failed. <slipped> slips past your sensors.
-  - Player: Re-acquire failed. <slipped> slips past your sensors.
-- **`_drain_all_hog_infections`** (line 10845) -- fires when `target.id == 'pc'`.
-  - Admin:  Hog-5 virus drains your deck: Attack -3 (CRASHED).
-  - Player: Hog-5 virus drains your deck: Attack -3 (CRASHED).
-- **`_drain_all_hog_infections`** (line 10850) -- fires else of `target.id == 'pc'`.  **[ADMIN-ONLY]**
-  - Admin:  Your Hog virus drains Payroll DB's program: Attack -3 (CRASHED).
+- **`_apply_locate_decker`** (line 5988) -- fires else of `found`.
+  - Admin:  Re-acquire failed. Enemy Decker (Razor) slips past your sensors.
+  - Player: Re-acquire failed. Enemy Decker (Razor) slips past your sensors.
+- **`_drain_all_hog_infections`** (line 10888) -- fires when `target.id == 'pc'`.
+  - Admin:  Hog-5 virus drains your deck: Attack -3 (crashed).
+  - Player: Hog-5 virus drains your deck: Attack -3 (crashed).
+- **`_drain_all_hog_infections`** (line 10893) -- fires else of `target.id == 'pc'`.  **[ADMIN-ONLY]**
+  - Admin:  Your Hog virus drains Payroll DB's program: Attack -3 (crashed).
   - Player: (admin-only -- not shown to players)
-- **`_enemy_purge_hog`** (line 10893) -- fires when `purge['purged']`.
+- **`_enemy_purge_hog`** (line 10936) -- fires when `purge['purged']`.
   - Admin:  Enemy Decker (Razor) purges your Hog program from their deck.
   - Player: Enemy Decker (Razor) purges your Hog program from their deck.
-- **`_enemy_purge_hog`** (line 10898) -- fires else of `purge['purged']`.
+- **`_enemy_purge_hog`** (line 10941) -- fires else of `purge['purged']`.
   - Admin:  Enemy Decker (Razor) unsuccessfully attempts to purge your Hog program from their deck.
   - Player: Enemy Decker (Razor) unsuccessfully attempts to purge your Hog program from their deck.
-- **`_enemy_swap_reload`** (line 10922) -- fires when `restored`.
+- **`_enemy_swap_reload`** (line 10965) -- fires when `restored`.
   - Admin:  Enemy Decker (Razor) reloads Attack.
   - Player: Enemy Decker (Razor) reloads Attack.
-- **`_enemy_scan_pc`** (line 10947) -- fires always (no local guard).
+- **`_enemy_scan_pc`** (line 10990) -- fires always (no local guard).
   - Admin:  Enemy Decker (Razor) analyzes your icon and learns your weaknesses.
   - Player: Enemy Decker (Razor) analyzes your icon and learns your weaknesses.
-- **`_enemy_decker_take_turn`** (line 10998) -- fires when `boxes <= _ENEMY_REENGAGE_BOXES`.
+- **`_enemy_decker_take_turn`** (line 11041) -- fires when `boxes <= _ENEMY_REENGAGE_BOXES`.
   - Admin:  Enemy Decker (Razor) re-emerges from hiding to resume the hunt.
   - Player: Enemy Decker (Razor) re-emerges from hiding to resume the hunt.
-- **`_enemy_decker_take_turn`** (line 11023) -- fires when `first_contact`.
-  - Admin:  A hostile decker (Enemy Decker (Razor)) is hunting your icon.
-  - Player: A hostile decker (Enemy Decker (Razor)) is hunting your icon.
-- **`_enemy_decker_take_turn`** (line 11031) -- fires when `loc['located']`.
+- **`_enemy_decker_take_turn`** (line 11066) -- fires when `first_contact`.
+  - Admin:  A hostile decker is hunting your icon.
+  - Player: A hostile decker is hunting your icon.
+- **`_enemy_decker_take_turn`** (line 11072) -- fires when `loc['located']`.
   - Admin:  Enemy Decker (Razor) has located your position.
   - Player: Enemy Decker (Razor) has located your position.
-- **`_enemy_decker_take_turn`** (line 11036) -- fires else of `loc['located']`.  **[ADMIN-ONLY]**
+- **`_enemy_decker_take_turn`** (line 11077) -- fires else of `loc['located']`.  **[ADMIN-ONLY]**
   - Admin:  Enemy Decker (Razor) has failed to locate you this turn.
   - Player: (admin-only -- not shown to players)
-- **`_enemy_decker_take_turn`** (line 11062) -- fires when `boxes >= 10`.
+- **`_enemy_decker_take_turn`** (line 11103) -- fires when `boxes >= 10`.
   - Admin:  Enemy Decker (Razor)'s icon is crashing (2/10) -- it is dumped from the host.
   - Player: Enemy Decker (Razor)'s icon is crashing (2/10) -- it is dumped from the host.
-- **`_enemy_decker_take_turn`** (line 11147) -- fires when `program == 'Hog'`.
-  - Admin:  HOG -- Enemy Decker (Razor)'s virus fails to take hold this turn.
-  - Player: HOG -- Enemy Decker (Razor)'s virus fails to take hold this turn.
-- **`_enemy_decker_take_turn`** (line 11171) -- fires when `program in ('Poison', 'Restrict', 'Reveal')`.
-  - Admin:  ATTACK -- Enemy Decker (Razor)'s crippler attack is resisted.
-  - Player: ATTACK -- Enemy Decker (Razor)'s crippler attack is resisted.
-- **`_enemy_decker_take_turn`** (line 11239) -- fires else of `program in ('Poison', 'Restrict', 'Reveal')`.
+- **`_enemy_decker_take_turn`** (line 11188) -- fires when `program == 'Hog'`.
+  - Admin:  Hog -- Enemy Decker (Razor)'s virus fails to take hold this turn.
+  - Player: Hog -- Enemy Decker (Razor)'s virus fails to take hold this turn.
+- **`_enemy_decker_take_turn`** (line 11212) -- fires when `program in ('Poison', 'Restrict', 'Reveal')`.
+  - Admin:  attack -- Enemy Decker (Razor)'s crippler attack is resisted.
+  - Player: attack -- Enemy Decker (Razor)'s crippler attack is resisted.
+- **`_enemy_decker_take_turn`** (line 11280) -- fires else of `program in ('Poison', 'Restrict', 'Reveal')`.
   - Admin:  Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
   - Player: Enemy Decker (Razor) hits your icon with attack-6M -- M (2 boxes). Persona 3/10.
 
 
 ## `enemy_decker_aar`
 
-- **`_finalize_enemy_decker_aar`** (line 10609) -- fires always (no local guard).  **[ADMIN-ONLY]**
-  - Admin:  GM AAR -- 0 security decker(s) dispatched this run: <lines>.
+- **`_finalize_enemy_decker_aar`** (line 10652) -- fires always (no local guard).  **[ADMIN-ONLY]**
+  - Admin:  GM AAR -- 0 security decker(s) dispatched this run: Security Decker (Razor) -- crashed (icon dumped).
   - Player: (admin-only -- not shown to players)
 
 
 ## `enemy_decker_injected`
 
-- **`_spawn_enemy_decker`** (line 2219) -- fires always (no local guard).  **[ADMIN-ONLY]**
+- **`_spawn_enemy_decker`** (line 2237) -- fires always (no local guard).  **[ADMIN-ONLY]**
   - Admin:  GM: Security Decker (Razor) (Computer 6, Attack-<attack>) dispatched to hunt the intruder.
   - Player: (admin-only -- not shown to players)
 
 
 ## `enemy_shield_parry`
 
-- **`_enemy_shield_parry`** (line 2961) -- fires always (no local guard).  **[ADMIN-ONLY]**
+- **`_enemy_shield_parry`** (line 2996) -- fires always (no local guard).  **[ADMIN-ONLY]**
   - Admin:  GM: Security Decker (Razor) Shield-5 parries the the operation hit -- 3 successes (TN 3), worn to 2.
   - Player: (admin-only -- not shown to players)
 
 
 ## `file_decompressed`
 
-- **`_apply_decompress`** (line 4751) -- fires when `not name or entry is None`.
+- **`_apply_decompress`** (line 4788) -- fires when `not name or entry is None`.
   - Admin:  Decompress: no compressed file "Razor" in storage to expand.
   - Player: Decompress: no compressed file "Razor" in storage to expand.
-- **`_apply_decompress`** (line 4791) -- fires always (no local guard).
+- **`_apply_decompress`** (line 4828) -- fires always (no local guard).
   - Admin:  Decompressed "Payroll DB" -> 0 Mp. Storage used: 0 Mp.
   - Player: Decompressed "Payroll DB" -> 0 Mp. Storage used: 0 Mp.
 
 
 ## `file_deleted`
 
-- **`_apply_file_action_result`** (line 8194) -- fires else of `(body.edit_mode or 'erase').strip().lower() == 'modify'`.
+- **`_apply_file_action_result`** (line 8236) -- fires else of `(body.edit_mode or 'erase').strip().lower() == 'modify'`.
   - Admin:  File "Payroll DB" erased from the host.
   - Player: File "Payroll DB" erased from the host.
 
 
 ## `file_located`
 
-- **`_apply_file_action_result`** (line 8154) -- fires when `targets`.
+- **`_apply_file_action_result`** (line 8196) -- fires when `targets`.
   - Admin:  Target file located: .
   - Player: Target file located: .
-- **`_apply_file_action_result`** (line 8160) -- fires else of `targets`.
+- **`_apply_file_action_result`** (line 8202) -- fires else of `targets`.
   - Admin:  Search complete -- no target file found for that search goal.
   - Player: Search complete -- no target file found for that search goal.
 
 
 ## `file_modified`
 
-- **`_apply_file_action_result`** (line 8187) -- fires when `(body.edit_mode or 'erase').strip().lower() == 'modify'`.
+- **`_apply_file_action_result`** (line 8229) -- fires when `(body.edit_mode or 'erase').strip().lower() == 'modify'`.
   - Admin:  File "Payroll DB" altered on the host successfully.
   - Player: File "Payroll DB" altered on the host successfully.
 
 
 ## `host_analyzed`
 
-- **`_apply_analyze_host`** (line 4980) -- fires when `hidden_count == 0`.
+- **`_apply_analyze_host`** (line 5017) -- fires when `hidden_count == 0`.
   - Admin:  Analyze Host -- all subsystem ratings already known.
   - Player: Analyze Host -- all subsystem ratings already known.
-- **`_apply_analyze_host`** (line 4997) -- fires when `successes >= 6 or successes >= hidden_count`.
+- **`_apply_analyze_host`** (line 5034) -- fires when `successes >= 6 or successes >= hidden_count`.
   - Admin:  Analyze Host -- revealed.
   - Player: Analyze Host -- revealed.
-- **`_apply_analyze_host`** (line 5014) -- fires always (no local guard).
+- **`_apply_analyze_host`** (line 5051) -- fires always (no local guard).
   - Admin:  Analyze Host succeeded -- choose Files 8 subsystem rating(s) to reveal.
   - Player: Analyze Host succeeded -- choose Files 8 subsystem rating(s) to reveal.
-- **`_reveal_host_ratings`** (line 5078) -- fires always (no local guard).
+- **`_reveal_host_ratings`** (line 5115) -- fires always (no local guard).
   - Admin:  Analyze Host -- revealed.
   - Player: Analyze Host -- revealed.
 
 
 ## `host_ltg_revealed`
 
-- **`_apply_analysis_action_result`** (line 7863) -- fires when `address`.
-  - Admin:  Access subsystem analyzed -- this host HAS dedicated LTG access at NA/UCAS-SEA-1234.
-  - Player: Access subsystem analyzed -- this host HAS dedicated LTG access at NA/UCAS-SEA-1234.
-- **`_apply_analysis_action_result`** (line 7873) -- fires else of `address`.
+- **`_apply_analysis_action_result`** (line 7909) -- fires when `address`.
+  - Admin:  Access subsystem analyzed -- this host has dedicated LTG access at NA/UCAS-SEA-1234.
+  - Player: Access subsystem analyzed -- this host has dedicated LTG access at NA/UCAS-SEA-1234.
+- **`_apply_analysis_action_result`** (line 7919) -- fires else of `address`.
   - Admin:  Access subsystem analyzed -- this host has no LTG access.
   - Player: Access subsystem analyzed -- this host has no LTG access.
 
 
 ## `ic_activation`
 
-- **`_spawn_trap_hidden`** (line 9038) -- fires always (no local guard).
+- **`_spawn_trap_hidden`** (line 9080) -- fires always (no local guard).
   - Admin:  Trap triggered -- hidden Killer-5 revealed! (initiative 12)
   - Player: Trap triggered -- hidden Killer revealed! (initiative 12)
 
 
 ## `ic_analyzed`
 
-- **`_apply_analysis_action_result`** (line 7736) -- fires when `scramble is not None`.
+- **`_apply_analysis_action_result`** (line 7782) -- fires when `scramble is not None`.
   - Admin:  Scramble analyzed -- Rating 0.
   - Player: Scramble analyzed -- Rating 0.
-- **`_apply_analysis_action_result`** (line 7752) -- fires when `target is not None`.
+- **`_apply_analysis_action_result`** (line 7798) -- fires when `target is not None`.
   - Admin:  IC analyzed: Killer Rating 5 revealed.
   - Player: IC analyzed: Killer revealed.
 
 
 ## `ic_attack`
 
-- **`_resolve_ic_cybercombat`** (line 6976) -- fires always (no local guard).
+- **`_resolve_ic_cybercombat`** (line 7022) -- fires always (no local guard).
   - Admin:  Killer-5 attacks: 3 attack successes vs 3 resist. Net Successes: 3. Damage: M (2 boxes). Persona: 3/10
   - Player: Killer attacks: 3 attack successes vs 3 resist. Net Successes: 3. Damage: M (2 boxes). Persona: 3/10
-- **`_resolve_ic_cybercombat`** (line 7027) -- fires when `effect_type == 'Blaster'`.
+- **`_resolve_ic_cybercombat`** (line 7073) -- fires when `effect_type == 'Blaster'`.
   - Admin:  Blaster post-crash MPCP test (TN 4): 3 hits -> MPCP -1 (permanent).
   - Player: Blaster post-crash MPCP test (TN 4): 3 hits -> MPCP -1 (permanent).
-- **`_resolve_ic_cybercombat`** (line 7050) -- fires when `effect_type == 'Sparky'`.
+- **`_resolve_ic_cybercombat`** (line 7096) -- fires when `effect_type == 'Sparky'`.
   - Admin:  Sparky discharge on crash (TN 4): MPCP -1 (perm). Body resist (2 hits): M (2 boxes physical).
   - Player: Sparky discharge on crash (TN 4): MPCP -1 (perm). Body resist (2 hits): M (2 boxes physical).
-- **`_advance_npc_pass`** (line 7249) -- fires when `hunt['hit']`.
+- **`_advance_npc_pass`** (line 7295) -- fires when `hunt['hit']`.
   - Admin:  Trace IC has your data trail. 3 rounds until jackpoint located.
   - Player: Trace IC has your data trail. 3 rounds until jackpoint located.
-- **`_advance_npc_pass`** (line 7260) -- fires else of `hunt['hit']`.
+- **`_advance_npc_pass`** (line 7306) -- fires else of `hunt['hit']`.
   - Admin:  Trace IC is hunting your data trail.
   - Player: Trace IC is hunting your data trail.
-- **`_advance_npc_pass`** (line 7271) -- fires when `ic.get('trace_spoofed_turn') == state.get('current_turn', 1)`.
+- **`_advance_npc_pass`** (line 7317) -- fires when `ic.get('trace_spoofed_turn') == state.get('current_turn', 1)`.
   - Admin:  Trace spoofed for one turn.
   - Player: Trace spoofed for one turn.
-- **`_advance_npc_pass`** (line 7290) -- fires when `state.get('physical_trace_immune')`.
+- **`_advance_npc_pass`** (line 7336) -- fires when `state.get('physical_trace_immune')`.
   - Admin:  Satlink traced. Physical location unknown. -1 to all Proactive IC TNs, +1 to all Security Tally increases.
   - Player: Satlink traced. Physical location unknown. -1 to all Proactive IC TNs, +1 to all Security Tally increases.
-- **`_advance_npc_pass`** (line 7302) -- fires else of `state.get('physical_trace_immune')`.
+- **`_advance_npc_pass`** (line 7348) -- fires else of `state.get('physical_trace_immune')`.
   - Admin:  Jackpoint traced, physical location reported. -1 to all Proactive IC TNs, +1 to all Security Tally increases.
   - Player: Jackpoint traced, physical location reported. -1 to all Proactive IC TNs, +1 to all Security Tally increases.
-- **`_advance_npc_pass`** (line 7316) -- fires else of `remaining <= 0`.
+- **`_advance_npc_pass`** (line 7362) -- fires else of `remaining <= 0`.
   - Admin:  Trace continues. 2 rounds until jackpoint located.
   - Player: Trace continues. 2 rounds until jackpoint located.
-- **`_advance_npc_pass`** (line 7393) -- fires when `ic_subtype in ('crippler', 'ripper')`.
-  - Admin:  Killer-5 Construct component vs BOD: 3 attack / 3 total defense (3 persona + 3 Shield). Net Successes: 3. Defense Margin: 3. BOD -3.
+- **`_advance_npc_pass`** (line 7439) -- fires when `ic_subtype in ('crippler', 'ripper')`.
+  - Admin:  Killer-5 Construct component vs Bod: 3 attack / 3 total defense (3 persona + 3 Shield). Net Successes: 3. Defense Margin: 3. Bod -3.
   - Player: Killer vs BOD: 3 attack / 3 total defense (0 persona + 3 Shield). Net Successes: 3. Defense Margin: 3. BOD -3.
-- **`_advance_npc_pass`** (line 7464) -- fires when `is_non_lethal`.
+- **`_advance_npc_pass`** (line 7510) -- fires when `is_non_lethal`.
   - Admin:  Black IC (non-lethal) 5: 3 atk successes. Bod resist: M (3 persona). Willpower resist: M (2 stun). Persona: 3/10 Stun: 2/10
   - Player: Black IC (non-lethal) 5: 3 atk successes. Bod resist: M (3 persona). Willpower resist: M (2 stun). Persona: 3/10 Stun: 2/10
-- **`_advance_npc_pass`** (line 7485) -- fires else of `is_non_lethal`.
+- **`_advance_npc_pass`** (line 7531) -- fires else of `is_non_lethal`.
   - Admin:  Black IC (lethal) 5: 3 atk successes. Body resist: M (2 phys). Bod resist: M (3 persona). Physical: 0/10 Persona: 3/10
   - Player: Black IC (lethal) 5: 3 atk successes. Body resist: M (2 phys). Bod resist: M (3 persona). Physical: 0/10 Persona: 3/10
-- **`_advance_npc_pass`** (line 7516) -- fires when `phys_full or stun_full`.
+- **`_advance_npc_pass`** (line 7562) -- fires when `phys_full or stun_full`.
   - Admin:  Black IC MPCP attack at 2x rating: MPCP -1 (permanent).
   - Player: Black IC MPCP attack at 2x rating: MPCP -1 (permanent).
-- **`_black_ic_final_attack`** (line 11946) -- fires always (no local guard).
-  - Admin:  Black IC 5 lands one final attack as you jack out: 3 atk successes -- 2 stun / 3 persona.
-  - Player: Black IC 5 lands one final attack as you jack out: 3 atk successes -- 2 stun / 3 persona.
-- **`_black_ic_final_attack`** (line 11957) -- fires when `state['condition_monitor']['physical_boxes'] >= 10 or state['condition_monitor']['stun_boxes'] >= 10`.
+- **`_black_ic_final_attack`** (line 11987) -- fires always (no local guard).
+  - Admin:  Black IC-5 lands one final attack as you jack out: 3 atk successes -- 2 stun / 3 persona.
+  - Player: Black IC lands one final attack as you jack out: 3 atk successes -- 2 stun / 3 persona.
+- **`_black_ic_final_attack`** (line 11998) -- fires when `state['condition_monitor']['physical_boxes'] >= 10 or state['condition_monitor']['stun_boxes'] >= 10`.
   - Admin:  Black IC MPCP attack at 2x rating: MPCP -1 (permanent).
   - Player: Black IC MPCP attack at 2x rating: MPCP -1 (permanent).
 
 
 ## `ic_crashed`
 
-- **`_dinab_attack_ic`** (line 4463) -- fires when `target_ic['boxes'] >= 10`.
-  - Admin:  DINAB Attack-5 CRASHED Killer-5. Tally +1 -> 5
-  - Player: DINAB Attack CRASHED Killer-5. Security tally increased.
-- **`_apply_ic_crash`** (line 9072) -- fires always (no local guard).
-  - Admin:  Killer-5 CRASHED. Tally +1 -> 5
-  - Player: Killer CRASHED. Security tally increased.
-- **`attack_ic`** (line 9233) -- fires when `crashed`.
-  - Admin:  Killer-5 CRASHED. Attack 3 vs Resist 3. Net Successes: 3. Tally +1 -> 5
-  - Player: Killer CRASHED. Attack 3 vs Resist 3. Net Successes: 3. Security tally increased.
+- **`_dinab_attack_ic`** (line 4500) -- fires when `target_ic['boxes'] >= 10`.
+  - Admin:  DINAB Attack-5 crashed Killer-5. Tally +1 -> 5
+  - Player: DINAB Attack crashed Killer-5. Security tally increased.
+- **`_apply_ic_crash`** (line 9114) -- fires always (no local guard).
+  - Admin:  Killer-5 crashed. Tally +1 -> 5
+  - Player: Killer crashed. Security tally increased.
+- **`attack_ic`** (line 9276) -- fires when `crashed`.
+  - Admin:  Killer-5 crashed. Attack 3 vs Resist 3. Net Successes: 3. Tally +1 -> 5
+  - Player: Killer crashed. Attack 3 vs Resist 3. Net Successes: 3. Security tally increased.
 
 
 ## `ic_detected`
 
-- **`_secret_sensor_test`** (line 5451) -- fires when `new > prev`.
+- **`_secret_sensor_test`** (line 5497) -- fires when `new > prev`.
   - Admin:  Sensor sweep identifies a lurking IC. Type: Killer.
   - Player: Sensor sweep identifies a lurking IC. Type: Killer.
 
 
 ## `ic_released`
 
-- **`_toggle_ic_suppression`** (line 4175) -- fires when `release`.
+- **`_toggle_ic_suppression`** (line 4212) -- fires when `release`.
   - Admin:  Suppressed IC released -- Detection Factor restored; .
   - Player: Suppressed IC released -- Detection Factor restored; .
 
 
 ## `ic_relocate`
 
-- **`_apply_locate_ic`** (line 5867) -- fires when `not hidden`.
+- **`_apply_locate_ic`** (line 5913) -- fires when `not hidden`.
   - Admin:  Locate IC sweep found no unlocated operational IC.
   - Player: Locate IC sweep found no unlocated operational IC.
-- **`_apply_locate_ic`** (line 5873) -- fires when `not test_success`.
+- **`_apply_locate_ic`** (line 5919) -- fires when `not test_success`.
   - Admin:  Locate IC failed -- the hidden IC stays off your sensors this turn.
   - Player: Locate IC failed -- the hidden IC stays off your sensors this turn.
-- **`_apply_locate_ic`** (line 5883) -- fires always (no local guard).
+- **`_apply_locate_ic`** (line 5929) -- fires always (no local guard).
   - Admin:  Locate IC found 0 operational IC icons. Analyze each icon to identify its type and rating.
   - Player: Locate IC found 0 operational IC icons. Analyze each icon to identify its type and rating.
 
 
 ## `ic_slowed`
 
-- **`_apply_slow`** (line 3929) -- fires when `rating <= 0`.
+- **`_apply_slow`** (line 3965) -- fires when `rating <= 0`.
   - Admin:  Slow offline (worn out or not loaded) -- load a Slow utility (Swap Memory) before you can slow a proactive IC.
   - Player: Slow offline (worn out or not loaded) -- load a Slow utility (Swap Memory) before you can slow a proactive IC.
-- **`_apply_slow`** (line 3948) -- fires when `target is None`.
+- **`_apply_slow`** (line 3984) -- fires when `target is None`.
   - Admin:  Slow-5: no eligible proactive IC present to slow.
   - Player: Slow-5: no eligible proactive IC present to slow.
-- **`_apply_slow`** (line 3973) -- fires when `to_hit['successes'] <= 0`.
+- **`_apply_slow`** (line 4010) -- fires when `to_hit['successes'] <= 0`.
   - Admin:  Killer-5 vs Killer-3: missed (0 hits vs TN 3) -- the IC keeps its speed.
   - Player: Killer vs Killer-3: missed (0 hits vs TN 3) -- the IC keeps its speed.
-- **`_apply_slow`** (line 3986) -- fires when `net <= 0`.
+- **`_apply_slow`** (line 4023) -- fires when `net <= 0`.
   - Admin:  The IC is unaffected by your Slow.
   - Player: The IC is unaffected by your Slow.
-- **`_apply_slow`** (line 4013) -- fires always (no local guard).
+- **`_apply_slow`** (line 4050) -- fires always (no local guard).
   - Admin:  Killer-5 beats Killer-3 on the opposed test (net 3) --
   - Player: Killer beats Killer-3 on the opposed test (net 3) --
 
 
 ## `ic_suppressed`
 
-- **`_toggle_ic_suppression`** (line 4208) -- fires else of `release`.
-  - Admin:  IC suppressed -- Detection Factor <df>.
-  - Player: IC suppressed -- Detection Factor <df>.
-- **`_apply_control_action_result`** (line 8050) -- fires else of `_base_detection_factor(state, decker) - _suppressed_count(state) <= 1`.
+- **`_toggle_ic_suppression`** (line 4245) -- fires else of `release`.
+  - Admin:  IC suppressed -- Detection Factor 4.
+  - Player: IC suppressed -- Detection Factor 4.
+- **`_apply_control_action_result`** (line 8098) -- fires else of `_base_detection_factor(state, decker) - _suppressed_count(state) <= 1`.
   - Admin:  Relocate succeeded -- Killer-5 suppressed (trace paused in place; -1 Detection Factor; resumes if released).
   - Player: Relocate succeeded -- Killer suppressed (trace paused in place; -1 Detection Factor; resumes if released).
 
 
 ## `icon_scanned`
 
-- **`scan_enemy_decker`** (line 11630) -- fires always (no local guard).
+- **`scan_enemy_decker`** (line 11671) -- fires always (no local guard).
   - Admin:  Scan Icon on Attack reveals nothing new ().
   - Player: Scan Icon on Attack reveals nothing new ().
 
 
 ## `invalidate_passcode`
 
-- **`_apply_control_action_result`** (line 7983) -- fires when `body.action_type == 'invalidate_passcode' and test['success']`.
-  - Admin:  Invalidate Passcode successful -- <?>'s passcode is erased; it flips to Intruding (revised to-hit TN) for the rest of the run.
-  - Player: Invalidate Passcode successful -- <?>'s passcode is erased; it flips to Intruding (revised to-hit TN) for the rest of the run.
-- **`_apply_control_action_result`** (line 7991) -- fires when `body.action_type == 'invalidate_passcode'`.
+- **`_apply_control_action_result`** (line 8031) -- fires when `body.action_type == 'invalidate_passcode' and test['success']`.
+  - Admin:  Invalidate Passcode successful -- Killer-5's passcode is erased; it flips to Intruding (revised to-hit TN) for the rest of the run.
+  - Player: Invalidate Passcode successful -- Killer-5's passcode is erased; it flips to Intruding (revised to-hit TN) for the rest of the run.
+- **`_apply_control_action_result`** (line 8039) -- fires when `body.action_type == 'invalidate_passcode'`.
   - Admin:  The host rejected your attempt to delete the passcode table.
   - Player: The host rejected your attempt to delete the passcode table.
 
 
 ## `jack_out`
 
-- **`jack_out`** (line 12018) -- fires when `black_ic is not None`.
-  - Admin:  Willpower Test (TN 3) SUCCEEDS (3 successes) -- you tear free, but Black IC 5 gets one final attack.
-  - Player: Willpower Test (TN 3) SUCCEEDS (3 successes) -- you tear free, but Black IC 5 gets one final attack.
-- **`jack_out`** (line 12046) -- fires always (no local guard).
+- **`jack_out`** (line 12059) -- fires when `black_ic is not None`.
+  - Admin:  Willpower Test (TN 3) succeeds (3 successes) -- you tear free, but Black IC-5 gets one final attack.
+  - Player: Willpower Test (TN 3) succeeds (3 successes) -- you tear free, but Black IC-5 gets one final attack.
+- **`jack_out`** (line 12087) -- fires always (no local guard).
   - Admin:  Emergency jack-out. Dump shock: None (0 boxes stun).
   - Player: Emergency jack-out. Dump shock: None (0 boxes stun).
 
 
 ## `jack_out_failed`
 
-- **`jack_out`** (line 12008) -- fires when `wp_roll['successes'] <= 0`.
+- **`jack_out`** (line 12049) -- fires when `wp_roll['successes'] <= 0`.
   - Admin:  You are unable to sever your connection to the host as the Black IC grabs your icon and holds fast.
   - Player: You are unable to sever your connection to the host as the Black IC grabs your icon and holds fast.
 
 
 ## `logoff_fail`
 
-- **`_apply_graceful_logoff`** (line 9716) -- fires else of `test['success']`.
+- **`_apply_graceful_logoff`** (line 9759) -- fires else of `test['success']`.
   - Admin:  The host rejected your logoff request.
   - Player: The host rejected your logoff request. Security tally increased.
 
 
 ## `logoff_success`
 
-- **`_apply_graceful_logoff`** (line 9702) -- fires when `test['success']`.
+- **`_apply_graceful_logoff`** (line 9745) -- fires when `test['success']`.
   - Admin:  You complete your logoff from the host. Run complete.
   - Player: You complete your logoff from the host. Run complete. Security tally increased.
 
 
 ## `logon`
 
-- **`_complete_logon`** (line 1965) -- fires always (no local guard).
+- **`_complete_logon`** (line 1983) -- fires always (no local guard).
   - Admin:  Logged on to host successfully. Detection Factor: 3.
   - Player: Logged on to host successfully. Detection Factor: 3.
 
 
 ## `maneuver`
 
-- **`_clear_evade`** (line 5552) -- fires when `redetected`.
+- **`_clear_evade`** (line 5598) -- fires when `redetected`.
   - Admin:  Attack re-enters your sensors -- back in contact.
   - Player: Attack re-enters your sensors -- back in contact.
-- **`_apply_maneuver`** (line 5731) -- fires always (no local guard).
+- **`_apply_maneuver`** (line 5777) -- fires always (no local guard).
   - Admin:  You dance with the enemy, and no advantage is gained or lost.
   - Player: You dance with the enemy, and no advantage is gained or lost.
-- **`_resolve_npc_maneuver`** (line 5815) -- fires always (no local guard).
+- **`_resolve_npc_maneuver`** (line 5861) -- fires always (no local guard).
   - Admin:  Attack jockeys for position but gains no advantage (3 vs 2).
   - Player: Attack jockeys for position but gains no advantage (3 vs 2).
 
 
 ## `medic_heal`
 
-- **`_apply_medic`** (line 3212) -- fires when `wound is None`.
+- **`_apply_medic`** (line 3247) -- fires when `wound is None`.
   - Admin:  Attack: icon undamaged -- nothing to heal.
   - Player: Attack: icon undamaged -- nothing to heal.
-- **`_apply_medic`** (line 3219) -- fires when `utility_rating <= 0`.
+- **`_apply_medic`** (line 3254) -- fires when `utility_rating <= 0`.
   - Admin:  Medic offline (worn out or not loaded) -- reload a fresh copy via Swap Memory before it can heal the icon.
   - Player: Medic offline (worn out or not loaded) -- reload a fresh copy via Swap Memory before it can heal the icon.
-- **`_apply_medic`** (line 3229) -- fires always (no local guard).
+- **`_apply_medic`** (line 3264) -- fires always (no local guard).
   - Admin:  Attack-3 treats the light icon wound with 3 dice (TN 3): 3 successes -- 2 boxes healed. Icon damage now 3/10. Medic worn to 3 -- reload via Swap Memory.
   - Player: Attack-3 treats the light icon wound with 3 dice (TN 3): 3 successes -- 2 boxes healed. Icon damage now 3/10. Medic worn to 3 -- reload via Swap Memory.
 
 
 ## `new_pass`
 
-- **`_open_next_decker_pass`** (line 10101) -- fires always (no local guard).
+- **`_open_next_decker_pass`** (line 10144) -- fires always (no local guard).
   - Admin:  Turn 4/3 begins -- Hacking Pool restored.
   - Player: Turn 4/3 begins -- Hacking Pool restored.
 
 
 ## `new_turn`
 
-- **`_announce_new_combat_round`** (line 10112) -- fires always (no local guard).
+- **`_announce_new_combat_round`** (line 10155) -- fires always (no local guard).
   - Admin:  Round 2 begins. Hacking Pool (3 -> 3).
   - Player: Round 2 begins. Hacking Pool (3 -> 3).
 
 
 ## `null_operation`
 
-- **`_tick_active_download`** (line 4689) -- fires always (no local guard).
+- **`_tick_active_download`** (line 4726) -- fires always (no local guard).
   - Admin:  Download continuing -- 2 turns remaining.
-  - Player: Auto Null Operation -- SUCCESS (Net Successes: 3). Security tally increased.
+  - Player: Auto Null Operation -- succeeded (Net Successes: 3). Security tally increased.
 
 
 ## `one_shot_spent`
 
-- **`_spend_one_shot`** (line 1790) -- fires when `isinstance(active_counts, dict)`.
+- **`_spend_one_shot`** (line 1811) -- fires when `isinstance(active_counts, dict)`.
   - Admin:  Attack spent one active One-Shot copy.
   - Player: Attack spent one active One-Shot copy.
-- **`_spend_one_shot`** (line 1798) -- fires always (no local guard).
-  - Admin:  Attack was a single-use (One-Shot) copy -- spent and gone from active memory. Swap Memory a fresh copy to use it again.
-  - Player: Attack was a single-use (One-Shot) copy -- spent and gone from active memory. Swap Memory a fresh copy to use it again.
+- **`_spend_one_shot`** (line 1819) -- fires always (no local guard).
+  - Admin:  Attack spent one active One-Shot copy.
+  - Player: Attack spent one active One-Shot copy.
 
 
 ## `one_shot_wiped`
 
-- **`_wipe_one_shot`** (line 1826) -- fires always (no local guard).
+- **`_wipe_one_shot`** (line 1844) -- fires always (no local guard).
   - Admin:  Tar Pit corrupted all copies of the One-Shot Attack on the deck.
   - Player: Tar Pit corrupted all copies of the One-Shot Attack on the deck.
 
 
 ## `paydata_aar`
 
-- **`_finalize_paydata_haul`** (line 10567) -- fires always (no local guard).  **[ADMIN-ONLY]**
+- **`_finalize_paydata_haul`** (line 10610) -- fires always (no local guard).  **[ADMIN-ONLY]**
   - Admin:  GM AAR -- no paydata survived to jack-out.
   - Player: (admin-only -- not shown to players)
 
 
 ## `paydata_located`
 
-- **`_apply_file_action_result`** (line 8121) -- fires when `pool`.
+- **`_apply_file_action_result`** (line 8166) -- fires when `pool`.
   - Admin:  Paydata located: . All paydata on this host is now located.
   - Player: Paydata located: . All paydata on this host is now located.
-- **`_apply_file_action_result`** (line 8129) -- fires else of `pool`.
+- **`_apply_file_action_result`** (line 8174) -- fires else of `pool`.
   - Admin:  Search complete -- no further paydata found.
   - Player: Search complete -- no further paydata found.
 
 
 ## `paydata_secured`
 
-- **`_finalize_paydata_haul`** (line 10548) -- fires always (no local guard).
+- **`_finalize_paydata_haul`** (line 10591) -- fires always (no local guard).
   - Admin:  Run complete -- no paydata secured.
   - Player: Run complete -- no paydata secured.
 
 
 ## `persona_crash`
 
-- **`_resolve_ic_cybercombat`** (line 7019) -- fires when `state['condition_monitor']['persona_boxes'] >= 10`.
+- **`_resolve_ic_cybercombat`** (line 7065) -- fires when `state['condition_monitor']['persona_boxes'] >= 10`.
   - Admin:  Persona crashed -- decker dumped from the Matrix!
   - Player: Persona crashed -- decker dumped from the Matrix!
-- **`_advance_npc_pass`** (line 7511) -- fires when `phys_full or stun_full`.
-  - Admin:  Black IC -- <crit>!
-  - Player: Black IC -- <crit>!
-- **`_advance_npc_pass`** (line 7534) -- fires when `state['condition_monitor']['persona_boxes'] >= 10 and (not state.get('icon_crashed'))`.
+- **`_advance_npc_pass`** (line 7557) -- fires when `phys_full or stun_full`.
+  - Admin:  Black IC biofeedback overwhelms the decker. Physical Monitor full: the decker flatlines.
+  - Player: Black IC biofeedback overwhelms the decker. Physical Monitor full: the decker flatlines.
+- **`_advance_npc_pass`** (line 7580) -- fires when `state['condition_monitor']['persona_boxes'] >= 10 and (not state.get('icon_crashed'))`.
   - Admin:  The IC crashes your icon and increases its rating (now 5). Jack out now!
   - Player: The IC crashes your icon and increases its rating (now 5). Jack out now!
-- **`_enemy_decker_take_turn`** (line 11258) -- fires when `did_icon_damage and (not state.get('run_ended')) and (cm.get('persona_boxes', 0) >= 10)`.
+- **`_enemy_decker_take_turn`** (line 11299) -- fires when `did_icon_damage and (not state.get('run_ended')) and (cm.get('persona_boxes', 0) >= 10)`.
   - Admin:  Persona Crashed by Enemy Decker (Razor) -- dumped (dump shock: 2).
   - Player: Persona Crashed by Enemy Decker (Razor) -- dumped (dump shock: 2).
 
 
 ## `probe_ic`
 
-- **`_run_reactive_security_followup`** (line 7659) -- fires when `probe['tally_increase'] > 0`.
+- **`_run_reactive_security_followup`** (line 7705) -- fires when `probe['tally_increase'] > 0`.
   - Admin:  Something is examining your data trail. Tally +3 -> 3
   - Player: Something is examining your data trail. Security tally increased.
-- **`_run_reactive_security_followup`** (line 7661) -- fires when `level >= 1 or ic.get('analyzed')`.
+- **`_run_reactive_security_followup`** (line 7707) -- fires when `level >= 1 or ic.get('analyzed')`.
   - Admin:  The Probe-5 finds no evidence of your actions this turn.
   - Player: The Probe finds no evidence of your actions this turn.
 
 
 ## `program_decompressed`
 
-- **`_apply_decompress_program`** (line 4815) -- fires when `not name or ent is None`.
+- **`_apply_decompress_program`** (line 4852) -- fires when `not name or ent is None`.
   - Admin:  Decompress: no compressed program "Attack" in active memory to expand.
   - Player: Decompress: no compressed program "Attack" in active memory to expand.
-- **`_apply_decompress_program`** (line 4834) -- fires always (no local guard).
+- **`_apply_decompress_program`** (line 4871) -- fires always (no local guard).
   - Admin:  Decompressed Attack (rating 5) -- now usable in active memory.
   - Player: Decompressed Attack (rating 5) -- now usable in active memory.
 
 
 ## `purge_hog`
 
-- **`_apply_direct_action`** (line 8366) -- fires when `not infections`.
+- **`_apply_direct_action`** (line 8408) -- fires when `not infections`.
   - Admin:  No Hog virus to purge.
   - Player: No Hog virus to purge.
-- **`_apply_direct_action`** (line 8397) -- fires else of `not infections`.
+- **`_apply_direct_action`** (line 8439) -- fires else of `not infections`.
   - Admin:  You are unable to purge the Hog virus from your deck.
   - Player: You are unable to purge the Hog virus from your deck.
 
 
 ## `reactive_ic_resolved`
 
-- **`_resolve_lurking_tar`** (line 10650) -- fires when `result['ic_wins']`.
+- **`_resolve_lurking_tar`** (line 10693) -- fires when `result['ic_wins']`.
   - Admin:  Killer-5 triggered when Attack-3 executed! All copies of Attack wiped.
   - Player: Killer triggered when Attack-3 executed! All copies of Attack wiped.
-- **`_resolve_lurking_tar`** (line 10682) -- fires else of `result['ic_wins']`.
+- **`_resolve_lurking_tar`** (line 10725) -- fires else of `result['ic_wins']`.
   - Admin:  Killer-5 triggered when Attack-3 executed, but was ineffective!
   - Player: Killer triggered when Attack-3 executed, but was ineffective!
 
 
 ## `redirect_placed`
 
-- **`_apply_control_action_result`** (line 8068) -- fires when `body.action_type == 'redirect_datatrail' and test['success']`.
+- **`_apply_control_action_result`** (line 8116) -- fires when `body.action_type == 'redirect_datatrail' and test['success']`.
   - Admin:  Host redirect successfully placed. Trace Factor +1.
   - Player: Host redirect successfully placed. Trace Factor +1.
 
 
 ## `relocate`
 
-- **`_apply_control_action_result`** (line 8023) -- fires when `target is None`.
+- **`_apply_control_action_result`** (line 8071) -- fires when `target is None`.
   - Admin:  Relocate: no trace IC currently in its location cycle to spoof.
   - Player: Relocate: no trace IC currently in its location cycle to spoof.
-- **`_apply_control_action_result`** (line 8029) -- fires when `target.get('suppressed')`.
+- **`_apply_control_action_result`** (line 8077) -- fires when `target.get('suppressed')`.
   - Admin:  Relocate: Killer-5 is already suppressed.
   - Player: Relocate: Killer-5 is already suppressed.
-- **`_apply_control_action_result`** (line 8038) -- fires when `_base_detection_factor(state, decker) - _suppressed_count(state) <= 1`.
+- **`_apply_control_action_result`** (line 8086) -- fires when `_base_detection_factor(state, decker) - _suppressed_count(state) <= 1`.
   - Admin:  Relocate succeeded -- Killer-5 spoofed for this turn. Suppress is held: Detection Factor is at its minimum.
   - Player: Relocate succeeded -- Killer spoofed for this turn. Suppress is held: Detection Factor is at its minimum.
-- **`_apply_control_action_result`** (line 8060) -- fires else of `body.suppress_trace`.
+- **`_apply_control_action_result`** (line 8108) -- fires else of `body.suppress_trace`.
   - Admin:  Killer-5 spoofed for this turn.
   - Player: Killer spoofed for this turn.
 
 
 ## `restore_repair`
 
-- **`_apply_restore`** (line 3525) -- fires when `sum((repairable(a) for a in _BEMS_ORDER)) <= 0`.
+- **`_apply_restore`** (line 3560) -- fires when `sum((repairable(a) for a in _BEMS_ORDER)) <= 0`.
   - Admin:  Restore: no temporary attribute damage to repair.
   - Player: Restore: no temporary attribute damage to repair.
-- **`_apply_restore`** (line 3530) -- fires when `utility_rating <= 0`.
+- **`_apply_restore`** (line 3565) -- fires when `utility_rating <= 0`.
   - Admin:  Restore offline (crashed or not loaded) -- reload a fresh copy via Swap Memory before it can repair attributes.
   - Player: Restore offline (crashed or not loaded) -- reload a fresh copy via Swap Memory before it can repair attributes.
-- **`_apply_restore`** (line 3542) -- fires always (no local guard).
-  - Admin:  Attack-3 repairs BOD with 3 dice (TN 3 = causing crippler rating): 3 successes -> 3 points restored. BOD now 0 (<Bod> damage remaining).
-  - Player: Attack-3 repairs BOD with 3 dice (TN 3 = causing crippler rating): 3 successes -> 3 points restored. BOD now 0 (<Bod> damage remaining).
+- **`_apply_restore`** (line 3577) -- fires always (no local guard).
+  - Admin:  Attack-3 repairs Bod with 3 dice (TN 3 = causing crippler rating): 3 successes -> 3 points restored. Bod now 0 (<Bod> damage remaining).
+  - Player: Attack-3 repairs Bod with 3 dice (TN 3 = causing crippler rating): 3 successes -> 3 points restored. Bod now 0 (<Bod> damage remaining).
 
 
 ## `scramble_analyzed`
 
-- **`_apply_analyze_icon`** (line 5198) -- fires when `not already`.
+- **`_apply_analyze_icon`** (line 5244) -- fires when `not already`.
   - Admin:  Analyze Icon on "Payroll DB" -- Exploding Scramble IC detected. Defuse its linked data bomb first, then decrypt.
   - Player: Analyze Icon on "Payroll DB" -- Exploding Scramble IC detected. Defuse its linked data bomb first, then decrypt.
 
 
 ## `scramble_attack`
 
-- **`crash_scramble`** (line 9361) -- fires always (no local guard).
+- **`crash_scramble`** (line 9404) -- fires always (no local guard).
   - Admin:  Attacked Scramble IC: Attack 3 vs Resist 3. Dealt 2 boxes. Scramble: 2/10.
   - Player: Attacked Scramble IC: Attack 3 vs Resist 3. Dealt 2 boxes. Scramble: 2/10.
 
 
 ## `scramble_crashed`
 
-- **`crash_scramble`** (line 9392) -- fires when `crashed`.
-  - Admin:  Scramble IC CRASHED. Tally +1 -> 5.
-  - Player: Scramble IC CRASHED. Security tally increased.
+- **`crash_scramble`** (line 9435) -- fires when `crashed`.
+  - Admin:  Scramble IC crashed. Tally +1 -> 5.
+  - Player: Scramble IC crashed. Security tally increased.
 
 
 ## `scramble_found`
 
-- **`_apply_analysis_action_result`** (line 7800) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
+- **`_apply_analysis_action_result`** (line 7846) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
   - Admin:  Exploding Scramble IC found on the Files subsystem (Razor). Defuse its linked data bomb first, then decrypt.
   - Player: Exploding Scramble IC found on the Files subsystem (Razor). Defuse its linked data bomb first, then decrypt.
 
@@ -937,184 +937,184 @@ detection level (here **level 2** -- type known, rating hidden).
 
 ## `security_analyzed`
 
-- **`_apply_analysis_action_result`** (line 7910) -- fires when `body.action_type == 'analyze_security' and test['success']`.
-  - Admin:  Analyze Security -- Security Rating Green-3, security tally 3, alert status <ALERT> (as of round 3).
-  - Player: Analyze Security -- Security Rating Green-3, security tally 3, alert status <ALERT> (as of round 3).
+- **`_apply_analysis_action_result`** (line 7955) -- fires when `body.action_type == 'analyze_security' and test['success']`.
+  - Admin:  Analyze Security -- Security Rating Green-3, security tally 3, alert status <alert> (as of round 3).
+  - Player: Analyze Security -- Security Rating Green-3, security tally 3, alert status <alert> (as of round 3).
 
 
 ## `shield_parry`
 
-- **`_shield_parry`** (line 2932) -- fires always (no local guard).
+- **`_shield_parry`** (line 2967) -- fires always (no local guard).
   - Admin:  (dynamic -- description returned by event['description'].replace())
   - Player: (dynamic -- description returned by event['description'].replace())
 
 
 ## `shutdown`
 
-- **`_process_host_shutdown_countdown`** (line 10044) -- fires when `remaining <= 0`.
+- **`_process_host_shutdown_countdown`** (line 10087) -- fires when `remaining <= 0`.
   - Admin:  Host shutdown, dumped -- System Offline. Dump Shock: 3 (2 boxes). Run complete.
   - Player: Host shutdown, dumped -- System Offline. Dump Shock: 3 (2 boxes). Run complete.
 
 
 ## `shutdown_detected`
 
-- **`_process_host_shutdown_countdown`** (line 10070) -- fires when `roll['successes'] > 0`.
+- **`_process_host_shutdown_countdown`** (line 10113) -- fires when `roll['successes'] > 0`.
   - Admin:  Your Sensors catch it: the host is shutting down -- roughly 2 rounds until you are dumped. Get out.
   - Player: Your Sensors catch it: the host is shutting down -- roughly 2 rounds until you are dumped. Get out.
 
 
 ## `shutdown_tick`
 
-- **`_process_host_shutdown_countdown`** (line 10078) -- fires else of `roll['successes'] > 0`.  **[ADMIN-ONLY]**
+- **`_process_host_shutdown_countdown`** (line 10121) -- fires else of `roll['successes'] > 0`.  **[ADMIN-ONLY]**
   - Admin:  (GM) Host shutdown in progress: 2 rounds left; the decker's secret Sensor Test (TN 2) failed -- still unaware.
   - Player: (admin-only -- not shown to players)
-- **`_process_host_shutdown_countdown`** (line 10088) -- fires always (no local guard).
+- **`_process_host_shutdown_countdown`** (line 10131) -- fires always (no local guard).
   - Admin:  Host shutdown: 2 rounds until you are dumped.
   - Player: Host shutdown: 2 rounds until you are dumped.
 
 
 ## `shutdown_warning`
 
-- **`_process_host_shutdown_countdown`** (line 10056) -- fires when `cd['elapsed'] >= int(cd.get('final_warning_turn', 1) or 1)`.
+- **`_process_host_shutdown_countdown`** (line 10099) -- fires when `cd['elapsed'] >= int(cd.get('final_warning_turn', 1) or 1)`.
   - Admin:  FINAL WARNING -- the host announces it is shutting down. 2 rounds until every decker is dumped. Grab paydata and get out.
   - Player: FINAL WARNING -- the host announces it is shutting down. 2 rounds until every decker is dumped. Grab paydata and get out.
 
 
 ## `simsense_overload`
 
-- **`_resolve_ic_cybercombat`** (line 7011) -- fires when `not sim.get('immune') and sim.get('stun_taken')`.
+- **`_resolve_ic_cybercombat`** (line 7057) -- fires when `not sim.get('immune') and sim.get('stun_taken')`.
   - Admin:  Simsense overload! Willpower test failed (TN 4). 1 Stun damage.
   - Player: Simsense overload! Willpower test failed (TN 4). 1 Stun damage.
 
 
 ## `suppression_added`
 
-- **`_toggle_entry_suppression`** (line 4069) -- fires when `not _finalize_data_bomb_suppression(state, entry, suppressed=True)`.
-  - Admin:  Suppressed (Attack) -- Detection Factor <df>; tally of 5 suppressed.
-  - Player: Suppressed (Attack) -- Detection Factor <df>; tally of 5 suppressed.
+- **`_toggle_entry_suppression`** (line 4106) -- fires when `not _finalize_data_bomb_suppression(state, entry, suppressed=True)`.
+  - Admin:  Suppressed (Attack) -- Detection Factor 4; tally of 5 suppressed.
+  - Player: Suppressed (Attack) -- Detection Factor 4; tally of 5 suppressed.
 
 
 ## `suppression_overflow`
 
-- **`_resolve_attribute_attack`** (line 3424) -- fires when `overflow_after > overflow_before`.
+- **`_resolve_attribute_attack`** (line 3459) -- fires when `overflow_after > overflow_before`.
   - Admin:  Masking damage reduced your Detection Factor. You can no longer maintain all suppressed IC; release 1 suppression before continuing.
   - Player: Masking damage reduced your Detection Factor. You can no longer maintain all suppressed IC; release 1 suppression before continuing.
 
 
 ## `suppression_released`
 
-- **`_toggle_entry_suppression`** (line 4050) -- fires when `not _finalize_data_bomb_suppression(state, entry, suppressed=False)`.
+- **`_toggle_entry_suppression`** (line 4087) -- fires when `not _finalize_data_bomb_suppression(state, entry, suppressed=False)`.
   - Admin:  Suppression released (Attack) -- Detection Factor restored; .
   - Player: Suppression released (Attack) -- Detection Factor restored; .
 
 
 ## `suppressions_flushed`
 
-- **`_flush_pending_suppressions`** (line 4103) -- fires when `flushed`.
+- **`_flush_pending_suppressions`** (line 4140) -- fires when `flushed`.
   - Admin:  1 pending suppression decision(s) auto-accepted at pass/turn end -- held-back security tally now applies.
   - Player: 1 pending suppression decision(s) auto-accepted at pass/turn end -- held-back security tally now applies.
 
 
 ## `swap_memory`
 
-- **`_apply_direct_action`** (line 8270) -- fires when `body.action_type in {'swap_memory', 'unload_program'}`.
+- **`_apply_direct_action`** (line 8312) -- fires when `body.action_type in {'swap_memory', 'unload_program'}`.
   - Admin:  (dynamic -- description returned by _apply_swap_memory())
   - Player: (dynamic -- description returned by _apply_swap_memory())
 
 
 ## `tapeworm_payload_loss`
 
-- **`_apply_tapeworm_run_end`** (line 10473) -- fires when `not destroyed`.
+- **`_apply_tapeworm_run_end`** (line 10516) -- fires when `not destroyed`.
   - Admin:  The Tapeworm was unable to delete any data.
   - Player: The Tapeworm was unable to delete any data.
-- **`_apply_tapeworm_run_end`** (line 10485) -- fires always (no local guard).
+- **`_apply_tapeworm_run_end`** (line 10528) -- fires always (no local guard).
   - Admin:  Tapeworm-5 corrupts your haul on jack-out: 0 file(s) erased () -- key data lost.
   - Player: Tapeworm corrupts your haul on jack-out: 0 file(s) erased () -- key data lost.
 
 
 ## `tar_pit_corruption`
 
-- **`_resolve_lurking_tar`** (line 10665) -- fires when `is_tar_pit and result.get('all_copies_corrupted')`.
+- **`_resolve_lurking_tar`** (line 10708) -- fires when `is_tar_pit and result.get('all_copies_corrupted')`.
   - Admin:  All copies of Attack lost.
   - Player: All copies of Attack lost.
 
 
 ## `tar_steamrolled`
 
-- **`_apply_steamroller`** (line 3773) -- fires when `rating <= 0`.
+- **`_apply_steamroller`** (line 3808) -- fires when `rating <= 0`.
   - Admin:  Steamroller offline (worn out or not loaded) -- load a Steamroller utility (Swap Memory) before you can crush a tar IC.
   - Player: Steamroller offline (worn out or not loaded) -- load a Steamroller utility (Swap Memory) before you can crush a tar IC.
-- **`_apply_steamroller`** (line 3798) -- fires when `target is None`.
+- **`_apply_steamroller`** (line 3833) -- fires when `target is None`.
   - Admin:  Steamroller-5: no tar IC present to crush.
   - Player: Steamroller-5: no tar IC present to crush.
-- **`_apply_steamroller`** (line 3826) -- fires when `not res['crashed']`.
+- **`_apply_steamroller`** (line 3862) -- fires when `not res['crashed']`.
   - Admin:  Killer-5 hits Killer-0 for M (3/2).
   - Player: Killer hits Killer-0 for M (3/2).
-- **`_apply_steamroller`** (line 3857) -- fires always (no local guard).
+- **`_apply_steamroller`** (line 3893) -- fires always (no local guard).
   - Admin:  Killer-5 crashes Killer-3 (M). Tally +1 -> 5
   - Player: Killer crashes Killer-3 (M). Security tally increased.
 
 
 ## `trap_door_entered`
 
-- **`trap_door_action`** (line 9921) -- fires always (no local guard).
+- **`trap_door_action`** (line 9964) -- fires always (no local guard).
   - Admin:  Entered trap door -- suspended "Payroll DB" and arrived at host "Payroll DB". Logon to continue (logoff or crash this host to drop back).
   - Player: Entered trap door -- suspended "Payroll DB" and arrived at host "Payroll DB". Logon to continue (logoff or crash this host to drop back).
 
 
 ## `trap_door_found`
 
-- **`_apply_analysis_action_result`** (line 7774) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
+- **`_apply_analysis_action_result`** (line 7820) -- fires when `body.action_type == 'analyze_subsystem' and test['success']`.
   - Admin:  Concealed port detected on the Files subsystem (Datastore) -- Destination unknown.
   - Player: Concealed port detected on the Files subsystem (Datastore) -- Destination unknown.
 
 
 ## `trap_door_return`
 
-- **`_pop_host_stack`** (line 9839) -- fires always (no local guard).
+- **`_pop_host_stack`** (line 9882) -- fires always (no local guard).
   - Admin:  Logged off "Frame", returned to "Killer".
   - Player: Logged off "Frame", returned to "Killer".
 
 
 ## `validate_passcode`
 
-- **`_apply_control_action_result`** (line 7953) -- fires when `body.action_type == 'validate_passcode' and test['success']`.
+- **`_apply_control_action_result`** (line 7998) -- fires when `body.action_type == 'validate_passcode' and test['success']`.
   - Admin:  Validate Passcode successful -- Legitimate status granted.
   - Player: Validate Passcode successful -- Legitimate status granted.
-- **`_apply_control_action_result`** (line 7962) -- fires when `body.action_type == 'validate_passcode'`.
+- **`_apply_control_action_result`** (line 8007) -- fires when `body.action_type == 'validate_passcode'`.
   - Admin:  Validate Passcode failed -- the host rejects your injected passcode.
   - Player: Validate Passcode failed -- the host rejects your injected passcode.
 
 
 ## `worm_disinfected`
 
-- **`_apply_disinfect`** (line 3676) -- fires when `worm is None`.
+- **`_apply_disinfect`** (line 3711) -- fires when `worm is None`.
   - Admin:  Disinfect-5: the files subsystem scans clean -- no worm found.
-  - Player: Disinfect -- SUCCESS (Net Successes: 3). Security tally increased.
-- **`_apply_disinfect`** (line 3682) -- fires when `res['worm_destroyed']`.
+  - Player: Disinfect -- succeeded (Net Successes: 3). Security tally increased.
+- **`_apply_disinfect`** (line 3717) -- fires when `res['worm_destroyed']`.
   - Admin:  Disinfect-5 sweeps the files subsystem (TN 3): 3 successes -- Worm-4 destroyed. No security alert (maintenance op).
-  - Player: Disinfect -- SUCCESS (Net Successes: 3). Security tally increased.
-- **`_apply_disinfect`** (line 3718) -- fires else of `wr['mpcp_infected']`.
+  - Player: Disinfect -- succeeded (Net Successes: 3). Security tally increased.
+- **`_apply_disinfect`** (line 3753) -- fires else of `wr['mpcp_infected']`.
   - Admin:  Disinfect failed -- MPCP not compromised; the worm is still lurking.
-  - Player: Disinfect -- FAILED (Net Successes: -1).
+  - Player: Disinfect -- failed (Net Successes: -1).
 
 
 ## `worm_resolved`
 
-- **`_apply_disinfect`** (line 3706) -- fires when `wr['mpcp_infected']`.
+- **`_apply_disinfect`** (line 3741) -- fires when `wr['mpcp_infected']`.
   - Admin:  Disinfect-5 FAILED on the files subsystem (TN 3) -- Worm-4 infected the MPCP (Infection Test: host 6d6 vs MPCP TN 6, net 2 after Hardening). Chip replacement required (permanent).
   - Player: Hidden IC activity on the Files subsystem infected your MPCP. The chip requires replacement.
-- **`_resolve_lurking_worm`** (line 10386) -- fires when `wr['mpcp_infected']`.
+- **`_resolve_lurking_worm`** (line 10429) -- fires when `wr['mpcp_infected']`.
   - Admin:  Your System Teston the Files subsystem tripped a Worm-5 -- it infected the MPCP causing permanent infection. Infection Test: host 6d6 vs MPCP TN 6 scored 3 successes; Hardening-2 reduced that to 3 net successes.
   - Player: Hidden IC activity on the Files subsystem infected your MPCP. The chip requires replacement.
-- **`_resolve_lurking_worm`** (line 10400) -- fires else of `wr['mpcp_infected']`.
+- **`_resolve_lurking_worm`** (line 10443) -- fires else of `wr['mpcp_infected']`.
   - Admin:  A Worm-5on the Files subsystem tried to infect your MPCP but was repelled. Infection Test scored 3 successes; Hardening-2 reduced that to 3 net successes. Worm still lurking.
   - Player: Hidden IC activity on the Files subsystem tried to infect your MPCP but was repelled.
 
 
 ## `(dynamic)`
 
-- **`_check_and_activate_sheaf`** (line 2197) -- fires always (no local guard).
+- **`_check_and_activate_sheaf`** (line 2215) -- fires always (no local guard).
   - Admin:  (payload built dynamically in `_check_and_activate_sheaf` -- see source)
   - Player: --
 

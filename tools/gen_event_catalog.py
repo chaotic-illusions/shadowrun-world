@@ -45,10 +45,9 @@ SRC = ROOT / "app" / "routers" / "matrix_runs.py"
 _SUFFIX = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--suffix=")), "")
 OUT_MD = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.md"
 OUT_CSV = ROOT / "docs" / f"event-log-catalog{_SUFFIX}.csv"
-# Reviewer notes round-trip: preserve from the OUTPUT file itself once it exists (so annotating a
-# derived catalog like -final and re-running keeps those notes); seed from the base CSV the first
-# time a new derived file is created.
-NOTES_SRC = OUT_CSV if OUT_CSV.exists() else ROOT / "docs" / "event-log-catalog.csv"
+# Reviewer notes master: always the base CSV. Notes are re-matched to the current render by
+# (type, function) ORDINAL (not raw line number), so code edits that shift lines never drop them.
+NOTES_SRC = ROOT / "docs" / "event-log-catalog.csv"
 
 
 # ============================================================ sample rendering
@@ -287,8 +286,16 @@ SAMPLE.update({
 SAMPLE.update({
     # conditional-suffix note vars -> empty so the base sentence renders cleanly
     "tally_note": "", "mpcp_note": "", "floor_note": "",
-    "frag": "Attack -3 (CRASHED)",
-    "fate": "the hostile decker's icon crashes -- dumped and out of the run.",
+    "frag": "Attack -3 (crashed)",
+    "fate": "Attack crashes Enemy Decker (Razor)'s icon -- the hostile decker is dumped and taken out of the run.",
+    # placeholder-prone locals (escaped decker name, detection factor, flipped icon, crit text,
+    # alert status, AAR line join) -> realistic samples so the catalog does not print <name>.
+    "slipped": "Enemy Decker (Razor)",
+    "df": 4,
+    "flipped": ["Killer-5"],
+    "down_line": "Physical Monitor full: the decker flatlines",
+    "alert": "active",
+    "lines": "Security Decker (Razor) -- crashed (icon dumped)",
     "body": _SD({"program": "attack", "action_type": "attack", "subsystem": "files",
                  "target_file": "Payroll DB", "edit_mode": "erase", "note": "",
                  "suppress_trace": False}),
@@ -659,29 +666,47 @@ def _write_csv(records):
             "player_example", "payload_keys", "template", "notes"]
     # Preserve any reviewer notes already in the CSV (match by type + function + line) so a
     # regeneration NEVER wipes annotations.
-    prior_notes = {}
+    # Match reviewer notes to the current render primarily by (type, function) ORDINAL -- the Nth
+    # event of that type in that function, in line order -- so edits that shift line numbers never
+    # drop a note. Exact (type, function, line) is tried first as a fast path.
+    def _lk(v):
+        s = str(v or "").strip()
+        return int(s) if s.lstrip("-").isdigit() else 0
+    prior_notes, prior_ordinal = {}, {}
     if NOTES_SRC.exists():
         try:
             with NOTES_SRC.open(encoding="utf-8-sig", newline="") as fh:
-                for row in csv.DictReader(fh):
+                src_counter = collections.defaultdict(int)
+                for row in sorted(csv.DictReader(fh),
+                                  key=lambda x: (str(x.get("type", "")).startswith("("),
+                                                 x.get("type", ""), _lk(x.get("line")))):
+                    t, f = row.get("type", ""), row.get("function", "")
+                    ordinal = src_counter[(t, f)]
+                    src_counter[(t, f)] += 1
                     note = (row.get("notes") or "").strip()
                     if note:
-                        prior_notes[(row.get("type", ""), row.get("function", ""),
-                                     str(row.get("line", "")))] = row["notes"]
+                        prior_notes[(t, f, str(row.get("line", "")))] = row["notes"]
+                        prior_ordinal[(t, f, ordinal)] = row["notes"]
         except Exception:
             pass
+    matched, write_counter = 0, collections.defaultdict(int)
     with OUT_CSV.open("w", encoding="utf-8-sig", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(cols)
         for r in sorted(records, key=lambda x: (x["type"].startswith("("), x["type"], x["line"])):
+            ordinal = write_counter[(r["type"], r["func"])]
+            write_counter[(r["type"], r["func"])] += 1
+            note = (prior_notes.get((r["type"], r["func"], str(r["line"])))
+                    or prior_ordinal.get((r["type"], r["func"], ordinal), ""))
+            if note:
+                matched += 1
             w.writerow([
                 r["type"], r["func"], r["line"], r["cond"].replace("`", ""),
                 (r["gm_only"] if r["gm_only"] not in (None, "False") else ""),
-                r["admin"], r["player"], ", ".join(r["keys"]), r["template"],
-                prior_notes.get((r["type"], r["func"], str(r["line"])), ""),
+                r["admin"], r["player"], ", ".join(r["keys"]), r["template"], note,
             ])
     if prior_notes:
-        print(f"Preserved {len(prior_notes)} reviewer note(s) from the existing CSV.")
+        print(f"Preserved {matched} of {len(prior_notes)} reviewer note(s) from the base CSV.")
 
 
 if __name__ == "__main__":

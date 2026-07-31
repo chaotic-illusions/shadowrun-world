@@ -904,7 +904,7 @@ def _redact_system_action_event(e: dict, state: dict) -> dict:
         out.pop("target_number", None)
     out.pop("target_number_concealed", None)
     action_label = str(out.get("action_label") or _action_label(out.get("action", "System Test")))
-    result = "SUCCESS" if out.get("success") else "FAILED"
+    result = "succeeded" if out.get("success") else "failed"
     net = int(out.get("net_successes", 0) or 0)
     decker_successes = int((e.get("decker_roll") or {}).get("successes", 0) or 0)
     target_text = f"; Target Number: {target_number}" if target_number is not None else ""
@@ -993,6 +993,38 @@ def _normalize_legacy_shield_events(events: list[dict]) -> None:
         )
 
 
+def _build_located_paydata(state: dict, *, redact: bool) -> list[dict]:
+    """Project the decker's LOCATED paydata for the run payload (name/size/key/downloaded state) so
+    the UI can drive its storage decisions and Analyze Icon / Download pickers. Built for BOTH the
+    player view and the admin view (the admin also keeps the full GM ``paydata`` list) -- otherwise
+    files vanish from the admin console and its Analyze Icon has no targets.
+
+    Progressive disclosure (``redact``, players + runner-view preview): a located file's true size
+    (Mp) and confirmed encryption status stay hidden until the decker runs an Analyze Icon on it.
+    Until analyzed, ``size_mp`` is None (the UI shows "??? Mp") and the client suppresses the lock
+    badge. Admins (``redact`` False) always see the real size. ``encrypted`` is always sent (the
+    Download / Edit gate needs it and it is the decker's own discoverable data), but the UI only
+    reveals the ENCRYPTED badge once the file is analyzed."""
+    out: list[dict] = []
+    for p in (state.get("paydata") or []):
+        if not isinstance(p, dict) or not p.get("located"):
+            continue
+        analyzed = bool(p.get("analyzed"))
+        entry = {
+            "id": p.get("id"),
+            "name": p.get("name"),
+            "encrypted": _paydata_encrypted(state, p),
+            "analyzed": analyzed,
+            "size_mp": max(0, int(p.get("density", 0) or 0)) if (analyzed or not redact) else None,
+            "is_key": bool(p.get("is_key")),
+            "downloaded": bool(p.get("downloaded")),
+            "destroyed": bool(p.get("destroyed")),
+            "tampered": bool(p.get("tampered")),
+        }
+        out.append(entry)
+    return out
+
+
 def _serialize_run(run: MatrixRun, auth: dict) -> dict:
     """Build a MatrixRunRead-shaped dict, redacting GM-only state for non-admins.
 
@@ -1015,6 +1047,10 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
     state_data["suppression_count"] = suppression_count
     state_data["suppression_overflow"] = _suppression_overflow(state_data, decker_data)
     data["state_json"] = state_data
+    # Located-paydata projection for EVERYONE (admins included). Without it, located files vanish
+    # from the admin console and its Analyze Icon has no targets (see B). The player branch below
+    # rebuilds this with progressive-disclosure redaction; admins keep the real sizes.
+    state_data["located_paydata"] = _build_located_paydata(state_data, redact=False)
     serialized_events = (data.get("state_json") or {}).get("event_log")
     if isinstance(serialized_events, list):
         _normalize_legacy_shield_events(serialized_events)
@@ -1022,26 +1058,11 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
     # exactly as for a real non-admin so no GM-only state ever reaches the browser in that mode.
     if not auth.get("is_admin") or auth.get("view_as_player"):
         state = dict(data.get("state_json") or {})
-        # Surface only the paydata the decker has actually LOCATED (name/size/key/downloaded) so
+        # Surface only the paydata the decker has actually LOCATED (name/key/downloaded state) so
         # the player can make storage decisions; the full GM paydata list is then redacted below.
-        # An ENCRYPTED file (unresolved Scramble) keeps its real NAME and size visible -- the
-        # Scramble encrypts the file's CONTENT, not its identity -- but carries `encrypted:true`
-        # so the UI tags it and Download/Edit stay blocked until the decker Decrypts it.
-        located_paydata = []
-        for p in (state.get("paydata") or []):
-            if not isinstance(p, dict) or not p.get("located"):
-                continue
-            enc = _paydata_encrypted(state, p)
-            located_paydata.append({
-                "id": p.get("id"),
-                "name": p.get("name"),
-                "size_mp": max(0, int(p.get("density", 0) or 0)),
-                "encrypted": enc,
-                "is_key": bool(p.get("is_key")),
-                "downloaded": bool(p.get("downloaded")),
-                "destroyed": bool(p.get("destroyed")),
-                "tampered": bool(p.get("tampered")),
-            })
+        # Progressive disclosure: a located file's true size (Mp) and confirmed encryption status
+        # stay hidden ("??? Mp", no lock badge) until the decker runs an Analyze Icon on it (see C).
+        located_paydata = _build_located_paydata(state, redact=True)
         # Surface only DISCOVERED trap doors, and even then without the destination -- the player
         # knows a port to "another system" exists, not where it leads. Filing only records it for
         # later (the destination is reachable ONLY through the door); the destination -- and
@@ -1798,10 +1819,7 @@ def _spend_one_shot(state: dict, decker: dict, util_name: str) -> None:
     _append_event(state, {
         "type": "one_shot_spent",
         "utility": key,
-        "description": (
-            f"{_action_label(key)} was a single-use (One-Shot) copy -- spent and gone "
-            "from active memory. Swap Memory a fresh copy to use it again."
-        ),
+        "description": f"{_action_label(key)} spent one active One-Shot copy.",
     })
 
 
@@ -2639,7 +2657,7 @@ def _ic_test_pool(ic: dict, security_value: int, *, defense: bool) -> int:
     return max(1, security_value + threat + expert)
 
 
-def _combat_target_status(target: dict | None = None) -> str:
+def _combat_target_status(target: dict | None = None, *, ic_state: dict | None = None) -> str:
     """Cybercombat to-hit column for an icon the PC is ATTACKING (vr2 L2028).
 
     The COMBAT_TN table keys off the TARGET icon's status, not the attacker's: "any icon logged on
@@ -2647,8 +2665,17 @@ def _combat_target_status(target: dict | None = None) -> str:
     deckers are legitimate residents of the host, so the PC always hits them on the Legitimate
     column. (A target explicitly flagged ``intruding`` -- e.g. a rival runner sharing the host --
     uses the Intruding column -- a PC's Invalidate Passcode sets ``intruding`` on the affected IC /
-    enemy deckers so the PC then hits those targets on the Intruding column.)"""
-    return "intruding" if (target or {}).get("intruding") else "legitimate"
+    enemy deckers so the PC then hits those targets on the Intruding column.)
+
+    ``ic_state`` is passed ONLY at IC target sites: a whole-system Invalidate Passcode latches
+    ``state['passcodes_invalidated']``, which flips EVERY host IC (active, lurking, or activated
+    later) to the Intruding column even if it was not individually flagged when the table was
+    erased. It is never passed for enemy-decker targets, so a rival runner is unaffected."""
+    if (target or {}).get("intruding"):
+        return "intruding"
+    if ic_state and ic_state.get("passcodes_invalidated"):
+        return "intruding"
+    return "legitimate"
 
 
 def _pc_target_status(state: dict) -> str:
@@ -2689,8 +2716,16 @@ def _invalidate_passcodes(state: dict, target_id: str | None) -> list[str]:
             flipped.append(str(_enemy_display_name(enemy)))
 
     if target_id is None:
+        # Erase the ENTIRE passcode table: flip every host IC on the system -- active AND still
+        # lurking -- and latch a flag so any IC that activates LATER is also an intruder (the table
+        # is gone, so nothing on the host can ever present a valid passcode again). Enemy deckers
+        # (rival runners with their own passcodes) still flip individually, as before.
+        state["passcodes_invalidated"] = True
         for ic in state.get("active_ic", []):
             _flip_ic(ic)
+        for ic in state.get("lurking_ic", []):
+            if isinstance(ic, dict) and not ic.get("intruding"):
+                ic["intruding"] = True
         for enemy in state.get("enemy_deckers", []):
             _flip_enemy(enemy)
     else:
@@ -3548,11 +3583,11 @@ def _apply_restore(state: dict, decker: dict, target: str = "", *,
         "attribute_damage": pd[attr],
         "decker_roll": res["roll"],
         "description": (
-            f"{label}-{utility_rating} repairs {attr.upper()} with {pool} dice "
+            f"{label}-{utility_rating} repairs {attr.title()} with {pool} dice "
             f"(TN {res['tn']} = causing crippler rating): "
             f"{res['successes']} success{'' if res['successes'] == 1 else 'es'} -> "
             f"{points} point{'' if points == 1 else 's'} restored. "
-            f"{attr.upper()} now {now} ({pd[attr]} damage remaining"
+            f"{attr.title()} now {now} ({pd[attr]} damage remaining"
             + (f", {floor} permanent chip -- not repairable" if floor > 0 else "") + ")."
         ),
     })
@@ -3604,9 +3639,9 @@ def _enemy_restore_repair(state: dict, enemy: dict) -> None:
     now = max(1, int(enemy.get(attr, 4) or 4) - int(pd.get(attr, 0) or 0))
     name = _enemy_display_name(enemy)
     if points > 0:
-        desc = f"{name} repairs damage to their {attr.upper()}."
+        desc = f"{name} repairs damage to their {attr.title()}."
     else:
-        desc = f"{name} attempts to repair damage to their {attr.upper()}, but fails."
+        desc = f"{name} attempts to repair damage to their {attr.title()}, but fails."
     _append_event(state, {
         "type": "enemy_decker", "outcome": "restore", "enemy_id": enemy.get("id"),
         "description": desc,
@@ -3802,8 +3837,9 @@ def _apply_steamroller(state: dict, decker: dict, *, sec_code: str,
 
     sr_opts = (decker.get("program_options") or {}).get("steamroller") or {}
     # vr2 L2028: hit the TARGET's status column. The target is a lurking tar-IC (a Legitimate host
-    # resident), so Steamroller uses the Legitimate column, not the PC-attacker's Intruding status.
-    to_hit_tn = rules.COMBAT_TN[sec_code][_combat_target_status(target)]
+    # resident by default -- unless a whole-system Invalidate Passcode erased the host passcode
+    # table, which flips it to Intruding), not the PC-attacker's own Intruding status.
+    to_hit_tn = rules.COMBAT_TN[sec_code][_combat_target_status(target, ic_state=state)]
     if bool(sr_opts.get("targeting")):
         to_hit_tn = max(2, to_hit_tn - 2)   # Targeting option: -2 to-hit TN
 
@@ -3959,9 +3995,10 @@ def _apply_slow(state: dict, decker: dict, *, sec_code: str,
         )
 
     # -- To-hit: Computer Test (decker_pool) vs the host combat TN; Targeting eases it -2 --------
-    # vr2 L2028: the to-hit column is the TARGET's status. The target is an IC (a Legitimate host
-    # resident), so Slow always uses the Legitimate column -- not the PC-attacker's own status.
-    to_hit_tn = rules.COMBAT_TN[sec_code][_combat_target_status(target)]
+    # vr2 L2028: the to-hit column is the TARGET's status. The target IC uses the Legitimate column
+    # by default -- unless a whole-system Invalidate Passcode erased the host passcode table, which
+    # flips it (and every host IC) to Intruding -- never the PC-attacker's own status.
+    to_hit_tn = rules.COMBAT_TN[sec_code][_combat_target_status(target, ic_state=state)]
     slow_opts = (decker.get("program_options") or {}).get("slow") or {}
     if bool(slow_opts.get("targeting")):
         to_hit_tn = max(2, to_hit_tn - 2)
@@ -4437,7 +4474,7 @@ def _dinab_attack_ic(state: dict, decker: dict, target_ic: dict, eff: int, sec_c
     attack = eng.cybercombat_attack(
         attacker_pool=max(1, eff),
         security_code=sec_code,
-        target_status=_combat_target_status(target_ic),   # IC = Legitimate host resident (vr2 L2028)
+        target_status=_combat_target_status(target_ic, ic_state=state),   # IC = Legitimate resident unless passcodes invalidated (vr2 L2028)
         target_bod=ic_resist_pool,
         armor_rating=ic_armor,
         ic_rating=eff + cluster_penalty,   # Power = DINAB effective rating (+ cluster, per canonical)
@@ -4462,7 +4499,7 @@ def _dinab_attack_ic(state: dict, decker: dict, target_ic: dict, eff: int, sec_c
         target_ic["crash_turn"] = state.get("current_turn", 1)
         _append_event(state, {
             "type": "ic_crashed", "ic_id": target_ic["id"], "tally_increase": applied,
-            "description": (f"DINAB Attack-{eff} CRASHED {target_ic['type']}-{target_ic['rating']}. "
+            "description": (f"DINAB Attack-{eff} crashed {target_ic['type']}-{target_ic['rating']}. "
                             f"Tally +{applied} -> {state['security_tally']}"),
         })
         _check_and_activate_sheaf(state, sec_code)
@@ -4628,7 +4665,7 @@ def _complete_download(state: dict, decker: dict, pd: dict) -> None:
         "storage_remaining_mp": remaining,
         "description": (
             f"Downloaded \"{pd.get('name')}\" ({stored} Mp"
-            f"{', KEY DATA' if pd.get('is_key') else ''}){comp_note}. "
+            f"{', key data' if pd.get('is_key') else ''}){comp_note}. "
             f"Storage used {state['storage_used_mp']} Mp"
             + (f"; {remaining} Mp free." if tracked else ".")
         ),
@@ -5117,10 +5154,10 @@ def _decoy_intercept(state: dict, ic: dict, *, sec_code: str, sec_value: int,
         "type": "decoy_intercepted",
         "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
         "description": (
-            f"D6={d6} <= {decoy_succ} -- {ic['type']}-{ic['rating']} hits DECOY! "
+            f"D6={d6} <= {decoy_succ} -- {ic['type']}-{ic['rating']} hits decoy! "
             f"{decoy_staged} ({decoy_boxes} boxes). "
             f"Decoy: {min(state.get('decoy_hp', 0), 10)}/10"
-            + (" -- DECOY DESTROYED." if decoy_destroyed else "")
+            + (" -- decoy destroyed." if decoy_destroyed else "")
         ),
         "d6": d6,
         "attack_roll": decoy_atk,
@@ -5149,6 +5186,15 @@ def _apply_analyze_icon(state: dict, *, target_file: str) -> None:
     # A generic slave scan (the old single-device UI option, the legacy "__slave__" token, or an
     # empty name) matches any undiscovered slave bomb; a named device matches that device only.
     slave_generic = scope == "slave" and wn in ("", "__device__", "slave device")
+    # Analyzing a file icon reveals its properties to the decker: its true size (Mp) and whether a
+    # covering Scramble encrypts it. Mark the scanned file analyzed so the run projection can surface
+    # the real size + encryption status -- a mere Locate keeps both hidden ("??? Mp", no lock badge).
+    if scope == "files":
+        for pd in (state.get("paydata") or []):
+            if isinstance(pd, dict) and (
+                str(pd.get("id") or "") == want_name or _paydata_matches(pd, want_name)
+            ):
+                pd["analyzed"] = True
     bomb = None
     for b in (state.get("data_bombs") or []):
         if not isinstance(b, dict) or b.get("discovered"):
@@ -7381,15 +7427,15 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
             net_succ = int(result.get("net_successes", 0) or 0)
             defense_margin = max(0, total_defense - atk_succ)
             desc = (
-                f"{acting_type}-{acting_rating} Construct component vs {attr_key.upper()}: "
+                f"{acting_type}-{acting_rating} Construct component vs {attr_key.title()}: "
                 f"{atk_succ} attack / {total_defense} total defense "
                 f"({def_succ} persona + {shield_succ} Shield). "
                 f"Net Successes: {net_succ}. Defense Margin: {defense_margin}. "
-                f"{attr_key.upper()} -{reduction}."
+                f"{attr_key.title()} -{reduction}."
             )
             if ic_subtype == "ripper" and result.get("chip_damage", 0) > 0:
                 chip = result["chip_damage"]
-                desc += f" {attr_key.upper()} permanently reduced by {chip}."
+                desc += f" {attr_key.title()} permanently reduced by {chip}."
             _append_event(state, {
                 "type": "ic_attack",
                 "ic_id": ic["id"], "ic_type": ic["type"], "ic_rating": ic["rating"],
@@ -7506,11 +7552,11 @@ def _advance_npc_pass(state: dict, decker: dict, run, *, eff: dict, sec_code: st
             phys_full = state["condition_monitor"]["physical_boxes"] >= 10
             stun_full = state["condition_monitor"]["stun_boxes"] >= 10
             if phys_full or stun_full:
-                crit = ("physical damage -- decker in critical condition" if phys_full
-                        else "stun -- decker unconscious, connection dropping")
+                down_line = ("Physical Monitor full: the decker flatlines" if phys_full
+                             else "Stun Monitor full: the decker blacks out, connection dropping")
                 _append_event(state, {
                     "type": "persona_crash",
-                    "description": f"Black IC -- {crit}!",
+                    "description": f"Black IC biofeedback overwhelms the decker. {down_line}.",
                 })
                 mpcp_hit, bl_roll = _roll_mpcp_damage(state, decker, acting_rating, pool_multiplier=2)
                 _append_event(state, {
@@ -7818,7 +7864,7 @@ async def _apply_analysis_action_result(
                         "type": "data_bomb_found",
                         "subsystem": subsystem,
                         "description": (
-                            "Analyze Subsystem -- the Exploding Scramble's linked DATA BOMB is armed "
+                            "Analyze Subsystem -- the Exploding Scramble's linked data bomb is armed "
                             "on this datastore. Defuse it before you decrypt or download."
                         ),
                     })
@@ -7842,7 +7888,7 @@ async def _apply_analysis_action_result(
                 "type": "data_bomb_found",
                 "subsystem": subsystem,
                 "description": (
-                    f"Analyze Subsystem -- a DATA BOMB is armed on the {subsystem.capitalize()} "
+                    f"Analyze Subsystem -- a data bomb is armed on the {subsystem.capitalize()} "
                     "subsystem. Defuse it before you "
                     + ("download or edit a file."
                        if subsystem == "files" else
@@ -7865,7 +7911,7 @@ async def _apply_analysis_action_result(
                     "has_ltg": True,
                     "ltg_address": address,
                     "description": (
-                        f"Access subsystem analyzed -- this host HAS dedicated LTG access at {address}."
+                        f"Access subsystem analyzed -- this host has dedicated LTG access at {address}."
                     ),
                 })
             else:
@@ -7885,8 +7931,7 @@ async def _apply_analysis_action_result(
         _append_event(state, {
             "type": "access_analysis_blocked",
             "description": (
-                "Access subsystem analysis failed -- the host blocked the discovery attempt. "
-                "You can try again."
+                "Access subsystem analysis failed -- the host blocked the discovery attempt."
             ),
         })
 
@@ -7914,7 +7959,7 @@ async def _apply_analysis_action_result(
             "description": (
                 f"Analyze Security -- Security Rating {snapshot['security_code']}-"
                 f"{snapshot['security_value']}, security tally {snapshot['tally']}, "
-                f"alert status {snapshot['alert'].upper()} (as of round {snapshot['turn']})."
+                f"alert status {snapshot['alert'].capitalize()} (as of round {snapshot['turn']})."
             ),
         })
 
@@ -7968,13 +8013,16 @@ def _apply_control_action_result(
     if body.action_type == "invalidate_passcode" and test["success"]:
         whole_list = body.target_ic_id == _INVALIDATE_ALL
         flipped = _invalidate_passcodes(state, None if whole_list else body.target_ic_id)
-        if not flipped:
+        if whole_list:
+            description = (
+                "Host passcode table erased -- every host IC on the system is treated as an intruder "
+                "(revised to-hit TN), including any IC that activates later this run."
+            )
+        elif not flipped:
             description = (
                 "Invalidate Passcode succeeded, but no Legitimate security icon was affected "
                 "(target already Intruding, crashed, or gone)."
             )
-        elif whole_list:
-            description = "Host passcode table erased. All host icons considered intruders."
         else:
             description = (
                 f"Invalidate Passcode successful -- {flipped[0]}'s passcode is erased; it flips "
@@ -8105,14 +8153,11 @@ def _apply_file_action_result(
             parts, files_payload = [], []
             for paydata in newly_located:
                 paydata["located"] = True
-                enc = _reveal_located_file_encryption(state, paydata)
+                # Locate reveals only the file's NAME. Its size (Mp) and whether it is encrypted stay
+                # hidden until the decker runs an Analyze Icon on it (see C) -- do not leak them here.
                 disp = str(paydata.get("name", "?"))
-                size = max(0, int(paydata.get("density", 0) or 0))
-                parts.append(f"{disp} ({size} Mp{', ENCRYPTED' if enc else ''})")
-                files_payload.append({
-                    "name": disp, "size_mp": size,
-                    "is_key": bool(paydata.get("is_key")), "encrypted": enc,
-                })
+                parts.append(disp)
+                files_payload.append({"name": disp, "is_key": bool(paydata.get("is_key"))})
             all_found = not any(
                 not paydata.get("located") and not paydata.get("destroyed")
                 and not paydata.get("is_key")
@@ -8144,13 +8189,10 @@ def _apply_file_action_result(
             parts, files_payload = [], []
             for paydata in targets:
                 paydata["located"] = True
-                enc = _reveal_located_file_encryption(state, paydata)
+                # Name only -- size + encryption stay hidden until an Analyze Icon on the file (see C).
                 disp = str(paydata.get("name", "?"))
-                size = max(0, int(paydata.get("density", 0) or 0))
-                parts.append(f"{disp} ({size} Mp{', ENCRYPTED' if enc else ''})")
-                files_payload.append({
-                    "name": disp, "size_mp": size, "is_key": True, "encrypted": enc,
-                })
+                parts.append(disp)
+                files_payload.append({"name": disp, "is_key": True})
             _append_event(state, {
                 "type": "file_located",
                 "description": "Target file located: " + ", ".join(parts) + ".",
@@ -9073,7 +9115,7 @@ def _apply_ic_crash(state: dict, target_ic: dict, sec_code: str, skulk: int) -> 
         "type": "ic_crashed",
         "ic_id": target_ic["id"],
         "description": (
-            f"{target_ic['type']}-{target_ic['rating']} CRASHED. "
+            f"{target_ic['type']}-{target_ic['rating']} crashed. "
             f"Tally +{applied} -> {state['security_tally']}{skulk_note}"
         ),
         "tally_increase": applied,
@@ -9152,8 +9194,9 @@ async def attack_ic(
     # "hit up to [Area] clustered targets with one test"; it eases the attacker's to-hit only.
     atk_cluster_penalty = max(0, cluster_penalty - opt_area) if opt_area > 0 else cluster_penalty
     # vr2 L2028: the to-hit column is the TARGET icon's status, not the attacker's. IC are
-    # Legitimate host residents, so the PC hits them on the Legitimate column.
-    tgt_status = _combat_target_status(target_ic)
+    # Legitimate host residents, so the PC hits them on the Legitimate column -- unless a
+    # whole-system Invalidate Passcode erased the host passcode table (then every IC is Intruding).
+    tgt_status = _combat_target_status(target_ic, ic_state=state)
     base_tn = rules.COMBAT_TN[sec_code][tgt_status] + atk_cluster_penalty
     # Shield/Shift raise the decker's to-hit TN; Penetration defeats Shield, Chaser defeats Shift.
     shield_shift = _shield_shift_tn_modifier(
@@ -9234,7 +9277,7 @@ async def attack_ic(
             "type": "ic_crashed",
             "ic_id": body.target_ic_id,
             "description": (
-                f"{target_ic['type']}-{target_ic['rating']} CRASHED. "
+                f"{target_ic['type']}-{target_ic['rating']} crashed. "
                 f"Attack {attack_roll['successes']} vs Resist {resist_roll['successes']}. "
                 f"Net Successes: {net_successes}. "
                 f"Tally +{applied} -> {state['security_tally']}{skulk_note}"
@@ -9394,7 +9437,7 @@ async def crash_scramble(
             "scramble_ref": body.scramble_ref,
             "tally_increase": applied,
             "suppression_id": sup_id,
-            "description": f"Scramble IC CRASHED. Tally +{applied} -> {state['security_tally']}.",
+            "description": f"Scramble IC crashed. Tally +{applied} -> {state['security_tally']}.",
         })
         # vr2 L491-492: crashing an EXPLODING Scramble sets off its linked data bomb unless defused.
         if variant == "exploding":
@@ -9997,7 +10040,7 @@ def _process_crash_countdown(state: dict, decker: dict) -> None:
             "type": "crash_host_aborted",
             "roll": abort_roll,
             "description": (
-                f"Host ABORTED the crash (Security Value {sec_value} vs MPCP {mpcp}: "
+                f"Host aborted the crash (Security Value {sec_value} vs MPCP {mpcp}: "
                 f"{_successes(abort_roll['successes'])}). IC ratings restored; countdown cancelled."
             ),
         })
@@ -11022,9 +11065,7 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
         if first_contact:
             _append_event(state, {
                 "type": "enemy_decker", "outcome": "hunting", "enemy_id": enemy["id"],
-                "description": (
-                    f"A hostile decker ({_enemy_display_name(enemy)}) is hunting your icon."
-                ),
+                "description": "A hostile decker is hunting your icon.",
             })
         if loc["located"]:
             enemy["located"] = True
@@ -11139,11 +11180,11 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
             target_status=_pc_target_status(state), tn_modifier=_enemy_wound_mod(enemy))
         if res["infected"]:
             frag = (f"{_action_label(res['drained'])} -{res['applied']}"
-                    f"{' (CRASHED)' if res['crashed'] else ''}") if res["drained"] else "no running program left"
-            desc = (f"HOG -- {_enemy_display_name(enemy)}'s virus takes hold (drains {res['reduction']}/turn): "
+                    f"{' (crashed)' if res['crashed'] else ''}") if res["drained"] else "no running program left"
+            desc = (f"Hog -- {_enemy_display_name(enemy)}'s virus takes hold (drains {res['reduction']}/turn): "
                     f"{frag}. Purge it or reload via Swap Memory.")
         else:
-            desc = f"HOG -- {_enemy_display_name(enemy)}'s virus fails to take hold this turn."
+            desc = f"Hog -- {_enemy_display_name(enemy)}'s virus fails to take hold this turn."
         _append_event(state, {
             "type": "enemy_decker", "outcome": "hog", "enemy_id": enemy["id"],
             "program": "Hog", "attack_roll": res["attack_roll"], "description": desc})
@@ -11164,10 +11205,10 @@ def _enemy_decker_take_turn(state: dict, decker: dict, run, enemy: dict) -> str:
             tn_modifier=atk_tn_delta + _enemy_wound_mod(enemy))
         if cr["reduction"] > 0:
             now = max(1, decker.get(attr, 4) - cm["persona_damage"][attr])
-            desc = (f"{program.upper()} -- {_enemy_display_name(enemy)} cripples your {attr.title()} by "
+            desc = (f"{program} -- {_enemy_display_name(enemy)} cripples your {attr.title()} by "
                     f"{cr['reduction']} (now {now}, until logoff).")
         else:
-            desc = f"{program.upper()} -- {_enemy_display_name(enemy)}'s crippler attack is resisted."
+            desc = f"{program} -- {_enemy_display_name(enemy)}'s crippler attack is resisted."
         _append_event(state, {
             "type": "enemy_decker", "outcome": program.lower(), "enemy_id": enemy["id"],
             "program": program, "attack_roll": cr["attack_roll"], "description": desc})
@@ -11353,11 +11394,11 @@ async def attack_enemy_decker(
             attacker_pool=pool, hog_rating=hog_rating, sec_code=sec_code,
             target_status=_combat_target_status(enemy), tn_modifier=tgt_tn_delta + _decker_wound_mod(state))
         if res["infected"]:
-            desc = (f"HOG -- your virus takes hold on {_enemy_display_name(enemy)}: it will drain "
+            desc = (f"Hog -- your virus takes hold on {_enemy_display_name(enemy)}: it will drain "
                     f"{res['reduction']} off its highest running program each Combat Turn "
                     f"until it purges or crashes.")
         else:
-            desc = f"HOG -- your virus fails to take hold on {_enemy_display_name(enemy)} this turn."
+            desc = f"Hog -- your virus fails to take hold on {_enemy_display_name(enemy)} this turn."
         _append_event(state, {
             "type": "decker_hog", "outcome": "hog", "success": res["infected"],
             "enemy_id": enemy["id"], "program": "hog", "attack_roll": res["attack_roll"],
@@ -11499,7 +11540,7 @@ async def attack_enemy_decker(
             else:
                 enemy["outcome"] = "dumped"
                 enemy["end_reason"] = "icon_crashed"
-                fate = (f"{label} CRASHES {_enemy_display_name(enemy)}'s icon -- the hostile decker is dumped and "
+                fate = (f"{label} crashes {_enemy_display_name(enemy)}'s icon -- the hostile decker is dumped and "
                         f"taken out of the run.")
             # MPCP burn happens only when the ICON actually crashed (blaster at DOUBLE the rating).
             mpcp_hit, mpcp_roll = (0, None)
@@ -11946,7 +11987,7 @@ def _black_ic_final_attack(state: dict, decker: dict, ic: dict) -> dict:
     _append_event(state, {
         "type": "ic_attack", "ic_id": ic["id"], "ic_type": "Black IC", "ic_rating": ic["rating"],
         "description": (
-            f"Black IC {ic['rating']} lands one final attack as you jack out: "
+            f"Black IC-{ic['rating']} lands one final attack as you jack out: "
             f"{black['attack_roll']['successes']} atk successes -- "
             f"{meat_boxes} {'stun' if is_non_lethal else 'phys'} / {persona_boxes} persona."
         ),
@@ -12018,8 +12059,8 @@ async def jack_out(
         _append_event(state, {
             "type": "jack_out", "roll": wp_roll,
             "description": (
-                f"Willpower Test (TN {tn}) SUCCEEDS ({wp_roll['successes']} success"
-                f"{'es' if wp_roll['successes'] != 1 else ''}) -- you tear free, but Black IC "
+                f"Willpower Test (TN {tn}) succeeds ({wp_roll['successes']} success"
+                f"{'es' if wp_roll['successes'] != 1 else ''}) -- you tear free, but Black IC-"
                 f"{black_ic.get('rating')} gets one final attack."
             ),
         })
