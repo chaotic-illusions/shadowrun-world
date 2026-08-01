@@ -222,10 +222,10 @@ class TestDamageStaging:
         assert res["final_damage_level"] == "Moderate"   # Serious staged down 1
 
     def test_resistance_effective_power_floor(self):
-        # Armor cannot drop power below 1
+        # SR2 Rule of Two: armor cannot drop the resistance target number below 2 (user ruling).
         res = eng.damage_resistance(bod=1, power=2, armor_rating=10,
                                     base_damage_level="Light", attacker_successes=0)
-        assert res["effective_power"] == 1
+        assert res["effective_power"] == 2
 
 
 # -- Dump shock (Cybercombat / Dump Shock) -------------------------------------

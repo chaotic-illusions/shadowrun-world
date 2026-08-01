@@ -18,6 +18,7 @@ This module has no ``test_`` functions, so pytest does not collect it directly.
 from __future__ import annotations
 
 import copy
+import re
 
 from app.routers import matrix_runs as mr
 
@@ -99,6 +100,28 @@ def check_event_log_redaction(admin: dict, player: dict, ctx: str = "") -> None:
     for e in (player.get("event_log") or []):
         if isinstance(e, dict):
             assert not e.get("gm_only"), f"gm_only event leaked into the player log: {e.get('type')} {ctx}"
+
+
+_SIZE_LEAK = re.compile(r"\d+\s*Mp")
+
+
+def check_locate_event_redaction(admin: dict, player: dict, ctx: str = "") -> None:
+    """(1) A Locate File / Locate Paydata event names the found file(s) ONLY -- it must never leak a
+    file's size (Mp) or structured size/encryption in its files[] payload. Those stay hidden until an
+    Analyze Icon (Bug C, at the event log: the old leak read 'Target file located: X (90 Mp,
+    ENCRYPTED)'). The size number is the unambiguous leak signal (a file name may legitimately contain
+    the word 'Encrypted', so only the '<n> Mp' pattern + structured fields are asserted)."""
+    for e in (player.get("event_log") or []):
+        if not isinstance(e, dict) or e.get("type") not in ("file_located", "paydata_located"):
+            continue
+        desc = str(e.get("description") or "")
+        assert not _SIZE_LEAK.search(desc), (
+            f"locate event leaked a file size to the player: {desc!r} {ctx}")
+        for f in (e.get("files") or []):
+            if isinstance(f, dict):
+                leaked = {"size_mp", "density", "encrypted"} & set(f)
+                assert not leaked, (
+                    f"locate event files[] leaked {sorted(leaked)} to the player {ctx}")
 
 
 _ENEMY_FORBIDDEN = frozenset({
@@ -195,9 +218,11 @@ def check_admin_parity(admin: dict, player: dict, ctx: str = "") -> None:
 
 # --------------------------------------------------------------------------- cross-view consistency
 def check_located_file_parity(admin: dict, player: dict, ctx: str = "") -> None:
-    """(3) For every located file the player sees, the admin entry exists and AGREES on every field
-    except ``size_mp`` -- which the player alone may mask (None) until the file is analyzed. Catches
-    any field that leaks or diverges between the two views (encryption, key, download/destroy state)."""
+    """(3) For every located file the player sees, the admin entry exists and AGREES on every shared
+    field except ``size_mp`` -- which the player alone may mask (None) until the file is analyzed. The
+    encryption ACTION GATE (``encrypted``) is UNIFORM (True only once the covering Scramble is
+    discovered, for both views, so both blind-download until then); the admin's extra ``scrambled``
+    marker is admin-only, so it is not part of this player-driven parity."""
     a_by_id = {(p.get("id") or p.get("name")): p
                for p in (admin.get("located_paydata") or []) if isinstance(p, dict)}
     for p in (player.get("located_paydata") or []):
@@ -213,6 +238,32 @@ def check_located_file_parity(admin: dict, player: dict, ctx: str = "") -> None:
         if p.get("size_mp") is not None:
             assert p.get("size_mp") == a.get("size_mp"), (
                 f"file {fid!r} revealed size {p.get('size_mp')} != admin {a.get('size_mp')} {ctx}")
+
+
+def check_admin_superset(admin: dict, player: dict, ctx: str = "") -> None:
+    """(3) The admin view is a SUPERSET of the player view: every entity the player can see must also
+    be present in the admin payload (by id). The admin may see MORE (lurking IC, unrevealed enemy
+    deckers, unredacted identities) -- never FEWER. This generalizes the located-files regression
+    (players had located files the admin could neither see nor act on) to every visible collection, so
+    the same class of "player sees it, admin does not" bug cannot recur on IC or enemy deckers.
+
+    Parity is by identity, not by displayed value: the admin's copy is unredacted (a player 'Unknown
+    IC' is a named IC to the admin), so only the id/name set is compared."""
+    def _ids(view: dict, key: str) -> set:
+        out = set()
+        for e in (view.get(key) or []):
+            if isinstance(e, dict):
+                ident = e.get("id")
+                if ident is None:
+                    ident = e.get("name")
+                if ident is not None:
+                    out.add(ident)
+        return out
+    for key in ("active_ic", "enemy_deckers", "located_paydata"):
+        missing = _ids(player, key) - _ids(admin, key)
+        assert not missing, (
+            f"admin {key} is missing entities the player can see (admin must be a superset): "
+            f"{sorted(str(m) for m in missing)} {ctx}")
 
 
 # --------------------------------------------------------------------------- well-formedness
@@ -247,6 +298,7 @@ BATTERY = (
     check_ltg_hidden,
     check_trap_door_destination_hidden,
     check_event_log_redaction,
+    check_locate_event_redaction,
     check_enemy_decker_redaction,
     check_ic_identity_redaction,
     check_pending_defense_redaction,
@@ -254,6 +306,7 @@ BATTERY = (
     check_reveal_positively,
     check_admin_parity,
     check_located_file_parity,
+    check_admin_superset,
     check_state_well_formed,
     check_detection_factor_sane,
 )

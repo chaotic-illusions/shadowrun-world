@@ -1847,10 +1847,6 @@ function _locatingTraceIC(s) { return _traceIC(s).filter(ic => (ic.trace_phase |
 function _pcHogInfections(s) { return (s.hog_infections || []).filter(i => (i.target_id || 'pc') === 'pc'); }
 function _undownPaydata(s){ return (s.located_paydata || []).filter(p => !p.downloaded && !p.destroyed && !p.encrypted); }
 function _locPaydata(s) { return (s.located_paydata || []).filter(p => !p.destroyed && !p.encrypted); }
-function _compFiles(s)  { return (s.downloaded_files || []).filter(f => f.compressed); }
-// Compressor (vr2 L1512): loaded rating, and the stored footprint of a file of the given density
-// -- half size (round up) within the Rating x 100 Mp cap. Mirrors the backend _compressed_store_size
-// so the Download picker previews exactly the size the deck will charge.
 function _compressorRating() { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {}; return Math.max(0, parseInt(u.compressor, 10) || 0); }
 function _storedSizeMp(density) { const d = Math.max(0, parseInt(density, 10) || 0); const c = _compressorRating(); return (c > 0 && d <= c * 100) ? Math.floor((d + 1) / 2) : d; }
 function _storeProgs(s) { return (s.storage_programs || []); }
@@ -1891,7 +1887,7 @@ function _discoveredScrambles(s) {
   if (Array.isArray(s.discovered_scrambles)) return s.discovered_scrambles;
   return (s.scrambles || [])
     .filter(sc => sc && sc.discovered)
-    .map(sc => ({ scramble_ref: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key), rating: sc.rating }));
+    .map(sc => ({ scramble_ref: sc.target_key || '', subsystem: _scrambleSubsystem(sc.target_key), label: _scrambleLabel(sc.target_key), rating: sc.rating, variant: sc.variant, target_kind: String(sc.target_key || '').startsWith('files::file::') ? 'file' : 'node' }));
 }
 function _liveUtils()   { const u = (_run && _run.decker_json && _run.decker_json.utilities) || {};
   return Object.keys(u).filter(k => (parseInt(u[k], 10) || 0) > 0).map(k => ({ key: k, rating: parseInt(u[k], 10) || 0 })); }
@@ -1913,7 +1909,7 @@ function _activeMem(s)  { const u = (_run && _run.decker_json && _run.decker_jso
     .filter(k => (parseInt(u[k], 10) || 0) > 0)
     .reduce((t, k) => t + (parseInt(sz[k], 10) || 0)
       * (Object.prototype.hasOwnProperty.call(copies, k) ? Math.max(0, parseInt(copies[k], 10) || 0) : 1), 0)
-    + _squeezedActive(s).reduce((t, p) => t + (parseInt(p.size, 10) || 0), 0);
+    + _squeezedActive(s).reduce((t, p) => t + Math.ceil((parseInt(p.size, 10) || 0) / 2), 0);
   return { used, cap: parseInt(s && s.active_memory_cap, 10) || 0 }; }
 // Squeezed programs swapped into active memory but NOT yet decompressed: they occupy full active
 // memory but are unusable (held out of decker.utilities) until a Decompress action expands them.
@@ -2036,10 +2032,9 @@ const ACTION_CATALOG = [
     reason: s => _carriedStrikeRating('slow') > 0 ? 'no identified eligible IC' : 'no Slow utility loaded',
     target: s => _icTgt(_slowEligibleIC(s), 'IC to slow') },
   { v: 'decompress_file',   l: 'Decompress',              cost: 'Complex', noTest: true,
-    valid: s => _compFiles(s).length > 0 || _squeezedActive(s).length > 0, reason: 'nothing compressed to decompress',
-    target: s => ({ mode: 'select', label: 'Compressed program / file', options:
-      _squeezedActive(s).map(p => ({ value: 'prog::' + p.name, label: `Program: ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` }))
-        .concat(_compFiles(s).map(f => ({ value: f.name, label: `File: ${String(f.name)}` }))) }) },
+    valid: s => _squeezedActive(s).length > 0, reason: 'no compressed program in active memory',
+    target: s => ({ mode: 'select', label: 'Compressed program in active memory', options:
+      _squeezedActive(s).map(p => ({ value: 'prog::' + p.name, label: `Program: ${prettyProg(p.name)}-${parseInt(p.rating, 10) || 0}` })) }) },
   // -- Simple actions (1 AP) --
   { v: 'analyze_security',  l: 'Analyze Security',        cost: 'Simple' },
   { v: 'analyze_subsystem', l: 'Analyze Subsystem',       cost: 'Simple', subsystem: true },
@@ -2859,10 +2854,10 @@ async function crashScramble(ref) {
       '>> No Attack program loaded -- you need one to crash a Scramble.', true);
     return;
   }
-  const raw = await showPrompt('Crash Scramble: how many Hacking Pool dice to add to your Attack rating?', '0', { title: '>> CRASH SCRAMBLE', inputType: 'number', okLabel: 'Attack' });
+  const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const raw = await showPrompt(`Crash Scramble: how many Hacking Pool dice to add to your Attack rating? (0-${hpMax})`, '0', { title: '>> CRASH SCRAMBLE', inputType: 'number', okLabel: 'Attack', min: 0, max: hpMax });
   if (raw === null) return;
-  const hp = parseInt(raw, 10);
-  if (!Number.isFinite(hp) || hp < 0) return;
+  const hp = Math.max(0, Math.min(parseInt(raw, 10) || 0, hpMax));
   await postAction(`${API}/matrix-runs2/${_run.id}/scramble/attack`,
     { scramble_ref: ref, hacking_pool_dice: hp });
 }
@@ -2873,10 +2868,10 @@ async function crashScramble(ref) {
 // data bomb on ANY decrypt unless you Defuse that bomb first (its own card + this card's hint say so).
 async function decryptScramble(ref) {
   if (!_run) return;
-  const raw = await showPrompt('Decrypt Scramble: how many Hacking Pool dice to add?', '0', { title: '>> DECRYPT SCRAMBLE', inputType: 'number', okLabel: 'Decrypt' });
+  const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const raw = await showPrompt(`Decrypt Scramble: how many Hacking Pool dice to add? (0-${hpMax})`, '0', { title: '>> DECRYPT SCRAMBLE', inputType: 'number', okLabel: 'Decrypt', min: 0, max: hpMax });
   if (raw === null) return;
-  const hp = parseInt(raw, 10);
-  if (!Number.isFinite(hp) || hp < 0) return;
+  const hp = Math.max(0, Math.min(parseInt(raw, 10) || 0, hpMax));
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'decrypt_file',
     subsystem: ACTION_SUBSYSTEM.decrypt_file || 'files',
@@ -2889,10 +2884,10 @@ async function decryptScramble(ref) {
 // action as the (removed) menu entry. The backend derives the bomb's subsystem from the target.
 async function defuseBomb(target) {
   if (!_run) return;
-  const raw = await showPrompt('Defuse Data Bomb: how many Hacking Pool dice to add?', '0', { title: '>> DEFUSE DATA BOMB', inputType: 'number', okLabel: 'Defuse' });
+  const hpMax = (_run?.state_json?.hackingPool_remaining) ?? 0;
+  const raw = await showPrompt(`Defuse Data Bomb: how many Hacking Pool dice to add? (0-${hpMax})`, '0', { title: '>> DEFUSE DATA BOMB', inputType: 'number', okLabel: 'Defuse', min: 0, max: hpMax });
   if (raw === null) return;
-  const hp = parseInt(raw, 10);
-  if (!Number.isFinite(hp) || hp < 0) return;
+  const hp = Math.max(0, Math.min(parseInt(raw, 10) || 0, hpMax));
   await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
     action_type: 'defuse_data_bomb',
     subsystem: ACTION_SUBSYSTEM.defuse_data_bomb || 'files',
@@ -2915,6 +2910,43 @@ async function analyzeIC(id) {
     subsystem: ACTION_SUBSYSTEM.analyze_ic || 'control',
     hacking_pool_dice: 0,
     target_ic_id: id,
+  });
+}
+
+// -- File-card actions (Files pane) ------------------------------------------
+// The file card is the single home for every action on a LOCATED file. Download a plain (or
+// still-unknown) file: the backend either grabs it, or -- if a Scramble still covers it -- reveals
+// the encryption (and detonates an undefused Exploding Scramble's linked bomb). Analyze Icon scans
+// the file for its size + any Scramble/bomb BEFORE you grab it blind. Edit erases/falsifies it.
+async function downloadFile(target) {
+  if (!_run) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'download_data', subsystem: ACTION_SUBSYSTEM.download_data || 'files',
+    hacking_pool_dice: 0, target_file: String(target),
+  });
+}
+async function analyzeFileIcon(target) {
+  if (!_run) return;
+  if ((parseInt((_run.decker_json.utilities || {}).analyze, 10) || 0) <= 0) {
+    showAlert(document.getElementById('runAlert'),
+      '>> No Analyze utility loaded -- load a copy before scanning a file.', true);
+    return;
+  }
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'analyze_icon', subsystem: ACTION_SUBSYSTEM.analyze_icon || 'control',
+    hacking_pool_dice: 0, target_file: 'files::' + String(target),
+  });
+}
+async function editFile(target, mode) {
+  if (!_run) return;
+  const m = (mode === 'modify') ? 'modify' : 'erase';
+  const ok = await showConfirm(
+    `${m === 'erase' ? 'ERASE' : 'MODIFY (falsify)'} "${target}" on the host? This cannot be undone.`,
+    { title: '>> EDIT FILE', okLabel: (m === 'erase' ? 'Erase' : 'Modify'), danger: true });
+  if (!ok) return;
+  await postAction(`${API}/matrix-runs2/${_run.id}/action`, {
+    action_type: 'edit_file', subsystem: ACTION_SUBSYSTEM.edit_file || 'files',
+    hacking_pool_dice: 0, target_file: String(target), edit_mode: m,
   });
 }
 
@@ -2945,6 +2977,86 @@ function _carriedStrikeRating(program) {
     v = fld ? (parseInt(fld.value, 10) || 0) : 0;
   }
   return v > 0 ? v : 0;
+}
+
+// -- File cards (Files pane) -------------------------------------------------
+// One card per LOCATED, still-actionable file (not yet downloaded / destroyed). The available
+// actions are contextual, exactly like an IC card: a file the decker has not yet found to be
+// encrypted offers Analyze Icon / Download / Erase / Modify; once a covering Scramble is
+// discovered (via Analyze Icon or a blind Download attempt) the same card switches to Analyze /
+// Decrypt / Crash. Per-file Scrambles therefore live here in the Files pane, never in the IC pane.
+function _fileBtn(color, enabled, onclick, tip, label, cost) {
+  const cls = color ? `btn btn-${color} btn-sm` : 'btn btn-sm';
+  const gate = enabled ? `onclick="${onclick}"` : 'disabled';
+  return `<button class="${cls}" ${gate} data-tip="${esc(tip)}">&gt;&gt; ${esc(label)}`
+    + (cost ? ` <span style="font-size:.5rem;opacity:.75">${esc(cost)}</span>` : '') + `</button>`;
+}
+
+function _fileCardHtml(p, o) {
+  const target   = String(p.id || p.name || '');
+  const known    = p.size_mp !== null && p.size_mp !== undefined;   // size revealed (analyzed / admin)
+  const sizeTxt  = known ? ((parseInt(p.size_mp, 10) || 0) + ' Mp') : '??? Mp';
+  const enc      = !!p.encrypted;                                    // the decker KNOWS it is encrypted
+  const analyzed = !!p.analyzed;
+  const ref      = p.scramble_ref ? String(p.scramble_ref) : '';
+  const variant  = (p.scramble_variant === 'poison' || p.scramble_variant === 'exploding') ? p.scramble_variant : null;
+  const ratingKnown = p.scramble_rating != null;
+  const canAct   = !o.ended && !o.crashed;
+  const nameColor = enc ? 'var(--cyan)' : (p.is_key ? 'var(--amber)' : 'var(--text-bright)');
+
+  const badges = (enc ? `<span style="color:var(--cyan)">ENCRYPTED${variant ? ' / ' + (variant === 'exploding' ? 'EXPLODING' : 'POISON') : ''}</span>` : '')
+    + (!enc && p.scrambled ? `<span style="color:var(--amber)" data-tip="GM view: a Scramble IC covers this file, but the decker has not discovered it yet -- a blind Download reveals it (and trips an Exploding bomb).">[GM: SCRAMBLED]</span>` : '')
+    + (p.is_key ? `<span style="color:var(--amber)">KEY</span>` : '')
+    + (p.tampered ? `<span style="color:var(--red)">[TAMPERED]</span>` : '');
+
+  let hint;
+  if (!enc) hint = analyzed ? 'Scanned clean -- safe to download or edit.'
+    : 'Tip: Analyze Icon scans for a Scramble / data bomb before you grab it blind.';
+  else if (variant === 'exploding') hint = 'EXPLODING Scramble -- Analyze Icon to find its linked data bomb, DEFUSE it (Data Bombs card), THEN Decrypt. Decrypting or downloading first detonates it.';
+  else if (variant === 'poison') hint = 'POISON Scramble -- Decrypt to clear it (a failed decrypt, or crashing it, may erase the data).';
+  else hint = 'Encrypted by a Scramble IC -- Analyze Icon to learn its type, then Decrypt to read it.';
+
+  let btns = '';
+  if (canAct && !enc) {
+    if (!analyzed) btns += _fileBtn('cyan', o.freeOk && o.analyzeOk, `analyzeFileIcon('${esc(target)}')`,
+      !o.analyzeOk ? 'No Analyze utility loaded -- load one before scanning.'
+        : (o.freeOk ? 'Analyze Icon (Free) -- reveal the size and any Scramble / data bomb before you grab it.'
+                    : 'No Free action left this pass -- End Turn to refresh.'), 'Analyze', 'Free');
+    btns += _fileBtn('green', o.apOk, `downloadFile('${esc(target)}')`,
+      o.apOk ? 'Download this file to deck storage (Simple, 1 AP). If a Scramble still covers it, the attempt reveals that instead.'
+             : 'No action points left this pass -- End Turn to refresh.', 'Download', '1 AP');
+    btns += _fileBtn('', o.apOk, `editFile('${esc(target)}','erase')`,
+      o.apOk ? 'Erase this file from the host (Simple, 1 AP).' : 'No action points left this pass -- End Turn to refresh.', 'Erase', '1 AP');
+    btns += _fileBtn('', o.apOk, `editFile('${esc(target)}','modify')`,
+      o.apOk ? 'Falsify this file in place (Simple, 1 AP).' : 'No action points left this pass -- End Turn to refresh.', 'Modify', '1 AP');
+  } else if (canAct && enc && ref) {
+    if (!analyzed) btns += _fileBtn('cyan', o.freeOk && o.analyzeOk, `analyzeFileIcon('${esc(target)}')`,
+      !o.analyzeOk ? 'No Analyze utility loaded -- load one before scanning.'
+        : (o.freeOk ? 'Analyze Icon (Free) -- reveal the Scramble variant (Poison / Exploding) and any linked data bomb.'
+                    : 'No Free action left this pass -- End Turn to refresh.'), 'Analyze Icon', 'Free');
+    if (!ratingKnown) btns += _fileBtn('cyan', o.freeOk && o.analyzeOk, `analyzeIC('${esc(ref)}')`,
+      !o.analyzeOk ? 'No Analyze utility loaded -- load one before analyzing.'
+        : (o.freeOk ? "Analyze IC (Free) -- reveal the Scramble's rating (the Decrypt TN)."
+                    : 'No Free action left this pass -- End Turn to refresh.'), 'Analyze IC', 'Free');
+    btns += _fileBtn('green', o.apOk, `decryptScramble('${esc(ref)}')`,
+      o.apOk ? 'Decrypt this Scramble (Simple, 1 AP) to reach the data. Poison: a failed decrypt may erase it. Exploding: defuse its linked bomb first.'
+             : 'No action points left this pass -- End Turn to refresh.', 'Decrypt', '1 AP');
+    btns += _fileBtn('red', o.apOk && !o.atkLimitedVsIc, `crashScramble('${esc(ref)}')`,
+      o.atkLimitedVsIc ? 'Your Attack utility is Limited to deckers -- it cannot target IC.'
+        : (o.apOk ? 'Crash the Scramble with your Attack program instead of Decrypting -- LOUD (adds its rating to the tally). Poison may erase the data; Exploding detonates its bomb unless defused.'
+                  : 'No action points left this pass -- End Turn to refresh.'), 'Crash', '1 AP');
+  }
+
+  return `
+    <div class="ic-card${enc ? ' ic-lurking' : ''}"${enc ? '' : ' style="border-color:#12343a"'}>
+      <div class="ic-head">
+        <span class="ic-type-name" style="color:${nameColor}">${esc(p.name || '?')}</span>
+        <span style="font-size:.6rem;color:var(--text-dim);letter-spacing:1px">${sizeTxt}</span>
+      </div>
+      ${badges ? `<div class="ic-meta" style="gap:8px;flex-wrap:wrap">${badges}</div>` : ''}
+      <div style="font-size:0.58rem;color:var(--text-dim);margin:3px 0 2px">${esc(hint)}</div>
+      ${btns ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">${btns}</div>` : ''}
+    </div>`;
 }
 
 // -- Paydata / storage panel -------------------------------------------------
@@ -3020,27 +3132,41 @@ function renderDownloadsPanel() {
     downloaded: !!p.downloaded, destroyed: !!p.destroyed, tampered: !!p.tampered,
   }));
   if (rows.length) {
-    html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:4px">LOCATED FILES</div>`;
-    html += rows.map(p => {
-      const color  = p.destroyed ? 'var(--red)' : (p.downloaded ? 'var(--green)' : 'var(--amber)');
-      const tag    = p.destroyed ? '[DESTROYED]' : (p.downloaded ? '[DOWNLOADED]' : '');
-      const struck = p.destroyed ? 'text-decoration:line-through' : '';
-      // Progressive disclosure (see C): a located file's size + encryption stay hidden until the
-      // decker runs Analyze Icon on it. The backend masks size_mp to null for a player until then
-      // (admins always get the real size), so "size known" is the single signal for
-      // "analyzed-or-admin" -- gate BOTH the size text and the ENCRYPTED badge on it.
-      const known   = p.size_mp !== null && p.size_mp !== undefined;
-      const sizeTxt = known ? ((parseInt(p.size_mp, 10) || 0) + ' Mp') : '??? Mp';
-      const showEnc = known && p.encrypted;
-      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">`
-        + `<span style="font-size:.72rem;color:${showEnc ? 'var(--cyan)' : color};${struck}">${esc(p.name || '?')}</span>`
-        + `<span style="font-size:.58rem;color:var(--text-dim)">${sizeTxt}</span>`
-        + (showEnc ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--cyan)" data-tip="Encrypted by a Scramble IC -- use the Decrypt button on its Subsystem Defenses card before you can download it">ENCRYPTED</span>` : '')
-        + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
-        + (tag ? `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>` : '')
-        + (p.tampered && !p.destroyed ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--red)">[TAMPERED]</span>` : '')
-        + `</div>`;
-    }).join('');
+    const o = {
+      apOk: _canAffordCost(state, 'Simple'),
+      freeOk: _canAffordCost(state, 'Free'),
+      analyzeOk: (parseInt(((_run && _run.decker_json && _run.decker_json.utilities) || {}).analyze, 10) || 0) > 0,
+      atkLimitedVsIc: (_attackOptions().limit_target === 'decker'),
+      ended: !!state.run_ended || (!!_run && _run.status && _run.status !== 'active'),
+      crashed: !!state.icon_crashed,
+    };
+    // Still-actionable files get a full action card (Analyze / Download / Edit -- or, once a
+    // covering Scramble is discovered, Analyze / Decrypt / Crash); downloaded / destroyed files
+    // settle to a compact row. Every file operation is driven from here in the Files pane.
+    const actionable = rows.filter(p => !p.downloaded && !p.destroyed);
+    const settled    = rows.filter(p => p.downloaded || p.destroyed);
+
+    if (actionable.length) {
+      html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin:2px 0 6px">FILES</div>`;
+      html += actionable.map(p => _fileCardHtml(p, o)).join('');
+    }
+    if (settled.length) {
+      html += `<div style="font-size:.58rem;color:var(--text-dim);letter-spacing:1px;margin:8px 0 4px">RESOLVED FILES</div>`;
+      html += settled.map(p => {
+        const color   = p.destroyed ? 'var(--red)' : 'var(--green)';
+        const tag     = p.destroyed ? '[DESTROYED]' : '[DOWNLOADED]';
+        const struck  = p.destroyed ? 'text-decoration:line-through' : '';
+        const known   = p.size_mp !== null && p.size_mp !== undefined;
+        const sizeTxt = known ? ((parseInt(p.size_mp, 10) || 0) + ' Mp') : '??? Mp';
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">`
+          + `<span style="font-size:.72rem;color:${color};${struck}">${esc(p.name || '?')}</span>`
+          + `<span style="font-size:.58rem;color:var(--text-dim)">${sizeTxt}</span>`
+          + (p.is_key ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--amber)">KEY</span>` : '')
+          + `<span style="font-size:.55rem;letter-spacing:1px;color:${color}">${tag}</span>`
+          + (p.tampered && !p.destroyed ? `<span style="font-size:.55rem;letter-spacing:1px;color:var(--red)">[TAMPERED]</span>` : '')
+          + `</div>`;
+      }).join('');
+    }
   }
 
   if (downloaded.length) {
@@ -3442,8 +3568,10 @@ function renderRunState(run) {
   // Crash Host countdown banner (visible once the decker initiates a crash)
   renderCrashCountdown(state.crash_host_countdown);
 
-  // Known security: active IC, detected lurking IC, and discovered subsystem-bound defenses.
-  renderActiveIC(state.active_ic || [], [].concat(state.lurking_ic || [], state.revealed_lurking_ic || []), _discoveredScrambles(state), state.run_ended, crashed);
+  // Known security: active IC, detected lurking IC, and discovered subsystem-bound defenses. A
+  // per-file Scramble (target_kind 'file') is NOT shown here -- it rides its file's card in the
+  // Files pane, where every file action is handled. Only node-level defenses stay in this pane.
+  renderActiveIC(state.active_ic || [], [].concat(state.lurking_ic || [], state.revealed_lurking_ic || []), _discoveredScrambles(state).filter(sc => (sc.target_kind || 'node') !== 'file'), state.run_ended, crashed);
   renderSuppressions(state, crashed);
   renderEnemyDeckers(state.enemy_deckers || [], state.run_ended, crashed);
   renderAreaStrikeSlot(state.run_ended, crashed);
@@ -4396,7 +4524,7 @@ async function performAction() {
     if (val) {
       if (entry.maneuver) body.maneuver_target = val;
       else if (['steamroller', 'slow', 'disinfect', 'analyze_ic', 'invalidate_passcode', 'relocate'].includes(actionType)) body.target_ic_id = val;
-      else if (actionType === 'decompress_file') { if (val.startsWith('prog::')) body.target_program = val.slice(6); else body.target_file = val; }
+      else if (actionType === 'decompress_file') { body.target_program = val.startsWith('prog::') ? val.slice(6) : val; }
       else if (['dinab', 'swap_memory', 'unload_program', 'purge_hog'].includes(actionType)) body.target_program = val;
       else body.target_file = val;
     }
@@ -4908,7 +5036,7 @@ function _streamDiceHtml(roll, label) {
 }
 
 const _GOOD_EVENT_TYPES = new Set([
-  'crash_host_complete', 'data_downloaded', 'file_decompressed', 'ic_crashed', 'ic_slowed',
+  'crash_host_complete', 'data_downloaded', 'ic_crashed', 'ic_slowed',
   'ic_suppressed', 'logoff_success', 'logon', 'medic_heal', 'paydata_secured',
   'program_decompressed', 'restore_repair', 'scramble_crashed', 'tar_steamrolled', 'worm_disinfected',
 ]);
