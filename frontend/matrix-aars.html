@@ -99,8 +99,12 @@ function renderAars(aars) {
       lines.push(_line(`Target files found: ${tfiles.length}`, 'text-cyan'));
       tfiles.forEach(f => {
         const nm = (f && f.name) ? f.name : 'file';
-        const st = (f && f.destroyed) ? ' [DESTROYED]' : ((f && f.downloaded) ? ' [downloaded]' : ' [located]');
-        lines.push(_line(`  - ${nm}${st}`, 'text-bright'));
+        const st = (f && f.destroyed) ? ' [DESTROYED]'
+          : (f && f.tampered) ? ' [TAMPERED]'
+          : (f && f.downloaded) ? ' [downloaded]'
+          : ' [located]';
+        const stColor = (f && (f.destroyed || f.tampered)) ? 'text-red' : 'text-bright';
+        lines.push(_line(`  - ${nm}${st}`, stColor));
         if (f && f.narrative) lines.push(_line(`    ${f.narrative}`, 'text-dim'));
       });
     }

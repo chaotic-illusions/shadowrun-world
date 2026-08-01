@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import random
+import re
 from pathlib import Path
 
 import pytest
@@ -322,10 +323,13 @@ def test_driven_logon_locate_analyze_real_endpoints(monkeypatch):
 # cannot see the dropdown/tooltip render, so these tokens are the regression guard for it.
 # =============================================================================
 def test_frontend_visibility_contracts_static():
-    # C: the paydata panel gates size + ENCRYPTED badge on "size known", not on raw encryption.
-    assert "const known   = p.size_mp !== null && p.size_mp !== undefined;" in RUN_UI
-    assert "const showEnc = known && p.encrypted;" in RUN_UI
-    assert "p.encrypted ? '??? Mp'" not in RUN_UI  # the old leak-prone gate is gone
+    # C: a located file's SIZE stays masked ('??? Mp') until analyzed; the ENCRYPTED badge now
+    # tracks the DISCOVERED covering Scramble (p.encrypted), decoupled from analysis, so a blind
+    # Download attempt is what reveals the lock (and the file card offers Decrypt once it does).
+    assert "p.size_mp !== null && p.size_mp !== undefined" in RUN_UI
+    assert "const enc      = !!p.encrypted;" in RUN_UI            # file card keys ENCRYPTED off discovery
+    assert "p.encrypted ? '??? Mp'" not in RUN_UI                 # the old leak-prone gate is gone
+    assert "function _fileCardHtml(p, o)" in RUN_UI               # the contextual file card exists
 
     # D: Invalidate Passcode always offers the whole-system option and drops the visible-IC gate.
     assert "const opts = [{ value: '__all__', label: 'Entire system passcode table (+4 TN)' }];" in RUN_UI
@@ -340,15 +344,45 @@ def test_frontend_visibility_contracts_static():
     assert 'title="Drag between Active and Storage; drag out to remove"' not in RUN_UI
 
 
+# A native OS dialog: prompt(/alert(/confirm( or window.prompt( -- but NOT the in-app showPrompt /
+# showAlert / showConfirm helpers (capitalised, so the lowercase name never appears in them).
+_NATIVE_DIALOG_RE = re.compile(r"(?<![A-Za-z_])(?:window\.)?(prompt|alert|confirm)\s*\(")
+
+
+def test_run_console_uses_only_in_app_dialogs_static():
+    """Regression (Decrypt-from-card gave an OS popup): the run console must never call a NATIVE OS
+    dialog -- every prompt goes through the in-app showPrompt / showAlert / showConfirm. A categorical
+    ban, so reintroducing prompt() / alert() / confirm() ANYWHERE in the console fails here (this runs
+    even where the headless browser is unavailable). Behavioral proof: tests/test_matrix_ui_dom."""
+    hits = sorted({m.group(0) for m in _NATIVE_DIALOG_RE.finditer(RUN_UI)})
+    assert not hits, f"native OS dialog(s) in the run console (use the in-app show* helpers): {hits}"
+
+
+def test_event_log_autoscroll_wired_static():
+    """Regression (log did not scroll to newest): the running log pins to its newest entry --
+    _scrollFeedToBottom sets scrollTop to scrollHeight and is invoked when new events append.
+    Behavioral proof: tests/test_matrix_ui_dom::test_fedbank_event_log_autoscrolls_to_newest."""
+    assert "feed.scrollTop = feed.scrollHeight;" in RUN_UI
+    assert RUN_UI.count("_scrollFeedToBottom()") >= 2   # defined + invoked on new events
+
+
+def test_program_tooltips_in_app_with_descriptions_static():
+    """Regression (tooltips were OS-native + size-only): program chips show the program DESCRIPTION
+    via the in-app data-tip tooltip. progTip pulls MatrixPrograms' description; progChip renders it in
+    data-tip. Behavioral proof: tests/test_matrix_ui_dom::test_fedbank_program_tooltips_*."""
+    assert "const desc = MatrixPrograms.get(name)?.description || '';" in RUN_UI
+    assert 'data-tip="${esc(tip)}"' in RUN_UI
+
+
 # =============================================================================
 # ACTION-AVAILABILITY contracts -- the server side of "the action a rule permits is offerable, the
 # ones it forbids are not" (Bugs D/F). Driven against the real perform_action so the gate the UI
 # relies on is proven at the source.
 # =============================================================================
-def test_download_gate_blocks_encrypted_allows_plain(monkeypatch):
-    """Download Data must reject an ENCRYPTED file (its Scramble IC is the lock) and must NOT reject
-    a plain located file for that reason -- so the UI can safely offer plain files and gate encrypted
-    ones behind Decrypt."""
+def test_download_attempt_reveals_encrypted_allows_plain(monkeypatch):
+    """A Download attempt on an ENCRYPTED file no longer hard-blocks: it DISCOVERS the covering
+    Scramble (so the file card can offer Decrypt) and grabs no data, while a plain located file is
+    never rejected for a Scramble reason -- so the UI can offer both, gating decrypt on the card."""
     run = _new_run(monkeypatch)
     st = run.state_json
     st["logon_complete"] = True
@@ -361,9 +395,12 @@ def test_download_gate_blocks_encrypted_allows_plain(monkeypatch):
                               utility_rating=6, hacking_pool_dice=0, target_file=name)
         return asyncio.run(mr.perform_action(1, body, AUTH_ADMIN, _FakeDB()))
 
-    with pytest.raises(HTTPException) as excinfo:
-        _download(ENCRYPTED_FILE)
-    assert "Scramble" in str(excinfo.value.detail), "encrypted file was not blocked by its Scramble lock"
+    # The encrypted file's blind attempt resolves (no raise): it reveals the Scramble, grabs nothing.
+    _download(ENCRYPTED_FILE)
+    assert any(s.get("discovered") for s in (run.state_json.get("scrambles") or [])), (
+        "the blind Download attempt must discover the covering Scramble")
+    enc_pd = next(p for p in run.state_json["paydata"] if p["name"] == ENCRYPTED_FILE)
+    assert not enc_pd.get("downloaded"), "encrypted data must not actually be downloaded"
 
     # The plain file is never rejected for the Scramble reason (a dice/AP failure is acceptable).
     try:
