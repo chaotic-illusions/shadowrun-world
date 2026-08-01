@@ -389,6 +389,14 @@ def _scramble_ref(index: int) -> str:
     return f"scramble_{index + 1}"
 
 
+def _scramble_ref_for(state: dict, scramble: dict) -> str | None:
+    """The stable player ref (``scramble_N``) for a specific Scramble dict, or None if not found."""
+    for i, s in enumerate(state.get("scrambles") or []):
+        if s is scramble:
+            return _scramble_ref(i)
+    return None
+
+
 def _file_scramble_for_target(state: dict, target_file: str) -> dict | None:
     """Return unresolved Scramble IC that blocks access to the selected Files target."""
     for scramble in (state.get("scrambles") or []):
@@ -408,18 +416,6 @@ def _file_scramble_for_target(state: dict, target_file: str) -> dict | None:
         ):
             return scramble
     return None
-
-
-def _assert_file_not_scrambled(state: dict, body: RunActionInput) -> None:
-    """Scramble is a lock: Decrypt File must remove it before Download/Edit can run."""
-    if body.action_type not in {"download_data", "edit_file"} or not body.target_file:
-        return
-    if _file_scramble_for_target(state, body.target_file) is not None:
-        raise HTTPException(
-            400,
-            "File access blocked by Scramble IC. Analyze the Files subsystem, then Decrypt it "
-            "from its Subsystem Defenses card before downloading or editing the protected file.",
-        )
 
 
 def _paydata_encrypted(state: dict, pd: dict) -> bool:
@@ -1000,20 +996,29 @@ def _build_located_paydata(state: dict, *, redact: bool) -> list[dict]:
     files vanish from the admin console and its Analyze Icon has no targets.
 
     Progressive disclosure (``redact``, players + runner-view preview): a located file's true size
-    (Mp) and confirmed encryption status stay hidden until the decker runs an Analyze Icon on it.
-    Until analyzed, ``size_mp`` is None (the UI shows "??? Mp") and the client suppresses the lock
-    badge. Admins (``redact`` False) always see the real size. ``encrypted`` is always sent (the
-    Download / Edit gate needs it and it is the decker's own discoverable data), but the UI only
-    reveals the ENCRYPTED badge once the file is analyzed."""
+    (Mp) stays hidden until the decker runs an Analyze Icon on it (``size_mp`` None -> the UI shows
+    "??? Mp"); admins (``redact`` False) always see the real size. The encryption ACTION GATE is
+    uniform: ``encrypted`` (and the covering Scramble's ref/variant/rating) is disclosed only once
+    the Scramble is DISCOVERED -- via an Analyze Icon on the file, an Analyze Subsystem, or a blind
+    Download/Edit attempt (which trips an Exploding Scramble's bomb) -- for BOTH views, so the admin
+    plays with the SAME file affordances as the player (a blind Download stays available to both
+    until discovery). The admin merely ALSO sees a ``scrambled`` marker so it knows a lock is hidden
+    there. Once known, the Scramble ref/variant/rating ride the entry so the file's card can offer
+    Decrypt / Crash / Analyze IC in place."""
     out: list[dict] = []
     for p in (state.get("paydata") or []):
         if not isinstance(p, dict) or not p.get("located"):
             continue
         analyzed = bool(p.get("analyzed"))
+        scramble = _file_scramble_for_target(state, str(p.get("id") or p.get("name") or ""))
+        covered = scramble is not None
+        known = covered and bool(scramble.get("discovered"))
         entry = {
             "id": p.get("id"),
             "name": p.get("name"),
-            "encrypted": _paydata_encrypted(state, p),
+            # Uniform action gate: the lock is "encrypted" only once DISCOVERED, for admin + player
+            # alike -- so both blind-download until it is found in play.
+            "encrypted": known,
             "analyzed": analyzed,
             "size_mp": max(0, int(p.get("density", 0) or 0)) if (analyzed or not redact) else None,
             "is_key": bool(p.get("is_key")),
@@ -1021,6 +1026,20 @@ def _build_located_paydata(state: dict, *, redact: bool) -> list[dict]:
             "destroyed": bool(p.get("destroyed")),
             "tampered": bool(p.get("tampered")),
         }
+        # GM "sees more": flag a still-undiscovered Scramble to the admin/runner view WITHOUT
+        # changing the action set (it still blind-downloads like a player until discovery).
+        if covered and not known and not redact:
+            entry["scrambled"] = True
+        # Surface the covering Scramble so the file's own card can drive Decrypt / Crash / Analyze
+        # IC -- but ONLY once DISCOVERED, so admin and player share the identical action set.
+        if known:
+            tk = str(scramble.get("target_key") or "")
+            entry["scramble_ref"] = tk if not redact else _scramble_ref_for(state, scramble)
+            entry["scramble_kind"] = "file" if tk.startswith("files::file::") else "node"
+            if scramble.get("rating_revealed"):
+                entry["scramble_rating"] = int(scramble.get("rating", 0) or 0)
+            if scramble.get("variant_revealed"):
+                entry["scramble_variant"] = scramble.get("variant")
         out.append(entry)
     return out
 
@@ -1105,6 +1124,10 @@ def _serialize_run(run: MatrixRun, auth: dict) -> dict:
                 "scramble_ref": _scramble_ref(index),
                 "subsystem": _scramble_subsystem(s.get("target_key", "")),
                 "label": _scramble_player_label(state, s.get("target_key", "")),
+                # A per-file Scramble (files::file::<id>) lives on its file's card in the Files pane;
+                # only node-level Scrambles (files::entire, access, slave) show in Subsystem Defenses.
+                "target_kind": ("file" if str(s.get("target_key", "")).startswith("files::file::")
+                                else "node"),
             }
             # Rating is disclosed only after an Analyze IC on the scramble. The variant
             # (Poison/Exploding) is surfaced once an Analyze Icon (file) or Analyze Subsystem has
@@ -4763,84 +4786,38 @@ def _tick_active_download(state: dict, decker: dict, dl: dict) -> None:
         _corrupt_active_download(state)  # source file gone before the transfer finished
 
 
-def _apply_decompress(state: dict, decker: dict, *, target_file: str) -> None:
-    """Resolve a Decompress File action (vr2_rules.md L1512-1515: "Files must be decompressed before
-    being able to read or use them"). Pure storage bookkeeping with NO dice/test -- like Swap Memory
-    -- it expands a chosen COMPRESSED downloaded file back to its full size on the deck.
+def _squeezed_active_footprint(full_size: int) -> int:
+    """Active-memory footprint of a SQUEEZED program held (still compressed) in active memory: half
+    its full size, rounded up (vr2 Squeeze). Decompressing it (a Complex Action) restores the full
+    footprint, which needs the extra half free -- so a squeezed program lets the decker park it in
+    active memory cheaply and pay the rest only when they expand it for use."""
+    return (max(0, int(full_size or 0)) + 1) // 2
 
-    When deck storage is tracked the expansion needs the extra ``full_size_mp - stored`` free Mp
-    (the rule's "Decks must have sufficient active memory to hold the uncompressed size of the
-    file" -- this app models one storage pool, so that requirement is enforced here at decompress
-    time rather than at download time). If there isn't room the action is REJECTED (400) and NOT
-    spent. On success ``storage_used_mp`` grows by the delta, the ledger entry's ``size_mp`` grows
-    back to ``full_size_mp``, and the ``compressed`` flag is cleared on BOTH the ledger entry and
-    the matching paydata row, then a player-visible ``file_decompressed`` event is emitted. When
-    storage is untracked (``storage_free_mp`` < 0) the storage math is skipped but the flag is still
-    cleared and the event still fires. A missing or already-uncompressed target is a no-op event
-    (never a crash)."""
-    name = (target_file or "").strip()
-    ledger = state.get("downloaded_files") or []
-    entry = next((f for f in ledger
-                  if (str(f.get("id") or "") == name
-                      or str(f.get("name", "")).strip().lower() == name.lower())
-                  and f.get("compressed")), None)
-    if not name or entry is None:
-        _append_event(state, {
-            "type": "file_decompressed", "outcome": "no_target",
-            "description": (
-                f"Decompress: no compressed file \"{name}\" in storage to expand."
-                if name else
-                "Decompress: name a compressed downloaded file to expand."
-            ),
-        })
-        return
 
-    stored = max(0, int(entry.get("size_mp", 0) or 0))
-    full = max(stored, int(entry.get("full_size_mp", stored) or stored))
-    delta = full - stored
-
-    free = state.get("storage_free_mp", -1)
-    tracked = free is not None and free >= 0
-    if tracked:
-        remaining = max(0, free - state.get("storage_used_mp", 0))
-        if delta > remaining:
-            raise HTTPException(
-                400,
-                f"Not enough deck storage to decompress \"{entry.get('name')}\": needs {delta} "
-                f"more Mp ({full} Mp uncompressed) but only {remaining} Mp free. Purge stored "
-                "files or free storage memory first."
-            )
-        state["storage_used_mp"] = state.get("storage_used_mp", 0) + delta
-
-    # Expand the ledger entry and clear the compressed flag on it AND the matching paydata row
-    # (the file can now be read/used).
-    entry["size_mp"] = full
-    entry["compressed"] = False
-    paydata = _paydata_for_target(state, entry.get("id") or entry.get("name", ""))
-    if paydata is not None:
-        paydata["compressed"] = False
-
-    free2 = state.get("storage_free_mp", -1)
-    tracked2 = free2 is not None and free2 >= 0
-    remaining2 = max(0, free2 - state.get("storage_used_mp", 0)) if tracked2 else None
-    desc = (f"Decompressed \"{entry.get('name')}\" -> {full} Mp. "
-            f"Storage used: {state.get('storage_used_mp', 0)} Mp.")
-    _append_event(state, {
-        "type": "file_decompressed", "outcome": "expanded",
-        "file_name": entry.get("name"),
-        "size_mp": full,
-        "storage_used_mp": state.get("storage_used_mp", 0),
-        "storage_remaining_mp": remaining2,
-        "description": desc,
-    })
+def _active_memory_used(state: dict, decker: dict) -> int:
+    """Total active-memory Mp in use: every usable loaded utility at its full footprint PLUS every
+    still-compressed squeezed program at HALF its full footprint (it occupies active memory even
+    while unusable). One-shot utilities count once per loaded copy."""
+    sizes = state.get("program_sizes") or {}
+    utils = decker.get("utilities") or {}
+    one_shot_counts = state.get("one_shot_active") or {}
+    used = sum(
+        int(sizes.get(n, 0) or 0) * (
+            max(0, int(one_shot_counts.get(n, 0) or 0)) if n in one_shot_counts else 1)
+        for n, r in utils.items() if (r or 0) > 0
+    )
+    used += sum(_squeezed_active_footprint(int(p.get("size", 0) or 0))
+                for p in (state.get("squeezed_active") or []) if isinstance(p, dict))
+    return used
 
 
 def _apply_decompress_program(state: dict, decker: dict, *, target_program: str) -> bool:
-    """Decompress a Squeezed program that was swapped into active memory (vr2_rules.md L1673:
-    "Cannot be used until decompressed -- Complex Action, no test required"). Pure bookkeeping --
-    it moves the program out of the ``squeezed_active`` holding area into ``decker.utilities`` so
-    every effective-rating / auto-defense path now sees it. The program already occupies its full
-    active footprint (charged when it was swapped in), so there is NO memory check here. Returns
+    """Decompress a Squeezed program held in active memory (vr2_rules.md L1673: "Cannot be used
+    until decompressed -- Complex Action, no test required"). A squeezed program occupies only HALF
+    its footprint while compressed; expanding it restores the FULL footprint, so it needs the extra
+    half of active memory free (exactly-enough is allowed -- it may max out active memory). If there
+    is not room the action is REJECTED (400) and not spent. On success the program moves out of the
+    ``squeezed_active`` holding area into ``decker.utilities`` (now usable) at its full size. Returns
     True when a program was expanded (the caller must persist ``decker``); a missing target emits a
     no-op event and returns False (never a crash)."""
     name = (target_program or "").strip().lower()
@@ -4858,12 +4835,25 @@ def _apply_decompress_program(state: dict, decker: dict, *, target_program: str)
             ),
         })
         return False
+    full = int(ent.get("size", 0) or 0)
+    cap = int(state.get("active_memory_cap", 0) or 0)
+    if cap > 0:
+        # Expanding restores the full footprint from the squeezed half -- it needs the extra half
+        # free. Exactly-enough is fine (it may max out active memory).
+        delta = full - _squeezed_active_footprint(full)
+        used = _active_memory_used(state, decker)   # counts THIS program at its squeezed half
+        if used + delta > cap:
+            raise HTTPException(
+                400,
+                f"Not enough active memory to decompress {pretty}: expanding to {full} Mp needs "
+                f"{delta} more Mp but only {max(0, cap - used)} Mp is free. Swap a program out first."
+            )
     squeezed_active.remove(ent)
     utils = decker.setdefault("utilities", {})
     sizes = state.setdefault("program_sizes", {})
     rating = int(ent.get("rating", 0) or 0)
     utils[name] = rating
-    sizes[name] = int(ent.get("size", sizes.get(name, 0)) or 0)
+    sizes[name] = full
     state.setdefault("program_damage", {}).pop(name, None)   # fresh copy -- no accrued damage
     active_counts = state.get("one_shot_active")
     if isinstance(active_counts, dict) and _is_one_shot(decker, name):
@@ -5438,6 +5428,50 @@ def _trigger_access_subsystem_bomb(state: dict, decker: dict, *, op_label: str) 
         headline=f"Access-subsystem data bomb ({op_label})",
     )
     return True
+
+
+def _apply_scrambled_file_access(state: dict, decker: dict, body: RunActionInput,
+                                 scramble: dict) -> None:
+    """A Download/Edit ATTEMPT on a file still covered by an undecrypted Scramble IC (vr2). The
+    data is encrypted garbage, so the transfer/edit itself is refused -- but the attempt DISCOVERS
+    the Scramble (it now rides the file's card, offering Decrypt), and an undefused EXPLODING
+    Scramble's linked data bomb DETONATES: the price of grabbing a file blind instead of Analyzing
+    it first. A Poison Scramble (no bomb) is simply revealed -- its Poison Test only reacts to a
+    cybercombat crash, not to a read. Mutates ``state`` and emits a player-visible event."""
+    newly_found = not scramble.get("discovered")
+    scramble["discovered"] = True
+    # Name the file the decker actually tried to grab (its real name, not the internal id/target key).
+    _pd = _paydata_for_target(state, body.target_file or "")
+    file_label = str((_pd or {}).get("name") or body.target_file or "the file")
+    op = "download" if body.action_type == "download_data" else "edit"
+    # An undefused data bomb guarding this file (an Exploding Scramble's linked bomb, or a
+    # standalone file bomb) trips on the blind access -- the decker eats the blast, not the data.
+    bomb = _armed_bomb_on_file(state, scramble)
+    detonated = False
+    if bomb is not None:
+        scramble["variant_revealed"] = True   # the blast reveals it was an Exploding Scramble
+        state["data_bombs"] = [b for b in (state.get("data_bombs") or []) if b is not bomb]
+        eff = _get_decker_effective(decker, state)
+        _detonate_data_bomb(
+            state, decker, eff,
+            ic_rating=int(bomb.get("rating", scramble.get("rating", 6)) or 6),
+            sec_value=state.get("host_security_value", 6),
+            sec_code=state.get("host_security_code", "Green"),
+            headline="Exploding Scramble's linked data bomb")
+        detonated = True
+    _append_event(state, {
+        "type": "file_access_encrypted",
+        "action_label": "Download Data" if body.action_type == "download_data" else "Edit File",
+        "subsystem": "files",
+        "success": False,
+        "scramble_discovered": newly_found,
+        "detonated": detonated,
+        "description": (
+            f"You try to {op} \"{file_label}\" but the data is ENCRYPTED by Scramble IC"
+            + (" -- and its linked data bomb DETONATES!" if detonated
+               else ". Decrypt the Scramble first (Analyze Icon to learn its type safely).")
+        ),
+    })
 
 
 def _live_icon_bandwidth(decker: dict, state: dict, eff: dict | None = None) -> int:
@@ -6182,6 +6216,7 @@ def _build_run_aar(run: MatrixRun) -> dict:
             "narrative": str(pd.get("narrative", "") or ""),
             "downloaded": bool(pd.get("downloaded")),
             "destroyed": bool(pd.get("destroyed")),
+            "tampered": bool(pd.get("tampered")),
         })
 
     return {
@@ -8372,16 +8407,12 @@ def _apply_direct_action(
         return True, None
 
     if body.action_type == "decompress_file":
-        if body.target_program:
-            new_decker = copy.deepcopy(decker)
-            changed = _apply_decompress_program(
-                state,
-                new_decker,
-                target_program=body.target_program,
-            )
-            return True, new_decker if changed else None
-        _apply_decompress(state, decker, target_file=body.target_file)
-        return True, None
+        # Decompress applies ONLY to a Squeezed program held in active memory -- never to a
+        # downloaded paydata file (a compressed file rides out compressed; the buyer expands it).
+        new_decker = copy.deepcopy(decker)
+        changed = _apply_decompress_program(
+            state, new_decker, target_program=body.target_program)
+        return True, new_decker if changed else None
 
     if body.action_type == "dinab":
         _apply_dinab(
@@ -8614,7 +8645,6 @@ async def perform_action(
         _assert_logged_on(state)
 
     _assert_known_action_target(state, body)
-    _assert_file_not_scrambled(state, body)
     _assert_hp_eligible(body.action_type, body.hacking_pool_dice)
 
     # Graceful Logoff is its own Access Test (not a generic subsystem op), so resolve it via
@@ -8644,10 +8674,13 @@ async def perform_action(
 
     # Storage pre-check: a Download cannot even be attempted if the named file would not fit the
     # deck's remaining free storage (vr2 finite memory). Block before spending the action so the
-    # player isn't charged a pass for an impossible download. storage_free_mp < 0 = untracked.
+    # player isn't charged a pass for an impossible download. storage_free_mp < 0 = untracked. A
+    # still-encrypted file is skipped here -- the attempt won't transfer any data (it only reveals
+    # the Scramble / trips its bomb), so storage is irrelevant to it.
     if body.action_type == "download_data" and body.target_file:
         free = state.get("storage_free_mp", -1)
-        if free is not None and free >= 0:
+        if (free is not None and free >= 0
+                and _file_scramble_for_target(state, body.target_file) is None):
             pd = _paydata_for_target(state, body.target_file)
             if pd is not None and not pd.get("downloaded"):
                 # Use the SAME effective stored size the download will charge, so a Compressor
@@ -8690,6 +8723,22 @@ async def perform_action(
         raise HTTPException(
             400, "Datatrail already redirected on this host -- the Trace Factor benefit is banked. "
                  "Follow a trap door to a new system to redirect again.")
+
+    # Download / Edit of a file still covered by an undecrypted Scramble IC (vr2): the decker MAY
+    # attempt it, but the encrypted data is unreadable -- the attempt only DISCOVERS the Scramble
+    # (the file's card now offers Decrypt) and, for an undefused EXPLODING Scramble, trips its
+    # linked data bomb. Resolve it here and return, so it never runs the normal Files System Test.
+    if body.action_type in ("download_data", "edit_file") and body.target_file:
+        _cover = _file_scramble_for_target(state, body.target_file)
+        if _cover is not None:
+            _spend_pass_action(state, body.action_type)
+            _apply_scrambled_file_access(state, decker, body, _cover)
+            if state.get("run_ended"):
+                run.status = state.get("end_reason", "crashed")
+            run.state_json = state
+            await db.commit()
+            await db.refresh(run)
+            return _serialize_run(run, auth)
 
     # Action economy: spend this action's cost from the current initiative phase. End Turn advances
     # the shared clock; an exhausted budget blocks until then. vr2: 2 Simple OR 1 Complex + 1 Free.
@@ -9496,17 +9545,10 @@ def _apply_swap_memory(
         return _action_label(n)
 
     def _active_used() -> int:
-        # Full active footprint = usable loaded utilities PLUS squeezed programs swapped in but not
-        # yet decompressed (they occupy full active memory even while unusable).
-        one_shot_counts = state.get("one_shot_active") or {}
-        used = sum(
-            int(sizes.get(n, 0)) * (
-                max(0, int(one_shot_counts.get(n, 0) or 0)) if n in one_shot_counts else 1
-            )
-            for n, r in utils.items() if (r or 0) > 0
-        )
-        used += sum(int(p.get("size", 0) or 0) for p in squeezed_active)
-        return used
+        # Usable loaded utilities at full footprint PLUS squeezed (still-compressed) programs at
+        # HALF footprint -- they occupy active memory even while unusable, and Decompress pays the
+        # rest. Shared with _apply_decompress_program via the module helper.
+        return _active_memory_used(state, decker)
 
     def _store_append(name: str, rating: int, size: int) -> None:
         # A squeezed program returns to storage still flagged so its footprint stays halved and a
@@ -9593,19 +9635,22 @@ def _apply_swap_memory(
         note = ""
         if swap_out:
             note = _push_active_out(swap_out)
-        if cap > 0 and _active_used() + in_size > cap:
+        # A squeezed program parks in active memory at HALF its footprint until it is decompressed;
+        # a plain program takes its full size. Block the load if it will not fit.
+        charge = _squeezed_active_footprint(in_size) if is_squeezed else in_size
+        if cap > 0 and _active_used() + charge > cap:
             used = _active_used()
             raise HTTPException(
                 400,
-                f"Not enough active memory to load {_pretty(target)}: needs {in_size} Mp but "
+                f"Not enough active memory to load {_pretty(target)}: needs {charge} Mp but "
                 f"only {max(0, cap - used)} Mp free ({used}/{cap} Mp used). Swap a program out "
                 "to free active memory."
             )
         storage.remove(store_entry)
         _release_one_shot_storage(target, in_size)
         if is_squeezed:
-            # Occupies FULL active memory immediately but stays UNUSABLE (out of decker.utilities)
-            # until a Decompress action expands it.
+            # Parks at HALF its footprint but stays UNUSABLE (out of decker.utilities) until a
+            # Decompress action expands it to full (which needs the other half free).
             squeezed_active.append({"name": target,
                                     "rating": int(store_entry.get("rating", 0) or 0),
                                     "size": in_size})

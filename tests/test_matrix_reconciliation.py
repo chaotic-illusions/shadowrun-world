@@ -276,7 +276,9 @@ def test_req2_scramble_refs_and_shield_display_do_not_leak_or_split_results():
 def test_req2_known_security_pane_includes_discovered_scrambles():
     assert "&gt;&gt; KNOWN IC &amp; DEFENSES" in RUN_UI
     assert "No security identified" in RUN_UI
-    assert "_discoveredScrambles(state), state.run_ended" in RUN_UI
+    # Node-level scrambles still render in the Known IC pane; per-file scrambles are filtered out
+    # (they ride their file's card in the Files pane instead).
+    assert "_discoveredScrambles(state).filter(sc => (sc.target_kind || 'node') !== 'file'), state.run_ended" in RUN_UI
     renderer = RUN_UI[RUN_UI.index("function renderActiveIC"):RUN_UI.index("function renderConditionBoxesHTML")]
     assert "Subsystem Defenses" in renderer
     assert "RATING UNKNOWN" in renderer

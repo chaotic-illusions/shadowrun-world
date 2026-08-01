@@ -408,7 +408,7 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-green') {
  * Show a styled prompt dialog with a single input field. Returns a
  * Promise<string|null> -- the entered value, or null when cancelled.
  * opts: { okLabel='OK', okClass='btn-green', title='>> INPUT REQUIRED',
- *         inputType='text', placeholder='' }
+ *         inputType='text', placeholder='', min=null, max=null }
  */
 function showPrompt(message, defaultVal = '', opts = {}) {
   const okLabel     = opts.okLabel     || 'OK';
@@ -446,6 +446,9 @@ function showPrompt(message, defaultVal = '', opts = {}) {
     titleEl.textContent = title;
     msgEl.textContent   = message;
     input.type          = inputType;
+    // Optional numeric bounds -- reset every call (the input node is cached and reused).
+    if (opts.max != null) input.max = String(opts.max); else input.removeAttribute('max');
+    if (opts.min != null) input.min = String(opts.min); else input.removeAttribute('min');
     input.placeholder   = placeholder;
     input.value         = defaultVal == null ? '' : String(defaultVal);
     okBtn.textContent   = okLabel;

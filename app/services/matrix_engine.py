@@ -149,7 +149,7 @@ def damage_resistance(
 ) -> dict[str, Any]:
     """
     Resolve a damage resistance roll.
-    - Effective power = power - armor_rating (min 1)
+    - Effective power = power - armor_rating (min 2 -- SR2 Rule of Two floors every target number)
     - Shield parry: net Shield Test successes cancel attacker damage successes 1:1 BEFORE
       staging, clamped at 0 (a parry can blunt a hit but never reverse it). Armor (a Power
       reduction) is a SEPARATE defence and stacks with Shield (a successes reduction).
@@ -165,7 +165,7 @@ def damage_resistance(
       (1/2/3/6); physical/stun damage to the operator's meat body uses DAMAGE_BOXES (1/3/6/10).
     Returns effective power, resistance roll, and final damage level.
     """
-    effective_power = max(1, power - armor_rating)
+    effective_power = max(2, power - armor_rating)
     shield_successes = max(0, shield_successes)
     net_attacker = max(0, attacker_successes - shield_successes)
     # Informational: where the hit would land on attacker successes alone (pre-resist).

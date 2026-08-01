@@ -732,6 +732,8 @@ def test_aar_surfaces_located_key_file_narrative():
              "downloaded": True},
             {"id": "k2", "name": "Hidden Memo", "is_key": True, "located": False,
              "narrative": "Never found."},
+            {"id": "k3", "name": "Ledger", "is_key": True, "located": True, "tampered": True},
+            {"id": "k4", "name": "Contract", "is_key": True, "located": True, "destroyed": True},
             {"id": "p1", "name": "Payroll", "is_key": False, "located": True},
         ],
     }
@@ -746,3 +748,6 @@ def test_aar_surfaces_located_key_file_narrative():
     assert "Payroll" not in names              # non-key paydata does not
     assert names["Account 180k"]["narrative"].startswith("The account routes")
     assert names["Account 180k"]["downloaded"] is True
+    # The GM must see how each key file was left: tampered (edited in place) vs destroyed (erased).
+    assert names["Ledger"]["tampered"] is True and names["Ledger"]["destroyed"] is False
+    assert names["Contract"]["destroyed"] is True

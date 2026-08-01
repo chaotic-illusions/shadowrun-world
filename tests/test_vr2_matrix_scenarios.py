@@ -3005,30 +3005,31 @@ class TestScrambleDiscovery:
         assert calls == []                                 # no matching discovered scramble -> no test
         assert len(out["scrambles"]) == 1                  # the discovered one is untouched
 
-    def test_file_scramble_blocks_download_before_decryption(self):
+    def test_blind_download_attempt_reveals_a_covering_file_scramble(self, monkeypatch):
+        # A Download attempt on a still-encrypted file no longer hard-blocks: it DISCOVERS the
+        # covering Scramble (so the file's card can offer Decrypt) and does not grab the garbage data.
         state = self._state([{
             "target_key": self.FILES_KEY, "rating": 6, "variant": "poison",
         }])
         state["paydata"] = [{"id": "pd-1", "name": "Lone Star IC Design", "located": True}]
-        body = mr.RunActionInput(
-            action_type="download_data", subsystem="files", target_file="pd-1",
-        )
+        out, _ = self._drive(monkeypatch, state, action_type="download_data",
+                             subsystem="files", target_file="Lone Star IC Design")
+        assert out["scrambles"][0]["discovered"] is True     # the attempt reveals the Scramble
+        assert not out["paydata"][0].get("downloaded")       # encrypted data is not grabbed
+        assert not any(e.get("outcome") == "detonated" for e in out["event_log"])  # Poison: no bomb
 
-        with pytest.raises(HTTPException, match="File access blocked by Scramble IC"):
-            mr._assert_file_not_scrambled(state, body)
-
-    def test_entire_files_scramble_blocks_edit_but_unrelated_file_scramble_does_not(self):
-        body = mr.RunActionInput(action_type="edit_file", subsystem="files", target_file="Payroll")
+    def test_entire_files_scramble_covers_every_file_an_unrelated_one_does_not(self):
         entire = self._state([{
             "target_key": "files::entire", "rating": 5, "variant": "exploding",
         }])
         unrelated = self._state([{
             "target_key": self.FILES_KEY, "rating": 6, "variant": "poison",
         }])
-
-        with pytest.raises(HTTPException, match="File access blocked by Scramble IC"):
-            mr._assert_file_not_scrambled(entire, body)
-        mr._assert_file_not_scrambled(unrelated, body)
+        entire["paydata"] = [{"id": "pd-9", "name": "Payroll", "located": True}]
+        unrelated["paydata"] = [{"id": "pd-9", "name": "Payroll", "located": True}]
+        # A whole-datastore Scramble covers any file; an unrelated per-file Scramble does not.
+        assert mr._file_scramble_for_target(entire, "Payroll") is not None
+        assert mr._file_scramble_for_target(unrelated, "Payroll") is None
 
     def test_exploding_scramble_decrypt_detonates_linked_bomb_when_not_defused(self, monkeypatch):
         # RAW L491: decrypting an Exploding Scramble WITHOUT defusing its linked bomb first
@@ -3653,10 +3654,10 @@ class TestSwapMemory:
 
 
 class TestSqueezedPrograms:
-    """vr2 Squeeze option (L1673): a squeezed program is half-size in storage but must be
-    Decompressed (Complex Action, no test) to full size before use after a mid-run swap-in. In
-    active memory it occupies its FULL size; while compressed it is held OUT of decker.utilities
-    (unusable) in state['squeezed_active']."""
+    """vr2 Squeeze option (L1673): a squeezed program is half-size in storage AND, once swapped into
+    active memory, occupies only HALF its full footprint there too -- but it stays UNUSABLE (held
+    out of decker.utilities in state['squeezed_active']) until Decompressed (Complex Action, no
+    test), which restores the FULL footprint and needs the extra half of active memory free."""
 
     def _state_decker(self, active_cap=100):
         class _Host:
@@ -3689,16 +3690,17 @@ class TestSqueezedPrograms:
         assert changed is True
         assert decker["utilities"].get("attack", 0) == 0          # NOT usable yet
         assert [p["name"] for p in st["squeezed_active"]] == ["attack"]
-        assert st["squeezed_active"][0]["size"] == 40             # full active footprint
+        assert st["squeezed_active"][0]["size"] == 40             # full size retained (footprint is half)
         assert "COMPRESSED" in desc
         assert st["storage_programs"] == []                       # left storage
 
     def test_pending_squeezed_counts_against_active_cap(self):
-        st, decker = self._state_decker(active_cap=80)
+        st, decker = self._state_decker(active_cap=60)
         st["storage_programs"].append({"name": "analyze", "rating": 6, "size": 18, "squeezed": False})
-        # read_write(30) active + attack(40) pending = 70 used.
+        # read_write(30) active + attack(squeezed half = 20) pending = 50 used.
         mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
-        # Loading analyze (18) -> 70 + 18 = 88 > 80: overflow proves the pending copy is charged.
+        assert mr._active_memory_used(st, decker) == 50           # charged at HALF, not full 40
+        # Loading analyze (18) -> 50 + 18 = 68 > 60: overflow proves the pending copy is charged.
         with pytest.raises(mr.HTTPException) as exc:
             mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
         assert exc.value.status_code == 400
@@ -3747,6 +3749,38 @@ class TestSqueezedPrograms:
         mr._apply_swap_memory(st, decker, target_program="analyze", swap_out_program="")
         assert decker["utilities"]["analyze"] == 6               # straight into active, usable
         assert all(p["name"] != "analyze" for p in st["squeezed_active"])
+
+    def _sq_state(self, *, cap, full=50):
+        # A single squeezed program (full ``full`` Mp) in storage, nothing else loaded.
+        decker = {"masking": 4, "intelligence": 5, "mpcp": 6, "active_memory": cap,
+                  "utilities": {}, "program_sizes": {},
+                  "storage_programs": [{"name": "attack", "rating": 6, "size": full, "squeezed": True}],
+                  "program_options": {"attack": {"squeeze": True}}}
+
+        class _Host:
+            config_json = {"security_code": "Green", "security_value": 6}
+        return mr._initial_state(decker, _Host()), decker
+
+    def test_decompress_maxes_out_active_memory_when_exactly_enough(self):
+        # User scenario: a squeezed 50 Mp program parks at 25 Mp (half); decompressing it to the full
+        # 50 needs the other 25 free. With exactly 25 free it maxes out active memory -- ALLOWED.
+        st, decker = self._sq_state(cap=50, full=50)
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
+        assert mr._active_memory_used(st, decker) == 25          # parks at half
+        ok = mr._apply_decompress_program(st, decker, target_program="attack")
+        assert ok is True
+        assert st["program_sizes"]["attack"] == 50               # full footprint now
+        assert mr._active_memory_used(st, decker) == 50          # exactly maxed
+
+    def test_decompress_blocked_when_active_memory_cannot_hold_full_size(self):
+        # Same squeezed 50 Mp program, only a 40 Mp cap: it parks at 25, but expanding needs +25 -> 50 > 40.
+        st, decker = self._sq_state(cap=40, full=50)
+        mr._apply_swap_memory(st, decker, target_program="attack", swap_out_program="")
+        with pytest.raises(mr.HTTPException) as exc:
+            mr._apply_decompress_program(st, decker, target_program="attack")
+        assert exc.value.status_code == 400
+        assert [p["name"] for p in st["squeezed_active"]] == ["attack"]   # still pending, unchanged
+        assert "attack" not in decker["utilities"]                # not made usable
 
 
 class TestRouteRegistration:
@@ -6575,62 +6609,9 @@ class TestCompressor:
     def test_compressed_store_size_without_compressor_stores_full(self):
         assert mr._compressed_store_size(0, 100) == (100, False)
 
-    # -- _apply_decompress: expand, clear flag, storage math ------------------
-
-    def _compressed_state(self, *, storage_free=-1, storage_used=50, stored=50, full=100):
-        state = _fresh_state()
-        state["event_log"] = []
-        state["storage_free_mp"] = storage_free
-        state["storage_used_mp"] = storage_used
-        state["downloaded_files"] = [{"name": "Vault", "size_mp": stored, "is_key": True,
-                                      "turn": 1, "compressed": True, "full_size_mp": full}]
-        state["paydata"] = [{"name": "Vault", "density": full, "is_key": True,
-                             "downloaded": True, "compressed": True}]
-        return state
-
-    def test_decompress_expands_and_clears_flag(self):
-        state = self._compressed_state(storage_free=200, storage_used=50, stored=50, full=100)
-        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
-        entry = state["downloaded_files"][0]
-        assert entry["size_mp"] == 100 and entry["compressed"] is False
-        assert state["paydata"][0]["compressed"] is False        # readable/usable now
-        assert state["storage_used_mp"] == 100                   # +50 to hold the full size
-        ev = state["event_log"][-1]
-        assert ev["type"] == "file_decompressed" and ev["outcome"] == "expanded"
-        assert ev["size_mp"] == 100
-
-    def test_decompress_blocked_when_storage_full(self):
-        # 60 free, 50 used -> only 10 free; expanding needs +50 -> rejected, nothing changes.
-        state = self._compressed_state(storage_free=60, storage_used=50, stored=50, full=100)
-        with pytest.raises(mr.HTTPException) as exc:
-            mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
-        assert exc.value.status_code == 400
-        assert state["downloaded_files"][0]["compressed"] is True   # untouched
-        assert state["storage_used_mp"] == 50
-
-    def test_decompress_untracked_storage_skips_math(self):
-        state = self._compressed_state(storage_free=-1, storage_used=50, stored=50, full=100)
-        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
-        entry = state["downloaded_files"][0]
-        assert entry["compressed"] is False and entry["size_mp"] == 100
-        assert state["event_log"][-1]["outcome"] == "expanded"
-
-    def test_decompress_no_target_is_noop_event(self):
-        state = self._compressed_state(storage_free=200)
-        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="")
-        assert state["event_log"][-1]["outcome"] == "no_target"
-        assert state["downloaded_files"][0]["compressed"] is True    # nothing expanded
-
-    def test_decompress_unknown_file_is_noop_event(self):
-        state = self._compressed_state(storage_free=200)
-        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Ghost")
-        assert state["event_log"][-1]["outcome"] == "no_target"
-
-    def test_decompress_already_expanded_is_noop(self):
-        state = self._compressed_state(storage_free=200)
-        state["downloaded_files"][0]["compressed"] = False           # already readable
-        mr._apply_decompress(state, {"utilities": {"compressor": 6}}, target_file="Vault")
-        assert state["event_log"][-1]["outcome"] == "no_target"
+    # (Decompress no longer applies to downloaded files -- a compressed file rides out compressed
+    # and the buyer expands it off-deck; the Decompress action only expands a squeezed PROGRAM in
+    # active memory. See TestSqueezedPrograms for that path.)
 
     # -- full /action download path: shared storage footprint -----------------
 
@@ -6743,45 +6724,39 @@ class TestCompressor:
             self._drive(monkeypatch, decker=decker, host=self._host(density=100), action=action)
         assert exc.value.status_code == 400
 
-    # -- full /action decompress path ------------------------------------------
+    # -- full /action decompress path (a SQUEEZED program, never a downloaded file) -------------
 
-    def test_action_decompress_expands_via_perform_action(self, monkeypatch):
+    def test_action_decompress_program_via_perform_action(self, monkeypatch):
         from app.schemas.matrix_run import RunActionInput
         decker = self._decker(compressor=6, storage_free=200)
         host = self._host(density=100)
         state = mr._initial_state(decker, host)
-        state["storage_used_mp"] = 50
-        state["downloaded_files"] = [{"name": "Paydata", "size_mp": 50, "is_key": False,
-                                      "turn": 1, "compressed": True, "full_size_mp": 100}]
-        for p in state["paydata"]:
-            if p["name"] == "Paydata":
-                p["downloaded"] = True
-                p["compressed"] = True
+        state["active_memory_cap"] = 100
+        state["squeezed_active"] = [{"name": "attack", "rating": 6, "size": 40}]
         action = RunActionInput(action_type="decompress_file", subsystem="files",
-                                target_file="Paydata")
+                                target_program="attack")
         state2 = self._drive(monkeypatch, decker=decker, host=host, action=action, state=state)
-        f = state2["downloaded_files"][0]
-        assert f["compressed"] is False and f["size_mp"] == 100
-        assert state2["storage_used_mp"] == 100
-        assert any(e.get("type") == "file_decompressed" and e.get("outcome") == "expanded"
+        assert state2["squeezed_active"] == []
+        assert state2["program_sizes"]["attack"] == 40           # full footprint recorded
+        assert any(e.get("type") == "program_decompressed" and e.get("outcome") == "ok"
                    for e in state2["event_log"])
 
     def test_action_decompress_blocked_does_not_spend(self, monkeypatch):
+        # A squeezed 50 Mp program parks at 25; with only a 40 Mp cap, expanding (+25 -> 50) overflows.
         from app.schemas.matrix_run import RunActionInput
-        decker = self._decker(compressor=6, storage_free=60)
+        decker = self._decker(compressor=6, storage_free=200)
         host = self._host(density=100)
         state = mr._initial_state(decker, host)
-        state["storage_used_mp"] = 50                            # only 10 free; expand needs +50
-        state["downloaded_files"] = [{"name": "Paydata", "size_mp": 50, "is_key": False,
-                                      "turn": 1, "compressed": True, "full_size_mp": 100}]
+        state["active_memory_cap"] = 40
+        state["squeezed_active"] = [{"name": "attack", "rating": 6, "size": 50}]
         ap_before = state.get("pass_action_points")
         action = RunActionInput(action_type="decompress_file", subsystem="files",
-                                target_file="Paydata")
+                                target_program="attack")
         with pytest.raises(mr.HTTPException) as exc:
             self._drive(monkeypatch, decker=decker, host=host, action=action, state=state)
         assert exc.value.status_code == 400
         # perform_action mutates a deepcopy, so the original run state is pristine -- NOT spent.
-        assert state["downloaded_files"][0]["compressed"] is True
+        assert [p["name"] for p in state["squeezed_active"]] == ["attack"]
         assert state.get("pass_action_points") == ap_before
 
 
