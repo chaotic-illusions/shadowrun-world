@@ -4336,7 +4336,7 @@ function renderActionArea(state, decker, crashed) {
         <label>Action</label>
         <select id="actionType" onchange="onActionTypeChange()">${optHtml}</select>
       </div>
-      <div id="actionDesc" class="act-desc" style="font-size:0.6rem;color:var(--text-dim);line-height:1.35;margin:-2px 0 7px"></div>
+      <div id="actionDesc" class="act-desc" style="flex-basis:100%;font-size:0.6rem;color:var(--straw);line-height:1.35;margin:-2px 0 7px"></div>
       <div class="mr-field act-sub" id="actionSubsystemWrap" style="display:none">
         <label>Subsystem</label>
         <!-- Analyze Subsystem (the only action using this picker) can only usefully target a
