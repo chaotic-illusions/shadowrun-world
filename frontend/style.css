@@ -3147,6 +3147,11 @@ main:has(.md3) { max-width: 1800px; }
   font-size: 0.6rem; letter-spacing: 0.5px; background: rgba(0,255,65,.15);
   color: var(--green); border: 1px solid #014a01;
 }
+.act-cost-tag-amber {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 3px;
+  font-size: 0.6rem; letter-spacing: 0.5px; background: rgba(255,176,0,.15);
+  color: var(--amber); border: 1px solid #5a3800;
+}
 .act-hint { font-size: 0.68rem; color: var(--text-dim); letter-spacing: 1px; align-self: center; }
 .act-footer {
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
