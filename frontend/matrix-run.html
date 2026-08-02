@@ -4276,6 +4276,7 @@ function renderActionArea(state, decker, crashed) {
         <button class="btn btn-green act-perform" onclick="doLogon()">&gt;&gt; Log On to Host <span class="act-cost-tag">2 AP</span></button>
         <span class="act-hint">Establish connection to target system</span>
       </div>`;
+    if (typeof initNumSteppers === 'function') initNumSteppers(el);
     return;
   }
 
@@ -4332,11 +4333,10 @@ function renderActionArea(state, decker, crashed) {
 
   el.innerHTML = actionEconomyBar(state) + `
     <div class="act-form">
-      <div class="mr-field act-action">
+      <div class="mr-field act-action" style="flex:1 1 auto;min-width:0">
         <label>Action</label>
         <select id="actionType" onchange="onActionTypeChange()">${optHtml}</select>
       </div>
-      <div id="actionDesc" class="act-desc" style="flex-basis:100%;font-size:0.6rem;color:var(--straw);line-height:1.35;margin:-2px 0 7px"></div>
       <div class="mr-field act-sub" id="actionSubsystemWrap" style="display:none">
         <label>Subsystem</label>
         <!-- Analyze Subsystem (the only action using this picker) can only usefully target a
@@ -4388,9 +4388,10 @@ function renderActionArea(state, decker, crashed) {
       <button class="btn btn-green act-perform" id="actPerformBtn" onclick="performAction()">&gt;&gt; Perform <span class="act-cost-tag" id="actCostTag"></span></button>
       <button class="btn act-newturn act-endturn" onclick="doEndTurn()" data-tip="${esc(_endTip)}">&gt;&gt; ${esc(_endLabel)}</button>
     </div>
+    <div id="actionDesc" class="act-desc" style="font-size:0.72rem;color:var(--straw);line-height:1.4;margin:4px 0 0;min-height:0"></div>
     <div class="act-footer">
-      <button class="btn btn-amber btn-sm" onclick="openLogoffModal()" ${_canAffordCost(state, 'Complex') ? '' : 'disabled'} data-tip="${_canAffordCost(state, 'Complex') ? 'Graceful Logoff -- a Complex action (2 AP)' : 'Graceful Logoff is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Graceful Logoff</button>
-      <button class="btn btn-sm act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Jack Out</button>
+      <button class="btn btn-amber" onclick="openLogoffModal()" ${_canAffordCost(state, 'Complex') ? '' : 'disabled'} data-tip="${_canAffordCost(state, 'Complex') ? 'Graceful Logoff -- a Complex action (2 AP)' : 'Graceful Logoff is a Complex action (2 AP) -- End Turn to refresh action points'}">&gt;&gt; Graceful Logoff <span class="act-cost-tag-amber">2 AP</span></button>
+      <button class="btn act-jackout" onclick="doJackOut()"><span class="act-jackout-icon">&#9888;</span> Emergency Jack Out</button>
     </div>`;
 
   // Default selection (Task 2): prefer the LAST action the decker executed if it is still shown and
@@ -4405,6 +4406,7 @@ function renderActionArea(state, decker, crashed) {
   const _lastRow = _lastActionType && visibleRows.find(r => r.a.v === _lastActionType && _usable(r));
   const firstOk = _lastRow || rows.find(_usable);
   if (sel && firstOk) sel.value = firstOk.a.v;
+  if (typeof initNumSteppers === 'function') initNumSteppers(el);
   onActionTypeChange();
 }
 
