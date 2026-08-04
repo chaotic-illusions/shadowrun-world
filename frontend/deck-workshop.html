@@ -1433,12 +1433,17 @@ async function loadDeckBuilderStateFromServer() {
   const legacyStores = _collectLegacyDeckBuilderState();
   const serverHasData = _hasAnyStoreData(stateFromServer.stores);
   const localHasData = _hasAnyStoreData(legacyStores);
+  // One-time migration ONLY: import the legacy localStorage snapshot when the SERVER holds no
+  // deck-builder data at all (a never-synced character). Once the server has ANY data it is the
+  // sole source of truth. Importing per-empty-key here would resurrect a store that another page
+  // (e.g. Downtime Control finishing a compile) legitimately emptied on the server, since this
+  // page's localStorage is not updated by Downtime -- that caused finished compiles to reappear
+  // as duplicate "fab" jobs.
   let importedFromLocal = false;
-  if (localHasData) {
+  if (localHasData && !serverHasData) {
     Object.keys(legacyStores).forEach(k => {
       const localVal = legacyStores[k];
-      const serverVal = stateFromServer.stores[k];
-      if (!_isStoreValueEmpty(localVal) && _isStoreValueEmpty(serverVal)) {
+      if (!_isStoreValueEmpty(localVal)) {
         stateFromServer.stores[k] = localVal;
         importedFromLocal = true;
       }
