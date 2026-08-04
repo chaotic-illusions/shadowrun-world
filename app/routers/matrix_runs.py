@@ -1443,6 +1443,10 @@ _ACTION_COST.update({
 # human GM to pick the target program). Same snake_case keying as _ACTION_COST.
 _ACTION_UTILITY = {op["name"].lower().replace(" ", "_"): op["utility"] for op in rules.SYSTEM_OPERATIONS}
 _ACTION_UTILITY["analyze_subsystem"] = "Analyze"
+# Redirect Datatrail runs the Camo utility (vr2_rules.md L1600/L2294): Camo reduces the operation's
+# Security Test TN by its rating. Wiring it here also makes a One-Shot Camo spend a copy when the
+# decker runs the redirect, and auto-fires any lurking Tar against the Camo program.
+_ACTION_UTILITY["redirect_datatrail"] = "Camo"
 
 # Balanced enemy-decker AI (wounded behaviour, spec section 3.2). Replaces the old hard 7-box
 # flee with a graduated model: an escalating nerve check at 7/8/9 persona boxes (10 = dumped),
@@ -6883,6 +6887,112 @@ async def _apply_run_damage_to_deck(db: AsyncSession, run: MatrixRun, auth: dict
     await db.commit()
 
 
+def _is_evaluate_program(entry: dict) -> bool:
+    """True when a stored program / loadout item is an Evaluate utility. Prefers the explicit
+    ``programTypeKey``; falls back to the display ``utilName``."""
+    if not isinstance(entry, dict):
+        return False
+    ptk = str(entry.get("programTypeKey") or "").strip().lower()
+    if ptk:
+        return ptk == "evaluate"
+    return str(entry.get("utilName") or "").strip().lower() == "evaluate"
+
+
+async def _apply_evaluate_degradation(db: AsyncSession, run: MatrixRun, auth: dict) -> None:
+    """SR2 VR2 (p.1486): at the END of each run, roll 1D3 and reduce the rating of ALL of the
+    decker's Evaluate programs by that result (floor 0). This fires every run regardless of whether
+    Evaluate was used.
+
+    Degrades the rating in BOTH persisted stores so the deck the decker takes on the next run
+    reflects the burned-out rating: the software-library master (``sr2_compiled_programs_v1``) and
+    every loadout's embedded copy (``sr2_loadouts_v1`` -- what a run actually reads). Source code
+    (``sr2_program_sources_v1``) is deliberately left untouched: that is the rebuild/upgrade path
+    ("deckers with source copies can upgrade per standard rules"). No-op when the character can't be
+    resolved, the caller doesn't own it, or degradation already ran (idempotent via
+    ``state["evaluate_degraded"]``)."""
+    state = run.state_json or {}
+    if state.get("evaluate_degraded"):
+        return
+    decker = run.decker_json or {}
+    char_id = decker.get("character_id")
+    if not char_id:
+        return
+    char = await db.get(Character, char_id)
+    if char is None:
+        return
+    # Only the character's owner (or an admin) may mutate its program stores.
+    if not auth.get("is_admin"):
+        tok = auth.get("user_token")
+        if not tok or char.owner_token != hash_token(tok):
+            return
+
+    roll = random.randint(1, 3)
+
+    dbs = copy.deepcopy(char.deck_builder_state or {})
+    stores = dbs.get("stores")
+    changed = False
+    affected = 0
+
+    if isinstance(stores, dict):
+        # 1) Software-library master copies (the workshop's coded/owned Evaluate programs).
+        compiled = stores.get("sr2_compiled_programs_v1")
+        if isinstance(compiled, list):
+            for entry in compiled:
+                if not _is_evaluate_program(entry):
+                    continue
+                old = max(0, int(entry.get("baseRating", 0) or 0))
+                new = max(0, old - roll)
+                if new == old:
+                    continue
+                entry["baseRating"] = new
+                eff = max(0, int(entry.get("effectiveRating", old) or old))
+                entry["effectiveRating"] = max(0, eff - roll)
+                entry["name"] = (
+                    f"{entry.get('utilName') or 'Evaluate'}-{new}"
+                    f" v{entry.get('sourceVersion', 1)} | {entry.get('mods') or 'None'}"
+                )
+                changed = True
+                affected += 1
+
+        # 2) Every loadout's embedded copy -- this is the rating a run consumes at start-of-run.
+        loadouts = stores.get("sr2_loadouts_v1")
+        if isinstance(loadouts, list):
+            for loadout in loadouts:
+                items = loadout.get("items") if isinstance(loadout, dict) else None
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not _is_evaluate_program(item):
+                        continue
+                    old = max(0, int(item.get("baseRating", 0) or 0))
+                    new = max(0, old - roll)
+                    if new == old:
+                        continue
+                    item["baseRating"] = new
+                    changed = True
+                    affected += 1
+
+    if changed:
+        char.deck_builder_state = dbs
+        await db.commit()
+
+    state = copy.deepcopy(run.state_json or {})
+    state["evaluate_degraded"] = True
+    state["evaluate_degrade_roll"] = roll
+    if isinstance(state.get("event_log"), list):
+        _append_event(state, {
+            "type": "alert",
+            "level": "passive",
+            "text": (
+                f"Evaluate degradation (end of run): rolled 1D3 = {roll}. "
+                + (f"Reduced {affected} Evaluate program copy(ies)."
+                   if affected else "No Evaluate programs to degrade.")
+            ),
+        })
+    run.state_json = state
+    await db.commit()
+
+
 @router.post("/{run_id}/apply-deck-damage", response_model=MatrixRunRead)
 async def apply_deck_damage(
     run_id: int,
@@ -6890,13 +7000,15 @@ async def apply_deck_damage(
     db: AsyncSession = Depends(get_db),
 ):
     """Stamp a finished run's hardware consequences (MPCP damage, Ripper chip burn, Worm
-    infections) onto the owning character's saved deck. Idempotent; only fires once the run has
+    infections) onto the owning character's saved deck, then apply end-of-run Evaluate degradation
+    (1D3 rating loss on all Evaluate programs). Both are idempotent and only fire once the run has
     ended. The client calls this once when it detects the run is over."""
     run = await _get_run_or_404(db, run_id)
     _assert_run_access(run, auth)
     if not (run.state_json or {}).get("run_ended"):
         raise HTTPException(409, "Run has not ended")
     await _apply_run_damage_to_deck(db, run, auth)
+    await _apply_evaluate_degradation(db, run, auth)
     await db.refresh(run)
     return _serialize_run(run, auth)
 
