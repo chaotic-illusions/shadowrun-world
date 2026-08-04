@@ -613,6 +613,19 @@ function heatColorStyle(heat) {
 }
 
 
+// -- Matrix helpers ------------------------------------------------------------
+
+// Hacking Pool = (Intelligence + floor(MathSPU/2) + MPCP) / 3, rounded down. A Math SPU adds half
+// its rating (rounded down) to Intelligence for this pool only. Single source of truth for the
+// frontend; canonical backend mirror is app/services/matrix_engine.py hacking_pool().
+function computeHackingPool(intelligence, mpcp, mathSpu = 0) {
+  const intel = Math.max(0, parseInt(intelligence, 10) || 0);
+  const brain = Math.max(0, parseInt(mpcp, 10) || 0);
+  const spu   = Math.max(0, parseInt(mathSpu, 10) || 0);
+  return Math.floor((intel + Math.floor(spu / 2) + brain) / 3);
+}
+
+
 // -- Security rating helpers (SR2 "Color-N" format) ---------------------------
 // Used by host/RTG/org editors. "Red-8" -> code "Red", value "8".
 

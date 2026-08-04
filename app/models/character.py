@@ -37,6 +37,9 @@ class Character(Base):
     matrix_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
     computer_br_skill_enabled: Mapped[bool] = mapped_column(default=False)
     computer_br_skill_rating: Mapped[int] = mapped_column(Integer, default=0)
+    # Math SPU cyberware: adds floor(rating/2) to Intelligence for Hacking Pool. 0 when disabled.
+    math_spu_enabled: Mapped[bool] = mapped_column(default=False)
+    math_spu_rating: Mapped[int] = mapped_column(Integer, default=0)
     intelligence: Mapped[int] = mapped_column(Integer, default=0)
     quickness: Mapped[int] = mapped_column(Integer, default=0)
     willpower: Mapped[int] = mapped_column(Integer, default=0)

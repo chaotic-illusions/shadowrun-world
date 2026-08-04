@@ -28,6 +28,8 @@ class CharacterBase(BaseModel):
     matrix_skill_rating: int = Field(default=0, ge=0, le=20)
     computer_br_skill_enabled: bool = False
     computer_br_skill_rating: int = Field(default=0, ge=0, le=20)
+    math_spu_enabled: bool = False
+    math_spu_rating: int = Field(default=0, ge=0, le=4)
     intelligence: int = Field(default=0, ge=0, le=20)
     quickness: int = Field(default=0, ge=0, le=12)
     willpower: int = Field(default=0, ge=0, le=20)
@@ -65,6 +67,8 @@ class CharacterUpdate(BaseModel):
     matrix_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
     computer_br_skill_enabled: Optional[bool] = None
     computer_br_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    math_spu_enabled: Optional[bool] = None
+    math_spu_rating: Optional[int] = Field(default=None, ge=0, le=4)
     intelligence: Optional[int] = Field(default=None, ge=0, le=20)
     quickness: Optional[int] = Field(default=None, ge=0, le=12)
     willpower: Optional[int] = Field(default=None, ge=0, le=20)
