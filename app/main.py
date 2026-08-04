@@ -256,7 +256,9 @@ async def lifespan(app: FastAPI):
         os.makedirs("data", exist_ok=True)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        await _migrate_plaintext_owner_tokens()
+        # Column guards MUST run before any full-ORM query below: a select(Character) emits every
+        # mapped column, so a new column that a guard adds would otherwise raise "no such column"
+        # on an existing DB before the guard has a chance to add it.
         await _ensure_character_deck_builder_state_column()
         await _ensure_character_math_spu_columns()
         await _ensure_matrix_run_version_column()
@@ -264,6 +266,7 @@ async def lifespan(app: FastAPI):
         await _ensure_matrix_run_aar_acknowledged_column()
         await _ensure_matrix_host_id_code_column()
         await _ensure_matrix_host_trap_dest_column()
+        await _migrate_plaintext_owner_tokens()
         await _ensure_adventure_run_number_schema()
         await _ensure_campaign_state()
         yield
