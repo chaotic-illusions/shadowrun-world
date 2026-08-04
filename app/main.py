@@ -83,6 +83,22 @@ async def _ensure_character_deck_builder_state_column():
         print("[startup] Added characters.deck_builder_state column")
 
 
+async def _ensure_character_math_spu_columns():
+    """Startup safety migration for the Math SPU cyberware columns on SQLite deployments.
+
+    create_all only creates missing tables; it won't add columns to an existing characters
+    table. Add them in place when an older DB file predates them. Idempotent.
+    """
+    if await _ensure_sqlite_column(
+        "characters", "math_spu_enabled", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added characters.math_spu_enabled column")
+    if await _ensure_sqlite_column(
+        "characters", "math_spu_rating", "INTEGER NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added characters.math_spu_rating column")
+
+
 async def _ensure_matrix_run_version_column():
     """Startup safety migration for the matrix_runs optimistic-lock column.
 
@@ -242,6 +258,7 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
         await _migrate_plaintext_owner_tokens()
         await _ensure_character_deck_builder_state_column()
+        await _ensure_character_math_spu_columns()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()

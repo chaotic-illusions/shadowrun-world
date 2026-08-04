@@ -203,6 +203,11 @@
           <span class="tip">Hacking Pool: (Intel + MPCP) / 3, rounded down.</span>
         </div>
         <div class="mr-field">
+          <label>Math SPU (0-4)</label>
+          <input type="number" id="cfg-math-spu" min="0" max="4" value="0">
+          <span class="tip">Cyberware: adds half its rating (rounded down) to Intelligence for Hacking Pool.</span>
+        </div>
+        <div class="mr-field">
           <label>Quickness (1-12)</label>
           <input type="number" id="cfg-quickness" min="1" max="12" value="4">
           <span class="tip">Reaction = (Quickness + Intel) / 2, rounded up. Satellite Uplink jackpoint applies -2.</span>
@@ -985,6 +990,8 @@ async function applyActiveCharacterToConfig(characterId) {
     if (nameEl && c.name) nameEl.value = c.name;
     if (c.computer_skill_enabled && c.computer_skill_rating) set('cfg-computer', c.computer_skill_rating);
     set('cfg-intelligence', c.intelligence);
+    const mathSpuEl = document.getElementById('cfg-math-spu');
+    if (mathSpuEl) mathSpuEl.value = String(c.math_spu_enabled ? (c.math_spu_rating || 0) : 0);
     set('cfg-quickness', c.quickness);
     set('cfg-willpower', c.willpower);
     set('cfg-body', c.body);
@@ -2184,6 +2191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'cfg-intelligence', 'cfg-quickness', 'cfg-mpcp',
     'cfg-masking', 'cfg-u-sleaze', 'cfg-u-camo',
     'cfg-evasion', 'cfg-trace-factor', 'cfg-bandwidth-mod',
+    'cfg-math-spu',
   ];
   calcInputs.forEach(id => {
     const el = document.getElementById(id);
@@ -2278,6 +2286,7 @@ function updateComputedStats() {
   const sleaze   = parseInt(document.getElementById('cfg-u-sleaze')?.value)     || 0;
   const camo     = parseInt(document.getElementById('cfg-u-camo')?.value)       || 0;
   const jackpt   = parseInt(document.getElementById('cfg-trace-factor')?.value) || 0;
+  const mathSpu  = parseInt(document.getElementById('cfg-math-spu')?.value)      || 0;
 
   // Bandwidth Trace Modifier (vr2_rules.md L218-222): floor(Icon Bandwidth / jackpoint base
   // bandwidth) x -1. Icon Bandwidth (not the deck's I/O speed) is the footprint, so recompute
@@ -2290,7 +2299,7 @@ function updateComputedStats() {
   const bwReadEl = document.getElementById('cfg-bandwidth-readout');
   if (bwReadEl) bwReadEl.textContent = String(bwMod);
 
-  const hp       = Math.floor((intel + mpcp) / 3);
+  const hp       = computeHackingPool(intel, mpcp, mathSpu);
   const df       = Math.ceil((masking + sleaze) / 2);
   // Satellite Uplink imposes a flat -2 Reaction -- the operational trade-off for jacking in
   // over a satlink (the deck's Satlink Interface is required to pick that jackpoint at all).
@@ -2429,6 +2438,7 @@ function renderDeckSummary() {
   const personaRows = [
     ['Computer Skill', String(gv('cfg-computer'))],
     ['Intelligence', String(gv('cfg-intelligence'))],
+    ['Math SPU', gv('cfg-math-spu') ? String(gv('cfg-math-spu')) : '--'],
     ['Quickness', String(gv('cfg-quickness'))],
     ['Willpower', String(gv('cfg-willpower'))],
     ['Body', String(gv('cfg-body'))],
@@ -2502,6 +2512,7 @@ async function startRun() {
   const sensor   = gn1('cfg-sensor');
   const computer = gn1('cfg-computer');
   const intel    = gn1('cfg-intelligence');
+  const mathSpu  = Math.min(4, Math.max(0, gn('cfg-math-spu')));
   const quick    = gn1('cfg-quickness');
   const willpower= gn1('cfg-willpower');
   const body     = gn1('cfg-body');
@@ -2630,6 +2641,7 @@ async function startRun() {
     loadout_name: getSelectedLoadout()?.name || '',
     computer_skill: computer,
     intelligence: intel,
+    math_spu: mathSpu,
     quickness: quick,
     willpower, body,
     deck_mode: mode,

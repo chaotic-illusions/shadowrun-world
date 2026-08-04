@@ -56,9 +56,9 @@ def roll_dice(pool: int, tn: int = 4) -> dict[str, Any]:
     return {"pool": pool, "tn": tn, "dice": dice, "successes": successes, "ones": ones}
 
 
-def hacking_pool(intelligence: int, mpcp: int) -> int:
-    """Hacking Pool = (Intelligence + MPCP) // 3."""
-    return (intelligence + mpcp) // 3
+def hacking_pool(intelligence: int, mpcp: int, math_spu: int = 0) -> int:
+    """Hacking Pool = (Intelligence + MPCP) // 3. A Math SPU adds floor(rating/2) to Intelligence."""
+    return (intelligence + (max(0, math_spu) // 2) + mpcp) // 3
 
 
 def detection_factor(masking: int, sleaze_rating: int = 0) -> int:

@@ -984,6 +984,7 @@ function getSelectedProgrammerSkillSet() {
     matrixRating: clampInt(opt.dataset.matrixRating || 0, 0, 20),
     intelligence: clampInt(opt.dataset.intelligence || 0, 0, 20),
     quickness: clampInt(opt.dataset.quickness || 0, 0, 12),
+    mathSpu: clampInt(opt.dataset.mathSpu || 0, 0, 4),
   };
 }
 
@@ -1169,6 +1170,7 @@ async function loadProgrammerCharacters() {
       opt.dataset.matrixRating = String(c.matrix_skill_rating || 0);
       opt.dataset.intelligence = String(c.intelligence || 0);
       opt.dataset.quickness = String(c.quickness || 0);
+      opt.dataset.mathSpu = String(c.math_spu_enabled ? (c.math_spu_rating || 0) : 0);
       sel.appendChild(opt);
     });
 
@@ -2724,6 +2726,7 @@ function calcDeck() {
   const effectiveRI = ri + (hasRf ? 1 : 0);
   const programmerIntel = Math.max(0, selectedProgrammerSkillSet?.intelligence ?? getSelectedProgrammerSkillSet()?.intelligence ?? 0);
   const programmerQuickness = Math.max(0, selectedProgrammerSkillSet?.quickness ?? getSelectedProgrammerSkillSet()?.quickness ?? 0);
+  const programmerMathSpu = Math.max(0, selectedProgrammerSkillSet?.mathSpu ?? getSelectedProgrammerSkillSet()?.mathSpu ?? 0);
   const baseReaction = Math.ceil((programmerQuickness + programmerIntel) / 2);   // Matrix Reaction, round up (vr2)
   // Initiative varies by ASIST deck type (vr2 L1913-1923): hot +1D6, cool -1D6, tortoise = half
   // Reaction (min 1) and a single die with no RI/RF bonus. Reality Filter adds an init die, not Reaction.
@@ -2737,7 +2740,7 @@ function calcDeck() {
   }
   const loadedSleazeRating = getLoadedSleazeRating();
   const detectionFactor = Math.ceil((masking + loadedSleazeRating) / 2);
-  const hackingPool = Math.floor((programmerIntel + mpcp) / 3);
+  const hackingPool = computeHackingPool(programmerIntel, mpcp, programmerMathSpu);
 
   const sumItems = [
     { lbl: 'MPCP Rating', val: mpcp },
