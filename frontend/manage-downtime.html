@@ -290,7 +290,7 @@ async function loadQueue() {
           kind: 'deck', phase: acq.authorized ? 'inprog' : 'pending',
           pcId: s.id, pcLabel: s.label, id: d.name,
           deckName: d.deckName || d.name, acqKind: acq.kind || (st === 'onorder' ? 'buy' : 'build'),
-          acq, requestedAt: acq.requestedAt || acq.startedAt || 0,
+          acq, deckSpec: d, requestedAt: acq.requestedAt || acq.startedAt || 0,
         });
       });
     });
@@ -454,6 +454,26 @@ function _buyCard(it) {
   return card;
 }
 
+// Governing Computer B/R target number for a deck build, derived from the stored spec.
+// Each chip is its own task; the hardest (highest-TN) cook/install task drives the roll.
+// Cook tasks: MPCP/ASIST/ICCM/Hardening/Satlink vs MPCP, persona chips vs their rating,
+// Response Increase vs RI x2, Reality Filter vs MPCP+2. Install adds the memory chips
+// (Active/Storage/IO) vs size/100. Used as a fallback for builds queued before the TN
+// was stamped onto the request; approximate for in-flight upgrades (assumes a full build).
+function _deckGovTn(d) {
+  const pn = v => Math.max(0, parseInt(v, 10) || 0);
+  const mpcp = pn(d.mpcp);
+  const persona = Math.max(pn(d.pBod), pn(d.pEvasion), pn(d.pMasking), pn(d.pSensor));
+  const ri = pn(d.respIncrease) + (d.realityFilter ? 1 : 0);
+  const rf = d.realityFilter ? mpcp + 2 : 0;
+  const cookTn = Math.max(mpcp, persona, ri * 2, rf);
+  const memTn = Math.max(
+    d.activeMem ? Math.ceil(pn(d.activeMem) / 100) : 0,
+    d.ioSpeed ? Math.ceil(pn(d.ioSpeed) / 100) : 0,
+    d.offlineStorage ? Math.ceil(pn(d.offlineStorage) / 100) : 0);
+  return { cookTn, instTn: Math.max(cookTn, memTn) };
+}
+
 // BUILD deck -- cook/install successes + task bonus -> bench days * bonus
 function _buildCard(it) {
   const acq = it.acq || {};
@@ -462,15 +482,26 @@ function _buildCard(it) {
 
   const cookBase = Math.max(0, parseInt(acq.cookBase, 10) || 0);
   const instBase = Math.max(0, parseInt(acq.installBase, 10) || 0);
+  let cookTn = Math.max(0, parseInt(acq.cookTn, 10) || 0);
+  let instTn = Math.max(0, parseInt(acq.instTn, 10) || 0);
+  // Legacy builds submitted before the TN was stamped onto the request: derive the
+  // governing Computer B/R target number from the stored deck spec so the GM still
+  // sees what to roll against (the hardest chip drives the roll).
+  if (!cookTn && !instTn) { const fb = _deckGovTn(it.deckSpec || {}); cookTn = fb.cookTn; instTn = fb.instTn; }
+  const tnNote = (cookTn || instTn)
+    ? ' Computer B/R vs TN ' + fmtN(cookTn || instTn) + ' (cook)'
+      + (instTn && instTn !== cookTn ? ' / TN ' + fmtN(instTn) + ' (install)' : '')
+      + ' &mdash; the hardest chip drives the roll (rule of 6).'
+    : '';
   card.appendChild(el('div', 'tip',
     'Base cook <b>' + fmtN(cookBase) + 'd</b> / install <b>' + fmtN(instBase) + 'd</b> &middot; parts ' + fmtY(acq.partsCost || 0)
-    + '. Enter table-rolled Computer B/R successes.'));
+    + '. Enter table-rolled Computer B/R successes.' + tnNote));
 
   const fields = el('div', 'fields');
   const cookSucc = _numInput(1, 1, 50);
   const instSucc = _numInput(1, 1, 50);
-  fields.appendChild(_labelWrap('Cook successes', cookSucc));
-  fields.appendChild(_labelWrap('Install successes', instSucc));
+  fields.appendChild(_labelWrap('Cook successes', cookSucc, cookTn ? '(vs TN ' + fmtN(cookTn) + ')' : ''));
+  fields.appendChild(_labelWrap('Install successes', instSucc, instTn ? '(vs TN ' + fmtN(instTn) + ')' : ''));
   card.appendChild(fields);
 
   const fields2 = el('div', 'fields');

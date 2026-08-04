@@ -2464,7 +2464,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = mpcp * 3;
     const inst  = mpcp * 2;
-    rows.push({ key: 'mpcp', name: `MPCP (Rtg ${mpcp})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    rows.push({ key: 'mpcp', name: `MPCP (Rtg ${mpcp})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, cookTn: mpcp, instTn: mpcp });
     totalCost += sub;
   }
 
@@ -2485,7 +2485,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = p.r * 3;
     const inst  = p.r * 2;
-    rows.push({ key: p.key, name: `${p.name} (Rtg ${p.r})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    rows.push({ key: p.key, name: `${p.name} (Rtg ${p.r})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, cookTn: p.r, instTn: p.r });
     totalCost += sub;
   }
   if (!personaPresent) corePresent = false;
@@ -2506,6 +2506,7 @@ function calcDeck() {
       key: 'asist',
       name: `ASIST (${isHot ? 'Hot' : 'Cold'})`,
       size, occ, plcDtc: plc, other: apu, sub, cook, inst,
+      cookTn: mpcp, instTn: mpcp,
       otherLabel: 'APU 1,250'
     });
     totalCost += sub;
@@ -2525,6 +2526,7 @@ function calcDeck() {
       key: 'realityFilter', name: `Reality Filter (Rtg ${rfRating})`,
       size, occ, plcDtc: plc + dtc, other: 0, sub,
       cook: rfRating * 3, inst: rfRating * 2,
+      cookTn: rfRating, instTn: rfRating,
       note: '+2 Reaction, +1D6 Initiative, -1 persona cap'
     });
     totalCost += sub;
@@ -2540,7 +2542,7 @@ function calcDeck() {
     const sub  = occ + plc + dtc;
     const cook = mpcp * hr;
     const inst = mpcp * hr * 2;
-    rows.push({ key: 'hardening', name: `Hardening (Rtg ${hr})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    rows.push({ key: 'hardening', name: `Hardening (Rtg ${hr})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, cookTn: mpcp, instTn: mpcp });
     totalCost += sub;
   }
 
@@ -2554,7 +2556,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc + bio;
     const cook  = mpcp * 2;
     const inst  = mpcp * 2;
-    rows.push({ key: 'iccm', name: 'ICCM Filter', size, occ, plcDtc: plc + dtc, other: bio, sub, cook, inst, otherLabel: 'Bioscanner 5k' });
+    rows.push({ key: 'iccm', name: 'ICCM Filter', size, occ, plcDtc: plc + dtc, other: bio, sub, cook, inst, cookTn: mpcp, instTn: mpcp, otherLabel: 'Bioscanner 5k' });
     totalCost += sub;
   }
 
@@ -2567,7 +2569,7 @@ function calcDeck() {
     const sub   = occ + plc + dtc;
     const cook  = mpcp * ri;
     const inst  = mpcp + ri;
-    rows.push({ key: 'responseInc', name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst });
+    rows.push({ key: 'responseInc', name: `Response Increase (RI ${ri})`, size, occ, plcDtc: plc + dtc, other: 0, sub, cook, inst, cookTn: ri * 2, instTn: ri * 2 });
     totalCost += sub;
   }
 
@@ -2577,7 +2579,7 @@ function calcDeck() {
     const plc     = 25 * Math.ceil(activeMem / 10);
     const sub     = omcCost + plc;
     const inst    = Math.ceil(activeMem / 100);
-    rows.push({ key: 'activeMem', name: `Active Memory (${fmtN(activeMem)} Mp)`, size: activeMem, occ: 0, plcDtc: plc, other: omcCost, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omcCost)}` });
+    rows.push({ key: 'activeMem', name: `Active Memory (${fmtN(activeMem)} Mp)`, size: activeMem, occ: 0, plcDtc: plc, other: omcCost, sub, cook: 0, inst, cookTn: 0, instTn: Math.max(1, Math.ceil(activeMem / 100)), otherLabel: `OMC ${fmtY(omcCost)}` });
     totalCost += sub;
   }
 
@@ -2587,7 +2589,7 @@ function calcDeck() {
     const dtc  = 10 * Math.ceil(ioSpeed / 10);
     const sub  = plc + dtc;
     const inst = Math.ceil(ioSpeed / 20);
-    rows.push({ key: 'ioSpeed', name: `I/O Speed (${fmtN(ioSpeed)} Mp/CT)`, size: 0, occ: 0, plcDtc: plc + dtc, other: 0, sub, cook: 0, inst });
+    rows.push({ key: 'ioSpeed', name: `I/O Speed (${fmtN(ioSpeed)} Mp/CT)`, size: 0, occ: 0, plcDtc: plc + dtc, other: 0, sub, cook: 0, inst, cookTn: 0, instTn: Math.max(1, Math.ceil(ioSpeed / 100)) });
     totalCost += sub;
   }
 
@@ -2597,7 +2599,7 @@ function calcDeck() {
     const plc = 25 * Math.ceil(offlineStorage / 10);
     const sub = omc + plc;
     const inst = Math.ceil(offlineStorage / 100);
-    rows.push({ key: 'offlineStorage', name: `Storage Memory (${fmtN(offlineStorage)} Mp)`, size: offlineStorage, occ: 0, plcDtc: plc, other: omc, sub, cook: 0, inst, otherLabel: `OMC ${fmtY(omc)}` });
+    rows.push({ key: 'offlineStorage', name: `Storage Memory (${fmtN(offlineStorage)} Mp)`, size: offlineStorage, occ: 0, plcDtc: plc, other: omc, sub, cook: 0, inst, cookTn: 0, instTn: Math.max(1, Math.ceil(offlineStorage / 100)), otherLabel: `OMC ${fmtY(omc)}` });
     totalCost += sub;
   }
 
@@ -2619,7 +2621,7 @@ function calcDeck() {
     const sub  = occ + plc + dtc + dish;
     const cook = mpcp;
     const inst = mpcp;
-    rows.push({ key: 'satlink', name: 'Satlink Interface', size, occ, plcDtc: plc + dtc, other: dish, sub, cook, inst, otherLabel: 'Dish 800' });
+    rows.push({ key: 'satlink', name: 'Satlink Interface', size, occ, plcDtc: plc + dtc, other: dish, sub, cook, inst, cookTn: mpcp, instTn: mpcp, otherLabel: 'Dish 800' });
     totalCost += sub;
   }
   if (hasHitcher) {
@@ -2638,6 +2640,9 @@ function calcDeck() {
   // -- Total construction time ----------------------------
   const totalCook = rows.reduce((s, r) => s + (r.cook || 0), 0);
   const totalInst = rows.reduce((s, r) => s + (r.inst || 0), 0);
+  // Governing Computer B/R target number: each chip is its own task, so the hardest
+  // (highest-TN) cook/install task drives what the GM rolls against for the whole build.
+  const govTn = (set, phase) => set.reduce((m, r) => ((r[phase] || 0) > 0 ? Math.max(m, r[phase + 'Tn'] || 0) : m), 0);
 
   // -- Re-fab set: components cooked/installed/billed whole at their new rating. Each chip
   //    that changed (rose above the as-built/damaged floor) plus the mandatory MPCP cascade;
@@ -2666,7 +2671,10 @@ function calcDeck() {
   // -- Stash the build-at-bench parts breakdown for the card-driven itemize ----
   _deckBuildItemize = { rows: buildRows, totalCost, totalCook, totalInst,
     upg: !!upgInfo, isRepair: !!(upgInfo && upgInfo.isRepair),
-    refabCost, refabCook, refabInst };
+    refabCost, refabCook, refabInst,
+    cookTn: govTn(rows, 'cook'), instTn: govTn(rows, 'inst'),
+    refabCookTn: upgInfo ? govTn(buildRows, 'cook') : govTn(rows, 'cook'),
+    refabInstTn: upgInfo ? govTn(buildRows, 'inst') : govTn(rows, 'inst') };
   const upgWord = upgInfo ? (upgInfo.isRepair ? ' repair' : ' upgrade') : '';
   if ($('deckAcquireTotal')) $('deckAcquireTotal').textContent = upgInfo
     ? fmtY(refabCost) + upgWord
@@ -3057,6 +3065,8 @@ function requestDeckBuild() {
   const cookBase = bi.upg ? (bi.refabCook || 0) : (bi.totalCook || 0);
   const installBase = bi.upg ? (bi.refabInst || 0) : (bi.totalInst || 0);
   const cost = bi.upg ? (bi.refabCost || 0) : (bi.totalCost || 0);
+  const cookTn = bi.upg ? (bi.refabCookTn || 0) : (bi.cookTn || 0);
+  const instTn = bi.upg ? (bi.refabInstTn || 0) : (bi.instTn || 0);
   // Repair: re-fab damaged chips at as-built; the spec is unchanged and the damage overlay is
   // kept until the fixer finishes (cleared on completion in Downtime Control via acq.isRepair).
   // Upgrade: capture the raised spec from the form (autosave is suspended in upgrade mode).
@@ -3069,6 +3079,7 @@ function requestDeckBuild() {
   decks[idx] = { ...base, status: 'building', acq: {
     kind: 'build', requestedAt: Date.now(), authorized: false, isRepair: repairing, fromDeck,
     cookBase: Math.max(0, cookBase), installBase: Math.max(0, installBase), partsCost: cost,
+    cookTn: Math.max(0, cookTn), instTn: Math.max(0, instTn),
   } };
   _saveStore(DECK_STORE, decks);
   if (upgrading) { deckUpgradeBaseline = null; resetDeckUpgradeFloors(); if (repairing) setDeckFormLocked(false); }
