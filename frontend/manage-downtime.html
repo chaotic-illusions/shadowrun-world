@@ -505,8 +505,8 @@ function _buildCard(it) {
   card.appendChild(fields);
 
   const fields2 = el('div', 'fields');
-  const bonus = _numInput(1, 1, 10);
-  fields2.appendChild(_labelWrap('Task bonus', bonus, '(1-10)'));
+  const bonus = _numInput(0, 0, 10);
+  fields2.appendChild(_labelWrap('Task bonus', bonus, '(0-10)'));
   card.appendChild(fields2);
 
   const calc = el('div', 'calc');
@@ -514,24 +514,25 @@ function _buildCard(it) {
     const cd = Math.max(1, Math.ceil(Math.max(1, cookBase) / Math.max(1, parseInt(cookSucc.value, 10) || 1)));
     const idd = Math.max(1, Math.ceil(Math.max(1, instBase) / Math.max(1, parseInt(instSucc.value, 10) || 1)));
     const bench = cd + idd;
-    const b = Math.max(1, parseInt(bonus.value, 10) || 1);
-    const ticks = Math.max(1, Math.ceil(bench / b));
+    const b = Math.max(0, parseInt(bonus.value, 10) || 0);
+    const mult = 1 + b;
+    const ticks = Math.max(1, Math.ceil(bench / mult));
     calc.innerHTML = 'Computed: cook ' + fmtN(cd) + 'd &rarr; install ' + fmtN(idd) + 'd (<b>' + fmtN(bench)
-      + ' bench days</b>) &middot; at &times;' + b + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
+      + ' bench days</b>) &middot; at &times;' + mult + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
   };
   [cookSucc, instSucc, bonus].forEach(i => i.addEventListener('input', updateCalc));
   updateCalc();
   card.appendChild(calc);
 
   card.appendChild(el('div', 'tip',
-    'Task bonus 1-10, your call: tool bonuses can stack (kit +1, doubled PC memory +1 = &times;3). '
-    + 'Each downtime day advances this job by &times;bonus bench days; the clock itself is untouched.'));
+    'Task bonus 0-10, your call: 0 = no bonus (normal speed); tool bonuses stack (kit +1, doubled PC memory +1). '
+    + 'Each downtime day advances this job by &times;(1 + bonus) bench days; the clock itself is untouched.'));
 
   const acts = el('div', 'acts');
   acts.appendChild(_btn('&gt;&gt; Start build', 'btn-green', () => authorizeBuild(it, {
     cookSucc: Math.max(1, parseInt(cookSucc.value, 10) || 1),
     installSucc: Math.max(1, parseInt(instSucc.value, 10) || 1),
-    taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
+    taskBonus: Math.max(0, Math.min(10, parseInt(bonus.value, 10) || 0)),
   })));
   acts.appendChild(_btn('Build now &middot; no clock', 'btn-amber', () => finishDeckNow(it)));
   acts.appendChild(_btn('Refuse', 'btn-red', () => refuseDeck(it)));
@@ -550,18 +551,19 @@ function _compileCard(it) {
   const fields = el('div', 'fields');
   const succ = _numInput(1, 1, 50);
   fields.appendChild(_labelWrap('Successes', succ));
-  const bonus = _numInput(1, 1, 10);
-  fields.appendChild(_labelWrap('Task bonus', bonus, '(1-10)'));
+  const bonus = _numInput(0, 0, 10);
+  fields.appendChild(_labelWrap('Task bonus', bonus, '(0-10)'));
   card.appendChild(fields);
 
   const calc = el('div', 'calc');
   const updateCalc = () => {
     const s = Math.max(1, parseInt(succ.value, 10) || 1);
     const td = Math.max(1, Math.ceil(Math.max(1, it.baseDays) / s));
-    const b = Math.max(1, parseInt(bonus.value, 10) || 1);
-    const ticks = Math.max(1, Math.ceil(td / b));
+    const b = Math.max(0, parseInt(bonus.value, 10) || 0);
+    const mult = 1 + b;
+    const ticks = Math.max(1, Math.ceil(td / mult));
     calc.innerHTML = 'Computed task period: ' + fmtN(it.baseDays) + ' &divide; ' + s + ' = <b>' + fmtN(td)
-      + ' days</b> &middot; at &times;' + b + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
+      + ' days</b> &middot; at &times;' + mult + ', lands in <b>' + fmtN(ticks) + ' tick' + (ticks === 1 ? '' : 's') + '</b>';
   };
   [succ, bonus].forEach(i => i.addEventListener('input', updateCalc));
   updateCalc();
@@ -570,7 +572,7 @@ function _compileCard(it) {
   const acts = el('div', 'acts');
   acts.appendChild(_btn('&gt;&gt; Start compile', 'btn-green', () => authorizeCompile(it, {
     successes: Math.max(1, parseInt(succ.value, 10) || 1),
-    taskBonus: Math.max(1, Math.min(10, parseInt(bonus.value, 10) || 1)),
+    taskBonus: Math.max(0, Math.min(10, parseInt(bonus.value, 10) || 0)),
   })));
   acts.appendChild(_btn('Compile now &middot; no clock', 'btn-amber', () => finishCompileNow(it)));
   acts.appendChild(_btn('Refuse', 'btn-red', () => refuseCompile(it)));
@@ -639,18 +641,19 @@ function _inprogCard(it) {
   const bench = (isCompile || it.acqKind === 'build') && !isFixerProg;
   const total = Math.max(1, parseInt(src.taskDays, 10) || parseInt(src.totalDays, 10) || 1);
   const left  = Math.max(0, parseInt(src.daysRemaining, 10) || 0);
-  const bonus = bench ? Math.max(1, parseInt(src.taskBonus, 10) || 1) : 1;
+  const bonus = bench ? Math.max(0, parseInt(src.taskBonus, 10) || 0) : 0;
+  const mult  = 1 + bonus;
   const pct   = Math.max(0, Math.min(100, Math.round((1 - left / total) * 100)));
 
   const kindCls  = isCompile ? 'code' : (it.acqKind === 'build' ? 'build' : 'buy');
   const kindText = isCompile ? 'Compile' : (it.acqKind === 'build' ? 'Build' : 'Purchase');
   const card = el('div', 'dw-appr inprog');
-  card.appendChild(_cardHead(it, kindCls, kindText, bench ? ('in fab &times;' + bonus) : 'on order'));
+  card.appendChild(_cardHead(it, kindCls, kindText, bench ? ('in fab &times;' + mult) : 'on order'));
 
   card.appendChild(el('div', 'dt-prog',
     (bench ? 'In fab' : 'On order') + ' &middot; <b>' + fmtN(left) + '</b> of ' + fmtN(total) + ' '
     + (bench ? 'bench' : 'delivery') + ' days left'
-    + (bench ? ' &middot; each day burns &times;' + bonus : '')));
+    + (bench ? ' &middot; each day burns &times;' + mult : '')));
   const bar = el('div', 'dt-bar' + (bench ? '' : ' buy'));
   bar.appendChild(el('i', null, '')); bar.firstChild.style.width = pct + '%';
   card.appendChild(bar);
@@ -658,10 +661,10 @@ function _inprogCard(it) {
   const acts = el('div', 'acts');
   if (bench) {
     const fields = el('div', 'fields');
-    const bonusInput = _numInput(bonus, 1, 10);
-    fields.appendChild(_labelWrap('Task bonus', bonusInput, '(1-10)'));
+    const bonusInput = _numInput(bonus, 0, 10);
+    fields.appendChild(_labelWrap('Task bonus', bonusInput, '(0-10)'));
     card.appendChild(fields);
-    acts.appendChild(_btn('Save bonus', 'btn-amber', () => updateTaskBonus(it, Math.max(1, Math.min(10, parseInt(bonusInput.value, 10) || 1)))));
+    acts.appendChild(_btn('Save bonus', 'btn-amber', () => updateTaskBonus(it, Math.max(0, Math.min(10, parseInt(bonusInput.value, 10) || 0)))));
   }
   const finishFn = isCompile ? () => finishCompileNow(it) : isFixerProg ? () => finishFixerProgNow(it) : () => finishDeckNow(it);
   const cancelFn = isCompile ? () => refuseCompile(it) : isFixerProg ? () => refuseFixerProg(it) : () => refuseDeck(it);
@@ -735,7 +738,7 @@ async function authorizeBuild(it, opts) {
   f.decks[f.idx] = deck;
   _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
   try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
-  alertMsg('GM // ' + (deck.deckName || it.id) + ' on the bench -- ' + fmtN(acq.taskDays) + ' bench days at x' + opts.taskBonus + '.', false);
+  alertMsg('GM // ' + (deck.deckName || it.id) + ' on the bench -- ' + fmtN(acq.taskDays) + ' bench days at x' + (1 + opts.taskBonus) + '.', false);
   loadQueue();
 }
 
@@ -756,7 +759,7 @@ async function authorizeCompile(it, opts) {
   f.jobs[f.idx] = job;
   _storesWrite(f.stores, COMPILE_JOB_STORE, it.pcId, f.jobs);
   try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
-  alertMsg('GM // compile started -- ' + fmtN(taskDays) + ' task days at x' + opts.taskBonus + '.', false);
+  alertMsg('GM // compile started -- ' + fmtN(taskDays) + ' task days at x' + (1 + opts.taskBonus) + '.', false);
   loadQueue();
 }
 
@@ -775,7 +778,7 @@ async function updateTaskBonus(it, bonus) {
     _storesWrite(f.stores, DECK_STORE, it.pcId, f.decks);
   }
   try { await _putState(it.pcId); } catch (e) { return alertMsg('Save failed: ' + (e.message || e), true); }
-  alertMsg('GM // task bonus set to x' + bonus + '.', false);
+  alertMsg('GM // task bonus set to x' + (1 + bonus) + '.', false);
   loadQueue();
 }
 
@@ -1014,8 +1017,8 @@ async function advanceClock(days) {
       if (st !== 'onorder' && st !== 'building') return;
       const acq = deck.acq || {};
       if (!acq.authorized) return;
-      const bonus = (st === 'building') ? Math.max(1, parseInt(acq.taskBonus, 10) || 1) : 1;
-      const burn = d * bonus;
+      const bonus = (st === 'building') ? Math.max(0, parseInt(acq.taskBonus, 10) || 0) : 0;
+      const burn = d * (1 + bonus);
       const left = Math.max(0, (parseInt(acq.daysRemaining, 10) || 0) - burn);
       const next = Object.assign({}, deck);
       // A repair job restores the deck to as-built: drop the damage overlay on completion.
@@ -1049,8 +1052,8 @@ async function advanceClock(days) {
     let jobChanged = false;
     jobs.forEach((job, i) => {
       if (!job || job.status === 'ready' || !job.authorized) return;
-      const bonus = Math.max(1, parseInt(job.taskBonus, 10) || 1);
-      const left = Math.max(0, (parseInt(job.daysRemaining, 10) || 0) - d * bonus);
+      const bonus = Math.max(0, parseInt(job.taskBonus, 10) || 0);
+      const left = Math.max(0, (parseInt(job.daysRemaining, 10) || 0) - d * (1 + bonus));
       const next = Object.assign({}, job, { daysRemaining: left, status: 'in_progress' });
       jobs[i] = next;
       jobChanged = true;
