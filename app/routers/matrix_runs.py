@@ -1490,7 +1490,8 @@ def _initial_state(decker: dict, host: MatrixHost) -> dict:
     masking = decker.get("masking", 1)
     sleaze = (decker.get("utilities") or {}).get("sleaze", 0)
     det_factor = eng.detection_factor(masking, sleaze)
-    hackingPool_total = max(0, (decker.get("intelligence", 1) + decker.get("mpcp", 1)) // 3)
+    hackingPool_total = max(0, eng.hacking_pool(
+        decker.get("intelligence", 1), decker.get("mpcp", 1), decker.get("math_spu", 0)))
     decker_initiative, initiative_passes = _roll_decker_initiative(decker)
     # Roll this run's TOTAL enemy-decker cap ONCE (stable for the whole run). The count-gated
     # probabilistic spawner (vr2 #5) dispatches at most this many security deckers across the run.

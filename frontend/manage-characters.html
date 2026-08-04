@@ -256,6 +256,24 @@
           </div>
         </div>
 
+        <div id="cyberwareSection" class="mb-14">
+          <div class="skills-head-row">
+            <span class="skills-col-head">Cyberware</span>
+            <span class="skills-col-head skills-col-head-rating">Rating</span>
+          </div>
+
+          <div id="cyber-row-math_spu" class="mb-8 skills-row">
+            <label id="cyber-label-math_spu" class="chk-row skills-label">
+              <input type="checkbox" class="chk-reveal" id="f-math_spu_enabled" onchange="onMathSpuToggleChange()">
+              Math SPU
+            </label>
+            <input type="number" id="f-math_spu_rating" class="skills-rating-input" min="0" max="4" value="0" oninput="onMathSpuRatingInput(this)">
+            <span id="f-math_spu_rating-display" class="skills-rating-display">0</span>
+          </div>
+
+          <div style="font-size:0.62rem;color:var(--text-dim);margin-top:-4px;letter-spacing:1px">Adds half its rating (rounded down) to Intelligence for Hacking Pool.</div>
+        </div>
+
         <div id="skillsRunnerHint" style="font-size:0.62rem;color:var(--text-dim);margin-top:-8px;margin-bottom:12px;letter-spacing:1px;display:none">Runner view shows enabled skills only.</div>
       </div>
 
@@ -481,6 +499,27 @@ function onSkillRatingInput(inputEl) {
   else if (v > 20) inputEl.value = '20';
 }
 
+function onMathSpuToggleChange() {
+  const enabled = !!document.getElementById('f-math_spu_enabled')?.checked;
+  const ratingEl = document.getElementById('f-math_spu_rating');
+  if (ratingEl) {
+    ratingEl.min = String(enabled ? 1 : 0);
+    const v = parseInt(ratingEl.value, 10);
+    if (!enabled) ratingEl.value = '0';
+    else if (isNaN(v) || v < 1) ratingEl.value = '1';
+    else if (v > 4) ratingEl.value = '4';
+  }
+  syncSkillsSectionUI();
+}
+
+function onMathSpuRatingInput(inputEl) {
+  const enabled = !!document.getElementById('f-math_spu_enabled')?.checked;
+  const min = enabled ? 1 : 0;
+  const v = parseInt(inputEl.value, 10);
+  if (isNaN(v) || v < min) inputEl.value = String(min);
+  else if (v > 4) inputEl.value = '4';
+}
+
 function syncSkillRatingRange(key) {
   const enabled = !!document.getElementById(`f-${key}_skill_enabled`)?.checked;
   const ratingEl = document.getElementById(`f-${key}_skill_rating`);
@@ -537,7 +576,8 @@ function syncSkillsSectionUI() {
   }
 
   const anyEnabled = PC_SKILL_KEYS.some(k => skillEnabledVal(k));
-  section.style.display = isAdminView ? '' : (anyEnabled ? '' : 'none');
+  const mathSpuOn = !!document.getElementById('f-math_spu_enabled')?.checked;
+  section.style.display = isAdminView ? '' : ((anyEnabled || mathSpuOn) ? '' : 'none');
   if (runnerHint) runnerHint.style.display = isAdminView ? '' : 'none';
 
   // Attributes: admin shows editable input; runner shows plain number.
@@ -607,6 +647,49 @@ function syncSkillsSectionUI() {
     }
     ratingEl.classList.toggle('skills-rating-disabled', ratingEl.disabled);
   });
+
+  syncMathSpuUI(isAdminView);
+}
+
+function syncMathSpuUI(isAdminView) {
+  const section = document.getElementById('cyberwareSection');
+  const row = document.getElementById('cyber-row-math_spu');
+  const label = document.getElementById('cyber-label-math_spu');
+  const enabledEl = document.getElementById('f-math_spu_enabled');
+  const ratingEl = document.getElementById('f-math_spu_rating');
+  if (!section || !row || !enabledEl || !ratingEl) return;
+  const enabled = !!enabledEl.checked;
+
+  if (isAdminView) {
+    section.style.display = '';
+    row.style.display = 'grid';
+    enabledEl.disabled = false;
+    ratingEl.disabled = !enabled;
+    ratingEl.min = String(enabled ? 1 : 0);
+    const ratingWrap = ratingEl.closest('.infield-num-wrap') || ratingEl;
+    ratingWrap.style.display = '';
+    const ratingDisp = document.getElementById(ratingEl.id + '-display');
+    if (ratingDisp) ratingDisp.style.display = 'none';
+  } else {
+    // Player view: show only when equipped; render rating as a plain number.
+    section.style.display = enabled ? '' : 'none';
+    row.style.display = enabled ? 'grid' : 'none';
+    enabledEl.disabled = true;
+    ratingEl.disabled = true;
+    const ratingWrap = ratingEl.closest('.infield-num-wrap') || ratingEl;
+    ratingWrap.style.display = 'none';
+    const ratingDisp = document.getElementById(ratingEl.id + '-display');
+    if (ratingDisp) {
+      ratingDisp.textContent = ratingEl.value;
+      ratingDisp.style.display = enabled ? 'block' : 'none';
+    }
+  }
+  setStepperButtonsEnabled(ratingEl, isAdminView && enabled);
+  if (label) {
+    label.classList.toggle('skills-label-disabled', enabledEl.disabled);
+    label.classList.toggle('skills-label-inactive', !enabled);
+  }
+  ratingEl.classList.toggle('skills-rating-disabled', ratingEl.disabled);
 }
 
 const PC_REP_TIERS = [
@@ -768,6 +851,8 @@ function openModal(id) {
   document.getElementById('f-matrix_skill_rating').value = ch?.matrix_skill_rating ?? 0;
   document.getElementById('f-computer_br_skill_enabled').checked = !!ch?.computer_br_skill_enabled;
   document.getElementById('f-computer_br_skill_rating').value = ch?.computer_br_skill_rating ?? 0;
+  document.getElementById('f-math_spu_enabled').checked = !!ch?.math_spu_enabled;
+  document.getElementById('f-math_spu_rating').value = ch?.math_spu_rating ?? 0;
   document.getElementById('f-intelligence').value = ch?.intelligence ?? 0;
   document.getElementById('f-quickness').value = ch?.quickness ?? 0;
   document.getElementById('f-willpower').value = ch?.willpower ?? 0;
@@ -892,6 +977,12 @@ async function saveChar() {
         computer_br_skill_rating: isPC
           ? (document.getElementById('f-computer_br_skill_enabled').checked
               ? Math.min(20, Math.max(1, parseInt(document.getElementById('f-computer_br_skill_rating').value) || 1))
+              : 0)
+          : 0,
+        math_spu_enabled: isPC ? !!document.getElementById('f-math_spu_enabled').checked : false,
+        math_spu_rating: isPC
+          ? (document.getElementById('f-math_spu_enabled').checked
+              ? Math.min(4, Math.max(1, parseInt(document.getElementById('f-math_spu_rating').value) || 1))
               : 0)
           : 0,
         intelligence: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-intelligence').value) || 0)) : 0,

@@ -127,6 +127,8 @@ class DeckerStats(_StrictModel):
     # Character attributes
     computer_skill:    int = Field(..., ge=1, le=50)
     intelligence:      int = Field(..., ge=1, le=50)
+    # Math SPU cyberware rating (0-4); adds floor(rating/2) to Intelligence for Hacking Pool only.
+    math_spu:          int = Field(0, ge=0, le=4)
     quickness:         int = Field(4, ge=1, le=12)   # Reaction = ceil((Q+I)/2)
     willpower:         int = Field(4, ge=1, le=50)
     body:              int = Field(4, ge=1, le=12)    # physical body for dump shock
