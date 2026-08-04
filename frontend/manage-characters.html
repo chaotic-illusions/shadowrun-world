@@ -253,28 +253,24 @@
               <input type="number" id="f-computer_br_skill_rating" class="skills-rating-input" min="0" max="20" value="0" oninput="onSkillRatingInput(this)">
               <span id="f-computer_br_skill_rating-display" class="skills-rating-display">0</span>
             </div>
+
+            <div id="cyberwareSection" class="mt-10">
+              <div class="skills-head-row">
+                <span class="skills-col-head">Cyberware</span>
+                <span class="skills-col-head skills-col-head-rating">Rating</span>
+              </div>
+
+              <div id="cyber-row-math_spu" class="mb-8 skills-row">
+                <label id="cyber-label-math_spu" class="chk-row skills-label">
+                  <input type="checkbox" class="chk-reveal" id="f-math_spu_enabled" onchange="onMathSpuToggleChange()">
+                  Math SPU
+                </label>
+                <input type="number" id="f-math_spu_rating" class="skills-rating-input" min="0" max="4" value="0" oninput="onMathSpuRatingInput(this)">
+                <span id="f-math_spu_rating-display" class="skills-rating-display">0</span>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div id="cyberwareSection" class="mb-14">
-          <div class="skills-head-row">
-            <span class="skills-col-head">Cyberware</span>
-            <span class="skills-col-head skills-col-head-rating">Rating</span>
-          </div>
-
-          <div id="cyber-row-math_spu" class="mb-8 skills-row">
-            <label id="cyber-label-math_spu" class="chk-row skills-label">
-              <input type="checkbox" class="chk-reveal" id="f-math_spu_enabled" onchange="onMathSpuToggleChange()">
-              Math SPU
-            </label>
-            <input type="number" id="f-math_spu_rating" class="skills-rating-input" min="0" max="4" value="0" oninput="onMathSpuRatingInput(this)">
-            <span id="f-math_spu_rating-display" class="skills-rating-display">0</span>
-          </div>
-
-          <div style="font-size:0.62rem;color:var(--text-dim);margin-top:-4px;letter-spacing:1px">Adds half its rating (rounded down) to Intelligence for Hacking Pool.</div>
-        </div>
-
-        <div id="skillsRunnerHint" style="font-size:0.62rem;color:var(--text-dim);margin-top:-8px;margin-bottom:12px;letter-spacing:1px;display:none">Runner view shows enabled skills only.</div>
       </div>
 
       <!-- Organization -->
@@ -566,7 +562,6 @@ function syncSkillsSectionUI() {
   const isPC = document.getElementById('f-is_pc').checked;
   const isAdminView = isAdminMode();
   const section = document.getElementById('skillsSection');
-  const runnerHint = document.getElementById('skillsRunnerHint');
   const attrIds = ['f-body', 'f-quickness', 'f-intelligence', 'f-willpower'];
 
   if (!section) return;
@@ -578,7 +573,6 @@ function syncSkillsSectionUI() {
   const anyEnabled = PC_SKILL_KEYS.some(k => skillEnabledVal(k));
   const mathSpuOn = !!document.getElementById('f-math_spu_enabled')?.checked;
   section.style.display = isAdminView ? '' : ((anyEnabled || mathSpuOn) ? '' : 'none');
-  if (runnerHint) runnerHint.style.display = isAdminView ? '' : 'none';
 
   // Attributes: admin shows editable input; runner shows plain number.
   attrIds.forEach(id => {
