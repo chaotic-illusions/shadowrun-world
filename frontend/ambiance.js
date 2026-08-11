@@ -1984,6 +1984,13 @@
     }
     function startLoop() { if (running) return; running = true; lastRender = 0; rafId = requestAnimationFrame(loop); }
     function stopLoop() { running = false; if (rafId) cancelAnimationFrame(rafId); rafId = null; if (ctx) ctx.clearRect(0, 0, W, H); }
+    // Paint exactly one frame, then leave the canvas untouched forever -- no
+    // rAF loop, so nothing can flicker/repaint during scroll. Used on mobile
+    // in place of full animation: still art, zero ongoing cost.
+    function renderStaticFrame() {
+      env.W = W; env.H = H; env.heatT = heatT;
+      if (def.frame) def.frame(env, performance.now(), 0);
+    }
 
     // size first so init/resize have real dimensions
     W = canvas.width = window.innerWidth;
@@ -2023,8 +2030,19 @@
       var off = pref ? (pref === 'off') : (reduce || mobile);
       var apply = function () {
         if (off) {
-          body.classList.add('no-amb');
-          ctrlStop();
+          if (mobile) {
+            // Mobile "off" means static, not blank -- keep the art, drop the
+            // motion. Layers stay visible (unlike desktop's no-amb, which
+            // hides them entirely); the canvas is painted once and then never
+            // touched again until the toggle is flipped.
+            body.classList.remove('no-amb');
+            stopLoop();
+            renderStaticFrame();
+            if (heatTimer) { clearInterval(heatTimer); heatTimer = null; }
+          } else {
+            body.classList.add('no-amb');
+            ctrlStop();
+          }
           btn.textContent = 'FX OFF'; btn.classList.add('off');
         } else {
           body.classList.remove('no-amb');
