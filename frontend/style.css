@@ -3733,3 +3733,64 @@ main:has(.md3) { max-width: 1800px; }
    spotted, with a one-line note on where the grep failed to find a caller.
    --------------------------------------------------------------------------- */
 /* (empty) */
+
+/* ---------------------------------------------------------------------------
+   SECTION 28 -- MOBILE VIEW
+   ---------------------------------------------------------------------------
+   Every rule here lives inside the max-width query, so none of it touches the
+   desktop layout. Mobile currently supports World State, Characters,
+   Locations and Organizations only -- other pages keep working if reached
+   directly, but aren't tuned for narrow viewports yet, so their nav links are
+   hidden rather than left to overflow unstyled.
+   --------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  /* Header: the full "Shadowrun // NA/UCAS-SEA-..." wordmark is sized for a
+     wide desktop bar and wraps into a many-line block on a phone, pushing
+     the nav off-screen. Shrink it and let both rows wrap instead. */
+  header { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; }
+  .logo { font-size: var(--fs-sm); letter-spacing: 1px; }
+  nav { flex-wrap: wrap; }
+  nav > a { padding: 5px 9px; font-size: var(--fs-sm); letter-spacing: 1px; }
+
+  /* Nav: show only the pages built out for mobile. This hides regardless of
+     admin/runner role -- it's about mobile page coverage, not permissions;
+     the existing .gm-only mechanism (shared.js) still governs role access on
+     top of this and is unaffected. */
+  nav > a,
+  nav > .nav-group { display: none; }
+  nav > a[href="world-state.html"],
+  nav > a[href="manage-characters.html"],
+  nav > a[href="manage-locations.html"],
+  nav > a[href="manage-organizations.html"] { display: inline-block; }
+
+  /* Form-row grids: stack to one column instead of squeezing onto a phone
+     width. */
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+
+  /* Dense tables: scroll horizontally rather than overflow the viewport or
+     crush every column unreadably. */
+  .manage-table, .lead-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* World-state stat bar: keep it as a single row (rather than wrapping into
+     tiny squeezed cards) by letting it scroll horizontally instead. */
+  .stat-bar {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(112px, 1fr);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Filter bars (Characters / Locations / Organizations): the filter input +
+     type/status selects use fixed pixel widths sized for desktop and will
+     overflow a phone viewport side by side -- let them wrap and go full width. */
+  .flex-bar, .flex-row-10 { flex-wrap: wrap; }
+  #filterInput, #filterType, #filterStatus { width: 100% !important; }
+
+  /* Generic "not part of the mobile experience yet" marker. Used for page
+     actions/form sections we deliberately don't expose on mobile (see the
+     mobile quick-edit blocks on manage-characters/locations/organizations) --
+     never removes anything from the DOM, so the existing desktop JS that
+     reads these fields on save is unaffected. */
+  .mob-hide { display: none !important; }
+}

@@ -62,7 +62,7 @@
         </select>
       </span>
     </div>
-    <button class="btn btn-green" id="btnNewOrg" onclick="openModal()">+ New Organization</button>
+    <button class="btn btn-green mob-hide" id="btnNewOrg" onclick="openModal()">+ New Organization</button>
   </div>
 
   <div id="tableWrap"><div class="loading">Loading organizations</div></div>
@@ -81,6 +81,11 @@
     <div class="edit-modal-body">
       <div id="alert" class="alert"></div>
 
+      <!-- Full org editing (identity, command structure, relationships, LTG
+           network) is desktop-only for now -- mobile exposes just Field Notes
+           below for a quick touch-up. Left in the DOM (not removed) so
+           submitForm() still round-trips every other field unchanged. -->
+      <div class="mob-hide">
       <!-- -- CORE IDENTITY -- -->
       <div class="section-head mb-12">// Core Identity</div>
       <div class="grid2 mb-14">
@@ -151,15 +156,17 @@
       <!-- -- PROFILE -- -->
       <hr class="rule my-14">
       <div class="section-head mb-12">// Intel Profile</div>
-      <div class="field mb-14">
+      <div class="field mb-14 mob-hide">
         <label>Description / Known Intel</label>
         <textarea id="description" rows="5" placeholder="What do the runners know about this org?"></textarea>
       </div>
+      </div><!-- /.mob-hide (Core Identity) -->
       <div class="field mb-14">
         <label>Field Notes (GM Only)</label>
         <textarea id="notes" rows="3" placeholder="Hidden agendas, secret connections, plot hooks..."></textarea>
       </div>
 
+      <div class="mob-hide">
       <!-- -- COMMAND STRUCTURE -- -->
       <hr class="rule my-14">
       <div class="section-head mb-12">// Command Structure</div>
@@ -222,10 +229,11 @@
           </table>
         </div>
       </div>
+      </div><!-- /.mob-hide (Command Structure -> LTG Network) -->
     </div>
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1 flex-center" onclick="submitForm()" id="submitBtn">&gt;&gt; Submit to Database</button>
-      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
+      <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
       <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>

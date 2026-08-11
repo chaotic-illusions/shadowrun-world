@@ -824,4 +824,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   // A stale tip during a scroll is distracting -- drop it and let the hover re-arm.
   window.addEventListener('scroll', hide, true);
+
+  // Touch fallback: mouseover never fires on touch devices, so data-tip content
+  // would otherwise be unreachable. Tap shows it immediately (no hover delay);
+  // tapping the same element again, or tapping elsewhere, dismisses it.
+  document.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    _mx = touch.clientX; _my = touch.clientY;
+    const el = e.target.closest('[data-tip]');
+    const wasOn = _target === el && tip().classList.contains('tip-on');
+    hide();
+    if (el && el.dataset.tip && !wasOn) {
+      _target = el;
+      const t = tip();
+      t.textContent = el.dataset.tip;
+      t.classList.add('tip-on');
+      place();
+    }
+  }, { passive: true });
 })();
