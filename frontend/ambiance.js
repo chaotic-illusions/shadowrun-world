@@ -2016,7 +2016,11 @@
       }
       var pref = null; try { pref = localStorage.getItem('sr_wsfx'); } catch (e) {}
       var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var off = pref ? (pref === 'off') : reduce;
+      // Mobile: default the animated background off (still toggleable) rather
+      // than just reduced-motion -- an always-on procedural scene is the
+      // heaviest thing running behind a phone-width, already-scrolling page.
+      var mobile = global.matchMedia && global.matchMedia('(max-width: 720px), (max-width: 930px) and (orientation: landscape)').matches;
+      var off = pref ? (pref === 'off') : (reduce || mobile);
       var apply = function () {
         if (off) {
           body.classList.add('no-amb');

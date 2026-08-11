@@ -212,6 +212,7 @@ body {
 
 /* -- Display & flex -- */
 .hidden          { display: none; }
+.mob-only        { display: none; }   /* shown only under the mobile breakpoint -- see SECTION 28 */
 .flex-1          { flex: 1; }
 .w-full          { width: 100%; }
 .text-center     { text-align: center; }
@@ -3789,9 +3790,19 @@ main:has(.md3) { max-width: 1800px; }
   .stat-bar {
     grid-template-columns: none;
     grid-auto-flow: column;
-    grid-auto-columns: 112px;
+    grid-auto-columns: 132px;
     overflow-x: auto;
   }
+  .stat-bar .stat-card { padding: 12px 8px; }
+  .stat-bar .stat-lbl  { font-size: var(--fs-sm); letter-spacing: 1px; }
+  /* The Shadowrunners card packs two number/label pairs side by side, which
+     doesn't fit a phone-width card -- stack them instead of clipping. */
+  .stat-bar .flex-row-16 { flex-direction: column; gap: 2px; }
+  .stat-bar .vr { display: none; }
+
+  /* Toggle text/mobile-only replacements set via HTML (world-state header,
+     status bar) -- inverse of .mob-hide. */
+  .mob-only { display: inline; }
 
   /* Filter bars (Characters / Locations / Organizations): the filter input +
      type/status selects use fixed pixel widths sized for desktop and will
