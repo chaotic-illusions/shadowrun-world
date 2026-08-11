@@ -1963,8 +1963,10 @@
       if (Math.abs(heatT - heatTarget) > 0.001) heatT += (heatTarget - heatT) * Math.min(1, dt * 0.6);
     }
     function sizeAndResize() {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+      var newW = window.innerWidth, newH = window.innerHeight;
+      if (newW === W && newH === H) return;
+      W = canvas.width = newW;
+      H = canvas.height = newH;
       env.W = W; env.H = H; env.heatT = heatT;
       if (def.resize) def.resize(env);
     }
