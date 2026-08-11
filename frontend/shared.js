@@ -17,8 +17,17 @@ let _authCtx = null;
 
 function isAdmin() { return _authCtx?.is_admin === true; }
 function isUser()  { return _authCtx?.is_user === true; }
-// True only when the admin is actively in admin view (not switched to runner view)
-function isAdminMode() { return isAdmin() && (sessionStorage.getItem('sr_view') || 'admin') === 'admin'; }
+// Matches the mobile breakpoint in style.css (portrait <=720px, or landscape phones up to 930px).
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 720px), (max-width: 930px) and (orientation: landscape)').matches;
+}
+// True when the admin is actively in admin view (not switched to runner view). On mobile there's
+// no runner-view toggle -- an admin always runs at the highest privilege available there.
+function isAdminMode() {
+  if (!isAdmin()) return false;
+  if (isMobileViewport()) return true;
+  return (sessionStorage.getItem('sr_view') || 'admin') === 'admin';
+}
 function userToken()  { return localStorage.getItem(LS_USER)  || null; }
 function adminToken() { return localStorage.getItem(LS_ADMIN) || null; }
 
@@ -208,16 +217,16 @@ function _injectAuthLabel() {
   // Bottom-right fixed label
   const label = document.createElement('div');
   label.id = 'auth-label';
-  const viewMode0 = sessionStorage.getItem('sr_view') || 'admin';
-  const role = isAdmin() ? (viewMode0 === 'admin' ? 'ADMIN' : 'RUNNER') : 'RUNNER';
+  const role = isAdmin() ? (isAdminMode() ? 'ADMIN' : 'RUNNER') : 'RUNNER';
   const tokenLabel = _authCtx.token_label ? `${_authCtx.token_label} // ` : '';
   label.style.cssText =
     'position:fixed;bottom:10px;right:14px;z-index:500;font-family:var(--font);' +
     'font-size:.7rem;letter-spacing:1px;color:var(--auth-label);pointer-events:none;';
   label.textContent = `[${tokenLabel}${role}]`;
 
-  // Admin+user: show view toggle
-  if (_authCtx.is_admin) {
+  // Admin+user: show the runner-view toggle -- but not on mobile, where isAdminMode()
+  // always runs at the highest privilege and there's no preview-as-runner control.
+  if (_authCtx.is_admin && !isMobileViewport()) {
     const toggleWrap = document.createElement('div');
     toggleWrap.style.cssText =
       'position:fixed;bottom:24px;right:14px;z-index:500;font-family:var(--font);' +
@@ -235,7 +244,7 @@ function _injectAuthLabel() {
     document.body.appendChild(toggleWrap);
 
     // Apply player-view gm-only hiding
-    if (viewMode === 'player') {
+    if (!isAdminMode()) {
       const style = document.createElement('style');
       style.textContent = '.gm-only { display: none !important; }';
       document.head.appendChild(style);
