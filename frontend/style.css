@@ -3776,17 +3776,21 @@ main:has(.md3) { max-width: 1800px; }
   .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
 
   /* Dense tables: scroll horizontally rather than overflow the viewport or
-     crush every column unreadably. */
-  .manage-table, .lead-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+     crush every column unreadably. -webkit-overflow-scrolling:touch is
+     deliberately omitted -- it's unnecessary on modern iOS (overflow:auto
+     already gets momentum scrolling) and is a known trigger for WebKit
+     failing to repaint nearby content during a scroll gesture. */
+  .manage-table, .lead-table { display: block; overflow-x: auto; }
 
   /* World-state stat bar: keep it as a single row (rather than wrapping into
-     tiny squeezed cards) by letting it scroll horizontally instead. */
+     tiny squeezed cards) by letting it scroll horizontally instead. Fixed
+     (not fr-based) column widths so a data refresh (poll/clock) can never
+     make the grid recompute track sizes mid-scroll. */
   .stat-bar {
     grid-template-columns: none;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(112px, 1fr);
+    grid-auto-columns: 112px;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   /* Filter bars (Characters / Locations / Organizations): the filter input +

@@ -1925,14 +1925,18 @@ async function loadAll() {
       const heatEl = document.getElementById('sb-heat');
       const repEl  = document.getElementById('sb-rep');
       if (heatEl) {
-        heatEl.textContent = isAdminMode()
+        const heatText = isAdminMode()
           ? `${stats.heat_label || 'Neutral'} (${stats.heat ?? 0})`
           : (stats.heat_label || 'Neutral');
-        heatEl.style.cssText = heatColorStyle(stats.heat || 0);
+        if (heatEl.textContent !== heatText) heatEl.textContent = heatText;
+        const heatCss = heatColorStyle(stats.heat || 0);
+        if (heatEl.style.cssText !== heatCss) heatEl.style.cssText = heatCss;
       }
       if (repEl) {
-        repEl.textContent = stats.team_rep_tier || 'Unknown';
-        repEl.style.cssText = repColorStyle(stats.team_rep_score != null ? stats.team_rep_score : 20);
+        const repText = stats.team_rep_tier || 'Unknown';
+        if (repEl.textContent !== repText) repEl.textContent = repText;
+        const repCss = repColorStyle(stats.team_rep_score != null ? stats.team_rep_score : 20);
+        if (repEl.style.cssText !== repCss) repEl.style.cssText = repCss;
       }
     }
 
