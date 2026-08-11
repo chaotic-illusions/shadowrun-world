@@ -55,9 +55,10 @@
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
 
-      <!-- Full location editing is desktop-only for now -- mobile exposes just
-           GM Notes below for a quick touch-up. Left in the DOM (not removed)
-           so saveLoc() still round-trips every other field unchanged. -->
+      <!-- Full location editing is desktop-only for now -- mobile exposes
+           Description and GM Notes below for a quick touch-up. Left in the
+           DOM (not removed) so saveLoc() still round-trips every other field
+           unchanged. -->
       <div class="mob-hide">
       <div class="grid2 mb-14">
         <div class="field">
@@ -163,11 +164,11 @@
           </select>
         </div>
       </div>
+      </div><!-- /.mob-hide -->
       <div class="field mb-14">
         <label>Description / Known Intel</label>
         <textarea id="f-description" rows="4" placeholder="What the runners know..."></textarea>
       </div>
-      </div><!-- /.mob-hide -->
       <div class="field">
         <label>GM Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Hidden details, plot hooks..."></textarea>
