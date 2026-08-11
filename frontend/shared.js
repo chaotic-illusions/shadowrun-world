@@ -837,7 +837,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Touch fallback: mouseover never fires on touch devices, so data-tip content
   // would otherwise be unreachable. Tap shows it immediately (no hover delay);
   // tapping the same element again, or tapping elsewhere, dismisses it.
+  // Disabled on mobile viewports -- a tap on a clickable card (e.g. the
+  // world-state stat cards) surfaced the tooltip and ate the tap, requiring a
+  // second tap just to dismiss it before the card's own action worked.
   document.addEventListener('touchstart', e => {
+    if (typeof isMobileViewport === 'function' && isMobileViewport()) return;
     const touch = e.touches[0];
     _mx = touch.clientX; _my = touch.clientY;
     const el = e.target.closest('[data-tip]');
