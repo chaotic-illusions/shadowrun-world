@@ -1925,14 +1925,18 @@ async function loadAll() {
       const heatEl = document.getElementById('sb-heat');
       const repEl  = document.getElementById('sb-rep');
       if (heatEl) {
-        heatEl.textContent = isAdminMode()
+        const heatText = isAdminMode()
           ? `${stats.heat_label || 'Neutral'} (${stats.heat ?? 0})`
           : (stats.heat_label || 'Neutral');
-        heatEl.style.cssText = heatColorStyle(stats.heat || 0);
+        if (heatEl.textContent !== heatText) heatEl.textContent = heatText;
+        const heatCss = heatColorStyle(stats.heat || 0);
+        if (heatEl.style.cssText !== heatCss) heatEl.style.cssText = heatCss;
       }
       if (repEl) {
-        repEl.textContent = stats.team_rep_tier || 'Unknown';
-        repEl.style.cssText = repColorStyle(stats.team_rep_score != null ? stats.team_rep_score : 20);
+        const repText = stats.team_rep_tier || 'Unknown';
+        if (repEl.textContent !== repText) repEl.textContent = repText;
+        const repCss = repColorStyle(stats.team_rep_score != null ? stats.team_rep_score : 20);
+        if (repEl.style.cssText !== repCss) repEl.style.cssText = repCss;
       }
     }
 
@@ -2113,6 +2117,22 @@ function showPrompt(message, defaultVal, onOk) {
 }
 
 bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
+
+// loadAll() is heavy relative to the other pages' pollers -- 6 parallel API
+// calls plus rebuilding every character/org/location/contact card's HTML --
+// and under real mobile CPU constraints that work can run as a 100ms+ main-
+// thread task. If a poll tick lands mid-scroll, the browser can't keep up
+// with scroll/paint and the page visibly stutters or fails to repaint. Pause
+// polling for the duration of a scroll gesture (plus a settle window) so
+// that heavy work never competes with an active touch-scroll.
+(function () {
+  let scrollTimer = null;
+  window.addEventListener('scroll', () => {
+    if (scrollTimer === null) pausePoll();
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => { resumePoll(); scrollTimer = null; }, 400);
+  }, { passive: true });
+})();
 
 (function() {
   function pad(n) { return String(n).padStart(2, '0'); }
