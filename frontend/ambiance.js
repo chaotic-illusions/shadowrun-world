@@ -1965,10 +1965,17 @@
     function sizeAndResize() {
       var newW = window.innerWidth, newH = window.innerHeight;
       if (newW === W && newH === H) return;
+      var widthChanged = newW !== W;
       W = canvas.width = newW;
       H = canvas.height = newH;
       env.W = W; env.H = H; env.heatT = heatT;
-      if (def.resize) def.resize(env);
+      // Mobile browser chrome (address bar) hiding/showing on scroll changes
+      // innerHeight without a real resize/rotation -- rebuilding the whole
+      // scene (new random buildings, reset rain/bokeh) on every scroll tick
+      // is the "background keeps redrawing" bug. Only rebuild on an actual
+      // width change; the per-frame draw already clears + redraws every
+      // frame, so a height-only delta just covers the new area -- static.
+      if (widthChanged && def.resize) def.resize(env);
     }
     function startLoop() { if (running) return; running = true; lastRender = 0; rafId = requestAnimationFrame(loop); }
     function stopLoop() { running = false; if (rafId) cancelAnimationFrame(rafId); rafId = null; if (ctx) ctx.clearRect(0, 0, W, H); }
