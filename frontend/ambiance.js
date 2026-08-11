@@ -1965,17 +1965,22 @@
     function sizeAndResize() {
       var newW = window.innerWidth, newH = window.innerHeight;
       if (newW === W && newH === H) return;
-      var widthChanged = newW !== W;
+      // Mobile browser chrome (address bar) hiding/showing on scroll changes
+      // innerHeight without a real resize/rotation. Rebuilding the scene on
+      // every scroll tick was the original "background keeps redrawing" bug;
+      // even just resizing the canvas element (clearing + repainting a
+      // position:fixed layer) mid-scroll turned out to cause its own
+      // artifacts (WebKit can stop repainting parts of the page during
+      // momentum scroll when a fixed layer churns under it). So a
+      // height-only delta now does nothing at all -- the canvas keeps its
+      // last real width/height and CSS (position:fixed;inset:0) stretches
+      // its box to fit; only a genuine width change (real resize/rotation)
+      // touches the canvas or rebuilds the scene.
+      if (newW === W) return;
       W = canvas.width = newW;
       H = canvas.height = newH;
       env.W = W; env.H = H; env.heatT = heatT;
-      // Mobile browser chrome (address bar) hiding/showing on scroll changes
-      // innerHeight without a real resize/rotation -- rebuilding the whole
-      // scene (new random buildings, reset rain/bokeh) on every scroll tick
-      // is the "background keeps redrawing" bug. Only rebuild on an actual
-      // width change; the per-frame draw already clears + redraws every
-      // frame, so a height-only delta just covers the new area -- static.
-      if (widthChanged && def.resize) def.resize(env);
+      if (def.resize) def.resize(env);
     }
     function startLoop() { if (running) return; running = true; lastRender = 0; rafId = requestAnimationFrame(loop); }
     function stopLoop() { running = false; if (rafId) cancelAnimationFrame(rafId); rafId = null; if (ctx) ctx.clearRect(0, 0, W, H); }
