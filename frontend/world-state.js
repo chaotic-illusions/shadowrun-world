@@ -2118,6 +2118,22 @@ function showPrompt(message, defaultVal, onOk) {
 
 bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
 
+// loadAll() is heavy relative to the other pages' pollers -- 6 parallel API
+// calls plus rebuilding every character/org/location/contact card's HTML --
+// and under real mobile CPU constraints that work can run as a 100ms+ main-
+// thread task. If a poll tick lands mid-scroll, the browser can't keep up
+// with scroll/paint and the page visibly stutters or fails to repaint. Pause
+// polling for the duration of a scroll gesture (plus a settle window) so
+// that heavy work never competes with an active touch-scroll.
+(function () {
+  let scrollTimer = null;
+  window.addEventListener('scroll', () => {
+    if (scrollTimer === null) pausePoll();
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => { resumePoll(); scrollTimer = null; }, 400);
+  }, { passive: true });
+})();
+
 (function() {
   function pad(n) { return String(n).padStart(2, '0'); }
   let lastDateStr = new Date().toDateString();
