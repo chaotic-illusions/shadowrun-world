@@ -3737,13 +3737,21 @@ main:has(.md3) { max-width: 1800px; }
 /* ---------------------------------------------------------------------------
    SECTION 28 -- MOBILE VIEW
    ---------------------------------------------------------------------------
-   Every rule here lives inside the max-width query, so none of it touches the
+   Every rule here lives inside the media query below, so none of it touches
    desktop layout. Mobile currently supports World State, Characters,
    Locations and Organizations only -- other pages keep working if reached
    directly, but aren't tuned for narrow viewports yet, so their nav links are
    hidden rather than left to overflow unstyled.
-   --------------------------------------------------------------------------- */
-@media (max-width: 720px) {
+
+   The query matches two cases: portrait phones (max-width:720px, any
+   orientation) and landscape phones (up to 930px -- covers the widest common
+   phones, e.g. iPhone Pro Max ~926px -- but only while orientation:landscape,
+   since that's true of virtually every desktop window too and 930px alone
+   would misfire on a merely-narrow desktop browser). Without the landscape
+   arm, rotating a phone sideways falls back to the full desktop layout,
+   which is wider than the viewport and forces the browser to zoom out to
+   fit it instead of reflowing. */
+@media (max-width: 720px), (max-width: 930px) and (orientation: landscape) {
   /* Header: the full "Shadowrun // NA/UCAS-SEA-..." wordmark is sized for a
      wide desktop bar and wraps into a many-line block on a phone, pushing
      the nav off-screen. Shrink it and let both rows wrap instead. */
