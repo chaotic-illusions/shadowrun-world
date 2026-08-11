@@ -212,6 +212,7 @@ body {
 
 /* -- Display & flex -- */
 .hidden          { display: none; }
+.mob-only        { display: none; }   /* shown only under the mobile breakpoint -- see SECTION 28 */
 .flex-1          { flex: 1; }
 .w-full          { width: 100%; }
 .text-center     { text-align: center; }
@@ -3733,3 +3734,97 @@ main:has(.md3) { max-width: 1800px; }
    spotted, with a one-line note on where the grep failed to find a caller.
    --------------------------------------------------------------------------- */
 /* (empty) */
+
+/* ---------------------------------------------------------------------------
+   SECTION 28 -- MOBILE VIEW
+   ---------------------------------------------------------------------------
+   Every rule here lives inside the media query below, so none of it touches
+   desktop layout. Mobile currently supports World State, Characters,
+   Locations and Organizations only -- other pages keep working if reached
+   directly, but aren't tuned for narrow viewports yet, so their nav links are
+   hidden rather than left to overflow unstyled.
+
+   The query matches two cases: portrait phones (max-width:720px, any
+   orientation) and landscape phones (up to 930px -- covers the widest common
+   phones, e.g. iPhone Pro Max ~926px -- but only while orientation:landscape,
+   since that's true of virtually every desktop window too and 930px alone
+   would misfire on a merely-narrow desktop browser). Without the landscape
+   arm, rotating a phone sideways falls back to the full desktop layout,
+   which is wider than the viewport and forces the browser to zoom out to
+   fit it instead of reflowing. */
+@media (max-width: 720px), (max-width: 930px) and (orientation: landscape) {
+  /* Header: the full "Shadowrun // NA/UCAS-SEA-..." wordmark is sized for a
+     wide desktop bar and wraps into a many-line block on a phone, pushing
+     the nav off-screen. Shrink it and let both rows wrap instead. */
+  header { flex-wrap: wrap; row-gap: 6px; padding: 10px 14px; }
+  .logo { font-size: var(--fs-sm); letter-spacing: 1px; }
+  nav { flex-wrap: wrap; }
+  nav > a { padding: 5px 9px; font-size: var(--fs-sm); letter-spacing: 1px; }
+
+  /* Nav: show only the pages built out for mobile. This hides regardless of
+     admin/runner role -- it's about mobile page coverage, not permissions;
+     the existing .gm-only mechanism (shared.js) still governs role access on
+     top of this and is unaffected. */
+  nav > a,
+  nav > .nav-group { display: none; }
+  nav > a[href="world-state.html"],
+  nav > a[href="manage-characters.html"],
+  nav > a[href="manage-locations.html"],
+  nav > a[href="manage-organizations.html"] { display: inline-block; }
+
+  /* Form-row grids: stack to one column instead of squeezing onto a phone
+     width. */
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr; }
+
+  /* Dense tables: scroll horizontally rather than overflow the viewport or
+     crush every column unreadably. -webkit-overflow-scrolling:touch is
+     deliberately omitted -- it's unnecessary on modern iOS (overflow:auto
+     already gets momentum scrolling) and is a known trigger for WebKit
+     failing to repaint nearby content during a scroll gesture. */
+  .manage-table, .lead-table { display: block; overflow-x: auto; }
+
+  /* World-state stat bar: keep it as a single row (rather than wrapping into
+     tiny squeezed cards) by letting it scroll horizontally instead. Fixed
+     (not fr-based) column widths so a data refresh (poll/clock) can never
+     make the grid recompute track sizes mid-scroll. */
+  .stat-bar {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 132px;
+    overflow-x: auto;
+  }
+  .stat-bar .stat-card { padding: 12px 8px; }
+  .stat-bar .stat-lbl  { font-size: var(--fs-sm); letter-spacing: 1px; }
+  /* The Shadowrunners card packs two number/label pairs side by side, which
+     doesn't fit a phone-width card -- stack them instead of clipping. */
+  .stat-bar .flex-row-16 { flex-direction: column; gap: 2px; }
+  .stat-bar .vr { display: none; }
+
+  /* Toggle text/mobile-only replacements set via HTML (world-state header,
+     status bar) -- inverse of .mob-hide. */
+  .mob-only { display: inline; }
+
+  /* Filter bars (Characters / Locations / Organizations): the filter input +
+     type/status selects use fixed pixel widths sized for desktop and will
+     overflow a phone viewport side by side -- let them wrap and go full width. */
+  .flex-bar, .flex-row-10 { flex-wrap: wrap; }
+  #filterInput, #filterType, #filterStatus { width: 100% !important; }
+
+  /* Modal overlays (.ltg-overlay/.edit-overlay) use opacity, not display:none,
+     to stay in the render tree for their fade transition -- so their
+     backdrop-filter blur is an always-on compositing cost even while closed
+     and invisible. World-state alone carries 9 of these (dossier/edit/
+     confirm/alert/prompt/standing-editor dialogs); backdrop-filter is one of
+     the most expensive properties on mobile WebKit, and 9 permanently-active
+     blur layers on top of a long, card-heavy page is a very plausible cause
+     of content failing to keep up while scrolling. Drop the blur on mobile;
+     the dimming background alone still reads fine as a modal backdrop. */
+  .ltg-overlay, .edit-overlay { backdrop-filter: none; }
+
+  /* Generic "not part of the mobile experience yet" marker. Used for page
+     actions/form sections we deliberately don't expose on mobile (see the
+     mobile quick-edit blocks on manage-characters/locations/organizations) --
+     never removes anything from the DOM, so the existing desktop JS that
+     reads these fields on save is unaffected. */
+  .mob-hide { display: none !important; }
+}

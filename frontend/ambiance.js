@@ -1963,13 +1963,34 @@
       if (Math.abs(heatT - heatTarget) > 0.001) heatT += (heatTarget - heatT) * Math.min(1, dt * 0.6);
     }
     function sizeAndResize() {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+      var newW = window.innerWidth, newH = window.innerHeight;
+      if (newW === W && newH === H) return;
+      // Mobile browser chrome (address bar) hiding/showing on scroll changes
+      // innerHeight without a real resize/rotation. Rebuilding the scene on
+      // every scroll tick was the original "background keeps redrawing" bug;
+      // even just resizing the canvas element (clearing + repainting a
+      // position:fixed layer) mid-scroll turned out to cause its own
+      // artifacts (WebKit can stop repainting parts of the page during
+      // momentum scroll when a fixed layer churns under it). So a
+      // height-only delta now does nothing at all -- the canvas keeps its
+      // last real width/height and CSS (position:fixed;inset:0) stretches
+      // its box to fit; only a genuine width change (real resize/rotation)
+      // touches the canvas or rebuilds the scene.
+      if (newW === W) return;
+      W = canvas.width = newW;
+      H = canvas.height = newH;
       env.W = W; env.H = H; env.heatT = heatT;
       if (def.resize) def.resize(env);
     }
     function startLoop() { if (running) return; running = true; lastRender = 0; rafId = requestAnimationFrame(loop); }
     function stopLoop() { running = false; if (rafId) cancelAnimationFrame(rafId); rafId = null; if (ctx) ctx.clearRect(0, 0, W, H); }
+    // Paint exactly one frame, then leave the canvas untouched forever -- no
+    // rAF loop, so nothing can flicker/repaint during scroll. Used on mobile
+    // in place of full animation: still art, zero ongoing cost.
+    function renderStaticFrame() {
+      env.W = W; env.H = H; env.heatT = heatT;
+      if (def.frame) def.frame(env, performance.now(), 0);
+    }
 
     // size first so init/resize have real dimensions
     W = canvas.width = window.innerWidth;
@@ -2002,11 +2023,26 @@
       }
       var pref = null; try { pref = localStorage.getItem('sr_wsfx'); } catch (e) {}
       var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var off = pref ? (pref === 'off') : reduce;
+      // Mobile: default the animated background off (still toggleable) rather
+      // than just reduced-motion -- an always-on procedural scene is the
+      // heaviest thing running behind a phone-width, already-scrolling page.
+      var mobile = global.matchMedia && global.matchMedia('(max-width: 720px), (max-width: 930px) and (orientation: landscape)').matches;
+      var off = pref ? (pref === 'off') : (reduce || mobile);
       var apply = function () {
         if (off) {
-          body.classList.add('no-amb');
-          ctrlStop();
+          if (mobile) {
+            // Mobile "off" means static, not blank -- keep the art, drop the
+            // motion. Layers stay visible (unlike desktop's no-amb, which
+            // hides them entirely); the canvas is painted once and then never
+            // touched again until the toggle is flipped.
+            body.classList.remove('no-amb');
+            stopLoop();
+            renderStaticFrame();
+            if (heatTimer) { clearInterval(heatTimer); heatTimer = null; }
+          } else {
+            body.classList.add('no-amb');
+            ctrlStop();
+          }
           btn.textContent = 'FX OFF'; btn.classList.add('off');
         } else {
           body.classList.remove('no-amb');

@@ -41,7 +41,7 @@
         <option value="npc">NPCs Only</option>
       </select>
     </div>
-    <button class="btn btn-green" onclick="openModal()">+ New Dossier</button>
+    <button class="btn btn-green mob-hide" onclick="openModal()">+ New Dossier</button>
   </div>
 
   <div id="tableWrap">
@@ -59,6 +59,12 @@
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
 
+      <!-- Full dossier editing (stats, skills, affiliation, contact profile) is
+           desktop-only for now -- mobile exposes the Profile section (Description /
+           Background / Notes) below for editing without wading through the whole
+           sheet. Left in the DOM (not removed) so saveChar() still round-trips
+           every other field unchanged. -->
+      <div class="mob-hide">
       <!-- Core -->
       <div class="grid2 mb-14">
         <div class="field">
@@ -320,6 +326,7 @@
         </div>
         <button class="btn btn-amber" id="showAddLinkBtn" style="font-size:0.62rem;padding:3px 10px;display:none" onclick="showAddLinkForm()">+ Link Runner</button>
       </div>
+      </div><!-- /.mob-hide -->
 
       <!-- Description -->
       <hr class="rule my-14">
@@ -338,7 +345,7 @@
       </div>
 
       <!-- Reputation -- PC only, admin only -->
-      <div id="repSection" style="display:none">
+      <div id="repSection" class="mob-hide" style="display:none">
         <hr class="rule my-14">
         <div class="section-head mb-8">Reputation <span style="font-size:0.6rem;color:var(--text-dim);letter-spacing:1px">// PC ONLY</span></div>
         <div id="repPreview" style="font-size:.75rem;color:var(--amber);letter-spacing:1px;margin-bottom:2px"></div>
@@ -372,8 +379,8 @@
     </div>
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1" onclick="saveChar()">&gt;&gt; Save Entry</button>
-      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteChar()">&gt;&gt; Delete</button>
-      <button class="btn" id="unclaimBtn" style="display:none;color:var(--amber);border-color:var(--amber)" onclick="unclaimChar()">&gt;&gt; Unclaim</button>
+      <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteChar()">&gt;&gt; Delete</button>
+      <button class="btn mob-hide" id="unclaimBtn" style="display:none;color:var(--amber);border-color:var(--amber)" onclick="unclaimChar()">&gt;&gt; Unclaim</button>
       <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>

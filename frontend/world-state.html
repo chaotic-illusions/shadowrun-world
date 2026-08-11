@@ -26,14 +26,22 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em class="sep">//</em> Seattle Metroplex <em class="sep">//</em> <span id="srDate"></span> <em class="sep">//</em> <span id="liveClock"></span></div>
+  <div class="page-title">&gt;&gt; RUNNER DEBRIEF <em class="sep">//</em>
+    <span class="mob-hide">Seattle Metroplex <em class="sep">//</em></span>
+    <span class="mob-only">CONDENSED <em class="sep">//</em></span>
+    <span id="srDate"></span>
+    <em class="sep mob-hide">//</em> <span id="liveClock" class="mob-hide"></span>
+  </div>
   <div style="font-family:var(--font);font-size:0.78rem;letter-spacing:2px;color:#aa2a2a;margin-bottom:20px;text-align:right">... do you know where your meat-body is?</div>
   <div class="page-sub" style="margin-top:-14px; color:var(--cyan)">INTELLIGENCE DATASTORE // PROCESSING... // READY</div>
 
   <div class="status-bar">
-    <div class="status-item"><span class="status-dot dot-green"></span>STATUS: <span>DIRECT // [CYBER-4]</span></div>
-    <div class="status-item">TEAM HEAT: <span id="sb-heat">--</span></div>
-    <div class="status-item">TEAM REPUTATION: <span id="sb-rep">--</span></div>
+    <div class="status-item"><span class="status-dot dot-green"></span>STATUS:
+      <span class="mob-hide">DIRECT // [CYBER-4]</span>
+      <span class="mob-only">[COMMLINK]</span>
+    </div>
+    <div class="status-item"><span class="mob-hide">TEAM </span>HEAT: <span id="sb-heat">--</span></div>
+    <div class="status-item"><span class="mob-hide">TEAM </span>REPUTATION: <span id="sb-rep">--</span></div>
   </div>
 
   <div class="stat-bar" id="statBar">

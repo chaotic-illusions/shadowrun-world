@@ -37,7 +37,7 @@
         <option value="">All Types</option>
       </select>
     </div>
-    <button class="btn btn-green gm-only" onclick="openModal()">+ New Location</button>
+    <button class="btn btn-green gm-only mob-hide" onclick="openModal()">+ New Location</button>
   </div>
 
   <div id="tableWrap">
@@ -55,6 +55,11 @@
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
 
+      <!-- Full location editing is desktop-only for now -- mobile exposes
+           Description and GM Notes below for a quick touch-up. Left in the
+           DOM (not removed) so saveLoc() still round-trips every other field
+           unchanged. -->
+      <div class="mob-hide">
       <div class="grid2 mb-14">
         <div class="field">
           <label>Name *</label>
@@ -159,6 +164,7 @@
           </select>
         </div>
       </div>
+      </div><!-- /.mob-hide -->
       <div class="field mb-14">
         <label>Description / Known Intel</label>
         <textarea id="f-description" rows="4" placeholder="What the runners know..."></textarea>
@@ -170,7 +176,7 @@
     </div>
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
-      <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
+      <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
       <button class="btn btn-red" onclick="closeModal()">Cancel</button>
     </div>
   </div>
