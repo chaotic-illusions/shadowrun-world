@@ -6,7 +6,7 @@
    Plus the PDF field-name map for assets/sr2-charsheet.pdf.
    ============================================================= */
 
-/* Priority table -- assign A-E once each across the five categories. */
+/* Priority table — assign A–E once each across the five categories. */
 window.SR2_PRIORITY = {
   race: {
     A: "Metahuman (Elf / Dwarf / Ork / Troll)",
@@ -14,7 +14,7 @@ window.SR2_PRIORITY = {
   },
   magic: {
     A: "Full Magician (Human)",
-    B: "Adept (Human) - or Full Magician (Metahuman)",
+    B: "Adept (Human) · or Full Magician (Metahuman)",
     C: "Adept (Metahuman)",
     D: "Mundane", E: "Mundane",
   },
@@ -29,20 +29,20 @@ window.SR2_PRIORITY = {
   },
 };
 
-/* Magic availability by race + magic priority (letter rank A=1 ... E=5).
+/* Magic availability by race + magic priority (letter rank A=1 … E=5).
    You qualify if your Magic priority is at least as good as the threshold. */
 window.SR2_MAGIC_RULES = {
   rank: { A: 1, B: 2, C: 3, D: 4, E: 5 },
   fullMage: { human: "A", metahuman: "B" },
   adept:    { human: "B", metahuman: "C" },
-  startingMagic: 6,        // Magic Rating at chargen (Essence 6 -> floor 6)
+  startingMagic: 6,        // Magic Rating at chargen (Essence 6 → floor 6)
   spellForceMaxAtChargen: 6,
 };
 
 /* Shamanic totems (SR2 core, pp.120-122). A shaman MUST pick one at chargen
    (p.47: "if a shaman, what is its totem?"). Each gives spell-category dice
    bonuses, often a conjuring bonus for certain spirits, sometimes a penalty,
-   and always a behavioural geas. Values transcribed directly from the book --
+   and always a behavioural geas. Values transcribed directly from the book —
    these supersede the magic.html catalogue, which had several errors.
    Hermetic mages take no totem. */
 window.SR2_TOTEMS = [
@@ -51,37 +51,37 @@ window.SR2_TOTEMS = [
   { n: "Cat", env: "Urban", spells: "+2 dice to Illusion spells", spirits: "+2 dice conjuring City spirits", penalty: "",
     geas: "Toys with prey: while unwounded, a Willpower (6) test is needed to cast a combat spell (else you cast the weakest you know). +1 TN to all tests while dirty or unkempt." },
   { n: "Coyote", env: "Anywhere", spells: "", spirits: "", penalty: "",
-    geas: "The Trickster. No bonuses and no penalties -- Coyote refuses to be limited by any rule, oath, or expectation, and lives by his own wits." },
+    geas: "The Trickster. No bonuses and no penalties — Coyote refuses to be limited by any rule, oath, or expectation, and lives by his own wits." },
   { n: "Dog", env: "Urban", spells: "+2 dice to Detection spells", spirits: "+2 dice conjuring Field & Hearth spirits", penalty: "",
     geas: "Single-minded loyalty: changing plans or tactics needs a Willpower (4) test and a Complex Action." },
   { n: "Eagle", env: "Mountains", spells: "+2 dice to Detection spells", spirits: "+2 dice conjuring Wind spirits", penalty: "",
     geas: "Will not tolerate evil or ignoble actions; a fierce defender of the land and the purity of nature." },
-  { n: "Gator", env: "Swamp / River (or urban sewers)", spells: "+2 dice to Combat & Detection spells", spirits: "+2 dice conjuring Swamp/Lake/River spirits (City spirits if an urban totem)", penalty: "-1 die to Illusion spells",
+  { n: "Gator", env: "Swamp / River (or urban sewers)", spells: "+2 dice to Combat & Detection spells", spirits: "+2 dice conjuring Swamp/Lake/River spirits (City spirits if an urban totem)", penalty: "−1 die to Illusion spells",
     geas: "Lazy & greedy: breaking off a fight, chase, or other direct action needs a Willpower (6) test. Loathe to share or lend." },
-  { n: "Lion", env: "Prairie", spells: "+2 dice to Combat spells", spirits: "+2 dice conjuring Prairie spirits", penalty: "-1 die to Health spells",
+  { n: "Lion", env: "Prairie", spells: "+2 dice to Combat spells", spirits: "+2 dice conjuring Prairie spirits", penalty: "−1 die to Health spells",
     geas: "Proud, direct warrior: strikes from a position of strength (surprise/ambush), holds strength in reserve, and disdains subtle or menial tasks." },
-  { n: "Owl", env: "Anywhere (learns spells by night)", spells: "+2 dice to ALL Sorcery & Conjuring -- night only", spirits: "", penalty: "",
+  { n: "Owl", env: "Anywhere (learns spells by night)", spells: "+2 dice to ALL Sorcery & Conjuring — night only", spirits: "", penalty: "",
     geas: "Creature of the night: +2 to ALL target numbers (even non-magical) in direct sunlight, and +2 TN to all magic during the daytime even when sheltered." },
-  { n: "Raccoon", env: "Anywhere but desert", spells: "+2 dice to Manipulation spells", spirits: "+2 dice conjuring City spirits", penalty: "-1 die to Combat spells",
-    geas: "Loner and insatiably curious -- ignores danger in the pursuit of information. A proud thief who steals only the very best." },
-  { n: "Rat", env: "Urban", spells: "+2 dice to Detection & Illusion spells", spirits: "+2 dice conjuring Spirits of Man", penalty: "-1 die to Combat spells",
+  { n: "Raccoon", env: "Anywhere but desert", spells: "+2 dice to Manipulation spells", spirits: "+2 dice conjuring City spirits", penalty: "−1 die to Combat spells",
+    geas: "Loner and insatiably curious — ignores danger in the pursuit of information. A proud thief who steals only the very best." },
+  { n: "Rat", env: "Urban", spells: "+2 dice to Detection & Illusion spells", spirits: "+2 dice conjuring Spirits of Man", penalty: "−1 die to Combat spells",
     geas: "Dirty & furtive: dislikes open fighting, preferring spells from the shadows or a silenced pistol from a doorway." },
-  { n: "Raven", env: "Open sky", spells: "+2 dice to Manipulation spells", spirits: "+2 dice conjuring Wind spirits", penalty: "-1 die to Combat spells",
+  { n: "Raven", env: "Open sky", spells: "+2 dice to Manipulation spells", spirits: "+2 dice conjuring Wind spirits", penalty: "−1 die to Combat spells",
     geas: "Gluttonous and conflict-averse (lets others fight). +1 to ALL target numbers whenever not under the open sky." },
   { n: "Shark", env: "On or by the sea", spells: "+2 dice to Combat & Detection spells", spirits: "+2 dice conjuring Sea spirits", penalty: "",
-    geas: "Berserker (like Bear) when wounded or after a kill -- Willpower (4) test. Believes the only good enemy is a dead one; strikes to kill." },
-  { n: "Snake", env: "Anywhere except mountains", spells: "+2 dice to Illusion & Detection spells", spirits: "+2 dice conjuring one Spirit of the Land (wilderness) or one Spirit of Man (urban), your choice", penalty: "-1 die to spells cast during combat",
+    geas: "Berserker (like Bear) when wounded or after a kill — Willpower (4) test. Believes the only good enemy is a dead one; strikes to kill." },
+  { n: "Snake", env: "Anywhere except mountains", spells: "+2 dice to Illusion & Detection spells", spirits: "+2 dice conjuring one Spirit of the Land (wilderness) or one Spirit of Man (urban), your choice", penalty: "−1 die to spells cast during combat",
     geas: "Will not fight unless defending herself or hunting to eat. Obsessed with secrets and will take enormous risks to learn them." },
   { n: "Wolf", env: "Forest / Prairie / Mountain", spells: "+2 dice to Detection & Combat spells", spirits: "+2 dice conjuring Forest or Prairie spirits (your choice)", penalty: "",
     geas: "Fierce loyalty to friends and family unto death; never betrays a bond and never shows cowardice. Can go Berserker like Bear." },
 ];
 
 /* Foci (SR2 core). Two costs at chargen, paid from two pools:
-     * nuyen  -- from the Resources nuyen budget (Magical Equipment Table, p.263)
-     * Force Points -- equal to the focus's bonding Karma (Focus Bonding Table,
+     • nuyen  — from the Resources nuyen budget (Magical Equipment Table, p.263)
+     • Force Points — equal to the focus's bonding Karma (Focus Bonding Table,
        p.137); at chargen Force Points stand in for the bonding Karma.
-   nuyen  = nuyenFlat, or nuyenBase + nuyenPer x Rating.
-   karma  = karmaFlat, or karmaPer x Rating.  (karma is paid in Force Points.)
+   nuyen  = nuyenFlat, or nuyenBase + nuyenPer × Rating.
+   karma  = karmaFlat, or karmaPer × Rating.  (karma is paid in Force Points.)
    who: "mage" = full magician only; "both" = magician or adept.
    Adepts may bond only Weapon Foci in SR2 core (p.138). */
 window.SR2_FOCI = [
@@ -109,29 +109,29 @@ window.SR2_FOCI = [
 /* Persona programs are firmware built into the deck (no active-memory cost).
    The four ratings TOGETHER cannot exceed 3 x the deck's MPCP. (SR2 p.174) */
 window.SR2_PERSONA = [
-  { n: "Bod", desc: "Persona Body -- soaks Matrix damage and sets the TN that IC must beat to crash your deck." },
-  { n: "Evasion", desc: "The persona's dodge -- evades active IC and hostile system commands." },
+  { n: "Bod", desc: "Persona Body — soaks Matrix damage and sets the TN that IC must beat to crash your deck." },
+  { n: "Evasion", desc: "The persona's dodge — evades active IC and hostile system commands." },
   { n: "Masking", desc: "Hides the persona from detection/identification IC; half of your Detection Factor." },
   { n: "Sensors", desc: "Lets the persona perceive nodes, IC, and constructs in the Matrix." },
 ];
 
 /* Utility programs (SR2 p.174-177). Memory size in Mp = Rating^2 x mult.
-   SR2 has no flat purchase price -- programs are written (Computer/Programming
+   SR2 has no flat purchase price — programs are written (Computer/Programming
    skill) or bought as object code from a deckmeister at GM-set prices, so the
    builder leaves nuyen editable (default 0) and tracks the real constraint:
    the deck's Active Memory. */
 window.SR2_PROGRAMS = [
-  { n: "Attack", type: "Combat", mult: 2, fx: "Your Matrix weapon -- crashes hostile IC (Attack rating + Hacking Pool vs the IC's rating; each success fills one IC box)." },
+  { n: "Attack", type: "Combat", mult: 2, fx: "Your Matrix weapon — crashes hostile IC (Attack rating + Hacking Pool vs the IC's rating; each success fills one IC box)." },
   { n: "Slow", type: "Combat", mult: 4, fx: "Degrades a target IC, lowering its effective rating." },
   { n: "Medic", type: "Defense", mult: 4, fx: "Repairs damage to the persona/deck, clearing MPCP Condition Monitor boxes." },
-  { n: "Shield", type: "Defense", mult: 4, fx: "Armor for the persona -- reduces IC damage; degrades 1 point per Combat Turn it absorbs." },
-  { n: "Mirrors", type: "Defense", mult: 3, fx: "Spins up decoy personas -- adds its rating to your Evasion." },
+  { n: "Shield", type: "Defense", mult: 4, fx: "Armor for the persona — reduces IC damage; degrades 1 point per Combat Turn it absorbs." },
+  { n: "Mirrors", type: "Defense", mult: 3, fx: "Spins up decoy personas — adds its rating to your Evasion." },
   { n: "Smoke", type: "Defense", mult: 2, fx: "Raises IC target numbers to obscure you; degrades as it runs." },
   { n: "Analyze", type: "Sensor", mult: 3, fx: "Examines a node, IC, or construct to reveal ratings and identity." },
   { n: "Browse", type: "Sensor", mult: 1, fx: "Searches a datastore's contents for the file or paydata you want." },
   { n: "Decrypt", type: "Sensor", mult: 1, fx: "Defeats scramble/encryption protecting data or operations." },
   { n: "Evaluate", type: "Sensor", mult: 2, fx: "Assesses the street value of data you've located." },
-  { n: "Sleaze", type: "Masking", mult: 3, fx: "Slips the persona past IC unseen -- drives your Detection Factor; every serious decker runs one." },
+  { n: "Sleaze", type: "Masking", mult: 3, fx: "Slips the persona past IC unseen — drives your Detection Factor; every serious decker runs one." },
   { n: "Deception", type: "Masking", mult: 2, fx: "Generates fake passcodes to fool IC and access gates." },
   { n: "Relocate", type: "Masking", mult: 2, fx: "Feeds trace IC a false location, defeating the trace." },
 ];
@@ -146,7 +146,7 @@ window.SR2_MATRIX = {
   // Detection Factor = ceil((Masking + Sleaze) / 2)     (VR2.0 p.18)
 };
 
-/* Metatypes -- racial attribute modifiers, racial maximums, vision, notes.
+/* Metatypes — racial attribute modifiers, racial maximums, vision, notes.
    Maximums are the FINAL attribute caps (after modifiers). */
 window.SR2_METATYPES = {
   Human: {
@@ -222,7 +222,7 @@ window.SR2_SKILLS = [
   { n: "Sociology", attr: "Willpower", group: "knowledge", conc: ["History", "Anthropology", "Archaeology"] },
 ];
 
-/* Common 2050s languages for the chargen datalist (suggestions only -- type any).
+/* Common 2050s languages for the chargen datalist (suggestions only — type any).
    English is the UCAS lingua franca; Sperethiel = Elvish, Or'zet = Ork/Troll.
    City Speak / Tunnel Talk are the typical Street-lifestyle dialects. */
 window.SR2_LANGUAGES = [
@@ -232,7 +232,7 @@ window.SR2_LANGUAGES = [
   "Latin", "City Speak", "Tunnel Talk", "Lingua Franca",
 ];
 
-/* Sample contact archetypes from the SR2 Contacts chapter (p.202+) -- suggestions. */
+/* Sample contact archetypes from the SR2 Contacts chapter (p.202+) — suggestions. */
 window.SR2_CONTACT_ARCHETYPES = [
   "Fixer", "Mr. Johnson", "Decker", "Street Doc", "Talismonger", "Fence",
   "Weapons Dealer", "Bartender", "Beat Cop", "Lone Star Officer", "Corporate Suit",
@@ -240,12 +240,12 @@ window.SR2_CONTACT_ARCHETYPES = [
   "Simsense Star", "Mafia Soldier", "Yakuza", "Mercenary", "Talislegger", "Dock Worker",
 ];
 
-/* Archetype starter kits -- sensible, editable starting points.
+/* Archetype starter kits — sensible, editable starting points.
    gear/spells/powers reference catalogue names; the builder resolves
    them to live stats at load (so prices/effects stay in sync). */
 window.SR2_ARCHETYPES = {
   streetsam: {
-    name: "Street Samurai", blurb: "Chromed frontline shooter -- Resources A for cyber, strong physicals.",
+    name: "Street Samurai", blurb: "Chromed frontline shooter — Resources A for cyber, strong physicals.",
     prio: { resources: "A", attributes: "B", skills: "C", race: "D", magic: "E" },
     metatype: "Human", magicType: "Mundane",
     base: { body: 6, quickness: 6, strength: 4, charisma: 2, intelligence: 3, willpower: 3 },
@@ -254,7 +254,7 @@ window.SR2_ARCHETYPES = {
     gear: { weapons: ["Ares Predator", "AK-97"], armor: ["Armor Jacket"], cyber: ["Wired Reflexes", "Smartlink", "Datajack", "Dermal Plating"], other: ["Medkit"] },
   },
   combatmage: {
-    name: "Combat Mage", blurb: "Full magician slinging combat spells -- Magic A, no cyber to keep Magic 6.",
+    name: "Combat Mage", blurb: "Full magician slinging combat spells — Magic A, no cyber to keep Magic 6.",
     prio: { magic: "A", attributes: "B", skills: "C", resources: "D", race: "E" },
     metatype: "Human", magicType: "Full Mage", tradition: "Hermetic",
     base: { body: 3, quickness: 5, strength: 2, charisma: 3, intelligence: 5, willpower: 6 },
@@ -264,7 +264,7 @@ window.SR2_ARCHETYPES = {
     gear: { weapons: ["Ceska vz/120"], armor: ["Armor Vest"], cyber: [], other: ["Medkit"] },
   },
   decker: {
-    name: "Decker", blurb: "Matrix runner -- Resources A for a top deck, Skills B, brains over brawn.",
+    name: "Decker", blurb: "Matrix runner — Resources A for a top deck, Skills B, brains over brawn.",
     prio: { resources: "A", skills: "B", attributes: "C", race: "D", magic: "E" },
     metatype: "Human", magicType: "Mundane",
     base: { body: 3, quickness: 2, strength: 2, charisma: 2, intelligence: 6, willpower: 5 },
@@ -276,7 +276,7 @@ window.SR2_ARCHETYPES = {
     gear: { weapons: ["Ares Predator"], armor: ["Armor Vest"], cyber: ["Datajack", "Encephalon"], other: ["Pocket Secretary", "Medkit"] },
   },
   face: {
-    name: "Face", blurb: "Elf social specialist -- Race A for elf Charisma; talks the team in and out.",
+    name: "Face", blurb: "Elf social specialist — Race A for elf Charisma; talks the team in and out.",
     prio: { race: "A", attributes: "B", skills: "C", resources: "D", magic: "E" },
     metatype: "Elf", magicType: "Mundane",
     base: { body: 3, quickness: 4, strength: 2, charisma: 6, intelligence: 4, willpower: 5 },
@@ -285,7 +285,7 @@ window.SR2_ARCHETYPES = {
     gear: { weapons: ["Ceska vz/120"], armor: ["Armor Clothing"], cyber: [], other: ["Pocket Secretary", "Medkit"] },
   },
   rigger: {
-    name: "Rigger", blurb: "Vehicle & drone specialist -- Resources A for rides, VCR-wired.",
+    name: "Rigger", blurb: "Vehicle & drone specialist — Resources A for rides, VCR-wired.",
     prio: { resources: "A", skills: "B", attributes: "C", race: "D", magic: "E" },
     metatype: "Human", magicType: "Mundane",
     base: { body: 2, quickness: 4, strength: 2, charisma: 2, intelligence: 6, willpower: 4 },
@@ -294,7 +294,7 @@ window.SR2_ARCHETYPES = {
     gear: { weapons: ["Ares Predator"], armor: ["Armor Jacket"], cyber: ["Vehicle Control Rig", "Datajack"], vehicles: ["Eurocar Westwind 2000", "MCT-Nissan Roto-Drone", "Renraku Arachnoid Mini-Drone"], other: [] },
   },
   adept: {
-    name: "Physical Adept", blurb: "Magic through the body -- Magic B for adept powers, top physicals (Attributes A).",
+    name: "Physical Adept", blurb: "Magic through the body — Magic B for adept powers, top physicals (Attributes A).",
     prio: { attributes: "A", magic: "B", skills: "C", resources: "D", race: "E" },
     metatype: "Human", magicType: "Adept",
     base: { body: 5, quickness: 6, strength: 5, charisma: 3, intelligence: 5, willpower: 6 },
@@ -336,7 +336,7 @@ window.SR2_CHARGEN = {
 };
 
 /* =============================================================
-   PDF field-name map for assets/sr2-charsheet.pdf -- our OWN
+   PDF field-name map for assets/sr2-charsheet.pdf — our OWN
    original, fillable sheet (generated by build-charsheet.mjs).
    Clean field names; no quirky swapped boxes like the old sheet.
    ============================================================= */

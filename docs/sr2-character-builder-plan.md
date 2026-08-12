@@ -8,6 +8,15 @@
 > doesn't depend on re-fetching from the internet. This doc is the running
 > decision log -- update it as choices get made instead of re-deriving them from
 > chat scrollback.
+>
+> **2026-08-14**: `tools/check_text_hygiene.py` was corrected -- it's meant to
+> catch mojibake (double-encoding corruption), not ban all non-ASCII text.
+> Fixed to only flag genuine corruption markers/invalid UTF-8/BOM; legitimate
+> Unicode (nuyen signs, accented names like "Tiburon", typographic punctuation)
+> is allowed again. The reference-data files and this doc had been over-eagerly
+> ASCII-flattened to pass the old stricter check; reference data was restored
+> from pristine copies, and this doc's own prose is left as plain ASCII (cheap,
+> low-value to restore -- it's internal documentation, not rendered game data).
 
 ## TODO -- gear database
 

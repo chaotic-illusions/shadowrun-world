@@ -40,7 +40,7 @@
 
 window.CYBERWARE = [
 
-  /* ============== SR2 core -- Headware Communications (p.260) ============== */
+  /* ============== SR2 core — Headware Communications (p.260) ============== */
   { n: "Chipjack", cat: "headware", ess: 0.2, cost: 1000, avail: "3/72 hrs", index: 0.9,
     desc: "Skill-chip port that lets the user load Activesofts, Knowsofts, and Linguasofts directly into the brain.",
     effect: ["Required for using skillsofts (Active/Know/Lingua).", "Combine with a Datajack to upload from a deck."],
@@ -62,7 +62,7 @@ window.CYBERWARE = [
     effect: ["Place and receive phone calls without external hardware.", "Speak silently via sub-vocalization."],
     src: "SR2", pg: 260 },
 
-  /* SR2 -- Earware */
+  /* SR2 — Earware */
   { n: "Cyber Ear Replacement", cat: "earware", ess: 0.3, cost: 4000, avail: "2/24 hrs", index: 0.75,
     desc: "Full prosthetic replacement of the natural ear, providing the platform for further auditory cyberware.",
     effect: ["Required base for ear modifications.", "Costs 0.2 less Essence if installed during replacement of a lost ear."],
@@ -92,7 +92,7 @@ window.CYBERWARE = [
     effect: ["Records sound to internal storage.", "Output can be routed through a cyberear, datajack, or external speaker."],
     src: "SR2", pg: 260 },
 
-  /* SR2 -- Eyeware */
+  /* SR2 — Eyeware */
   { n: "Cyber Eye Replacement", cat: "eyeware", ess: 0.2, cost: 5000, avail: "2/24 hrs", index: 0.75,
     desc: "Full prosthetic eye providing 20/20 vision and the base for additional optical cyberware.",
     effect: ["Required base for most eye enhancements.", "Costs 0.1 less Essence if installed when replacing a lost eye."],
@@ -122,9 +122,9 @@ window.CYBERWARE = [
     effect: ["See heat sources through fog, smoke, and darkness.", "Detects recent body-heat trails."],
     src: "SR2", pg: 260 },
 
-  /* SR2 -- Headware Internals */
+  /* SR2 — Headware Internals */
   { n: "Cortex Bomb (Illegal)", cat: "headware", ess: null, cost: 500000, avail: "20/14 days", index: 1,
-    desc: "Brain-implanted explosive that detonates on command or under preset triggers -- usually used for coercion.",
+    desc: "Brain-implanted explosive that detonates on command or under preset triggers — usually used for coercion.",
     effect: ["Lethal explosive in 1m radius.", "Triggers via signal or set conditions; usually booby-trapped."],
     src: "SR2", pg: 260 },
   { n: "Data Filter", cat: "headware", ess: 0.3, cost: 5000, avail: "6/36 hrs", index: 1.5,
@@ -137,36 +137,36 @@ window.CYBERWARE = [
     src: "SR2", pg: 260 },
   { n: "Datasoft Link", cat: "headware", ess: 0.1, cost: 1000, avail: "3/24 hrs", index: 1,
     desc: "Slot that lets pre-recorded Datasoft chips be read directly without using up cortex memory.",
-    effect: ["Plays Datasoft chips (books, plans, maps).", "No memory cost -- chip data is not transferred to brain."],
+    effect: ["Plays Datasoft chips (books, plans, maps).", "No memory cost — chip data is not transferred to brain."],
     src: "SR2", pg: 260 },
   { n: "Display Link", cat: "headware", ess: 0.1, cost: 1000, avail: "Always", index: 1,
     desc: "Heads-up display projected onto the retina or cyber eye, used to view text, video, and smartgun data.",
     effect: ["Required to read smartgun data and other HUD feeds.", "Displays output from headware and external sources."],
     src: "SR2", pg: 260 },
-  { n: "Memory", cat: "headware", ess: 0.1, cost: "Mp x 100Y", avail: "2/24 hrs", index: 1,
+  { n: "Memory", cat: "headware", ess: 0.1, cost: "Mp × 100¥", avail: "2/24 hrs", index: 1,
     desc: "Internal solid-state memory that stores data, programs, and skillsofts for cybernetic systems.",
     effect: ["Stores Mp of data for skillsofts, Datasofts, recordings, etc.", "Some software cannot be copied off-chip."],
     src: "SR2", pg: 260 },
 
-  /* SR2 -- Skillsofts */
-  { n: "Activesoft", cat: "other", ess: null, cost: "Mp x 100Y", avail: "6/4 days", index: 1.25,
+  /* SR2 — Skillsofts */
+  { n: "Activesoft", cat: "other", ess: null, cost: "Mp × 100¥", avail: "6/4 days", index: 1.25,
     desc: "Skillchip carrying an Active skill that the user can run via a chipjack.",
     effect: ["Provides a usable rating in an Active skill while installed.", "Concentrations/Specializations follow Skill Memory Table."],
     src: "SR2", pg: 260 },
   { n: "Datasoft", cat: "other", ess: null, cost: "Varies", avail: "Varies", index: 1,
     desc: "Read-only data chip containing books, manuals, maps, or other reference material.",
-    effect: ["Read through a Datasoft Link or cyberdeck.", "No mechanical skill bonus -- pure information."],
+    effect: ["Read through a Datasoft Link or cyberdeck.", "No mechanical skill bonus — pure information."],
     src: "SR2", pg: 260 },
-  { n: "Knowsoft", cat: "other", ess: null, cost: "Mp x 150Y", avail: "5/4 days", index: 1.25,
+  { n: "Knowsoft", cat: "other", ess: null, cost: "Mp × 150¥", avail: "5/4 days", index: 1.25,
     desc: "Skillchip granting a Knowledge skill while plugged into a chipjack.",
     effect: ["Provides a Knowledge skill rating while loaded.", "Cannot be used to default Active skill tests."],
     src: "SR2", pg: 260 },
-  { n: "Linguasoft", cat: "other", ess: null, cost: "Mp x 100Y", avail: "5/36 hrs", index: 1.25,
+  { n: "Linguasoft", cat: "other", ess: null, cost: "Mp × 100¥", avail: "5/36 hrs", index: 1.25,
     desc: "Skillchip that grants the user fluency in a single language while loaded in a chipjack.",
     effect: ["Provides a Language skill rating.", "One language per chip."],
     src: "SR2", pg: 260 },
 
-  /* SR2 -- Bodyware */
+  /* SR2 — Bodyware */
   { n: "Fingertip Compartment", cat: "bodyware", ess: 0.1, cost: 3000, avail: "3/24 hrs", index: 1,
     desc: "Tiny storage cavity replacing the last joint of a finger, used to conceal small items.",
     effect: ["Holds a single very small object.", "Useful for smuggling chips or hidden tools."],
@@ -179,7 +179,7 @@ window.CYBERWARE = [
     desc: "Retractable upgrade to Hand Razors that hide the blades inside the finger when not in use.",
     effect: ["Concealable melee blades that extend on demand.", "Harder to spot than fixed Hand Razors."],
     src: "SR2", pg: 261 },
-  { n: "Muscle Replacement", cat: "bodyware", ess: "Rating", cost: "Rating x 20,000Y", avail: "4/4 days", index: 1,
+  { n: "Muscle Replacement", cat: "bodyware", ess: "Rating", cost: "Rating × 20,000¥", avail: "4/4 days", index: 1,
     desc: "Surgical replacement of major muscle groups with synthetic fiber, boosting raw physical performance.",
     effect: ["Adds Rating to both Strength and Quickness.", "Maximum Rating 4."], rated: true, maxRating: 4, essTbl: [1, 2, 3, 4], costTbl: [20000, 40000, 60000, 80000], modsPer: { strength: 1, quickness: 1 },
     src: "SR2", pg: 261 },
@@ -189,36 +189,36 @@ window.CYBERWARE = [
     src: "SR2", pg: 261 },
   { n: "Spur", cat: "bodyware", ess: 0.3, cost: 11500, avail: "5/72 hrs", index: 1,
     desc: "Fixed cyber-spur protruding from the forearm, used as an always-ready melee weapon.",
-    effect: ["Provides Str+2 melee damage code.", "Always extended -- obvious."],
+    effect: ["Provides Str+2 melee damage code.", "Always extended — obvious."],
     src: "SR2", pg: 261 },
   { n: "Smartlink", cat: "bodyware", ess: 0.5, cost: 7000, avail: "3/36 hrs", index: 1,
     desc: "Cyber-link that interfaces a smartgun directly with the user's eye and trigger control.",
     effect: ["Reduces target number on smartgun-equipped weapons by 2.", "Requires a Display Link and Datajack to function."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Voice Modulator + options */
+  /* SR2 — Voice Modulator + options */
   { n: "Voice Modulator", cat: "bodyware", ess: 0.2, cost: 45000, avail: "3/72 hrs", index: 1,
     desc: "Cyber-larynx that lets the user shift pitch and timbre of their voice across a wide range.",
-    effect: ["Allows controlled changes in voice pitch, gender, and tone.", "Base unit acts as performance tool -- see options below."],
+    effect: ["Allows controlled changes in voice pitch, gender, and tone.", "Base unit acts as performance tool — see options below."],
     src: "SR2", pg: 261 },
-  { n: "Voice Modulator -- Increased Volume", cat: "bodyware", ess: null, cost: 10000, avail: "2/24 hrs", index: 1,
+  { n: "Voice Modulator — Increased Volume", cat: "bodyware", ess: null, cost: 10000, avail: "2/24 hrs", index: 1,
     desc: "Volume boost option for the Voice Modulator that turns the user's voice into a loudspeaker.",
     effect: ["Raises voice volume up to about 110 dB.", "Add-on to the Voice Modulator only."],
     src: "SR2", pg: 261 },
-  { n: "Voice Modulator -- Tonal Shift", cat: "bodyware", ess: null, cost: 25000, avail: "2/24 hrs", index: 1,
+  { n: "Voice Modulator — Tonal Shift", cat: "bodyware", ess: null, cost: 25000, avail: "2/24 hrs", index: 1,
     desc: "Performance option allowing simultaneous multi-tonal output and impressions of other voices.",
     effect: ["Enables vocal harmonies and audible impressions.", "Useful for entertainers and impersonators."],
     src: "SR2", pg: 261 },
-  { n: "Voice Modulator -- Secondary Pattern (Illegal)", cat: "bodyware", ess: null, cost: 50000, avail: "6/7 days", index: 2,
+  { n: "Voice Modulator — Secondary Pattern (Illegal)", cat: "bodyware", ess: null, cost: 50000, avail: "6/7 days", index: 2,
     desc: "Illegal modification that loads an entire second voice pattern to mimic another specific person.",
     effect: ["Reproduces a recorded individual's voice almost perfectly.", "Voice patterns loaded via datajack."],
     src: "SR2", pg: 261 },
-  { n: "Voice Modulator -- Playback", cat: "bodyware", ess: 0.2, cost: 40000, avail: "4/48 hrs", index: 1,
+  { n: "Voice Modulator — Playback", cat: "bodyware", ess: 0.2, cost: 40000, avail: "4/48 hrs", index: 1,
     desc: "Storage option allowing the Voice Modulator to record audio and play it back through the user's mouth.",
     effect: ["Records audio internally and replays it as speech.", "Output also routes through datajack."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Dermal Plating */
+  /* SR2 — Dermal Plating */
   { n: "Dermal Plating Level 1 (SR2)", cat: "bodyware", ess: 0.5, cost: 6000, avail: "4/12 days", index: 1,
     desc: "Subdermal plates of plastic and metal that armor the skin under a layer of synthetic flesh.",
     effect: ["+1 to Body for resisting damage.", "Visible as faintly armored skin texture."],
@@ -232,21 +232,21 @@ window.CYBERWARE = [
     effect: ["+3 to Body for resisting damage.", "Heavy, blatantly obvious modification."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Filtration */
-  { n: "Air Filtration", cat: "bodyware", ess: "Rating x 0.1", cost: "Rating x 15,000Y", avail: "6/4 days", index: 1,
+  /* SR2 — Filtration */
+  { n: "Air Filtration", cat: "bodyware", ess: "Rating × 0.1", cost: "Rating × 15,000¥", avail: "6/4 days", index: 1,
     desc: "Implanted respiratory filter that traps airborne toxins and particulates before they reach the lungs.",
     effect: ["Opposes inhaled toxins with the unit's Rating.", "Rating cap of 10."],
     src: "SR2", pg: 261 },
-  { n: "Blood Filtration", cat: "bodyware", ess: "Rating x 0.2", cost: "Rating x 10,000Y", avail: "6/4 days", index: 1,
+  { n: "Blood Filtration", cat: "bodyware", ess: "Rating × 0.2", cost: "Rating × 10,000¥", avail: "6/4 days", index: 1,
     desc: "In-line bloodstream filter that strips toxins and pathogens from blood as it circulates.",
     effect: ["Opposes blood-borne toxins with the unit's Rating.", "Specialized form: anti-alcohol filter exists."],
     src: "SR2", pg: 261 },
-  { n: "Ingested Toxin Filtration", cat: "bodyware", ess: "Rating x 0.1", cost: "Rating x 10,000Y", avail: "6/4 days", index: 1,
+  { n: "Ingested Toxin Filtration", cat: "bodyware", ess: "Rating × 0.1", cost: "Rating × 10,000¥", avail: "6/4 days", index: 1,
     desc: "Gut-implanted filter array that neutralizes ingested poisons and contaminated food.",
     effect: ["Opposes ingested toxins with the unit's Rating.", "Limited filter capacity per period."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Limbs */
+  /* SR2 — Limbs */
   { n: "Simple Replacement Limb", cat: "limb", ess: 1, cost: 50000, avail: "4/48 hrs", index: 1,
     desc: "Basic prosthetic arm or leg that restores normal function after the loss of a natural limb.",
     effect: ["Functions as a normal limb.", "No special abilities or upgrade slots."],
@@ -255,34 +255,34 @@ window.CYBERWARE = [
     desc: "Full cybernetic arm or leg that can host built-in weapons, devices, and physical enhancements.",
     effect: ["Replacement limb with internal modification slots.", "Adds dramatic obvious cyberware to the user."],
     src: "SR2", pg: 261 },
-  { n: "Cyber Limb -- Increased Strength", cat: "limb", ess: null, cost: "+ Rating x 150,000Y", avail: "6/4 days", index: 1.5,
+  { n: "Cyber Limb — Increased Strength", cat: "limb", ess: null, cost: "+ Rating × 150,000¥", avail: "6/4 days", index: 1.5,
     desc: "Strength upgrade module fitted into a cyber limb to push lifting and striking power beyond human norms.",
     effect: ["Adds Rating to limb's Strength.", "Add-on to Cyber Limb only."],
     src: "SR2", pg: 261 },
-  { n: "Cyber Limb -- Built-In Smartlink", cat: "limb", ess: 0.25, cost: 2500, avail: "6/4 days", index: 1,
+  { n: "Cyber Limb — Built-In Smartlink", cat: "limb", ess: 0.25, cost: 2500, avail: "6/4 days", index: 1,
     desc: "Internal smartgun link wired through a cyber arm for a concealed weapons interface.",
     effect: ["Built-in smartlink for weapons mounted in the limb.", "Counts as a normal smartlink (-2 TN)."],
     src: "SR2", pg: 261 },
-  { n: "Cyber Limb -- Built-In Device", cat: "limb", ess: null, cost: "4x Normal Cost", avail: "Varies", index: "Varies",
+  { n: "Cyber Limb — Built-In Device", cat: "limb", ess: null, cost: "4× Normal Cost", avail: "Varies", index: "Varies",
     desc: "Slot for an additional internal device (gun, tool, or gadget) hidden inside a cyber limb.",
     effect: ["Houses an additional piece of cyberware inside a limb.", "Cost is four times the standard price of the device."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Skillwires */
-  { n: "Skillwires Rating 1-3", cat: "bodyware", ess: "Rating x 0.1", cost: "Rating x 10,000Y", avail: "4/10 days", index: 1,
+  /* SR2 — Skillwires */
+  { n: "Skillwires Rating 1-3", cat: "bodyware", ess: "Rating × 0.1", cost: "Rating × 10,000¥", avail: "4/10 days", index: 1,
     desc: "Neural skillwire system that lets the user run Activesoft chips into the muscles for instant skills.",
     effect: ["Up to Rating 3 at lower per-rating cost.", "Required for Activesoft chips."],
     src: "SR2", pg: 261 },
-  { n: "Skillwires Rating 4-6", cat: "bodyware", ess: "Rating x 0.2", cost: "Rating x 10,000Y", avail: "5/10 days", index: 1,
+  { n: "Skillwires Rating 4-6", cat: "bodyware", ess: "Rating × 0.2", cost: "Rating × 10,000¥", avail: "5/10 days", index: 1,
     desc: "Higher-grade skillwires running Activesofts at the 4-6 rating band.",
     effect: ["Supports Rating 4 to 6 skillsofts.", "Higher Essence cost per rating point than the cheap band."],
     src: "SR2", pg: 261 },
-  { n: "Skillwires Rating 7", cat: "bodyware", ess: "Rating x 0.3", cost: "Rating x 1,000,000Y", avail: "12/20 days", index: 1,
+  { n: "Skillwires Rating 7", cat: "bodyware", ess: "Rating × 0.3", cost: "Rating × 1,000,000¥", avail: "12/20 days", index: 1,
     desc: "Bleeding-edge skillwires capable of running a Rating 7 skillsoft.",
     effect: ["Supports Rating 7 skillsofts.", "Cost runs into the millions of nuyen."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Vehicle Control Rig */
+  /* SR2 — Vehicle Control Rig */
   { n: "Vehicle Control Rig Level 1", cat: "bodyware", ess: 2, cost: 12000, avail: "6/48 hrs", index: 1,
     desc: "Neural rig that connects a rigger directly to vehicles, drones, and other remote systems.",
     effect: ["Allows rigging of vehicles via datajack.", "+1D6 Initiative when jacked in."],
@@ -296,7 +296,7 @@ window.CYBERWARE = [
     effect: ["Allows rigging.", "+3D6 Initiative when jacked into a vehicle."],
     src: "SR2", pg: 261 },
 
-  /* SR2 -- Wired Reflexes */
+  /* SR2 — Wired Reflexes */
   { n: "Wired Reflexes Level 1", cat: "bodyware", ess: 2, cost: 55000, avail: "4/8 days", index: 1,
     desc: "Synthetic nerve and muscle wiring that accelerates reaction time well beyond natural limits.",
     effect: ["+2 Reaction.", "+1D6 Initiative."], mods: { reaction: 2, initDice: 1 },
@@ -328,19 +328,19 @@ window.CYBERWARE = [
     effect: ["Tracks up to ten radio or phone channels.", "Used by command staff and net runners."],
     src: "SSC", pg: 76 },
 
-  { n: "Crypto Circuit HD Level 1-4", cat: "headware", ess: 0.1, cost: "Level x 10,000Y", avail: "6/36 hrs", index: 1,
+  { n: "Crypto Circuit HD Level 1-4", cat: "headware", ess: 0.1, cost: "Level × 10,000¥", avail: "6/36 hrs", index: 1,
     desc: "Headware encryption module that scrambles transmissions on a paired commlink, radio, or phone.",
     effect: ["Encrypts and decrypts cyber-comm traffic.", "Receiver needs equal-or-better Crypto Circuit to listen in."],
     src: "SSC", pg: 77 },
-  { n: "Crypto Circuit HD Level 5-7", cat: "headware", ess: 0.1, cost: "Level x 20,000Y", avail: "6/36 hrs", index: 1.25,
+  { n: "Crypto Circuit HD Level 5-7", cat: "headware", ess: 0.1, cost: "Level × 20,000¥", avail: "6/36 hrs", index: 1.25,
     desc: "Mid-grade Crypto Circuit module for sensitive corporate and security traffic.",
     effect: ["Higher-rated encryption layer.", "External equipment runs at half cost."],
     src: "SSC", pg: 77 },
-  { n: "Crypto Circuit HD Level 8-9", cat: "headware", ess: 0.1, cost: "Level x 30,000Y", avail: "8/36 hrs", index: 1.5,
+  { n: "Crypto Circuit HD Level 8-9", cat: "headware", ess: 0.1, cost: "Level × 30,000¥", avail: "8/36 hrs", index: 1.5,
     desc: "Near-military-grade Crypto Circuit used for high-value coded channels.",
     effect: ["Strong sequenced-code encryption.", "Often combined with Scramble Breaker for code-cracking."],
     src: "SSC", pg: 77 },
-  { n: "Crypto Circuit HD Level 10", cat: "headware", ess: 0.1, cost: "Level x 50,000Y", avail: "10/48 hrs", index: 2,
+  { n: "Crypto Circuit HD Level 10", cat: "headware", ess: 0.1, cost: "Level × 50,000¥", avail: "10/48 hrs", index: 2,
     desc: "Top-tier military-spec encryption hardware available only on the black market.",
     effect: ["Maximum-grade cyber-encryption.", "Restricted to military, government, and corp security."],
     src: "SSC", pg: 77 },
@@ -360,11 +360,11 @@ window.CYBERWARE = [
     effect: ["Displays range to target via Display Link.", "Useful with smartguns and indirect-fire weapons."],
     src: "SSC", pg: 80 },
 
-  { n: "Scramble Breaker HD Level 1-4", cat: "headware", ess: 0.2, cost: "Level x 20,000Y", avail: "6/48 hrs", index: 1,
+  { n: "Scramble Breaker HD Level 1-4", cat: "headware", ess: 0.2, cost: "Level × 20,000¥", avail: "6/48 hrs", index: 1,
     desc: "Headware decryption module that tries to crack scrambled signals being received by paired comm gear.",
     effect: ["Attempts to break enemy encryption.", "Loses only 0.1 Essence when packaged with paired comm gear."],
     src: "SSC", pg: 81 },
-  { n: "Scramble Breaker HD Level 5-7", cat: "headware", ess: 0.2, cost: "Level x 40,000Y", avail: "8/48 hrs", index: 1.75,
+  { n: "Scramble Breaker HD Level 5-7", cat: "headware", ess: 0.2, cost: "Level × 40,000¥", avail: "8/48 hrs", index: 1.75,
     desc: "Mid-tier Scramble Breaker for cracking corporate-grade encrypted traffic.",
     effect: ["Stronger decryption versus tougher codes.", "External equipment runs at half cost."],
     src: "SSC", pg: 81 },
@@ -373,7 +373,7 @@ window.CYBERWARE = [
     effect: ["Top-end cyber-decryption.", "Matches Data Codebreaker / Datalink Encryption System hardware."],
     src: "SSC", pg: 81 },
 
-  { n: "Select Sound Filter (Rating 1-5)", cat: "earware", ess: 0.2, cost: "Level x 10,000Y", avail: "6/48 hrs", index: 1.25,
+  { n: "Select Sound Filter (Rating 1-5)", cat: "earware", ess: 0.2, cost: "Level × 10,000¥", avail: "6/48 hrs", index: 1.25,
     desc: "Auditory filter that selectively suppresses unwanted background noise without dampening other sounds.",
     effect: ["Rating dice for an Unresisted Test to filter out chosen noise.", "Compatible with other ear cyberware."],
     src: "SSC", pg: 82 },
@@ -430,18 +430,18 @@ window.CYBERWARE = [
     src: "SSC", pg: 85 },
   { n: "Electronic Magnification 1", cat: "eyeware", ess: 0.1, cost: 3500, avail: "5/48 hrs", index: 1,
     desc: "Light-sensitive electronic zoom system that magnifies the image inside a cyber eye.",
-    effect: ["Electronic zoom 1.", "Concealability 9 -- invisible in any eye type."],
+    effect: ["Electronic zoom 1.", "Concealability 9 — invisible in any eye type."],
     src: "SSC", pg: 85 },
   { n: "Electronic Magnification 2", cat: "eyeware", ess: 0.1, cost: 7500, avail: "5/48 hrs", index: 1,
     desc: "Mid-stage electronic magnification for cyber eyes.",
-    effect: ["Electronic zoom 2.", "Hidden inside the eye -- undetectable visually."],
+    effect: ["Electronic zoom 2.", "Hidden inside the eye — undetectable visually."],
     src: "SSC", pg: 85 },
   { n: "Electronic Magnification 3", cat: "eyeware", ess: 0.1, cost: 11000, avail: "8/48 hrs", index: 1,
     desc: "Top-grade electronic magnification capable of strong zoom in any cyber eye.",
     effect: ["Electronic zoom 3.", "Grainier image than optical at the same level."],
     src: "SSC", pg: 85 },
 
-  /* SSC -- Cyberguns (limb-mounted) */
+  /* SSC — Cyberguns (limb-mounted) */
   { n: "Cybergun: Hold-Out Pistol", cat: "limb", ess: null, cost: 250, avail: "8/7 days", index: 2,
     desc: "Hold-Out pistol built into a cyber arm, firing through a port in the palm.",
     effect: ["Ammo 12 (Internal); damage 4L(SA); weight 0.3.", "Concealability 12."],
@@ -467,7 +467,7 @@ window.CYBERWARE = [
     effect: ["Ammo 4 (Internal); damage 8S(SA); weight 2.", "Loud, obvious discharge."],
     src: "SSC", pg: 86 },
 
-  /* SSC -- Boosted Reflexes */
+  /* SSC — Boosted Reflexes */
   { n: "Boosted Reflexes Level 1", cat: "bodyware", ess: 0.5, cost: 15000, avail: "3/24 hrs", index: 1,
     desc: "One-time electro-chemical treatment that boosts natural reaction speed without full cyber reflexes.",
     effect: ["+1D6 Initiative; no Reaction bonus.", "Recipient can never receive Wired Reflexes or a Control Rig."], mods: { initDice: 1 },
@@ -481,28 +481,28 @@ window.CYBERWARE = [
     effect: ["+2 Reaction; +2D6 Initiative.", "Cannot be upgraded; bars Wired Reflexes/Control Rig."], mods: { reaction: 2, initDice: 2 },
     src: "SSC", pg: 87 },
 
-  /* SSC -- Skill Hardwires */
-  { n: "Skill Hardwires Rating 1-4", cat: "bodyware", ess: "Level x 0.25", cost: "Rating x 5,000Y", avail: "6/10 days", index: 1,
+  /* SSC — Skill Hardwires */
+  { n: "Skill Hardwires Rating 1-4", cat: "bodyware", ess: "Level × 0.25", cost: "Rating × 5,000¥", avail: "6/10 days", index: 1,
     desc: "Permanent hardwired single skill grafted onto the nervous system, requiring no chip to use.",
     effect: ["Always-on Active or Concentrated skill at the chosen Rating.", "Cannot be changed, upgraded, or modified after install."],
     src: "SSC", pg: 88 },
-  { n: "Skill Hardwires Rating 5-8", cat: "bodyware", ess: "Level x 0.25", cost: "Rating x 50,000Y", avail: "12/14 days", index: 1.5,
+  { n: "Skill Hardwires Rating 5-8", cat: "bodyware", ess: "Level × 0.25", cost: "Rating × 50,000¥", avail: "12/14 days", index: 1.5,
     desc: "High-rated hardwired skill for professionals who need a single ability at expert level.",
     effect: ["Permanent skill at Rating 5-8.", "Must be a Concentration; cannot be General or Specialized."],
     src: "SSC", pg: 88 },
-  { n: "Skill Hardwires Rating 9-10", cat: "bodyware", ess: "Level x 0.25", cost: "Level x 500,000Y", avail: "12/14 days", index: 1.5,
+  { n: "Skill Hardwires Rating 9-10", cat: "bodyware", ess: "Level × 0.25", cost: "Level × 500,000¥", avail: "12/14 days", index: 1.5,
     desc: "Maximum-grade hardwired skill, used by elite specialists in a single discipline.",
     effect: ["Permanent skill at Rating 9-10.", "Cost runs to hundreds of thousands per rating point."],
     src: "SSC", pg: 88 },
 
   { n: "Improved Hand Razors", cat: "bodyware", ess: null, cost: 6500, avail: "3/72 hrs", index: 1,
     desc: "Compression carbide blade replacements for existing Hand Razors, fitting all current cyber-razor units.",
-    effect: ["Damage code (Str + 2).", "Upgrade only -- requires existing Hand Razors; 20-minute swap."],
+    effect: ["Damage code (Str + 2).", "Upgrade only — requires existing Hand Razors; 20-minute swap."],
     src: "SSC", pg: 89 },
 
   /* ============== Cybertechnology (pp. 17-99) ============== */
 
-  /* CYB -- Communications */
+  /* CYB — Communications */
   { n: "Subvocal Microphone (External)", cat: "headware", ess: 0, cost: 500, avail: "3/48 hrs", index: 1.25,
     desc: "Throat-mounted mic that picks up faint subvocalized speech for silent comms.",
     effect: ["Allows nearly silent vocal communication.", "Requires datajack to link with internal systems.", "Easier to detect than internal version (+4 Perception modifier)."],
@@ -520,7 +520,7 @@ window.CYBERWARE = [
     effect: ["Provides hidden two-way radio with multi-channel scanning.", "Includes burst and compression options.", "Pairs with internal mic and speaker for invisible telephony."],
     src: "CYB", pg: 18 },
 
-  /* CYB -- Eye Accessories */
+  /* CYB — Eye Accessories */
   { n: "Retinal Clock", cat: "eyeware", ess: 0.1, cost: 450, avail: "3/24 hrs", index: 1,
     desc: "Tiny readout in the corner of the cyber eye showing time, date and a stopwatch.",
     effect: ["Constantly displays time and date.", "Includes stopwatch and countdown timer accurate to fractions of a second."],
@@ -530,7 +530,7 @@ window.CYBERWARE = [
     effect: ["Provides Body+5 against eye-targeted impact and particles.", "Acts as one-way transparent armor.", "Adds 20% to cyber eye cost when installed."],
     src: "CYB", pg: 19 },
 
-  /* CYB -- Eye Datajacks */
+  /* CYB — Eye Datajacks */
   { n: "Eye Datajack", cat: "eyeware", ess: 0.25, cost: 2200, avail: "6/48 hrs", index: 2,
     desc: "Datajack hidden behind the eye that opens with light pressure for discreet jacking.",
     effect: ["Functions identically to a standard datajack.", "Conceals the jack port behind the cyber eye.", "Eye must be plugged into to operate."],
@@ -544,7 +544,7 @@ window.CYBERWARE = [
     effect: ["Required for two-way optical jacking.", "Weight 0.25 kg, conceals at rating 10."],
     src: "CYB", pg: 20 },
 
-  /* CYB -- Eye Light Systems */
+  /* CYB — Eye Light Systems */
   { n: "Eye Light System", cat: "eyeware", ess: 0.2, cost: 1200, avail: "4/72 hrs", index: 1.5,
     desc: "Low-fan light projector built into the cyber eye for hands-free illumination.",
     effect: ["Throws a directed beam aligned with the user's gaze.", "Polarization compensates so the user isn't blinded."],
@@ -558,7 +558,7 @@ window.CYBERWARE = [
     effect: ["Burns out one extreme flash equivalent to a regular flash-pak.", "Must be physically replaced after use."],
     src: "CYB", pg: 21 },
 
-  /* CYB -- Eye Weapons */
+  /* CYB — Eye Weapons */
   { n: "Eye Dart", cat: "eyeware", ess: 0.25, cost: 4200, avail: "8/2 weeks", index: 2,
     desc: "Eye-mounted hold-out launcher firing one half-range narcoject dart per reload.",
     effect: ["Fires narcoject/toxin rounds; one shot then reloads ten Combat Turns.", "Combined with smartlink for free targeting (+2 modifier).", "Holds one round; ammo costs triple standard."],
@@ -568,7 +568,7 @@ window.CYBERWARE = [
     effect: ["One round (-1 damage, -1 recoil mod); ten Combat Turns to reload.", "Optional Quickness Test reduces reload time.", "Cannot exceed Body in orbital sockets."],
     src: "CYB", pg: 22 },
 
-  /* CYB -- Eye Laser Systems */
+  /* CYB — Eye Laser Systems */
   { n: "Laser Tracker", cat: "eyeware", ess: 0.2, cost: 3200, avail: "8/72 hrs", index: 2,
     desc: "Eye-bound laser sight that auto-paints a target for laser designators.",
     effect: ["Auto-tracks the target the user is looking at.", "Requires an external laser designator system to use.", "Maximum range 1000 m."],
@@ -582,7 +582,7 @@ window.CYBERWARE = [
     effect: ["Range up to 4000 meters.", "Allows external weapons to lock onto designated target.", "Often paired with laser tracker for hands-free designation."],
     src: "CYB", pg: 23 },
 
-  /* CYB -- Ear Accessories */
+  /* CYB — Ear Accessories */
   { n: "Spatial Recognizer", cat: "earware", ess: 0.2, cost: 1200, avail: "4/48 hrs", index: 2,
     desc: "Cyber-audio enhancement that pinpoints the direction and distance of sounds.",
     effect: ["Reduces target numbers by 2 on hearing-based Perception Tests involving location.", "Useful for tracking footsteps or gunfire."],
@@ -592,7 +592,7 @@ window.CYBERWARE = [
     effect: ["Reduces target numbers by 2 on Athletics tests involving balance.", "Applies a -2 modifier to opposed Knockdown rolls."],
     src: "CYB", pg: 24 },
 
-  /* CYB -- Oral Weapons */
+  /* CYB — Oral Weapons */
   { n: "Oral Dart", cat: "headware", ess: 0.25, cost: 3500, avail: "6/1 week", index: 2,
     desc: "Hidden mouth-mounted launcher firing narcoject darts via pneumatic puff.",
     effect: ["Holds three rounds; reload takes one minute per dart.", "Ammo costs triple standard.", "Requires Special Skill or Quickness for Ranged Combat Test."],
@@ -610,7 +610,7 @@ window.CYBERWARE = [
     effect: ["Range one meter, Damage 6M.", "Uses Special Skill or Quickness for Ranged Combat Test."],
     src: "CYB", pg: 25 },
 
-  /* CYB -- Tooth Compartment */
+  /* CYB — Tooth Compartment */
   { n: "Tooth Compartment (Breakable)", cat: "headware", ess: 0, cost: 700, avail: "3/48 hrs", index: 1.5,
     desc: "Hollow false tooth that releases contents when bitten hard.",
     effect: ["Activates by biting; contents effect immediate.", "Willpower (4) test to avoid accidental triggering.", "If contents are lethal, breakage can kill the user."],
@@ -620,7 +620,7 @@ window.CYBERWARE = [
     effect: ["Holds tiny items such as microchips or microbeacons.", "Contents released manually rather than by biting.", "Recovering a swallowed tooth requires Complex Actions and a Quickness (4) test."],
     src: "CYB", pg: 26 },
 
-  /* CYB -- Cranial Bombs */
+  /* CYB — Cranial Bombs */
   { n: "Kink Bomb", cat: "headware", ess: 0, cost: 28000, avail: "12/14 days", index: 1.5,
     desc: "Tiny cranial micro-bomb that detonates as a small but lethal blast inside the skull.",
     effect: ["Kills the wearer outright on detonation.", "Triggered by remote, sound-recognition or anti-tamper.", "Can cause permanent neurological side effects."],
@@ -634,7 +634,7 @@ window.CYBERWARE = [
     effect: ["Power 10 Damage Level M blast in a radius beyond the wearer.", "Designed as an assassination device, not just executioner.", "Reduces blast effects at -1 per meter."],
     src: "CYB", pg: 27 },
 
-  /* CYB -- Dermal Plating & Sheath (alternate stats; SR2 has its own) */
+  /* CYB — Dermal Plating & Sheath (alternate stats; SR2 has its own) */
   { n: "Dermal Plating Level 1 (CYB)", cat: "bodyware", ess: 0.7, cost: 24000, avail: "6/14 days", index: 1.5,
     desc: "Subdermal armor plates offering modest impact and ballistic protection (Cybertech revision).",
     effect: ["+1 Ballistic and Impact armor.", "Plating shows under thin clothing.", "Visible as flexible scales when revealed."],
@@ -668,7 +668,7 @@ window.CYBERWARE = [
     effect: ["Lets user control sheath coloration patterns.", "Operates camouflage like ruthenium effects."],
     src: "CYB", pg: 28 },
 
-  /* CYB -- Fingertip Compartments */
+  /* CYB — Fingertip Compartments */
   { n: "Fingertip Datajack", cat: "bodyware", ess: 0, cost: 4000, avail: "5/4 days", index: 1.5,
     desc: "Datajack concealed in a fingertip compartment for discreet jacking.",
     effect: ["Functions as a standard datajack.", "Hidden until extended for use."],
@@ -682,7 +682,7 @@ window.CYBERWARE = [
     effect: ["Holds a single dose of any injectable compound.", "Successful Unarmed Combat Test to deliver dose.", "Cannot pierce Hardened Armor."],
     src: "CYB", pg: 29 },
 
-  /* CYB -- Cyberlimb partials */
+  /* CYB — Cyberlimb partials */
   { n: "Cyberhand/Foot", cat: "limb", ess: 0.35, cost: 45000, avail: "3/4 days", index: 1,
     desc: "Partial cyberlimb replacing only the hand or foot.",
     effect: ["Smaller cyber replacement with limited internal volume.", "Accessories possible but capacity is reduced."],
@@ -696,7 +696,7 @@ window.CYBERWARE = [
     effect: ["Adds +3 to target numbers for visual Perception detection.", "Adds 10% to cost of the limb.", "Clothing reveals adds +3 if limb is exposed."],
     src: "CYB", pg: 30 },
 
-  /* CYB -- Limb Enhancements */
+  /* CYB — Limb Enhancements */
   { n: "Strength Enhancement 1-3 (per point)", cat: "limb", ess: 0, cost: 150000, avail: "6/4 days", index: 1.5,
     desc: "Upgraded servos and muscle replacement increasing limb Strength.",
     effect: ["Raises cyberlimb Strength by one point per purchase.", "Maximum +3 above natural before requiring extra reinforcement.", "Stacked enhancements affect attribute average."],
@@ -711,14 +711,14 @@ window.CYBERWARE = [
     src: "CYB", pg: 31 },
   { n: "Quickness Enhancement 4+ (per point)", cat: "limb", ess: 0.3, cost: 110000, avail: "8/4 days", index: 1.5,
     desc: "High-grade Quickness boost in a limb beyond standard ratings.",
-    effect: ["Adds Essence cost for each point above three.", "Cannot exceed character's Body x 2 in averaged Quickness."],
+    effect: ["Adds Essence cost for each point above three.", "Cannot exceed character's Body × 2 in averaged Quickness."],
     src: "CYB", pg: 31 },
   { n: "Body Enhancement (per point)", cat: "limb", ess: 0, cost: 75000, avail: "6/4 days", index: 1.5,
     desc: "Reinforced cyberlimb chassis raising its Body component.",
     effect: ["Raises cyberlimb Body rating to handle stronger enhancements.", "Required for high-level Strength or Quickness upgrades."],
     src: "CYB", pg: 31 },
 
-  /* CYB -- Magnetic + Gyromount */
+  /* CYB — Magnetic + Gyromount */
   { n: "Magnetic Cyberlimb System", cat: "limb", ess: 0, cost: 2800, avail: "6/7 days", index: 2,
     desc: "Switchable electromagnets in cyberlimb hands, knees and feet for gripping ferrous surfaces.",
     effect: ["Lets the limb hold up to 25 kg per system.", "Multiple systems stack on different limbs.", "Magnets can erase nearby light optical chips."],
@@ -732,7 +732,7 @@ window.CYBERWARE = [
     effect: ["Lets normally manual gear be controlled via thought.", "Adds 50% to the cost of the device being interfaced."],
     src: "CYB", pg: 33 },
 
-  /* CYB -- Other Cyberlimb Accessories */
+  /* CYB — Other Cyberlimb Accessories */
   { n: "Foot Anchor", cat: "limb", ess: 0.4, cost: 14000, avail: "6/7 days", index: 2,
     desc: "Hydraulic anchor that drives a spike down through the foot into the ground.",
     effect: ["Damage Code 8M Stun as a weapon attack.", "Provides anchor point negating recoil for weapons firing.", "Cannot penetrate Barrier Rating greater than 8."],
@@ -766,7 +766,7 @@ window.CYBERWARE = [
     effect: ["Cyberlimb version of equivalent tactical computer.", "Same target number and Base Time rules as standard versions.", "Stat values match Shadowtech entries."],
     src: "CYB", pg: 34 },
 
-  /* CYB -- Cyberlimb Weapons */
+  /* CYB — Cyberlimb Weapons */
   { n: "Hand Blade (Retractable)", cat: "limb", ess: 0.25, cost: 10000, avail: "6/5 days", index: 1.5,
     desc: "Retractable cyber-blade improvement on the basic hand blade design.",
     effect: ["Retracts into the limb when not in use.", "Functions identically to hand blade for damage.", "Concealment is much better than fixed hand blades."],
@@ -784,7 +784,7 @@ window.CYBERWARE = [
     effect: ["Holds 10 shots chemical/biological agent.", "Delivers payload to porous armor and Kevlar.", "Use Ranged Combat to hit; rigid armor reduces effect."],
     src: "CYB", pg: 36 },
 
-  /* CYB -- Cybertorso, Cyberskull, Body Plating */
+  /* CYB — Cybertorso, Cyberskull, Body Plating */
   { n: "Cybertorso", cat: "limb", ess: 1.5, cost: 120000, avail: "6/4 days", index: 1,
     desc: "Full torso replacement with cybernetic framework housing organs and accessories.",
     effect: ["Replaces natural torso with cyber framework.", "Reduces additional Essence cost of Strength/Quickness enhancements beyond 3 by half.", "Body plating can be applied to it."],
@@ -802,7 +802,7 @@ window.CYBERWARE = [
     effect: ["+1 Ballistic and Impact per level, treated as Hardened Armor.", "Only goes on cybertorso, cyberskull or cyberlimbs.", "Cumulative armor with other layers."],
     src: "CYB", pg: 37 },
 
-  /* CYB -- Wired Reflex Systems additions */
+  /* CYB — Wired Reflex Systems additions */
   { n: "Reaction Enhancer", cat: "bodywire", ess: 0.3, cost: 60000, avail: "6/7 days", index: 2,
     desc: "Compatible add-on for wired reflexes that further boosts Reaction.",
     effect: ["+1 Reaction per point up to a maximum of +6.", "Compatible with all reaction/initiative boosters except move-by-wire.", "Stackable with wired reflexes and adrenal pump."], rated: true, maxRating: 6, essTbl: [0.3, 0.6, 0.9, 1.2, 1.5, 1.8], costTbl: [60000, 120000, 180000, 240000, 300000, 360000], modsPer: { reaction: 1 },
@@ -812,7 +812,7 @@ window.CYBERWARE = [
     effect: ["Activate or deactivate wired reflexes with a Simple Action.", "Pairs with existing wired reflex installation.", "Reduces accidental triggering issues."],
     src: "CYB", pg: 38 },
 
-  /* CYB -- Move-by-Wire System */
+  /* CYB — Move-by-Wire System */
   { n: "Move-by-Wire System Level 1", cat: "bodywire", ess: 2.5, cost: 250000, avail: "8/10 days", index: 2.5,
     desc: "Reflex-control system replacing nervous system signals for ultra-fast reactions.",
     effect: ["+1 Quickness, +2 Reaction, +1D6 Initiative.", "+1 die for Athletics and Stealth tests.", "Not compatible with any other Reaction/Initiative cyberware or bioware."], mods: { quickness: 1, reaction: 2, initDice: 1 },
@@ -830,7 +830,7 @@ window.CYBERWARE = [
     effect: ["+4 Quickness, +8 Reaction, +4D6 Initiative.", "+4 dice for Athletics and Stealth."], mods: { quickness: 4, reaction: 8, initDice: 4 },
     src: "CYB", pg: 39 },
 
-  /* CYB -- Weapon Mounts */
+  /* CYB — Weapon Mounts */
   { n: "External Mount", cat: "limb", ess: 0, cost: 3200, avail: "6/4 days", index: 2,
     desc: "External cyber mounting attached to forearm or shoulder for weapons or sensors.",
     effect: ["Attach/detach a weapon with a Complex Action.", "Triple ammo cost for external feed.", "Holds light to heavy pistols, light machine guns or sensors."],
@@ -844,7 +844,7 @@ window.CYBERWARE = [
     effect: ["Hard mount with 360-degree fire arc.", "Holds full SMG, light pistol or sub-machine guns.", "Adds 3 points Recoil Reduction; uses laser sight."],
     src: "CYB", pg: 40 },
 
-  /* CYB -- Misc */
+  /* CYB — Misc */
   { n: "Induction Datajack", cat: "bodyware", ess: 0.3, cost: 3000, avail: "5/4 days", index: 2,
     desc: "Datajack equivalent that connects via wireless induction pad on the skin.",
     effect: ["Performs identically to a standard datajack.", "Uses induction connector instead of wire.", "Slightly higher Availability/Street Index than the standard jack."],
@@ -854,30 +854,30 @@ window.CYBERWARE = [
     effect: ["Twenty minutes of air with refilling in five minutes.", "Vents if necessary to avoid dangerous pressure.", "Helps in toxic environments."],
     src: "CYB", pg: 41 },
 
-  /* ============== Shadowtech -- Cyberware (FASA7106) ============== */
-  { n: "Encephalon", cat: "headware", ess: "0.5 - 1.75", cost: "15,000 - 115,000Y (L1-4)", avail: "6/12 days", index: 2,
+  /* ============== Shadowtech — Cyberware (FASA7106) ============== */
+  { n: "Encephalon", cat: "headware", ess: "0.5 – 1.75", cost: "15,000 – 115,000¥ (L1-4)", avail: "6/12 days", index: 2,
     desc: "Headware expert system that boosts mental skills and runs skillsofts as a softlink.",
     effect: ["L1-4: 0.5 / 0.75 / 1.25 / 1.75 Essence.", "+1 to +2 Intelligence plus bonuses to mental skills.", "Can hold and run skillsofts / datasofts. No bonus to magical skills."],
     src: "SHADOW", pg: 49 },
-  { n: "Tactical Computer (Headware)", cat: "headware", ess: "3.5 - 4.0+", cost: "350,000 - 900,000Y+", avail: "12/60 days", index: 4,
+  { n: "Tactical Computer (Headware)", cat: "headware", ess: "3.5 – 4.0+", cost: "350,000 – 900,000¥+", avail: "12/60 days", index: 4,
     desc: "Combat-data headware that improves accuracy and grants bonus combat dice.",
-    effect: ["L1 3.5 Essence / 350,000Y; L2 4.0 / 900,000Y; L3-4 classified.", "Lowers ranged TN by 1 (melee 1 per 2 levels); +1 Combat Pool die per level.", "Civilian possession largely illegal."],
+    effect: ["L1 3.5 Essence / 350,000¥; L2 4.0 / 900,000¥; L3-4 classified.", "Lowers ranged TN by 1 (melee 1 per 2 levels); +1 Combat Pool die per level.", "Civilian possession largely illegal."],
     src: "SHADOW", pg: 53 },
-  { n: "Chemical Analyzer", cat: "headware", ess: "0.2/lvl", cost: "2,500Y/lvl", avail: "4/6 days", index: 1,
+  { n: "Chemical Analyzer", cat: "headware", ess: "0.2/lvl", cost: "2,500¥/lvl", avail: "4/6 days", index: 1,
     desc: "Implanted sensor that identifies chemical substances from a sample.",
-    effect: ["0.2 Essence and 2,500Y per level.", "Higher rating = identify more complex / trace compounds."],
+    effect: ["0.2 Essence and 2,500¥ per level.", "Higher rating = identify more complex / trace compounds."],
     src: "SHADOW", pg: 60 },
   { n: "Gas Spectrometer", cat: "headware", ess: 0.2, cost: 2000, avail: "4/5 days", index: 1,
     desc: "Cyber sensor that detects and identifies airborne gases.",
     effect: ["Detects and names gases in the surrounding air.", "Useful for spotting toxins, knockout gas, and leaks."],
     src: "SHADOW", pg: 61 },
-  { n: "Olfactory Booster", cat: "headware", ess: "0.1/lvl", cost: "1,000Y/lvl", avail: "6/6 days", index: 1,
+  { n: "Olfactory Booster", cat: "headware", ess: "0.1/lvl", cost: "1,000¥/lvl", avail: "6/6 days", index: 1,
     desc: "Nasal receptors that sharpen smell (and taste) for Perception Tests.",
-    effect: ["0.1 Essence and 1,000Y per level (max 6).", "+1 die to smell Perception per level; +1 die to taste per 3 levels.", "Can be switched off to avoid overload."],
+    effect: ["0.1 Essence and 1,000¥ per level (max 6).", "+1 die to smell Perception per level; +1 die to taste per 3 levels.", "Can be switched off to avoid overload."],
     src: "SHADOW", pg: 62 },
 
-  /* ============== Shadowtech -- Bioware (FASA7106) ==============
-     Bioware uses the Body Index (max = Body Rating), not Essence --
+  /* ============== Shadowtech — Bioware (FASA7106) ==============
+     Bioware uses the Body Index (max = Body Rating), not Essence —
      for MUNDANE characters. For magicians/adepts, installing bioware
      costs Essence equal to its Body Cost, reducing Magic exactly like
      cyberware (Shadowtech p.117). Items priced "per level" show the
@@ -887,61 +887,61 @@ window.CYBERWARE = [
     desc: "Boosts blood clotting so wounds stop bleeding faster, and can trigger an embolism to halt severe bleeding.",
     effect: ["Daily anticoagulant lets you force a clot against an embolism / serious blood loss.", "Carries a thrombosis risk: Body Test at +1 TN per use."],
     src: "SHADOW", pg: 14 },
-  { n: "Symbiotes", cat: "bioware", bio: true, ess: "0.4 - 1.0", cost: "15,000 - 60,000Y", avail: "5/10 days", index: 1,
+  { n: "Symbiotes", cat: "bioware", bio: true, ess: "0.4 – 1.0", cost: "15,000 – 60,000¥", avail: "5/10 days", index: 1,
     desc: "Tailored nanite microorganisms in the bloodstream that speed natural healing.",
-    effect: ["L1 0.4 BI / 15,000Y -- heal in 90% normal time.", "L2 0.7 BI / 35,000Y -- 70% time, +50% food intake.", "L3 1.0 BI / 60,000Y -- 50% time, +100% food intake."],
+    effect: ["L1 0.4 BI / 15,000¥ — heal in 90% normal time.", "L2 0.7 BI / 35,000¥ — 70% time, +50% food intake.", "L3 1.0 BI / 60,000¥ — 50% time, +100% food intake."],
     src: "SHADOW", pg: 15 },
-  { n: "Synthacardium", cat: "bioware", bio: true, ess: "0.2 - 0.3", cost: "6,000 - 15,000Y", avail: "4/10 days", index: 1.5,
+  { n: "Synthacardium", cat: "bioware", bio: true, ess: "0.2 – 0.3", cost: "6,000 – 15,000¥", avail: "4/10 days", index: 1.5,
     desc: "An enhanced-muscle heart that handles strenuous activity better, aiding athletics and endurance.",
-    effect: ["L1 0.2 BI / 6,000Y -- +1 die to Athletics-based tests.", "L2 0.3 BI / 15,000Y -- +2 dice; helps resist cardiac ailments."],
+    effect: ["L1 0.2 BI / 6,000¥ — +1 die to Athletics-based tests.", "L2 0.3 BI / 15,000¥ — +2 dice; helps resist cardiac ailments."],
     src: "SHADOW", pg: 16 },
-  { n: "Orthoskin", cat: "bioware", bio: true, ess: "0.5 - 1.5", cost: "25,000 - 100,000Y", avail: "8/8 days", index: 0.8,
+  { n: "Orthoskin", cat: "bioware", bio: true, ess: "0.5 – 1.5", cost: "25,000 – 100,000¥", avail: "8/8 days", index: 0.8,
     desc: "Energy-diffusing material grown beneath the skin granting the equivalent of worn armor.",
-    effect: ["L1 0.5 BI / 25,000Y -- +1 Impact.", "L2 1.0 BI / 60,000Y -- +1 Impact / +1 Ballistic.", "L3 1.5 BI / 100,000Y -- +2 Impact / +2 Ballistic; +TN to tactile Perception; incompatible with dermal plating."],
+    effect: ["L1 0.5 BI / 25,000¥ — +1 Impact.", "L2 1.0 BI / 60,000¥ — +1 Impact / +1 Ballistic.", "L3 1.5 BI / 100,000¥ — +2 Impact / +2 Ballistic; +TN to tactile Perception; incompatible with dermal plating."],
     src: "SHADOW", pg: 17 },
-  { n: "Tailored Pheromones", cat: "bioware", bio: true, ess: "0.4 - 0.6", cost: "20,000 - 45,000Y", avail: "12/14 days", index: 2,
+  { n: "Tailored Pheromones", cat: "bioware", bio: true, ess: "0.4 – 0.6", cost: "20,000 – 45,000¥", avail: "12/14 days", index: 2,
     desc: "Modified glands emit designer pheromones that boost social influence over nearby people.",
-    effect: ["L1 0.4 BI / 20,000Y -- +1 die to Charisma / Social Skill tests.", "L2 0.6 BI / 45,000Y -- +2 dice; +50% effect range."],
+    effect: ["L1 0.4 BI / 20,000¥ — +1 die to Charisma / Social Skill tests.", "L2 0.6 BI / 45,000¥ — +2 dice; +50% effect range."],
     src: "SHADOW", pg: 18 },
-  { n: "Adrenal Pump", cat: "bioware", bio: true, ess: "1.25 - 2.5", cost: "60,000 - 100,000Y", avail: "10/16 days", index: 3,
+  { n: "Adrenal Pump", cat: "bioware", bio: true, ess: "1.25 – 2.5", cost: "60,000 – 100,000¥", avail: "10/16 days", index: 3,
     desc: "An implanted gland that floods the body with adrenaline on command for a short combat surge.",
-    effect: ["L1 1.25 BI / 60,000Y -- +1 Quickness / +1 Strength / +1 Willpower / +2 Reaction.", "L2 2.5 BI / 100,000Y -- +2 Quick / +2 Str / +1 Will / +4 Reaction.", "Lasts 10-15 turns, then inflicts Stun Drain and fatigue."],
+    effect: ["L1 1.25 BI / 60,000¥ — +1 Quickness / +1 Strength / +1 Willpower / +2 Reaction.", "L2 2.5 BI / 100,000¥ — +2 Quick / +2 Str / +1 Will / +4 Reaction.", "Lasts 10-15 turns, then inflicts Stun Drain and fatigue."],
     src: "SHADOW", pg: 19 },
   { n: "Suprathyroid Gland", cat: "bioware", bio: true, ess: 1.4, cost: 50000, avail: "8/12 days", index: 2.5,
     desc: "An extra gland that raises overall metabolism, lifting several physical attributes at once.",
     effect: ["+1 Body, +1 Quickness, +1 Strength, +1 Reaction.", "Requires roughly triple normal food/drink; tendency toward hyperactivity."], mods: { body: 1, quickness: 1, strength: 1, reaction: 1 },
     src: "SHADOW", pg: 20 },
-  { n: "Toxin Extractor", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "24,000Y/lvl", avail: "4/4 days", index: 1,
+  { n: "Toxin Extractor", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "24,000¥/lvl", avail: "4/4 days", index: 1,
     desc: "Cultivated liver cells that filter and neutralize ingested or bloodborne toxins and drugs.",
-    effect: ["0.2 BI and 24,000Y per level (max level = unaugmented Body).", "Reduces blood-toxin attack Power by 1 per 2 levels."],
+    effect: ["0.2 BI and 24,000¥ per level (max level = unaugmented Body).", "Reduces blood-toxin attack Power by 1 per 2 levels."],
     src: "SHADOW", pg: 21 },
-  { n: "Pathogenic Defense", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "24,000Y/lvl", avail: "4/4 days", index: 1.5,
+  { n: "Pathogenic Defense", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "24,000¥/lvl", avail: "4/4 days", index: 1.5,
     desc: "An enhanced spleen producing aggressive white cells that fight off disease and infection.",
-    effect: ["0.2 BI and 24,000Y per level (max = unaugmented Body).", "+1 die to Resistance Tests vs disease / allergens per level.", "Reduces microbiological attack Power by 1 per 2 levels."],
+    effect: ["0.2 BI and 24,000¥ per level (max = unaugmented Body).", "+1 die to Resistance Tests vs disease / allergens per level.", "Reduces microbiological attack Power by 1 per 2 levels."],
     src: "SHADOW", pg: 22 },
-  { n: "Cerebral Booster", cat: "bioware", bio: true, ess: "0.4 - 0.8", cost: "50,000 - 110,000Y", avail: "6/14 days", index: 2,
+  { n: "Cerebral Booster", cat: "bioware", bio: true, ess: "0.4 – 0.8", cost: "50,000 – 110,000¥", avail: "6/14 days", index: 2,
     desc: "Added brain tissue that raises Intelligence and improves task processing.",
-    effect: ["L1 0.4 BI / 50,000Y -- +1 Intelligence.", "L2 0.8 BI / 110,000Y -- +2 Intelligence, +1 Task Pool."], rated: true, maxRating: 2, essTbl: [0.4, 0.8], costTbl: [50000, 110000], modsPer: { intelligence: 1 },
+    effect: ["L1 0.4 BI / 50,000¥ — +1 Intelligence.", "L2 0.8 BI / 110,000¥ — +2 Intelligence, +1 Task Pool."], rated: true, maxRating: 2, essTbl: [0.4, 0.8], costTbl: [50000, 110000], modsPer: { intelligence: 1 },
     src: "SHADOW", pg: 23 },
-  { n: "Damage Compensator", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "25,000 - 100,000Y/lvl", avail: "6-12 / 6 days (by level)", index: 2.5,
+  { n: "Damage Compensator", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "25,000 – 100,000¥/lvl", avail: "6-12 / 6 days (by level)", index: 2.5,
     desc: "Nerve fibers that bypass pain inhibitors so injury up to a set level doesn't impair you.",
     effect: ["0.2 BI per level; price tiers up by level.", "Ignore wound penalties up to the compensator's level (Physical and Stun).", "Damage beyond that level counts from the compensator level upward."],
     src: "SHADOW", pg: 24 },
-  { n: "Mnemonic Enhancer", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "15,000Y/lvl", avail: "6/7 days", index: 1,
+  { n: "Mnemonic Enhancer", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "15,000¥/lvl", avail: "6/7 days", index: 1,
     desc: "Grafted gray matter on the hippocampus that boosts short- and long-term memory.",
-    effect: ["0.2 BI and 15,000Y per level (max = unaugmented Body).", "+1 die per 2 levels to Knowledge / Language Success Tests.", "-1 TN per level to 'do I recall this?' Intelligence tests."],
+    effect: ["0.2 BI and 15,000¥ per level (max = unaugmented Body).", "+1 die per 2 levels to Knowledge / Language Success Tests.", "-1 TN per level to 'do I recall this?' Intelligence tests."],
     src: "SHADOW", pg: 25 },
   { n: "Pain Editor", cat: "bioware", bio: true, ess: 0.6, cost: 60000, avail: "6/6 days", index: 1.2,
-    desc: "Nerve tissue that filters pain so the user ignores all wound penalties -- at a cognitive cost.",
+    desc: "Nerve tissue that filters pain so the user ignores all wound penalties — at a cognitive cost.",
     effect: ["+1 Willpower, -1 Intelligence.", "Ignores ALL wound modifiers while active; +4 TN to tactile Perception.", "User is unaware of their own injuries until incapacitated."], mods: { willpower: 1, intelligence: -1 },
     src: "SHADOW", pg: 26 },
-  { n: "Reflex Recorder", cat: "bioware", bio: true, ess: "0.1 - 0.25", cost: "10,000 - 25,000Y", avail: "5/6 days", index: 1.5,
+  { n: "Reflex Recorder", cat: "bioware", bio: true, ess: "0.1 – 0.25", cost: "10,000 – 25,000¥", avail: "5/6 days", index: 1.5,
     desc: "Spinal nerve clusters that record one learned skill, permanently improving its execution.",
-    effect: ["Concentration: 0.1 BI / 10,000Y -- +1 to one Concentration skill.", "General: 0.25 BI / 25,000Y -- +1 to one General skill.", "Permanent, non-cumulative, incompatible with skillwires."],
+    effect: ["Concentration: 0.1 BI / 10,000¥ — +1 to one Concentration skill.", "General: 0.25 BI / 25,000¥ — +1 to one General skill.", "Permanent, non-cumulative, incompatible with skillwires."],
     src: "SHADOW", pg: 27 },
-  { n: "Synaptic Accelerator", cat: "bioware", bio: true, ess: "0.3 - 1.6", cost: "75,000 - 200,000Y", avail: "6/12 days", index: 2,
-    desc: "Lengthened neural pathways that speed nerve signals to raise Initiative -- the bioware reaction enhancer.",
-    effect: ["L1 0.3 BI / 75,000Y -- +1D6 Initiative.", "L2 1.6 BI / 200,000Y -- +2D6 Initiative.", "Stacks with Wired or Boosted Reflexes; gives no benefit to deckers / riggers."], rated: true, maxRating: 2, essTbl: [0.3, 1.6], costTbl: [75000, 200000], modsPer: { initDice: 1 },
+  { n: "Synaptic Accelerator", cat: "bioware", bio: true, ess: "0.3 – 1.6", cost: "75,000 – 200,000¥", avail: "6/12 days", index: 2,
+    desc: "Lengthened neural pathways that speed nerve signals to raise Initiative — the bioware reaction enhancer.",
+    effect: ["L1 0.3 BI / 75,000¥ — +1D6 Initiative.", "L2 1.6 BI / 200,000¥ — +2D6 Initiative.", "Stacks with Wired or Boosted Reflexes; gives no benefit to deckers / riggers."], rated: true, maxRating: 2, essTbl: [0.3, 1.6], costTbl: [75000, 200000], modsPer: { initDice: 1 },
     src: "SHADOW", pg: 28 },
   { n: "Trauma Damper", cat: "bioware", bio: true, ess: 0.4, cost: 40000, avail: "6/8 days", index: 2,
     desc: "Thalamic receptors that release endorphins to soften the shock of a fresh injury.",
@@ -951,25 +951,25 @@ window.CYBERWARE = [
     desc: "A rebuilt kidney that filters waste and toxins far more effectively.",
     effect: ["+1 to Body for tests resisting toxins and pathogens.", "Reduces blood-vectored toxin attack Power by 1."],
     src: "SHADOW", pg: 30 },
-  { n: "Extended Volume", cat: "bioware", bio: true, ess: "0.2 - 0.4", cost: "8,000 - 25,000Y", avail: "4/4 days", index: 1,
+  { n: "Extended Volume", cat: "bioware", bio: true, ess: "0.2 – 0.4", cost: "8,000 – 25,000¥", avail: "4/4 days", index: 1,
     desc: "Augmented diaphragm and lung capacity that extends how long you can hold your breath.",
-    effect: ["L1 0.2 BI / 8,000Y -- +45s breath-hold.", "L2 0.3 BI / 15,000Y -- +90s.", "L3 0.4 BI / 25,000Y -- +135s (with a small stamina penalty)."],
+    effect: ["L1 0.2 BI / 8,000¥ — +45s breath-hold.", "L2 0.3 BI / 15,000¥ — +90s.", "L3 0.4 BI / 25,000¥ — +135s (with a small stamina penalty)."],
     src: "SHADOW", pg: 31 },
-  { n: "Toxin Exhaler", cat: "bioware", bio: true, ess: 0.6, cost: "30,000Y + toxin", avail: "10/4 days", index: 3,
+  { n: "Toxin Exhaler", cat: "bioware", bio: true, ess: 0.6, cost: "30,000¥ + toxin", avail: "10/4 days", index: 3,
     desc: "A neck sac that lets the user breathe out a single chosen toxin at a nearby target.",
-    effect: ["30,000Y plus 100x the cost of one dose of the chosen toxin.", "Quickness Test to hit; +1 TN per half-meter (max range = half unaugmented Body in meters).", "Double your Body Rating to resist your own toxin."],
+    effect: ["30,000¥ plus 100× the cost of one dose of the chosen toxin.", "Quickness Test to hit; +1 TN per half-meter (max range = half unaugmented Body in meters).", "Double your Body Rating to resist your own toxin."],
     src: "SHADOW", pg: 32 },
-  { n: "Tracheal Filter", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "30,000Y/lvl", avail: "4/4 days", index: 1,
+  { n: "Tracheal Filter", cat: "bioware", bio: true, ess: "0.2/lvl", cost: "30,000¥/lvl", avail: "4/4 days", index: 1,
     desc: "Filters in the upper trachea that neutralize airborne and gaseous attacks.",
-    effect: ["0.2 BI and 30,000Y per level.", "Reduces gas / airborne attack Power by half the filter level (round down)."],
+    effect: ["0.2 BI and 30,000¥ per level.", "Reduces gas / airborne attack Power by half the filter level (round down)."],
     src: "SHADOW", pg: 33 },
   { n: "Enhanced Articulation", cat: "bioware", bio: true, ess: 0.6, cost: 40000, avail: "5/6 days", index: 1.5,
     desc: "Joint and tendon reworking giving extreme fluidity of movement.",
     effect: ["+1 Reaction.", "+1 die to Active-Skill Success Tests for motion-intensive skills (e.g. Athletics).", "No benefit to pure rigging or decking."], mods: { reaction: 1 },
     src: "SHADOW", pg: 34 },
-  { n: "Muscle Augmentation", cat: "bioware", bio: true, ess: "0.8/lvl", cost: "45,000Y/lvl", avail: "6/6 days", index: 0.9,
-    desc: "Biological replacement of natural muscle with stronger woven fibers -- the bioware muscle replacement.",
-    effect: ["0.8 BI and 45,000Y per level (max level 4).", "+1 Quickness and +1 Strength per level.", "Helps rigging/decking only for lifting and carrying."], rated: true, maxRating: 4, essTbl: [0.8, 1.6, 2.4, 3.2], costTbl: [45000, 90000, 135000, 180000], modsPer: { strength: 1, quickness: 1 },
+  { n: "Muscle Augmentation", cat: "bioware", bio: true, ess: "0.8/lvl", cost: "45,000¥/lvl", avail: "6/6 days", index: 0.9,
+    desc: "Biological replacement of natural muscle with stronger woven fibers — the bioware muscle replacement.",
+    effect: ["0.8 BI and 45,000¥ per level (max level 4).", "+1 Quickness and +1 Strength per level.", "Helps rigging/decking only for lifting and carrying."], rated: true, maxRating: 4, essTbl: [0.8, 1.6, 2.4, 3.2], costTbl: [45000, 90000, 135000, 180000], modsPer: { strength: 1, quickness: 1 },
     src: "SHADOW", pg: 35 },
 
 ];

@@ -30,7 +30,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -93,7 +93,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -154,7 +154,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -220,7 +220,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -281,7 +281,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -342,7 +342,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -399,7 +399,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -464,7 +464,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -525,7 +525,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -582,7 +582,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -648,7 +648,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -709,7 +709,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -765,7 +765,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -830,7 +830,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -891,7 +891,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -952,7 +952,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1013,7 +1013,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1070,7 +1070,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -1135,7 +1135,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1195,7 +1195,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1255,7 +1255,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1284,7 +1284,7 @@
 "pg": 150
 },
 {
-"n": "Aztechnology Halcon Ground-Attack Aircraft",
+"n": "Aztechnology Halcón Ground-Attack Aircraft",
 "cat": "vehicle",
 "sub": "Jet Fighter",
 "stats": [
@@ -1318,7 +1318,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1334,7 +1334,7 @@
 ]
 ],
 "cost": 59800000,
-"desc": "The Halcon ground-attack fighter was designed as a \"tank killer.\"",
+"desc": "The Halcón ground-attack fighter was designed as a \"tank killer.\"",
 "notes": [
 "Seating: 1 ejection",
 "Fuel: Jet (2,500 liters)",
@@ -1375,7 +1375,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -1436,7 +1436,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -1502,7 +1502,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1530,7 +1530,7 @@
 "pg": 150
 },
 {
-"n": "Aztechnology Tiburon Patrol Boat",
+"n": "Aztechnology Tiburón Patrol Boat",
 "cat": "vehicle",
 "sub": "Armed Sport Cruiser",
 "stats": [
@@ -1564,7 +1564,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1580,7 +1580,7 @@
 ]
 ],
 "cost": 2400000,
-"desc": "The 15-meter Tiburon is a patrol boat designed for stealth missions.",
+"desc": "The 15-meter Tiburón is a patrol boat designed for stealth missions.",
 "notes": [
 "Seating: 2 bucket + 1 bench",
 "Fuel: Diesel (500 liters)",
@@ -1591,7 +1591,7 @@
 "pg": 151
 },
 {
-"n": "Aztechnology Tiburon Patrol Boat (Interdiction Variant)",
+"n": "Aztechnology Tiburón Patrol Boat (Interdiction Variant)",
 "cat": "vehicle",
 "sub": "Armed Sport Cruiser",
 "stats": [
@@ -1625,7 +1625,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1641,7 +1641,7 @@
 ]
 ],
 "cost": 2450000,
-"desc": "The Tiburon Interdiction variant is a heavily armed version of the renowned patrol boat design.",
+"desc": "The Tiburón Interdiction variant is a heavily armed version of the renowned patrol boat design.",
 "notes": [
 "Seating: 2 bucket + 1 bench",
 "Fuel: Diesel (500 liters)",
@@ -1686,7 +1686,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1748,7 +1748,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1809,7 +1809,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1866,7 +1866,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -1932,7 +1932,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -1994,7 +1994,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2055,7 +2055,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2116,7 +2116,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2176,7 +2176,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2202,7 +2202,7 @@
 "pg": 152
 },
 {
-"n": "Citroen Brouillard Smoke Generator",
+"n": "Citroën Brouillard Smoke Generator",
 "cat": "drone",
 "sub": "Large Tracked Crawler",
 "stats": [
@@ -2232,7 +2232,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -2297,7 +2297,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2357,7 +2357,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2417,7 +2417,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2478,7 +2478,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2539,7 +2539,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2595,7 +2595,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -2657,7 +2657,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -2723,7 +2723,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2785,7 +2785,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2846,7 +2846,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2908,7 +2908,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -2969,7 +2969,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3030,7 +3030,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3092,7 +3092,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3154,7 +3154,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3170,11 +3170,11 @@
 ]
 ],
 "cost": 109000,
-"desc": "This luxury car offers improved suspension and high performance--at a price.",
+"desc": "This luxury car offers improved suspension and high performance—at a price.",
 "notes": [
 "Seating: 2 bucket (front), 1 bench (rear)",
 "Fuel: Gasoline (60/80 liters)",
-"APPS (both), turbocharging (factored in--turbo variant)"
+"APPS (both), turbocharging (factored in—turbo variant)"
 ],
 "src": "RIG2",
 "reference": "SRII, RBB1",
@@ -3215,7 +3215,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3231,11 +3231,11 @@
 ]
 ],
 "cost": 138000,
-"desc": "This luxury car offers improved suspension and high performance--at a price.",
+"desc": "This luxury car offers improved suspension and high performance—at a price.",
 "notes": [
 "Seating: 2 bucket (front), 1 bench (rear)",
 "Fuel: Gasoline (60/80 liters)",
-"APPS (both), turbocharging (factored in--turbo variant)"
+"APPS (both), turbocharging (factored in—turbo variant)"
 ],
 "src": "RIG2",
 "reference": "SRII, RBB1",
@@ -3276,11 +3276,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -3337,7 +3337,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3398,7 +3398,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3459,7 +3459,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3521,11 +3521,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -3581,7 +3581,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3638,7 +3638,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -3703,7 +3703,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3763,7 +3763,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3825,7 +3825,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -3882,7 +3882,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -3944,7 +3944,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -4005,7 +4005,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -4070,11 +4070,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -4130,7 +4130,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4187,7 +4187,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -4253,7 +4253,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4314,7 +4314,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4370,7 +4370,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -4436,7 +4436,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4494,7 +4494,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -4559,7 +4559,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4620,7 +4620,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4681,11 +4681,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -4742,7 +4742,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4803,7 +4803,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4864,7 +4864,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4926,7 +4926,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -4987,7 +4987,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5048,7 +5048,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5109,7 +5109,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5169,7 +5169,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5230,7 +5230,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5291,7 +5291,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5347,7 +5347,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -5413,7 +5413,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5474,7 +5474,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5535,7 +5535,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5596,7 +5596,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5657,7 +5657,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5714,7 +5714,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -5779,7 +5779,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5837,7 +5837,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -5902,7 +5902,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -5963,7 +5963,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6024,7 +6024,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6084,7 +6084,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6145,7 +6145,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6206,7 +6206,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6266,7 +6266,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6326,7 +6326,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6386,7 +6386,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6447,7 +6447,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6507,7 +6507,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6567,7 +6567,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6627,7 +6627,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6688,7 +6688,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6704,7 +6704,7 @@
 ]
 ],
 "cost": 12000,
-"desc": "This large car has an unusual seating arrangement--the passenger sits up front, with the driver slightly above and to the rear.",
+"desc": "This large car has an unusual seating arrangement—the passenger sits up front, with the driver slightly above and to the rear.",
 "notes": [
 "Seating: 2 bucket (1 front, 1 rear)",
 "Fuel: Elec. 150 PF"
@@ -6748,7 +6748,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6764,7 +6764,7 @@
 ]
 ],
 "cost": 13400,
-"desc": "This large car has an unusual seating arrangement--the passenger sits up front, with the driver slightly above and to the rear.",
+"desc": "This large car has an unusual seating arrangement—the passenger sits up front, with the driver slightly above and to the rear.",
 "notes": [
 "Seating: 2 bucket (1 front, 1 rear)",
 "Fuel: Meth. 450 bars"
@@ -6808,7 +6808,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6869,7 +6869,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -6926,7 +6926,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -6992,7 +6992,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7053,7 +7053,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7113,7 +7113,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7173,7 +7173,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7234,7 +7234,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7294,7 +7294,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7355,7 +7355,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7416,7 +7416,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7472,7 +7472,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -7538,7 +7538,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7596,7 +7596,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -7661,7 +7661,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7722,7 +7722,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7782,7 +7782,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7842,7 +7842,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7902,7 +7902,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -7962,7 +7962,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8022,7 +8022,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8084,7 +8084,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8146,7 +8146,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8208,7 +8208,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8266,7 +8266,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -8332,7 +8332,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8392,7 +8392,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8452,7 +8452,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8493,7 +8493,7 @@
 ],
 [
 "Accel",
-"--"
+"—"
 ],
 [
 "Body",
@@ -8509,7 +8509,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -8574,7 +8574,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8635,7 +8635,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8696,7 +8696,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8753,7 +8753,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -8818,7 +8818,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -8878,11 +8878,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -8918,7 +8918,7 @@
 ],
 [
 "Accel",
-"--"
+"—"
 ],
 [
 "Body",
@@ -8934,7 +8934,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -8995,7 +8995,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -9056,7 +9056,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -9082,7 +9082,7 @@
 "Fuel: Methane/Electric (150 bars/75 PF)",
 "Landing/Takeoff: VTOL",
 "Remote control interface, rigger adaptation",
-"Sig \"7/5\" split likely normal/underwater (unconfirmed guess, not printed in book) -- entry description notes it operates \"including underwater environments\""
+"Sig \"7/5\" split likely normal/underwater (unconfirmed guess, not printed in book) — entry description notes it operates \"including underwater environments\""
 ],
 "src": "RIG2",
 "reference": "R2",
@@ -9123,7 +9123,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9180,7 +9180,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -9245,7 +9245,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9306,7 +9306,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9366,11 +9366,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -9426,11 +9426,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -9486,7 +9486,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9543,7 +9543,7 @@
 ],
 [
 "Autonav",
-"--"
+"—"
 ],
 [
 "Pilot",
@@ -9608,7 +9608,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9669,11 +9669,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -9729,11 +9729,11 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
-"--"
+"—"
 ],
 [
 "Cargo",
@@ -9789,7 +9789,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9849,7 +9849,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9909,7 +9909,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -9969,7 +9969,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -10030,7 +10030,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -10091,7 +10091,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -10151,7 +10151,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -10211,7 +10211,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",
@@ -10271,7 +10271,7 @@
 ],
 [
 "Pilot",
-"--"
+"—"
 ],
 [
 "Sensor",

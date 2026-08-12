@@ -17,7 +17,7 @@
 
   /* ---------- helpers ---------- */
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const money = (n) => (Number(n) || 0).toLocaleString("en-US") + "Y";
+  const money = (n) => (Number(n) || 0).toLocaleString("en-US") + "¥";
   const num = (v) => { const m = String(v ?? "").match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; };
   const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -36,8 +36,8 @@
       identity: { name: "", sex: "", age: "", desc: "", lifestyle: "Low" },
       contacts: [],            // [{ name, archetype, level: "Contact"|"Buddy" }]
       nativeLanguage: "",      // free, rating = Intelligence + 2 (SR2 p.45)
-      streetDialect: "",       // Street lifestyle: free dialect at 1/2 Intelligence
-      languages: [],           // [{ name, rating }] -- bought from the skill pool
+      streetDialect: "",       // Street lifestyle: free dialect at ½ Intelligence
+      languages: [],           // [{ name, rating }] — bought from the skill pool
     };
   }
   let state = mergeDefaults(load());
@@ -141,18 +141,18 @@
   function gearDetail(it, kind) {
     const bullets = it.effect || it.notes || [];
     let extra = "";
-    if (kind === "weapons") extra = [it.dmg && ("Dmg " + it.dmg), it.mode && ("Mode " + it.mode), (it.conceal != null) && ("Conceal " + it.conceal), it.ammo && ("Ammo " + it.ammo)].filter(Boolean).join(" - ");
-    else if (kind === "armor") extra = `Ballistic ${it.ballistic ?? "--"} - Impact ${it.impact ?? "--"}`;
+    if (kind === "weapons") extra = [it.dmg && ("Dmg " + it.dmg), it.mode && ("Mode " + it.mode), (it.conceal != null) && ("Conceal " + it.conceal), it.ammo && ("Ammo " + it.ammo)].filter(Boolean).join(" · ");
+    else if (kind === "armor") extra = `Ballistic ${it.ballistic ?? "—"} · Impact ${it.impact ?? "—"}`;
     else if (kind === "cyber") {
       const e = num(it.ess);
       const proj = awakened() ? Math.max(0, Math.floor(CG.startEssence - (cyberEssence() + e))) : null;
-      extra = `Essence ${it.ess ?? "--"}` + (proj != null ? ` - <span class="cb-warnpill">Magic -> ${proj}</span>` : "");
+      extra = `Essence ${it.ess ?? "—"}` + (proj != null ? ` · <span class="cb-warnpill">Magic → ${proj}</span>` : "");
     }
-    else if (kind === "vehicles") extra = (it.stats || []).map(s => `${s[0]} ${s[1]}`).join(" - ");
-    const price = typeof it.cost === "number" ? money(it.cost) : (it.cost || "--");
-    return detailHTML(it.desc, bullets, `${extra}${extra ? " - " : ""}Cost ${esc(price)}`);
+    else if (kind === "vehicles") extra = (it.stats || []).map(s => `${s[0]} ${s[1]}`).join(" · ");
+    const price = typeof it.cost === "number" ? money(it.cost) : (it.cost || "—");
+    return detailHTML(it.desc, bullets, `${extra}${extra ? " · " : ""}Cost ${esc(price)}`);
   }
-  const HELP = (href, label) => `<a class="cb-help" href="${href}" target="_blank" rel="noopener">${esc(label)} ?</a>`;
+  const HELP = (href, label) => `<a class="cb-help" href="${href}" target="_blank" rel="noopener">${esc(label)} ↗</a>`;
 
   /* ---------- derived calcs ---------- */
   const isMeta = () => state.prio.race === "A";
@@ -171,9 +171,9 @@
     if (it.ppTier) { let pp = 0; for (let i = 1; i <= lvl; i++) pp += it.ppTier[Math.min(i - 1, it.ppTier.length - 1)]; return pp; }
     return Number(p.pp) || 0;
   }
-  /* Augmentation modifiers -- sum structured `mods` (fixed) and `modsPer`xrating
-     (rated) from installed cyber/bioware, plus rated adept powers (modsPerxlevel,
-     and modsAttrxlevel applied to the chosen attribute). Attribute keys feed back
+  /* Augmentation modifiers — sum structured `mods` (fixed) and `modsPer`×rating
+     (rated) from installed cyber/bioware, plus rated adept powers (modsPer×level,
+     and modsAttr×level applied to the chosen attribute). Attribute keys feed back
      through finalAttr; `reaction`/`initDice` are flat derived-stat bonuses. All
      cumulative across every installed item / power. (SR2 reaction & attribute boosters.) */
   function augMods() {
@@ -256,8 +256,8 @@
   const deckNuyen = () => { const d = deckDef(); return d && typeof d.cost === "number" ? d.cost : 0; };
   const programsNuyen = () => state.programs.reduce((t, p) => t + (Number(p.cost) || 0), 0);
 
-  /* Contacts: Contact 5,000Y / Buddy 10,000Y (SR2 p.46 Cost of Extras). The "two
-     free contacts" (p.46) become a flat credit of 2 x Contact cost off the total. */
+  /* Contacts: Contact 5,000¥ / Buddy 10,000¥ (SR2 p.46 Cost of Extras). The "two
+     free contacts" (p.46) become a flat credit of 2 × Contact cost off the total. */
   const contactCost = (c) => c.level === "Buddy" ? (CG.buddyCost || 10000) : (CG.contactCost || 5000);
   const contactsGross = () => state.contacts.reduce((t, c) => t + contactCost(c), 0);
   const contactsCredit = () => (CG.freeContacts || 0) * (CG.contactCost || 5000);
@@ -284,9 +284,9 @@
   const ppSpent = () => state.powers.reduce((t, p) => t + powerPP(p), 0);
 
   /* Concentration / Specialization effective ratings (SR2 p.70).
-     Concentration: general -1, the group +1.
-     Specialization: general -2, the group at base, the specific +2.
-     Narrowing is free -- point cost stays the base rating. */
+     Concentration: general −1, the group +1.
+     Specialization: general −2, the group at base, the specific +2.
+     Narrowing is free — point cost stays the base rating. */
   function skillTiers(s) {
     const base = Number(s.rating) || 0;
     const conc = (s.conc || "").trim();
@@ -306,7 +306,7 @@
   function tierReadoutHTML(s) {
     const tiers = skillTiers(s);
     if (tiers.length === 1) return "";
-    return tiers.map(t => `${esc(t.label)} <strong>${t.rating}</strong>`).join(" - ");
+    return tiers.map(t => `${esc(t.label)} <strong>${t.rating}</strong>`).join(" · ");
   }
   function updateTierReadout(i) {
     const el = document.getElementById("cb-tiers-" + i);
@@ -373,7 +373,7 @@
     wireStep();
   }
 
-  /* ===== STEP 0 -- PRIORITIES ===== */
+  /* ===== STEP 0 — PRIORITIES ===== */
   function stepPriorities() {
     const cats = [
       ["race", "Race / Metatype"], ["magic", "Magic"], ["attributes", "Attributes"],
@@ -383,7 +383,7 @@
       let v;
       if (cat === "attributes") v = PR.attributes[L] + " pts";
       else if (cat === "skills") v = PR.skills[L] + " pts";
-      else if (cat === "resources") v = money(PR.resources[L].nuyen) + " - " + PR.resources[L].fp + " FP";
+      else if (cat === "resources") v = money(PR.resources[L].nuyen) + " · " + PR.resources[L].fp + " FP";
       else v = PR[cat][L];
       const chosen = state.prio[cat] === L;
       const taken = !chosen && prioLettersUsed().includes(L);
@@ -392,12 +392,12 @@
     };
     const kits = window.SR2_ARCHETYPES || {};
     const kitRow = `<div class="cb-kits">
-      <span class="cb-kits__label">Quick start --</span>
+      <span class="cb-kits__label">Quick start —</span>
       ${Object.entries(kits).map(([k, a]) => `<button type="button" class="cb-kit" data-kit="${k}" title="${esc(a.blurb)}">${esc(a.name)}</button>`).join("")}
       <span class="cb-kits__hint">load a kit, then tweak anything</span></div>`;
     return `
-      <h3 class="cb-h">Step 1 - Assign Priorities ${HELP("priorities.html", "priority system")}</h3>
-      <p class="cb-p">New to chargen? Load a <strong>starter kit</strong> below -- it fills in priorities, attributes, skills and gear you can then edit. Or assign each row a letter <strong>A-E</strong> yourself, using each letter once. <span class="cb-cite">(SR2 p.45)</span></p>
+      <h3 class="cb-h">Step 1 · Assign Priorities ${HELP("priorities.html", "priority system")}</h3>
+      <p class="cb-p">New to chargen? Load a <strong>starter kit</strong> below — it fills in priorities, attributes, skills and gear you can then edit. Or assign each row a letter <strong>A–E</strong> yourself, using each letter once. <span class="cb-cite">(SR2 p.45)</span></p>
       ${kitRow}
       <div class="cb-priogrid">
         ${cats.map(([cat, label]) => `
@@ -406,10 +406,10 @@
             <div class="cb-priorow__cells">${LETTERS.map(L => cell(cat, L)).join("")}</div>
           </div>`).join("")}
       </div>
-      <p class="cb-note">${prioComplete() ? "OK Priorities complete." : (prioDup() ? "WARNING Each letter must be used once -- you have duplicates." : "Assign all five rows.")}</p>`;
+      <p class="cb-note">${prioComplete() ? "✓ Priorities complete." : (prioDup() ? "⚠ Each letter must be used once — you have duplicates." : "Assign all five rows.")}</p>`;
   }
 
-  /* ===== STEP 1 -- METATYPE ===== */
+  /* ===== STEP 1 — METATYPE ===== */
   function stepMetatype() {
     const meta = isMeta();
     const list = meta ? ["Elf", "Dwarf", "Ork", "Troll", "Human"] : ["Human"];
@@ -418,15 +418,15 @@
       return `<button type="button" class="cb-meta ${state.metatype === mt ? "is-chosen" : ""}" data-mt="${mt}">
         <span class="cb-meta__name">${mt}</span>
         <span class="cb-meta__mods">${esc(mods)}</span>
-        <span class="cb-meta__vis">Vision: ${esc(m.vision)}${m.notes && m.notes.length ? " - " + esc(m.notes.join("; ")) : ""}</span></button>`;
+        <span class="cb-meta__vis">Vision: ${esc(m.vision)}${m.notes && m.notes.length ? " · " + esc(m.notes.join("; ")) : ""}</span></button>`;
     };
     return `
-      <h3 class="cb-h">Step 2 - Metatype</h3>
-      <p class="cb-p">${meta ? "Race priority A unlocks metahumans." : "Race priority B-E means you're <strong>Human</strong>. Set Race = A on the Priorities step to play a metahuman."} <span class="cb-cite">(SR2 p.43, 45)</span></p>
+      <h3 class="cb-h">Step 2 · Metatype</h3>
+      <p class="cb-p">${meta ? "Race priority A unlocks metahumans." : "Race priority B–E means you're <strong>Human</strong>. Set Race = A on the Priorities step to play a metahuman."} <span class="cb-cite">(SR2 p.43, 45)</span></p>
       <div class="cb-metagrid">${list.map(card).join("")}</div>`;
   }
 
-  /* ===== STEP 2 -- ATTRIBUTES ===== */
+  /* ===== STEP 2 — ATTRIBUTES ===== */
   function stepAttributes() {
     const m = metatype();
     const row = (a) => {
@@ -434,22 +434,22 @@
       return `<div class="cb-attr">
         <label>${ALABEL[a]}</label>
         <div class="cb-stepper">
-          <button type="button" class="cb-step-btn" data-attr="${a}" data-d="-1">-</button>
+          <button type="button" class="cb-step-btn" data-attr="${a}" data-d="-1">−</button>
           <span class="cb-attr__base">${state.base[a]}</span>
           <button type="button" class="cb-step-btn" data-attr="${a}" data-d="1">+</button>
         </div>
-        <span class="cb-attr__mod">${mod ? (mod > 0 ? "+" + mod : mod) : "--"}</span>
+        <span class="cb-attr__mod">${mod ? (mod > 0 ? "+" + mod : mod) : "—"}</span>
         <span class="cb-attr__final ${finalAttr(a) > max ? "is-over" : ""}">= ${finalAttr(a)}</span>
         <span class="cb-attr__max">max ${max}</span>
       </div>`;
     };
     const over = attrSpent() > attrBudget();
     return `
-      <h3 class="cb-h">Step 3 - Attributes</h3>
-      <p class="cb-p">Spend <strong>${attrBudget()}</strong> points (priority ${state.prio.attributes || "--"}). Racial modifiers apply on top for free; final can't exceed the racial max. <span class="cb-cite">(SR2 p.45)</span></p>
+      <h3 class="cb-h">Step 3 · Attributes</h3>
+      <p class="cb-p">Spend <strong>${attrBudget()}</strong> points (priority ${state.prio.attributes || "—"}). Racial modifiers apply on top for free; final can't exceed the racial max. <span class="cb-cite">(SR2 p.45)</span></p>
       <div class="cb-attrhead"><span>Attribute</span><span>Points</span><span>Racial</span><span>Final</span><span></span></div>
       ${ATTRS.map(row).join("")}
-      <p class="cb-note ${over ? "is-warn" : ""}">${attrSpent()} / ${attrBudget()} points spent${over ? " -- over budget!" : ""}</p>
+      <p class="cb-note ${over ? "is-warn" : ""}">${attrSpent()} / ${attrBudget()} points spent${over ? " — over budget!" : ""}</p>
       <div class="cb-derived">
         <span>Reaction <strong>${reaction()}</strong></span>
         <span>Initiative <strong>${reaction()} + ${initDice()}D6</strong></span>
@@ -457,7 +457,7 @@
       </div>`;
   }
 
-  /* ===== STEP 3 -- MAGIC ===== */
+  /* ===== STEP 3 — MAGIC ===== */
   /* Tradition (Hermetic / Shamanic) + mandatory totem for shamans. SR2 p.120. */
   function tradTotemHTML() {
     const trads = ["Hermetic", "Shamanic"];
@@ -466,13 +466,13 @@
       <div class="cb-magictype">${trads.map(t =>
         `<button type="button" class="cb-pill ${state.tradition === t ? "is-chosen" : ""}" data-tradition="${t}">${t}</button>`).join("")}</div>`;
     if (!state.tradition) {
-      html += `<p class="cb-help-line">Pick a tradition -- both buy from the same spell list, but a <strong>shaman must choose a totem</strong>. <span class="cb-cite">(SR2 p.47, 120)</span></p>`;
+      html += `<p class="cb-help-line">Pick a tradition — both buy from the same spell list, but a <strong>shaman must choose a totem</strong>. <span class="cb-cite">(SR2 p.47, 120)</span></p>`;
     } else if (state.tradition === "Hermetic") {
-      html += `<p class="cb-help-line">Hermetic mages summon elementals from a Hermetic Circle and learn spells from a Hermetic Library -- <strong>no totem</strong>, no bonuses or geasa. (Workspace/library are nuyen gear, bought in Resources.) <span class="cb-cite">(SR2 p.263)</span></p>`;
+      html += `<p class="cb-help-line">Hermetic mages summon elementals from a Hermetic Circle and learn spells from a Hermetic Library — <strong>no totem</strong>, no bonuses or geasa. (Workspace/library are nuyen gear, bought in Resources.) <span class="cb-cite">(SR2 p.263)</span></p>`;
     } else {
       const totems = window.SR2_TOTEMS || [];
       const sel = totems.find(t => t.n === state.totem);
-      html += `<div class="cb-magicsub__h" style="margin-top:.6rem">Totem <span class="cb-req ${state.totem ? "is-ok" : "is-missing"}">${state.totem ? "OK " + esc(state.totem) : "required"}</span></div>
+      html += `<div class="cb-magicsub__h" style="margin-top:.6rem">Totem <span class="cb-req ${state.totem ? "is-ok" : "is-missing"}">${state.totem ? "✓ " + esc(state.totem) : "required"}</span></div>
         <div class="cb-totemgrid">${totems.map(t =>
           `<button type="button" class="cb-totem ${state.totem === t.n ? "is-chosen" : ""}" data-totem="${esc(t.n)}">
              <span class="cb-totem__n">${esc(t.n)}</span><span class="cb-totem__env">${esc(t.env)}</span></button>`).join("")}</div>`;
@@ -486,13 +486,13 @@
           <div class="cb-totemcard__h">${esc(sel.n)} <em>${esc(sel.env)}</em></div>
           <ul class="cb-totemcard__perks">${perks || `<li class="cb-perk">No spell or conjuring modifiers.</li>`}</ul>
           <p class="cb-totemcard__geas"><strong>Geas:</strong> ${esc(sel.geas)}</p>
-          <p class="cb-cite">SR2 pp.120-122</p></div>`;
+          <p class="cb-cite">SR2 pp.120–122</p></div>`;
       }
     }
     return html + `</div>`;
   }
 
-  /* Foci shop -- costs nuyen AND Force Points (bonding Karma). SR2 p.137 / p.263. */
+  /* Foci shop — costs nuyen AND Force Points (bonding Karma). SR2 p.137 / p.263. */
   function fociSectionHTML() {
     const all = window.SR2_FOCI || [];
     const allow = state.magicType === "Adept" ? all.filter(f => f.who === "both") : all;
@@ -500,7 +500,7 @@
       const f = focusDef(x.type); if (!f) return "";
       const ny = focusNuyen(f, x.rating), fp = focusKarma(f, x.rating);
       const rateCtrl = f.rated
-        ? `<span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-focusrate="${i}" data-d="-1">-</button><span class="cb-attr__base">${x.rating}</span><button type="button" class="cb-step-btn" data-focusrate="${i}" data-d="1">+</button></span>`
+        ? `<span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-focusrate="${i}" data-d="-1">−</button><span class="cb-attr__base">${x.rating}</span><button type="button" class="cb-step-btn" data-focusrate="${i}" data-d="1">+</button></span>`
         : `<span class="cb-line__f">Rating 1</span>`;
       const applies = f.applies
         ? `<div class="cb-focusline__applies"><label class="cb-focus"><span>Applies to</span><input type="text" class="cb-focus__in" data-focusapplies="${i}" value="${esc(x.applies || "")}" placeholder="${esc(f.applies)}"></label></div>`
@@ -508,16 +508,16 @@
       return `<div class="cb-focusline">
         <div class="cb-line"><span class="cb-line__n">${esc(f.n)}</span>${rateCtrl}
           <span class="cb-line__f">${fp} FP</span><span class="cb-line__f">${money(ny)}</span>
-          <button type="button" class="cb-x" data-delfocus="${i}">?</button></div>${applies}</div>`;
+          <button type="button" class="cb-x" data-delfocus="${i}">✕</button></div>${applies}</div>`;
     }).join("");
     const shop = allow.map(f => {
       const idx = all.indexOf(f);
       const ny = focusNuyen(f, 1), fp = focusKarma(f, 1);
-      const det = detailHTML(f.fx, null, `${f.applies ? "Applies to: " + f.applies + " - " : ""}Rating 1 = ${money(ny)} + ${fp} FP${f.rated ? " - scales with Rating" : ""}`);
+      const det = detailHTML(f.fx, null, `${f.applies ? "Applies to: " + f.applies + " · " : ""}Rating 1 = ${money(ny)} + ${fp} FP${f.rated ? " · scales with Rating" : ""}`);
       return shopRow(f.n, money(ny) + " + " + fp + " FP", det, `data-addfocus="${idx}"`);
     }).join("");
     return `<div class="cb-magicsub">
-      <div class="cb-magicsub__h">Foci <span class="cb-dim">-- optional</span> ${HELP("magic-mechanics.html", "foci & bonding")}</div>
+      <div class="cb-magicsub__h">Foci <span class="cb-dim">— optional</span> ${HELP("magic-mechanics.html", "foci & bonding")}</div>
       <p class="cb-help-line">Each focus costs <strong>nuyen</strong> (from your Resources budget) <em>and</em> <strong>Force Points</strong> equal to its bonding Karma.${state.magicType === "Adept" ? " Adepts may bond only Weapon Foci." : ""} <span class="cb-cite">(SR2 p.137, p.263)</span></p>
       <div class="cb-chosen">${state.foci.length ? chosen : `<p class="cb-empty">No foci.</p>`}</div>
       <div class="cb-shop"><div class="cb-shoplist">${shop}</div></div></div>`;
@@ -528,14 +528,14 @@
     const chooser = `<div class="cb-magictype">${opts.map(o =>
       `<button type="button" class="cb-pill ${state.magicType === o ? "is-chosen" : ""}" data-magictype="${o}">${o}</button>`).join("")}</div>`;
     if (state.magicType === "Mundane") {
-      return `<h3 class="cb-h">Step 4 - Magic</h3>
-        <p class="cb-p">Your priorities allow: <strong>${opts.join(" - ")}</strong>. Mundane characters skip this step. <span class="cb-cite">(SR2 p.45)</span></p>${chooser}`;
+      return `<h3 class="cb-h">Step 4 · Magic</h3>
+        <p class="cb-p">Your priorities allow: <strong>${opts.join(" · ")}</strong>. Mundane characters skip this step. <span class="cb-cite">(SR2 p.45)</span></p>${chooser}`;
     }
     if (state.magicType === "Full Mage") {
       const spells = window.SR2_SPELLS || [];
       const q = (document.getElementById("cb-spell-search") || {}).value || "";
       const filt = spells.filter(s => !q || (s.n + " " + (s.cat || "")).toLowerCase().includes(q.toLowerCase())).slice(0, 40);
-      return `<h3 class="cb-h">Step 4 - Magic -- Full Magician ${HELP("spells.html", "spell index")} ${HELP("magic-mechanics.html", "drain & casting")}</h3>
+      return `<h3 class="cb-h">Step 4 · Magic — Full Magician ${HELP("spells.html", "spell index")} ${HELP("magic-mechanics.html", "drain & casting")}</h3>
         <p class="cb-p">Magic Rating <strong>${magicRating()}</strong>. Buy spells with Force Points (each spell costs FP = its Force; max Force 6 at chargen). <span class="cb-cite">(SR2 p.46)</span></p>
         ${chooser}
         ${tradTotemHTML()}
@@ -544,13 +544,13 @@
           `<div class="cb-line"><span class="cb-line__n">${esc(s.name)} <em>${esc(s.type || "")}</em></span>
              <span class="cb-line__f">Force <input type="number" min="1" max="6" value="${s.force}" data-spellforce="${i}" class="cb-mini"></span>
              <span class="cb-line__d">${esc(s.drain || "")}</span>
-             <button type="button" class="cb-x" data-delspell="${i}">?</button></div>`).join("") : `<p class="cb-empty">No spells yet.</p>`}</div>
+             <button type="button" class="cb-x" data-delspell="${i}">✕</button></div>`).join("") : `<p class="cb-empty">No spells yet.</p>`}</div>
         <div class="cb-shop">
-          <input type="search" id="cb-spell-search" class="cb-search" placeholder="Search spells..." value="${esc(q)}">
+          <input type="search" id="cb-spell-search" class="cb-search" placeholder="Search spells…" value="${esc(q)}">
           <div class="cb-shoplist">${filt.map(s => {
             const idx = spells.indexOf(s);
-            const det = detailHTML(s.desc, s.effect, `${s.cat || ""} - ${s.typ === "M" ? "Mana" : s.typ === "P" ? "Physical" : ""} - Drain ${s.drn || "--"} - Rng ${s.rng || "--"} - Dur ${s.dur || "--"}`);
-            return shopRow(s.n, (s.cat || "") + " - " + (s.drn || ""), det, `data-addspell="${idx}"`);
+            const det = detailHTML(s.desc, s.effect, `${s.cat || ""} · ${s.typ === "M" ? "Mana" : s.typ === "P" ? "Physical" : ""} · Drain ${s.drn || "—"} · Rng ${s.rng || "—"} · Dur ${s.dur || "—"}`);
+            return shopRow(s.n, (s.cat || "") + " · " + (s.drn || ""), det, `data-addspell="${idx}"`);
           }).join("")}</div>
         </div>
         ${fociSectionHTML()}`;
@@ -559,7 +559,7 @@
     const powers = window.ADEPT_POWERS || [];
     const q = (document.getElementById("cb-power-search") || {}).value || "";
     const filt = powers.filter(p => !q || p.n.toLowerCase().includes(q.toLowerCase())).slice(0, 40);
-    return `<h3 class="cb-h">Step 4 - Magic -- Physical Adept ${HELP("adepts.html", "adept powers")}</h3>
+    return `<h3 class="cb-h">Step 4 · Magic — Physical Adept ${HELP("adepts.html", "adept powers")}</h3>
       <p class="cb-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend on adept powers. <span class="cb-cite">(SR2 p.169)</span></p>
       ${chooser}
       <div class="cb-magicsub__h">Adept Powers</div>
@@ -570,24 +570,24 @@
           const attrSel = it.attrChoice ? `<select class="cb-mini" data-powerattr="${i}">${["body", "quickness", "strength"].map(a => `<option value="${a}" ${(p.attr || "body") === a ? "selected" : ""}>${ALABEL[a].slice(0, 3)}</option>`).join("")}</select>` : "";
           return `<div class="cb-line"><span class="cb-line__n">${esc(p.name)}</span>
             ${attrSel}
-            <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-powerlvl="${i}" data-d="-1">-</button><span class="cb-attr__base">${lvl}</span><button type="button" class="cb-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>
+            <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-powerlvl="${i}" data-d="-1">−</button><span class="cb-attr__base">${lvl}</span><button type="button" class="cb-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>
             <span class="cb-line__f">${powerPP(p)} PP</span>
-            <button type="button" class="cb-x" data-delpower="${i}">?</button></div>`;
+            <button type="button" class="cb-x" data-delpower="${i}">✕</button></div>`;
         }
-        return `<div class="cb-line"><span class="cb-line__n">${esc(p.name)}</span><span class="cb-line__f">${esc(p.pp)} PP</span><button type="button" class="cb-x" data-delpower="${i}">?</button></div>`;
+        return `<div class="cb-line"><span class="cb-line__n">${esc(p.name)}</span><span class="cb-line__f">${esc(p.pp)} PP</span><button type="button" class="cb-x" data-delpower="${i}">✕</button></div>`;
       }).join("") : `<p class="cb-empty">No powers yet.</p>`}</div>
       <div class="cb-shop">
-        <input type="search" id="cb-power-search" class="cb-search" placeholder="Search adept powers..." value="${esc(q)}">
+        <input type="search" id="cb-power-search" class="cb-search" placeholder="Search adept powers…" value="${esc(q)}">
         <div class="cb-shoplist">${filt.map(p => {
           const idx = powers.indexOf(p);
-          const det = detailHTML(p.desc, p.effect, `Cost ${esc(p.pp)} - activation ${esc(p.act || "--")}`);
+          const det = detailHTML(p.desc, p.effect, `Cost ${esc(p.pp)} · activation ${esc(p.act || "—")}`);
           return shopRow(p.n, p.pp, det, `data-addpower="${idx}"`);
         }).join("")}</div>
       </div>
       ${fociSectionHTML()}`;
   }
 
-  /* ===== STEP 4 -- SKILLS ===== */
+  /* ===== STEP 4 — SKILLS ===== */
   function chosenSkillHTML(s, i) {
     const def = SKILLS.find(x => x.n === s.name) || {};
     const concList = def.conc || [];
@@ -605,18 +605,18 @@
       <div class="cb-line">
         <span class="cb-line__n ${s.group === "knowledge" ? "is-kn" : ""}">${esc(s.name)} <em>(${esc(s.attr)})</em></span>
         <span class="cb-stepper cb-stepper--sm">
-          <button type="button" class="cb-step-btn" data-skill="${i}" data-d="-1">-</button>
+          <button type="button" class="cb-step-btn" data-skill="${i}" data-d="-1">−</button>
           <span class="cb-attr__base ${s.rating >= CHARGEN_SKILL_MAX ? "is-max" : ""}">${s.rating}</span>
           <button type="button" class="cb-step-btn" data-skill="${i}" data-d="1">+</button>
         </span>
-        <button type="button" class="cb-x" data-delskill="${i}">?</button>
+        <button type="button" class="cb-x" data-delskill="${i}">✕</button>
       </div>
       <div class="cb-skill__focus">
         <label class="cb-focus"><span>Concentration</span>
           <input type="text" class="cb-focus__in" data-conc="${i}" value="${esc(conc)}" list="${concDlId}" placeholder="${concList.length ? esc(concList[0]) : "group"}">
         </label>
         <label class="cb-focus"><span>Specialization</span>
-          <input type="text" class="cb-focus__in" data-spec="${i}" value="${esc(spec)}"${specs.length ? ` list="${specDlId}"` : ""} placeholder="${esc(specPlaceholder)}"${conc ? "" : " disabled title=\"Set a Concentration first -- a Specialization narrows a Concentration\""}>
+          <input type="text" class="cb-focus__in" data-spec="${i}" value="${esc(spec)}"${specs.length ? ` list="${specDlId}"` : ""} placeholder="${esc(specPlaceholder)}"${conc ? "" : " disabled title=\"Set a Concentration first — a Specialization narrows a Concentration\""}>
         </label>
         ${concDatalist}${specDatalist}
         <span class="cb-tiers" id="cb-tiers-${i}">${tierReadoutHTML(s)}</span>
@@ -624,7 +624,7 @@
     </div>`;
   }
   /* Languages (SR2 p.45, p.74): native free at Int+2; Street lifestyle adds a free
-     local dialect at 1/2 Int; any other language is a knowledge skill from the pool. */
+     local dialect at ½ Int; any other language is a knowledge skill from the pool. */
   function languagesSectionHTML() {
     const intel = finalAttr("intelligence");
     const nativeR = intel + 2;
@@ -634,15 +634,15 @@
     const rows = state.languages.map((l, i) => `<div class="cb-line">
         <input type="text" class="cb-focus__in" data-langname="${i}" value="${esc(l.name)}" list="cb-lang-dl" placeholder="language">
         <span class="cb-stepper cb-stepper--sm">
-          <button type="button" class="cb-step-btn" data-langrate="${i}" data-d="-1">-</button>
+          <button type="button" class="cb-step-btn" data-langrate="${i}" data-d="-1">−</button>
           <span class="cb-attr__base ${l.rating >= CHARGEN_SKILL_MAX ? "is-max" : ""}">${l.rating}</span>
           <button type="button" class="cb-step-btn" data-langrate="${i}" data-d="1">+</button>
         </span>
-        <button type="button" class="cb-x" data-dellang="${i}">?</button>
+        <button type="button" class="cb-x" data-dellang="${i}">✕</button>
       </div>`).join("");
     return `<div class="cb-langs">
       <div class="cb-magicsub__h" style="margin-top:1.1rem">Languages ${HELP("skills.html", "language skills")}</div>
-      <p class="cb-help-line">Your <strong>native language</strong> is free at <strong>Intelligence + 2</strong> (read &amp; write included).${street ? " A Street lifestyle adds a free local dialect at 1/2 Intelligence." : ""} Any other language is a knowledge skill bought from the same skill pool above. <span class="cb-cite">(SR2 p.45, p.74)</span></p>
+      <p class="cb-help-line">Your <strong>native language</strong> is free at <strong>Intelligence + 2</strong> (read &amp; write included).${street ? " A Street lifestyle adds a free local dialect at ½ Intelligence." : ""} Any other language is a knowledge skill bought from the same skill pool above. <span class="cb-cite">(SR2 p.45, p.74)</span></p>
       <div class="cb-line">
         <span class="cb-line__n is-kn">Native language <em>(free)</em></span>
         <input type="text" class="cb-focus__in" data-nativelang value="${esc(state.nativeLanguage)}" list="cb-lang-dl" placeholder="e.g. English / Sperethiel">
@@ -663,23 +663,23 @@
     const over = skillSpent() > skillBudget();
     const q = (document.getElementById("cb-skill-search") || {}).value || "";
     const avail = SKILLS.filter(s => !q || s.n.toLowerCase().includes(q.toLowerCase()));
-    return `<h3 class="cb-h">Step 5 - Skills ${HELP("skills.html", "skills index")}</h3>
-      <p class="cb-p">Spend <strong>${skillBudget()}</strong> skill points (priority ${state.prio.skills || "--"}); a skill at rating N costs N points. No starting skill may exceed <strong>6</strong> (the stepper caps there); only narrowing can push a rating higher. In SR2 every skill -- knowledge skills (italic) included -- comes from this same pool; only your native language is free (Intelligence + 2). <span class="cb-cite">(SR2 p.45)</span></p>
-      <p class="cb-p">Optional narrowing (free -- cost stays the base rating): a <strong>Concentration</strong> picks a broad group (general -1 / that group +1). A <strong>Specialization</strong> narrows that group to one specific item (general -2 / group at base / the specific +2) -- so set the Concentration first, then the specific, e.g. <em>Firearms -> Pistols -> Ares Predator</em>. <span class="cb-cite">(SR2 p.70)</span></p>
+    return `<h3 class="cb-h">Step 5 · Skills ${HELP("skills.html", "skills index")}</h3>
+      <p class="cb-p">Spend <strong>${skillBudget()}</strong> skill points (priority ${state.prio.skills || "—"}); a skill at rating N costs N points. No starting skill may exceed <strong>6</strong> (the stepper caps there); only narrowing can push a rating higher. In SR2 every skill — knowledge skills (italic) included — comes from this same pool; only your native language is free (Intelligence + 2). <span class="cb-cite">(SR2 p.45)</span></p>
+      <p class="cb-p">Optional narrowing (free — cost stays the base rating): a <strong>Concentration</strong> picks a broad group (general −1 / that group +1). A <strong>Specialization</strong> narrows that group to one specific item (general −2 / group at base / the specific +2) — so set the Concentration first, then the specific, e.g. <em>Firearms → Pistols → Ares Predator</em>. <span class="cb-cite">(SR2 p.70)</span></p>
       <div class="cb-chosen">${state.skills.length ? state.skills.map(chosenSkillHTML).join("") : `<p class="cb-empty">No skills yet.</p>`}</div>
-      <p class="cb-note ${over ? "is-warn" : ""}">${skillSpent()} / ${skillBudget()} skill points${over ? " -- over budget!" : ""}${languagesSpent() ? ` (incl. ${languagesSpent()} on languages)` : ""}</p>
+      <p class="cb-note ${over ? "is-warn" : ""}">${skillSpent()} / ${skillBudget()} skill points${over ? " — over budget!" : ""}${languagesSpent() ? ` (incl. ${languagesSpent()} on languages)` : ""}</p>
       ${languagesSectionHTML()}
       <div class="cb-shop">
-        <input type="search" id="cb-skill-search" class="cb-search" placeholder="Search skills..." value="${esc(q)}">
+        <input type="search" id="cb-skill-search" class="cb-search" placeholder="Search skills…" value="${esc(q)}">
         <div class="cb-shoplist">${avail.slice(0, 60).map(s => {
           const taken = state.skills.some(x => x.name === s.n);
-          const det = `<p class="cb-det__stat">Linked to <strong>${esc(s.attr)}</strong> - ${esc(s.group)}</p><p class="cb-det__desc">${HELP("skills.html", "what this skill covers")}</p>`;
+          const det = `<p class="cb-det__stat">Linked to <strong>${esc(s.attr)}</strong> · ${esc(s.group)}</p><p class="cb-det__desc">${HELP("skills.html", "what this skill covers")}</p>`;
           return shopRow(s.n + (s.group === "knowledge" ? " (kn)" : ""), s.attr, det, `data-addskill="${esc(s.n)}"`, taken);
         }).join("")}</div>
       </div>`;
   }
 
-  /* ===== STEP 5 -- RESOURCES (shopping) ===== */
+  /* ===== STEP 5 — RESOURCES (shopping) ===== */
   const SHOP_TABS = [
     { k: "weapons", label: "Weapons", data: () => window.WEAPONS || [] },
     { k: "armor", label: "Armor", data: () => window.ARMOR || [] },
@@ -692,12 +692,12 @@
   /* Matrix / decking panel (lives inside the Resources step). */
   function matrixSectionHTML() {
     const dks = decks();
-    const deckOptions = `<option value="">-- no deck --</option>` + dks.map(x => {
+    const deckOptions = `<option value="">— no deck —</option>` + dks.map(x => {
       const m = (x.stats.find(s => s[0] === "MPCP") || [])[1];
-      return `<option value="${esc(x.n)}" ${state.deck === x.n ? "selected" : ""}>${esc(x.n)} - MPCP ${m} - ${money(x.cost)}</option>`;
+      return `<option value="${esc(x.n)}" ${state.deck === x.n ? "selected" : ""}>${esc(x.n)} · MPCP ${m} · ${money(x.cost)}</option>`;
     }).join("");
     let html = `<div class="cb-matrix">
-      <div class="cb-magicsub__h">Matrix / Decking <span class="cb-dim">-- optional</span> ${HELP("matrix-mechanics.html", "how decking works")}</div>
+      <div class="cb-magicsub__h">Matrix / Decking <span class="cb-dim">— optional</span> ${HELP("matrix-mechanics.html", "how decking works")}</div>
       <p class="cb-help-line">Pick a cyberdeck (its price comes out of your nuyen budget), set persona programs, and load utilities. You also need a <strong>Datajack</strong> (Cyberware tab) to jack in. <span class="cb-cite">(SR2 p.172-178)</span></p>
       <label class="cb-deckpick"><span>Cyberdeck</span> <select data-deck>${deckOptions}</select></label>`;
     if (!state.deck) return html + `</div>`;
@@ -711,13 +711,13 @@
       <span>${money(deckNuyen())}</span>
     </div>`;
     const cap = personaCap(), tot = personaTotal(), pOver = tot > cap;
-    html += `<div class="cb-magicsub__h" style="margin-top:.7rem">Persona Programs <span class="cb-req ${pOver ? "is-missing" : "is-ok"}">${tot} / ${cap} <span class="cb-dim">(3xMPCP)</span></span></div>
+    html += `<div class="cb-magicsub__h" style="margin-top:.7rem">Persona Programs <span class="cb-req ${pOver ? "is-missing" : "is-ok"}">${tot} / ${cap} <span class="cb-dim">(3×MPCP)</span></span></div>
       <div class="cb-persona">${PERSONA.map(pp => {
         const key = pp.n.toLowerCase(); const v = Number(state.persona[key]) || 0;
         return `<div class="cb-personarow" title="${esc(pp.desc)}">
           <span class="cb-personarow__n">${esc(pp.n)}</span>
           <span class="cb-stepper cb-stepper--sm">
-            <button type="button" class="cb-step-btn" data-persona="${key}" data-d="-1">-</button>
+            <button type="button" class="cb-step-btn" data-persona="${key}" data-d="-1">−</button>
             <span class="cb-attr__base">${v}</span>
             <button type="button" class="cb-step-btn" data-persona="${key}" data-d="1">+</button>
           </span></div>`;
@@ -726,18 +726,18 @@
     const chosen = state.programs.map((p, i) => {
       const def = programDef(p.name); const sz = programSize(p);
       return `<div class="cb-line"><span class="cb-line__n">${esc(p.name)} <em>${esc(def ? def.type : "")}</em></span>
-        <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-prograte="${i}" data-d="-1">-</button><span class="cb-attr__base">${p.rating}</span><button type="button" class="cb-step-btn" data-prograte="${i}" data-d="1">+</button></span>
+        <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-prograte="${i}" data-d="-1">−</button><span class="cb-attr__base">${p.rating}</span><button type="button" class="cb-step-btn" data-prograte="${i}" data-d="1">+</button></span>
         <span class="cb-line__f">${sz} Mp</span>
-        <span class="cb-line__f">Y <input type="number" value="${Number(p.cost) || 0}" data-progcost="${i}" class="cb-mini cb-mini--w"></span>
-        <button type="button" class="cb-x" data-delprog="${i}">?</button></div>`;
+        <span class="cb-line__f">¥ <input type="number" value="${Number(p.cost) || 0}" data-progcost="${i}" class="cb-mini cb-mini--w"></span>
+        <button type="button" class="cb-x" data-delprog="${i}">✕</button></div>`;
     }).join("");
     const owned = state.programs.map(p => p.name);
     const shop = PROGRAMS.map((p, idx) => {
-      const det = detailHTML(p.fx, null, `${p.type} - size = Rating2 x ${p.mult} Mp`);
+      const det = detailHTML(p.fx, null, `${p.type} · size = Rating² × ${p.mult} Mp`);
       return shopRow(p.n, p.type, det, `data-addprog="${idx}"`, owned.includes(p.n));
     }).join("");
     html += `<div class="cb-magicsub__h" style="margin-top:.7rem">Utility Programs <span class="cb-req ${memOver ? "is-missing" : "is-ok"}">${programsMp()} / ${deckStat("Storage")} Mp storage</span></div>
-      <p class="cb-help-line">Each utility's memory = Rating2 x its multiplier. Programs sit in Storage; Active Memory (${deckStat("Active Mem")} Mp) caps how many run at once. SR2 sets no fixed program price -- they're written or bought as object code, so nuyen is yours to fill in. <span class="cb-cite">(SR2 p.174-177)</span></p>
+      <p class="cb-help-line">Each utility's memory = Rating² × its multiplier. Programs sit in Storage; Active Memory (${deckStat("Active Mem")} Mp) caps how many run at once. SR2 sets no fixed program price — they're written or bought as object code, so nuyen is yours to fill in. <span class="cb-cite">(SR2 p.174-177)</span></p>
       <div class="cb-chosen">${state.programs.length ? chosen : `<p class="cb-empty">No programs.</p>`}</div>
       <div class="cb-shop"><div class="cb-shoplist">${shop}</div></div>
       <div class="cb-deckderived">
@@ -753,18 +753,18 @@
     const dl = `<datalist id="cb-arch-dl">${(window.SR2_CONTACT_ARCHETYPES || []).map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist>`;
     const rows = state.contacts.map((c, i) => `<div class="cb-line">
         <input type="text" class="cb-focus__in" data-cname="${i}" value="${esc(c.name)}" placeholder="name / handle">
-        <input type="text" class="cb-focus__in" data-carch="${i}" value="${esc(c.archetype)}" list="cb-arch-dl" placeholder="archetype (Fixer, Street Doc...)">
+        <input type="text" class="cb-focus__in" data-carch="${i}" value="${esc(c.archetype)}" list="cb-arch-dl" placeholder="archetype (Fixer, Street Doc…)">
         <button type="button" class="cb-tab ${c.level === "Buddy" ? "is-active" : ""}" data-clevel="${i}" title="Toggle Contact / Buddy">${esc(c.level)}</button>
         <span class="cb-line__f">${money(contactCost(c))}</span>
-        <button type="button" class="cb-x" data-delcontact="${i}">?</button>
+        <button type="button" class="cb-x" data-delcontact="${i}">✕</button>
       </div>`).join("");
     const free = state.contacts.length <= (CG.freeContacts || 0);
     return `<div class="cb-contacts">
-      <div class="cb-magicsub__h" style="margin-top:1rem">Contacts <span class="cb-dim">-- Cost of Extras</span> ${HELP("glossary.html", "how contacts work")}</div>
+      <div class="cb-magicsub__h" style="margin-top:1rem">Contacts <span class="cb-dim">— Cost of Extras</span> ${HELP("glossary.html", "how contacts work")}</div>
       <p class="cb-help-line">You start with <strong>${CG.freeContacts || 2} free contacts</strong>; beyond that a <strong>Contact</strong> is ${money(CG.contactCost || 5000)} and a <strong>Buddy</strong> ${money(CG.buddyCost || 10000)} (a closer, more reliable friend). Use them via Etiquette (TN 4) for info, gear &amp; favours. <span class="cb-cite">(SR2 p.46, p.200)</span></p>
-      <div class="cb-chosen">${state.contacts.length ? rows : `<p class="cb-empty">No contacts yet -- add your 2 free ones.</p>`}</div>
+      <div class="cb-chosen">${state.contacts.length ? rows : `<p class="cb-empty">No contacts yet — add your 2 free ones.</p>`}</div>
       <div class="cb-shop"><button type="button" class="cb-btn cb-btn--ghost" data-addcontact>+ Add contact</button></div>
-      <p class="cb-note ${contactsNuyen() > res().nuyen ? "is-warn" : ""}">${money(contactsGross())} gross - ${money(contactsCredit())} free credit = <strong>${money(contactsNuyen())}</strong> from nuyen${free ? " - all free so far" : ""}</p>
+      <p class="cb-note ${contactsNuyen() > res().nuyen ? "is-warn" : ""}">${money(contactsGross())} gross − ${money(contactsCredit())} free credit = <strong>${money(contactsNuyen())}</strong> from nuyen${free ? " · all free so far" : ""}</p>
       ${dl}
     </div>`;
   }
@@ -772,27 +772,27 @@
   function stepResources() {
     const over = nuyenSpent() > res().nuyen;
     const lines = (k) => state.gear[k].length ? state.gear[k].map((g, i) => {
-      const sub = k === "armor" ? `B${g.ballistic ?? "--"}/I${g.impact ?? "--"}`
-        : k === "vehicles" ? [vehStat(g, "handling") && ("Hand " + vehStat(g, "handling")), vehStat(g, "speed") && ("Spd " + vehStat(g, "speed")), `B/A ${vehStat(g, "body")}/${vehStat(g, "armor")}`].filter(Boolean).join(" - ")
+      const sub = k === "armor" ? `B${g.ballistic ?? "—"}/I${g.impact ?? "—"}`
+        : k === "vehicles" ? [vehStat(g, "handling") && ("Hand " + vehStat(g, "handling")), vehStat(g, "speed") && ("Spd " + vehStat(g, "speed")), `B/A ${vehStat(g, "body")}/${vehStat(g, "armor")}`].filter(Boolean).join(" · ")
         : (g.sub || g.cat || "");
       if (k === "cyber") {
         const def = cyberDef(g.n);
         if (def && def.rated) { // rated 'ware: pick a rating, Essence & cost derive from it
           const r = clampNum(g.rating || 1, 1, def.maxRating);
           return `<div class="cb-line"><span class="cb-line__n">${esc(g.n)} <em>R${r}/${def.maxRating}</em></span>
-            <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-cyberrate="${i}" data-d="-1">-</button><span class="cb-attr__base">${r}</span><button type="button" class="cb-step-btn" data-cyberrate="${i}" data-d="1">+</button></span>
+            <span class="cb-stepper cb-stepper--sm"><button type="button" class="cb-step-btn" data-cyberrate="${i}" data-d="-1">−</button><span class="cb-attr__base">${r}</span><button type="button" class="cb-step-btn" data-cyberrate="${i}" data-d="1">+</button></span>
             <span class="cb-line__f">Ess ${g.ess}</span>
             <span class="cb-line__f">${money(g.cost)}</span>
-            <button type="button" class="cb-x" data-delgear="cyber:${i}">?</button></div>`;
+            <button type="button" class="cb-x" data-delgear="cyber:${i}">✕</button></div>`;
         }
         return `<div class="cb-line"><span class="cb-line__n">${esc(g.n)} <em>${esc(sub)}</em></span>
           <span class="cb-line__f">Ess <input type="number" step="0.1" value="${g.ess ?? 0}" data-essedit="${i}" class="cb-mini"></span>
-          <span class="cb-line__f">Y <input type="number" value="${Number(g.cost) || 0}" data-costedit="cyber:${i}" class="cb-mini cb-mini--w"></span>
-          <button type="button" class="cb-x" data-delgear="cyber:${i}">?</button></div>`;
+          <span class="cb-line__f">¥ <input type="number" value="${Number(g.cost) || 0}" data-costedit="cyber:${i}" class="cb-mini cb-mini--w"></span>
+          <button type="button" class="cb-x" data-delgear="cyber:${i}">✕</button></div>`;
       }
       return `<div class="cb-line"><span class="cb-line__n">${esc(g.n)} <em>${esc(sub)}</em></span>
-        <span class="cb-line__f">Y <input type="number" value="${Number(g.cost) || 0}" data-costedit="${k}:${i}" class="cb-mini cb-mini--w"></span>
-        <button type="button" class="cb-x" data-delgear="${k}:${i}">?</button></div>`;
+        <span class="cb-line__f">¥ <input type="number" value="${Number(g.cost) || 0}" data-costedit="${k}:${i}" class="cb-mini cb-mini--w"></span>
+        <button type="button" class="cb-x" data-delgear="${k}:${i}">✕</button></div>`;
     }).join("") : "";
     const owned = ["weapons", "armor", "cyber", "vehicles", "other"].map(k => {
       if (!state.gear[k].length) return "";
@@ -805,33 +805,33 @@
     // Vehicles/drones get their own tab; decks & programs live in the Matrix panel.
     const items = tab.data().filter(it => !(shopTab === "other" && ["deck", "program", "vehicle", "drone"].includes(it.cat)))
       .filter(it => !q || (it.n + " " + (it.sub || it.cat || "")).toLowerCase().includes(q.toLowerCase())).slice(0, 50);
-    return `<h3 class="cb-h">Step 6 - Resources</h3>
-      <p class="cb-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources || "--"}). Click items to buy; prices are editable (handy for per-level / ranged costs). Cyberware also deducts Essence. At chargen, ignore Availability/Street Index. <span class="cb-cite">(SR2 p.46)</span></p>
+    return `<h3 class="cb-h">Step 6 · Resources</h3>
+      <p class="cb-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources || "—"}). Click items to buy; prices are editable (handy for per-level / ranged costs). Cyberware also deducts Essence. At chargen, ignore Availability/Street Index. <span class="cb-cite">(SR2 p.46)</span></p>
       <div class="cb-resgrid">
         <div class="cb-owned-wrap"><h4 class="cb-h4">Your loadout</h4>${owned}</div>
         <div class="cb-shop">
           <div class="cb-tabs">${SHOP_TABS.map(t => `<button type="button" class="cb-tab ${shopTab === t.k ? "is-active" : ""}" data-shoptab="${t.k}">${t.label}</button>`).join("")}</div>
           <div class="cb-shop__top">
-            <input type="search" id="cb-gear-search" class="cb-search" placeholder="Search ${tab.label.toLowerCase()}..." value="${esc(q)}">
+            <input type="search" id="cb-gear-search" class="cb-search" placeholder="Search ${tab.label.toLowerCase()}…" value="${esc(q)}">
             ${HELP({ weapons: "weapons.html", armor: "armor.html", cyber: "cyberware.html", vehicles: "gear.html", other: "gear.html" }[shopTab], "full catalogue")}
           </div>
           <div class="cb-shoplist">${items.map(it => {
             const idx = tab.data().indexOf(it);
-            const meta = (shopTab === "armor" ? `B${it.ballistic ?? "--"}/I${it.impact ?? "--"}` : (it.sub || it.cat || "")) + " - " + (typeof it.cost === "number" ? money(it.cost) : (it.cost || "--"));
+            const meta = (shopTab === "armor" ? `B${it.ballistic ?? "—"}/I${it.impact ?? "—"}` : (it.sub || it.cat || "")) + " · " + (typeof it.cost === "number" ? money(it.cost) : (it.cost || "—"));
             return shopRow(it.n, meta, gearDetail(it, shopTab), `data-buy="${shopTab}:${idx}"`, false, shopArt(shopTab, it.n));
           }).join("")}</div>
         </div>
       </div>
-      <p class="cb-note ${over ? "is-warn" : ""}">${money(nuyenSpent())} / ${money(res().nuyen)} spent${over ? " -- over budget!" : ""} - Essence ${essence().toFixed(2)} / 6</p>
+      <p class="cb-note ${over ? "is-warn" : ""}">${money(nuyenSpent())} / ${money(res().nuyen)} spent${over ? " — over budget!" : ""} · Essence ${essence().toFixed(2)} / 6</p>
       ${matrixSectionHTML()}
       ${contactsSectionHTML()}`;
   }
 
-  /* ===== STEP 6 -- FINISH & EXPORT ===== */
+  /* ===== STEP 6 — FINISH & EXPORT ===== */
   function stepFinish() {
     const id = state.identity;
     const fa = finalAttrs();
-    return `<h3 class="cb-h">Step 7 - Finish &amp; Export</h3>
+    return `<h3 class="cb-h">Step 7 · Finish &amp; Export</h3>
       <div class="cb-form">
         <label>Name <input type="text" data-id="name" value="${esc(id.name)}"></label>
         <label>Sex <input type="text" data-id="sex" value="${esc(id.sex)}"></label>
@@ -842,16 +842,16 @@
         </label>
       </div>
       <div class="cb-summary">
-        <div><h4>${esc(id.name || "Unnamed")} -- ${esc(state.metatype)} ${esc(state.magicType !== "Mundane" ? state.magicType : "")}${state.magicType === "Full Mage" && state.tradition ? esc(" - " + state.tradition + (state.tradition === "Shamanic" && state.totem ? " (" + state.totem + ")" : "")) : ""}</h4></div>
+        <div><h4>${esc(id.name || "Unnamed")} — ${esc(state.metatype)} ${esc(state.magicType !== "Mundane" ? state.magicType : "")}${state.magicType === "Full Mage" && state.tradition ? esc(" · " + state.tradition + (state.tradition === "Shamanic" && state.totem ? " (" + state.totem + ")" : "")) : ""}</h4></div>
         <div class="cb-summary__grid">
           ${ATTRS.map(a => `<span>${ALABEL[a].slice(0, 3)} <strong>${fa[a]}</strong></span>`).join("")}
           <span>REA <strong>${reaction()}</strong></span><span>INIT <strong>${reaction()}+${initDice()}D6</strong></span>
           <span>CP <strong>${combatPool()}</strong></span><span>ESS <strong>${essence().toFixed(2)}</strong></span>
           <span>MAG <strong>${magicRating()}</strong></span>
         </div>
-        <p class="cb-summary__line">${state.skills.length} skills - ${state.languages.length + (state.nativeLanguage ? 1 : 0)} languages - ${state.contacts.length} contacts - ${state.spells.length} spells - ${state.powers.length} powers - ${state.foci.length} foci - ${state.gear.weapons.length} weapons - ${state.gear.armor.length} armor - ${state.gear.cyber.length} cyber${state.gear.vehicles.length ? ` - ${state.gear.vehicles.length} vehicles` : ""}${state.deck ? ` - deck: ${esc(state.deck)} (${state.programs.length} programs)` : ""}</p>
+        <p class="cb-summary__line">${state.skills.length} skills · ${state.languages.length + (state.nativeLanguage ? 1 : 0)} languages · ${state.contacts.length} contacts · ${state.spells.length} spells · ${state.powers.length} powers · ${state.foci.length} foci · ${state.gear.weapons.length} weapons · ${state.gear.armor.length} armor · ${state.gear.cyber.length} cyber${state.gear.vehicles.length ? ` · ${state.gear.vehicles.length} vehicles` : ""}${state.deck ? ` · deck: ${esc(state.deck)} (${state.programs.length} programs)` : ""}</p>
       </div>
-      <button type="button" id="cb-export2" class="cb-btn cb-btn--primary cb-btn--big">? Export filled PDF</button>
+      <button type="button" id="cb-export2" class="cb-btn cb-btn--primary cb-btn--big">⤓ Export filled PDF</button>
       <p class="cb-export-status" id="cb-export-status"></p>`;
   }
 
@@ -866,7 +866,7 @@
   function renderBudget() {
     const b = document.getElementById("cb-budget");
     let html = `<div class="cb-budget__h">// BUDGETS</div>`;
-    html += `<div class="cb-meter ${prioComplete() ? "" : "is-over"}"><div class="cb-meter__top"><span>Priorities</span><span>${prioLettersUsed().length}/5${prioDup() ? " WARNINGdup" : ""}</span></div></div>`;
+    html += `<div class="cb-meter ${prioComplete() ? "" : "is-over"}"><div class="cb-meter__top"><span>Priorities</span><span>${prioLettersUsed().length}/5${prioDup() ? " ⚠dup" : ""}</span></div></div>`;
     html += meter("Attributes", attrSpent(), attrBudget(), "");
     html += meter("Skills", skillSpent(), skillBudget(), "");
     html += `<div class="cb-meter ${nuyenSpent() > res().nuyen ? "is-over" : ""}"><div class="cb-meter__top"><span>Nuyen</span><span>${money(nuyenSpent())} / ${money(res().nuyen)}</span></div><div class="cb-meter__bar"><i style="width:${res().nuyen ? Math.min(100, nuyenSpent() / res().nuyen * 100) : 0}%"></i></div></div>`;
@@ -906,7 +906,7 @@
       const a = btn.dataset.attr, d = +btn.dataset.d;
       state.base[a] = clampNum((state.base[a] || 1) + d, 1, 50); save(); render();
     });
-    // magic type -- clear now-irrelevant magic state on switch
+    // magic type — clear now-irrelevant magic state on switch
     c.querySelectorAll("[data-magictype]").forEach(btn => btn.onclick = () => {
       state.magicType = btn.dataset.magictype;
       if (state.magicType !== "Full Mage") { state.tradition = ""; state.totem = ""; }
@@ -1073,7 +1073,7 @@
   }
   async function exportPDF() {
     const status = document.getElementById("cb-export-status");
-    if (status) status.textContent = "Building PDF...";
+    if (status) status.textContent = "Building PDF…";
     try {
       const doc = await window.PDFLib.PDFDocument.load(sheetBytes());
       const form = doc.getForm();
@@ -1092,14 +1092,14 @@
       };
       // Standard Helvetica uses WinAnsi encoding, which can't encode typographic
       // punctuation we use in the data (minus sign, en/em dashes, smart quotes,
-      // ellipsis, <=/>=). Map those to ASCII so export never throws.
+      // ellipsis, ≤/≥). Map those to ASCII so export never throws.
       const winAnsi = (s) => String(s)
-        .replace(/[-----]/g, "-")
-        .replace(/[''??]/g, "'")
-        .replace(/[""??]/g, '"')
-        .replace(/.../g, "...")
-        .replace(/<=/g, "<=").replace(/>=/g, ">=")
-        .replace(/ /g, " ");
+        .replace(/[‐-―−]/g, "-")
+        .replace(/[‘’‚‛]/g, "'")
+        .replace(/[“”„‟]/g, '"')
+        .replace(/…/g, "...")
+        .replace(/≤/g, "<=").replace(/≥/g, ">=")
+        .replace(/ /g, " ");
       const set = (field, val, max) => {
         if (!field) return;
         try {
@@ -1123,15 +1123,15 @@
       set(M.derived.combatPool, combatPool());
       set(M.derived.karmaPool, CG.startKarmaPool);
       set(M.derived.goodKarma, CG.startGoodKarma);
-      // dice pools (3 generic rows) -- Magic Pool (= Magic Rating) and Hacking Pool
+      // dice pools (3 generic rows) — Magic Pool (= Magic Rating) and Hacking Pool
       const extraPools = [];
       if (awakened()) extraPools.push(["Magic", magicRating()]);
       if (state.deck) extraPools.push(["Hacking", hackingPool()]);
       extraPools.slice(0, M.pools.length).forEach(([nm, val], i) => { set(M.pools[i].name, nm); set(M.pools[i].value, val); });
-      // skills -- each concentration/specialization expands to its own tiered row
+      // skills — each concentration/specialization expands to its own tiered row
       const skillRows = [];
       state.skills.forEach(s => skillTiers(s).forEach(t => skillRows.push({ name: t.label, rating: t.rating })));
-      // Languages are knowledge skills -- they share the skills section of the sheet.
+      // Languages are knowledge skills — they share the skills section of the sheet.
       const intel = finalAttr("intelligence");
       if (state.nativeLanguage) skillRows.push({ name: state.nativeLanguage + " (native)", rating: intel + 2 });
       if (state.identity.lifestyle === "Street" && state.streetDialect) skillRows.push({ name: state.streetDialect + " (dialect)", rating: Math.floor(intel / 2) });
@@ -1142,7 +1142,7 @@
         const r = M.spells[i]; set(r.name, s.name); set(r.type, s.type); set(r.drain, s.drain); set(r.target, s.target); set(r.duration, s.duration); set(r.force, s.force);
       });
       // armor
-      state.gear.armor.slice(0, M.armor.length).forEach((a, i) => { set(M.armor[i].type, a.n); set(M.armor[i].rating, `B${a.ballistic ?? "--"}/I${a.impact ?? "--"}`); });
+      state.gear.armor.slice(0, M.armor.length).forEach((a, i) => { set(M.armor[i].type, a.n); set(M.armor[i].rating, `B${a.ballistic ?? "—"}/I${a.impact ?? "—"}`); });
       // cyber
       state.gear.cyber.slice(0, M.cyber.length).forEach((cy, i) => { set(M.cyber[i].type, cy.n); set(M.cyber[i].rating, cy.ess || ""); });
       // weapons
@@ -1164,7 +1164,7 @@
         set(M.deck.masking, state.persona.masking || "");
         set(M.deck.sensors, state.persona.sensors || "");
       }
-      // vehicle block -- primary vehicle in the box; the rest go to the gear list
+      // vehicle block — primary vehicle in the box; the rest go to the gear list
       const veh = state.gear.vehicles;
       if (veh.length && M.vehicle) {
         const v0 = veh[0];
@@ -1177,7 +1177,7 @@
         set(M.vehicle.pilot, vehStat(v0, "pilot"));
       }
       // contacts -> Contacts & Information lines (overflow to notes)
-      const contactStr = (c) => [c.name || "(unnamed)", c.archetype && "-- " + c.archetype, "(" + c.level + ")"].filter(Boolean).join(" ");
+      const contactStr = (c) => [c.name || "(unnamed)", c.archetype && "— " + c.archetype, "(" + c.level + ")"].filter(Boolean).join(" ");
       state.contacts.slice(0, M.contacts.length).forEach((c, i) => set(M.contacts[i], contactStr(c)));
       const exContacts = state.contacts.slice(M.contacts.length);
       // Game Notes/Gear list: gear + extra vehicles + utility programs + foci (overflow to notes)
@@ -1194,7 +1194,7 @@
       if (state.magicType !== "Mundane") {
         let mt = "MAGE TYPE: " + state.magicType + " (Magic " + magicRating() + ")";
         if (state.magicType === "Full Mage" && state.tradition) {
-          mt += " -- " + state.tradition + (state.tradition === "Shamanic" && state.totem ? ", " + state.totem + " totem" : "");
+          mt += " — " + state.tradition + (state.tradition === "Shamanic" && state.totem ? ", " + state.totem + " totem" : "");
         }
         notes.push(mt);
         if (state.tradition === "Shamanic" && state.totem) {
@@ -1217,9 +1217,9 @@
       a.href = url; a.download = (state.identity.name || "shadowrunner").replace(/[^\w\- ]/g, "") + ".pdf";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      if (status) status.textContent = "OK Downloaded " + a.download;
+      if (status) status.textContent = "✓ Downloaded " + a.download;
     } catch (e) {
-      if (status) status.textContent = "WARNING Export failed: " + e.message;
+      if (status) status.textContent = "⚠ Export failed: " + e.message;
       console.error(e);
     }
   }

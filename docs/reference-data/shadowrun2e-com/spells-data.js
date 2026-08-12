@@ -18,7 +18,7 @@
      src    - SR2 | GRIM | AWK
      pg     - printed page number
 
-   For Combat spells, an automatic "> DAMAGE" line is rendered from
+   For Combat spells, an automatic "▸ DAMAGE" line is rendered from
    the drain code's trailing letter (Power = Force, Damage Level
    = L/M/S/D, type from `typ`). The `effect` array adds nuance
    (area, special targeting, etc.).
@@ -26,31 +26,31 @@
 
 window.SR2_SPELLS = [
 
-  /* ============== SR2 CORE -- Combat (p. 151) ============== */
+  /* ============== SR2 CORE — Combat (p. 151) ============== */
   { n: "Fireball", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+3]D",
-    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical - Serious",
+    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical · Serious",
     desc: "Hurls a fiery blast across a wide area, scorching targets and igniting combustibles.",
     effect: [
       "Area effect: applies to every target inside the blast radius.",
       "Each target rolls Body vs Power (= Force) independently.",
       "Ignites flammable materials caught in the blast.",
-      "Drain TN starts high -- risky to overcast at low Magic Rating."
+      "Drain TN starts high — risky to overcast at low Magic Rating."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Hellblast", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+6]D",
-    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical - Deadly",
-    desc: "Massively amplified fireball -- devastating range and force.",
+    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical · Deadly",
+    desc: "Massively amplified fireball — devastating range and force.",
     effect: [
       "Area effect with much larger radius than Fireball.",
       "Each target rolls Body vs Power (= Force).",
-      "Drain TN is brutal -- typically reserved for prepared casts with Magic Pool backup.",
+      "Drain TN is brutal — typically reserved for prepared casts with Magic Pool backup.",
       "Ignites everything flammable in the blast zone."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Mana Bolt", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)S",
-    target: "Willpower", area: "Single", dmg: "(Force) Physical - Serious",
+    target: "Willpower", area: "Single", dmg: "(Force) Physical · Serious",
     desc: "A single bolt of raw mana savaging one living target's life force.",
     effect: [
       "Single-target. Affects living beings only.",
@@ -60,16 +60,16 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 151 },
 
   { n: "Mana Dart", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)L",
-    target: "Willpower", area: "Single", dmg: "(Force) Physical - Light",
+    target: "Willpower", area: "Single", dmg: "(Force) Physical · Light",
     desc: "A small mana dart for a light wound.",
     effect: [
       "Single-target, living-only.",
-      "Low drain -- useful for plinking or finishing wounded enemies."
+      "Low drain — useful for plinking or finishing wounded enemies."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Mana Missile", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)M",
-    target: "Willpower", area: "Single", dmg: "(Force) Physical - Moderate",
+    target: "Willpower", area: "Single", dmg: "(Force) Physical · Moderate",
     desc: "A moderate mana missile against a single living target.",
     effect: [
       "Single-target, living-only.",
@@ -78,7 +78,7 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 151 },
 
   { n: "Manaball", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)S",
-    target: "Willpower", area: "Radius = Magic (m)", dmg: "(Force) Physical - Serious",
+    target: "Willpower", area: "Radius = Magic (m)", dmg: "(Force) Physical · Serious",
     desc: "Sphere of mana bursting across an area, harming living things inside.",
     effect: [
       "Area effect, living targets only.",
@@ -88,17 +88,17 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 151 },
 
   { n: "Power Bolt", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "Body", area: "Single", dmg: "(Force) Physical - Serious",
+    target: "Body", area: "Single", dmg: "(Force) Physical · Serious",
     desc: "Bolt of magical energy that damages anything in line of sight.",
     effect: [
       "Single-target. Affects living AND inanimate matter (vs Manabolt's living-only).",
       "Target rolls Body vs Power (= Force).",
-      "Higher drain than Manabolt -- the price of versatility."
+      "Higher drain than Manabolt — the price of versatility."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Power Dart", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]L",
-    target: "Body", area: "Single", dmg: "(Force) Physical - Light",
+    target: "Body", area: "Single", dmg: "(Force) Physical · Light",
     desc: "Small physical dart of magical force for a light wound.",
     effect: [
       "Single-target. Affects anything in LOS.",
@@ -107,16 +107,16 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 151 },
 
   { n: "Power Missile", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]M",
-    target: "Body", area: "Single", dmg: "(Force) Physical - Moderate",
+    target: "Body", area: "Single", dmg: "(Force) Physical · Moderate",
     desc: "Moderate-damage physical missile.",
     effect: [
       "Single-target. Affects anything in LOS.",
-      "Mid-range drain -- utility cast."
+      "Mid-range drain — utility cast."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Powerball", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical - Serious",
+    target: "Body", area: "Radius = Magic (m)", dmg: "(Force) Physical · Serious",
     desc: "Sphere of magical force injuring everything in the blast.",
     effect: [
       "Area effect. Affects living AND inanimate.",
@@ -126,27 +126,27 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 151 },
 
   { n: "Ram", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "Barrier Rating", area: "Single", dmg: "(Force) Physical - Serious - inanimate only",
+    target: "Barrier Rating", area: "Single", dmg: "(Force) Physical · Serious · inanimate only",
     desc: "Battering blast of force that wrecks inanimate matter and ignores living tissue.",
     effect: [
       "Single-target.",
-      "Affects ONLY inanimate matter -- living targets are untouched.",
+      "Affects ONLY inanimate matter — living targets are untouched.",
       "Use to smash doors, walls, drones, vehicles."
     ],
     src: "SR2", pg: 151 },
 
   { n: "Sleep", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)-1]S",
-    target: "Willpower", area: "Radius = Magic (m)", dmg: "(Force) Stun - Serious",
+    target: "Willpower", area: "Radius = Magic (m)", dmg: "(Force) Stun · Serious",
     desc: "Drives living targets in an area into unconsciousness via accumulating Stun.",
     effect: [
       "Area effect, living targets only.",
       "Each target rolls Willpower vs Power (= Force).",
-      "Stun damage -- knocks out rather than kills.",
-      "Low drain TN for an area spell -- popular for non-lethal takedowns."
+      "Stun damage — knocks out rather than kills.",
+      "Low drain TN for an area spell — popular for non-lethal takedowns."
     ],
     src: "SR2", pg: 151 },
 
-  /* ============== SR2 CORE -- Detection (p. 153) ============== */
+  /* ============== SR2 CORE — Detection (p. 153) ============== */
   { n: "Analyze Device", cat: "detection", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+1]M",
     target: "4", area: "Single object",
     desc: "Reveals an object's purpose and operating procedure.",
@@ -163,7 +163,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Caster perceives whether each statement made <em>to</em> the subject is sincerely believed by the speaker.",
-      "Does NOT detect objective truth -- only the speaker's belief. Mistakes and delusions read as 'true'."
+      "Does NOT detect objective truth — only the speaker's belief. Mistakes and delusions read as 'true'."
     ],
     src: "SR2", pg: 153 },
 
@@ -172,7 +172,7 @@ window.SR2_SPELLS = [
     desc: "Projects the caster's sight to a chosen distant point.",
     effect: [
       "Sustained. Caster's body becomes vulnerable while concentrating.",
-      "Successes determine clarity and range -- more successes, sharper view at greater distance.",
+      "Successes determine clarity and range — more successes, sharper view at greater distance.",
       "Caster sees as if at the remote location; cannot hear (use Clairaudience for that)."
     ],
     src: "SR2", pg: 153 },
@@ -193,7 +193,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained on one subject.",
       "Each net success adds 1 die to the subject's Combat Pool while the spell is active.",
-      "Subject is never surprised -- gets a free Reaction Test against ambush.",
+      "Subject is never surprised — gets a free Reaction Test against ambush.",
       "Touched subjects can be allies; targeting hostile would require resistance."
     ],
     src: "SR2", pg: 153 },
@@ -204,12 +204,12 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Each net success reveals one hostile-intent being in range, including approximate direction and threat level.",
-      "Range scales with Force x Magic Rating."
+      "Range scales with Force × Magic Rating."
     ],
     src: "SR2", pg: 153 },
 
   { n: "Detect Individual", cat: "detection", typ: "M", rng: "LOS", dur: "S", drn: "(F/2)L",
-    target: "10 - target's Magic/Essence", area: "Within range",
+    target: "10 − target's Magic/Essence", area: "Within range",
     desc: "Locates a single named / known person if within range.",
     effect: [
       "Sustained.",
@@ -225,7 +225,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Caster senses position and approximate count of all living things in range.",
-      "Does not distinguish friend / foe / species -- just life."
+      "Does not distinguish friend / foe / species — just life."
     ],
     src: "SR2", pg: 153 },
 
@@ -242,7 +242,7 @@ window.SR2_SPELLS = [
 
   { n: "Detect (Object)", cat: "detection", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+1]M",
     target: "4", area: "Within range",
-    desc: "Locates a particular type of object -- guns, recording devices, drugs.",
+    desc: "Locates a particular type of object — guns, recording devices, drugs.",
     effect: [
       "Sustained.",
       "Caster picks the object class when learning the spell.",
@@ -268,18 +268,18 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained on caster only.",
       "Each net success adds 1 die to caster's Combat Pool.",
-      "Caster is never surprised -- free Reaction Test against ambush.",
+      "Caster is never surprised — free Reaction Test against ambush.",
       "Lower drain than the targetable Combat Sense."
     ],
     src: "SR2", pg: 153 },
 
-  /* ============== SR2 CORE -- Health (p. 154-155) ============== */
+  /* ============== SR2 CORE — Health (p. 154-155) ============== */
   { n: "Antidote L Toxin", cat: "health", typ: "P", rng: "T", dur: "P", drn: "(F/2)L",
     target: "Toxin Power", area: "Single subject",
     desc: "Neutralizes a mild ingested or inhaled poison.",
     effect: [
-      "Permanent -- once neutralized, the toxin is gone.",
-      "Successes determine effectiveness -- typically each success removes one level of toxin severity.",
+      "Permanent — once neutralized, the toxin is gone.",
+      "Successes determine effectiveness — typically each success removes one level of toxin severity.",
       "Useful for casual food / drink poisoning."
     ],
     src: "SR2", pg: 154 },
@@ -300,7 +300,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Higher drain matches the toxin's danger.",
-      "Successes are crucial -- partial neutralization leaves residual damage."
+      "Successes are crucial — partial neutralization leaves residual damage."
     ],
     src: "SR2", pg: 154 },
 
@@ -310,7 +310,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Critical for nerve agents, military toxins, and bioweapons.",
-      "Brutal drain -- Force > Magic risks Physical Drain."
+      "Brutal drain — Force > Magic risks Physical Drain."
     ],
     src: "SR2", pg: 154 },
 
@@ -338,7 +338,7 @@ window.SR2_SPELLS = [
     desc: "Eradicates a serious pathogen.",
     effect: [
       "Permanent.",
-      "Necessary for diseases that would otherwise kill -- VITAS variants, infectious bioweapons, severe parasites."
+      "Necessary for diseases that would otherwise kill — VITAS variants, infectious bioweapons, severe parasites."
     ],
     src: "SR2", pg: 154 },
 
@@ -348,12 +348,12 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Last-resort cast for terminal infections.",
-      "Drain matches the danger -- Force > Magic = Physical Drain."
+      "Drain matches the danger — Force > Magic = Physical Drain."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Decrease -1 Attribute", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]L",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Suppresses one of the victim's natural Attributes by a point.",
     effect: [
       "Sustained: caster must maintain concentration (+2 TN to all other tests).",
@@ -364,7 +364,7 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 154 },
 
   { n: "Decrease -2 Attribute", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]M",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Saps two points from one of the victim's natural Attributes.",
     effect: [
       "Sustained.",
@@ -375,23 +375,23 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 154 },
 
   { n: "Decrease -3 Attribute", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]S",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Severely weakens by lowering an Attribute three points.",
     effect: [
       "Sustained.",
       "Target rolls Willpower vs Power.",
-      "-3 modifier on success -- dramatic effect on rolls."
+      "-3 modifier on success — dramatic effect on rolls."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Decrease -4 Attribute", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]D",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Crushes one of the victim's Attributes by four points.",
     effect: [
       "Sustained.",
       "Target rolls Willpower.",
-      "-4 -- catastrophic.",
-      "Very high drain -- magicians often pair with Spell Defense / Centering."
+      "-4 — catastrophic.",
+      "Very high drain — magicians often pair with Spell Defense / Centering."
     ],
     src: "SR2", pg: 154 },
 
@@ -401,7 +401,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Use for hangovers, mild intoxication, residual drug effects.",
-      "Very low drain -- utility cast."
+      "Very low drain — utility cast."
     ],
     src: "SR2", pg: 154 },
 
@@ -434,49 +434,49 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 154 },
 
   { n: "Increase +1 Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+2]L",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Pumps up one of the subject's natural Attributes by a point.",
     effect: [
       "Sustained on a willing subject (concentration penalty applies to caster).",
       "Adds +1 to one chosen Attribute for the duration.",
-      "Cannot exceed 1.5 x Racial Maximum.",
-      "Voluntary -- no resistance from target."
+      "Cannot exceed 1.5 × Racial Maximum.",
+      "Voluntary — no resistance from target."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Increase +2 Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+2]M",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Bolsters one Attribute by two points.",
     effect: [
       "Sustained on willing subject.",
       "+2 to chosen Attribute.",
-      "Cap: 1.5 x Racial Maximum."
+      "Cap: 1.5 × Racial Maximum."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Increase +3 Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+2]S",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Lifts one Attribute by three points.",
     effect: [
       "Sustained.",
       "+3 to chosen Attribute.",
-      "Cap: 1.5 x Racial Maximum."
+      "Cap: 1.5 × Racial Maximum."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Increase +4 Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+2]D",
-    target: "2 x affected Attribute", area: "Single subject",
-    desc: "Floods the subject with magical vigor -- +4 to a natural Attribute.",
+    target: "2 × affected Attribute", area: "Single subject",
+    desc: "Floods the subject with magical vigor — +4 to a natural Attribute.",
     effect: [
       "Sustained.",
       "+4 to chosen Attribute.",
-      "Cap: 1.5 x Racial Maximum.",
-      "Drain is brutal -- typically locked into a Spell Lock for combat use."
+      "Cap: 1.5 × Racial Maximum.",
+      "Drain is brutal — typically locked into a Spell Lock for combat use."
     ],
     src: "SR2", pg: 154 },
 
   { n: "Increase +1 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]L",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Raises an Attribute already augmented by cyberware by one more point.",
     effect: [
       "Sustained.",
@@ -486,7 +486,7 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 155 },
 
   { n: "Increase +2 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]M",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Stacks two more points onto a cyber-boosted Attribute.",
     effect: [
       "Sustained.",
@@ -496,7 +496,7 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 155 },
 
   { n: "Increase +3 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]S",
-    target: "2 x affected Attribute", area: "Single subject",
+    target: "2 × affected Attribute", area: "Single subject",
     desc: "Three more points on top of cyber-augmented baseline.",
     effect: [
       "Sustained.",
@@ -506,70 +506,70 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 155 },
 
   { n: "Increase +4 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]D",
-    target: "2 x affected Attribute", area: "Single subject",
-    desc: "Four more points on top of cybernetic enhancement -- extreme boost.",
+    target: "2 × affected Attribute", area: "Single subject",
+    desc: "Four more points on top of cybernetic enhancement — extreme boost.",
     effect: [
       "Sustained.",
       "+4 above cybered rating.",
-      "Drain is severe -- Force > Magic = Physical Drain."
+      "Drain is severe — Force > Magic = Physical Drain."
     ],
     src: "SR2", pg: 155 },
 
   { n: "+1 Initiative Die", cat: "health", typ: "M", rng: "T", dur: "S", drn: "(F/2)M",
-    target: "2 x Reaction", area: "Single subject",
-    desc: "Quickens the subject's reflexes -- one extra initiative die per turn.",
+    target: "2 × Reaction", area: "Single subject",
+    desc: "Quickens the subject's reflexes — one extra initiative die per turn.",
     effect: [
       "Sustained on touched subject.",
       "Adds 1 to the subject's initiative dice while active.",
-      "Voluntary -- no resistance.",
+      "Voluntary — no resistance.",
       "Typically locked into a Spell Lock to avoid concentration penalty."
     ],
     src: "SR2", pg: 155 },
 
   { n: "+2 Initiative Dice", cat: "health", typ: "M", rng: "T", dur: "S", drn: "(F/2)S",
-    target: "2 x Reaction", area: "Single subject",
+    target: "2 × Reaction", area: "Single subject",
     desc: "Adds two initiative dice to the subject.",
     effect: [
       "Sustained.",
       "+2 init dice while active.",
-      "Heavy drain -- but matches Wired 2 cyberware bonus without Essence cost."
+      "Heavy drain — but matches Wired 2 cyberware bonus without Essence cost."
     ],
     src: "SR2", pg: 155 },
 
   { n: "+3 Initiative Dice", cat: "health", typ: "M", rng: "T", dur: "S", drn: "(F/2)D",
-    target: "2 x Reaction", area: "Single subject",
-    desc: "Hyper-accelerates reflexes -- three extra initiative dice.",
+    target: "2 × Reaction", area: "Single subject",
+    desc: "Hyper-accelerates reflexes — three extra initiative dice.",
     effect: [
       "Sustained.",
       "+3 init dice (cyber-Reflexes 3 equivalent, no Essence cost).",
-      "Drain D -- sustaining without a Spell Lock crushes the caster."
+      "Drain D — sustaining without a Spell Lock crushes the caster."
     ],
     src: "SR2", pg: 155 },
 
   { n: "Treat", cat: "health", typ: "M", rng: "T", dur: "P", drn: "(F/2)(Wound)",
-    target: "8 - target Essence", area: "Single subject",
-    desc: "Stabilizes and partially mends an injured subject -- only works soon after the injury.",
+    target: "8 − target Essence", area: "Single subject",
+    desc: "Stabilizes and partially mends an injured subject — only works soon after the injury.",
     effect: [
       "Permanent: damage healed stays healed.",
       "Each success heals 1 box of damage (Stun or Physical).",
-      "Must be cast within Force minutes of the injury -- otherwise use Heal.",
+      "Must be cast within Force minutes of the injury — otherwise use Heal.",
       "Drain TN scales with the wound level being treated: (F/2) + level number (3 / 5 / 8 / 10 for L/M/S/D)."
     ],
     src: "SR2", pg: 155 },
 
   { n: "Heal", cat: "health", typ: "M", rng: "T", dur: "P", drn: "(F/2)(Wound)M",
-    target: "10 - target Essence", area: "Single subject",
+    target: "10 − target Essence", area: "Single subject",
     desc: "Closes wounds on a subject, even hours after the injury.",
     effect: [
       "Permanent: damage stays healed.",
       "<strong>Each success on the Spell Success Test heals 1 box of damage</strong> (Stun or Physical) on the touched subject.",
       "Drain TN scales with the wound's severity: (F/2) + wound level number (3 / 5 / 8 / 10 for L/M/S/D).",
-      "<strong>No time limit</strong> -- can heal injuries days old (vs Treat, which requires minutes-fresh wounds).",
+      "<strong>No time limit</strong> — can heal injuries days old (vs Treat, which requires minutes-fresh wounds).",
       "Cannot exceed the subject's Body in successes for a single cast."
     ],
     src: "SR2", pg: 155 },
 
-  /* ============== SR2 CORE -- Illusion (p. 155-156) ============== */
+  /* ============== SR2 CORE — Illusion (p. 155-156) ============== */
   { n: "Chaos", cat: "illusion", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+2]M",
     target: "Intelligence (R)", area: "Single subject",
     desc: "Bombards a target's senses with random illusions.",
@@ -583,11 +583,11 @@ window.SR2_SPELLS = [
 
   { n: "Chaotic World", cat: "illusion", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+2]S",
     target: "Intelligence (R)", area: "Within range",
-    desc: "Area Chaos -- overwhelms every sense for everyone caught inside.",
+    desc: "Area Chaos — overwhelms every sense for everyone caught inside.",
     effect: [
       "Sustained, area effect.",
       "Each target inside rolls Willpower vs Power to disbelieve.",
-      "Heavy combat-disrupting field -- useful for cover or escape."
+      "Heavy combat-disrupting field — useful for cover or escape."
     ],
     src: "SR2", pg: 155 },
 
@@ -595,7 +595,7 @@ window.SR2_SPELLS = [
     target: "Willpower (R)", area: "Single subject",
     desc: "Weaves disorienting illusions directly in one target's mind.",
     effect: [
-      "Sustained, single-target. Mana spell -- living only.",
+      "Sustained, single-target. Mana spell — living only.",
       "Target rolls Willpower vs Power.",
       "Failure: target acts erratically, suffers test penalties.",
       "Lower drain than Chaos because mana-only."
@@ -603,12 +603,12 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 155 },
 
   { n: "Entertainment", cat: "illusion", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]L",
-    target: "-- (voluntary)", area: "Within range",
-    desc: "Obvious area illusion designed for viewing -- magical sideshow.",
+    target: "— (voluntary)", area: "Within range",
+    desc: "Obvious area illusion designed for viewing — magical sideshow.",
     effect: [
       "Sustained, area effect.",
       "Caster shapes the visuals; pre-designed scenes work best.",
-      "Mana illusion -- works on living observers only.",
+      "Mana illusion — works on living observers only.",
       "Common for street performances, distraction, urban shamanism."
     ],
     src: "SR2", pg: 156 },
@@ -620,7 +620,7 @@ window.SR2_SPELLS = [
       "Sustained on touched subject.",
       "Each observer rolls Willpower vs Power to spot the subject.",
       "Physical illusion: cameras, sensors, drones also fooled.",
-      "Premier infiltration buff -- typically locked into a Spell Lock."
+      "Premier infiltration buff — typically locked into a Spell Lock."
     ],
     src: "SR2", pg: 156 },
 
@@ -630,7 +630,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Observer rolls Willpower vs Power to perceive.",
-      "Mana illusion -- cameras and electronic sensors are NOT fooled (use Improved Invisibility for tech).",
+      "Mana illusion — cameras and electronic sensors are NOT fooled (use Improved Invisibility for tech).",
       "Cheaper drain than Improved Invisibility."
     ],
     src: "SR2", pg: 156 },
@@ -642,16 +642,16 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Subject appears as another person (chosen at cast time).",
       "Observer rolls Willpower vs Power to see through.",
-      "Mana illusion -- doesn't fool cameras (see Physical Mask in Grimoire 2e)."
+      "Mana illusion — doesn't fool cameras (see Physical Mask in Grimoire 2e)."
     ],
     src: "SR2", pg: 156 },
 
   { n: "Stimulation", cat: "illusion", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]L",
-    target: "-- (voluntary)", area: "Single subject",
+    target: "— (voluntary)", area: "Single subject",
     desc: "Fills a willing subject's senses with a vivid imagined experience.",
     effect: [
       "Sustained, voluntary subject.",
-      "Caster designs the sensory experience -- sight, sound, smell, touch.",
+      "Caster designs the sensory experience — sight, sound, smell, touch.",
       "Useful for entertainment, therapy, or covertly sharing visions."
     ],
     src: "SR2", pg: 156 },
@@ -663,18 +663,18 @@ window.SR2_SPELLS = [
       "Sustained, area effect.",
       "Each living target rolls Willpower vs Power to resist.",
       "Failure: target wants to leave the area; TN penalties to concentrate inside.",
-      "Mana illusion -- no effect on cyber noses or sensors."
+      "Mana illusion — no effect on cyber noses or sensors."
     ],
     src: "SR2", pg: 156 },
 
-  /* ============== SR2 CORE -- Manipulation (p. 156-158) ============== */
+  /* ============== SR2 CORE — Manipulation (p. 156-158) ============== */
   { n: "Control Actions", cat: "manipulation", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+2]S",
     target: "Willpower (R)", area: "Single subject",
     desc: "Hijacks the target's body to perform actions of the caster's choice.",
     effect: [
       "Sustained.",
       "Opposed Willpower test (caster's net successes determine control).",
-      "Caster directs physical actions only -- not thoughts or beliefs.",
+      "Caster directs physical actions only — not thoughts or beliefs.",
       "Target retains awareness; can recognize the control later."
     ],
     src: "SR2", pg: 156 },
@@ -686,7 +686,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Target rolls Willpower vs Power.",
       "Caster picks the emotion: love, hate, fear, calm, despair.",
-      "Subtler than Control Thoughts -- target acts in line with the new emotion."
+      "Subtler than Control Thoughts — target acts in line with the new emotion."
     ],
     src: "SR2", pg: 156 },
 
@@ -696,7 +696,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Opposed Willpower test.",
-      "Caster dictates the target's reasoning -- total mind control.",
+      "Caster dictates the target's reasoning — total mind control.",
       "Brutal drain; sustaining is dangerous without Spell Lock + Centering."
     ],
     src: "SR2", pg: 157 },
@@ -717,7 +717,7 @@ window.SR2_SPELLS = [
     desc: "Lifts an inanimate object through the air at the caster's command.",
     effect: [
       "Sustained.",
-      "Force x Magic Rating determines maximum liftable mass (rough guideline).",
+      "Force × Magic Rating determines maximum liftable mass (rough guideline).",
       "Caster directs the object mentally; speed and finesse scale with successes.",
       "Object Resistance for bound / warded items applies."
     ],
@@ -730,7 +730,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Voluntary subject: caster directs movement.",
       "Hostile target: Body Resistance Test vs Power.",
-      "Force x Magic determines lifting capacity / speed."
+      "Force × Magic determines lifting capacity / speed."
     ],
     src: "SR2", pg: 157 },
 
@@ -740,19 +740,19 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Effective Strength = Force.",
-      "Can grab, manipulate, throw, even attack -- uses caster's relevant Skill at -2 dice.",
+      "Can grab, manipulate, throw, even attack — uses caster's relevant Skill at -2 dice.",
       "Hands are invisible; observers see objects moving on their own."
     ],
     src: "SR2", pg: 157 },
 
   { n: "Poltergeist", cat: "manipulation", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+1]S",
-    target: "4", area: "Within range", dmg: "(Force) Physical - Light",
+    target: "4", area: "Within range", dmg: "(Force) Physical · Light",
     desc: "Hurls every small loose object in an area at the targets.",
     effect: [
       "Sustained, area effect.",
       "Chaotic damage to anyone caught in the area; Power = Force.",
       "Each target rolls Body to resist damage.",
-      "Requires loose objects in the area -- empty rooms produce nothing."
+      "Requires loose objects in the area — empty rooms produce nothing."
     ],
     src: "SR2", pg: 157 },
 
@@ -773,14 +773,14 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Barrier Rating = Force; attacks must beat that to penetrate.",
-      "Shapes: wall, dome, ring. Caster chooses dimensions within Force x Magic limit.",
+      "Shapes: wall, dome, ring. Caster chooses dimensions within Force × Magic limit.",
       "Stops both physical and astral movement through it (unlike Mana Barrier)."
     ],
     src: "SR2", pg: 158 },
 
   { n: "Mana Barrier", cat: "manipulation", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]S",
     target: "6", area: "Created barrier",
-    desc: "Barrier that stops only living beings, magic, and astral travelers -- ignores matter.",
+    desc: "Barrier that stops only living beings, magic, and astral travelers — ignores matter.",
     effect: [
       "Sustained.",
       "Barrier Rating = Force, applied vs living beings / spells / spirits / astral travelers.",
@@ -790,18 +790,18 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 158 },
 
   { n: "Ignite", cat: "manipulation", typ: "P", rng: "LOS", dur: "P", drn: "[(F/2)+1]D",
-    target: "4", area: "Single target", dmg: "Fire -- ongoing",
+    target: "4", area: "Single target", dmg: "Fire — ongoing",
     desc: "Heats a chosen object until it bursts into flame.",
     effect: [
       "Permanent: the fire, once started, continues naturally.",
       "Caster picks a target object; flammable objects ignite, less-flammable just heat.",
       "Object Resistance applies; some materials resist outright.",
-      "Drain D -- very expensive for a sustained-fire effect."
+      "Drain D — very expensive for a sustained-fire effect."
     ],
     src: "SR2", pg: 158 },
 
   { n: "Flame Bomb", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "Body", area: "Within range", dmg: "(Force) Physical - Moderate",
+    target: "Body", area: "Within range", dmg: "(Force) Physical · Moderate",
     desc: "Bursts a blast of flames at a chosen point.",
     effect: [
       "Instant, area effect.",
@@ -812,24 +812,24 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 158 },
 
   { n: "Flamethrower", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "Body", area: "Single (stream)", dmg: "(Force) Physical - Serious",
+    target: "Body", area: "Single (stream)", dmg: "(Force) Physical · Serious",
     desc: "Sprays a jet of fire from the caster.",
     effect: [
       "Instant, narrow cone effect.",
-      "Single-target damage (or short cone -- see GM ruling).",
+      "Single-target damage (or short cone — see GM ruling).",
       "Target rolls Body vs Power.",
       "Ignites flammables in the line."
     ],
     src: "SR2", pg: 158 },
 
   { n: "Ice Sheet", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "4", area: "Sheet = Magic (m2)",
+    target: "4", area: "Sheet = Magic (m²)",
     desc: "Coats the ground with a wide slick of ice.",
     effect: [
-      "Instant -- the ice forms, then exists naturally.",
+      "Instant — the ice forms, then exists naturally.",
       "Area: anyone moving across rolls Quickness against TN to stay upright.",
       "Slows movement, may cause falls.",
-      "Persists until ice melts (Force x 5 minutes typically)."
+      "Persists until ice melts (Force × 5 minutes typically)."
     ],
     src: "SR2", pg: 158 },
 
@@ -838,7 +838,7 @@ window.SR2_SPELLS = [
     desc: "Creates a floating point of light illuminating an area.",
     effect: [
       "Sustained.",
-      "Illumination strength scales with Force -- equivalent to a strong flashlight or floodlight.",
+      "Illumination strength scales with Force — equivalent to a strong flashlight or floodlight.",
       "Caster can move the light within sight; no physical bulb to break.",
       "Counter to Shadow."
     ],
@@ -856,7 +856,7 @@ window.SR2_SPELLS = [
     src: "SR2", pg: 158 },
 
   { n: "Spark", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]M",
-    target: "Body", area: "Single target", dmg: "(Force) Physical - Moderate",
+    target: "Body", area: "Single target", dmg: "(Force) Physical · Moderate",
     desc: "Snaps a small jolt of electricity at a target.",
     effect: [
       "Instant, single-target.",
@@ -865,12 +865,12 @@ window.SR2_SPELLS = [
     ],
     src: "SR2", pg: 158 },
 
-  /* ============== Grimoire 2e -- Combat (p. 126-127) ============== */
+  /* ============== Grimoire 2e — Combat (p. 126-127) ============== */
   { n: "Death Touch", cat: "combat", typ: "M", rng: "T", dur: "I", drn: "[(F/2)-1]S",
-    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Physical - Serious - living only",
+    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Physical · Serious · living only",
     desc: "Close-quarters mana strike requiring skin contact.",
     effect: [
-      "Touch range -- caster must make an Unarmed Combat or Touch attack.",
+      "Touch range — caster must make an Unarmed Combat or Touch attack.",
       "Target rolls Willpower vs Power.",
       "Living targets only.",
       "Low drain because of the touch requirement."
@@ -878,18 +878,18 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 126 },
 
   { n: "Fire Bolt", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "Body", area: "Single target", dmg: "(Force) Physical - Serious - fire",
+    target: "Body", area: "Single target", dmg: "(Force) Physical · Serious · fire",
     desc: "Bolt of fire that punches into a target with serious force.",
     effect: [
       "Single-target.",
       "Target rolls Body vs Power.",
       "Ignites flammables on the target.",
-      "Drain D -- pricey."
+      "Drain D — pricey."
     ],
     src: "GRIM", pg: 126 },
 
   { n: "Fire Cloud", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "Body", area: "Within range", dmg: "(Force) Physical - Serious - fire",
+    target: "Body", area: "Within range", dmg: "(Force) Physical · Serious · fire",
     desc: "Cloud of fire blanketing an area.",
     effect: [
       "Area effect.",
@@ -900,7 +900,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 126 },
 
   { n: "Fire Dart", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]M",
-    target: "Body", area: "Single target", dmg: "(Force) Physical - Light - fire",
+    target: "Body", area: "Single target", dmg: "(Force) Physical · Light · fire",
     desc: "Small flaming dart at a single target.",
     effect: [
       "Single-target.",
@@ -910,7 +910,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 126 },
 
   { n: "Fire Missile", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "Body", area: "Single target", dmg: "(Force) Physical - Moderate - fire",
+    target: "Body", area: "Single target", dmg: "(Force) Physical · Moderate · fire",
     desc: "Fast flaming missile with serious force.",
     effect: [
       "Single-target.",
@@ -921,7 +921,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 126 },
 
   { n: "Mana Cloud", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)S",
-    target: "Willpower (R)", area: "Within range", dmg: "(Force) Physical - living only",
+    target: "Willpower (R)", area: "Within range", dmg: "(Force) Physical · living only",
     desc: "Roiling cloud of mana that gnaws at living things.",
     effect: [
       "Area effect, living-only.",
@@ -931,13 +931,13 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 126 },
 
   { n: "Manablast", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F/2)D",
-    target: "Willpower (R)", area: "Within range", dmg: "(Force) Physical - living only",
+    target: "Willpower (R)", area: "Within range", dmg: "(Force) Physical · living only",
     desc: "Area concussion of mana that brutalizes every living target.",
     effect: [
       "Area effect, living-only.",
       "Each target rolls Willpower vs Power.",
-      "Damage D -- extremely punishing.",
-      "Affects everyone alive in the radius -- friend or foe."
+      "Damage D — extremely punishing.",
+      "Affects everyone alive in the radius — friend or foe."
     ],
     src: "GRIM", pg: 126 },
 
@@ -947,12 +947,12 @@ window.SR2_SPELLS = [
     effect: [
       "Area effect; living AND inanimate.",
       "Each target rolls Body vs Power.",
-      "Damage D -- destroys cover and drones alongside flesh."
+      "Damage D — destroys cover and drones alongside flesh."
     ],
     src: "GRIM", pg: 127 },
 
   { n: "Ram Touch", cat: "combat", typ: "P", rng: "T", dur: "I", drn: "[(F/2)-1]M",
-    target: "Barrier Rating", area: "Single (touch)", dmg: "(Force) Physical - inanimate only",
+    target: "Barrier Rating", area: "Single (touch)", dmg: "(Force) Physical · inanimate only",
     desc: "Touch-range Ram variant for wrecking inanimate matter.",
     effect: [
       "Touch range; living targets unaffected (as Ram).",
@@ -962,7 +962,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 127 },
 
   { n: "Slay (Race/Species)", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)-1]S",
-    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Physical - living only - named race",
+    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Physical · living only · named race",
     desc: "Targeted mana bolt that affects only one chosen race or species.",
     effect: [
       "Single-target. Mana spell.",
@@ -973,7 +973,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 127 },
 
   { n: "Spirit Bolt", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)+2]S",
-    target: "Willpower (R)", area: "Single (spirits)", dmg: "(Force) Physical - vs spirits",
+    target: "Willpower (R)", area: "Single (spirits)", dmg: "(Force) Physical · vs spirits",
     desc: "Mana bolt attuned to wound spirits and elementals.",
     effect: [
       "Single-target spirit / elemental / paranormal critter.",
@@ -984,24 +984,24 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 127 },
 
   { n: "Sterilize", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "--", area: "Within range", dmg: "Kills microorganisms",
+    target: "—", area: "Within range", dmg: "Kills microorganisms",
     desc: "Annihilates microscopic organisms across an area.",
     effect: [
       "Area effect, microbial-targeted.",
-      "Purges bacteria, viruses, parasites -- useful for biotech labs, evidence cleanup.",
+      "Purges bacteria, viruses, parasites — useful for biotech labs, evidence cleanup.",
       "Does NOT harm living beings directly.",
       "May affect implanted bioware or biotech cultures."
     ],
     src: "GRIM", pg: 127 },
 
   { n: "Stun Bolt", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)-1]D",
-    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Stun - Serious",
+    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Stun · Serious",
     desc: "Mana strike that knocks one target senseless rather than killing.",
     effect: [
       "Single-target, living-only.",
       "Target rolls Willpower vs Power.",
-      "Stun damage -- knocks out, doesn't kill.",
-      "Drain D but easier to soak (Stun) -- popular for non-lethal takedowns."
+      "Stun damage — knocks out, doesn't kill.",
+      "Drain D but easier to soak (Stun) — popular for non-lethal takedowns."
     ],
     src: "GRIM", pg: 127 },
 
@@ -1016,12 +1016,12 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 127 },
 
   { n: "Stun Missile", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)-1]M",
-    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Stun - Moderate",
+    target: "Willpower (R)", area: "Single subject", dmg: "(Force) Stun · Moderate",
     desc: "Streaking mana bolt that moderately stuns.",
     effect: [
       "Single-target, living-only.",
       "Target rolls Willpower vs Power.",
-      "Stun M -- moderate knockout potential."
+      "Stun M — moderate knockout potential."
     ],
     src: "GRIM", pg: 127 },
 
@@ -1031,18 +1031,18 @@ window.SR2_SPELLS = [
     effect: [
       "Touch range.",
       "Target rolls Willpower vs Power.",
-      "Stun M -- non-lethal contact takedown.",
+      "Stun M — non-lethal contact takedown.",
       "Very low drain."
     ],
     src: "GRIM", pg: 127 },
 
   { n: "Stunball", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "[(F/2)-1]D",
-    target: "Willpower (R)", area: "Within range", dmg: "(Force) Stun - Serious",
+    target: "Willpower (R)", area: "Within range", dmg: "(Force) Stun · Serious",
     desc: "Area sphere of stunning mana.",
     effect: [
       "Area effect, living-only.",
       "Each target rolls Willpower vs Power.",
-      "Stun D -- drops everyone in radius if successful.",
+      "Stun D — drops everyone in radius if successful.",
       "Workhorse mass-takedown spell."
     ],
     src: "GRIM", pg: 127 },
@@ -1063,7 +1063,7 @@ window.SR2_SPELLS = [
     desc: "Demolishes buildings and structures in an area.",
     effect: [
       "Area effect, structures-only.",
-      "Living beings inside structures unaffected directly -- but collapse can crush them.",
+      "Living beings inside structures unaffected directly — but collapse can crush them.",
       "Buildings roll Object Resistance vs Power.",
       "Surgical demolition tool."
     ],
@@ -1073,13 +1073,13 @@ window.SR2_SPELLS = [
     target: "Object Resistance", area: "Single (one vehicle/object)", dmg: "Destroys target",
     desc: "Ram variant tuned to wreck vehicles.",
     effect: [
-      "Single-target -- vehicles, drones, aircraft.",
+      "Single-target — vehicles, drones, aircraft.",
       "Vehicle rolls its Body or Armor vs Power.",
       "Useful for chase scenes and vehicle takedowns."
     ],
     src: "GRIM", pg: 127 },
 
-  /* ============== Grimoire 2e -- Detection (p. 128) ============== */
+  /* ============== Grimoire 2e — Detection (p. 128) ============== */
   { n: "Analyze Magic", cat: "detection", typ: "M", rng: "LOS", dur: "S", drn: "(F/2)M",
     target: "Force/Rating", area: "Single (the magic)",
     desc: "Examine an active spell or magical item.",
@@ -1095,7 +1095,7 @@ window.SR2_SPELLS = [
     desc: "Clairaudience at much greater distances.",
     effect: [
       "Sustained.",
-      "Range extends significantly past base Clairaudience -- up to kilometers with successes.",
+      "Range extends significantly past base Clairaudience — up to kilometers with successes.",
       "Less precise than the standard version; difficult to filter ambient noise at extreme range."
     ],
     src: "GRIM", pg: 128 },
@@ -1136,15 +1136,15 @@ window.SR2_SPELLS = [
     desc: "Two-way mental connection allowing silent communication with one willing person.",
     effect: [
       "Sustained.",
-      "Both parties communicate telepathically -- words, images, concepts.",
-      "Voluntary -- target must consent.",
+      "Both parties communicate telepathically — words, images, concepts.",
+      "Voluntary — target must consent.",
       "Useful for stealth team coordination."
     ],
     src: "GRIM", pg: 128 },
 
-  /* ============== Grimoire 2e -- Health (p. 129) ============== */
+  /* ============== Grimoire 2e — Health (p. 129) ============== */
   { n: "Decrease -1 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]L",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Saps a single point from an Attribute already augmented by cyberware.",
     effect: [
       "Sustained.",
@@ -1155,7 +1155,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 129 },
 
   { n: "Decrease -2 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]M",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Strips two points from a cyber-augmented Attribute.",
     effect: [
       "Sustained.",
@@ -1165,7 +1165,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 129 },
 
   { n: "Decrease -3 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]S",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Slashes three points off a cybered Attribute.",
     effect: [
       "Sustained.",
@@ -1175,18 +1175,18 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 129 },
 
   { n: "Decrease -4 Cybered Attribute", cat: "health", typ: "P", rng: "T", dur: "S", drn: "[(F/2)+3]D",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Hammers a cybered Attribute down by four points.",
     effect: [
       "Sustained.",
       "Target rolls Body.",
-      "-4 to cybered Attribute -- cripples the augmentation.",
+      "-4 to cybered Attribute — cripples the augmentation.",
       "Brutal drain."
     ],
     src: "GRIM", pg: 129 },
 
   { n: "Decrease Reflexes -1 Initiative Die", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]S",
-    target: "2 x Reaction (R)", area: "Single subject",
+    target: "2 × Reaction (R)", area: "Single subject",
     desc: "Drags victim's combat reactions down by one initiative die.",
     effect: [
       "Sustained.",
@@ -1196,22 +1196,22 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 129 },
 
   { n: "Decrease Reflexes -2 Initiative Dice", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]D",
-    target: "2 x Reaction (R)", area: "Single subject",
+    target: "2 × Reaction (R)", area: "Single subject",
     desc: "Removes two initiative dice from the target.",
     effect: [
       "Sustained.",
       "Target rolls Willpower vs Power.",
-      "-2 init dice -- drops cybered runners hard."
+      "-2 init dice — drops cybered runners hard."
     ],
     src: "GRIM", pg: 129 },
 
   { n: "Decrease Reflexes -3 Initiative Dice", cat: "health", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+2]D",
-    target: "2 x Reaction (R)", area: "Single subject",
+    target: "2 × Reaction (R)", area: "Single subject",
     desc: "Slows target to a crawl, robbing three initiative dice.",
     effect: [
       "Sustained.",
       "Target rolls Willpower.",
-      "-3 init dice -- even Wired 3 samurai are reduced to baseline."
+      "-3 init dice — even Wired 3 samurai are reduced to baseline."
     ],
     src: "GRIM", pg: 129 },
 
@@ -1220,7 +1220,7 @@ window.SR2_SPELLS = [
     desc: "Cosmetic spell that clears the eyes, smooths skin, adds vitality.",
     effect: [
       "Permanent for several hours after casting.",
-      "No combat effect -- purely cosmetic.",
+      "No combat effect — purely cosmetic.",
       "Useful for high-society infiltration, dates, photoshoots."
     ],
     src: "GRIM", pg: 129 },
@@ -1242,7 +1242,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent: object stays in stasis until spell dispelled.",
       "Useful for corpse preservation, evidence chains, biological samples.",
-      "Does NOT revive -- only prevents further decomposition."
+      "Does NOT revive — only prevents further decomposition."
     ],
     src: "GRIM", pg: 129 },
 
@@ -1252,7 +1252,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained on willing subject.",
       "Subject gains immunity to one chosen mild pathogen category for the duration.",
-      "Useful in disease zones -- Bug City refugee camps, slum operations."
+      "Useful in disease zones — Bug City refugee camps, slum operations."
     ],
     src: "GRIM", pg: 129 },
 
@@ -1290,7 +1290,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent for the duration of the wound's effects.",
       "Removes the +1 TN modifier from a Light wound.",
-      "Damage itself remains -- subject just doesn't feel it.",
+      "Damage itself remains — subject just doesn't feel it.",
       "Subject may aggravate the injury unknowingly."
     ],
     src: "GRIM", pg: 129 },
@@ -1310,7 +1310,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent for wound duration.",
       "Removes the +3 TN modifier from a Serious wound.",
-      "Drain D -- significant cost."
+      "Drain D — significant cost."
     ],
     src: "GRIM", pg: 129 },
 
@@ -1320,12 +1320,12 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Prevents further bleeding / deterioration from already-taken damage.",
-      "Does NOT heal -- buys time for transport to a Heal-capable mage.",
+      "Does NOT heal — buys time for transport to a Heal-capable mage.",
       "Critical for casualties at Deadly damage."
     ],
     src: "GRIM", pg: 129 },
 
-  /* ============== Grimoire 2e -- Illusion (p. 130) ============== */
+  /* ============== Grimoire 2e — Illusion (p. 130) ============== */
   { n: "Overstimulation", cat: "illusion", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]M",
     target: "Willpower (R)", area: "Single subject", dmg: "(successes) Stun",
     desc: "Floods the target's senses with overload.",
@@ -1333,7 +1333,7 @@ window.SR2_SPELLS = [
       "Sustained, single-target.",
       "Target rolls Willpower vs Power.",
       "Failure: subject suffers Stun-like effects (TN penalties, possible incapacitation).",
-      "Mana illusion -- affects only living."
+      "Mana illusion — affects only living."
     ],
     src: "GRIM", pg: 130 },
 
@@ -1344,33 +1344,33 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Physical illusion: works on tech (cameras, sensors, drones) AND living observers.",
       "Observer rolls Willpower vs Power; sensors use their detection rating.",
-      "Premier disguise spell -- preferred over Mask when tech is involved."
+      "Premier disguise spell — preferred over Mask when tech is involved."
     ],
     src: "GRIM", pg: 130 },
 
   { n: "Spectacle", cat: "illusion", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+1]M",
-    target: "-- (voluntary)", area: "Within range",
+    target: "— (voluntary)", area: "Within range",
     desc: "Multi-sensory area illusion designed to draw crowds.",
     effect: [
       "Sustained, area effect.",
       "Caster designs the spectacle in advance.",
-      "Mana illusion -- works on living observers only.",
+      "Mana illusion — works on living observers only.",
       "Used for distraction, performance, propaganda."
     ],
     src: "GRIM", pg: 130 },
 
   { n: "Trid Entertainment", cat: "illusion", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+2]L",
-    target: "-- (voluntary)", area: "Within range",
+    target: "— (voluntary)", area: "Within range",
     desc: "Entertainment variant that registers on trideo and electronic sensors.",
     effect: [
       "Sustained, area effect.",
-      "Physical illusion -- fools both living and tech observers.",
+      "Physical illusion — fools both living and tech observers.",
       "Used for ad campaigns, surveillance deception, holographic theater."
     ],
     src: "GRIM", pg: 130 },
 
   { n: "Trid Spectacle", cat: "illusion", typ: "P", rng: "LOS", dur: "S", drn: "[(F/2)+2]M",
-    target: "-- (voluntary)", area: "Within range",
+    target: "— (voluntary)", area: "Within range",
     desc: "Spectacle visible to recording gear too.",
     effect: [
       "Sustained, area effect.",
@@ -1385,11 +1385,11 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained on touched vehicle.",
       "Observer rolls Willpower (or sensor rating) vs Power to see through.",
-      "Physical illusion -- fools cameras and sensor sweeps."
+      "Physical illusion — fools cameras and sensor sweeps."
     ],
     src: "GRIM", pg: 130 },
 
-  /* ============== Grimoire 2e -- Manipulation (p. 130-132) ============== */
+  /* ============== Grimoire 2e — Manipulation (p. 130-132) ============== */
   { n: "Control Animal", cat: "manipulation", typ: "M", rng: "LOS", dur: "S", drn: "[(F/2)+2]D",
     target: "Willpower/Essence (R)", area: "Single (animal)",
     desc: "Puppeteer a non-sentient animal.",
@@ -1408,7 +1408,7 @@ window.SR2_SPELLS = [
       "Permanent: the suggestion sticks.",
       "Target rolls Willpower vs Power.",
       "Caster gives one specific instruction; target carries it out believing it's their own idea.",
-      "Limited to one action or short sequence -- not ongoing control."
+      "Limited to one action or short sequence — not ongoing control."
     ],
     src: "GRIM", pg: 130 },
 
@@ -1419,7 +1419,7 @@ window.SR2_SPELLS = [
       "Sustained, area effect.",
       "Each target rolls Willpower vs Power.",
       "Crowd acts as a unified entity under the caster's direction.",
-      "Brutal drain -- typically requires Spell Lock + Centering."
+      "Brutal drain — typically requires Spell Lock + Centering."
     ],
     src: "GRIM", pg: 130 },
 
@@ -1439,19 +1439,19 @@ window.SR2_SPELLS = [
     desc: "Imbues an inanimate object with movement.",
     effect: [
       "Sustained.",
-      "Object moves at caster's command -- walks, attacks, follows orders.",
+      "Object moves at caster's command — walks, attacks, follows orders.",
       "Force determines effective Strength / Quickness of the animated object.",
       "Object Resistance applies if the item resists."
     ],
     src: "GRIM", pg: 130 },
 
   { n: "Clout", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "(F/2)M",
-    target: "4 (Impact armor defends)", area: "Single target", dmg: "(Willpower) Stun - Moderate",
+    target: "4 (Impact armor defends)", area: "Single target", dmg: "(Willpower) Stun · Moderate",
     desc: "Short, focused telekinetic punch.",
     effect: [
       "Instant.",
       "Target rolls Body vs Power.",
-      "Stun damage -- knocks back, doesn't kill.",
+      "Stun damage — knocks back, doesn't kill.",
       "Quick non-lethal option."
     ],
     src: "GRIM", pg: 131 },
@@ -1468,17 +1468,17 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 131 },
 
   { n: "Acid", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]S",
-    target: "4", area: "Single target", dmg: "(Force) Physical - acid",
+    target: "4", area: "Single target", dmg: "(Force) Physical · acid",
     desc: "Sprays corrosive jet at one target.",
     effect: [
       "Instant, single-target.",
       "Target rolls Body vs Power.",
-      "Reduces armor -- acid eats through ballistic protection."
+      "Reduces armor — acid eats through ballistic protection."
     ],
     src: "GRIM", pg: 131 },
 
   { n: "Acid Bomb", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "4", area: "Within range", dmg: "(Force) Physical - acid",
+    target: "4", area: "Within range", dmg: "(Force) Physical · acid",
     desc: "Bursts a glob of acid across an area.",
     effect: [
       "Instant, area effect.",
@@ -1488,7 +1488,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 131 },
 
   { n: "Acid Stream", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "4", area: "Single (stream)", dmg: "(Force) Physical - acid",
+    target: "4", area: "Single (stream)", dmg: "(Force) Physical · acid",
     desc: "Sustained stream of acid hosing one target.",
     effect: [
       "Instant single-target (deals all damage in one go).",
@@ -1563,25 +1563,25 @@ window.SR2_SPELLS = [
     target: "4", area: "Single subject",
     desc: "Restyles a subject's clothing into a desired outfit.",
     effect: [
-      "Permanent -- changes outlast the spell.",
+      "Permanent — changes outlast the spell.",
       "Useful for instant costume changes, high-society disguises.",
-      "Physical illusion -- works under inspection."
+      "Physical illusion — works under inspection."
     ],
     src: "GRIM", pg: 131 },
 
   { n: "Fire Strike", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+3]D",
-    target: "Body (R)", area: "Within range", dmg: "(Force) Physical - Serious - fire",
+    target: "Body (R)", area: "Within range", dmg: "(Force) Physical · Serious · fire",
     desc: "Torrent of flame at an area.",
     effect: [
       "Instant, area effect.",
       "Each target rolls Body vs Power.",
       "Ignites flammables across the entire area.",
-      "Drain D -- most expensive fire spell."
+      "Drain D — most expensive fire spell."
     ],
     src: "GRIM", pg: 132 },
 
   { n: "Flame Burst", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "[(F/2)+1]D",
-    target: "Body (R)", area: "Single target", dmg: "(Force) Physical - fire",
+    target: "Body (R)", area: "Single target", dmg: "(Force) Physical · fire",
     desc: "Directed burst of fire at one target.",
     effect: [
       "Instant, single-target.",
@@ -1606,7 +1606,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent.",
       "Subject's grooming, cosmetics, hair are reshaped to the caster's design.",
-      "Underlying body structure unchanged -- for that, see Physical Mask."
+      "Underlying body structure unchanged — for that, see Physical Mask."
     ],
     src: "GRIM", pg: 132 },
 
@@ -1643,7 +1643,7 @@ window.SR2_SPELLS = [
     src: "GRIM", pg: 132 },
 
   { n: "Thunderclap", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "(F/2)S",
-    target: "Body (R)", area: "Within range", dmg: "(Force) Stun - Moderate",
+    target: "Body (R)", area: "Within range", dmg: "(Force) Stun · Moderate",
     desc: "Cracks the air with a deafening sonic burst.",
     effect: [
       "Instant, area effect.",
@@ -1664,31 +1664,31 @@ window.SR2_SPELLS = [
     ],
     src: "GRIM", pg: 132 },
 
-  /* ============== Awakenings -- Voudoun (p. 130) ============== */
+  /* ============== Awakenings — Voudoun (p. 130) ============== */
   { n: "Corps Cadavre", cat: "manipulation", typ: "P", rng: "T", dur: "P", drn: "(F/2)+2S",
     target: "Object Resistance", area: "Single corpse",
     desc: "Reanimates a prepared corpse into a Petro-zombie.",
     effect: [
-      "Permanent -- zombie persists until destroyed.",
+      "Permanent — zombie persists until destroyed.",
       "Voudoun bocor-only ritual; requires a prepared body.",
       "Zombie is obedient to the bocor's commands.",
       "Treated as a paranormal critter for combat purposes."
     ],
     src: "AWK", pg: 130 },
 
-  /* ============== Awakenings -- Combat (p. 133-134) ============== */
+  /* ============== Awakenings — Combat (p. 133-134) ============== */
   { n: "Redirect", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "Special",
     target: "4", area: "Single (incoming spell)", dmg: "Reflects attacker's spell",
     desc: "Bounces an incoming projectile or magical attack back at its original attacker.",
     effect: [
-      "Instant, reactive -- declared in response to an incoming attack.",
-      "Drain is special -- see Awakenings p. 133 for the exact mechanism.",
+      "Instant, reactive — declared in response to an incoming attack.",
+      "Drain is special — see Awakenings p. 133 for the exact mechanism.",
       "Successful redirect reverses the attack against its originator."
     ],
     src: "AWK", pg: 133 },
 
   { n: "Rot", cat: "combat", typ: "P", rng: "LOS", dur: "I", drn: "(F+2)+1M",
-    target: "Object Resistance / Body", area: "Single target", dmg: "(Force) Physical - Serious - organic",
+    target: "Object Resistance / Body", area: "Single target", dmg: "(Force) Physical · Serious · organic",
     desc: "Decays organic matter and damages zombies and undead.",
     effect: [
       "Single-target.",
@@ -1699,17 +1699,17 @@ window.SR2_SPELLS = [
     src: "AWK", pg: 134 },
 
   { n: "Shattershield", cat: "combat", typ: "M", rng: "LOS", dur: "I", drn: "(F+2)S",
-    target: "Ward/Force (R)", area: "Single (ward/barrier)", dmg: "(Force) - Deadly vs barriers",
+    target: "Ward/Force (R)", area: "Single (ward/barrier)", dmg: "(Force) · Deadly vs barriers",
     desc: "Strikes astral barriers and wards to weaken or breach.",
     effect: [
-      "Single-target -- barrier / ward.",
+      "Single-target — barrier / ward.",
       "Barrier rolls its Force vs Power.",
       "Net successes reduce the barrier's Force or breach it entirely.",
       "Essential for breaching warded facilities."
     ],
     src: "AWK", pg: 134 },
 
-  /* ============== Awakenings -- Detection (p. 134-135) ============== */
+  /* ============== Awakenings — Detection (p. 134-135) ============== */
   { n: "Animal Spy", cat: "detection", typ: "M", rng: "LOS", dur: "S", drn: "(F+2)L",
     target: "4", area: "Single (animal)",
     desc: "Perceive through a non-paranormal animal's senses.",
@@ -1717,7 +1717,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Caster sees / hears / smells through an animal's senses.",
       "Animal is a willing or controlled subject.",
-      "Useful for reconnaissance -- animals raise less suspicion."
+      "Useful for reconnaissance — animals raise less suspicion."
     ],
     src: "AWK", pg: 134 },
 
@@ -1744,7 +1744,7 @@ window.SR2_SPELLS = [
     src: "AWK", pg: 134 },
 
   { n: "Diagnose", cat: "detection", typ: "M", rng: "LOS", dur: "I", drn: "(F+2)+1M",
-    target: "10 - target Essence", area: "Single subject",
+    target: "10 − target Essence", area: "Single subject",
     desc: "Reveals injuries, illnesses, and cyberware in a target.",
     effect: [
       "Instant assessment.",
@@ -1770,7 +1770,7 @@ window.SR2_SPELLS = [
     effect: [
       "Instant.",
       "Caster mentions a specific intended action; GM reveals one likely consequence.",
-      "Drain D -- heavy cost for divination.",
+      "Drain D — heavy cost for divination.",
       "GM should answer in flavor terms, not exact mechanics."
     ],
     src: "AWK", pg: 135 },
@@ -1792,7 +1792,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Both parties exchange thoughts as if speaking a common language.",
       "Useful for international ops, alien encounters, ancient texts.",
-      "Subjects don't actually learn the language -- only communicate via the spell."
+      "Subjects don't actually learn the language — only communicate via the spell."
     ],
     src: "AWK", pg: 135 },
 
@@ -1801,13 +1801,13 @@ window.SR2_SPELLS = [
     desc: "See through solid barriers up to a limit.",
     effect: [
       "Sustained on willing subject.",
-      "Barrier Rating <= Force can be seen through.",
+      "Barrier Rating ≤ Force can be seen through.",
       "Useful for spotting hidden contraband, mapping interiors.",
       "Doesn't reveal magical wards (use Detect Magic for that)."
     ],
     src: "AWK", pg: 135 },
 
-  /* ============== Awakenings -- Health (p. 135-136) ============== */
+  /* ============== Awakenings — Health (p. 135-136) ============== */
   { n: "Alleviate Allergy", cat: "health", typ: "P", rng: "LOS", dur: "S", drn: "(F+2)L",
     target: "6", area: "Single subject",
     desc: "Temporarily suppresses an allergic reaction.",
@@ -1815,18 +1815,18 @@ window.SR2_SPELLS = [
       "Sustained on subject.",
       "Subject's allergy effects are negated for the duration.",
       "Useful for metahuman allergies, environmental allergens.",
-      "Doesn't remove the underlying allergy -- just suppresses reaction."
+      "Doesn't remove the underlying allergy — just suppresses reaction."
     ],
     src: "AWK", pg: 135 },
 
   { n: "Awaken", cat: "health", typ: "M", rng: "T", dur: "I", drn: "(F+2)+1L",
-    target: "10 - target Essence", area: "Single subject",
+    target: "10 − target Essence", area: "Single subject",
     desc: "Rouses an unconscious subject to full alertness.",
     effect: [
       "Instant.",
       "Subject snaps to awareness immediately.",
       "Useful for waking knocked-out allies, rescuing comatose patients.",
-      "Does NOT heal the underlying cause -- only restores consciousness."
+      "Does NOT heal the underlying cause — only restores consciousness."
     ],
     src: "AWK", pg: 135 },
 
@@ -1853,13 +1853,13 @@ window.SR2_SPELLS = [
     src: "AWK", pg: 135 },
 
   { n: "Cripple Limb", cat: "health", typ: "M", rng: "T", dur: "S", drn: "(F+2)S",
-    target: "10 - target Essence (R)", area: "Single subject",
+    target: "10 − target Essence (R)", area: "Single subject",
     desc: "Renders one limb of the target useless.",
     effect: [
       "Sustained.",
       "Target rolls Willpower vs Power.",
-      "Failure: chosen limb becomes useless -- arm can't lift, leg can't walk.",
-      "Touch range -- requires close contact."
+      "Failure: chosen limb becomes useless — arm can't lift, leg can't walk.",
+      "Touch range — requires close contact."
     ],
     src: "AWK", pg: 136 },
 
@@ -1869,7 +1869,7 @@ window.SR2_SPELLS = [
     effect: [
       "Permanent for ~10 turns (the spell's stated duration).",
       "Subject doesn't feel hunger / thirst.",
-      "Body still NEEDS food and water -- this just removes the urge.",
+      "Body still NEEDS food and water — this just removes the urge.",
       "Useful for extended stealth or survival situations."
     ],
     src: "AWK", pg: 136 },
@@ -1889,7 +1889,7 @@ window.SR2_SPELLS = [
     target: "4 (voluntary)", area: "Single subject",
     desc: "Provides a willing subject with a full day's nourishment.",
     effect: [
-      "Permanent -- meal effect lasts a full day.",
+      "Permanent — meal effect lasts a full day.",
       "Subject does not need to eat for the duration.",
       "Useful for extended ops, survival, refugee aid."
     ],
@@ -1906,7 +1906,7 @@ window.SR2_SPELLS = [
     ],
     src: "AWK", pg: 136 },
 
-  /* ============== Awakenings -- Illusion (p. 136-137) ============== */
+  /* ============== Awakenings — Illusion (p. 136-137) ============== */
   { n: "Agonizing Pain", cat: "illusion", typ: "M", rng: "LOS", dur: "S", drn: "(F+2)M",
     target: "Willpower (R)", area: "Single subject", dmg: "(successes) Stun",
     desc: "Wracks the target with phantom pain.",
@@ -1933,7 +1933,7 @@ window.SR2_SPELLS = [
     desc: "Conjures sights and sounds of a milling crowd.",
     effect: [
       "Sustained, area effect.",
-      "Physical illusion -- works on cameras and sensors.",
+      "Physical illusion — works on cameras and sensors.",
       "Useful for distractions, crowd cover, public confusion."
     ],
     src: "AWK", pg: 136 },
@@ -1945,7 +1945,7 @@ window.SR2_SPELLS = [
       "Sustained on touched subject.",
       "Observer rolls Willpower vs Power to actually notice the subject.",
       "Bystanders look past the subject unless given a specific reason.",
-      "Premier infiltration spell -- subtler than Invisibility."
+      "Premier infiltration spell — subtler than Invisibility."
     ],
     src: "AWK", pg: 137 },
 
@@ -1965,7 +1965,7 @@ window.SR2_SPELLS = [
     effect: [
       "Instant, area effect.",
       "Each observer in the affected area rolls Willpower (or sensor rating for tech) vs Power.",
-      "Physical illusion -- blinds cybereyes too.",
+      "Physical illusion — blinds cybereyes too.",
       "Brief but effective combat opener."
     ],
     src: "AWK", pg: 137 },
@@ -1981,7 +1981,7 @@ window.SR2_SPELLS = [
     ],
     src: "AWK", pg: 137 },
 
-  /* ============== Awakenings -- Manipulation: Control (p. 137-138) ============== */
+  /* ============== Awakenings — Manipulation: Control (p. 137-138) ============== */
   { n: "Calm Animal", cat: "manipulation", typ: "M", rng: "LOS", dur: "S", drn: "(F+2)+2L",
     target: "Willpower/Essence (R)", area: "Single (animal)",
     desc: "Quiets a non-paranormal animal.",
@@ -2000,7 +2000,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Target rolls Willpower vs Power.",
       "Failure: target answers questions truthfully (as they understand truth).",
-      "Doesn't compel volunteering info -- only forces truthful response to direct questions."
+      "Doesn't compel volunteering info — only forces truthful response to direct questions."
     ],
     src: "AWK", pg: 137 },
 
@@ -2032,17 +2032,17 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Target rolls Willpower vs Power.",
-      "Failure: target experiences crippling fear -- may flee, cower, or be paralyzed."
+      "Failure: target experiences crippling fear — may flee, cower, or be paralyzed."
     ],
     src: "AWK", pg: 138 },
 
-  /* ============== Awakenings -- Manipulation: Telekinetic (p. 138) ============== */
+  /* ============== Awakenings — Manipulation: Telekinetic (p. 138) ============== */
   { n: "Catfall", cat: "manipulation", typ: "P", rng: "LOS", dur: "S", drn: "(F+2)+2L",
     target: "4", area: "Single subject",
     desc: "Magically slows a falling subject.",
     effect: [
       "Sustained on subject.",
-      "Subject falls slowly -- touches down without impact damage.",
+      "Subject falls slowly — touches down without impact damage.",
       "Useful for parachute jumps, escape from windows, dramatic landings."
     ],
     src: "AWK", pg: 138 },
@@ -2062,7 +2062,7 @@ window.SR2_SPELLS = [
     desc: "Hurls a small object with telekinetic force.",
     effect: [
       "Instant.",
-      "Used as a thrown ranged attack -- caster's Magic Pool can supplement Throwing Weapons.",
+      "Used as a thrown ranged attack — caster's Magic Pool can supplement Throwing Weapons.",
       "Damage from the thrown object (rocks, knives, etc.) plus telekinetic Power."
     ],
     src: "AWK", pg: 138 },
@@ -2077,13 +2077,13 @@ window.SR2_SPELLS = [
     ],
     src: "AWK", pg: 138 },
 
-  /* ============== Awakenings -- Manipulation: Transformation (p. 138-141) ============== */
+  /* ============== Awakenings — Manipulation: Transformation (p. 138-141) ============== */
   { n: "Alter Temperature", cat: "manipulation", typ: "P", rng: "LOS", dur: "S", drn: "(F+2)+2S",
     target: "6", area: "Within range",
     desc: "Raises or lowers ambient temperature in a small area.",
     effect: [
       "Sustained.",
-      "Force x degrees of change (rough guideline).",
+      "Force × degrees of change (rough guideline).",
       "Useful for environmental hazards, comfort, melting locks."
     ],
     src: "AWK", pg: 138 },
@@ -2104,7 +2104,7 @@ window.SR2_SPELLS = [
     effect: [
       "Instant cleansing of the area.",
       "Useful in tear-gassed rooms, smoke-filled areas, polluted air.",
-      "Affects volume up to Force x cubic meters."
+      "Affects volume up to Force × cubic meters."
     ],
     src: "AWK", pg: 139 },
 
@@ -2123,7 +2123,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Caster directs flames to spread, shrink, or move.",
-      "Requires existing fire -- cannot create.",
+      "Requires existing fire — cannot create.",
       "Use Ignite or Flame Bomb to start the fire."
     ],
     src: "AWK", pg: 139 },
@@ -2139,7 +2139,7 @@ window.SR2_SPELLS = [
     src: "AWK", pg: 139 },
 
   { n: "Firewall", cat: "manipulation", typ: "P", rng: "LOS", dur: "S", drn: "(F+2)+2D",
-    target: "Object Resistance", area: "Created wall", dmg: "(Force) Physical - fire (barrier)",
+    target: "Object Resistance", area: "Created wall", dmg: "(Force) Physical · fire (barrier)",
     desc: "Wall of flame.",
     effect: [
       "Sustained.",
@@ -2156,7 +2156,7 @@ window.SR2_SPELLS = [
       "Permanent.",
       "Each success heals 1 box of object damage / Barrier Rating point.",
       "Useful for vehicles, drones, equipment.",
-      "Doesn't replace missing parts -- only mends existing material."
+      "Doesn't replace missing parts — only mends existing material."
     ],
     src: "AWK", pg: 139 },
 
@@ -2177,7 +2177,7 @@ window.SR2_SPELLS = [
     effect: [
       "Sustained.",
       "Useful for emergency bridges, drowning trap escapes, freezing drinks.",
-      "Volume scales with Force x Magic."
+      "Volume scales with Force × Magic."
     ],
     src: "AWK", pg: 140 },
 
@@ -2186,7 +2186,7 @@ window.SR2_SPELLS = [
     desc: "Bonds touching surfaces with magical adhesion.",
     effect: [
       "Sustained.",
-      "Bond strength = Force x adhesion factor.",
+      "Bond strength = Force × adhesion factor.",
       "Useful for locking doors, sealing rooms, sticking enemies in place."
     ],
     src: "AWK", pg: 140 },
@@ -2202,7 +2202,7 @@ window.SR2_SPELLS = [
     src: "AWK", pg: 140 },
 
   { n: "Light Ray", cat: "manipulation", typ: "P", rng: "LOS", dur: "I", drn: "(F+2)+1D",
-    target: "4", area: "Single target", dmg: "(Force) Physical - Moderate - light",
+    target: "4", area: "Single target", dmg: "(Force) Physical · Moderate · light",
     desc: "Fires a coherent laser-like beam of light.",
     effect: [
       "Instant, single-target.",
@@ -2249,7 +2249,7 @@ window.SR2_SPELLS = [
       "Sustained.",
       "Target rolls Body vs Power.",
       "Failure: target's Strength is reduced to a fraction of normal.",
-      "Specifically targets Strength -- narrower than Decrease Attribute."
+      "Specifically targets Strength — narrower than Decrease Attribute."
     ],
     src: "AWK", pg: 141 },
 
@@ -2258,7 +2258,7 @@ window.SR2_SPELLS = [
     desc: "Moves and reshapes earth, soil, or stone.",
     effect: [
       "Sustained.",
-      "Volume scales with Force x Magic.",
+      "Volume scales with Force × Magic.",
       "Useful for tunneling, fortification, ambush pits.",
       "Stone Resistance applies."
     ],
@@ -2269,19 +2269,19 @@ window.SR2_SPELLS = [
     desc: "Manipulates water or liquids.",
     effect: [
       "Sustained.",
-      "Volume scales with Force x Magic.",
+      "Volume scales with Force × Magic.",
       "Useful for currents, water bridges, flooding tactics."
     ],
     src: "AWK", pg: 141 },
 
   { n: "Smoke Cloud", cat: "manipulation", typ: "P", rng: "LOS", dur: "S", drn: "(F+2)+3D",
-    target: "4", area: "Radius = Magic (m)", dmg: "(Force) Stun - Moderate",
+    target: "4", area: "Radius = Magic (m)", dmg: "(Force) Stun · Moderate",
     desc: "Cloud of choking sulphurous smoke.",
     effect: [
       "Sustained, area effect.",
       "Each living target inside rolls Body vs Power.",
       "Obscures vision; inflicts Stun damage from inhalation.",
-      "Drain D -- very expensive."
+      "Drain D — very expensive."
     ],
     src: "AWK", pg: 141 },
 
