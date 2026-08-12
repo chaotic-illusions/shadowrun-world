@@ -378,7 +378,7 @@ function save() {
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 
 const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-const money = (n) => (Number(n)||0).toLocaleString("en-US") + "Y";
+const money = (n) => (Number(n)||0).toLocaleString("en-US") + "¥";
 const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
 
 function isMeta() { return state.prio.race === "A"; }
@@ -443,10 +443,10 @@ function meter(label, spent, budget, unit, done) {
 function renderBudget() {
   const b = document.getElementById("cbxBudget");
   let html = `<div class="cbx-meter ${prioComplete()?"is-done":"is-over"}"><div class="cbx-meter__top">
-    <span>Priorities</span><span>${prioLettersUsed().length}/5${prioDup()?" WARNINGdup":""}</span></div></div>`;
+    <span>Priorities</span><span>${prioLettersUsed().length}/5${prioDup()?" ⚠dup":""}</span></div></div>`;
   html += meter("Attribute pts", attrSpent(), attrBudget(), "");
   html += meter("Skill pts", skillSpent(), skillBudget(), "");
-  html += meter("Nuyen committed", nuyenCommitted(), res().nuyen, "Y");
+  html += meter("Nuyen committed", nuyenCommitted(), res().nuyen, "¥");
   if (deckReserve() > 0) html += `<div style="font-size:var(--fs-xxs);color:var(--text-dim);margin:-8px 0 12px">
     incl. ${money(deckReserve())} reserved for Deck Workshop</div>`;
   if (awakened() && state.magicType === "Full Mage") html += meter("Force Points", fpSpent(), fpBudget(), "");
@@ -567,7 +567,7 @@ function stepMagic() {
   if (state.magicType === "Full Mage") {
     const chosen = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(s.name)} <em>${esc(s.cat)}</em></span>
       <span class="cbx-line__f">Force <input type="number" min="1" max="6" value="${s.force}" data-spellforce="${i}" class="cbx-mini"></span>
-      <button type="button" class="cbx-x" data-delspell="${i}">?</button></div>`).join("");
+      <button type="button" class="cbx-x" data-delspell="${i}">✕</button></div>`).join("");
     const shop = SPELLS.map((s,idx) => shopRow(s.n, `${s.cat} - ${s.type} - Drain ${s.drain}`, `data-addspell="${idx}"`)).join("");
     return `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong>. Spells cost Force Points equal to their Force (max Force 6 at intake).
       <span class="cbx-cite">(SR2 p.46)</span></p>${chooser}
@@ -580,7 +580,7 @@ function stepMagic() {
   }
   const chosenP = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(p.name)}</span>
     ${p.rated ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button><span class="cbx-attr__base">${p.lvl}</span><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>` : ""}
-    <span class="cbx-line__f">${esc(p.pp)} PP</span><button type="button" class="cbx-x" data-delpower="${i}">?</button></div>`).join("");
+    <span class="cbx-line__f">${esc(p.pp)} PP</span><button type="button" class="cbx-x" data-delpower="${i}">✕</button></div>`).join("");
   const shopP = POWERS.map((p,idx) => shopRow(p.n, p.pp+" PP", `data-addpower="${idx}"`)).join("");
   return `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend on adept powers.
     <span class="cbx-cite">(SR2 p.169)</span></p>${chooser}
@@ -595,7 +595,7 @@ function stepSkills() {
   const chosen = state.skills.map((s,i) => `<div class="cbx-skill">
     <div class="cbx-line"><span class="cbx-line__n ${s.group==='knowledge'?'is-kn':''}">${esc(s.name)} <em>(${esc(s.attr)})</em></span>
       <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="-1">-</button><span class="cbx-attr__base">${s.rating}</span><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="1">+</button></span>
-      <button type="button" class="cbx-x" data-delskill="${i}">?</button></div>
+      <button type="button" class="cbx-x" data-delskill="${i}">✕</button></div>
     <div class="cbx-skillfocus"><input type="text" data-conc="${i}" value="${esc(s.conc||"")}" placeholder="Concentration (optional)"></div>
   </div>`).join("");
   const shop = SKILLS.map(s => {
@@ -617,7 +617,7 @@ function stepResources() {
   const over = nuyenCommitted() > res().nuyen;
   const lines = (k) => state.gear[k].map((g,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(g.n)} <em>${esc(g.sub||"")}</em></span>
     ${g.ess ? `<span class="cbx-line__f">Ess ${g.ess}</span>` : ""}
-    <span class="cbx-line__f">${money(g.cost)}</span><button type="button" class="cbx-x" data-delgear="${k}:${i}">?</button></div>`).join("");
+    <span class="cbx-line__f">${money(g.cost)}</span><button type="button" class="cbx-x" data-delgear="${k}:${i}">✕</button></div>`).join("");
   const owned = ["weapons","armor","cyber","other"].map(k => state.gear[k].length
     ? `<div class="cbx-h4">${SHOP_TABS.find(t=>t.k===k).label}</div>${lines(k)}` : "").join("") || `<p class="cbx-empty">Nothing bought yet.</p>`;
   const tab = SHOP_TABS.find(t => t.k===shopTab);
@@ -628,7 +628,7 @@ function stepResources() {
     <input type="text" class="cbx-mini" style="width:120px" data-carch="${i}" value="${esc(c.archetype)}" placeholder="archetype">
     <button type="button" class="cbx-tab ${c.level==='Buddy'?'is-active':''}" data-clevel="${i}">${esc(c.level)}</button>
     <span class="cbx-line__f">${i<2 ? "free" : money(c.level==="Buddy"?10000:5000)}</span>
-    <button type="button" class="cbx-x" data-delcontact="${i}">?</button></div>`).join("");
+    <button type="button" class="cbx-x" data-delcontact="${i}">✕</button></div>`).join("");
 
   return `
     <p class="cbx-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources||"--"}). Cyberware also deducts Essence.
@@ -682,7 +682,7 @@ function stepFinish() {
       <p class="cbx-summary__line">${state.skills.length} skills - ${state.contacts.length} contacts - ${state.spells.length} spells -
         ${state.powers.length} powers - ${state.gear.weapons.length} weapons - ${state.gear.armor.length} armor - ${state.gear.cyber.length} cyberware</p>
     </div>
-    <button type="button" class="btn" id="cbxSubmit">? Commit Dossier to Case File</button>
+    <button type="button" class="btn" id="cbxSubmit">⤓ Commit Dossier to Case File</button>
     <p class="cbx-note" id="cbxSubmitStatus"></p>
     <div class="cbx-gap"><div class="cbx-gap__h">Mockup note</div>
       <p>In the real build this button would POST the finished sheet into the existing Character record (name/race/description already map directly) and store the rest -- full attributes, skills, gear, magic -- as a JSON sheet blob alongside it, the same pattern this app already uses for saved deck-builder state.</p></div>`;
