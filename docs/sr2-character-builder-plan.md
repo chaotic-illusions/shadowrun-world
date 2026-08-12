@@ -302,11 +302,69 @@ Whatever's left over still converts 10:1, RAW-clean -- no house rule needed. Req
 - Programs have no fixed SR2 price (object code, GM-set) -- the shared-budget cap
   needs to work against editable/typed-in costs, not just catalog lookups.
 
+**Deck build-vs-buy, checked 2026-08-14**: the reference tool's chargen only
+supports *buying* a stock deck -- a flat dropdown over 8 SR2-core off-the-shelf
+models (Radio Shack PCD-100 through Fairlight Excalibur, fixed MSRP, p.173).
+The real per-attribute deck-construction formulas (MPCP/persona
+ratings/memory/Response Increase/Hardening, each individually costed, SR2
+p.172-173) exist in `SR2_MATRIX` but are **dead data** -- defined, cited, and
+never referenced anywhere in `builder.js`. The one non-SR2-core catalog entry,
+"SuzyQ's Cyberdeck" (VR2, 732,238Y), isn't a real stock model at all -- its own
+description calls it "the book's worked construction example," i.e. VR2's
+demonstration of what the build formulas produce, sitting in the gear dropdown
+as if purchasable. For reference, a same-MPCP comparison: Fuchi Cyber-6
+(MPCP 8, stock, 334,500Y) vs. SuzyQ's (MPCP 8, custom-built, 732,238Y before a
+10% complete-build discount) -- roughly 2x cost for a fully persona-loaded
+build vs. bare stock hardware. If Deck Workshop (wherever real deck purchases
+end up living, per Option A above) wants an actual build-your-own-deck mode
+rather than just a stock catalog, the formulas are ready to use -- they'd just
+be new functionality, not a port of anything the reference tool actually does.
 **Recommendation**: don't decide yet -- Option B is real feature work on Deck Workshop
 itself (budget mode + rating ceiling + the persistence-sequencing question), not
 something to bolt on inside the character-builder mockup. Worth scoping as its own
 follow-up once the rest of chargen is real, rather than blocking on it now. Option A
 ships sooner and is fully reversible (nothing stops a later migration to Option B).
+
+**Stock SR2-core decks adapted for this app's rules -- resolved 2026-08-14.**
+Confirmed via the actual matrix engine code (`app/services/matrix_engine.py`,
+`app/routers/matrix_runs.py`, `frontend/deck-workshop.html`), not assumption:
+
+- MPCP, Hardening, Active Memory, and Storage from the book plug straight in --
+  no conflict with anything the engine already does.
+- **Persona ratings are assigned by the buyer at purchase time**, not printed on
+  the deck -- a pool of MPCP x 3 points split across Bod/Evasion/Masking/Sensor.
+  This isn't a new feature; the app's `DeckerStats` schema already requires all
+  four individually, capped exactly this way (SR2 p.174).
+- **Load is dropped entirely** -- no representation anywhere in `app/`; the
+  engine already gates capacity via Active Memory + per-program Mp cost, which
+  covers the same ground. Not worth new plumbing for a redundant second stat.
+- **I/O is dropped from the book's printed value and replaced with a house
+  rule**, since the book's small I/O rating and the app's `io_speed` (Mp per
+  Combat Turn, matching VR2's own scale -- SuzyQ's is 480, not a small number)
+  are simply different scales with no derivable conversion. The app already
+  hard-caps `io_speed <= MPCP x Sensor x 10` (`matrix_runs.py:6485`). Decided:
+  stock decks ship at **half that ceiling** (`MPCP x Sensor x 5`), leaving
+  headroom for upgrades. Consequence: I/O isn't a fixed per-deck stat anymore --
+  it's computed once the buyer's Sensor rating is known.
+  **Rounding confirmed 2026-08-15**: `MPCP x Sensor x 5` isn't always a
+  multiple of 10 (the app's other `io_speed` requirement) -- only when
+  `MPCP x Sensor` is even. When it's odd, **round up** to the nearest 10
+  (e.g. MPCP 3 + Sensor 3 -> raw 45 -> stock I/O 50).
+- **Deck upgrades post-purchase are already a real, built feature** -- not
+  something to design from scratch. `deck-workshop.html` already has both a
+  skill-based self-build path (`computeProgrammerCaps()`, max designable MPCP =
+  highest of Computer/Software/Matrix Programming skill x 1.5, cited `// vr2
+  "MPCP"`) and a sourced/paid upgrade path (`_deckPurchaseTriggers`,
+  `validateSourceUpgrade()`, gating certain persona-chip upgrades behind
+  needing source code). Chargen just needs to set the starting deck; upgrading
+  it later is already handled.
+- SuzyQ's Cyberdeck (VR2, the fully-loaded custom-build example) is **not**
+  adapted alongside the stock decks -- it's already VR2-native and stays as-is
+  in `gear-data.js`.
+
+Full adapted stock-deck catalog (7 decks, all fields above applied, with the
+reasoning repeated inline as `_meta`) is in
+`docs/reference-data/sr2-cyberdecks-vr2.json`.
 
 ## 6. Reference data already captured (from shadowrun2e.com's `builder-data.js`)
 
