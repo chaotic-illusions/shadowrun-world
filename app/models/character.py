@@ -1,9 +1,21 @@
 from datetime import datetime, UTC
 from typing import Optional
-from sqlalchemy import String, Text, Integer, ForeignKey, JSON
+from sqlalchemy import String, Text, Integer, Float, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.associations import log_characters
+
+# SR2 lifestyle tiers, indexed by ordinal level (0=Street ... 5=Luxury).
+LIFESTYLE_TIERS = ("Street", "Squatter", "Low", "Middle", "High", "Luxury")
+
+# SR2 p.245 monthly upkeep per lifestyle tier, indexed like LIFESTYLE_TIERS.
+LIFESTYLE_MONTHLY_COST = (0, 100, 1000, 5000, 10000, 100000)
+
+# Upkeep is charged one "month" at a time; 30 ticks (days) == 1 month.
+LIFESTYLE_UPKEEP_TICKS = 30
+
+# Buying a lifestyle outright (never charged upkeep again) costs this many months.
+LIFESTYLE_PERMANENT_MONTHS = 100
 
 
 class Character(Base):
@@ -44,6 +56,39 @@ class Character(Base):
     quickness: Mapped[int] = mapped_column(Integer, default=0)
     willpower: Mapped[int] = mapped_column(Integer, default=0)
     body: Mapped[int] = mapped_column(Integer, default=0)
+    strength: Mapped[int] = mapped_column(Integer, default=0)
+    charisma: Mapped[int] = mapped_column(Integer, default=0)
+
+    # SR2 character-sheet vitals, promoted from JSON so other tools (initiative
+    # tracker, matrix run) can query them directly. See sr2-character-builder-plan.md S2.
+    essence: Mapped[float] = mapped_column(Float, default=6.0)
+    body_index: Mapped[float] = mapped_column(Float, default=0.0)
+    magic_rating: Mapped[int] = mapped_column(Integer, default=0)
+    magic_type: Mapped[str | None] = mapped_column(String(50), default=None)
+    tradition: Mapped[str | None] = mapped_column(String(50), default=None)
+    totem: Mapped[str | None] = mapped_column(String(50), default=None)
+    nuyen: Mapped[int] = mapped_column(Integer, default=0)
+    karma_pool: Mapped[int] = mapped_column(Integer, default=1)
+    good_karma: Mapped[int] = mapped_column(Integer, default=0)
+    # Ordinal lifestyle tier (0=Street ... 5=Luxury); None until set. See LIFESTYLE_TIERS.
+    lifestyle_level: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Lifestyle bought outright (100 months up front): never charged monthly upkeep again.
+    lifestyle_permanent: Mapped[bool] = mapped_column(default=False)
+    # Campaign tick through which lifestyle upkeep has been settled. None until the PC starts
+    # "living" (stamped when a dossier is committed); the upkeep engine advances it 30 ticks at
+    # a time as it charges rent. See app/services/lifestyle.py.
+    lifestyle_paid_tick: Mapped[int | None] = mapped_column(Integer, default=None)
+    # In-progress chargen draft: hidden from every character list until the wizard finalizes it.
+    # Exists so the Deck Workshop can attach to a real row while the dossier is still being built.
+    is_draft: Mapped[bool] = mapped_column(default=False)
+
+    # Catalog-heavy, list-shaped chargen data stays JSON (plan S2).
+    priorities: Mapped[dict] = mapped_column(JSON, default=dict)
+    skills: Mapped[list] = mapped_column(JSON, default=list)
+    spells: Mapped[list] = mapped_column(JSON, default=list)
+    adept_powers: Mapped[list] = mapped_column(JSON, default=list)
+    gear: Mapped[dict] = mapped_column(JSON, default=dict)
+
     # Cross-device/browser persisted deck-builder state (programs, loadouts, jobs).
     deck_builder_state: Mapped[dict] = mapped_column(JSON, default=dict)
 
@@ -70,6 +115,21 @@ class Character(Base):
     @property
     def is_claimed(self) -> bool:
         return self.owner_token is not None
+
+    @property
+    def lifestyle_name(self) -> str | None:
+        level = self.lifestyle_level
+        if level is None or not (0 <= level < len(LIFESTYLE_TIERS)):
+            return None
+        return LIFESTYLE_TIERS[level]
+
+    @property
+    def lifestyle_monthly_cost(self) -> int:
+        """Nuyen charged per month for the current lifestyle (0 for Street/unset/permanent)."""
+        level = self.lifestyle_level
+        if self.lifestyle_permanent or level is None or not (0 <= level < len(LIFESTYLE_MONTHLY_COST)):
+            return 0
+        return LIFESTYLE_MONTHLY_COST[level]
 
     contacts: Mapped[list["Contact"]] = relationship(
         "Contact", foreign_keys="Contact.owner_id", back_populates="owner", cascade="all, delete-orphan"

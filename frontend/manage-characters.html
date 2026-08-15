@@ -41,8 +41,11 @@
         <option value="npc">NPCs Only</option>
       </select>
     </div>
-    <button class="btn btn-green mob-hide" onclick="openModal()">+ New Dossier</button>
+    <a class="btn btn-green mob-hide" href="character-builder.html">+ New Shadowrunner</a>
+    <button class="btn mob-hide" id="newNpcBtn" style="display:none" onclick="openModal()">+ New NPC</button>
   </div>
+
+  <div id="draftsWrap"></div>
 
   <div id="tableWrap">
     <div class="loading">Loading characters</div>
@@ -753,6 +756,16 @@ function renderTable(data) {
       <tbody>
         ${data.map(c => {
           let editBtn = '';
+          const sheetBtn = c.is_pc
+            ? `<a class="btn" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-sheet.html?id=${c.id}">Sheet</a>`
+            : '';
+          const canEdit = c.is_pc && (isAdminMode() || myIds.has(c.id));
+          // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a
+          // full chargen sheet (priorities are only ever set by the builder).
+          const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
+          const convertBtn = (canEdit && !builtInChargen)
+            ? `<a class="btn" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
+            : '';
           if (isAdminMode()) {
             editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
           } else if (c.is_pc && myIds.has(c.id)) {
@@ -768,7 +781,7 @@ function renderTable(data) {
             <td class="dim-meta">${esc(c.race||'--')}</td>
             <td class="dim-meta">${esc(titleOrgCell(c))}</td>
             <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
-            <td class="td-act">${editBtn}</td>
+            <td class="td-act">${sheetBtn}${convertBtn}${editBtn}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -799,8 +812,8 @@ function applyFilter() {
 function openModal(id) {
   editingId = id || null;
   const ch = id ? allChars.find(c => c.id === id) : null;
-  const isPC = ch?.is_pc !== false;
-  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Dossier';
+  const isPC = ch ? (ch.is_pc !== false) : false;   // create path is NPC-only; PCs are built in the character-builder
+  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New NPC';
   document.getElementById('deleteBtn').style.display = (ch && isAdminMode()) ? '' : 'none';
   document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.is_claimed && isAdminMode()) ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
@@ -861,7 +874,7 @@ function openModal(id) {
   setConnectionValue(ch?.connection ?? 1);
   document.getElementById('addLinkForm').style.display = 'none';
   updatePCLabel();
-  document.getElementById('f-type-wrap').style.display = '';
+  document.getElementById('f-type-wrap').style.display = ch ? '' : 'none';   // no PC/NPC toggle when creating (NPC only)
   document.getElementById('f-is_pc').disabled = !isAdminMode();
   syncSkillsSectionUI();
   renderContactLinks();
@@ -1158,11 +1171,12 @@ async function removeContactLinkFromForm(contactId) {
 // -- Load data -------------------------------------------------
 async function loadChars() {
   try {
-    const [charsRes, orgsRes, contactsRes, mineRes] = await Promise.all([
+    const [charsRes, orgsRes, contactsRes, mineRes, draftsRes] = await Promise.all([
       apiFetch(`${API}/characters/`),
       apiFetch(`${API}/organizations/`),
       apiFetch(`${API}/contacts/`),
       apiFetch(`${API}/characters/mine`),
+      apiFetch(`${API}/characters/drafts`),
     ]);
     if (!charsRes.ok) await apiThrow(charsRes);
     allChars    = await charsRes.json();
@@ -1170,6 +1184,7 @@ async function loadChars() {
     allContacts = contactsRes.ok ? await contactsRes.json() : [];
     const mineData = mineRes.ok ? await mineRes.json() : {ids: []};
     _myCharIds = new Set(mineData.ids || []);
+    renderDrafts(draftsRes.ok ? await draftsRes.json() : []);
 
     const sel = document.getElementById('f-organization_id');
     sel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
@@ -1182,6 +1197,41 @@ async function loadChars() {
   }
 }
 
+// In-progress chargen drafts (hidden from the main list). Resume reopens the builder;
+// Discard (admin only) deletes the draft row.
+let _draftsById = {};
+function renderDrafts(drafts) {
+  const wrap = document.getElementById('draftsWrap');
+  if (!wrap) return;
+  _draftsById = {};
+  if (!Array.isArray(drafts) || !drafts.length) { wrap.innerHTML = ''; return; }
+  drafts.forEach(d => { _draftsById[d.id] = d.name || ('draft ' + d.id); });
+  wrap.innerHTML = `
+    <div class="drafts-panel">
+      <div class="drafts-panel__hd">&gt;&gt; In-progress dossiers <span class="drafts-panel__n">${drafts.length}</span>
+        <span class="drafts-panel__hint">unfinished character-builder drafts</span></div>
+      ${drafts.map(d => `<div class="drafts-row">
+        <span class="drafts-row__n">${esc(d.name || 'Unnamed draft')}</span>
+        <span class="drafts-row__m">${esc(d.race || 'Human')} &middot; id ${d.id}</span>
+        <a class="btn btn-green" style="padding:4px 12px;font-size:.65rem" href="character-builder.html?resume=${d.id}">Resume</a>
+        <button class="btn btn-red" style="padding:4px 12px;font-size:.65rem" onclick="deleteDraft(${d.id})">Discard</button>
+      </div>`).join('')}
+    </div>`;
+}
+
+async function deleteDraft(id) {
+  try {
+    const name = _draftsById[id] || ('draft ' + id);
+    if (!await showConfirm(`Discard the in-progress dossier "${name}"? This cannot be undone.`, 'Confirm')) return;
+    const res = await apiFetch(`${API}/characters/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) await apiThrow(res);
+    showAlert(document.getElementById('alert'), `>> DISCARDED // draft ${id} removed.`, false);
+    loadChars();
+  } catch (e) {
+    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
 bootstrapAuth().then(u => {
   if (u) {
     if (!isAdminMode()) {
@@ -1190,6 +1240,7 @@ bootstrapAuth().then(u => {
     } else {
       document.getElementById('filterType').value = '';
     }
+    if (isAdminMode()) document.getElementById('newNpcBtn').style.display = '';
     loadChars();
     startPolling(loadChars);
   }

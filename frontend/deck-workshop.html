@@ -1197,6 +1197,102 @@ function updateProgrammerProfilePreview() {
   if (activateBtn) activateBtn.disabled = !charId;
 }
 
+// Bring a decker's chargen-purchased cyberdeck(s) and program(s) into the workshop as owned iron
+// and binaries -- these are the items we manage here after chargen. Runs once per character (a
+// done-flag in deck_builder_state) and skips anything already present, so it never duplicates.
+async function seedChargenPurchases() {
+  const charId = getActiveProgrammerId();
+  if (!charId) return;
+  const flag = _loadStore(CHARGEN_CARRYOVER_STORE);
+  if (flag && flag.done) return;
+
+  let char = null;
+  try {
+    const r = await apiFetch(`/characters/${encodeURIComponent(charId)}`);
+    if (r.ok) char = await r.json();
+  } catch (_) { return; }   // offline -> retry on next activation (flag not set)
+  if (!char) return;
+
+  const gear = char.gear || {};
+  const chargenDecks = Array.isArray(gear.matrix) ? gear.matrix : [];
+
+  // Full deck specs live in the gear catalog (the chargen line only carries the deck's MPCP).
+  const deckCatalog = {};
+  if (chargenDecks.length) {
+    try {
+      const cr = await apiFetch('/catalog/gear');
+      if (cr.ok) {
+        const items = await cr.json();
+        (Array.isArray(items) ? items : []).forEach(it => {
+          if (it && it.cat === 'deck' && it.n) deckCatalog[String(it.n).toLowerCase()] = it;
+        });
+      }
+    } catch (_) { /* fall back to MPCP-only specs below */ }
+  }
+  const _deckStat = (item, key) => {
+    const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
+    return row ? (Number(row[1]) || 0) : 0;
+  };
+
+  // Cyberdecks -> DECK_STORE as ready/bought iron, fully speced from the catalog (MPCP unlocks the buy route).
+  const decks = _loadStore(DECK_STORE) || [];
+  const haveDeck = new Set(decks.map(d => String(d.name || '').toLowerCase()));
+  let deckAdded = false;
+  chargenDecks.forEach(d => {
+    const name = String(d.n || d.name || '').trim();
+    const src = deckCatalog[name.toLowerCase()] || null;
+    const mpcp = _deckStat(src, 'MPCP') || Number(d.mpcp) || 0;
+    if (!name || mpcp <= 0 || haveDeck.has(name.toLowerCase())) return;
+    decks.push({
+      name, deckName: name, savedAt: Date.now(), deckType: 'hot', mpcp,
+      pBod: 0, pEvasion: 0, pMasking: 0, pSensor: 0,
+      hardening: _deckStat(src, 'Hardening'), respIncrease: 0,
+      iccm: false, realityFilter: false,
+      activeMem: _deckStat(src, 'Active Mem'), ioSpeed: _deckStat(src, 'I/O'),
+      offlineStorage: _deckStat(src, 'Storage'),
+      casingLvl: 0, satlink: false, hitcherJack: false,
+      status: 'ready', origin: 'bought', sources: noDeckSources(),
+    });
+    haveDeck.add(name.toLowerCase());
+    deckAdded = true;
+  });
+  if (deckAdded) _saveStore(DECK_STORE, decks);
+
+  // Programs -> COMPILED_STORE as purchased binaries (usable immediately).
+  const DMG_NUM = { L: 2, M: 3, S: 4, D: 5 };
+  const compiled = _loadStore(COMPILED_STORE) || [];
+  const haveSig = new Set(compiled.map(c => `${c.programTypeKey}|${c.baseRating}|${c.mods || 'None'}`));
+  let progAdded = false;
+  (Array.isArray(gear.programs) ? gear.programs : []).forEach(p => {
+    const key = getProgramTypeKey(p.prog || p.key || p.name || '');
+    if (!key || key === 'unknown') return;
+    const meta = (window.MatrixPrograms && MatrixPrograms.get(key)) || null;
+    const utilName = meta ? meta.display : String(p.prog || p.name || '');
+    const rating = Math.max(1, Number(p.rating) || 1);
+    const sig = `${key}|${rating}|None`;
+    if (haveSig.has(sig)) return;
+    const dmg = key === 'attack' ? (DMG_NUM[String(p.dmg || 'M').toUpperCase()] || 3) : 0;
+    const mult = key === 'attack' ? dmg : (UTILITY_MULTIPLIERS[key] || 1);
+    const size = rating * rating * mult;
+    compiled.push({
+      id: `bin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: Date.now(), utilName, programTypeKey: key,
+      baseRating: rating, effectiveRating: rating, mods: 'None',
+      isOneShot: false, hasLimit: false,
+      attackDamage: key === 'attack' ? dmg : null, optionState: null,
+      actualSize: size, designSize: size,
+      buyCost: size * pfFactor(rating), designDays: Math.max(1, size),
+      acquisition: 'purchased',
+      name: `${utilName}-${rating} | None`,
+    });
+    haveSig.add(sig);
+    progAdded = true;
+  });
+  if (progAdded) _saveStore(COMPILED_STORE, compiled);
+
+  _saveStore(CHARGEN_CARRYOVER_STORE, { done: true, at: Date.now() });
+}
+
 async function activateDeckBuilder() {
   const charSel = $('programmerCharacter');
   const status = $('profileStatus');
@@ -1241,6 +1337,8 @@ async function activateDeckBuilder() {
   if (promptTip) promptTip.style.display = 'none';
 
   await loadDeckBuilderStateFromServer();
+
+  await seedChargenPurchases();
 
   renderSavedDecks();
   renderSavedLoadouts();
@@ -1311,6 +1409,7 @@ const COMPILED_STORE = 'sr2_compiled_programs_v1';
 const FIXER_PROG_STORE = 'sr2_fixer_prog_orders_v1';
 const PROGRAM_MIGRATION_STORE = 'sr2_program_migration_v1';
 const PROGRAM_RECONCILE_STORE = 'sr2_program_reconcile_v1';
+const CHARGEN_CARRYOVER_STORE = 'sr2_chargen_carryover_v1';   // per-decker done-flag: chargen buys seeded
 const OMC_STORE = 'sr2_omc_archive_v1';        // per-decker: [{ capacity, orders:[] }]
 const OMC_DEFAULT_CAPACITY = 1000;             // Mp; raised via fixer OMC orders
 const OMC_ORDER_BASE = 50;                     // nuyen flat per order
@@ -2432,8 +2531,15 @@ function calcDeck() {
     errors.push('UPGRADE FLOOR: ' + v);
   }
 
-  // Persona budget bar (v11) + per-field caps (each <= personaCapMpcp, min 1)
-  ['pBod', 'pEvasion', 'pMasking', 'pSensor'].forEach(id => { const el = $(id); if (el) el.max = String(personaCapMpcp); });
+  // Persona budget bar (v11) + per-field caps: each attr is bounded by BOTH the per-field MPCP
+  // cap AND the shared MPCPx3 budget, so holding the spinner stops at the remaining budget
+  // instead of running to the theoretical cap and blowing the total.
+  const personaVals = { pBod: bod, pEvasion: evasion, pMasking: masking, pSensor: sensor };
+  ['pBod', 'pEvasion', 'pMasking', 'pSensor'].forEach(id => {
+    const el = $(id); if (!el) return;
+    const others = personaSum - personaVals[id];
+    el.max = String(Math.max(1, Math.min(personaCapMpcp, personaCap - others)));
+  });
   if ($('deckBudN')) $('deckBudN').textContent = String(personaCap);
   if ($('deckCapN')) $('deckCapN').textContent = String(personaCapMpcp);
   const budgetPct = personaCap > 0 ? Math.min(100, Math.round(personaSum / personaCap * 100)) : 0;
@@ -3051,7 +3157,7 @@ function _readDeckFormSpec() {
 function requestDeckBuild() {
   if (!_deckBuildValid) { showAlert(null, 'Cannot build -- resolve constraint violations first (persona total must be at or below the MPCP x3 cap).', true); return; }
   if (!getActiveProgrammerId()) { showAlert(null, 'Activate a programmer profile first.', true); return; }
-  if (!activeDeckBuildName) { showAlert(null, 'Save the deck build first (>> Save build), then transmit the spec to the fixer.', true); return; }
+  if (!activeDeckBuildName) { saveDeckBuild(); if (!activeDeckBuildName) return; }  // auto-save the draft, then transmit
   const upgrading = !!(deckUpgradeBaseline && deckUpgradeBaseline.name === activeDeckBuildName);
   const repairing = upgrading && !!deckUpgradeBaseline.isRepair;
   if (upgrading) {
@@ -3100,7 +3206,7 @@ function requestDeckBuild() {
 function requestDeckOrder() {
   if (!_deckBuildValid) { showAlert(null, 'Cannot order -- resolve constraint violations first (persona total must be at or below the MPCP x3 cap).', true); return; }
   if (!getActiveProgrammerId()) { showAlert(null, 'Activate a programmer profile first.', true); return; }
-  if (!activeDeckBuildName) { showAlert(null, 'Save the deck build first (>> Save build), then place the order.', true); return; }
+  if (!activeDeckBuildName) { saveDeckBuild(); if (!activeDeckBuildName) return; }  // auto-save the draft, then order
   const upgrading = !!(deckUpgradeBaseline && deckUpgradeBaseline.name === activeDeckBuildName);
   const repairing = upgrading && !!deckUpgradeBaseline.isRepair;
   if (upgrading) {
@@ -5159,7 +5265,8 @@ async function deleteDeckBuild(name) {
 }
 
 function setDeckPlateActions(html) {
-  const act = document.querySelector('#dosDeck .dw-plate .act');
+  // Draft actions live at the bottom of the form (near the acquire buttons), not the plate header.
+  const act = document.getElementById('deckDraftActions') || document.querySelector('#dosDeck .dw-plate .act');
   if (act) act.innerHTML = html;
 }
 
@@ -5170,7 +5277,7 @@ function setDeckPlateActions(html) {
 function refreshDeckPlateActions() {
   if (!activeDeckBuildName) {
     setDeckPlateActions(
-      '<button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save build</button>' +
+      '<button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save Draft</button>' +
       '<button class="btn btn-red btn-sm" onclick="discardDeckDossier()">Discard</button>');
     return;
   }
@@ -5261,10 +5368,7 @@ function newDeck() {
       <div class="dw-plate">
         <span class="name" id="deckPlateName" style="color:var(--text-dim)">UNTITLED DECK</span>
         <span class="serial" id="deckPlateSerial">new deck spec &middot; unsaved</span>
-        <span class="act">
-          <button class="btn btn-green btn-sm" onclick="saveDeckBuild()">&gt;&gt; Save build</button>
-          <button class="btn btn-red btn-sm" onclick="discardDeckDossier()">Discard</button>
-        </span>
+        <span class="act"></span>
       </div>
       <div class="dw-stages">
         <div class="dw-stage now"><span class="node">Design<span class="sub">spec the iron</span></span><span class="wire"></span></div>
@@ -5353,6 +5457,7 @@ function newDeck() {
           <div class="dw-itemize" id="deckItemize" style="display:none;overflow-x:auto;margin-top:14px"></div>
           <div class="meta" id="deckAcqHint" style="margin-top:10px">Select <b>Build at bench</b> or <b>Order from fixer</b> above to itemize and compare the two routes.</div>
         </div>
+        <div id="deckDraftActions" class="dw-draft-actions" style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"></div>
       </div>
     </div>`;
   initNumSteppers(host);
@@ -5361,6 +5466,7 @@ function newDeck() {
   }
   document.querySelectorAll('#dwRailDecks .dw-asset').forEach(a => a.classList.remove('sel'));
   calcDeck();
+  refreshDeckPlateActions();
   $('deckName')?.focus();
 }
 
