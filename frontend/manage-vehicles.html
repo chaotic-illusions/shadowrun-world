@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vehicle Classes | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    .veh-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+    .veh-toolbar input[type=text]{width:300px;}
+    .veh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;}
+    .veh-tpl{background:var(--bg-panel,#0d1512);border:1px solid #1c2b22;border-radius:4px;padding:12px 14px;}
+    .veh-tpl.is-unset{border-color:var(--amber,#c9a227);}
+    .veh-tpl__h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px;}
+    .veh-tpl__n{color:var(--text-bright);font-weight:600;letter-spacing:.5px;}
+    .veh-tpl__c{color:var(--text-dim);font-size:.64rem;letter-spacing:1px;text-transform:uppercase;}
+    .veh-tpl__badge{color:var(--cyan);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;
+      border:1px solid #1c3540;border-radius:3px;padding:1px 5px;margin-left:6px;}
+    .veh-tpl__ctl{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;}
+    .veh-tpl__ctl label{color:var(--green-dim,#7fae86);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;}
+    .veh-tpl__ctl select{width:100%;background:var(--bg-input,#0a0f0c);color:var(--text-bright);
+      border:1px solid #24381f;border-radius:3px;padding:4px 6px;font-family:inherit;font-size:.78rem;box-sizing:border-box;}
+    .veh-tpl__toggle{margin-top:10px;background:none;border:none;color:var(--cyan);cursor:pointer;
+      font-family:inherit;font-size:.68rem;letter-spacing:1px;text-transform:uppercase;padding:0;}
+    .veh-tpl__list{margin:8px 0 0;padding:8px 0 0;list-style:none;border-top:1px solid #142019;}
+    .veh-tpl__list li{color:var(--text-dim);font-size:.74rem;padding:2px 0;}
+    .veh-count{color:var(--text-dim);font-size:.66rem;margin-left:auto;}
+    .veh-legend{color:var(--text-dim);font-size:.66rem;margin:0 0 12px;}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="manage-vehicles.html" class="active gm-only">Vehicles</a>
+    <a href="character-builder.html">Dossier Intake</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Vehicle Registry <em class="sep">//</em> Type &amp; Sub-type Classification</div>
+  <div class="page-sub" style="color:var(--cyan)">CLASSIFY EACH TEMPLATE BY PILOTING TYPE AND SUB-TYPE</div>
+
+  <div id="alert" class="alert"></div>
+
+  <p class="text-dim" style="font-size:.8rem;max-width:860px;margin:6px 0 6px">
+    Vehicles are grouped by their catalog <b>template</b> (the <code>sub</code> value, e.g.
+    <em>Armored Racing Bike</em>). For each template pick a parent <b>Type</b> (Bike, Car,
+    Hovercraft, Motorboat, Blimp, Rotor Craft, Winged Plane, Vectored Thrust) and a
+    <b>Sub-type</b> (that type's concentration, e.g. Bike &rarr; Two-wheeler / Three-wheeler /
+    Racing). The setting applies to <b>every</b> vehicle sharing that template, so you can make
+    blanket calls. A <b>(SV)</b> specialization in the builder expands to exactly the vehicles
+    classified under that Type + Sub-type. Expand a card to verify the vehicles inside it.
+  </p>
+  <p class="veh-legend">
+    Templates outlined in <span style="color:var(--amber,#c9a227)">amber</span> are still
+    unclassified. Drone templates are tagged <b>DRONE</b> &mdash; classify them under a Type with
+    the <b>Remote Operation</b> sub-type if you want them to appear for riggers.
+  </p>
+
+  <div class="veh-toolbar">
+    <input type="text" id="vehFilter" placeholder="Filter templates or vehicles..." oninput="render()">
+    <label class="text-dim" style="font-size:.72rem;display:flex;gap:5px;align-items:center">
+      <input type="checkbox" id="vehOnlyUnset" onchange="render()"> Show only unclassified
+    </label>
+    <button class="btn btn-green gm-only" onclick="saveClasses()">&gt;&gt; Save Classifications</button>
+    <span class="veh-count" id="vehCount"></span>
+  </div>
+
+  <div id="vehWrap"><div class="loading">Loading vehicles</div></div>
+</main>
+
+<script>
+// Parent piloting types, in display order. Concentrations come from the rules bundle
+// (the vehicle-group skills returned by /catalog/vehicle-classes), so this list is only
+// the ordering; the actual sub-type options are data-driven.
+const TYPE_ORDER = ["Bike", "Car", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust"];
+
+let VEHICLES = [];    // [{n, sub, cat}]
+let CONC = {};        // parent type -> [sub-type concentrations] (includes Remote Operation)
+let CLASSES = {};     // vehicleName -> {skill, conc} (working copy)
+let TEMPLATES = [];   // [{sub, cat, isDrone, vehicles:[...] }] sorted by sub
+
+function buildTemplates() {
+  const bySub = {};
+  VEHICLES.forEach(v => {
+    const sub = v.sub || "(no template)";
+    (bySub[sub] = bySub[sub] || []).push(v);
+  });
+  TEMPLATES = Object.keys(bySub).sort((a, b) => a.localeCompare(b)).map(sub => {
+    const vehicles = bySub[sub].slice().sort((a, b) => (a.n || "").localeCompare(b.n || ""));
+    return { sub, vehicles, isDrone: vehicles.every(v => (v.cat || "") === "drone") };
+  });
+}
+
+// A template is "blanket-classified" from the classification of its first vehicle; if the
+// members disagree we surface a (mixed) marker but any new pick overwrites them all.
+function templateClass(tpl) {
+  const sigs = tpl.vehicles.map(v => {
+    const c = CLASSES[v.n];
+    return c && c.skill ? `${c.skill}||${c.conc || ""}` : "";
+  });
+  const uniq = [...new Set(sigs)];
+  const first = CLASSES[tpl.vehicles[0].n] || null;
+  return { skill: first ? first.skill : "", conc: first ? (first.conc || "") : "", mixed: uniq.length > 1 };
+}
+
+function subOptions(skill, current) {
+  const opts = CONC[skill] || [];
+  return `<option value="">(sub-type...)</option>` +
+    opts.map(c => `<option value="${esc(c)}" ${current === c ? "selected" : ""}>${esc(c)}</option>`).join("");
+}
+
+function typeOptions(current) {
+  return `<option value="">(unclassified)</option>` +
+    TYPE_ORDER.map(t => `<option value="${esc(t)}" ${current === t ? "selected" : ""}>${esc(t)}</option>`).join("");
+}
+
+function render() {
+  const wrap = document.getElementById("vehWrap");
+  const admin = isAdminMode();
+  const q = (document.getElementById("vehFilter").value || "").toLowerCase();
+  const onlyUnset = document.getElementById("vehOnlyUnset").checked;
+
+  let shown = 0, classified = 0;
+  const cards = TEMPLATES.map((tpl, idx) => {
+    const cls = templateClass(tpl);
+    if (cls.skill) classified++;
+    const match = !q || tpl.sub.toLowerCase().includes(q) || tpl.vehicles.some(v => (v.n || "").toLowerCase().includes(q));
+    if (!match) return "";
+    if (onlyUnset && cls.skill) return "";
+    shown++;
+    const listItems = tpl.vehicles.map(v => `<li>${esc(v.n)}</li>`).join("");
+    const badge = tpl.isDrone ? `<span class="veh-tpl__badge">Drone</span>` : "";
+    const mixed = cls.mixed ? `<span class="veh-tpl__badge" style="color:var(--amber,#c9a227)">Mixed</span>` : "";
+    return `<div class="veh-tpl ${cls.skill ? "" : "is-unset"}" data-idx="${idx}">
+      <div class="veh-tpl__h">
+        <span class="veh-tpl__n">${esc(tpl.sub)}${badge}${mixed}</span>
+        <span class="veh-tpl__c">x${tpl.vehicles.length}</span>
+      </div>
+      <div class="veh-tpl__ctl">
+        <label>Type</label>
+        <select data-role="skill" data-idx="${idx}" ${admin ? "" : "disabled"}>${typeOptions(cls.skill)}</select>
+        <label>Sub-type</label>
+        <select data-role="conc" data-idx="${idx}" ${admin ? "" : "disabled"} ${cls.skill ? "" : "disabled"}>${subOptions(cls.skill, cls.conc)}</select>
+      </div>
+      <button type="button" class="veh-tpl__toggle" data-toggle="${idx}">Show ${tpl.vehicles.length} vehicle${tpl.vehicles.length === 1 ? "" : "s"}</button>
+      <ul class="veh-tpl__list hidden" data-list="${idx}">${listItems}</ul>
+    </div>`;
+  }).join("");
+
+  wrap.innerHTML = cards || `<div class="loading">No templates match the filter.</div>`;
+  document.getElementById("vehCount").textContent =
+    `${classified}/${TEMPLATES.length} templates classified` + (shown !== TEMPLATES.length ? ` (${shown} shown)` : "");
+
+  wrap.querySelectorAll('select[data-role="skill"]').forEach(sel => sel.onchange = () => onTypeChange(sel));
+  wrap.querySelectorAll('select[data-role="conc"]').forEach(sel => sel.onchange = () => onConcChange(sel));
+  wrap.querySelectorAll("button[data-toggle]").forEach(btn => btn.onclick = () => {
+    const ul = wrap.querySelector(`ul[data-list="${btn.dataset.toggle}"]`);
+    const hidden = ul.classList.toggle("hidden");
+    const n = TEMPLATES[+btn.dataset.toggle].vehicles.length;
+    btn.textContent = `${hidden ? "Show" : "Hide"} ${n} vehicle${n === 1 ? "" : "s"}`;
+  });
+}
+
+// Apply {skill, conc} to every vehicle in a template (blanket), dropping empties.
+function applyToTemplate(tpl, skill, conc) {
+  tpl.vehicles.forEach(v => {
+    if (skill) CLASSES[v.n] = { skill, conc: conc || "" };
+    else delete CLASSES[v.n];
+  });
+}
+
+function onTypeChange(sel) {
+  const tpl = TEMPLATES[+sel.dataset.idx];
+  const skill = sel.value;
+  const card = sel.closest(".veh-tpl");
+  const concSel = card.querySelector('select[data-role="conc"]');
+  // Repopulate sub-type options for the new type; keep the old sub-type only if still valid.
+  const prev = concSel.value;
+  const keep = skill && (CONC[skill] || []).includes(prev) ? prev : "";
+  concSel.innerHTML = subOptions(skill, keep);
+  concSel.disabled = !skill;
+  applyToTemplate(tpl, skill, keep);
+  card.classList.toggle("is-unset", !skill);
+  updateCount();
+}
+
+function onConcChange(sel) {
+  const tpl = TEMPLATES[+sel.dataset.idx];
+  const card = sel.closest(".veh-tpl");
+  const skill = card.querySelector('select[data-role="skill"]').value;
+  applyToTemplate(tpl, skill, sel.value);
+}
+
+function updateCount() {
+  const classified = TEMPLATES.filter(t => templateClass(t).skill).length;
+  const cur = document.getElementById("vehCount").textContent;
+  document.getElementById("vehCount").textContent = cur.replace(/^\d+\/\d+/, `${classified}/${TEMPLATES.length}`);
+}
+
+async function saveClasses() {
+  if (!isAdminMode()) return;
+  try {
+    const res = await apiFetch("/catalog/vehicle-classes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ classes: CLASSES }),
+    });
+    if (!res.ok) await apiThrow(res);
+    const data = await res.json();
+    CLASSES = data.classes || {};
+    showAlert(document.getElementById("alert"), ">> SAVED // vehicle classifications updated.", false);
+    render();
+  } catch (e) {
+    showAlert(document.getElementById("alert"), `>> SAVE FAILED // ${e.message}`, true);
+  }
+}
+
+async function loadVehicles() {
+  try {
+    const res = await apiFetch("/catalog/vehicle-classes");
+    if (!res.ok) await apiThrow(res);
+    const data = await res.json();
+    VEHICLES = data.vehicles || [];
+    CLASSES = data.classes || {};
+    CONC = {};
+    // Keep every concentration, including Remote Operation (needed for drones/riggers).
+    (data.skills || []).forEach(s => { CONC[s.n] = (s.conc || []); });
+    buildTemplates();
+    render();
+  } catch (e) {
+    document.getElementById("vehWrap").innerHTML = "";
+    showAlert(document.getElementById("alert"), `>> LOAD FAILED // ${e.message}`, true);
+  }
+}
+
+bootstrapAuth().then(u => { if (u) loadVehicles(); });
+</script>
+</body>
+</html>

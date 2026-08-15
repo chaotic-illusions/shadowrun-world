@@ -317,6 +317,17 @@ body {
 .panel-title-cyan  { color: var(--cyan); }
 .panel-title-green { color: var(--green); }
 
+/* In-progress character-builder drafts (manage-characters drafts panel) */
+.drafts-panel { border: 1px solid #1a3a2a; background: #0a140e; margin-bottom: 18px; }
+.drafts-panel__hd { padding: 8px 14px; border-bottom: 1px solid #14281c; color: var(--green);
+  font-family: var(--font-display); letter-spacing: 2px; text-transform: uppercase; font-size: var(--lbl-fs); }
+.drafts-panel__n { color: var(--text-bright); margin-left: 6px; }
+.drafts-panel__hint { color: var(--text-dim); font-size: var(--fs-xs); letter-spacing: .06em;
+  text-transform: none; margin-left: 10px; }
+.drafts-row { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-top: 1px solid #0e1a12; }
+.drafts-row__n { color: var(--text-bright); }
+.drafts-row__m { color: var(--text-dim); font-size: var(--fs-xs); margin-right: auto; }
+
 /* ---------------------------------------------------------------------------
    SECTION 5 -- HEADER & NAV
    --------------------------------------------------------------------------- */
