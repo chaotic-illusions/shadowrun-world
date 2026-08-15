@@ -1,0 +1,478 @@
+"""Headless-browser smoke test for the SR2 character builder (Playwright).
+
+Loads frontend/character-builder.html with /catalog/* stubbed from the real catalog
+data and asserts the wizard boots, walks every step, buys gear, and commits -- with
+zero uncaught JS errors. Skipped cleanly when Playwright or a system Chromium
+(Edge/Chrome) is unavailable, so CI/Docker without a browser stays green.
+"""
+from __future__ import annotations
+
+import functools
+import http.server
+import re
+import socketserver
+import threading
+
+import pytest
+
+from app.data import catalog as cat
+
+try:
+    from playwright.sync_api import sync_playwright
+except Exception:  # noqa: BLE001 -- playwright optional
+    sync_playwright = None
+
+pytestmark = pytest.mark.skipif(sync_playwright is None, reason="playwright not installed")
+
+
+@pytest.fixture(scope="module")
+def _frontend_port():
+    handler_cls = type(
+        "_QuietHandler",
+        (http.server.SimpleHTTPRequestHandler,),
+        {"log_message": lambda *a, **k: None},
+    )
+    srv = socketserver.TCPServer(
+        ("127.0.0.1", 0), functools.partial(handler_cls, directory="frontend")
+    )
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        yield srv.server_address[1]
+    finally:
+        srv.shutdown()
+
+
+@pytest.fixture(scope="module")
+def _browser():
+    with sync_playwright() as p:
+        browser = None
+        for candidate in ("msedge", "chrome"):
+            try:
+                browser = p.chromium.launch(channel=candidate, headless=True)
+                break
+            except Exception:  # noqa: BLE001 -- try the next system browser
+                continue
+        if browser is None:
+            pytest.skip("no system Chromium (Edge/Chrome) available for Playwright")
+        try:
+            yield browser
+        finally:
+            browser.close()
+
+
+def _route(route):
+    url = route.request.url
+    path = url.split("?")[0]
+    # Never intercept static assets (matrix-programs.js etc. would otherwise match "/matrix").
+    if path.endswith((".js", ".css", ".html")) or "/fonts/" in path:
+        route.continue_()
+        return
+    if "/auth/verify" in url:
+        route.fulfill(json={"is_admin": True, "is_user": False, "is_default_password": False})
+    elif "/catalog/rules" in url:
+        route.fulfill(json=cat.get_rules())
+    elif "/catalog/books" in url:
+        if route.request.method == "PUT":
+            enabled = (route.request.post_data_json or {}).get("enabled", [])
+        else:
+            enabled = ["SSC", "CYB"]
+        official = [
+            {"code": "SSC", "name": "Street Samurai Catalog", "enabled": "SSC" in enabled},
+            {"code": "SHADOW", "name": "Shadowtech", "enabled": "SHADOW" in enabled},
+            {"code": "CYB", "name": "Cybertechnology", "enabled": "CYB" in enabled},
+            {"code": "RIG2", "name": "Rigger 2", "enabled": "RIG2" in enabled},
+        ]
+        route.fulfill(json={"enabled": enabled,
+                            "core": {"code": "SR2", "name": "Shadowrun, Second Edition"},
+                            "official": official,
+                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled}})
+    elif "/catalog/skill-specs" in url:
+        if route.request.method == "PUT":
+            specs = (route.request.post_data_json or {}).get("specs", {})
+            route.fulfill(json={"specs": specs})
+        else:
+            skills = [
+                {"n": s.get("n"), "attr": s.get("attr"), "group": s.get("group"), "conc": s.get("conc", [])}
+                for s in cat.get_rules().get("skills", [])
+            ]
+            route.fulfill(json={"skills": skills, "specs": {}})
+    elif "/catalog/" in url:
+        name = url.split("/catalog/")[1].split("?")[0].strip("/")
+        items = cat.get_catalog(name) if name in cat.ITEM_CATALOGS else []
+        route.fulfill(json={"catalog": name, "count": len(items), "items": items})
+    elif "deck-builder-state" in url:
+        route.fulfill(json={"state": {"chargen": {"spent": 50000}}})
+    elif "finalize-dossier" in url or "dossier-draft" in url:
+        body = route.request.post_data_json or {}
+        route.fulfill(json={
+            "id": 5, "name": body.get("name", "Draftrunner"), "is_pc": True, "is_claimed": True,
+            "organization_name": None,
+            "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+        })
+    elif "/characters/dossier" in url:
+        body = route.request.post_data_json or {}
+        route.fulfill(
+            status=201,
+            json={
+                "id": 1, "name": body.get("name", "Runner"), "is_pc": True, "is_claimed": True,
+                "organization_name": None,
+                "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+            },
+        )
+    elif any(m in url for m in ("/characters", "/runs", "/matrix", "/rtgs",
+                                "/organizations", "/locations", "/contacts", "/reputation")):
+        route.fulfill(json=[])
+    else:
+        route.continue_()
+
+
+@pytest.fixture(scope="module")
+def page_and_errors(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.setItem('sr_admin_token','tok'); localStorage.removeItem('sr2_dossier_v1'); sessionStorage.clear();")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
+    pg.wait_for_selector("#cbxNewRunner", timeout=15000)   # landing page
+    pg.locator("#cbxNewRunner").click()                     # enter the wizard
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+    return pg, errors
+
+
+def test_builder_boots_without_errors(page_and_errors):
+    page, errors = page_and_errors
+    assert errors == [], f"JS errors on boot: {errors}"
+    assert page.locator(".wstep-dot").count() == 7
+
+
+def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
+    page, errors = page_and_errors
+
+    # Apply the first quick-start kit -> fills priorities/attributes/skills/gear in one shot.
+    page.locator("[data-kit]").first.click()
+    page.wait_for_timeout(80)
+
+    # Walk every step via the rail; each must render a non-empty body.
+    for i in range(7):
+        page.locator(f'.wstep-dot[data-step="{i}"]').click()
+        page.wait_for_timeout(60)
+        assert page.locator("#cbxStepBody").inner_text().strip() != ""
+
+    # Add a Computer skill (exercises the skill picker; a common decker prerequisite).
+    page.locator('.wstep-dot[data-step="4"]').click()
+    page.wait_for_timeout(60)
+    add_comp = page.locator('[data-addskill="Computer"]').first
+    if add_comp.count():
+        add_comp.click()
+        page.wait_for_timeout(60)
+
+    # Required-concentration skills (e.g. Etiquette from the kit) now start with NO concentration
+    # and flag the row red, blocking commit until chosen. Pick the first real option for each.
+    for _ in range(6):
+        row = page.locator('.cbx-skillrow--needs').first
+        if row.count() == 0:
+            break
+        sel = row.locator('[data-conc]').first
+        val = sel.evaluate("el => (Array.from(el.options).find(o => o.value) || {}).value || ''")
+        if not val:
+            break
+        sel.select_option(val)
+        page.wait_for_timeout(50)
+
+    # A kit lands exactly at the skill budget, so trim one point to fit the added Computer skill
+    # (commit now blocks over-budget builds).
+    dec = page.locator('[data-skill="0"][data-d="-1"]').first
+    if dec.count():
+        dec.click()
+        page.wait_for_timeout(60)
+
+    # Asset Manifest: the Matrix tab holds the deckware Programs picker; buy a program, then a bioware item.
+    page.locator('.wstep-dot[data-step="5"]').click()
+    page.wait_for_timeout(60)
+    page.locator('[data-shoptab="matrix"]').click()
+    page.wait_for_timeout(60)
+    # Expand a program row (Sleaze) and add it to the loadout, then confirm the loadout row appears.
+    page.locator('[data-proginspect="sleaze"]').click()
+    page.wait_for_timeout(60)
+    page.locator('[data-progadd="sleaze"]').click()
+    page.wait_for_timeout(60)
+    assert page.locator("[data-progdel]").count() >= 1
+    page.locator('[data-shoptab="bio"]').click()
+    page.wait_for_timeout(60)
+    bio_inspect = page.locator("[data-inspect]").first
+    if bio_inspect.count():
+        bio_inspect.click()  # expand the summary, revealing the Add button
+        page.wait_for_timeout(60)
+        buy = page.locator("[data-buy]").first
+        if buy.count():
+            buy.click()
+            page.wait_for_timeout(60)
+
+    # Cyberware: buy an item, confirm the grade selector, switch to Alpha (SSC is enabled in the stub).
+    page.locator('[data-shoptab="cyber"]').click()
+    page.wait_for_timeout(60)
+    cyber_inspect = page.locator("[data-inspect]").first
+    if cyber_inspect.count():
+        cyber_inspect.click()
+        page.wait_for_timeout(60)
+        cyber_buy = page.locator("[data-buy]").first
+        if cyber_buy.count():
+            cyber_buy.click()
+            page.wait_for_timeout(60)
+            grade_sel = page.locator("[data-cybergrade]").first
+            assert grade_sel.count() == 1
+            grade_sel.select_option("Alpha")
+            page.wait_for_timeout(60)
+
+    # Finish + commit (stubbed 201).
+    page.locator('.wstep-dot[data-step="6"]').click()
+    page.wait_for_timeout(60)
+    page.fill('[data-id="handle"]', "Testrunner")
+    page.locator("#cbxSubmit").click()
+    page.wait_for_timeout(150)
+
+    assert "Committed" in page.locator("#cbxSubmitStatus").inner_text()
+    assert errors == [], f"JS errors during walkthrough: {errors}"
+
+
+# A committed runner as /characters/{id} returns it (skills carry conc/spec + a language row).
+_SHEET_CHAR = {
+    "id": 5, "name": "Ravenlock", "is_pc": True, "race": "Elf", "gender": "F", "age": 27,
+    "description": "A decker-mage who runs the Redmond barrens.",
+    "lifestyle_name": "Low", "body": 3, "quickness": 5, "strength": 2, "charisma": 6,
+    "intelligence": 6, "willpower": 5, "essence": 5.4, "body_index": 0.0,
+    "magic_rating": 5, "magic_type": "Full Mage", "tradition": "Shamanic", "totem": "Bear",
+    "nuyen": 4200, "karma_pool": 1, "good_karma": 0,
+    "lifestyle_level": 2, "lifestyle_monthly_cost": 1000, "lifestyle_permanent": False,
+    "skills": [
+        {"name": "Firearms", "attr": "quickness", "group": "active", "rating": 5, "conc": "Pistols", "spec": ""},
+        {"name": "Sorcery", "attr": "intelligence", "group": "active", "rating": 6, "conc": "", "spec": ""},
+        {"name": "Biotech", "attr": "intelligence", "group": "knowledge", "rating": 3, "conc": "", "spec": ""},
+        {"name": "Sperethiel", "attr": "intelligence", "group": "language", "rating": 8, "conc": "", "spec": "", "free": True, "kind": "native"},
+    ],
+    "spells": [{"name": "Manabolt", "cat": "Combat", "force": 4}],
+    "adept_powers": [],
+    "gear": {
+        "weapons": [{"n": "Ares Predator", "cost": 450}],
+        "cyber": [{"n": "Datajack", "grade": "Standard", "baseEss": 0.2, "baseCost": 1000}],
+        "foci": [{"type": "Power Focus", "rating": 2, "applies": ""}],
+    },
+}
+
+
+def _sheet_route(route):
+    url = route.request.url
+    if "/auth/verify" in url:
+        route.fulfill(json={"is_admin": True, "is_user": False, "is_default_password": False})
+    elif "deck-builder-state" in url:
+        route.fulfill(json={"state": {"decks": [
+            {"name": "Fuchi Cyber-4", "mpcp": 4, "deckType": "hot", "status": "ready"},
+            {"name": "Bench draft", "mpcp": 2, "status": "draft"},
+        ]}})
+    elif "/characters/mine" in url:
+        route.fulfill(json={"ids": [5]})
+    elif "lifestyle" in url:
+        body = route.request.post_data_json or {}
+        route.fulfill(json={**_SHEET_CHAR, "lifestyle_level": body.get("level", 2), "nuyen": 3000})
+    elif "/contacts" in url:
+        route.fulfill(json=[
+            {"id": 1, "name": "Fixer Joe", "profession": "Fixer", "connection": 3, "loyalty": 3},
+        ])
+    elif "/characters/" in url:
+        route.fulfill(json=_SHEET_CHAR)
+    else:
+        route.continue_()
+
+
+def test_character_sheet_renders_committed_runner(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _sheet_route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-sheet.html?id=5")
+    pg.wait_for_selector(".section-head", timeout=15000)
+    pg.wait_for_timeout(120)
+
+    txt = pg.inner_text("#sheet")
+    hay = txt.upper()  # section heads are CSS-uppercased, so match case-insensitively
+    assert "RAVENLOCK" in hay
+    assert "ATTRIBUTES" in hay
+    assert "FIREARMS" in hay
+    # Concentration tier readout is computed (Firearms 5 -> general 4 / Pistols 6).
+    assert pg.locator(".csheet-tiers").count() >= 1
+    assert "MANABOLT" in hay             # spell
+    assert "POWER FOCUS" in hay          # focus from gear.foci
+    assert "SPERETHIEL" in hay           # language row
+    assert "FIXER JOE" in hay            # owned contact
+    assert "FUCHI CYBER-4" in hay        # only the ready deck
+    assert "BENCH DRAFT" not in hay      # draft deck is filtered out
+    assert errors == [], f"JS errors rendering sheet: {errors}"
+
+    # Lifestyle management panel: owner/admin can buy a lifestyle -> POSTs to the endpoint.
+    posts: list[str] = []
+    pg.on("request", lambda r: posts.append(r.url) if r.method == "POST" else None)
+    assert pg.locator("#lifeBuy").count() == 1
+    pg.select_option("#lifeLevel", "1")   # Squatter (100/mo) -- affordable against 4,200 nuyen
+    pg.fill("#lifeMonths", "1")
+    pg.wait_for_timeout(60)
+    pg.locator("#lifeBuy").click()
+    pg.wait_for_timeout(200)
+    assert any("/characters/5/lifestyle" in u for u in posts), posts
+    ctx.close()
+
+
+# An existing PC returned by GET /characters/{id} for the convert path.
+_CONVERT_CHAR = {
+    "id": 7, "name": "Old Runner", "is_pc": True, "race": "Elf",
+    "body": 3, "quickness": 5, "strength": 2, "charisma": 6, "intelligence": 6, "willpower": 5,
+    "essence": 6.0, "body_index": 0.0, "magic_rating": 0, "magic_type": None,
+    "priorities": {"race": "A", "magic": "E", "attributes": "B", "skills": "C", "resources": "D"},
+    "skills": [{"name": "Firearms", "attr": "quickness", "group": "active", "rating": 4, "conc": "", "spec": ""}],
+    "spells": [], "adept_powers": [], "gear": {},
+    "lifestyle_level": 2, "lifestyle_permanent": False,
+    "gender": "M", "age": 30, "description": "Veteran shadowrunner.",
+}
+
+
+def _convert_route(route):
+    url = route.request.url
+    path = url.split("?")[0]
+    if "/auth/verify" in url:
+        route.fulfill(json={"is_admin": True, "is_user": False, "is_default_password": False})
+    elif "/catalog/rules" in url:
+        route.fulfill(json=cat.get_rules())
+    elif "/catalog/books" in url:
+        route.fulfill(json={"enabled": ["SSC", "CYB"], "core": {"code": "SR2", "name": "SR2"},
+                            "official": [], "fan": {"code": "FAN", "name": "Fan"}})
+    elif "/catalog/" in url:
+        name = url.split("/catalog/")[1].split("?")[0].strip("/")
+        items = cat.get_catalog(name) if name in cat.ITEM_CATALOGS else []
+        route.fulfill(json={"catalog": name, "count": len(items), "items": items})
+    elif "/characters/drafts" in url:
+        route.fulfill(json=[])
+    elif "deck-builder-state" in url:
+        route.fulfill(json={"state": {}})
+    elif "convert-dossier" in url:
+        body = route.request.post_data_json or {}
+        route.fulfill(json={"id": 7, "name": body.get("name", "Old Runner"), "is_pc": True, "is_claimed": True,
+                            "organization_name": None,
+                            "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"})
+    elif "/contacts" in url:
+        route.fulfill(json=[])
+    elif re.search(r"/characters/\d+$", path):
+        route.fulfill(json=_CONVERT_CHAR)
+    elif "/characters" in url:
+        route.fulfill(json=[])
+    else:
+        route.continue_()
+
+
+def test_builder_convert_hydrates_and_posts_convert_dossier(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    posts: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.on("request", lambda r: posts.append(r.url) if r.method == "POST" else None)
+    pg.route("**/*", _convert_route)
+
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html?convert=7")
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+    pg.wait_for_timeout(200)
+
+    # Convert mode banner is shown, and the char's priorities hydrated (all five set -> committable).
+    assert "Converting" in pg.inner_text("#cbxModeBanner")
+    # Commit -> should POST to the convert-dossier endpoint and report "Converted".
+    pg.locator('.wstep-dot[data-step="6"]').click()
+    pg.wait_for_timeout(80)
+    pg.locator("#cbxSubmit").click()
+    pg.wait_for_timeout(200)
+
+    assert any("/characters/7/convert-dossier" in u for u in posts), posts
+    assert "Converted" in pg.locator("#cbxSubmitStatus").inner_text()
+    assert errors == [], f"JS errors during convert: {errors}"
+    ctx.close()
+
+
+def test_builder_skills_grouping_required_conc_and_na_spec(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
+    pg.wait_for_selector("#cbxNewRunner", timeout=15000)
+    pg.locator("#cbxNewRunner").click()
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+
+    # Skills step: the picker is group cards, including a Build/Repair card.
+    pg.locator('.wstep-dot[data-step="4"]').click()
+    pg.wait_for_timeout(100)
+    assert pg.locator(".cbx-skillcard__h", has_text="Build/Repair").count() >= 1
+    assert pg.locator('[data-addskill="Computer B/R"]').count() == 1
+
+    # Etiquette: required concentration with NO default -- the player must choose. It shows a
+    # "-- choose --" placeholder, starts empty, and flags the row red until a pick is made.
+    pg.locator('[data-addskill="Etiquette"]').first.click()
+    pg.wait_for_timeout(80)
+    assert pg.locator(".cbx-skillrow").count() >= 1  # chosen skill renders on one row
+    has_placeholder = pg.eval_on_selector('[data-conc="0"]', "el => Array.from(el.options).some(o => o.value === '')")
+    assert has_placeholder is True                    # required + unset -> placeholder option present
+    conc_val = pg.eval_on_selector('[data-conc="0"]', "el => el.value")
+    assert conc_val == ""                             # no auto-default; awaiting a choice
+    assert pg.locator(".cbx-skillrow--needs").count() >= 1   # row flagged red
+    assert pg.locator(".cbx-narrowsel:disabled").count() >= 1  # specialization N/A disabled
+    # Pick a concentration -> the red flag clears.
+    first_conc = pg.eval_on_selector('[data-conc="0"]', "el => (Array.from(el.options).find(o => o.value) || {}).value")
+    pg.select_option('[data-conc="0"]', first_conc)
+    pg.wait_for_timeout(80)
+    assert pg.locator(".cbx-skillrow--needs").count() == 0   # choice made -> no longer red
+
+    # Firearms: optional concentration (has "(none)"); specialization is gated behind a concentration.
+    pg.locator('[data-addskill="Firearms"]').first.click()
+    pg.wait_for_timeout(80)
+    fire_none = pg.eval_on_selector('[data-conc="1"]', "el => Array.from(el.options).some(o => o.value === '')")
+    assert fire_none is True
+    assert pg.locator('[data-spec="1"]').count() == 0   # no spec dropdown until a concentration is picked
+    pg.select_option('[data-conc="1"]', "Pistols")
+    pg.wait_for_timeout(80)
+    assert pg.locator('[data-spec="1"]').count() == 1   # weapon specialization dropdown now present
+
+    assert errors == [], f"JS errors on skills step: {errors}"
+    ctx.close()
+
+
+def test_builder_gm_sources_panel_toggles_books(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    puts: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.on("request", lambda r: puts.append(r.url) if r.method == "PUT" else None)
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
+    pg.wait_for_selector("#cbxNewRunner", timeout=15000)
+    pg.locator("#cbxNewRunner").click()
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+
+    # The GM sources panel exposes a Shadowtech toggle (off in the stub).
+    pg.locator("#cbxSources summary").click()
+    pg.wait_for_timeout(60)
+    shadow = pg.locator('#cbxSources [data-book="SHADOW"]')
+    assert shadow.count() == 1
+    assert shadow.is_checked() is False
+
+    # Enabling it PUTs the new book set (unlocking bioware / that book's gear).
+    shadow.check()
+    pg.wait_for_timeout(250)
+    assert any(u.endswith("/catalog/books") for u in puts), puts
+    assert errors == [], f"JS errors toggling sources: {errors}"
+    ctx.close()
+

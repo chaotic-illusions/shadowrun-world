@@ -18,6 +18,81 @@
 > from pristine copies, and this doc's own prose is left as plain ASCII (cheap,
 > low-value to restore -- it's internal documentation, not rendered game data).
 
+## Implementation status
+
+Real-app implementation is underway on branch `SR2-char-builder`:
+
+- **Increment 1 (backend data-model foundation) -- done 2026-08-12.** Promoted the
+  SR2 sheet onto real `Character` columns (six attributes, essence, body index,
+  magic rating/type/tradition/totem, nuyen, karma pool + good karma, ordinal
+  lifestyle level) with catalog-heavy chargen lists (priorities/skills/spells/
+  adept_powers/gear) kept as JSON. Alembic migration `d7e4b2a9c150` + a
+  `_ensure_character_sheet_columns` startup guard; existing PCs get defaults
+  (two-tier, no backfill for now).
+- **Increment 2 (catalog data + book toggle) -- done 2026-08-12.** The reference
+  JS was converted to committed JSON under `app/data/catalog/` by
+  `tools/build_catalog.py` (a build-time tool using `json5` to tolerate the JS
+  literal syntax; the runtime loader uses stdlib `json`). Chose JSON + a small
+  loader package (`app/data/catalog/__init__.py`) over hand-written `.py`
+  literals given the ~1,240-item volume -- still "static data under `app/data/`"
+  per S7, just not `.py`. Item counts: weapons 530, armor 35, cyberware 208,
+  gear 212, spells **217** (the source file's header says 219 but only contains
+  217 objects -- a source miscount, not a conversion loss), adept powers 37,
+  vehicles 169. The 208-item cyberware pull is split into two catalogs by cost
+  type: **cyberware** 186 (Essence cost) and **bioware** 22 (Body Index cost,
+  `bio: true`). The per-campaign book toggle lives on
+  `CampaignState.enabled_books` (migration `e2b7c4a91f30` + startup guard); SR2 is
+  always implicit, `FAN` expands to `BSW`+`RG`, and `VR2` gear is intentionally
+  never enable-able. Endpoints: `GET/PUT /catalog/books`, `GET /catalog/rules`,
+  `GET /catalog/{name}` (book-filtered).
+- **Increment 3 (frontend wizard + deck integration) -- done 2026-08-12.** The real,
+  API-wired `frontend/character-builder.html` replaces the mockup: it loads
+  `/catalog/rules` + the item catalogs, shops weapons/armor/cyberware/bioware/
+  gear/vehicles + spells/adept-powers (book-filtered), and commits via a new
+  `POST /characters/dossier` (player-owned or admin-unclaimed full sheet). Nav
+  link injected via `shared.js`. **Cyberware grades** are in: Standard/Alpha
+  selectable, Beta (career-only) and Delta (GM-only) gated, with the essence
+  (ceil to 0.05) + nuyen multipliers and SSC/CYB book-gating; the admin-only
+  `Character.delta_grade_approved` flag (migration `f3a8d0c21e64`) plus
+  server-side rejection of Beta/Delta from players and a GM checkbox in
+  `manage-characters.html`. **Deck integration (Option B)**: the wizard commits
+  first, maps the Computer skill onto deck-eligibility, seeds the chargen deck
+  budget + MPCP cap, then hands off to the Deck Workshop, which gained a small,
+  self-contained **chargen mode** (URL-driven) that hard-enforces the MPCP cap
+  (`floor(Computer x 1.5)`, max 8) and the nuyen budget without changing its
+  normal behavior. Validated with Playwright DOM smokes
+  (`tests/test_character_builder_dom.py`).
+- **Unified nuyen pool + draft round-trip -- done 2026-08-12.** Superseded the
+  Option-A deck carve-out with a fully-tracked single pool: the deck is built
+  *before* the final commit so its actual spend folds back into the gear budget
+  (reserve 200k, spend 150k, the 50k returns for gear; the 10:1 conversion of
+  anything left runs only at Commit). The wizard persists a hidden **draft PC**
+  (`Character.is_draft`, migration `a1c9e7b3f52d`, excluded from every character
+  list) so the Deck Workshop can attach; the player builds against the live
+  remaining budget; the actual spend is read back from
+  `deck_builder_state.chargen.spent`; Commit **finalizes that same row** via
+  `POST /characters/{id}/finalize-dossier` (drafts refresh mid-build via
+  `.../dossier-draft`). Known gap: abandoned drafts orphan (players can't delete;
+  localStorage reuse limits it to one per session), and the order-route deck spend
+  is approximated by the build parts cost.
+- **Chargen deck is buy-only -- done 2026-08-12.** At character creation the Deck
+  Workshop's chargen mode hides the bench-build path entirely: you craft the deck
+  spec and **buy** it at street price (the existing "Order from fixer" a-la-carte
+  route), then buy programs with ratings/options. The running spend is recomputed
+  from the actual purchases (each bought deck's `acq.priceFinal` + each bought
+  program's `buyCost`), the budget gate projects the running total, and that spend
+  is what folds back into the wizard's unified pool. A preset "off-the-shelf SR2
+  deck" quick-pick list is a deliberate later add on top of this.
+- **Stock-deck quick-pick -- done 2026-08-12.** The seven SR2 core stock decks
+  (`docs/reference-data/sr2-cyberdecks-vr2.json`) are baked into
+  `frontend/matrix-decks.js` and surfaced in the Deck Workshop's chargen mode as a
+  "Quick-pick a stock deck" selector above the a-la-carte spec. Picking one is the
+  "easy option": it fixes the whole spec at the model's stats and **buys it at the
+  printed book price** (not the a-la-carte street price); the buyer's only choice is
+  the persona split (MPCP x 3), from which I/O derives
+  (`ceil(MPCP x Sensor x 5 / 10) x 10`). No Reality Filter, no other edits -- the
+  rest of the spec is locked. The a-la-carte route stays for anyone building custom.
+
 ## TODO -- gear database
 
 **Resolved 2026-08-12**: shadowrun2e.com's catalogue pages aren't just rendered

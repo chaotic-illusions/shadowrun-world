@@ -1,0 +1,2302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dossier Intake | Shadowrun World Engine</title>
+<link rel="stylesheet" href="style.css">
+<script src="shared.js"></script>
+<script src="matrix-programs.js"></script>
+<style>
+  .cbx-p{color:var(--text-dim);font-size:var(--fs-sm);line-height:1.55;margin:0 0 14px;}
+  .cbx-p strong{color:var(--text-bright);}
+  .cbx-cite{color:var(--text-dim);font-size:var(--fs-xxs);}
+  .cbx-h4{color:var(--cyan);font-size:var(--fs-xs);letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 8px;}
+  .cbx-h4:first-child{margin-top:0;}
+
+  .cbx-kits{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px;padding:10px;
+    background:#0d0d0d;border:1px solid #1a2a1a;}
+  .cbx-kits__label{color:var(--text-dim);font-size:var(--fs-xxs);letter-spacing:1px;text-transform:uppercase;margin-right:2px;}
+  .cbx-kits__hint{color:var(--text-dim);font-size:var(--fs-xxs);margin-left:4px;}
+
+  .cbx-priogrid{display:flex;flex-direction:column;gap:8px;}
+  .cbx-priorow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;}
+  .cbx-priorow__label{color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-priorow__cells{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+  .cbx-prio{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:8px 6px;
+    cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px;font-family:inherit;}
+  .cbx-prio:hover{border-color:var(--green-dim);}
+  .cbx-prio.is-taken{opacity:.35;}
+  .cbx-prio.is-chosen{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.07);}
+  .cbx-prio__l{font-weight:bold;font-size:var(--fs-sm);}
+  .cbx-prio__v{font-size:var(--fs-xxs);color:inherit;opacity:.85;line-height:1.3;}
+
+  .cbx-metagrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}
+  .cbx-meta{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:10px;
+    cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:4px;font-family:inherit;}
+  .cbx-meta:hover{border-color:var(--green-dim);}
+  .cbx-meta.is-chosen{border-color:var(--green);color:var(--text-bright);background:rgba(0,255,65,.07);}
+  .cbx-meta__name{color:var(--text-bright);font-size:var(--fs-md);}
+  .cbx-meta.is-chosen .cbx-meta__name{color:var(--green);}
+  .cbx-meta__sub{font-size:var(--fs-xxs);color:var(--text-dim);}
+
+  .cbx-attrhead{display:grid;grid-template-columns:1.4fr 1.4fr .8fr .8fr .8fr;gap:8px;
+    color:var(--text-dim);font-size:var(--fs-xxs);letter-spacing:1px;text-transform:uppercase;padding:0 2px 6px;}
+  .cbx-attr{display:grid;grid-template-columns:1.4fr 1.4fr .8fr .8fr .8fr;gap:8px;align-items:center;
+    padding:6px 2px;border-bottom:1px solid #131f13;}
+  .cbx-attr label{color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-stepper{display:inline-flex;align-items:center;gap:8px;}
+  .cbx-step-btn{width:24px;height:24px;background:var(--bg-input);border:1px solid #2a3a2a;color:var(--green);
+    cursor:pointer;font-family:inherit;line-height:1;}
+  .cbx-step-btn:hover{border-color:var(--green);}
+  .cbx-step-btn:disabled{opacity:.35;cursor:not-allowed;border-color:#2a3a2a;}
+  .cbx-step-btn:disabled:hover{border-color:#2a3a2a;}
+  .cbx-attr__base{color:var(--text-bright);min-width:16px;text-align:center;display:inline-block;}
+  .cbx-attr__mod{color:var(--cyan);font-size:var(--fs-sm);}
+  .cbx-attr__final{color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-attr__final.is-over{color:var(--red);}
+  .cbx-attr__max{color:var(--text-dim);font-size:var(--fs-xxs);}
+  .cbx-derived{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #1a2a1a;}
+  .cbx-derived span{font-size:var(--fs-xs);color:var(--text-dim);}
+  .cbx-derived strong{color:var(--green);}
+
+  .cbx-note{font-size:var(--fs-xs);color:var(--text-dim);margin:10px 2px 0;}
+  .cbx-note.is-warn{color:var(--red);}
+  .cbx-note.is-ok{color:var(--green);}
+
+  .cbx-pillrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .cbx-pill{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:7px 14px;
+    cursor:pointer;font-family:inherit;font-size:var(--fs-sm);}
+  .cbx-pill:hover{border-color:var(--green-dim);}
+  .cbx-pill.is-chosen{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.07);}
+
+  .cbx-totemgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-bottom:10px;}
+  .cbx-totem{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:7px;cursor:pointer;
+    font-family:inherit;text-align:center;font-size:var(--fs-xs);}
+  .cbx-totem.is-chosen{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.07);}
+  .cbx-totemcard{background:#0d0d0d;border:1px solid #1a2a1a;padding:10px 12px;margin-bottom:12px;}
+  .cbx-totemcard__h{color:var(--text-bright);font-size:var(--fs-md);margin-bottom:6px;}
+  .cbx-totemcard__h em{color:var(--text-dim);font-size:var(--fs-xxs);font-style:normal;margin-left:6px;}
+  .cbx-totemcard ul{margin:0 0 8px;padding-left:18px;}
+  .cbx-totemcard li{font-size:var(--fs-xs);}
+  .cbx-perk--good{color:var(--green);}
+  .cbx-perk--bad{color:var(--red);}
+  .cbx-totemcard__geas{font-size:var(--fs-xs);color:var(--text-dim);margin:0;}
+
+  .cbx-line{display:flex;align-items:center;gap:10px;padding:6px 8px;background:#0d0d0d;border:1px solid #1a2a1a;margin-bottom:4px;}
+  .cbx-line__n{flex:1;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-line__n em{color:var(--text-dim);font-style:normal;font-size:var(--fs-xxs);}
+  .cbx-line__f{color:var(--text-dim);font-size:var(--fs-xs);white-space:nowrap;}
+  .cbx-x{color:rgba(255,51,51,.6);cursor:pointer;background:none;border:none;font-size:var(--fs-md);font-family:inherit;}
+  .cbx-x:hover{color:var(--red);}
+  .cbx-mini{width:52px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);
+    padding:3px 5px;font-family:inherit;font-size:var(--fs-xs);}
+  .cbx-empty{color:var(--text-dim);font-size:var(--fs-xs);font-style:italic;margin:4px 0 12px;}
+
+  .cbx-skillfocus{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px 0;padding-left:2px;}
+  .cbx-skillfocus input{flex:1;min-width:140px;background:var(--bg-input);border:1px solid #1a2a1a;
+    color:var(--text-bright);padding:5px 8px;font-family:inherit;font-size:var(--fs-xs);}
+  .cbx-tiers{margin:0 0 8px 2px;padding-left:2px;color:var(--text-dim);font-size:var(--fs-xs);}
+  .cbx-tiers strong{color:var(--accent-cyan);}
+  .cbx-skillcat{margin-bottom:6px;}
+  .cbx-skillcat__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:2px;text-transform:uppercase;
+    margin:10px 0 4px;padding-bottom:3px;border-bottom:1px solid #2a1a00;}
+  .cbx-skillcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:8px 0 4px;}
+  .cbx-skillcard{border:1px solid #1a2a1a;background:#0d0d0d;padding:8px 10px;}
+  .cbx-skillcard__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:2px;text-transform:uppercase;
+    margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #2a1a00;}
+  .cbx-skillcard__list{display:flex;flex-wrap:wrap;gap:5px;}
+  .cbx-skillchip{background:var(--bg-input);border:1px solid #24381f;color:var(--text-bright);padding:4px 8px;
+    font-family:inherit;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap;}
+  .cbx-skillchip:hover{border-color:var(--green);color:var(--green);}
+  .cbx-skillchip.is-taken{opacity:.4;cursor:default;text-decoration:line-through;}
+  .cbx-skillrow{display:flex;align-items:center;gap:8px;padding:3px 0;}
+  .cbx-skillrow__label{flex:1 1 auto;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-skillrow__label strong{color:var(--accent-cyan);}
+  .cbx-narrowsel{flex:0 0 auto;max-width:180px;background:var(--bg-input);border:1px solid #1a2a1a;
+    color:var(--text-bright);padding:5px 8px;font-family:inherit;font-size:var(--fs-xs);}
+  .cbx-narrowsel:disabled{color:var(--text-dim);opacity:.55;}
+  .cbx-narrowsel--needs{border-color:var(--red);color:var(--red);}
+  .cbx-narrowsel--needs option{color:var(--text-bright);}
+  .cbx-skillrow--needs .cbx-skillrow__label{color:var(--red);}
+  .cbx-langname{flex:1;min-width:140px;background:var(--bg-input);border:1px solid #1a2a1a;
+    color:var(--text-bright);padding:5px 8px;font-family:inherit;font-size:var(--fs-xs);}
+  .cbx-addlang{margin:4px 0 4px 2px;background:transparent;border:1px dashed #2a4a2a;color:var(--text-dim);
+    padding:5px 10px;font-family:inherit;font-size:var(--fs-xs);cursor:pointer;}
+  .cbx-addlang:hover{color:var(--text-bright);border-color:var(--accent-cyan);}
+
+  .cbx-shop{margin-top:14px;padding-top:12px;border-top:1px solid #1a2a1a;}
+  .cbx-search{width:100%;box-sizing:border-box;background:var(--bg-input);border:1px solid #1a2a1a;
+    color:var(--text-bright);padding:7px 10px;font-family:inherit;font-size:var(--fs-sm);margin-bottom:8px;}
+  .cbx-shoplist{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto;}
+  .cbx-shoprow{display:flex;align-items:center;gap:10px;padding:7px 9px;background:#0d0d0d;border:1px solid #16261a;
+    cursor:pointer;font-family:inherit;text-align:left;color:var(--text-dim);width:100%;}
+  .cbx-shoprow:hover{border-color:var(--green-dim);color:var(--text-bright);}
+  .cbx-shoprow.is-owned{opacity:.4;cursor:default;}
+  .cbx-shoprow__n{flex:1;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-shoprow__m{font-size:var(--fs-xxs);color:var(--text-dim);white-space:nowrap;}
+  .cbx-shoprow__c{color:var(--text-dim);font-size:.55rem;margin-left:2px;}
+  .cbx-shopitem{display:flex;flex-direction:column;background:#0d0d0d;border:1px solid #16261a;}
+  .cbx-shopitem:hover,.cbx-shopitem.is-open{border-color:var(--green-dim);}
+  .cbx-shopitem .cbx-shoprow{border:none;background:transparent;}
+  .cbx-shopdesc{padding:2px 11px 10px;border-top:1px dashed #1c3320;}
+  .cbx-shopdesc__d{color:var(--text-dim);font-size:var(--fs-xs);margin:8px 0 6px;line-height:1.45;}
+  .cbx-shopdesc__l{margin:0 0 8px;padding-left:16px;color:var(--text-dim);font-size:var(--fs-xxs);line-height:1.5;}
+  .cbx-shopdesc__s{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;}
+  .cbx-stat{font-size:var(--fs-xxs);color:var(--text-dim);background:var(--bg-input);border:1px solid #1a2a1a;padding:2px 6px;}
+  .cbx-stat b{color:var(--accent-cyan);font-weight:600;}
+  .cbx-shopdesc__act{display:flex;align-items:center;gap:10px;}
+
+  .cbx-tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;}
+  .cbx-tab{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:6px 12px;
+    cursor:pointer;font-family:inherit;font-size:var(--fs-xs);letter-spacing:.5px;text-transform:uppercase;}
+  .cbx-tab.is-active{border-color:var(--cyan);color:var(--cyan);}
+  .cbx-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:900px){.cbx-resgrid{grid-template-columns:1fr;}}
+  .cbx-owned-wrap{min-width:0;}
+
+  .cbx-form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:16px;}
+  .cbx-form label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-xxs);color:var(--text-dim);
+    letter-spacing:1px;text-transform:uppercase;}
+  .cbx-form input,.cbx-form select{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);
+    padding:7px 10px;font-family:inherit;font-size:var(--fs-sm);}
+  .cbx-form__wide{grid-column:1/-1;}
+  .cbx-form__perm{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:var(--fs-xxs);
+    color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin:-6px 0 16px;}
+  .cbx-form__perm input{flex:0 0 auto;width:auto;}
+
+  .cbx-summary{background:#0d0d0d;border:1px solid #1a2a1a;padding:14px 16px;margin-bottom:16px;}
+  .cbx-summary__h{color:var(--green);font-size:var(--fs-md);margin-bottom:10px;text-shadow:var(--glow-green);}
+  .cbx-summary__h em{color:var(--text-dim);font-style:normal;font-size:var(--fs-xs);}
+  .cbx-summary__line{color:var(--text-dim);font-size:var(--fs-xs);margin-top:8px;}
+  /* Tighter stat cards: label on top, big number below; grouped under amber headers with a divider
+     separating Reaction/Initiative. Scoped to this grid so the shared .rev-cell review grids
+     (e.g. matrix-designer) keep their text style. */
+  .md3 .cbx-statgrid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin-bottom:6px;}
+  .md3 .cbx-statgrid .rev-cell{padding:7px 6px;display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .md3 .cbx-statgrid .rev-cell .k{margin:0 0 3px;text-transform:uppercase;letter-spacing:.5px;}
+  .md3 .cbx-statgrid .rev-cell .v{font-family:var(--font-display);font-size:1.25rem;line-height:1;color:var(--green);white-space:nowrap;}
+  .cbx-statgroup__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:2px;text-transform:uppercase;margin:12px 0 6px;}
+  .cbx-statsep{grid-column:1/-1;height:1px;background:#1a2a1a;margin:3px 0 5px;}
+  .aug-skills{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:4px;}
+  .aug-skill{color:var(--text-bright);font-size:var(--fs-xs);}
+  .aug-skill em{color:var(--cyan);font-style:normal;}
+
+  .cbx-meter{margin-bottom:12px;}
+  .cbx-meter__top{display:flex;justify-content:space-between;font-size:var(--fs-xxs);color:var(--text-dim);
+    letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;}
+  .cbx-meter__top span:last-child{color:var(--text-bright);}
+  .cbx-meter__bar{height:5px;background:#151f15;border:1px solid #1a2a1a;overflow:hidden;}
+  .cbx-meter__bar i{display:block;height:100%;background:var(--green-dim);}
+  .cbx-meter.is-over .cbx-meter__bar i{background:var(--red);}
+  .cbx-meter.is-over .cbx-meter__top span:last-child{color:var(--red);}
+  .cbx-meter.is-done .cbx-meter__top span:last-child{color:var(--green);}
+
+  .cbx-help{color:var(--text-dim);font-size:var(--fs-xxs);}
+  .cbx-savebar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:var(--fs-xs);}
+  .cbx-savebar__dot{color:var(--green-dim);}
+  .cbx-savebar__actions{display:flex;gap:8px;align-items:center;}
+  .cbx-landing__h{color:var(--text-bright);font-size:var(--fs-md);letter-spacing:1px;margin:4px 0 2px;}
+  .cbx-landing__sub{color:var(--text-dim);font-size:var(--fs-xs);margin-bottom:12px;}
+  .cbx-landgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;}
+  .cbx-landcard{display:flex;flex-direction:column;gap:6px;text-align:left;min-height:96px;background:#0d0d0d;
+    border:1px solid #1a2a1a;padding:16px;font-family:inherit;cursor:pointer;color:var(--text-dim);
+    transition:border-color .15s,background .15s;}
+  .cbx-landcard:hover{border-color:var(--green-dim);background:rgba(0,255,65,.04);}
+  .cbx-landcard__h{color:var(--text-bright);font-size:var(--fs-md);letter-spacing:.5px;}
+  .cbx-landcard__m{font-size:var(--fs-xxs);color:var(--text-dim);letter-spacing:.5px;}
+  .cbx-landcard__a{margin-top:auto;color:var(--green);font-size:var(--fs-xs);}
+  .cbx-landcard--new{border-style:dashed;border-color:#2f4a2f;}
+  .cbx-landcard--new .cbx-landcard__h{color:var(--green);}
+  .cbx-sources{border:1px solid #1a2a1a;background:#0d0d0d;margin-bottom:12px;}
+  .cbx-sources summary{cursor:pointer;padding:8px 12px;color:var(--amber);letter-spacing:1px;
+    text-transform:uppercase;font-size:var(--fs-xxs);}
+  .cbx-src-grid{display:flex;flex-wrap:wrap;gap:6px 18px;padding:4px 14px 12px;}
+  .cbx-src{display:flex;align-items:center;gap:6px;color:var(--text-dim);font-size:var(--fs-xs);}
+  .cbx-src input{width:auto;}
+  #cbxModeBanner:not(:empty){margin-bottom:12px;padding:8px 12px;background:rgba(0,200,255,.06);
+    border:1px solid #14384a;color:var(--cyan);font-size:var(--fs-xs);letter-spacing:.5px;}
+  .cbx-resume{margin:0 0 14px;padding:8px 12px;background:#0d0d0d;border:1px solid #1a2a1a;font-size:var(--fs-xs);color:var(--text-dim);}
+  .cbx-resume select{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);
+    padding:4px 8px;font-family:inherit;font-size:var(--fs-xs);margin-left:6px;}
+  .cbx-gap{margin-top:16px;padding:10px 12px;background:rgba(255,153,0,.05);border:1px solid #3a2a0a;}
+  .cbx-gap__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+  .cbx-gap p{color:var(--text-dim);font-size:var(--fs-xs);margin:0;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="character-builder.html" class="active">Dossier Intake</a>
+  </nav>
+</header>
+
+<main>
+<div class="md3 cbx">
+  <div class="page-title">&gt;&gt; SIN REGISTRY <em class="sep">//</em> RUNNER DOSSIER INTAKE</div>
+  <div class="page-sub" style="color:var(--cyan)">SR2 CHARACTER GENESIS // PRIORITY-BASED // FASA7901</div>
+
+  <div class="cbx-savebar">
+    <span><span class="cbx-savebar__dot" id="cbxSaveDot">*</span> <span id="cbxSaveLabel">draft saved locally</span></span>
+    <span class="cbx-savebar__actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="cbxSaveServer">Save Runner Draft</button>
+      <button type="button" class="btn btn-red btn-sm" id="cbxReset">Reset Draft</button>
+    </span>
+  </div>
+  <div id="cbxModeBanner"></div>
+  <div id="cbxSources"></div>
+
+  <div id="cbxLanding" style="display:none"></div>
+
+  <div class="md3-panes">
+
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Dossier Sections</div>
+        <div class="pane-bd">
+          <div class="wizard-steps-bar" id="cbxRail"></div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="md3-center">
+      <div class="pane">
+        <div class="pane-bd" id="cbxStepBody">Loading reference data&hellip;</div>
+      </div>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-ghost" id="cbxPrev">&lsaquo; Back</button>
+        <button type="button" class="btn btn-ghost" id="cbxNext">Next &rsaquo;</button>
+      </div>
+    </section>
+
+    <aside class="md3-side">
+      <div class="pane">
+        <div class="pane-hd">Compliance</div>
+        <div class="pane-bd" id="cbxBudget"></div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+</main>
+
+<script>
+(() => {
+"use strict";
+
+const LETTERS = ["A","B","C","D","E"];
+const ATTRS = ["body","quickness","strength","charisma","intelligence","willpower"];
+const ALABEL = {body:"Body",quickness:"Quickness",strength:"Strength",charisma:"Charisma",intelligence:"Intelligence",willpower:"Willpower"};
+const STEPS = ["Case Priorities","Subject Classification","Physiological Baseline","Arcane Profile","Trained Capabilities","Asset Manifest","Case File Summary"];
+const CHARGEN_SKILL_MAX = 6;
+const LIFESTYLE_TIERS = ["Street","Squatter","Low","Middle","High","Luxury"];
+// SR2 p.245 monthly upkeep per tier; buying a lifestyle outright costs 100 months.
+const LIFESTYLE_MONTHLY = [0, 100, 1000, 5000, 10000, 100000];
+const LIFESTYLE_PERMANENT_MONTHS = 100;
+
+// Cyberware grades available AT CHARGEN only: Standard and Alphaware. Beta (career) and
+// Delta (GM) are never buyable during character creation, so they're not offered here.
+// Alpha requires the Street Samurai Catalog (SSC) book toggle. Bioware has no grades.
+const GRADES = {
+  Standard: { ess: 1.0, nuyen: 1, book: null },
+  Alpha:    { ess: 0.8, nuyen: 2, book: "SSC" },
+};
+const GRADE_ORDER = ["Standard","Alpha"];
+
+// Shop tab key -> catalog endpoint name + state.gear bucket. Bucket === tab key.
+const SHOP_DEFS = [
+  { k:"weapons",  cat:"weapons",   label:"Weapons"   },
+  { k:"armor",    cat:"armor",     label:"Armor"     },
+  { k:"cyber",    cat:"cyberware", label:"Cyberware" },
+  { k:"bio",      cat:"bioware",   label:"Bioware"   },
+  { k:"gear",     cat:"gear",      label:"Gear",     pick:(it)=>it.cat!=="deck" },
+  { k:"matrix",   cat:"gear",      label:"Matrix",   pick:(it)=>it.cat==="deck" },
+  { k:"vehicles", cat:"vehicles",  label:"Vehicles"  },
+];
+const GEAR_KEYS = SHOP_DEFS.map(d => d.k);
+
+// -- Reference data (loaded from /catalog) ------------------------------------
+let RULES = null;          // /catalog/rules bundle
+let PR, META, SKILLS, TOTEMS, KITS, MAGIC_RULES, CHARGEN, FOCI = [];
+let CONTACT_ARCHETYPES = [];
+// PC archetypes offered at chargen -- mirrors the runner options on manage-characters so new
+// builds line up with the world-state cards. "Custom" reveals a free-text field.
+const PC_ARCHETYPES = ["Street Samurai", "Decker", "Rigger", "Mage", "Shaman", "Adept"];
+let MY_DRAFTS = [];
+let LIFESTYLES = LIFESTYLE_TIERS.slice();
+const CAT = {};            // catalog name -> item list
+let SKILL_SPECS = {};      // GM overlay: skill -> concentration -> [specializations]
+let VEHICLE_CLASSES = {};  // GM overlay: vehicle name -> {skill, conc} (drives (SV))
+let enabledBooks = new Set();
+let BOOKS_INFO = null;
+let dataReady = false;
+
+const KEY = "sr2_dossier_v1";
+let state = normalizeState(load() || freshState());
+let shopTab = "weapons";
+let shopFilter = "";
+let shopInspect = null;    // name of the shop item whose summary is expanded
+
+// Hold-to-repeat for the +/- steppers (consistent with the number steppers elsewhere in the app).
+// render() rebuilds the buttons on every tick, so the repeat loop lives on a module-global and is
+// stopped by a document-level release -- the original button is already gone. A quick click fires once.
+let _stepRepeat = null;
+function stopStepRepeat() {
+  if (!_stepRepeat) return;
+  clearTimeout(_stepRepeat.t1); clearInterval(_stepRepeat.t2); _stepRepeat = null;
+}
+function startStepRepeat(fn) {
+  stopStepRepeat();
+  fn();  // immediate -- also covers a plain click
+  const h = { t1: null, t2: null };
+  h.t1 = setTimeout(() => { h.t2 = setInterval(fn, 110); }, 350);
+  _stepRepeat = h;
+}
+function bindStepper(el, fn) {
+  el.onmousedown = (e) => { e.preventDefault(); startStepRepeat(fn); };
+  el.ontouchstart = (e) => { e.preventDefault(); startStepRepeat(fn); };
+}
+document.addEventListener("mouseup", stopStepRepeat);
+document.addEventListener("touchend", stopStepRepeat);
+document.addEventListener("touchcancel", stopStepRepeat);
+
+function freshState() {
+  return {
+    step: 0,
+    prio: { race:"", magic:"", attributes:"", skills:"", resources:"" },
+    metatype: "Human",
+    base: { body:1, quickness:1, strength:1, charisma:1, intelligence:1, willpower:1 },
+    magicType: null,
+    tradition: null,
+    totem: null,
+    spells: [],
+    powers: [],
+    foci: [],
+    skills: [],
+    gear: { weapons:[], armor:[], cyber:[], bio:[], gear:[], vehicles:[], matrix:[] },
+    programs: [],
+    draftId: null,
+    convertId: null,
+    contacts: [{ name:"", archetype:"", level:"Contact" }, { name:"", archetype:"", level:"Contact" }],
+    languages: [],
+    identity: { handle:"", name:"", sex:"", age:"", archetype:"", archetypeCustom:"", nationality:"", lifestyle:"Street", lifestylePermanent:false, desc:"" },
+  };
+}
+
+// Backfill any keys a draft from an older shape is missing (e.g. new gear buckets).
+function normalizeState(s) {
+  const fresh = freshState();
+  const out = { ...fresh, ...s };
+  out.prio = { ...fresh.prio, ...(s.prio||{}) };
+  out.base = { ...fresh.base, ...(s.base||{}) };
+  out.identity = { ...fresh.identity, ...(s.identity||{}) };
+  out.gear = { ...fresh.gear, ...(s.gear||{}) };
+  GEAR_KEYS.forEach(k => { if (!Array.isArray(out.gear[k])) out.gear[k] = []; });
+  ["spells","powers","skills","contacts","languages","foci","programs"].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  // Migrate cyber lines from a pre-grade draft (flat ess/cost) to the graded model.
+  out.gear.cyber.forEach(g => {
+    if (g.grade === undefined) g.grade = "Standard";
+    if (!GRADES[g.grade]) g.grade = "Standard";   // Beta/Delta are no longer offered at chargen
+    if (g.baseEss === undefined) g.baseEss = Number(g.ess) || 0;
+    if (g.baseCost === undefined) g.baseCost = Number(g.cost) || 0;
+  });
+  return out;
+}
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(state));
+  const dot = document.getElementById("cbxSaveDot");
+  if (dot) { dot.style.color = "var(--green)"; setTimeout(() => dot.style.color = "", 400); }
+  scheduleServerSync();
+}
+function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+
+const money = (n) => (Number(n)||0).toLocaleString("en-US") + "\u00A5";
+const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
+const round2 = (n) => Math.round((Number(n)||0) * 100) / 100;
+
+// Parse a leading number out of a value that may be a number, a formula string,
+// a range ("15,000 - 60,000"), or null. Returns 0 when nothing numeric is present.
+function parseNum(v) {
+  if (typeof v === "number") return v;
+  if (typeof v !== "string") return 0;
+  const m = v.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+
+// ---- derived / budget --------------------------------------------------------
+function isMeta() { return state.prio.race === "A"; }
+function metatype() { return META[isMeta() ? state.metatype : "Human"] || META.Human; }
+function naturalAttr(a) { return state.base[a] + ((metatype().mods||{})[a] || 0); }
+// Augmentation bonuses from installed cyberware + bioware: fixed `mods` + per-rating `modsPer`.
+function augAttr(a) {
+  let t = 0;
+  state.gear.cyber.forEach(g => { if (g.mods) t += Number(g.mods[a]) || 0; if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * cyberRating(g); });
+  state.gear.bio.forEach(g => { if (g.mods) t += Number(g.mods[a]) || 0; if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * bioRating(g); });
+  return t;
+}
+// Shown/exported attributes include augmentation. Body Index cap + capBody ratings use naturalAttr
+// so a +Body augmentation can never raise the bioware Body-Index capacity.
+function finalAttr(a) { return naturalAttr(a) + augAttr(a); }
+function attrBudget() { return (PR.attributes||{})[state.prio.attributes] || 0; }
+// SR2 p.42: attribute points ARE the total of your six ratings (each starts at a mandatory 1).
+function attrSpent() { return ATTRS.reduce((s,a) => s + state.base[a], 0); }
+function skillBudget() { return (PR.skills||{})[state.prio.skills] || 0; }
+function languagesSpent() { return state.languages.reduce((s,l) => s + Number(l.rating||0), 0); }
+function skillSpent() { return state.skills.reduce((s,x) => s + Number(x.rating||0), 0) + languagesSpent(); }
+function res() { return (PR.resources||{})[state.prio.resources] || { nuyen:0, fp:0 }; }
+function gearNuyen() { return GEAR_KEYS.reduce((s,k) => s + state.gear[k].reduce((s2,g) => s2 + (k==="cyber" ? effCyberCost(g) : k==="bio" ? bioCost(g) : k==="vehicles" ? vehicleLineCost(g) : gearLineCost(g)), 0), 0); }
+// Rated plain gear (e.g. rigger modules priced "Cost Rating x N"): rating picker + computed cost.
+function gearRating(g) { return clamp(Number(g.rating)||1, 1, Math.max(1, Number(g.maxRating)||1)); }
+function gearLineCost(g) {
+  if (!g.rated) return Number(g.cost)||0;
+  const r = gearRating(g);
+  if (Array.isArray(g.costTbl) && g.costTbl[r-1] != null) return Number(g.costTbl[r-1])||0;
+  return (Number(g.costUnit)||0) * r;
+}
+// Rigger adaptation makes a vehicle riggable/remote-controllable: (Body x 2500) + 2800 nuyen.
+function riggerGearCost(body) { return (Number(body)||0) * 2500 + 2800; }
+function vehicleBodyOf(g) {
+  if (g.body != null) return Number(g.body) || 0;
+  const it = (CAT.vehicles || []).find(x => x.n === g.n);
+  return it ? vehicleStatBody(it) : 0;
+}
+function vehicleLineCost(g) { return (Number(g.cost)||0) + (g.rigger ? riggerGearCost(vehicleBodyOf(g)) : 0); }
+function contactCost(i, level) {
+  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
+  if (i < free) return 0;
+  const buddy = (CHARGEN && CHARGEN.buddyCost) || 10000;
+  const contact = (CHARGEN && CHARGEN.contactCost) || 5000;
+  return level === "Buddy" ? buddy : contact;
+}
+function contactsNuyen() { return state.contacts.reduce((s,c,i) => s + contactCost(i, c.level), 0); }
+// Lifestyle: monthly upkeep for the chosen tier; buying it outright costs 100 months.
+function lifestyleLevel() { return LIFESTYLE_TIERS.indexOf(state.identity.lifestyle); }
+function lifestyleMonthly() { const lvl = lifestyleLevel(); return lvl >= 0 ? (LIFESTYLE_MONTHLY[lvl] || 0) : 0; }
+function lifestylePermanentPrice() { return lifestyleMonthly() * LIFESTYLE_PERMANENT_MONTHS; }
+function lifestylePermanentCost() { return state.identity.lifestylePermanent ? lifestylePermanentPrice() : 0; }
+function nuyenSpent() { return gearNuyen() + contactsNuyen() + programsNuyen() + fociNuyen() + lifestylePermanentCost(); }
+// ---- deckware programs (SR2 utility cost, mirrors the Deck Workshop buy math) ----
+// buyCost = Rating^2 * multiplier * pfFactor(Rating). Multipliers are workshop-only build economics.
+const PROGRAM_MULT = {
+  analyze:3, browse:1, crash:3, defuse:2, deception:2, decrypt:1, disinfect:2,
+  evaluate:2, mirrors:3, read_write:2, relocate:2, scanner:3, validate_pgm:4,
+  compressor:2, sleaze:3, attack:2, black_hammer:20, hog:3, killjoy:10,
+  lock_on:3, poison:3, restrict:3, reveal:3, slow:4, steamroller:3,
+  armor:3, camo:3, cloak:3, medic:4, restore:3, shield:4,
+};
+const ATTACK_DMG_MULT = { L:2, M:3, S:4, D:5 };
+const PROGRAM_MAX_RATING = 12;
+function programPfFactor(r) { return r<=3 ? 100 : r<=6 ? 200 : r<=9 ? 500 : 1000; }
+function programMult(p) { return p.prog === "attack" ? (ATTACK_DMG_MULT[p.dmg] || 3) : (PROGRAM_MULT[p.prog] || 1); }
+function programCost(p) { const r = Math.max(1, Number(p.rating)||1); return r*r*programMult(p)*programPfFactor(r); }
+function programsNuyen() { return (state.programs||[]).reduce((s,p) => s + programCost(p), 0); }
+function programCatalog() { return (window.MatrixPrograms && window.MatrixPrograms.programs) || []; }
+function programDisplay(key) { const p = window.MatrixPrograms && window.MatrixPrograms.get(key); return p ? p.display : key; }
+// One browsable program row (expand for the summary, then add to the loadout) -- like a gear row.
+function programShopRow(p, added) {
+  const key = "prog:" + p.key;
+  const open = shopInspect === key;
+  const detail = open ? `<div class="cbx-shopdesc">
+      ${p.description ? `<p class="cbx-shopdesc__d">${esc(p.description)}</p>` : ""}
+      <div class="cbx-shopdesc__s"><span class="cbx-stat"><b>Size mult</b> ${esc(String(PROGRAM_MULT[p.key] || "?"))}${p.key === "attack" ? " (x damage level)" : ""}</span></div>
+      <div class="cbx-shopdesc__act">
+        ${added ? `<span class="cbx-help">In your Matrix loadout (left)</span>`
+                : `<button type="button" class="btn btn-green btn-sm" data-progadd="${esc(p.key)}">+ Add to loadout</button>`}
+      </div>
+    </div>` : "";
+  return `<div class="cbx-shopitem ${open ? "is-open" : ""}">
+    <button type="button" class="cbx-shoprow" data-proginspect="${esc(p.key)}" aria-expanded="${open}">
+      <span class="cbx-shoprow__n">${esc(p.display)}</span>
+      <span class="cbx-shoprow__m">${esc(p.category)}</span>
+      <span class="cbx-shoprow__c">${open ? "&#9650;" : "&#9660;"}</span>
+    </button>${detail}</div>`;
+}
+function programRowsHTML() {
+  if (!(state.programs && state.programs.length)) return `<p class="cbx-empty">No programs yet.</p>`;
+  return state.programs.map((p,i) => {
+    const isAtk = p.prog === "attack";
+    const def = window.MatrixPrograms && window.MatrixPrograms.get(p.prog);
+    const rateSel = `<select class="cbx-mini" style="width:auto" data-prograte="${i}" title="Rating">` +
+      Array.from({length: PROGRAM_MAX_RATING}, (_,n) => n+1).map(r => `<option value="${r}"${(Number(p.rating)||1)===r?" selected":""}>R${r}</option>`).join("") + `</select>`;
+    const dmgSel = isAtk ? `<select class="cbx-mini" style="width:auto" data-progdmg="${i}" title="Damage">` +
+      ["L","M","S","D"].map(d => `<option value="${d}"${(p.dmg||"M")===d?" selected":""}>${d}</option>`).join("") + `</select>` : "";
+    return `<div class="cbx-line"><span class="cbx-line__n">${esc(programDisplay(p.prog))} <em>${esc(def ? def.category : "")}</em></span>
+      ${rateSel}${dmgSel}
+      <span class="cbx-line__f">${money(programCost(p))}</span>
+      <button type="button" class="cbx-x" data-progdel="${i}">&#10005;</button></div>`;
+  }).join("");
+}
+function nuyenCommitted() { return nuyenSpent(); }
+function nuyenLeftover() { return Math.max(0, res().nuyen - nuyenSpent()); }
+function startingCash() { return Math.floor(nuyenLeftover() / 10); }
+function fpSpent() { return state.spells.reduce((s,x) => s + Number(x.force||0), 0) + fociFp(); }
+function fpBudget() { return res().fp || 0; }
+// Over-budget checks blocking a final commit (drafts may exceed; committing may not).
+function budgetViolations() {
+  const v = [];
+  if (attrSpent() > attrBudget()) v.push(`Attributes (${attrSpent()}/${attrBudget()} points)`);
+  if (skillSpent() > skillBudget()) v.push(`Skills (${skillSpent()}/${skillBudget()} points)`);
+  if (nuyenSpent() > res().nuyen) v.push(`Resources (${money(nuyenSpent())}/${money(res().nuyen)})`);
+  if (fpSpent() > fpBudget() && (state.magicType === "Full Mage" || (state.foci && state.foci.length))) v.push(`Force Points (${fpSpent()}/${fpBudget()})`);
+  if (state.magicType === "Adept" && ppSpent() > ppBudget()) v.push(`Power Points (${round2(ppSpent())}/${ppBudget()})`);
+  const cyberEss = state.gear.cyber.reduce((s,g) => s + effCyberEss(g), 0);
+  if (cyberEss > 6) v.push(`Cyberware Essence (${cyberEss.toFixed(2)}/6.00)`);
+  if (bodyIndex() > naturalAttr("body")) v.push(`Body Index (${bodyIndex().toFixed(2)}/${naturalAttr("body")} = natural Body)`);
+  return v;
+}
+// ---- foci (SR2 p.137 bonding karma / p.263 nuyen) ----------------------------
+function focusDef(name) { return (FOCI||[]).find(f => f.n === name) || null; }
+function focusNuyen(f, rating) { if (!f) return 0; if (f.nuyenFlat != null) return f.nuyenFlat; return (f.nuyenBase||0) + (f.nuyenPer||0) * (Number(rating)||1); }
+function focusKarma(f, rating) { if (!f) return 0; if (f.karmaFlat != null) return f.karmaFlat; return (f.karmaPer||0) * (Number(rating)||1); }
+function fociNuyen() { return awakened() ? state.foci.reduce((t,x) => t + focusNuyen(focusDef(x.type), x.rating), 0) : 0; }
+function fociFp() { return awakened() ? state.foci.reduce((t,x) => t + focusKarma(focusDef(x.type), x.rating), 0) : 0; }
+// ---- cyberware grades --------------------------------------------------------
+function gradeEss(baseEss, grade) {
+  const m = (GRADES[grade] || GRADES.Standard).ess;
+  const v = Math.ceil((Number(baseEss)||0) * m * 100) / 100;  // round UP to 2 decimals
+  return (Number(baseEss)||0) > 0 ? Math.max(0.05, v) : 0;    // essence floor of 0.05
+}
+function gradeCost(baseCost, grade) { return Math.round((Number(baseCost)||0) * (GRADES[grade] || GRADES.Standard).nuyen); }
+// Rating-aware pre-grade base: rated items read their per-level essTbl/costTbl (authoritative,
+// handles non-linear tables like Bone Lacing) and fall back to a per-level unit x Rating.
+// minRating supports band entries (e.g. Skillwire Plus R4-6): the picker and tables start at minRating.
+function cyberRating(g) { const lo = Number(g.minRating) || 1; return clamp(Number(g.rating) || lo, lo, Math.max(lo, Number(g.maxRating) || lo)); }
+function cyberBaseEss(g) {
+  if (!g.rated) return Number(g.baseEss) || 0;
+  const lo = Number(g.minRating) || 1, r = cyberRating(g);
+  if (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) return Number(g.essTbl[r-lo]) || 0;
+  return (Number(g.essUnit) || 0) * r;
+}
+function cyberBaseCost(g) {
+  if (!g.rated) return Number(g.baseCost) || 0;
+  const lo = Number(g.minRating) || 1, r = cyberRating(g);
+  if (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) return Number(g.costTbl[r-lo]) || 0;
+  return (Number(g.costUnit) || 0) * r;
+}
+function effCyberEss(g) { return g.noGrade ? cyberBaseEss(g) : gradeEss(cyberBaseEss(g), g.grade || "Standard"); }
+function effCyberCost(g) { return g.noGrade ? cyberBaseCost(g) : gradeCost(cyberBaseCost(g), g.grade || "Standard"); }
+// Bioware Rating (Body Index cost + nuyen), mirroring the cyber rating helpers. Bioware has no grades.
+// Rating ceiling: capBody items cap at the character's (natural, unaugmented) Body.
+function bioMaxRating(g) { return g.capBody ? Math.max(1, naturalAttr("body")) : (Number(g.maxRating) || 1); }
+function bioRating(g) { const lo = Number(g.minRating) || 1; return clamp(Number(g.rating) || lo, lo, Math.max(lo, bioMaxRating(g))); }
+function bioBaseEss(g) {
+  if (!g.rated) return Number(g.ess) || 0;
+  const lo = Number(g.minRating) || 1, r = bioRating(g);
+  if (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) return Number(g.essTbl[r-lo]) || 0;
+  return (Number(g.essUnit) || 0) * r;
+}
+function bioCost(g) {
+  if (!g.rated) return Number(g.cost) || 0;
+  const lo = Number(g.minRating) || 1, r = bioRating(g);
+  if (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) return Number(g.costTbl[r-lo]) || 0;
+  return (Number(g.costUnit) || 0) * r;
+}
+function gradeSelectable(grade) {
+  const g = GRADES[grade]; if (!g) return false;
+  if (grade === "Standard") return true;
+  return !g.book || enabledBooks.has(g.book);          // Alpha needs its sourcebook enabled
+}
+function gradeNote(grade) {
+  const g = GRADES[grade];
+  if (g && g.book && !enabledBooks.has(g.book)) return "enable " + g.book;
+  return "";
+}
+
+function essence() { return Math.max(0, 6 - state.gear.cyber.reduce((s,g) => s + effCyberEss(g), 0)); }
+function bodyIndex() { return state.gear.bio.reduce((s,g) => s + bioBaseEss(g), 0); }
+function awakened() { return state.magicType && state.magicType !== "Mundane"; }
+function magicRating() { return awakened() ? Math.floor(essence()) : 0; }
+function ppBudget() { return state.magicType === "Adept" ? magicRating() : 0; }
+function ppSpent() { return state.powers.reduce((s,p) => s + (Number(p.ppEach)||0) * (p.rated ? (p.lvl||1) : 1), 0); }
+function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
+function initDice() { return 1 + augAttr("initDice"); }
+function combatPool() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence") + finalAttr("willpower")) / 2) + poolBonus("combat"); }
+// Dice-pool bonuses from installed cyber/bio: Encephalon/Cerebral Booster -> task, Math SPU -> hack,
+// Tactical Computer -> combat. poolTbl[name] is an array indexed by the item's effective rating.
+function poolBonus(name) {
+  let t = 0;
+  state.gear.cyber.forEach(g => { const tbl = g.poolTbl && g.poolTbl[name]; if (tbl) t += Number(tbl[cyberRating(g)-1]) || 0; });
+  state.gear.bio.forEach(g => { const tbl = g.poolTbl && g.poolTbl[name]; if (tbl) t += Number(tbl[bioRating(g)-1]) || 0; });
+  return t;
+}
+function taskPool() { return poolBonus("task"); }
+// Pools shown only when their requirements are met AND the value is > 0 (null == not applicable).
+function statVal(item, key) {
+  const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
+  return row ? (parseNum(row[1]) || 0) : 0;
+}
+function deckMpcp() {  // MPCP of the best owned cyberdeck (0 = no deck)
+  let mx = 0;
+  (state.gear.matrix || []).forEach(g => { const v = Number(g.mpcp) || statVal((CAT.gear || []).find(x => x.n === g.n), "MPCP"); if (v > mx) mx = v; });
+  return mx;
+}
+function vcrLevel() {  // level of the best Vehicle Control Rig installed (0 = none)
+  let lvl = 0;
+  (state.gear.cyber || []).forEach(g => { const m = /vehicle control rig level (\d)/i.exec(g.n || ""); if (m) lvl = Math.max(lvl, Number(m[1])); });
+  return lvl;
+}
+function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
+function hackingPool() { const m = deckMpcp(); return m ? Math.floor((finalAttr("intelligence") + m) / 3) + poolBonus("hack") : null; }  // needs a cyberdeck
+function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 : null; }                                                        // needs a VCR (== rigging Reaction)
+function astralPool() { return state.magicType === "Full Mage" ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + finalAttr("charisma")) / 2) : null; }  // needs astral projection
+function spellPool() { return hasSorcery() ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + magicRating()) / 3) : null; }  // needs Sorcery
+function activePools() {
+  const out = [["Combat Pool", combatPool()]];
+  const add = (label, v) => { if (v != null && v > 0) out.push([label, v]); };
+  add("Task Pool", taskPool());
+  add("Hacking Pool", hackingPool());
+  add("Control Pool", controlPool());
+  add("Astral Pool", astralPool());
+  add("Spell Pool", spellPool());
+  return out;
+}
+// Reaction / Initiative by mode: physical always; rigging adds VCR bonuses (+2 Reaction and +1 init
+// die per level, SR2 p.261); a Full Mage also has an astral line. Slash-joined for the summary card.
+function reactionModes() {
+  const modes = [{ label: "Physical", reaction: reaction(), dice: initDice() }];
+  const vcr = vcrLevel();
+  if (vcr) modes.push({ label: "Rigging", reaction: reaction() + vcr * 2, dice: initDice() + vcr });
+  if (state.magicType === "Full Mage") modes.push({ label: "Astral", reaction: finalAttr("intelligence"), dice: 1 });
+  return modes;
+}
+
+function magicOptions() {
+  if (!state.prio.magic || !MAGIC_RULES) return ["Mundane"];
+  const rank = (MAGIC_RULES.rank || {})[state.prio.magic] || 5;
+  const meta = isMeta();
+  const opts = [];
+  const fullMageThresh = (MAGIC_RULES.rank || {})[(MAGIC_RULES.fullMage || {})[meta ? "metahuman" : "human"]] || 99;
+  const adeptThresh = (MAGIC_RULES.rank || {})[(MAGIC_RULES.adept || {})[meta ? "metahuman" : "human"]] || 99;
+  if (rank <= fullMageThresh) opts.push("Full Mage");
+  if (rank <= adeptThresh) opts.push("Adept");
+  opts.push("Mundane");
+  return opts;
+}
+
+function prioLettersUsed() { return Object.values(state.prio).filter(Boolean); }
+function prioDup() { const u = prioLettersUsed(); return new Set(u).size !== u.length; }
+function prioComplete() { return prioLettersUsed().length === 5 && !prioDup(); }
+
+// ---- rail --------------------------------------------------------------------
+function renderRail() {
+  const rail = document.getElementById("cbxRail");
+  rail.innerHTML = STEPS.map((s,i) => `
+    <div class="wstep-dot ${i===state.step?"active":""} ${i<state.step?"done":""}" data-step="${i}">
+      <span class="wstep-dot__n">${i+1}</span><span class="wstep-dot__l">${esc(s)}</span></div>`).join("");
+  rail.querySelectorAll("[data-step]").forEach(el => el.onclick = () => { state.step = Number(el.dataset.step); save(); render(); });
+}
+
+// ---- budget / compliance -----------------------------------------------------
+function meter(label, spent, budget, unit, done) {
+  const over = spent > budget;
+  const pct = budget ? Math.min(100, (spent/budget)*100) : 0;
+  return `<div class="cbx-meter ${over?"is-over":""} ${done&&!over?"is-done":""}">
+    <div class="cbx-meter__top"><span>${esc(label)}</span><span>${spent}${unit||""} / ${budget}${unit||""}</span></div>
+    <div class="cbx-meter__bar"><i style="width:${pct}%"></i></div></div>`;
+}
+function renderBudget() {
+  const b = document.getElementById("cbxBudget");
+  if (!dataReady) { b.innerHTML = ""; return; }
+  let html = "";
+  html += meter("Attribute pts", attrSpent(), attrBudget(), "");
+  html += meter("Skill pts", skillSpent(), skillBudget(), "");
+  html += `<div class="cbx-meter ${nuyenCommitted()>res().nuyen?"is-over":""}">
+    <div class="cbx-meter__top"><span>Resources</span><span>${money(nuyenCommitted())} / ${money(res().nuyen)}</span></div>
+    <div class="cbx-meter__bar"><i style="width:${res().nuyen?Math.min(100,(nuyenCommitted()/res().nuyen)*100):0}%"></i></div></div>`;
+  if (awakened() && (state.magicType === "Full Mage" || (state.foci && state.foci.length))) html += meter("Force Points", fpSpent(), fpBudget(), "");
+  if (state.magicType === "Adept") html += meter("Power Points", round2(ppSpent()), ppBudget(), "");
+  html += `<div class="cbx-derived">
+    <span>Essence <strong>${essence().toFixed(2)}</strong></span>
+    <span${bodyIndex() > naturalAttr("body") ? ' style="color:var(--red,#d9534f)"' : ""}>Body Index <strong>${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</strong></span>
+    <span>Magic <strong>${magicRating()}</strong></span>
+    <span>Reaction <strong>${reaction()}</strong></span>
+    <span>Initiative <strong>${reaction()} + ${initDice()}D6</strong></span>
+    <span>Combat Pool <strong>${combatPool()}</strong></span>
+    ${activePools().slice(1).map(([lbl,val]) => `<span>${lbl} <strong>${val}</strong></span>`).join("")}
+    <span>Start Cash <strong>${money(startingCash())}</strong></span></div>`;
+  b.innerHTML = html;
+}
+
+// ---- shared row --------------------------------------------------------------
+function shopRow(name, meta, dataAttr, owned) {
+  return `<button type="button" class="cbx-shoprow ${owned?"is-owned":""}" ${owned?"disabled":dataAttr}>
+    <span class="cbx-shoprow__n">${esc(name)}</span><span class="cbx-shoprow__m">${esc(meta)}</span></button>`;
+}
+
+// ============================ STEP RENDERERS =================================
+/* STEP 0 -- CASE PRIORITIES */
+function stepPriorities() {
+  const cats = [["race","Subject Class"],["magic","Arcane Access"],["attributes","Physiology"],["skills","Training"],["resources","Assets"]];
+  const kits = Object.entries(KITS || {}).map(([k,v]) =>
+    `<button type="button" class="cbx-pill" data-kit="${esc(k)}">${esc(v.name)}</button>`).join("");
+  const grid = cats.map(([cat,label]) => `
+    <div class="cbx-priorow"><div class="cbx-priorow__label">${esc(label)}</div>
+      <div class="cbx-priorow__cells">${LETTERS.map(L => {
+        const chosen = state.prio[cat] === L;
+        const takenElsewhere = !chosen && Object.entries(state.prio).some(([c,v]) => c!==cat && v===L);
+        const val = (PR[cat] && typeof PR[cat] === "object" && !Array.isArray(PR[cat]))
+          ? (cat==="resources" ? money((PR.resources[L]||{}).nuyen) : PR[cat][L]) : PR[cat][L];
+        return `<button type="button" class="cbx-prio ${chosen?"is-chosen":""} ${takenElsewhere?"is-taken":""}"
+          data-cat="${cat}" data-letter="${L}"><span class="cbx-prio__l">${L}</span><span class="cbx-prio__v">${esc(String(val))}</span></button>`;
+      }).join("")}</div></div>`).join("");
+  const resumeOpts = (MY_DRAFTS || []).filter(d => String(d.id) !== String(state.draftId)).map(d =>
+    `<option value="${d.id}">${esc(d.name || "Unnamed draft")} (id ${d.id})</option>`).join("");
+  const resumeUI = (!state.draftId && !state.convertId && resumeOpts)
+    ? `<div class="cbx-resume">Resume an in-progress dossier:
+        <select id="cbxResumePick"><option value="">-- your saved drafts --</option>${resumeOpts}</select></div>`
+    : "";
+  return `
+    ${resumeUI}
+    <p class="cbx-p">Assign priorities <strong>A</strong> through <strong>E</strong>, once each, across the five case
+    categories below. This sets every budget for the rest of the file. <span class="cbx-cite">(SR2 p.45)</span></p>
+    <div class="cbx-kits"><span class="cbx-kits__label">Quick-start dossier</span>${kits}
+      <span class="cbx-kits__hint">-- fills a standard template you can then edit</span></div>
+    <div class="cbx-priogrid">${grid}</div>
+    <p class="cbx-note ${prioDup()?"is-warn":(prioComplete()?"is-ok":"")}">${
+      prioDup() ? "Each letter A-E must be used exactly once." :
+      prioComplete() ? "Priorities set." : `${prioLettersUsed().length}/5 assigned.`}</p>`;
+}
+
+/* STEP 1 -- SUBJECT CLASSIFICATION */
+function stepMetatype() {
+  if (!isMeta()) {
+    return `<p class="cbx-p">Metahuman options unlock only at <strong>Subject Class priority A</strong>.
+      At ${esc(state.prio.race||"--")} the subject is <strong>Human</strong>. <span class="cbx-cite">(SR2 p.45)</span></p>`;
+  }
+  const cards = Object.keys(META).map(m => {
+    const d = META[m];
+    const mods = Object.entries(d.mods||{}).map(([a,v]) => `${ALABEL[a].slice(0,3)} ${v>0?"+":""}${v}`).join(", ") || "no attribute mods";
+    return `<button type="button" class="cbx-meta ${state.metatype===m?"is-chosen":""}" data-mt="${esc(m)}">
+      <span class="cbx-meta__name">${esc(m)}</span><span class="cbx-meta__sub">${esc(mods)}</span>
+      <span class="cbx-meta__sub">Vision: ${esc(d.vision||"Normal")}</span></button>`;
+  }).join("");
+  return `<p class="cbx-p">Priority A unlocks the metahuman phenotypes. Racial modifiers apply on top of your
+    point-buy in the next step. <span class="cbx-cite">(SR2 p.45)</span></p>
+    <div class="cbx-metagrid">${cards}</div>`;
+}
+
+/* STEP 2 -- PHYSIOLOGICAL BASELINE */
+function stepAttributes() {
+  const over = attrSpent() > attrBudget();
+  const atCap = attrSpent() >= attrBudget();   // no points left -- block the + steppers
+  const rows = ATTRS.map(a => {
+    const mt = metatype();
+    const mod = (mt.mods||{})[a] || 0;
+    const max = (mt.max||{})[a] || 6;
+    const fin = finalAttr(a);
+    return `<div class="cbx-attr">
+      <label>${ALABEL[a]}</label>
+      <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-attr="${a}" data-d="-1">-</button>
+        <span class="cbx-attr__base">${state.base[a]}</span>
+        <button type="button" class="cbx-step-btn" data-attr="${a}" data-d="1" ${atCap||state.base[a]>=max?"disabled":""}>+</button></span>
+      <span class="cbx-attr__mod">${mod>0?"+":""}${mod||0}</span>
+      <span class="cbx-attr__final ${fin>max?"is-over":""}">${fin}</span>
+      <span class="cbx-attr__max">/ ${max}</span></div>`;
+  }).join("");
+  return `<p class="cbx-p">Distribute <strong>${attrBudget()}</strong> points (priority ${state.prio.attributes||"--"}) across your
+    six attributes; each starts at a mandatory <strong>1</strong>. Racial modifiers and maximums are shown. <span class="cbx-cite">(SR2 p.45)</span></p>
+    <div class="cbx-attrhead"><span>Attribute</span><span>Base</span><span>Racial</span><span>Final</span><span>Max</span></div>
+    ${rows}
+    <p class="cbx-note ${over?"is-warn":""}">${attrSpent()} / ${attrBudget()} points spent${over?" -- over budget!":""}</p>`;
+}
+
+/* STEP 3 -- ARCANE PROFILE */
+function totemBlockHTML() {
+  if (state.magicType !== "Full Mage") return "";
+  const trad = state.tradition || "";
+  const tradPills = ["Hermetic","Shamanic"].map(t =>
+    `<button type="button" class="cbx-pill ${trad===t?"is-chosen":""}" data-tradition="${t}">${t}</button>`).join("");
+  let totemUI = "";
+  if (trad === "Shamanic") {
+    const grid = (TOTEMS||[]).map(t =>
+      `<button type="button" class="cbx-totem ${state.totem===t.n?"is-chosen":""}" data-totem="${esc(t.n)}">${esc(t.n)}</button>`).join("");
+    const chosen = (TOTEMS||[]).find(t => t.n === state.totem);
+    const card = chosen ? `<div class="cbx-totemcard"><div class="cbx-totemcard__h">${esc(chosen.n)} <em>${esc(chosen.env||"")}</em></div>
+      <ul>${chosen.spells?`<li class="cbx-perk--good">${esc(chosen.spells)}</li>`:""}
+        ${chosen.spirits?`<li class="cbx-perk--good">${esc(chosen.spirits)}</li>`:""}
+        ${chosen.penalty?`<li class="cbx-perk--bad">${esc(chosen.penalty)}</li>`:""}</ul>
+      <p class="cbx-totemcard__geas">${esc(chosen.geas||"")}</p></div>` : "";
+    totemUI = `<div class="cbx-h4">Totem</div><div class="cbx-totemgrid">${grid}</div>${card}`;
+  }
+  return `<div class="cbx-h4">Tradition</div><div class="cbx-pillrow">${tradPills}</div>${totemUI}`;
+}
+// Foci shop -- costs nuyen AND Force Points (bonding karma). SR2 p.137 / p.263.
+function fociSectionHTML() {
+  const all = FOCI || [];
+  const allow = state.magicType === "Adept" ? all.filter(f => f.who === "both") : all;
+  const chosen = state.foci.map((x,i) => {
+    const f = focusDef(x.type); if (!f) return "";
+    const ny = focusNuyen(f, x.rating), fp = focusKarma(f, x.rating);
+    const rateCtrl = f.rated
+      ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-focusrate="${i}" data-d="-1">-</button><span class="cbx-attr__base">${x.rating}</span><button type="button" class="cbx-step-btn" data-focusrate="${i}" data-d="1">+</button></span>`
+      : `<span class="cbx-line__f">Rating 1</span>`;
+    const applies = f.applies
+      ? `<div class="cbx-skillfocus"><input type="text" data-focusapplies="${i}" value="${esc(x.applies||"")}" placeholder="Applies to: ${esc(f.applies)}"></div>`
+      : "";
+    return `<div class="cbx-skill"><div class="cbx-line"><span class="cbx-line__n">${esc(f.n)}</span>${rateCtrl}
+      <span class="cbx-line__f">${fp} FP</span><span class="cbx-line__f">${money(ny)}</span>
+      <button type="button" class="cbx-x" data-delfocus="${i}">&#10005;</button></div>${applies}</div>`;
+  }).join("");
+  const shop = allow.map(f => {
+    const idx = all.indexOf(f);
+    const ny = focusNuyen(f, 1), fp = focusKarma(f, 1);
+    return shopRow(f.n, `${money(ny)} + ${fp} FP`, `data-addfocus="${idx}"`, false);
+  }).join("");
+  return `<div class="cbx-h4">Foci <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- nuyen + Force Points (bonding karma)</span></div>
+    <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only Weapon Foci. " : ""}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
+    <div>${state.foci.length ? chosen : `<p class="cbx-empty">No foci.</p>`}</div>
+    <div class="cbx-shop"><div class="cbx-shoplist">${shop}</div></div>`;
+}
+
+function stepMagic() {
+  const opts = magicOptions();
+  // If the priority leaves Mundane as the only choice, pick it automatically -- no dead click.
+  if (opts.length === 1) {
+    if (state.magicType !== opts[0]) { state.magicType = opts[0]; save(); }
+  } else if (state.magicType && !opts.includes(state.magicType)) {
+    state.magicType = null; save();  // a prior pick the current priority no longer allows
+  }
+  const pills = opts.map(o =>
+    `<button type="button" class="cbx-pill ${state.magicType===o?"is-chosen":""}" data-magictype="${esc(o)}">${esc(o)}</button>`).join("");
+  let body = `<p class="cbx-p">Arcane priority ${state.prio.magic||"--"} on a ${esc(isMeta()?state.metatype:"Human")} subject permits:
+    <strong>${esc(opts.join(" / "))}</strong>. <span class="cbx-cite">(SR2 p.45)</span></p>
+    <div class="cbx-pillrow">${pills}</div>`;
+  if (state.magicType === "Full Mage") {
+    body += totemBlockHTML();
+    const chosenSpells = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(s.name)} <em>${esc(s.cat||"")}</em></span>
+      <span class="cbx-line__f">Force <input type="number" min="1" max="6" class="cbx-mini" data-spellforce="${i}" value="${s.force}"></span>
+      <button type="button" class="cbx-x" data-delspell="${i}">&#10005;</button></div>`).join("");
+    const SPELL_CAT_ORDER = ["combat","detection","health","illusion","manipulation"];
+    const spellGroups = {};
+    (CAT.spells||[]).filter(matchesFilter).forEach(s => { const cc = s.cat || "other"; (spellGroups[cc] = spellGroups[cc] || []).push(s); });
+    const shop = [...SPELL_CAT_ORDER, ...Object.keys(spellGroups).filter(cc => !SPELL_CAT_ORDER.includes(cc)).sort()].map(cc => {
+      const list = (spellGroups[cc] || []).slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
+      if (!list.length) return "";
+      return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(titleCase(cc))}</div>${list.map(s => magicInspectRow(s, "spell", state.spells.some(x=>x.name===s.n))).join("")}</div>`;
+    }).join("");
+    body += `<div class="cbx-h4">Spell Formulae <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- Force costs Force Points</span></div>
+      <div>${state.spells.length ? chosenSpells : `<p class="cbx-empty">No spells yet.</p>`}</div>
+      <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search spells..." value="${esc(shopFilter)}">
+        <div class="cbx-shoplist">${shop}</div></div>`;
+    body += fociSectionHTML();
+  } else if (state.magicType === "Adept") {
+    body += `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend.</p>`;
+    const chosen = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(p.name)}</span>
+      ${p.rated ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button>
+        <span class="cbx-attr__base">${p.lvl||1}</span><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>` : ""}
+      <span class="cbx-line__f">${round2((Number(p.ppEach)||0)*(p.rated?(p.lvl||1):1))} PP</span>
+      <button type="button" class="cbx-x" data-delpower="${i}">&#10005;</button></div>`).join("");
+    const shop = (CAT.adept_powers||[]).filter(matchesFilter).map((p) =>
+      magicInspectRow(p, "power", state.powers.some(x=>x.name===p.n))).join("");
+    body += `<div class="cbx-h4">Adept Powers</div>
+      <div>${state.powers.length ? chosen : `<p class="cbx-empty">No powers yet.</p>`}</div>
+      <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search powers..." value="${esc(shopFilter)}">
+        <div class="cbx-shoplist">${shop}</div></div>`;
+    body += fociSectionHTML();
+  } else {
+    body += `<p class="cbx-note">Mundane subject -- no spells, powers, or tradition.</p>`;
+  }
+  return body;
+}
+
+/* STEP 4 -- TRAINED CAPABILITIES */
+/* Concentration / Specialization effective ratings (SR2 p.70).
+   Concentration: general -1, the group +1.
+   Specialization: general -2, the group at base, the specific +2.
+   Narrowing is free -- the point cost stays the base rating. */
+function skillTiers(s) {
+  const base = Number(s.rating) || 0;
+  const conc = (s.conc || "").trim();
+  const spec = (s.spec || "").trim();
+  const lo = n => Math.max(0, n);
+  if (conc && spec) return [
+    { label: s.name, rating: lo(base - 2) },
+    { label: conc, rating: lo(base) },
+    { label: spec, rating: lo(base + 2) },
+  ];
+  if (conc) return [
+    { label: s.name, rating: lo(base - 1) },
+    { label: conc, rating: lo(base + 1) },
+  ];
+  return [{ label: s.name, rating: lo(base) }];
+}
+// Inline label for a selected skill: name + each narrowing tier with its effective rating,
+// e.g. "Firearms 3 &middot; Pistols 5 &middot; Ares Predator 7". Post-chargen these upgrade independently.
+function skillLabelHTML(s) {
+  return skillTiers(s).map(t => `${esc(t.label)} <strong>${t.rating}</strong>`).join(" &middot; ");
+}
+function updateSkillLabel(i) {
+  const el = document.getElementById("cbx-slabel-" + i);
+  if (el) el.innerHTML = skillLabelHTML(state.skills[i]);
+}
+/* Skill picker is grouped by category (SR2 skill groups), not by linked attribute. */
+const SKILL_CATEGORIES = [
+  ["combat", "Combat Skills"],
+  ["physical", "Physical Skills"],
+  ["magic", "Magical Skills"],
+  ["technical", "Technical Skills"],
+  ["br", "Build/Repair Skills"],
+  ["vehicle", "Vehicle Skills"],
+  ["social", "Social Skills"],
+  ["knowledge", "Knowledge Skills"],
+];
+// Skills that MUST carry a concentration in SR2 (no general rating) -- e.g. Etiquette.
+const REQUIRED_CONC = new Set(["Etiquette"]);
+// Skills with no specialization tier in SR2 (concentration-only).
+const NO_SPEC = new Set(["Etiquette"]);
+function skillDefFor(name) { return (SKILLS || []).find(x => x.n === name) || null; }
+
+/* Specialization suggestions: the specific items a skill narrows to (SR2 p.70).
+   Combat skills -> the matching weapon catalogue; Sorcery -> spells. */
+const SKILL_WEAPON_CAT = {
+  "Firearms": "firearm", "Gunnery": "heavy", "Projectile Weapons": "projectile",
+  "Armed Combat": "melee", "Demolitions": "explosive",
+};
+// Maps a combat concentration to the weapon sub-types it covers, so a "(SW)"
+// (Specific Weapon) specialization in the overlay expands to every matching weapon.
+const CONC_WEAPON_SUBS = {
+  // Armed Combat (melee)
+  "Edged Weapons": ["Blade"],
+  "Pole Arms/Staff": ["Pole Arm", "Staff"],
+  "Whips/Flails": ["Whip"],
+  "Clubs": ["Club", "Stun Baton", "Stun Glove"],
+  // Firearms
+  "Pistols": ["Hold-Out", "Hold-Out Pistol", "Light Pistol", "Heavy Pistol", "Machine Pistol", "Dart Pistol"],
+  "Rifles": ["Rifle", "Sport Rifle", "Sniper Rifle", "Assault Rifle", "Carbine", "Dart Rifle"],
+  "Submachine Guns": ["SMG", "Submachine Gun"],
+  "Light Machine Guns": ["Light Machine Gun"],
+  "Grenade Launchers": ["Grenade Launcher"],
+  "Tasers": ["Taser"],
+  // Projectile Weapons
+  "Bows": ["Bow"],
+  "Crossbows": ["Crossbow"],
+  // Gunnery (heavy)
+  "Machine Guns": ["Heavy Machine Gun", "Medium Machine Gun", "Light Machine Gun", "Minigun"],
+  "Missile/Rocket Launchers": ["Missile Launcher", "Anti-Tank Guided Missile", "Light Anti-Armor Weapon", "Medium Anti-Armor Weapon", "Surface-to-Air Missile"],
+  "Assault Cannon": ["Assault Cannon"],
+  // Demolitions (explosive)
+  "Commercial Explosives": ["Explosive"],
+  "Plastic Explosives": ["Plastic Explosive"],
+};
+// Expand a "(SW)" marker into every specific weapon valid for a skill + concentration.
+function swWeapons(skillName, conc) {
+  const cat = SKILL_WEAPON_CAT[skillName] || (skillName === "Throwing Weapons" ? "projectile" : null);
+  if (!cat) return [];
+  let list = (CAT.weapons || []).filter(w => w.cat === cat);
+  const subs = CONC_WEAPON_SUBS[conc];
+  if (subs) {
+    const set = new Set(subs.map(x => x.toLowerCase()));
+    list = list.filter(w => set.has((w.sub || "").toLowerCase()));
+  } else {
+    // No explicit mapping -> narrow by the concentration keyword, else keep the whole category.
+    const key = (conc || "").toLowerCase().replace(/weapons?/g, "").replace(/[^a-z]+/g, " ").trim();
+    if (key) {
+      const narrowed = list.filter(w => ((w.sub || "") + " " + (w.n || "")).toLowerCase().includes(key));
+      if (narrowed.length) list = narrowed;
+    }
+  }
+  const seen = new Set();
+  return list.filter(w => w.n && !seen.has(w.n) && seen.add(w.n)).map(w => w.n);
+}
+// Vehicle skill -> which catalogue vehicles a "(SV)" (Specific Vehicle) specialization expands to.
+// Bike/Car reuse the browse-by-type buckets; the rest match on the vehicle sub-type name.
+const SV_SKILL = {
+  "Bike": { types: ["Bikes"] },
+  "Car": { types: ["Cars & Ground", "Trucks & Vans"] },
+  "Hovercraft": { sub: /hovercraft/ },
+  "Motorboat": { sub: /boat|skiff|cruiser|speedboat|yacht|dinghy|catamaran|hydrofoil|water scooter/ },
+  "Blimp": { sub: /blimp|zeppelin|airship|dirigible/ },
+  "Rotor Craft": { sub: /helicopter|rotor|autogyro|gyro|tilt-wing/ },
+  "Winged Plane": { sub: /prop|ultralight|glider|airliner|turbine/ },
+  "Vectored Thrust": { sub: /jet|thunderbird|jump|vtol/ },
+};
+function svVehicles(skillName, conc) {
+  // A vehicle appears under a piloting skill's concentration only when the GM overlay
+  // (vehicle_classes.json) has classified it there. The classification is authoritative --
+  // no name/sub regex guessing -- so (SV) lists exactly the intended vehicles.
+  const list = (CAT.vehicles || []).filter(v => {
+    const c = VEHICLE_CLASSES[v.n];
+    return c && c.skill === skillName && c.conc === conc;
+  });
+  const seen = new Set();
+  return list.filter(v => v.n && !seen.has(v.n) && seen.add(v.n)).map(v => v.n);
+}
+// Specialization options for a skill given its chosen concentration. When the GM overlay
+// has authored entries for this skill+concentration they are authoritative (a "(SW)" entry
+// expands to specific weapons); otherwise fall back to catalog derivation.
+function specSuggestions(s) {
+  const overlay = ((SKILL_SPECS[s.name] || {})[s.conc] || []);
+  if (overlay.length) {
+    const out = [];
+    overlay.forEach(x => {
+      const t = String(x);
+      if (/\(sw\)/i.test(t)) out.push(...swWeapons(s.name, s.conc));       // (SW) -> every specific weapon
+      else if (/\(sv\)/i.test(t)) out.push(...svVehicles(s.name, s.conc));  // (SV) -> vehicles in this concentration
+      else out.push(t);
+    });
+    return [...new Set(out)];
+  }
+  if (s.name === "Sorcery") return (CAT.spells || []).map(x => x.n);
+  const cat = SKILL_WEAPON_CAT[s.name] || (s.name === "Throwing Weapons" ? "projectile" : null);
+  if (!cat) return [];  // non-catalog skills (Computer, Electronics, ...) rely on the overlay
+  let list = (CAT.weapons || []).filter(w => w.cat === cat);
+  const key = (s.conc || "").toLowerCase().replace(/s\b/g, "");
+  if (key) {
+    const narrowed = list.filter(w => (((w.sub || "") + " " + (w.n || "")).toLowerCase()).includes(key));
+    if (narrowed.length) list = narrowed;
+  }
+  const seen = new Set();
+  const derived = list.filter(w => w.n && !seen.has(w.n) && seen.add(w.n)).map(w => w.n);
+  return derived;
+}
+
+/* Concentration dropdown (or disabled N/A when the skill has none). */
+function narrowSelectHTML(kind, i, current, options, required) {
+  if (!options.length) return `<select class="cbx-narrowsel" disabled title="No concentration for this skill"><option>N/A</option></select>`;
+  const needsChoice = required && !current;   // required skill with no pick yet -- flag it red
+  const blank = required
+    ? (needsChoice ? `<option value="" selected style="color:var(--red)">-- choose --</option>` : "")
+    : `<option value="">(none)</option>`;
+  const cls = "cbx-narrowsel" + (needsChoice ? " cbx-narrowsel--needs" : "");
+  const opts = options.map(o => `<option value="${esc(o)}" ${current === o ? "selected" : ""}>${esc(o)}</option>`).join("");
+  return `<select class="${cls}" data-${kind}="${i}">${blank}${opts}</select>`;
+}
+
+/* Specialization control: gated behind a concentration (SR2 skill web). N/A for skills that
+   can't specialize; a dropdown when we have catalog options; free text otherwise. */
+function specControlHTML(s, i) {
+  const def = skillDefFor(s.name) || {};
+  const canConc = (def.conc || []).length > 0;
+  if (NO_SPEC.has(s.name) || !canConc) return `<select class="cbx-narrowsel" disabled title="No specialization for this skill"><option>N/A</option></select>`;
+  if (!s.conc) return `<select class="cbx-narrowsel" disabled title="Pick a concentration first"><option>spec: pick conc</option></select>`;
+  const opts = specSuggestions(s);
+  if (opts.length) {
+    const specOpts = [...new Set([...(s.spec ? [s.spec] : []), ...opts])];
+    return `<select class="cbx-narrowsel" data-spec="${i}"><option value="">(none)</option>${specOpts.map(sp => `<option value="${esc(sp)}" ${s.spec === sp ? "selected" : ""}>${esc(sp)}</option>`).join("")}</select>`;
+  }
+  return `<input type="text" class="cbx-narrowsel" data-specinput="${i}" value="${esc(s.spec || "")}" placeholder="specialization">`;
+}
+
+/* One selected skill on a single line: inline tier label | Concentration | Specialization | rating stepper. */
+function chosenSkillHTML(s, i) {
+  const def = skillDefFor(s.name) || {};
+  const required = REQUIRED_CONC.has(s.name) && (def.conc || []).length > 0;
+  const needsConc = required && !(s.conc || "").trim();  // no default -- player must choose (row flags red)
+  const concOpts = [...new Set([...(s.conc ? [s.conc] : []), ...(def.conc || [])])];
+  return `<div class="cbx-skillrow${needsConc ? " cbx-skillrow--needs" : ""}">
+    <span class="cbx-skillrow__label" id="cbx-slabel-${i}">${skillLabelHTML(s)}</span>
+    ${narrowSelectHTML("conc", i, s.conc, concOpts, required)}
+    ${specControlHTML(s, i)}
+    <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="-1">-</button>
+      <span class="cbx-attr__base">${s.rating}</span><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="1" ${(skillSpent() >= skillBudget() || s.rating >= CHARGEN_SKILL_MAX)?"disabled":""}>+</button></span>
+    <button type="button" class="cbx-x" data-delskill="${i}">&#10005;</button>
+  </div>`;
+}
+
+/* Languages: Common/English is assumed known; buy any others as Knowledge skills (free-text name). */
+function languagesSectionHTML() {
+  const langList = (CHARGEN && CHARGEN.languages) || [];
+  const dl = langList.length ? `<datalist id="cbxLangDl">${langList.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist>` : "";
+  const rows = state.languages.map((l,i) => `<div class="cbx-skill">
+    <div class="cbx-line"><input type="text" class="cbx-langname" data-langname="${i}" value="${esc(l.name||"")}" list="cbxLangDl" placeholder="language">
+      <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-langrate="${i}" data-d="-1">-</button>
+        <span class="cbx-attr__base">${l.rating}</span><button type="button" class="cbx-step-btn" data-langrate="${i}" data-d="1">+</button></span>
+      <button type="button" class="cbx-x" data-dellang="${i}">&#10005;</button></div>
+  </div>`).join("");
+  return `<div class="cbx-langs">
+    <div class="cbx-h4">Languages <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- Common/English assumed; buy any others (Intelligence-linked)</span></div>
+    ${state.languages.length ? rows : `<p class="cbx-empty">No extra languages.</p>`}
+    <button type="button" class="cbx-addlang" data-addlang>+ Add language</button>
+    ${dl}
+  </div>`;
+}
+function stepSkills() {
+  const over = skillSpent() > skillBudget();
+  state.skills.sort((a,b) => a.name.localeCompare(b.name));  // keep the sheet alphabetical (existing + newly added)
+  const cards = SKILL_CATEGORIES.map(([g,label]) => {
+    const inCat = (SKILLS||[]).filter(s => s.group === g);
+    if (!inCat.length) return "";
+    const chips = inCat.map(s => {
+      const taken = state.skills.some(x => x.name === s.n);
+      return `<button type="button" class="cbx-skillchip ${taken?'is-taken':''}" data-addskill="${esc(s.n)}" ${taken?'disabled':''} title="${esc(s.attr)}">${esc(s.n)}</button>`;
+    }).join("");
+    return `<div class="cbx-skillcard"><div class="cbx-skillcard__h">${esc(label)}</div><div class="cbx-skillcard__list">${chips}</div></div>`;
+  }).join("");
+  return `
+    <p class="cbx-p">Spend <strong>${skillBudget()}</strong> skill points (priority ${state.prio.skills||"--"}); a skill at rating N
+    costs N points. All skills draw from the same pool. <span class="cbx-cite">(SR2 p.45)</span></p>
+    <p class="cbx-note ${over?"is-warn":""}">${skillSpent()} / ${skillBudget()} skill points${over?" -- over budget!":""}${languagesSpent()?` (incl. ${languagesSpent()} on languages)`:""}</p>
+    ${languagesSectionHTML()}
+    <div class="cbx-skillcards">${cards}</div>
+    <div class="cbx-h4" style="margin-top:14px">Selected Skills</div>
+    <div>${state.skills.length ? state.skills.map((s,i) => chosenSkillHTML(s,i)).join("") : `<p class="cbx-empty">No skills yet.</p>`}</div>`;
+}
+
+/* STEP 5 -- ASSET MANIFEST */
+function matchesFilter(it) { const q = (shopFilter||"").toLowerCase(); return !q || (it.n||"").toLowerCase().includes(q) || (it.kw||"").toLowerCase().includes(q); }
+function itemMeta(it, catName) {
+  if (catName === "cyberware") return `${it.cat||""} - Ess ${parseNum(it.ess)} - ${money(parseNum(it.cost))}`;
+  if (catName === "bioware")   return `${it.cat||""} - BI ${parseNum(it.ess)} - ${money(parseNum(it.cost))}`;
+  if (catName === "armor")     return `${it.ballistic??0}/${it.impact??0} - ${money(parseNum(it.cost))}`;
+  const sub = it.sub || it.cat || "";
+  return `${sub}${sub?" - ":""}${money(parseNum(it.cost))}`;
+}
+// Click-to-expand inspector: a row shows the item summary, then an Add button commits it.
+function chipHTML(label, val) {
+  return (val === undefined || val === null || val === "") ? "" : `<span class="cbx-stat"><b>${esc(label)}</b> ${esc(String(val))}</span>`;
+}
+function itemStatChips(it, catName) {
+  const c = [];
+  if (Array.isArray(it.stats)) it.stats.forEach(p => c.push(chipHTML(p[0], p[1])));
+  if (catName === "weapons") c.push(chipHTML("Dmg", it.dmg), chipHTML("Mode", it.mode), chipHTML("Ammo", it.ammo), chipHTML("Conceal", it.conceal), chipHTML("Reach", it.reach));
+  if (catName === "armor") c.push(chipHTML("Ballistic", it.ballistic), chipHTML("Impact", it.impact), chipHTML("Conceal", it.conceal));
+  if ((catName === "cyberware" || catName === "bioware") && it.rated) c.push(chipHTML("Rating", `1-${it.maxRating || 1}`));
+  c.push(chipHTML("Avail", it.avail), chipHTML("Street Index", it.index), chipHTML("Legal", it.legal));
+  return c.filter(Boolean).join("");
+}
+// Internal smartgun (and similar): priced to the weapon it's built into, so it requires an owned
+// weapon and its cost mirrors that weapon (installing it doubles the weapon's effective cost).
+function attachWeaponControl(it) {
+  const owned = state.gear.weapons
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => { const src = (CAT.weapons || []).find(x => x.n === g.n); return src && !["accessory","ammo"].includes(src.cat); });
+  if (!owned.length) return `<span class="cbx-help">Add a weapon to your loadout first &mdash; an internal smartgun is priced to the weapon it's built into.</span>`;
+  const opts = owned.map(({ g, i }) => `<option value="${i}">${esc(g.n)} (${money(gearLineCost(g))})</option>`).join("");
+  return `<select class="cbx-mini" style="width:auto" id="cbxAttachWeapon">${opts}</select>
+    <button type="button" class="btn btn-green btn-sm" data-buyattach="${esc(it.n)}">+ Add to loadout</button>`;
+}
+// Gel-pack armor (and similar): upgrades an EXISTING armor piece -- requires one, and costs 4x the
+// host (host x1 + this x4 = x5 total). Also summarizes the Hardened/Conceal/Avail/SI transform.
+function gelAvail(avail) {
+  const m = /^\s*(\d+)\s*\/\s*(\d+)\s*(.*)$/.exec(String(avail || ""));
+  return m ? `${Number(m[1]) * 2}/${Number(m[2]) * 4} ${m[3]}`.trim() : (avail || "");
+}
+function gelPackTransform(armorName) {
+  const a = (CAT.armor || []).find(x => x.n === armorName);
+  if (!a) return "";
+  const parts = [`${a.ballistic != null ? a.ballistic : 0}/${a.impact != null ? a.impact : 0} Hardened`];
+  if (a.conceal != null) parts.push(`Conceal ${Math.floor(a.conceal / 2)}`);
+  if (a.avail) parts.push(`Avail ${gelAvail(a.avail)}`);
+  if (a.index != null) parts.push(`SI ${round2(a.index * 2)}`);
+  return parts.join(", ");
+}
+// Replace a host gear line in place with a modified version: the mod label is folded into the name,
+// the cost is multiplied (freezing any rating), and the line records the mod so it can't be applied
+// twice (the modified name no longer matches the catalog, so it drops out of the attach dropdowns).
+function attachModToHost(host, modItem, mult, label, sub) {
+  const base = gearLineCost(host);
+  host.baseName = host.baseName || host.n;
+  host.n = host.baseName + " (" + label + ")";
+  host.cost = base * mult;
+  host.mod = modItem.n;
+  host.modLabel = label;
+  if (sub != null) host.sub = sub;
+  delete host.rated; delete host.rating; delete host.maxRating;
+  delete host.costUnit; delete host.costTbl; delete host.rateLabels;
+}
+function attachArmorControl(it) {
+  const owned = state.gear.armor
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => { const src = (CAT.armor || []).find(x => x.n === g.n); return src && src.cat !== "accessory"; });
+  if (!owned.length) return `<span class="cbx-help">Add an armor piece to your loadout first &mdash; gel packs upgrade an existing armor (Hardened, cost x5).</span>`;
+  const opts = owned.map(({ g, i }) => `<option value="${i}">${esc(g.n)} (${money(gearLineCost(g))})</option>`).join("");
+  return `<select class="cbx-mini" style="width:auto" id="cbxAttachArmor">${opts}</select>
+    <button type="button" class="btn btn-green btn-sm" data-buyarmorattach="${esc(it.n)}">+ Add to loadout</button>`;
+}
+function shopInspectRow(it, catName) {
+  const open = shopInspect === it.n;
+  const bullets = it.effect || it.notes || [];
+  const chips = itemStatChips(it, catName);
+  const detail = open ? `<div class="cbx-shopdesc">
+      ${it.desc ? `<p class="cbx-shopdesc__d">${esc(it.desc)}</p>` : ""}
+      ${bullets.length ? `<ul class="cbx-shopdesc__l">${bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
+      ${chips ? `<div class="cbx-shopdesc__s">${chips}</div>` : ""}
+      <div class="cbx-shopdesc__act">
+        ${it.attachToWeapon ? attachWeaponControl(it) : it.attachToArmor ? attachArmorControl(it) : `<button type="button" class="btn btn-green btn-sm" data-buy="${esc(it.n)}">+ Add to loadout</button>`}
+        ${it.pg ? `<span class="cbx-cite">${esc(String(it.src || ""))} p.${esc(String(it.pg))}</span>` : ""}
+      </div>
+    </div>` : "";
+  return `<div class="cbx-shopitem ${open ? "is-open" : ""}">
+    <button type="button" class="cbx-shoprow" data-inspect="${esc(it.n)}" aria-expanded="${open}">
+      <span class="cbx-shoprow__n">${esc(it.n)}</span>
+      <span class="cbx-shoprow__m">${esc(itemMeta(it, catName))}</span>
+      <span class="cbx-shoprow__c">${open ? "&#9650;" : "&#9660;"}</span>
+    </button>${detail}</div>`;
+}
+// Inspector rows for the magic step (spells / adept powers): same expand-then-add pattern.
+function spellStatChips(s) {
+  return [chipHTML("Type", s.typ), chipHTML("Range", s.rng), chipHTML("Duration", s.dur),
+    chipHTML("Drain", s.drn), chipHTML("Target", s.target), chipHTML("Damage", s.dmg), chipHTML("Area", s.area)]
+    .filter(Boolean).join("");
+}
+function magicInspectRow(it, kind, owned) {
+  const open = shopInspect === it.n;
+  const addAttr = kind === "spell" ? `data-addspell="${esc(it.n)}"` : `data-addpower="${esc(it.n)}"`;
+  const meta = kind === "spell" ? `${it.cat || ""}${it.typ ? " - " + it.typ : ""}` : (it.pp || "");
+  const chips = kind === "spell" ? spellStatChips(it)
+    : [chipHTML("Cost", it.pp), chipHTML("Activation", it.act), chipHTML("Levels", it.tiers)].filter(Boolean).join("");
+  const bullets = it.effect || it.notes || [];
+  const detail = open ? `<div class="cbx-shopdesc">
+      ${it.desc ? `<p class="cbx-shopdesc__d">${esc(it.desc)}</p>` : ""}
+      ${bullets.length ? `<ul class="cbx-shopdesc__l">${bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
+      ${chips ? `<div class="cbx-shopdesc__s">${chips}</div>` : ""}
+      <div class="cbx-shopdesc__act">
+        <button type="button" class="btn btn-green btn-sm" ${owned ? "disabled" : addAttr}>${owned ? "Added" : "+ Add"}</button>
+        ${it.pg ? `<span class="cbx-cite">${esc(String(it.src || ""))} p.${esc(String(it.pg))}</span>` : ""}
+      </div>
+    </div>` : "";
+  return `<div class="cbx-shopitem ${open ? "is-open" : ""}">
+    <button type="button" class="cbx-shoprow" data-inspect="${esc(it.n)}" aria-expanded="${open}">
+      <span class="cbx-shoprow__n">${esc(it.n)}</span>
+      <span class="cbx-shoprow__m">${esc(meta)}</span>
+      <span class="cbx-shoprow__c">${open ? "&#9650;" : "&#9660;"}</span>
+    </button>${detail}</div>`;
+}
+// Broad vehicle types (used to bucket vehicles into piloting-skill categories).
+function vehicleType(v) {
+  if ((v.cat || "") === "drone") return "Drones";
+  const s = (v.sub || "").toLowerCase();
+  // Watercraft first so "Water Scooter" doesn't fall into Bikes.
+  if (/boat|skiff|cruiser|hovercraft|hydrofoil|\bship\b|yacht|submarine|speedboat|dinghy|raft|barge|catamaran|water|hull|jetski/.test(s)) return "Watercraft";
+  if (/bike|cycle|moto|chopper|scooter|scoot|trike|moped/.test(s)) return "Bikes";
+  if (/truck|van|apc|\bbus\b|lav|tank|\brv\b|transport|flatbed|tractor|ambulance|semi/.test(s)) return "Trucks & Vans";
+  if (/heli|tilt|jet|prop|plane|glider|ultralight|blimp|airship|rotor|vtol|aircraft|wing|fighter|autogyro|gyro|airliner|turbine|zeppelin/.test(s)) return "Aircraft";
+  return "Cars & Ground";
+}
+// The gear-page vehicle catalogue groups by piloting skill, matching the (SV) buckets.
+const VEHICLE_SKILL_ORDER = ["Bike", "Car", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust", "Drones", "Other"];
+function vehicleSkillCategory(v) {
+  if ((v.cat || "") === "drone") return "Drones";   // drones always cluster in their own section
+  // The GM overlay's parent skill wins when set (fixes vehicles mis-typed by sub name,
+  // e.g. an off-road bike catalogued as a "car"); otherwise fall back to the regex bucket.
+  const cls = VEHICLE_CLASSES[v.n];
+  if (cls && cls.skill) return cls.skill;
+  // Check the sub-typed skills before Car so an air/water craft mis-typed as ground still lands right.
+  for (const skill of ["Bike", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust", "Car"]) {
+    const def = SV_SKILL[skill];
+    if (def.types && def.types.includes(vehicleType(v))) return skill;
+    if (def.sub && def.sub.test((v.sub || "").toLowerCase())) return skill;
+  }
+  return "Other";
+}
+function cyberLineHTML(g, i) {
+  const grade = g.grade || "Standard";
+  const opts = GRADE_ORDER.map(gr => {
+    const note = gradeNote(gr);
+    const label = gr + (note ? " (" + note + ")" : "");
+    const enabled = gradeSelectable(gr) || gr === grade;
+    return `<option value="${gr}" ${gr===grade?"selected":""} ${enabled?"":"disabled"}>${esc(label)}</option>`;
+  }).join("");
+  const cLo = Number(g.minRating) || 1, cHi = Math.max(cLo, Number(g.maxRating) || cLo);
+  const ratingCtrl = g.rated
+    ? `<select class="cbx-mini" style="width:auto" data-cyberrating="${i}" title="Rating">` +
+      Array.from({length: cHi - cLo + 1}, (_, k) => cLo + k)
+        .map(r => `<option value="${r}" ${r === cyberRating(g) ? "selected" : ""}>R${r}</option>`).join("") +
+      `</select>`
+    : "";
+  const SOFT_HINT = { active: "Active skill", knowledge: "Knowledge skill", language: "Language" };
+  const skillInput = g.soft
+    ? `<input type="text" class="cbx-mini" style="width:170px" data-cyberskill="${i}" value="${esc(g.skill||"")}" placeholder="${esc(SOFT_HINT[g.soft] || "skill / language")}">`
+    : "";
+  const priceCells = g.noGrade
+    ? `<span class="cbx-line__f" style="color:var(--cyan)">${money(cyberBaseCost(g))}</span>`
+    : `<span class="cbx-line__f">Ess ${cyberBaseEss(g).toFixed(2)}</span>
+    <span class="cbx-line__f">&yen; ${money(cyberBaseCost(g))}</span>
+    <span class="cbx-line__f" style="color:var(--cyan)">= ${effCyberEss(g).toFixed(2)} / ${money(effCyberCost(g))}</span>`;
+  return `<div class="cbx-line"><span class="cbx-line__n">${esc(g.n)} <em>${esc(g.sub||"")}</em></span>
+    ${skillInput}
+    ${ratingCtrl}
+    ${g.noGrade ? "" : `<select class="cbx-mini" style="width:auto" data-cybergrade="${i}">${opts}</select>`}
+    ${priceCells}
+    <button type="button" class="cbx-x" data-delgear="cyber:${i}">&#10005;</button></div>`;
+}
+// Title-case a lowercase catalog category ("firearm" -> "Firearm") for a group header.
+function titleCase(s) { return String(s || "Other").replace(/\b\w/g, c => c.toUpperCase()); }
+// Render shop items in alphabetical category groups (header + rows), each group sorted A-Z.
+const WEAPON_GROUP_ORDER = ["Pistols","SMGs","Rifles","Shotguns","Machine Guns","Other Firearms",
+  "Heavy Weapons","Explosives & Grenades","Melee","Bows & Crossbows","Exotic Weapons","Accessories","Ammunition"];
+// Bucket a weapon into a display section: firearms split by sub (Pistols/SMGs/Rifles/...), other cats map straight.
+function weaponGroupLabel(it) {
+  const c = it.cat || "", sub = it.sub || "";
+  // Ammunition first: arrows/bolts, and missiles/rockets are ammo -- not the weapon that fires them.
+  if (c === "ammo" || /arrow|bolt/i.test(sub)) return "Ammunition";
+  if (c === "explosive" && /rocket|missile/i.test(sub)) return "Ammunition";
+  if (/machine gun/i.test(sub)) return "Machine Guns";   // LMG/MMG/HMG from the firearm OR heavy cats
+  if (c === "firearm") {
+    if (/hold-?out|pistol|taser/i.test(sub)) return "Pistols";
+    if (/smg|submachine/i.test(sub)) return "SMGs";
+    if (/shotgun/i.test(sub)) return "Shotguns";
+    if (/rifle|carbine/i.test(sub)) return "Rifles";
+    return "Other Firearms";
+  }
+  return { heavy:"Heavy Weapons", explosive:"Explosives & Grenades", melee:"Melee",
+    projectile:"Bows & Crossbows", exotic:"Exotic Weapons", accessory:"Accessories", ammo:"Ammunition" }[c]
+    || titleCase(c || "Other");
+}
+const ARMOR_GROUP_ORDER = ["Worn Armor","Military-Grade","Helmets","Shields","Accessories"];
+function armorGroupLabel(it) {
+  return { worn:"Worn Armor", military:"Military-Grade", helmet:"Helmets", shield:"Shields", accessory:"Accessories" }[it.cat||""]
+    || titleCase(it.cat || "Other");
+}
+// Group items by a label function, honoring an explicit section order (unknown labels appended A-Z).
+function shopGroupedByLabel(items, catName, labelFn, order) {
+  const groups = {};
+  items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
+  const extra = Object.keys(groups).filter(g => !order.includes(g)).sort((a,b) => a.localeCompare(b));
+  return [...order, ...extra].map(g => {
+    const list = (groups[g] || []).slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
+    if (!list.length) return "";
+    return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(g)}</div>${list.map(it => shopInspectRow(it, catName)).join("")}</div>`;
+  }).join("");
+}
+// The deckware program picker markup (lives inside the Matrix tab): all programs listed by type.
+function programsPanelHTML() {
+  const CATS = ["Operational", "Offensive", "Defensive", "Special"];
+  const byCat = {};
+  programCatalog().forEach(p => { (byCat[p.category] = byCat[p.category] || []).push(p); });
+  const added = new Set((state.programs || []).map(p => p.prog));
+  const list = [...CATS, ...Object.keys(byCat).filter(c => !CATS.includes(c)).sort()].map(cat => {
+    const progs = (byCat[cat] || []).slice().sort((a,b) => a.display.localeCompare(b.display));
+    if (!progs.length) return "";
+    return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(cat)}</div>${progs.map(p => programShopRow(p, added.has(p.key))).join("")}</div>`;
+  }).join("");
+  return `<div class="cbx-h4" style="margin-top:16px">Deckware Programs <span style="color:var(--text-dim);font-weight:normal;text-transform:none;letter-spacing:0">-- Matrix utilities, grouped by type</span></div>
+    <p class="cbx-p">Add programs like any other gear; each one lands in your <strong>Matrix</strong> loadout on the left,
+      where you set its rating and the price computes (Rating&sup2; &times; size multiplier &times; price factor,
+      matching the Deck Workshop). Attack programs also pick a damage level.</p>
+    <div class="cbx-proglist">${list}</div>`;
+}
+// Toggle a browse-row inspector open/closed while holding the shoplist scroll position, then nudge
+// just enough to keep the newly expanded detail visible. Shared by every browse list (gear, weapons,
+// vehicles, spells, and Matrix programs) so the behaviour is identical everywhere.
+function toggleShopInspect(root, key) {
+  const before = root.querySelector(".cbx-shoplist");
+  const top = before ? before.scrollTop : 0;
+  const expanding = shopInspect !== key;
+  shopInspect = expanding ? key : null;
+  renderStep();
+  const list = root.querySelector(".cbx-shoplist");
+  if (!list) return;
+  list.scrollTop = top;
+  if (!expanding) return;                        // collapsing: just hold position
+  const openEl = list.querySelector(".cbx-shopitem.is-open");
+  if (!openEl) return;
+  // Scroll minimally so the newly expanded detail is visible (align its top if taller than the list).
+  const lr = list.getBoundingClientRect(), or = openEl.getBoundingClientRect();
+  if (or.height > lr.height || or.top < lr.top) list.scrollTop += (or.top - lr.top) - 8;
+  else if (or.bottom > lr.bottom) list.scrollTop += (or.bottom - lr.bottom) + 8;
+}
+function shopGroupedByCat(items, catName) {
+  // Nicer group headers than titleCase(cat) for the Gear tab's sub-categories.
+  const CAT_LABELS = {
+    rigger: "Rigger Gear", tool: "Tools & Repair", survival: "Survival",
+    security: "Security & B&E", stealth: "Stealth & Concealment",
+    transport: "Personal Transport", vehweapon: "Vehicle Weapons",
+    program: "Matrix Programs", deck: "Cyberdecks",
+  };
+  const groups = {};
+  items.forEach(it => { const g = CAT_LABELS[it.cat] || titleCase(it.cat || "Other"); (groups[g] = groups[g] || []).push(it); });
+  return Object.keys(groups).sort((a,b) => a.localeCompare(b)).map(g => {
+    const rows = groups[g].slice().sort((a,b) => (a.n||"").localeCompare(b.n||""))
+      .map(it => shopInspectRow(it, catName)).join("");
+    return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(g)}</div>${rows}</div>`;
+  }).join("");
+}
+function stepResources() {
+  const over = nuyenCommitted() > res().nuyen;
+  // Hide shop tabs whose catalogue is empty (e.g. Bioware without Shadowtech, Vehicles without Rigger 2).
+  const visibleDefs = SHOP_DEFS.filter(t => (CAT[t.cat]||[]).length > 0);
+  if (visibleDefs.length && !visibleDefs.some(t => t.k === shopTab)) shopTab = visibleDefs[0].k;
+  const def = visibleDefs.find(d => d.k === shopTab) || visibleDefs[0] || SHOP_DEFS[0];
+  const lines = (k) => state.gear[k].map((g,i) => {
+    if (k === "cyber") return cyberLineHTML(g, i);
+    const showEss = (k === "bio");
+    // Kit/Shop/Facility are generic until the player names what kind (e.g. "Programming Shop").
+    const isTool = (k === "gear") && ["Kit", "Shop", "Facility"].includes(g.n);
+    const rig = (k === "vehicles")
+      ? `<button type="button" class="cbx-tab ${g.rigger?'is-active':''}" data-rigger="${i}" title="Rigger adaptation: (Body x 2500) + 2800">${g.rigger?"Rigger \u2713":"+ Rigger"}</button>${g.rigger?`<span class="cbx-line__f" style="color:var(--cyan)">+${money(riggerGearCost(vehicleBodyOf(g)))}</span>`:""}`
+      : "";
+    const nameHtml = (isTool && g.kind) ? `${esc(g.kind)} ${esc(g.n)}` : `${esc(g.n)} <em>${esc(g.sub||"")}</em>`;
+    const kindInput = isTool
+      ? `<input type="text" class="cbx-mini" style="width:150px" data-gearkind="${k}:${i}" value="${esc(g.kind||"")}" placeholder="kind, e.g. Programming">`
+      : "";
+    const bLo = Number(g.minRating) || 1, bHi = Math.max(bLo, bioMaxRating(g));
+    const bioRate = (k === "bio" && g.rated)
+      ? `<select class="cbx-mini" style="width:auto" data-biorating="${i}" title="Rating">` +
+        Array.from({length: bHi - bLo + 1}, (_, x) => bLo + x)
+          .map(r => `<option value="${r}" ${r === bioRating(g) ? "selected" : ""}>R${r}</option>`).join("") +
+        `</select>`
+      : "";
+    const gearRate = ((k === "gear" || k === "matrix" || k === "weapons" || k === "armor") && g.rated)
+      ? `<select class="cbx-mini" style="width:auto" data-gearrating="${k}:${i}" title="Rating">` +
+        Array.from({length: Math.max(1, Number(g.maxRating)||1)}, (_, x) => x + 1)
+          .map(r => `<option value="${r}" ${r === gearRating(g) ? "selected" : ""}>${g.rateLabels && g.rateLabels[r-1] ? esc(g.rateLabels[r-1]) : "R"+r}</option>`).join("") +
+        `</select>`
+      : "";
+    return `<div class="cbx-line"><span class="cbx-line__n">${nameHtml}</span>
+      ${kindInput}
+      ${bioRate}
+      ${gearRate}
+      ${rig}
+      ${showEss ? `<span class="cbx-line__f">BI ${bioBaseEss(g).toFixed(2)}</span>` : ""}
+      <span class="cbx-line__f">${money(k === "bio" ? bioCost(g) : gearLineCost(g))}</span>
+      <button type="button" class="cbx-x" data-delgear="${k}:${i}">&#10005;</button></div>`;
+  }).join("");
+  const owned = GEAR_KEYS.map(k => {
+    const gearLines = state.gear[k].length ? lines(k) : "";
+    // Owned Matrix programs are inventory too -- list them under the Matrix gear (with cyberdecks).
+    const progLines = (k === "matrix" && state.programs && state.programs.length) ? programRowsHTML() : "";
+    if (!gearLines && !progLines) return "";
+    return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
+  }).join("") || `<p class="cbx-empty">Nothing acquired yet.</p>`;
+  const items = (CAT[def.cat]||[]).filter(matchesFilter).filter(it => !def.pick || def.pick(it));
+  const grouped = def.k === "vehicles" || def.k === "weapons" || def.k === "gear" || def.k === "matrix" || def.k === "armor";
+  let shop;
+  if (def.k === "vehicles") {
+    // Browse vehicles grouped by piloting skill (same buckets as the (SV) specializations).
+    const groups = {};
+    items.forEach(v => { const t = vehicleSkillCategory(v); (groups[t] = groups[t] || []).push(v); });
+    shop = VEHICLE_SKILL_ORDER.map(t => {
+      const list = (groups[t] || []).slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
+      if (!list.length) return "";
+      const rows = list.map(v => shopInspectRow(v, "vehicles")).join("");
+      return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(t)}</div>${rows}</div>`;
+    }).join("");
+  } else if (def.k === "weapons") {
+    // Firearms split into Pistols/SMGs/Rifles/...; other weapon cats each get a section.
+    shop = shopGroupedByLabel(items, "weapons", weaponGroupLabel, WEAPON_GROUP_ORDER);
+  } else if (def.k === "gear") {
+    // Split into alphabetical category groups (like vehicles), items A-Z within each.
+    shop = shopGroupedByCat(items, def.cat);
+  } else if (def.k === "matrix") {
+    // Matrix tab: buyable cyberdecks (deck rows) followed by the deckware program picker.
+    const decks = items.slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
+    const deckRows = decks.length
+      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">Cyberdecks</div>${decks.map(it => shopInspectRow(it, "gear")).join("")}</div>`
+      : `<p class="cbx-empty">No cyberdecks in the enabled books.</p>`;
+    shop = deckRows + programsPanelHTML();
+  } else if (def.k === "cyberware") {
+    // Cyberware is alphabetical, but the related skillsofts cluster in their own group.
+    const byName = (a,b) => (a.n||"").localeCompare(b.n||"");
+    const softs = items.filter(it => it.soft).sort(byName);
+    const rest = items.filter(it => !it.soft).sort(byName);
+    const softGroup = softs.length
+      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">Skillsofts</div>${softs.map(it => shopInspectRow(it, def.cat)).join("")}</div>`
+      : "";
+    shop = softGroup + rest.map(it => shopInspectRow(it, def.cat)).join("");
+  } else if (def.k === "armor") {
+    // Armor grouped by type: Worn / Military-Grade / Helmets / Shields / Accessories.
+    shop = shopGroupedByLabel(items, "armor", armorGroupLabel, ARMOR_GROUP_ORDER);
+  } else {
+    // Flat catalogs (bioware): straight alphabetical.
+    shop = items.slice().sort((a,b) => (a.n||"").localeCompare(b.n||"")).slice(0, 250).map((it) => shopInspectRow(it, def.cat)).join("");
+  }
+  const moreNote = (!grouped && items.length > 250) ? `<p class="cbx-help">Showing first 250 of ${items.length} -- refine the search.</p>` : "";
+
+  const archOpts = [...CONTACT_ARCHETYPES].sort((a,b) => a.localeCompare(b));
+  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
+  const contactRows = state.contacts.map((c,i) => {
+    const customOpt = (c.archetype && !archOpts.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
+    return `<div class="cbx-line">
+    <input type="text" class="cbx-mini" style="width:110px" data-cname="${i}" value="${esc(c.name)}" placeholder="handle">
+    <select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- archetype --</option>${customOpt}${archOpts.map(a => `<option value="${esc(a)}" ${c.archetype===a?"selected":""}>${esc(a)}</option>`).join("")}</select>
+    <button type="button" class="cbx-tab ${c.level==='Buddy'?'is-active':''}" data-clevel="${i}">${esc(c.level)}</button>
+    <span class="cbx-line__f">${i < free ? "" : money(contactCost(i,c.level))}</span>
+    <button type="button" class="cbx-x" data-delcontact="${i}">&#10005;</button></div>`;
+  }).join("");
+
+  return `
+    <p class="cbx-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources||"--"}). Cyberware also deducts
+    Essence; bioware uses Body Index. Prices are reference values from the catalogue.
+    <span class="cbx-cite">(SR2 p.46)</span></p>
+    <div class="cbx-resgrid">
+      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
+      <div>
+        <div class="cbx-tabs">${visibleDefs.map(t => `<button type="button" class="cbx-tab ${shopTab===t.k?'is-active':''}" data-shoptab="${t.k}">${esc(t.label)}</button>`).join("")}</div>
+        <input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search ${esc(def.label.toLowerCase())}..." value="${esc(shopFilter)}">
+        <div class="cbx-shoplist">${shop}</div>${moreNote}
+      </div>
+    </div>
+    <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
+      &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
+
+    <div class="cbx-h4">Contacts <span style="color:var(--text-dim);font-weight:normal;text-transform:none;letter-spacing:0">-- 2 free, then 5,000&yen; (Contact) / 10,000&yen; (Buddy)</span></div>
+    <div>${state.contacts.length ? contactRows : `<p class="cbx-empty">No contacts yet.</p>`}</div>
+    <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>`;
+}
+
+/* STEP 6 -- CASE FILE SUMMARY */
+// Skill-rating bonuses from installed cyber (e.g. Math SPU): floor(Rating/2) to matching skills.
+function augMagnitude(g) {
+  const sb = g.skillBonus; if (!sb) return 0;
+  return sb.per === "halfRating" ? Math.floor(cyberRating(g) / 2) : (Number(sb.flat) || 0);
+}
+// Compact "Augmented Skills" panel for the Case File summary: one sub-group per cyber source
+// (e.g. Math SPU) listing the skills it boosts and by how much. Only shown when a bonus applies.
+function augSummaryHTML() {
+  const sources = state.gear.cyber.filter(g => g.skillBonus && augMagnitude(g) > 0);
+  if (!sources.length) return "";
+  const blocks = sources.map(g => {
+    const mag = augMagnitude(g), sb = g.skillBonus;
+    const skills = state.skills.filter(s => (sb.groups || []).includes(s.group) || (sb.skills || []).includes(s.name));
+    if (!skills.length) return "";
+    const chips = skills.map(s => `<span class="aug-skill">${esc(s.name)} ${Number(s.rating)||0} <em>(+${mag})</em></span>`).join("");
+    return `<div class="cbx-statgroup__h">${esc(g.n)} R${cyberRating(g)}</div><div class="aug-skills">${chips}</div>`;
+  }).filter(Boolean);
+  if (!blocks.length) return "";
+  return `<div class="cbx-summary">
+      <div class="cbx-summary__h" style="font-size:var(--fs-sm)">Augmented Skills</div>
+      ${blocks.join("")}
+    </div>`;
+}
+function stepFinish() {
+  const id = state.identity;
+  return `
+    <div class="cbx-form">
+      <label>Handle / Alias <input type="text" data-id="handle" value="${esc(id.handle)}"></label>
+      <label>Legal Name <input type="text" data-id="name" value="${esc(id.name)}"></label>
+      <label>Archetype
+        <select data-id="archetype">
+          <option value="">-- select --</option>
+          ${PC_ARCHETYPES.map(a => `<option value="${esc(a)}" ${id.archetype===a?"selected":""}>${esc(a)}</option>`).join("")}
+          <option value="Custom" ${id.archetype==="Custom"?"selected":""}>Custom...</option>
+        </select>
+      </label>
+      ${id.archetype==="Custom" ? `<label>Custom archetype <input type="text" data-id="archetypeCustom" maxlength="100" value="${esc(id.archetypeCustom)}" placeholder="e.g. Face, Street Doc"></label>` : ""}
+      <label>Sex <input type="text" data-id="sex" value="${esc(id.sex)}"></label>
+      <label>Age <input type="text" data-id="age" value="${esc(id.age)}"></label>
+      <label>Nationality <input type="text" data-id="nationality" maxlength="100" value="${esc(id.nationality)}" placeholder="e.g. UCAS, Aztlan, Tir Tairngire"></label>
+      <label class="cbx-form__wide">Description <input type="text" data-id="desc" value="${esc(id.desc)}"></label>
+      <label>Lifestyle <select data-id="lifestyle">${LIFESTYLES.map(l => `<option ${id.lifestyle===l?"selected":""}>${esc(l)}</option>`).join("")}</select></label>
+    </div>
+    ${lifestyleMonthly() > 0 ? `<label class="cbx-form__perm"><input type="checkbox" id="cbxLifePerm" ${id.lifestylePermanent?"checked":""}> Buy this lifestyle permanently &mdash; 100 months up front (${money(lifestylePermanentPrice())}); never pay monthly upkeep again <span class="cbx-cite">(SR2 p.245)</span></label>` : `<p class="cbx-help">Street lifestyle has no upkeep.</p>`}
+    <div class="cbx-summary">
+      <div class="cbx-summary__h">${esc(id.handle || "UNNAMED SUBJECT")} <em>${esc(state.metatype)}${awakened() ? " - "+esc(state.magicType) : ""}</em></div>
+      <div class="cbx-statgroup__h">Attributes</div>
+      <div class="review-grid cbx-statgrid">
+        ${ATTRS.map(a => `<div class="rev-cell"><span class="k">${esc(ALABEL[a])}</span><span class="v">${finalAttr(a)}</span></div>`).join("")}
+        <div class="rev-cell"><span class="k">Essence</span><span class="v">${essence().toFixed(2)}</span></div>
+        <div class="rev-cell"><span class="k">Magic</span><span class="v">${magicRating()}</span></div>
+        <div class="cbx-statsep"></div>
+        ${(() => { const rm = reactionModes(); const t = rm.length > 1 ? ` title="${esc(rm.map(x => x.label).join(" / "))}"` : "";
+          return `<div class="rev-cell"${t}><span class="k">Reaction</span><span class="v">${rm.map(x => x.reaction).join(" / ")}</span></div>` +
+                 `<div class="rev-cell"${t}><span class="k">Initiative</span><span class="v">${rm.map(x => x.dice + "D6").join(" / ")}</span></div>`; })()}
+      </div>
+      <div class="cbx-statgroup__h">Dice Pools</div>
+      <div class="review-grid cbx-statgrid">
+        ${activePools().map(([lbl,val]) => `<div class="rev-cell"><span class="k">${esc(lbl)}</span><span class="v">${val}</span></div>`).join("")}
+      </div>
+      <div class="cbx-statgroup__h">Resources</div>
+      <div class="review-grid cbx-statgrid">
+        <div class="rev-cell"><span class="k">Starting Cash</span><span class="v">${money(startingCash())}</span></div>
+      </div>
+      <p class="cbx-summary__line">${money(nuyenLeftover())} unspent Resources convert to cash at 10:1 (SR2 p.46)</p>
+      <p class="cbx-summary__line">Lifestyle: ${esc(id.lifestyle)}${lifestyleMonthly() > 0 ? (id.lifestylePermanent ? ` &mdash; permanent (${money(lifestylePermanentPrice())} paid up front)` : ` &mdash; ${money(lifestyleMonthly())}/month upkeep`) : ""}</p>
+      <p class="cbx-summary__line">${state.skills.length} skills &middot; ${state.spells.length} spells &middot; ${state.powers.length} powers &middot;
+        ${state.gear.weapons.length} weapons &middot; ${state.gear.armor.length} armor &middot; ${state.gear.cyber.length} cyber &middot; ${state.gear.bio.length} bio</p>
+    </div>
+    ${augSummaryHTML()}
+    <button type="button" class="btn btn-green btn-submit" id="cbxSubmit">Commit Dossier to Case File</button>
+    <p class="cbx-note" id="cbxSubmitStatus"></p>
+    <p class="cbx-help">Contacts you added are committed as the runner's Contact records with the dossier.</p>`;
+}
+
+/* ---------- render ---------- */
+function renderStep() {
+  const fns = [stepPriorities, stepMetatype, stepAttributes, stepMagic, stepSkills, stepResources, stepFinish];
+  const body = document.getElementById("cbxStepBody");
+  body.innerHTML = `<h3 class="cbx-h4" style="margin-top:0;font-size:var(--fs-md);color:var(--text-bright);letter-spacing:1px">
+    Step ${state.step+1} - ${esc(STEPS[state.step])}</h3>` + fns[state.step]();
+  wire();
+}
+function render() {
+  if (!dataReady) return;
+  renderRail(); renderStep(); renderBudget(); renderSourcesPanel();
+  document.getElementById("cbxPrev").disabled = state.step === 0;
+  document.getElementById("cbxNext").disabled = state.step === STEPS.length-1;
+}
+
+/* ---------- GM sources panel (enable sourcebooks) ---------- */
+function renderSourcesPanel() {
+  const el = document.getElementById("cbxSources");
+  if (!el) return;
+  const admin = (typeof isAdmin === "function") && isAdmin();
+  if (!admin || !BOOKS_INFO) { el.innerHTML = ""; return; }
+  const wasOpen = !!(el.querySelector("details") && el.querySelector("details").open);
+  const official = BOOKS_INFO.official || [];
+  const fan = BOOKS_INFO.fan || null;
+  const box = (code, name, enabled) => `<label class="cbx-src"><input type="checkbox" data-book="${esc(code)}" ${enabled?"checked":""}> ${esc(name)}</label>`;
+  el.innerHTML = `<details class="cbx-sources" ${wasOpen?"open":""}><summary>Sourcebooks (GM) &mdash; enable to unlock their gear, bioware &amp; cyber grades</summary>
+    <div class="cbx-src-grid">
+      ${official.map(b => box(b.code, `${b.name} (${b.code})`, b.enabled)).join("")}
+      ${fan ? box(fan.code, `${fan.name} (fan content)`, fan.enabled) : ""}
+    </div></details>`;
+  el.querySelectorAll("[data-book]").forEach(cb => cb.onchange = () => applyBookChange(el));
+}
+async function applyBookChange(el) {
+  const enabled = Array.from(el.querySelectorAll("[data-book]:checked")).map(x => x.dataset.book);
+  el.querySelectorAll("[data-book]").forEach(cb => cb.disabled = true);
+  try {
+    const r = await apiFetch("/catalog/books", { method: "PUT", body: JSON.stringify({ enabled }) });
+    if (!r.ok) { await apiThrow(r); }
+    await loadCatalogs();
+    render();  // tabs/items reflect the new books; the panel re-renders too
+  } catch (e) {
+    setModeBanner(`Could not update sourcebooks: ${esc(e.message || String(e))}`);
+    renderSourcesPanel();
+  }
+}
+
+/* ---------- kit application ---------- */
+function applyKit(kit) {
+  state.prio = { race:"E", magic:"E", attributes:"E", skills:"E", resources:"E", ...kit.prio };
+  state.metatype = kit.metatype || "Human";
+  state.base = { ...freshState().base, ...(kit.base||{}) };
+  state.magicType = kit.magicType || "Mundane";
+  state.tradition = kit.tradition || null;
+  state.totem = kit.totem || null;
+  state.skills = (kit.skills||[]).map(([n,r]) => {
+    const d = (SKILLS||[]).find(x => x.n === n) || { attr:"?", group:"?" };
+    return { name:n, attr:d.attr, group:d.group, rating:r, conc:"", spec:"" };
+  });
+  state.spells = (kit.spells||[]).map(([n,f]) => {
+    const d = (CAT.spells||[]).find(x => x.n === n) || {};
+    return { name:n, cat:d.cat||"", force:f };
+  });
+  state.powers = (kit.powers||[]).map(n => {
+    const d = (CAT.adept_powers||[]).find(x => x.n === n) || {};
+    return { name:n, ppEach:parseNum(d.pp), rated:/\//.test(String(d.pp||"")) || /level/i.test(String(d.tiers||"")), lvl:1 };
+  });
+  state.gear = { weapons:[], armor:[], cyber:[], bio:[], gear:[], vehicles:[], matrix:[] };
+  // Kit gear buckets use the reference names (weapons/armor/cyber/other/vehicles); map "other" -> "gear".
+  const bucketOf = (kitKey) => (kitKey === "other" ? "gear" : kitKey);
+  Object.entries(kit.gear||{}).forEach(([kitKey,names]) => {
+    const bucket = bucketOf(kitKey);
+    if (!state.gear[bucket]) return;
+    names.forEach(n => { const found = findCatalogItem(n); if (found) state.gear[bucket].push(makeGearLine(found.item, found.cat)); });
+  });
+}
+function findCatalogItem(name) {
+  for (const def of SHOP_DEFS) {
+    const hit = (CAT[def.cat]||[]).find(x => x.n === name);
+    if (hit) return { item:hit, cat:def.cat };
+  }
+  return null;
+}
+function makeGearLine(item, catalogName) {
+  if (catalogName === "cyberware") {
+    const line = { n: item.n, sub: item.cat || "", grade: "Standard", baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
+    if (item.cat === "other") line.noGrade = true;   // software chips (skillsofts) carry no cyber grade
+    if (item.soft) line.soft = item.soft;            // skillsoft type: 'active' | 'knowledge' | 'language'
+    if (item.skillBonus) line.skillBonus = item.skillBonus;   // e.g. Math SPU: +floor(Rating/2) to matching skills
+    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Wired Reflexes: +Reaction, +Init dice)
+    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating attribute bonuses (e.g. Muscle Replacement: +Str/+Qui per level)
+    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task / Hacking / Combat)
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    }
+    return line;
+  }
+  const line = { n: item.n, sub: item.sub || item.cat || "", cost: parseNum(item.cost), src: item.src };
+  if (catalogName === "bioware") {
+    line.ess = parseNum(item.ess);
+    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Suprathyroid: +Body/+Qui/+Str/+Reaction)
+    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating bonuses (e.g. Muscle Augmentation: +Str/+Qui per level)
+    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task Pool)
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+      if (item.capBody) line.capBody = true;
+    }
+  }
+  if ((catalogName === "gear" || catalogName === "weapons" || catalogName === "armor") && item.rated) {
+    line.rated = true;
+    line.maxRating = Number(item.maxRating) || 1;
+    line.rating = 1;
+    if (item.costUnit != null) line.costUnit = Number(item.costUnit);
+    if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    if (Array.isArray(item.rateLabels)) line.rateLabels = item.rateLabels.slice();
+  }
+  if (item.cat === "deck") line.mpcp = statVal(item, "MPCP");   // cyberdeck: keep MPCP for the Hacking Pool
+  if (catalogName === "vehicles") { line.body = vehicleStatBody(item); line.rigger = false; }
+  return line;
+}
+// Pull the Body rating out of a vehicle's stats array (["Body", N]).
+function vehicleStatBody(item) {
+  const row = (item.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === "body");
+  return row ? (parseNum(row[1]) || 0) : 0;
+}
+
+/* ---------- wiring ---------- */
+function wire() {
+  const root = document.getElementById("cbxStepBody");
+  const search = root.querySelector("#cbxShopSearch");
+  if (search) search.oninput = () => {
+    shopFilter = search.value;
+    const list = root.querySelector(".cbx-shoplist");
+    if (list) { renderStep(); const s2 = document.getElementById("cbxShopSearch"); if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); } }
+  };
+  const resumePick = document.getElementById("cbxResumePick");
+  if (resumePick) resumePick.onchange = () => { if (resumePick.value) window.location.href = `character-builder.html?resume=${encodeURIComponent(resumePick.value)}`; };
+  root.querySelectorAll("[data-cat]").forEach(el => el.onclick = () => {
+    const cat = el.dataset.cat, L = el.dataset.letter;
+    state.prio[cat] = state.prio[cat] === L ? "" : L; save(); render();
+  });
+  root.querySelectorAll("[data-kit]").forEach(el => el.onclick = () => { applyKit(KITS[el.dataset.kit]); save(); render(); });
+  root.querySelectorAll("[data-mt]").forEach(el => el.onclick = () => { state.metatype = el.dataset.mt; save(); render(); });
+  root.querySelectorAll("[data-attr]").forEach(el => {
+    const a = el.dataset.attr, d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const max = (metatype().max||{})[a] || 9;
+      if (d > 0 && attrSpent() >= attrBudget()) return;   // no attribute points left to spend
+      state.base[a] = clamp(state.base[a]+d, 1, max); save(); render();
+    });
+  });
+  root.querySelectorAll("[data-magictype]").forEach(el => el.onclick = () => { state.magicType = el.dataset.magictype; save(); render(); });
+  root.querySelectorAll("[data-tradition]").forEach(el => el.onclick = () => { state.tradition = el.dataset.tradition; if (state.tradition !== "Shamanic") state.totem = null; save(); render(); });
+  root.querySelectorAll("[data-totem]").forEach(el => el.onclick = () => { state.totem = el.dataset.totem; save(); render(); });
+  root.querySelectorAll("[data-addspell]").forEach(el => el.onclick = () => {
+    const s = (CAT.spells||[]).find(x => x.n === el.dataset.addspell); if (!s) return;
+    state.spells.push({ name:s.n, cat:s.cat||"", force:3 }); save(); render();
+  });
+  root.querySelectorAll("[data-delspell]").forEach(el => el.onclick = () => { state.spells.splice(Number(el.dataset.delspell),1); save(); render(); });
+  root.querySelectorAll("[data-spellforce]").forEach(el => el.oninput = () => { state.spells[Number(el.dataset.spellforce)].force = clamp(Number(el.value)||1,1,6); save(); renderBudget(); });
+  root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
+    const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
+    const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||""));
+    state.powers.push({ name:p.n, ppEach:parseNum(p.pp), rated, lvl:1 }); save(); render();
+  });
+  root.querySelectorAll("[data-delpower]").forEach(el => el.onclick = () => { state.powers.splice(Number(el.dataset.delpower),1); save(); render(); });
+  root.querySelectorAll("[data-powerlvl]").forEach(el => {
+    const i = Number(el.dataset.powerlvl), d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const p = state.powers[i]; if (!p) return;
+      p.lvl = clamp((p.lvl||1)+d,1,6); save(); render();
+    });
+  });
+  root.querySelectorAll("[data-addfocus]").forEach(el => el.onclick = () => {
+    const f = (FOCI||[])[Number(el.dataset.addfocus)]; if (!f) return;
+    state.foci.push({ type:f.n, rating:1, applies:"" }); save(); render();
+  });
+  root.querySelectorAll("[data-focusrate]").forEach(el => {
+    const i = Number(el.dataset.focusrate), d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const x = state.foci[i]; if (!x) return;
+      x.rating = clamp((x.rating||1)+d,1,6); save(); render();
+    });
+  });
+  root.querySelectorAll("[data-focusapplies]").forEach(el => el.oninput = () => { state.foci[Number(el.dataset.focusapplies)].applies = el.value; save(); });
+  root.querySelectorAll("[data-delfocus]").forEach(el => el.onclick = () => { state.foci.splice(Number(el.dataset.delfocus),1); save(); render(); });
+  root.querySelectorAll("[data-addskill]").forEach(el => el.onclick = () => {
+    const d = (SKILLS||[]).find(s => s.n === el.dataset.addskill); if (!d) return;
+    // Required-concentration skills (e.g. Etiquette) start with NO concentration so the player
+    // is forced to choose one -- the row renders red until they do.
+    state.skills.push({ name:d.n, attr:d.attr, group:d.group, rating:1, conc:"", spec:"" });
+    save(); render();
+  });
+  root.querySelectorAll("[data-delskill]").forEach(el => el.onclick = () => { state.skills.splice(Number(el.dataset.delskill),1); save(); render(); });
+  root.querySelectorAll("[data-skill]").forEach(el => {
+    const i = Number(el.dataset.skill), d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const s = state.skills[i]; if (!s) return;
+      if (d > 0 && skillSpent() >= skillBudget()) return;   // no skill points left to spend
+      s.rating = clamp(s.rating+d,1,CHARGEN_SKILL_MAX); save(); render();
+    });
+  });
+  root.querySelectorAll("[data-conc]").forEach(el => el.onchange = () => {
+    const i = Number(el.dataset.conc); state.skills[i].conc = el.value;
+    if (!el.value) state.skills[i].spec = "";  // a specialization needs a concentration
+    save(); render();
+  });
+  root.querySelectorAll("[data-spec]").forEach(el => el.onchange = () => {
+    const i = Number(el.dataset.spec); state.skills[i].spec = el.value; save(); render();
+  });
+  root.querySelectorAll("[data-specinput]").forEach(el => el.oninput = () => {
+    const i = Number(el.dataset.specinput); state.skills[i].spec = el.value; updateSkillLabel(i); save();
+  });
+  root.querySelectorAll("[data-langname]").forEach(el => el.oninput = () => { state.languages[Number(el.dataset.langname)].name = el.value; save(); });
+  root.querySelectorAll("[data-langrate]").forEach(el => {
+    const i = Number(el.dataset.langrate), d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const l = state.languages[i]; if (!l) return;
+      l.rating = clamp(l.rating+d,1,CHARGEN_SKILL_MAX); save(); render();
+    });
+  });
+  root.querySelectorAll("[data-dellang]").forEach(el => el.onclick = () => { state.languages.splice(Number(el.dataset.dellang),1); save(); render(); });
+  const addLangEl = root.querySelector("[data-addlang]");
+  if (addLangEl) addLangEl.onclick = () => { state.languages.push({ name:"", rating:1 }); save(); render(); };
+  root.querySelectorAll("[data-shoptab]").forEach(el => el.onclick = () => { shopTab = el.dataset.shoptab; shopFilter = ""; shopInspect = null; renderStep(); });
+  root.querySelectorAll("[data-buy]").forEach(el => el.onclick = () => {
+    const def = SHOP_DEFS.find(d => d.k === shopTab); const it = (CAT[def.cat]||[]).find(x => x.n === el.dataset.buy);
+    if (!it) return;
+    const before = root.querySelector(".cbx-shoplist");
+    const top = before ? before.scrollTop : 0;   // keep the shop where the user was after adding
+    state.gear[def.k].push(makeGearLine(it, def.cat)); save(); render();
+    const after = root.querySelector(".cbx-shoplist");
+    if (after) after.scrollTop = top;
+  });
+  root.querySelectorAll("[data-buyattach]").forEach(el => el.onclick = () => {
+    const it = (CAT.weapons || []).find(x => x.n === el.dataset.buyattach); if (!it) return;
+    const sel = document.getElementById("cbxAttachWeapon");
+    const wpn = state.gear.weapons[sel ? Number(sel.value) : -1]; if (!wpn) return;
+    const before = root.querySelector(".cbx-shoplist");
+    const top = before ? before.scrollTop : 0;
+    attachModToHost(wpn, it, 2, "Internal Smartlink");
+    save(); render();
+    const after = root.querySelector(".cbx-shoplist");
+    if (after) after.scrollTop = top;
+  });
+  root.querySelectorAll("[data-buyarmorattach]").forEach(el => el.onclick = () => {
+    const it = (CAT.armor || []).find(x => x.n === el.dataset.buyarmorattach); if (!it) return;
+    const sel = document.getElementById("cbxAttachArmor");
+    const host = state.gear.armor[sel ? Number(sel.value) : -1]; if (!host) return;
+    const before = root.querySelector(".cbx-shoplist");
+    const top = before ? before.scrollTop : 0;
+    attachModToHost(host, it, 5, "Gel-Packs", gelPackTransform(host.n));
+    save(); render();
+    const after = root.querySelector(".cbx-shoplist");
+    if (after) after.scrollTop = top;
+  });
+  root.querySelectorAll("[data-inspect]").forEach(el => el.onclick = () => toggleShopInspect(root, el.dataset.inspect));
+  root.querySelectorAll("[data-delgear]").forEach(el => el.onclick = () => {
+    const [k,idx] = el.dataset.delgear.split(":"); state.gear[k].splice(Number(idx),1); save(); render();
+  });
+  root.querySelectorAll("[data-gearkind]").forEach(el => el.oninput = () => {
+    const [k,idx] = el.dataset.gearkind.split(":"); state.gear[k][Number(idx)].kind = el.value; save();
+  });
+  root.querySelectorAll("[data-rigger]").forEach(el => el.onclick = () => {
+    const g = state.gear.vehicles[Number(el.dataset.rigger)]; g.rigger = !g.rigger; save(); render();
+  });
+  root.querySelectorAll("[data-cybergrade]").forEach(el => el.onchange = () => {
+    state.gear.cyber[Number(el.dataset.cybergrade)].grade = el.value; save(); render();
+  });
+  root.querySelectorAll("[data-cyberrating]").forEach(el => el.onchange = () => {
+    state.gear.cyber[Number(el.dataset.cyberrating)].rating = Number(el.value) || 1; save(); render();
+  });
+  root.querySelectorAll("[data-cyberskill]").forEach(el => el.oninput = () => {
+    state.gear.cyber[Number(el.dataset.cyberskill)].skill = el.value; save();
+  });
+  root.querySelectorAll("[data-biorating]").forEach(el => el.onchange = () => {
+    state.gear.bio[Number(el.dataset.biorating)].rating = Number(el.value) || 1; save(); render();
+  });
+  root.querySelectorAll("[data-gearrating]").forEach(el => el.onchange = () => {
+    const [k,idx] = el.dataset.gearrating.split(":"); state.gear[k][Number(idx)].rating = Number(el.value)||1; save(); render();
+  });
+  root.querySelectorAll("[data-proginspect]").forEach(el => el.onclick = () => toggleShopInspect(root, "prog:" + el.dataset.proginspect));
+  root.querySelectorAll("[data-progadd]").forEach(el => el.onclick = () => {
+    const key = el.dataset.progadd;
+    if ((state.programs || []).some(p => p.prog === key)) return;   // one of each program
+    const entry = { prog: key, rating: 1 };
+    if (key === "attack") entry.dmg = "M";
+    const before = root.querySelector(".cbx-shoplist");
+    const top = before ? before.scrollTop : 0;   // keep the browse list where the user was
+    state.programs.push(entry); save(); render();
+    const after = root.querySelector(".cbx-shoplist");
+    if (after) after.scrollTop = top;
+  });
+  root.querySelectorAll("[data-prograte]").forEach(el => el.onchange = () => {
+    state.programs[Number(el.dataset.prograte)].rating = clamp(Number(el.value)||1, 1, PROGRAM_MAX_RATING); save(); render();
+  });
+  root.querySelectorAll("[data-progdmg]").forEach(el => el.onchange = () => {
+    state.programs[Number(el.dataset.progdmg)].dmg = el.value; save(); render();
+  });
+  root.querySelectorAll("[data-progdel]").forEach(el => el.onclick = () => {
+    state.programs.splice(Number(el.dataset.progdel), 1); save(); render();
+  });
+  const addC = document.getElementById("cbxAddContact");
+  if (addC) addC.onclick = () => { state.contacts.push({ name:"", archetype:"", level:"Contact" }); save(); render(); };
+  root.querySelectorAll("[data-cname]").forEach(el => el.oninput = () => { state.contacts[Number(el.dataset.cname)].name = el.value; save(); });
+  root.querySelectorAll("[data-carch]").forEach(el => el.onchange = () => { state.contacts[Number(el.dataset.carch)].archetype = el.value; save(); });
+  root.querySelectorAll("[data-clevel]").forEach(el => el.onclick = () => {
+    const c = state.contacts[Number(el.dataset.clevel)]; c.level = c.level==="Buddy" ? "Contact" : "Buddy"; save(); render();
+  });
+  root.querySelectorAll("[data-delcontact]").forEach(el => el.onclick = () => { state.contacts.splice(Number(el.dataset.delcontact),1); save(); render(); });
+  root.querySelectorAll("[data-id]").forEach(el => el.oninput = () => { state.identity[el.dataset.id] = el.value; save(); if (el.dataset.id==="lifestyle" || el.dataset.id==="archetype") renderStep(); });
+  const permEl = document.getElementById("cbxLifePerm");
+  if (permEl) permEl.onchange = () => { state.identity.lifestylePermanent = permEl.checked; save(); render(); };
+  const submit = document.getElementById("cbxSubmit");
+  if (submit) submit.onclick = commitDossier;
+}
+
+/* ---------- commit ---------- */
+// Fold bought languages into the committed skill list (Common/English is assumed known).
+function commitSkills() {
+  const langs = [];
+  (state.languages || []).forEach(l => {
+    const nm = (l.name || "").trim();
+    if (nm) langs.push({ name: nm, attr: "intelligence", group: "language", rating: Number(l.rating) || 1, conc: "", spec: "", free: false });
+  });
+  return state.skills.concat(langs);
+}
+function commitPayload() {
+  const id = state.identity;
+  const lvl = LIFESTYLE_TIERS.indexOf(id.lifestyle);
+  const ageNum = parseInt(id.age, 10);
+  const computer = state.skills.find(s => s.name === "Computer");
+  const computerBr = state.skills.find(s => s.name === "Computer B/R");
+  const mathSpu = (state.gear.cyber || []).find(g => (g.n || "") === "Math SPU");
+  // A decker's Computer skill splits into the Matrix-subsystem columns via its SR2 skill web:
+  // a "Software" concentration feeds the Software skill; a specialization under it feeds Matrix
+  // Programming. Ratings come from skillTiers so they match the sheet exactly.
+  const compTiers = computer ? skillTiers(computer) : [];
+  const softwareOn = !!(computer && (computer.conc || "").trim() === "Software");
+  const matrixOn = !!(softwareOn && (computer.spec || "").trim());
+  return {
+    name: (id.handle || id.name || "Unnamed Runner").slice(0, 200),
+    is_pc: true,
+    archetype: (id.archetype === "Custom" ? (id.archetypeCustom || "").trim() : id.archetype) || null,
+    race: state.metatype,
+    gender: id.sex || null,
+    nationality: id.nationality || null,
+    age: Number.isFinite(ageNum) ? ageNum : null,
+    description: id.desc || null,
+    body: finalAttr("body"), quickness: finalAttr("quickness"), strength: finalAttr("strength"),
+    charisma: finalAttr("charisma"), intelligence: finalAttr("intelligence"), willpower: finalAttr("willpower"),
+    essence: round2(essence()), body_index: round2(bodyIndex()),
+    magic_rating: magicRating(),
+    magic_type: state.magicType || null,
+    tradition: state.tradition || null,
+    totem: state.totem || null,
+    nuyen: startingCash(),
+    karma_pool: (CHARGEN && CHARGEN.startKarmaPool != null) ? CHARGEN.startKarmaPool : 1,
+    good_karma: (CHARGEN && CHARGEN.startGoodKarma != null) ? CHARGEN.startGoodKarma : 0,
+    lifestyle_level: lvl >= 0 ? lvl : null,
+    lifestyle_permanent: lvl > 0 ? !!state.identity.lifestylePermanent : false,
+    // Deck eligibility: surface the Computer skill so a chargen decker appears in the Deck Workshop.
+    computer_skill_enabled: !!computer,
+    computer_skill_rating: computer ? Math.min(20, Number(computer.rating) || 0) : 0,
+    // Software concentration (programming) and its Matrix Programming specialization.
+    software_skill_enabled: softwareOn,
+    software_skill_rating: (softwareOn && compTiers[1]) ? Math.min(20, compTiers[1].rating) : 0,
+    matrix_skill_enabled: matrixOn,
+    matrix_skill_rating: (matrixOn && compTiers[2]) ? Math.min(20, compTiers[2].rating) : 0,
+    // Computer B/R is the deck/program build+repair skill the Deck Workshop uses.
+    computer_br_skill_enabled: !!computerBr,
+    computer_br_skill_rating: computerBr ? Math.min(20, Number(computerBr.rating) || 0) : 0,
+    // Math SPU cyberware boosts the decker's Hacking Pool -- carry its actual chargen rating.
+    math_spu_enabled: !!mathSpu,
+    math_spu_rating: mathSpu ? Math.min(4, cyberRating(mathSpu)) : 0,
+    priorities: state.prio,
+    skills: commitSkills(),
+    spells: state.spells,
+    adept_powers: state.powers,
+    gear: { ...state.gear, foci: state.foci, programs: state.programs || [] },
+    contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => ({
+      name: c.name.slice(0, 200),
+      profession: c.archetype || null,
+      connection: 1,
+      loyalty: c.level === "Buddy" ? 3 : 1,
+    })),
+  };
+}
+async function ensureDraft() {
+  // Persist the current sheet as a hidden draft PC so the Deck Workshop can attach to it.
+  const payload = { ...commitPayload(), is_draft: true };
+  if (state.draftId) {
+    const r = await apiFetch(`/characters/${state.draftId}/dossier-draft`, { method: "POST", body: JSON.stringify(payload) });
+    if (r.ok) return state.draftId;
+    if (r.status !== 404) { await apiThrow(r); }
+    state.draftId = null; // the draft was removed -- fall through and make a fresh one
+  }
+  const created = await apiFetch("/characters/dossier", { method: "POST", body: JSON.stringify(payload) });
+  if (!created.ok) { await apiThrow(created); }
+  state.draftId = (await created.json()).id;
+  return state.draftId;
+}
+
+// ---------- reverse-mapping: load an existing character into the wizard ----------
+// Rebuilds wizard state from a committed CharacterRead (the inverse of commitPayload).
+// Wizard-built PCs round-trip fully; older/thin PCs come in partially (attributes +
+// identity + whatever chargen JSON exists), leaving the rest for the GM to fill in.
+function hydrateStateFromCharacter(c) {
+  state = freshState();
+  state.prio = { ...state.prio, ...(c.priorities || {}) };
+  state.metatype = (META && META[c.race]) ? c.race : "Human";
+  state.magicType = c.magic_type || null;
+  state.tradition = c.tradition || null;
+  state.totem = c.totem || null;
+  // Stored attributes are final (base + racial mods); back the mods out to editable base.
+  const mods = (metatype().mods) || {};
+  ATTRS.forEach(a => { state.base[a] = Math.max(1, (Number(c[a]) || 1) - (mods[a] || 0)); });
+  const g = c.gear || {};
+  state.gear = {
+    weapons: g.weapons || [], armor: g.armor || [], cyber: g.cyber || [],
+    bio: g.bio || [], gear: g.gear || [], vehicles: g.vehicles || [], matrix: g.matrix || [],
+  };
+  state.foci = Array.isArray(g.foci) ? g.foci : [];
+  state.programs = Array.isArray(g.programs) ? g.programs : [];
+  const allSkills = Array.isArray(c.skills) ? c.skills : [];
+  state.skills = allSkills.filter(s => s.group !== "language").map(s => ({
+    name: s.name, attr: s.attr, group: s.group, rating: Number(s.rating) || 0,
+    conc: s.conc || "", spec: s.spec || "",
+  }));
+  const langs = allSkills.filter(s => s.group === "language");
+  state.languages = langs.map(l => ({ name: l.name || "", rating: Number(l.rating) || 1 }));
+  state.spells = Array.isArray(c.spells) ? c.spells : [];
+  state.powers = Array.isArray(c.adept_powers) ? c.adept_powers : [];
+  const lvl = (c.lifestyle_level != null && c.lifestyle_level >= 0) ? c.lifestyle_level : 0;
+  const arch = c.archetype || "";
+  const archNamed = PC_ARCHETYPES.includes(arch);
+  state.identity = {
+    handle: c.name || "", name: "", sex: c.gender || "",
+    age: (c.age != null) ? String(c.age) : "",
+    nationality: c.nationality || "",
+    archetype: arch ? (archNamed ? arch : "Custom") : "",
+    archetypeCustom: (arch && !archNamed) ? arch : "",
+    lifestyle: LIFESTYLE_TIERS[lvl] || "Street",
+    lifestylePermanent: !!c.lifestyle_permanent, desc: c.description || "",
+  };
+  state = normalizeState(state);
+}
+
+async function hydrateContacts(id) {
+  try {
+    const r = await apiFetch(`/contacts/?owner_id=${encodeURIComponent(id)}`);
+    if (!r.ok) return;
+    const list = await r.json();
+    state.contacts = (Array.isArray(list) ? list : []).map(ct => ({
+      name: ct.name || "", archetype: ct.profession || "",
+      level: (Number(ct.loyalty) >= 3) ? "Buddy" : "Contact",
+    }));
+  } catch (_) { /* leave contacts empty on failure */ }
+}
+
+function setModeBanner(html) {
+  const b = document.getElementById("cbxModeBanner");
+  if (b) b.innerHTML = html || "";
+}
+async function commitDossier() {
+  const status = document.getElementById("cbxSubmitStatus");
+  if (!prioComplete()) { status.className = "cbx-note is-warn"; status.textContent = "Assign all five priorities before committing."; return; }
+  const viol = budgetViolations();
+  if (viol.length) {
+    status.className = "cbx-note is-warn";
+    status.textContent = "Over budget -- fix before committing: " + viol.join("; ") + ".";
+    return;
+  }
+  const needConc = state.skills
+    .filter(s => REQUIRED_CONC.has(s.name) && (skillDefFor(s.name)?.conc || []).length && !(s.conc || "").trim())
+    .map(s => s.name);
+  if (needConc.length) {
+    status.className = "cbx-note is-warn";
+    status.textContent = "Choose a concentration for: " + needConc.join(", ") + ".";
+    return;
+  }
+  const converting = !!state.convertId;
+  status.className = "cbx-note"; status.textContent = converting ? "Converting..." : "Committing...";
+  try {
+    // Convert overwrites an existing character; a draft finalizes in place; otherwise create fresh.
+    let url;
+    if (converting) url = `/characters/${state.convertId}/convert-dossier`;
+    else if (state.draftId) url = `/characters/${state.draftId}/finalize-dossier`;
+    else url = "/characters/dossier";
+    const res = await apiFetch(url, { method: "POST", body: JSON.stringify(commitPayload()) });
+    if (!res.ok) { await apiThrow(res); }
+    const saved = await res.json();
+    status.className = "cbx-note is-ok";
+    status.innerHTML = `${converting ? "Converted" : "Committed"} as <strong>${esc(saved.name)}</strong> (id ${saved.id}). ` +
+      `<a href="character-sheet.html?id=${saved.id}">View sheet &rsaquo;</a> &middot; ` +
+      `<a href="manage-characters.html">Open in Characters &rsaquo;</a>`;
+    setModeBanner("");
+    localStorage.removeItem(KEY);
+  } catch (e) {
+    status.className = "cbx-note is-warn";
+    status.textContent = (converting ? "Conversion" : "Commit") + " failed: " + (e.message || e);
+  }
+}
+
+/* ---------- init ---------- */
+async function loadData() {
+  const rulesRes = await apiFetch("/catalog/rules");
+  if (!rulesRes.ok) throw new Error("could not load /catalog/rules");
+  RULES = await rulesRes.json();
+  PR = RULES.priority; META = RULES.metatypes; SKILLS = RULES.skills; TOTEMS = RULES.totems;
+  KITS = RULES.archetypes; MAGIC_RULES = RULES.magic_rules; CHARGEN = RULES.chargen || {};
+  FOCI = RULES.foci || [];
+  CONTACT_ARCHETYPES = RULES.contact_archetypes || [];
+  LIFESTYLES = (CHARGEN.lifestyles || []).map(l => l.name);
+  if (!LIFESTYLES.length) LIFESTYLES = LIFESTYLE_TIERS.slice();
+  await loadCatalogs();
+  MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : []).catch(() => []);
+  dataReady = true;
+}
+// (Re)load book-filtered item catalogues + the book settings; used at boot and after a GM book change.
+async function loadCatalogs() {
+  const names = ["weapons","armor","cyberware","bioware","gear","vehicles","spells","adept_powers"];
+  const results = await Promise.all(names.map(n =>
+    apiFetch("/catalog/" + n).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] }))));
+  names.forEach((n,i) => { CAT[n] = (results[i] && results[i].items) || []; });
+  const ss = await apiFetch("/catalog/skill-specs").then(r => r.ok ? r.json() : null).catch(() => null);
+  SKILL_SPECS = (ss && ss.specs) || {};
+  const vc = await apiFetch("/catalog/vehicle-classes").then(r => r.ok ? r.json() : null).catch(() => null);
+  VEHICLE_CLASSES = (vc && vc.classes) || {};
+  BOOKS_INFO = await apiFetch("/catalog/books").then(r => r.ok ? r.json() : null).catch(() => null);
+  enabledBooks = new Set((BOOKS_INFO && BOOKS_INFO.enabled) || []);
+}
+
+// ---------- landing page + server auto-save (the server draft is the single source of truth) ----------
+let _syncTimer = null;
+function draftHasContent() {
+  const id = state.identity || {};
+  return prioLettersUsed().length > 0 || String(id.handle || "").trim() !== ""
+    || (state.skills || []).length > 0 || (state.programs || []).length > 0
+    || (state.spells || []).length > 0 || (state.powers || []).length > 0
+    || GEAR_KEYS.some(k => (state.gear[k] || []).length > 0);
+}
+function scheduleServerSync() {
+  if (!dataReady || state.convertId) return;   // conversions commit in place, never as a draft
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => doServerSync(false), 1500);
+}
+async function doServerSync(force) {
+  if (state.convertId) return;
+  if (!force && !state.draftId && !draftHasContent()) return;   // don't spawn an empty draft
+  const label = document.getElementById("cbxSaveLabel");
+  const hadId = !!state.draftId;
+  try {
+    if (label) label.textContent = "syncing runner draft...";
+    const id = await ensureDraft();
+    if (!hadId && id) {
+      // first sync created the server draft -> pin the URL so a refresh resumes it, not the landing
+      history.replaceState(null, "", `character-builder.html?resume=${encodeURIComponent(id)}`);
+      MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : MY_DRAFTS).catch(() => MY_DRAFTS);
+    }
+    if (label) label.innerHTML = `runner draft #${esc(String(id))} saved`;
+  } catch (e) {
+    if (label) label.textContent = "saved locally (server sync failed)";
+  }
+}
+function wizardChrome(show) {
+  const disp = show ? "" : "none";
+  const bar = document.querySelector(".cbx-savebar"); if (bar) bar.style.display = disp;
+  const src = document.getElementById("cbxSources"); if (src) src.style.display = disp;
+  const panes = document.querySelector(".md3-panes"); if (panes) panes.style.display = disp;
+}
+function landingCardHTML(d) {
+  const meta = [d.race, d.archetype].filter(Boolean).map(esc).join(" - ");
+  return `<button type="button" class="cbx-landcard" data-resume="${esc(String(d.id))}">
+    <div class="cbx-landcard__h">${esc(d.name || "Unnamed Runner")}</div>
+    <div class="cbx-landcard__m">Draft #${esc(String(d.id))}${meta ? " - " + meta : ""}</div>
+    <div class="cbx-landcard__a">Resume &rsaquo;</div>
+  </button>`;
+}
+function showLanding() {
+  const land = document.getElementById("cbxLanding");
+  const drafts = MY_DRAFTS || [];
+  land.innerHTML = `
+    <div class="cbx-landing__h">Runner Intake</div>
+    <div class="cbx-landing__sub">Start a new SR2 runner${drafts.length ? ", or resume a saved draft." : "."}</div>
+    <div class="cbx-landgrid">
+      <button type="button" class="cbx-landcard cbx-landcard--new" id="cbxNewRunner">
+        <div class="cbx-landcard__h">+ New Runner</div>
+        <div class="cbx-landcard__m">Begin a fresh dossier</div>
+        <div class="cbx-landcard__a">Launch builder &rsaquo;</div>
+      </button>
+      ${drafts.map(landingCardHTML).join("")}
+    </div>`;
+  land.style.display = "";
+  wizardChrome(false);
+  document.getElementById("cbxNewRunner").onclick = startNewRunner;
+  land.querySelectorAll("[data-resume]").forEach(el => el.onclick = () => {
+    window.location.href = `character-builder.html?resume=${encodeURIComponent(el.dataset.resume)}`;
+  });
+}
+function showWizard() {
+  document.getElementById("cbxLanding").style.display = "none";
+  wizardChrome(true);
+  render();
+}
+function startNewRunner() {
+  state = freshState(); shopTab = "weapons"; shopFilter = ""; shopInspect = null;
+  localStorage.removeItem(KEY);
+  clearTimeout(_syncTimer);   // no empty-draft sync until the player enters something
+  history.replaceState(null, "", "character-builder.html");
+  showWizard();
+}
+document.getElementById("cbxPrev").onclick = () => { if (state.step>0) { state.step--; save(); render(); } };
+document.getElementById("cbxNext").onclick = () => { if (state.step<STEPS.length-1) { state.step++; save(); render(); } };
+document.getElementById("cbxReset").onclick = async () => {
+  if (!await showConfirm("Discard this draft dossier? This deletes the saved draft and clears all entered data.")) return;
+  const oldId = state.draftId;
+  if (oldId) { try { await apiFetch(`/characters/${encodeURIComponent(oldId)}`, { method: "DELETE" }); } catch (_) {} }
+  state = freshState(); shopTab = "weapons"; shopFilter = ""; shopInspect = null;
+  localStorage.removeItem(KEY); clearTimeout(_syncTimer);
+  history.replaceState(null, "", "character-builder.html");
+  MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : MY_DRAFTS).catch(() => MY_DRAFTS);
+  render();
+};
+document.getElementById("cbxSaveServer").onclick = async () => {
+  // Flush the debounced auto-save immediately (the server draft is the source of truth).
+  if (state.convertId) { setModeBanner("Converting an existing character -- finish the commit to save."); return; }
+  clearTimeout(_syncTimer);
+  await doServerSync(true);
+};
+
+bootstrapAuth().then(async (u) => {
+  if (!u) return;
+  try {
+    await loadData();
+    const params = new URLSearchParams(location.search);
+    const convertId = params.get("convert");
+    const resumeId = params.get("resume");
+    if (convertId || resumeId) {
+      // Load an existing character into the wizard: convert overwrites it; resume continues a draft.
+      const id = convertId || resumeId;
+      try {
+        const r = await apiFetch(`/characters/${encodeURIComponent(id)}`);
+        if (r.ok) {
+          const c = await r.json();
+          hydrateStateFromCharacter(c);
+          await hydrateContacts(id);
+          if (convertId) {
+            state.convertId = Number(id);
+            setModeBanner(`Converting <strong>${esc(c.name || "character")}</strong> (id ${esc(String(id))}) &mdash; committing overwrites this record.`);
+          } else {
+            state.draftId = id;
+            setModeBanner(`Resuming draft <strong>${esc(c.name || "dossier")}</strong> (id ${esc(String(id))}).`);
+          }
+          state.step = 0;
+          save();
+        } else {
+          setModeBanner(`Could not load character ${esc(String(id))} (status ${r.status}).`);
+        }
+      } catch (e) {
+        setModeBanner(`Could not load character: ${esc(e.message || String(e))}`);
+      }
+      showWizard();
+    } else {
+      showLanding();
+    }
+  } catch (e) {
+    document.getElementById("cbxStepBody").innerHTML =
+      `<p class="cbx-note is-warn">Could not load reference data: ${esc(e.message || String(e))}</p>`;
+  }
+});
+})();
+</script>
+</body>
+</html>
