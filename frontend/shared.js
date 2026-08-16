@@ -145,8 +145,8 @@ function _buildMatrixNavGroup() {
 
 // -- CHARACTERS nav group ------------------------------------------------------
 // Folds the flat "Characters" link (and any legacy flat "Dossier Intake"/"Builder" link) into a
-// "CHARACTERS" dropdown: Known Persons (the registry) + New Shadowrunner (the character-builder).
-// Built centrally so every page shares one definition; New Shadowrunner is visible to all users.
+// "CHARACTERS" dropdown: Known Persons (the registry) + New Runner (the character-builder).
+// Built centrally so every page shares one definition; New Runner is visible to all users.
 function _buildCharactersNavGroup() {
   const nav = document.querySelector('header nav');
   if (!nav || nav.querySelector('.nav-group--chars')) return;
@@ -155,7 +155,7 @@ function _buildCharactersNavGroup() {
 
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
-    { href: 'character-builder.html', label: 'New Shadowrunner' },
+    { href: 'character-builder.html', label: 'New Runner' },
     { href: 'gear.html', label: 'Gear Catalog' },
   ];
   const here = window.location.pathname;
@@ -194,7 +194,7 @@ function _buildCharactersNavGroup() {
   });
 
   // Remove any flat "Dossier Intake"/"Builder" links FIRST -- before the group (whose menu also
-  // links to the builder) is inserted, so the "New Shadowrunner" menu item is not swept up too.
+  // links to the builder) is inserted, so the "New Runner" menu item is not swept up too.
   nav.querySelectorAll('a[href="character-builder.html"]').forEach(a => a.remove());
   // Splice the group where the flat Characters link sat, then drop the flat Characters link.
   nav.insertBefore(group, anchor);
