@@ -1,7 +1,7 @@
 # SR2 Character Builder ("Runner Dossier Intake") -- Plan
 
 > Status: **Design in progress.** No implementation started against the real app yet.
-> A clickable, non-wired mockup lives at `frontend/character-builder-mockup.html`
+> The builder now lives at `frontend/character-builder.html`
 > (branch `SR2-char-builder`). All raw reference data pulled for this feature --
 > shadowrun2e.com's catalogue/builder JS files and the full Rigger 2 vehicle
 > table -- is committed under `docs/reference-data/`, so implementation work

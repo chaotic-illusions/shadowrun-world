@@ -17,14 +17,13 @@ from app.models.character import (
     LIFESTYLE_MONTHLY_COST,
     LIFESTYLE_PERMANENT_MONTHS,
     LIFESTYLE_UPKEEP_TICKS,
+    lifestyle_monthly_cost_for,
 )
 
 
 def monthly_cost(level: int | None) -> int:
     """Monthly upkeep for a lifestyle tier (0 for Street or an unset/out-of-range level)."""
-    if level is None or not (0 <= level < len(LIFESTYLE_MONTHLY_COST)):
-        return 0
-    return LIFESTYLE_MONTHLY_COST[level]
+    return lifestyle_monthly_cost_for(level)
 
 
 def permanent_cost(level: int | None) -> int:

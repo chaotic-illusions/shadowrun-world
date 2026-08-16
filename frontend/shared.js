@@ -156,6 +156,7 @@ function _buildCharactersNavGroup() {
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Shadowrunner' },
+    { href: 'gear.html', label: 'Gear Catalog' },
   ];
   const here = window.location.pathname;
   const onCharsPage = childDefs.some(d => here.endsWith(d.href)) || here.endsWith('character-sheet.html');
@@ -192,10 +193,12 @@ function _buildCharactersNavGroup() {
     }
   });
 
-  // Splice the group where the flat Characters link sat, then drop the flat Characters + builder links.
+  // Remove any flat "Dossier Intake"/"Builder" links FIRST -- before the group (whose menu also
+  // links to the builder) is inserted, so the "New Shadowrunner" menu item is not swept up too.
+  nav.querySelectorAll('a[href="character-builder.html"]').forEach(a => a.remove());
+  // Splice the group where the flat Characters link sat, then drop the flat Characters link.
   nav.insertBefore(group, anchor);
   anchor.remove();
-  nav.querySelectorAll('a[href="character-builder.html"]').forEach(a => a.remove());
 }
 
 // -- bootstrapAuth -------------------------------------------------------------

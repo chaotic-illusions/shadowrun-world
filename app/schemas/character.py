@@ -1,6 +1,23 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+import json
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Upper bound on the raw chargen wizard blob a player may persist on a draft (player-writable).
+_MAX_CHARGEN_STATE_BYTES = 256 * 1024  # 256 KB
+
+# Upper bound on each player-writable structured JSON field (priorities/skills/spells/adept_powers/gear).
+_MAX_JSON_FIELD_BYTES = 256 * 1024  # 256 KB per field
+
+
+def _cap_json_bytes(v, field_name: str):
+    """Reject a player-writable JSON field that would bloat the row past the byte cap."""
+    if v is None:
+        return v
+    size = len(json.dumps(v, separators=(",", ":"), default=str).encode("utf-8"))
+    if size > _MAX_JSON_FIELD_BYTES:
+        raise ValueError(f"{field_name} is too large ({size} bytes; limit {_MAX_JSON_FIELD_BYTES})")
+    return v
 
 
 class CharacterBase(BaseModel):
@@ -55,6 +72,11 @@ class CharacterBase(BaseModel):
     gear: dict = {}
     organization_id: Optional[int] = None
 
+    @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
+    @classmethod
+    def _cap_json_fields(cls, v, info):
+        return _cap_json_bytes(v, info.field_name)
+
 
 class CharacterCreate(CharacterBase):
     model_config = ConfigDict(extra='forbid')
@@ -65,13 +87,24 @@ class DossierContact(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: str = Field(max_length=200)
     profession: Optional[str] = Field(default=None, max_length=100)
+    contact_type: Optional[str] = Field(default=None, max_length=20)
     connection: int = Field(default=1, ge=1, le=6)
     loyalty: int = Field(default=1, ge=1, le=6)
 
 
 class DossierCommit(CharacterCreate):
     """Full chargen commit: the character sheet plus the contacts to create with it."""
-    contacts: list[DossierContact] = []
+    contacts: list[DossierContact] = Field(default_factory=list, max_length=50)
+    # Verbatim wizard state so a saved draft restores every typed input losslessly.
+    chargen_state: dict = Field(default_factory=dict)
+
+    @field_validator("chargen_state")
+    @classmethod
+    def _limit_chargen_state(cls, v: dict) -> dict:
+        size = len(json.dumps(v, separators=(",", ":")).encode("utf-8"))
+        if size > _MAX_CHARGEN_STATE_BYTES:
+            raise ValueError(f"chargen_state is too large ({size} bytes; limit {_MAX_CHARGEN_STATE_BYTES})")
+        return v
 
 
 class LifestylePurchase(BaseModel):
@@ -135,6 +168,11 @@ class CharacterUpdate(BaseModel):
     gear: Optional[dict] = None
     organization_id: Optional[int] = None
 
+    @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
+    @classmethod
+    def _cap_json_fields(cls, v, info):
+        return _cap_json_bytes(v, info.field_name)
+
 
 class CharacterRead(CharacterBase):
     id: int
@@ -148,6 +186,11 @@ class CharacterRead(CharacterBase):
     # Pydantic V2: Field(exclude=True) prevents owner_token from appearing in API responses
     owner_token: Optional[str] = Field(default=None, exclude=True)
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChargenStateRead(BaseModel):
+    """The raw character-builder wizard state for resuming a draft losslessly."""
+    state: dict = Field(default_factory=dict)
 
 
 class CharacterSummary(BaseModel):

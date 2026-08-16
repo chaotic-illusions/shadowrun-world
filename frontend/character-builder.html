@@ -6,6 +6,7 @@
 <title>Dossier Intake | Shadowrun World Engine</title>
 <link rel="stylesheet" href="style.css">
 <script src="shared.js"></script>
+<script src="catalog-taxonomy.js"></script>
 <script src="matrix-programs.js"></script>
 <style>
   .cbx-p{color:var(--text-dim);font-size:var(--fs-sm);line-height:1.55;margin:0 0 14px;}
@@ -101,6 +102,16 @@
   .cbx-skillcat{margin-bottom:6px;}
   .cbx-skillcat__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:2px;text-transform:uppercase;
     margin:10px 0 4px;padding-bottom:3px;border-bottom:1px solid #2a1a00;}
+  .cbx-subcat{margin:2px 0 4px 8px;}
+  .cbx-subcat__h{color:var(--cyan);font-size:var(--fs-xxs);letter-spacing:1px;text-transform:uppercase;margin:6px 0 3px;}
+  .cbx-opts{display:flex;flex-direction:column;gap:7px;margin:8px 0;}
+  .cbx-opt{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
+  .cbx-opt__b{display:flex;flex-direction:column;gap:1px;}
+  .cbx-opt__n{color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-opt__c{color:var(--cyan);font-size:var(--fs-xxs);}
+  .cbx-opt__d{color:var(--text-dim);font-size:var(--fs-xxs);line-height:1.35;}
+  .cbx-line__opt{color:var(--cyan);font-size:var(--fs-xxs);}
+  .cbx-h4__note{color:var(--text-dim);font-weight:normal;text-transform:none;letter-spacing:0;}
   .cbx-skillcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:8px 0 4px;}
   .cbx-skillcard{border:1px solid #1a2a1a;background:#0d0d0d;padding:8px 10px;}
   .cbx-skillcard__h{color:var(--amber);font-size:var(--fs-xxs);letter-spacing:2px;text-transform:uppercase;
@@ -329,6 +340,11 @@ const GEAR_KEYS = SHOP_DEFS.map(d => d.k);
 let RULES = null;          // /catalog/rules bundle
 let PR, META, SKILLS, TOTEMS, KITS, MAGIC_RULES, CHARGEN, FOCI = [];
 let CONTACT_ARCHETYPES = [];
+// Premium contact types: Gang/Tribe cost 50,000 (free-text names the gang/tribe); Follower costs
+// 200,000 and must be one of a fixed archetype set, each usable at most once.
+const CONTACT_TYPES = ["Contact", "Buddy", "Gang", "Tribe", "Follower"];
+const FOLLOWER_ARCHETYPES = ["Bodyguard", "Company Man", "Decker", "Detective", "Gang Member", "Mage", "Mercenary", "Rigger", "Shaman", "Street Samurai", "Tribesman"];
+const CONTACT_TYPE_COST = { Gang: 50000, Tribe: 50000, Follower: 200000 };
 // PC archetypes offered at chargen -- mirrors the runner options on manage-characters so new
 // builds line up with the world-state cards. "Custom" reveals a free-text field.
 const PC_ARCHETYPES = ["Street Samurai", "Decker", "Rigger", "Mage", "Shaman", "Adept"];
@@ -346,6 +362,7 @@ let state = normalizeState(load() || freshState());
 let shopTab = "weapons";
 let shopFilter = "";
 let shopInspect = null;    // name of the shop item whose summary is expanded
+let shopOpts = [];         // option names selected in the open shop inspector (e.g. Voice Modulator add-ons)
 
 // Hold-to-repeat for the +/- steppers (consistent with the number steppers elsewhere in the app).
 // render() rebuilds the buttons on every tick, so the repeat loop lives on a module-global and is
@@ -387,7 +404,7 @@ function freshState() {
     programs: [],
     draftId: null,
     convertId: null,
-    contacts: [{ name:"", archetype:"", level:"Contact" }, { name:"", archetype:"", level:"Contact" }],
+    contacts: [{ name:"", archetype:"", type:"Contact" }, { name:"", archetype:"", type:"Contact" }],
     languages: [],
     identity: { handle:"", name:"", sex:"", age:"", archetype:"", archetypeCustom:"", nationality:"", lifestyle:"Street", lifestylePermanent:false, desc:"" },
   };
@@ -403,6 +420,11 @@ function normalizeState(s) {
   out.gear = { ...fresh.gear, ...(s.gear||{}) };
   GEAR_KEYS.forEach(k => { if (!Array.isArray(out.gear[k])) out.gear[k] = []; });
   ["spells","powers","skills","contacts","languages","foci","programs"].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  // Migrate contacts from the old {level: Contact|Buddy} shape to {type} + backfill new fields.
+  out.contacts = out.contacts.map(c => {
+    const t = c.type || c.level || "Contact";
+    return { name: c.name || "", archetype: c.archetype || "", type: CONTACT_TYPES.includes(t) ? t : "Contact" };
+  });
   // Migrate cyber lines from a pre-grade draft (flat ess/cost) to the graded model.
   out.gear.cyber.forEach(g => {
     if (g.grade === undefined) g.grade = "Standard";
@@ -438,11 +460,18 @@ function parseNum(v) {
 function isMeta() { return state.prio.race === "A"; }
 function metatype() { return META[isMeta() ? state.metatype : "Human"] || META.Human; }
 function naturalAttr(a) { return state.base[a] + ((metatype().mods||{})[a] || 0); }
-// Augmentation bonuses from installed cyberware + bioware: fixed `mods` + per-rating `modsPer`.
+// Augmentation bonuses from installed cyberware + bioware: fixed `mods`, per-rating `modsPer`, and
+// a per-level `modsTbl` (e.g. Encephalon's non-linear +Int) resolved from the catalog if not copied.
 function augAttr(a) {
   let t = 0;
-  state.gear.cyber.forEach(g => { if (g.mods) t += Number(g.mods[a]) || 0; if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * cyberRating(g); });
-  state.gear.bio.forEach(g => { if (g.mods) t += Number(g.mods[a]) || 0; if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * bioRating(g); });
+  const apply = (g, listName, rating) => {
+    if (g.mods) t += Number(g.mods[a]) || 0;
+    if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * rating;
+    const src = ((CAT[listName] || []).find(x => x.n === g.n)) || g;
+    if (src.modsTbl && Array.isArray(src.modsTbl[a])) t += Number(src.modsTbl[a][rating - 1]) || 0;
+  };
+  state.gear.cyber.forEach(g => apply(g, "cyberware", cyberRating(g)));
+  state.gear.bio.forEach(g => apply(g, "bioware", bioRating(g)));
   return t;
 }
 // Shown/exported attributes include augmentation. Body Index cap + capBody ratings use naturalAttr
@@ -472,14 +501,24 @@ function vehicleBodyOf(g) {
   return it ? vehicleStatBody(it) : 0;
 }
 function vehicleLineCost(g) { return (Number(g.cost)||0) + (g.rigger ? riggerGearCost(vehicleBodyOf(g)) : 0); }
-function contactCost(i, level) {
-  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
-  if (i < free) return 0;
+function contactUnitCost(c) {
+  const t = (c && c.type) || "Contact";
+  if (CONTACT_TYPE_COST[t] != null) return CONTACT_TYPE_COST[t];   // Gang/Tribe/Follower: fixed, never free
   const buddy = (CHARGEN && CHARGEN.buddyCost) || 10000;
   const contact = (CHARGEN && CHARGEN.contactCost) || 5000;
-  return level === "Buddy" ? buddy : contact;
+  return t === "Buddy" ? buddy : contact;
 }
-function contactsNuyen() { return state.contacts.reduce((s,c,i) => s + contactCost(i, c.level), 0); }
+// Per-row cost with the free allowance (2) applied to Contact/Buddy entries only.
+function contactCosts() {
+  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
+  let used = 0;
+  return state.contacts.map(c => {
+    const t = (c && c.type) || "Contact";
+    if ((t === "Contact" || t === "Buddy") && used < free) { used++; return 0; }
+    return contactUnitCost(c);
+  });
+}
+function contactsNuyen() { return contactCosts().reduce((s,n) => s + n, 0); }
 // Lifestyle: monthly upkeep for the chosen tier; buying it outright costs 100 months.
 function lifestyleLevel() { return LIFESTYLE_TIERS.indexOf(state.identity.lifestyle); }
 function lifestyleMonthly() { const lvl = lifestyleLevel(); return lvl >= 0 ? (LIFESTYLE_MONTHLY[lvl] || 0) : 0; }
@@ -573,17 +612,27 @@ function gradeCost(baseCost, grade) { return Math.round((Number(baseCost)||0) * 
 // minRating supports band entries (e.g. Skillwire Plus R4-6): the picker and tables start at minRating.
 function cyberRating(g) { const lo = Number(g.minRating) || 1; return clamp(Number(g.rating) || lo, lo, Math.max(lo, Number(g.maxRating) || lo)); }
 function cyberBaseEss(g) {
-  if (!g.rated) return Number(g.baseEss) || 0;
-  const lo = Number(g.minRating) || 1, r = cyberRating(g);
-  if (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) return Number(g.essTbl[r-lo]) || 0;
-  return (Number(g.essUnit) || 0) * r;
+  let base;
+  if (!g.rated) base = Number(g.baseEss) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = cyberRating(g);
+    base = (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo]) || 0) : (Number(g.essUnit) || 0) * r;
+  }
+  return base + optionsEss(g);
 }
 function cyberBaseCost(g) {
-  if (!g.rated) return Number(g.baseCost) || 0;
-  const lo = Number(g.minRating) || 1, r = cyberRating(g);
-  if (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) return Number(g.costTbl[r-lo]) || 0;
-  return (Number(g.costUnit) || 0) * r;
+  let base;
+  if (!g.rated) base = Number(g.baseCost) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = cyberRating(g);
+    base = (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) ? (Number(g.costTbl[r-lo]) || 0) : (Number(g.costUnit) || 0) * r;
+  }
+  return base + optionsCost(g);
 }
+// Voice-Modulator-style add-on options carried on a cyber line: flat nuyen + Essence, folded into
+// the base before grade multipliers apply.
+function optionsEss(g) { return (g.options || []).reduce((s, o) => s + (Number(o.ess) || 0), 0); }
+function optionsCost(g) { return (g.options || []).reduce((s, o) => s + (Number(o.cost) || 0), 0); }
 function effCyberEss(g) { return g.noGrade ? cyberBaseEss(g) : gradeEss(cyberBaseEss(g), g.grade || "Standard"); }
 function effCyberCost(g) { return g.noGrade ? cyberBaseCost(g) : gradeCost(cyberBaseCost(g), g.grade || "Standard"); }
 // Bioware Rating (Body Index cost + nuyen), mirroring the cyber rating helpers. Bioware has no grades.
@@ -647,8 +696,8 @@ function vcrLevel() {  // level of the best Vehicle Control Rig installed (0 = n
   return lvl;
 }
 function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
-function hackingPool() { const m = deckMpcp(); return m ? Math.floor((finalAttr("intelligence") + m) / 3) + poolBonus("hack") : null; }  // needs a cyberdeck
-function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 : null; }                                                        // needs a VCR (== rigging Reaction)
+function hackingPool() { const m = deckMpcp(); return m ? Math.floor((finalAttr("intelligence") + m) / 3) + poolBonus("hack") : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
+function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 + v : null; }                                                        // needs a VCR (rigging Reaction + VCR level)
 function astralPool() { return state.magicType === "Full Mage" ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + finalAttr("charisma")) / 2) : null; }  // needs astral projection
 function spellPool() { return hasSorcery() ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + magicRating()) / 3) : null; }  // needs Sorcery
 function activePools() {
@@ -1011,16 +1060,6 @@ function swWeapons(skillName, conc) {
 }
 // Vehicle skill -> which catalogue vehicles a "(SV)" (Specific Vehicle) specialization expands to.
 // Bike/Car reuse the browse-by-type buckets; the rest match on the vehicle sub-type name.
-const SV_SKILL = {
-  "Bike": { types: ["Bikes"] },
-  "Car": { types: ["Cars & Ground", "Trucks & Vans"] },
-  "Hovercraft": { sub: /hovercraft/ },
-  "Motorboat": { sub: /boat|skiff|cruiser|speedboat|yacht|dinghy|catamaran|hydrofoil|water scooter/ },
-  "Blimp": { sub: /blimp|zeppelin|airship|dirigible/ },
-  "Rotor Craft": { sub: /helicopter|rotor|autogyro|gyro|tilt-wing/ },
-  "Winged Plane": { sub: /prop|ultralight|glider|airliner|turbine/ },
-  "Vectored Thrust": { sub: /jet|thunderbird|jump|vtol/ },
-};
 function svVehicles(skillName, conc) {
   // A vehicle appears under a piloting skill's concentration only when the GM overlay
   // (vehicle_classes.json) has classified it there. The classification is authoritative --
@@ -1125,6 +1164,7 @@ function stepSkills() {
   const over = skillSpent() > skillBudget();
   state.skills.sort((a,b) => a.name.localeCompare(b.name));  // keep the sheet alphabetical (existing + newly added)
   const cards = SKILL_CATEGORIES.map(([g,label]) => {
+    if (g === "magic" && !awakened()) return "";   // Mundane characters can't use Magical Skills -- hide the card
     const inCat = (SKILLS||[]).filter(s => s.group === g);
     if (!inCat.length) return "";
     const chips = inCat.map(s => {
@@ -1218,9 +1258,20 @@ function shopInspectRow(it, catName) {
   const open = shopInspect === it.n;
   const bullets = it.effect || it.notes || [];
   const chips = itemStatChips(it, catName);
+  const optCost = o => Number(String(o.cost || 0).replace(/[^\d.]/g, "")) || 0;
+  const optionsList = (open && Array.isArray(it.options) && it.options.length)
+    ? `<div class="cbx-opts">${it.options.map(o => {
+        const on = shopOpts.includes(o.n);
+        const bits = [money(optCost(o))]; if (Number(o.ess)) bits.push(esc(String(o.ess)) + " Ess");
+        return `<label class="cbx-opt"><input type="checkbox" class="chk-reveal" data-shopopt="${esc(o.n)}"${on ? " checked" : ""}>
+          <span class="cbx-opt__b"><span class="cbx-opt__n">${esc(o.n)} <span class="cbx-opt__c">${bits.join(" \u00B7 ")}</span></span>
+          ${o.desc ? `<span class="cbx-opt__d">${esc(o.desc)}</span>` : ""}</span></label>`;
+      }).join("")}</div>`
+    : "";
   const detail = open ? `<div class="cbx-shopdesc">
       ${it.desc ? `<p class="cbx-shopdesc__d">${esc(it.desc)}</p>` : ""}
       ${bullets.length ? `<ul class="cbx-shopdesc__l">${bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
+      ${optionsList}
       ${chips ? `<div class="cbx-shopdesc__s">${chips}</div>` : ""}
       <div class="cbx-shopdesc__act">
         ${it.attachToWeapon ? attachWeaponControl(it) : it.attachToArmor ? attachArmorControl(it) : `<button type="button" class="btn btn-green btn-sm" data-buy="${esc(it.n)}">+ Add to loadout</button>`}
@@ -1263,33 +1314,6 @@ function magicInspectRow(it, kind, owned) {
       <span class="cbx-shoprow__c">${open ? "&#9650;" : "&#9660;"}</span>
     </button>${detail}</div>`;
 }
-// Broad vehicle types (used to bucket vehicles into piloting-skill categories).
-function vehicleType(v) {
-  if ((v.cat || "") === "drone") return "Drones";
-  const s = (v.sub || "").toLowerCase();
-  // Watercraft first so "Water Scooter" doesn't fall into Bikes.
-  if (/boat|skiff|cruiser|hovercraft|hydrofoil|\bship\b|yacht|submarine|speedboat|dinghy|raft|barge|catamaran|water|hull|jetski/.test(s)) return "Watercraft";
-  if (/bike|cycle|moto|chopper|scooter|scoot|trike|moped/.test(s)) return "Bikes";
-  if (/truck|van|apc|\bbus\b|lav|tank|\brv\b|transport|flatbed|tractor|ambulance|semi/.test(s)) return "Trucks & Vans";
-  if (/heli|tilt|jet|prop|plane|glider|ultralight|blimp|airship|rotor|vtol|aircraft|wing|fighter|autogyro|gyro|airliner|turbine|zeppelin/.test(s)) return "Aircraft";
-  return "Cars & Ground";
-}
-// The gear-page vehicle catalogue groups by piloting skill, matching the (SV) buckets.
-const VEHICLE_SKILL_ORDER = ["Bike", "Car", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust", "Drones", "Other"];
-function vehicleSkillCategory(v) {
-  if ((v.cat || "") === "drone") return "Drones";   // drones always cluster in their own section
-  // The GM overlay's parent skill wins when set (fixes vehicles mis-typed by sub name,
-  // e.g. an off-road bike catalogued as a "car"); otherwise fall back to the regex bucket.
-  const cls = VEHICLE_CLASSES[v.n];
-  if (cls && cls.skill) return cls.skill;
-  // Check the sub-typed skills before Car so an air/water craft mis-typed as ground still lands right.
-  for (const skill of ["Bike", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust", "Car"]) {
-    const def = SV_SKILL[skill];
-    if (def.types && def.types.includes(vehicleType(v))) return skill;
-    if (def.sub && def.sub.test((v.sub || "").toLowerCase())) return skill;
-  }
-  return "Other";
-}
 function cyberLineHTML(g, i) {
   const grade = g.grade || "Standard";
   const opts = GRADE_ORDER.map(gr => {
@@ -1314,40 +1338,13 @@ function cyberLineHTML(g, i) {
     : `<span class="cbx-line__f">Ess ${cyberBaseEss(g).toFixed(2)}</span>
     <span class="cbx-line__f">&yen; ${money(cyberBaseCost(g))}</span>
     <span class="cbx-line__f" style="color:var(--cyan)">= ${effCyberEss(g).toFixed(2)} / ${money(effCyberCost(g))}</span>`;
-  return `<div class="cbx-line"><span class="cbx-line__n">${esc(g.n)} <em>${esc(g.sub||"")}</em></span>
+  const optNote = (g.options && g.options.length) ? ` <span class="cbx-line__opt">+ ${esc(g.options.map(o => o.n).join(", "))}</span>` : "";
+  return `<div class="cbx-line"><span class="cbx-line__n">${esc(g.n)} <em>${esc(g.sub||"")}</em>${optNote}</span>
     ${skillInput}
     ${ratingCtrl}
     ${g.noGrade ? "" : `<select class="cbx-mini" style="width:auto" data-cybergrade="${i}">${opts}</select>`}
     ${priceCells}
     <button type="button" class="cbx-x" data-delgear="cyber:${i}">&#10005;</button></div>`;
-}
-// Title-case a lowercase catalog category ("firearm" -> "Firearm") for a group header.
-function titleCase(s) { return String(s || "Other").replace(/\b\w/g, c => c.toUpperCase()); }
-// Render shop items in alphabetical category groups (header + rows), each group sorted A-Z.
-const WEAPON_GROUP_ORDER = ["Pistols","SMGs","Rifles","Shotguns","Machine Guns","Other Firearms",
-  "Heavy Weapons","Explosives & Grenades","Melee","Bows & Crossbows","Exotic Weapons","Accessories","Ammunition"];
-// Bucket a weapon into a display section: firearms split by sub (Pistols/SMGs/Rifles/...), other cats map straight.
-function weaponGroupLabel(it) {
-  const c = it.cat || "", sub = it.sub || "";
-  // Ammunition first: arrows/bolts, and missiles/rockets are ammo -- not the weapon that fires them.
-  if (c === "ammo" || /arrow|bolt/i.test(sub)) return "Ammunition";
-  if (c === "explosive" && /rocket|missile/i.test(sub)) return "Ammunition";
-  if (/machine gun/i.test(sub)) return "Machine Guns";   // LMG/MMG/HMG from the firearm OR heavy cats
-  if (c === "firearm") {
-    if (/hold-?out|pistol|taser/i.test(sub)) return "Pistols";
-    if (/smg|submachine/i.test(sub)) return "SMGs";
-    if (/shotgun/i.test(sub)) return "Shotguns";
-    if (/rifle|carbine/i.test(sub)) return "Rifles";
-    return "Other Firearms";
-  }
-  return { heavy:"Heavy Weapons", explosive:"Explosives & Grenades", melee:"Melee",
-    projectile:"Bows & Crossbows", exotic:"Exotic Weapons", accessory:"Accessories", ammo:"Ammunition" }[c]
-    || titleCase(c || "Other");
-}
-const ARMOR_GROUP_ORDER = ["Worn Armor","Military-Grade","Helmets","Shields","Accessories"];
-function armorGroupLabel(it) {
-  return { worn:"Worn Armor", military:"Military-Grade", helmet:"Helmets", shield:"Shields", accessory:"Accessories" }[it.cat||""]
-    || titleCase(it.cat || "Other");
 }
 // Group items by a label function, honoring an explicit section order (unknown labels appended A-Z).
 function shopGroupedByLabel(items, catName, labelFn, order) {
@@ -1371,7 +1368,7 @@ function programsPanelHTML() {
     if (!progs.length) return "";
     return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(cat)}</div>${progs.map(p => programShopRow(p, added.has(p.key))).join("")}</div>`;
   }).join("");
-  return `<div class="cbx-h4" style="margin-top:16px">Deckware Programs <span style="color:var(--text-dim);font-weight:normal;text-transform:none;letter-spacing:0">-- Matrix utilities, grouped by type</span></div>
+  return `<div class="cbx-h4" style="margin-top:16px">Deckware Programs <span class="cbx-h4__note">-- Matrix utilities, grouped by type</span></div>
     <p class="cbx-p">Add programs like any other gear; each one lands in your <strong>Matrix</strong> loadout on the left,
       where you set its rating and the price computes (Rating&sup2; &times; size multiplier &times; price factor,
       matching the Deck Workshop). Attack programs also pick a damage level.</p>
@@ -1385,6 +1382,7 @@ function toggleShopInspect(root, key) {
   const top = before ? before.scrollTop : 0;
   const expanding = shopInspect !== key;
   shopInspect = expanding ? key : null;
+  if (expanding) shopOpts = [];   // fresh option selection each time a row opens
   renderStep();
   const list = root.querySelector(".cbx-shoplist");
   if (!list) return;
@@ -1461,17 +1459,24 @@ function stepResources() {
     return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
   }).join("") || `<p class="cbx-empty">Nothing acquired yet.</p>`;
   const items = (CAT[def.cat]||[]).filter(matchesFilter).filter(it => !def.pick || def.pick(it));
-  const grouped = def.k === "vehicles" || def.k === "weapons" || def.k === "gear" || def.k === "matrix" || def.k === "armor";
+  const grouped = def.k === "vehicles" || def.k === "weapons" || def.k === "gear" || def.k === "matrix" || def.k === "armor" || def.k === "cyber";
   let shop;
   if (def.k === "vehicles") {
-    // Browse vehicles grouped by piloting skill (same buckets as the (SV) specializations).
+    // Browse vehicles grouped by piloting skill (same buckets as the (SV) specializations),
+    // then sub-grouped by vehicle subtype, cheapest first -- matching the Gear Catalog page.
+    const vcost = v => Number(String(v.cost || 0).replace(/[^\d.]/g, "")) || 0;
     const groups = {};
     items.forEach(v => { const t = vehicleSkillCategory(v); (groups[t] = groups[t] || []).push(v); });
     shop = VEHICLE_SKILL_ORDER.map(t => {
-      const list = (groups[t] || []).slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
+      const list = groups[t] || [];
       if (!list.length) return "";
-      const rows = list.map(v => shopInspectRow(v, "vehicles")).join("");
-      return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(t)}</div>${rows}</div>`;
+      const subs = {};
+      list.forEach(v => { const s = v.sub || "Other"; (subs[s] = subs[s] || []).push(v); });
+      const inner = Object.keys(subs).sort((a, b) => a.localeCompare(b)).map(s => {
+        const rows = subs[s].slice().sort((a, b) => vcost(a) - vcost(b)).map(v => shopInspectRow(v, "vehicles")).join("");
+        return `<div class="cbx-subcat"><div class="cbx-subcat__h">${esc(s)}</div>${rows}</div>`;
+      }).join("");
+      return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(t)}</div>${inner}</div>`;
     }).join("");
   } else if (def.k === "weapons") {
     // Firearms split into Pistols/SMGs/Rifles/...; other weapon cats each get a section.
@@ -1480,21 +1485,21 @@ function stepResources() {
     // Split into alphabetical category groups (like vehicles), items A-Z within each.
     shop = shopGroupedByCat(items, def.cat);
   } else if (def.k === "matrix") {
-    // Matrix tab: buyable cyberdecks (deck rows) followed by the deckware program picker.
-    const decks = items.slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
-    const deckRows = decks.length
-      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">Cyberdecks</div>${decks.map(it => shopInspectRow(it, "gear")).join("")}</div>`
-      : `<p class="cbx-empty">No cyberdecks in the enabled books.</p>`;
-    shop = deckRows + programsPanelHTML();
-  } else if (def.k === "cyberware") {
-    // Cyberware is alphabetical, but the related skillsofts cluster in their own group.
-    const byName = (a,b) => (a.n||"").localeCompare(b.n||"");
-    const softs = items.filter(it => it.soft).sort(byName);
-    const rest = items.filter(it => !it.soft).sort(byName);
-    const softGroup = softs.length
-      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">Skillsofts</div>${softs.map(it => shopInspectRow(it, def.cat)).join("")}</div>`
+    // Matrix tab: cyberdecks (cheapest first) and cyberdeck components, then the deckware program picker.
+    const byCost = (a,b) => (Number(String(a.cost||0).replace(/[^\d.]/g,"")) || 0) - (Number(String(b.cost||0).replace(/[^\d.]/g,"")) || 0);
+    const isComponent = (it) => it.sub === "Cyberdeck Component";
+    const decks = items.filter(it => !isComponent(it)).sort(byCost);
+    const comps = items.filter(isComponent).sort(byCost);
+    const group = (label, list) => list.length
+      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${label}</div>${list.map(it => shopInspectRow(it, "gear")).join("")}</div>`
       : "";
-    shop = softGroup + rest.map(it => shopInspectRow(it, def.cat)).join("");
+    const deckRows = decks.length
+      ? group("Cyberdecks", decks)
+      : `<p class="cbx-empty">No cyberdecks in the enabled books.</p>`;
+    shop = deckRows + group("Cyberdeck Components", comps) + programsPanelHTML();
+  } else if (def.k === "cyber") {
+    // Grouped by implant location; skillsofts (Active / Know / Linguasofts) cluster in their own group.
+    shop = shopGroupedByLabel(items, def.cat, cyberGroupLabel, CYBER_GROUP_ORDER);
   } else if (def.k === "armor") {
     // Armor grouped by type: Worn / Military-Grade / Helmets / Shields / Accessories.
     shop = shopGroupedByLabel(items, "armor", armorGroupLabel, ARMOR_GROUP_ORDER);
@@ -1505,14 +1510,28 @@ function stepResources() {
   const moreNote = (!grouped && items.length > 250) ? `<p class="cbx-help">Showing first 250 of ${items.length} -- refine the search.</p>` : "";
 
   const archOpts = [...CONTACT_ARCHETYPES].sort((a,b) => a.localeCompare(b));
-  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
+  const costs = contactCosts();
+  const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
-    const customOpt = (c.archetype && !archOpts.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
+    const t = c.type || "Contact";
+    const typeSel = `<select class="cbx-mini" style="width:auto" data-ctype="${i}">${CONTACT_TYPES.map(tp => `<option value="${esc(tp)}" ${t===tp?"selected":""}>${esc(tp)}</option>`).join("")}</select>`;
+    let mid = "";
+    if (t === "Follower") {
+      const opts = FOLLOWER_ARCHETYPES.map(a => {
+        const taken = usedFollowerArch.has(a) && c.archetype !== a;
+        return `<option value="${esc(a)}" ${c.archetype===a?"selected":""} ${taken?"disabled":""}>${esc(a)}${taken?" (taken)":""}</option>`;
+      }).join("");
+      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- follower --</option>${opts}</select>`;
+    } else if (t !== "Gang" && t !== "Tribe") {
+      const customOpt = (c.archetype && !archOpts.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
+      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- archetype --</option>${customOpt}${archOpts.map(a => `<option value="${esc(a)}" ${c.archetype===a?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
+    }
+    const ph = t === "Gang" ? "gang name" : t === "Tribe" ? "tribe name" : "handle";
     return `<div class="cbx-line">
-    <input type="text" class="cbx-mini" style="width:110px" data-cname="${i}" value="${esc(c.name)}" placeholder="handle">
-    <select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- archetype --</option>${customOpt}${archOpts.map(a => `<option value="${esc(a)}" ${c.archetype===a?"selected":""}>${esc(a)}</option>`).join("")}</select>
-    <button type="button" class="cbx-tab ${c.level==='Buddy'?'is-active':''}" data-clevel="${i}">${esc(c.level)}</button>
-    <span class="cbx-line__f">${i < free ? "" : money(contactCost(i,c.level))}</span>
+    <input type="text" class="cbx-mini" style="width:130px" data-cname="${i}" value="${esc(c.name)}" placeholder="${ph}">
+    ${typeSel}
+    ${mid}
+    <span class="cbx-line__f">${costs[i] ? money(costs[i]) : ""}</span>
     <button type="button" class="cbx-x" data-delcontact="${i}">&#10005;</button></div>`;
   }).join("");
 
@@ -1531,7 +1550,7 @@ function stepResources() {
     <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
       &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
 
-    <div class="cbx-h4">Contacts <span style="color:var(--text-dim);font-weight:normal;text-transform:none;letter-spacing:0">-- 2 free, then 5,000&yen; (Contact) / 10,000&yen; (Buddy)</span></div>
+    <div class="cbx-h4">Contacts <span class="cbx-h4__note">-- 2 free, then Contact 5,000&yen; / Buddy 10,000&yen; / Gang or Tribe 50,000&yen; / Follower 200,000&yen;</span></div>
     <div>${state.contacts.length ? contactRows : `<p class="cbx-empty">No contacts yet.</p>`}</div>
     <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>`;
 }
@@ -1540,7 +1559,7 @@ function stepResources() {
 // Skill-rating bonuses from installed cyber (e.g. Math SPU): floor(Rating/2) to matching skills.
 function augMagnitude(g) {
   const sb = g.skillBonus; if (!sb) return 0;
-  return sb.per === "halfRating" ? Math.floor(cyberRating(g) / 2) : (Number(sb.flat) || 0);
+  return sb.per === "halfRating" ? Math.floor(cyberRating(g) / 2) : sb.per === "rating" ? cyberRating(g) : (Number(sb.flat) || 0);
 }
 // Compact "Augmented Skills" panel for the Case File summary: one sub-group per cyber source
 // (e.g. Math SPU) listing the skills it boosts and by how much. Only shown when a bonus applies.
@@ -1787,7 +1806,7 @@ function wire() {
   root.querySelectorAll("[data-spellforce]").forEach(el => el.oninput = () => { state.spells[Number(el.dataset.spellforce)].force = clamp(Number(el.value)||1,1,6); save(); renderBudget(); });
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
-    const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||""));
+    const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||"")) || /per\s+level/i.test(String(p.pp||""));
     state.powers.push({ name:p.n, ppEach:parseNum(p.pp), rated, lvl:1 }); save(); render();
   });
   root.querySelectorAll("[data-delpower]").forEach(el => el.onclick = () => { state.powers.splice(Number(el.dataset.delpower),1); save(); render(); });
@@ -1855,7 +1874,11 @@ function wire() {
     if (!it) return;
     const before = root.querySelector(".cbx-shoplist");
     const top = before ? before.scrollTop : 0;   // keep the shop where the user was after adding
-    state.gear[def.k].push(makeGearLine(it, def.cat)); save(); render();
+    const line = makeGearLine(it, def.cat);
+    if (def.cat === "cyberware" && Array.isArray(it.options) && shopOpts.length)
+      line.options = it.options.filter(o => shopOpts.includes(o.n)).map(o => ({ n: o.n, cost: Number(o.cost) || 0, ess: Number(o.ess) || 0 }));
+    shopOpts = [];
+    state.gear[def.k].push(line); save(); render();
     const after = root.querySelector(".cbx-shoplist");
     if (after) after.scrollTop = top;
   });
@@ -1882,6 +1905,11 @@ function wire() {
     if (after) after.scrollTop = top;
   });
   root.querySelectorAll("[data-inspect]").forEach(el => el.onclick = () => toggleShopInspect(root, el.dataset.inspect));
+  root.querySelectorAll("[data-shopopt]").forEach(el => el.onchange = () => {
+    const nm = el.dataset.shopopt;
+    if (el.checked) { if (!shopOpts.includes(nm)) shopOpts.push(nm); }
+    else shopOpts = shopOpts.filter(x => x !== nm);
+  });
   root.querySelectorAll("[data-delgear]").forEach(el => el.onclick = () => {
     const [k,idx] = el.dataset.delgear.split(":"); state.gear[k].splice(Number(idx),1); save(); render();
   });
@@ -1928,11 +1956,15 @@ function wire() {
     state.programs.splice(Number(el.dataset.progdel), 1); save(); render();
   });
   const addC = document.getElementById("cbxAddContact");
-  if (addC) addC.onclick = () => { state.contacts.push({ name:"", archetype:"", level:"Contact" }); save(); render(); };
+  if (addC) addC.onclick = () => { state.contacts.push({ name:"", archetype:"", type:"Contact" }); save(); render(); };
   root.querySelectorAll("[data-cname]").forEach(el => el.oninput = () => { state.contacts[Number(el.dataset.cname)].name = el.value; save(); });
-  root.querySelectorAll("[data-carch]").forEach(el => el.onchange = () => { state.contacts[Number(el.dataset.carch)].archetype = el.value; save(); });
-  root.querySelectorAll("[data-clevel]").forEach(el => el.onclick = () => {
-    const c = state.contacts[Number(el.dataset.clevel)]; c.level = c.level==="Buddy" ? "Contact" : "Buddy"; save(); render();
+  root.querySelectorAll("[data-carch]").forEach(el => el.onchange = () => { state.contacts[Number(el.dataset.carch)].archetype = el.value; save(); render(); });
+  root.querySelectorAll("[data-ctype]").forEach(el => el.onchange = () => {
+    const c = state.contacts[Number(el.dataset.ctype)];
+    c.type = el.value;
+    if (c.type === "Gang" || c.type === "Tribe") c.archetype = "";
+    else if (c.type === "Follower" && !FOLLOWER_ARCHETYPES.includes(c.archetype)) c.archetype = "";
+    save(); render();
   });
   root.querySelectorAll("[data-delcontact]").forEach(el => el.onclick = () => { state.contacts.splice(Number(el.dataset.delcontact),1); save(); render(); });
   root.querySelectorAll("[data-id]").forEach(el => el.oninput = () => { state.identity[el.dataset.id] = el.value; save(); if (el.dataset.id==="lifestyle" || el.dataset.id==="archetype") renderStep(); });
@@ -2005,12 +2037,19 @@ function commitPayload() {
     spells: state.spells,
     adept_powers: state.powers,
     gear: { ...state.gear, foci: state.foci, programs: state.programs || [] },
-    contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => ({
-      name: c.name.slice(0, 200),
-      profession: c.archetype || null,
-      connection: 1,
-      loyalty: c.level === "Buddy" ? 3 : 1,
-    })),
+    contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => {
+      const t = c.type || "Contact";
+      return {
+        name: c.name.slice(0, 200),
+        profession: (t === "Gang" || t === "Tribe") ? null : (c.archetype || null),
+        contact_type: t,
+        connection: 1,
+        loyalty: t === "Buddy" ? 3 : 1,
+      };
+    }),
+    // Verbatim wizard state so a saved/resumed draft restores every typed input losslessly
+    // (contacts with type/gang, legal name, etc.). Structured fields above still drive gameplay.
+    chargen_state: state,
   };
 }
 async function ensureDraft() {
@@ -2080,7 +2119,7 @@ async function hydrateContacts(id) {
     const list = await r.json();
     state.contacts = (Array.isArray(list) ? list : []).map(ct => ({
       name: ct.name || "", archetype: ct.profession || "",
-      level: (Number(ct.loyalty) >= 3) ? "Buddy" : "Contact",
+      type: ct.contact_type || ((Number(ct.loyalty) >= 3) ? "Buddy" : "Contact"),
     }));
   } catch (_) { /* leave contacts empty on failure */ }
 }
@@ -2270,13 +2309,21 @@ bootstrapAuth().then(async (u) => {
         const r = await apiFetch(`/characters/${encodeURIComponent(id)}`);
         if (r.ok) {
           const c = await r.json();
-          hydrateStateFromCharacter(c);
-          await hydrateContacts(id);
+          // Prefer the verbatim wizard state (lossless: contacts w/ type, legal name, every input);
+          // fall back to reconstructing from structured fields for older/GM-made characters.
+          const cs = await apiFetch(`/characters/${encodeURIComponent(id)}/chargen-state`)
+            .then(x => x.ok ? x.json() : null).catch(() => null);
+          if (cs && cs.state && Object.keys(cs.state).length) {
+            state = normalizeState(cs.state);
+          } else {
+            hydrateStateFromCharacter(c);
+            await hydrateContacts(id);
+          }
           if (convertId) {
-            state.convertId = Number(id);
+            state.convertId = Number(id); state.draftId = null;
             setModeBanner(`Converting <strong>${esc(c.name || "character")}</strong> (id ${esc(String(id))}) &mdash; committing overwrites this record.`);
           } else {
-            state.draftId = id;
+            state.draftId = id; state.convertId = null;
             setModeBanner(`Resuming draft <strong>${esc(c.name || "dossier")}</strong> (id ${esc(String(id))}).`);
           }
           state.step = 0;
@@ -2298,5 +2345,7 @@ bootstrapAuth().then(async (u) => {
 });
 })();
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('greenhaze');</script>
 </body>
 </html>
