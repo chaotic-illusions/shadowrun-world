@@ -1,4 +1,4 @@
-from sqlalchemy import Integer
+from sqlalchemy import Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
@@ -18,3 +18,6 @@ class CampaignState(Base):
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     # Absolute campaign clock, in ticks (days). Monotonically increasing.
     current_tick: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Enabled optional sourcebook toggles for the gear/spell catalogs (SR2 core is
+    # always on and never listed here). "FAN" enables the non-canon fan books.
+    enabled_books: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
