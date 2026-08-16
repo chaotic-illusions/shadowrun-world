@@ -107,14 +107,6 @@ class DossierCommit(CharacterCreate):
         return v
 
 
-class LifestylePurchase(BaseModel):
-    """Buy/upgrade a lifestyle after chargen, paid from the character's nuyen."""
-    model_config = ConfigDict(extra='forbid')
-    level: int = Field(ge=0, le=5)
-    permanent: bool = False
-    months: int = Field(default=1, ge=0, le=120)  # months of upkeep to prepay (ignored if permanent)
-
-
 class CharacterUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: Optional[str] = Field(default=None, max_length=200)

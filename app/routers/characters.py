@@ -6,17 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_or_404, apply_update
-from app.models.character import Character, LIFESTYLE_UPKEEP_TICKS
+from app.models.character import Character
 from app.models.contact import Contact
 from app.models.reputation import Reputation
-from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, LifestylePurchase, ChargenStateRead
+from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead
 from app.schemas.contact import ContactRead
 from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
 from app.auth.core import hash_token
 from app.auth.dependencies import get_admin_token, get_any_token
 from app.services.campaign import current_tick
-from app.services.lifestyle import monthly_cost, permanent_cost
 
 router = APIRouter()
 
@@ -377,50 +376,6 @@ async def convert_character_dossier(
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     return _serialize_character(char, ctx)
-
-
-@router.post("/{character_id}/lifestyle", response_model=CharacterRead)
-async def purchase_lifestyle(
-    character_id: int,
-    body: LifestylePurchase,
-    db: AsyncSession = Depends(get_db),
-    ctx: dict = Depends(get_any_token),
-):
-    """Buy or change a lifestyle after chargen, paid from the character's nuyen.
-
-    Owner-or-admin only. Prepays ``months`` of upkeep up front (advancing the settle
-    clock so upkeep is not double-charged), or buys the tier outright when
-    ``permanent`` is set (100 months). Fails with 400 if the character can't afford it.
-    """
-    char = await _load_character(db, character_id)
-    if not char.is_pc:
-        raise HTTPException(status_code=400, detail="Lifestyle applies only to PCs")
-    if not _is_owner_or_admin(char, ctx):
-        raise HTTPException(status_code=404, detail="Character not found")
-
-    total = permanent_cost(body.level) if body.permanent else monthly_cost(body.level) * body.months
-    tick = await current_tick(db)
-    # Prepaid through now + months (permanent never accrues, so just stamp to now).
-    paid_tick = tick if body.permanent else tick + body.months * LIFESTYLE_UPKEEP_TICKS
-    # Atomic conditional debit: the WHERE guard prevents two concurrent purchases from
-    # both passing an affordability check and double-spending the same balance.
-    result = await db.execute(
-        sql_update(Character)
-        .where(Character.id == character_id, Character.nuyen >= total)
-        .values(
-            nuyen=Character.nuyen - total,
-            lifestyle_level=body.level,
-            lifestyle_permanent=body.permanent,
-            lifestyle_paid_tick=paid_tick,
-        )
-    )
-    if result.rowcount != 1:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient nuyen: need {total}, have {char.nuyen}",
-        )
-    await db.commit()
-    return _serialize_character(await _load_character(db, character_id), ctx)
 
 
 @router.get("/{character_id}", response_model=CharacterRead)

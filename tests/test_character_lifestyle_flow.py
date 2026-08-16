@@ -20,9 +20,8 @@ from app.routers.characters import (
     create_character_dossier,
     delete_character,
     my_draft_characters,
-    purchase_lifestyle,
 )
-from app.schemas.character import DossierCommit, LifestylePurchase
+from app.schemas.character import DossierCommit
 from app.services.lifestyle import settle_all_lifestyles
 
 
@@ -201,48 +200,5 @@ def test_chargen_contacts_become_poi_and_persist_after_pc_delete(tmp_path):
                 assert await db.scalar(select(func.count()).select_from(Character).where(Character.id == pid)) == 0
                 assert await db.scalar(select(func.count()).select_from(Character).where(Character.id == poi_id)) == 1
                 assert await db.scalar(select(func.count()).select_from(Contact).where(Contact.owner_id == pid)) == 0
-
-    asyncio.run(scenario())
-
-
-def test_purchase_lifestyle_debits_prepays_and_enforces_funds(tmp_path):
-    async def scenario():
-        async with _database(tmp_path / "buy.db") as sessions:
-            tok = "buyer"
-            async with sessions() as db:
-                db.add(Character(name="Rich", is_pc=True, owner_token=hash_token(tok), nuyen=250000, lifestyle_level=0))
-                await db.commit()
-                cid = await db.scalar(select(Character.id).where(Character.name == "Rich"))
-
-            # Owner buys Middle (5000/mo) for 2 months -> debit 10000, prepaid through tick 60.
-            async with sessions() as db:
-                await purchase_lifestyle(cid, LifestylePurchase(level=3, months=2),
-                                         db=db, ctx={"is_admin": False, "user_token": tok})
-            async with sessions() as db:
-                pc = await db.scalar(select(Character).where(Character.id == cid))
-                assert pc.lifestyle_level == 3 and pc.nuyen == 240000
-                assert pc.lifestyle_permanent is False and pc.lifestyle_paid_tick == 60
-
-            # Admin buys permanent Low (100 x 1000 = 100000).
-            async with sessions() as db:
-                await purchase_lifestyle(cid, LifestylePurchase(level=2, permanent=True),
-                                         db=db, ctx={"is_admin": True, "user_token": "gm"})
-            async with sessions() as db:
-                pc = await db.scalar(select(Character).where(Character.id == cid))
-                assert pc.lifestyle_permanent is True and pc.lifestyle_level == 2 and pc.nuyen == 140000
-
-            # Can't afford Luxury permanent (10,000,000) -> 400, nothing changes.
-            async with sessions() as db:
-                with pytest.raises(HTTPException) as exc:
-                    await purchase_lifestyle(cid, LifestylePurchase(level=5, permanent=True),
-                                             db=db, ctx={"is_admin": True, "user_token": "gm"})
-                assert exc.value.status_code == 400
-
-            # A non-owner can't buy on someone else's sheet -> 404.
-            async with sessions() as db:
-                with pytest.raises(HTTPException) as exc:
-                    await purchase_lifestyle(cid, LifestylePurchase(level=1),
-                                             db=db, ctx={"is_admin": False, "user_token": "stranger"})
-                assert exc.value.status_code == 404
 
     asyncio.run(scenario())
