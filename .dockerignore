@@ -33,10 +33,13 @@ workspaceStorage/
 
 # Docs: keep docs/ai_parser_reference.md (read at runtime by narrative_parser) and the small
 # design .md files; drop the heavy reference scrapes, generated PDFs, and review CSVs.
+# The fillable sheet template IS needed at runtime (server-side PDF generation), so keep it.
 docs/*.pdf
+!docs/SR2_Official_Sheet_Fillable.pdf
 docs/*.csv
 docs/reference-data/
 
-# Dev-only trees never imported by the app runtime (build/test/one-shot tooling)
-tools/
+# Dev-only trees. fill_sr2_sheet.py IS imported at runtime (the /sheet.pdf endpoint), so keep it.
+tools/*
+!tools/fill_sr2_sheet.py
 tests/

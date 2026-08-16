@@ -2,6 +2,5 @@
 # Install with:  pip install -r requirements.txt -r requirements-dev.txt
 -r requirements.txt
 
-pypdf>=4,<6          # tools/fill_sr2_sheet.py -- fill the SR2 AcroForm character sheet
 json5>=0.9,<1        # tools/build_catalog.py -- parse the shadowrun2e.com JS reference data
 playwright>=1.40,<2  # tests/test_character_builder_dom.py -- headless DOM smoke test (optional)
