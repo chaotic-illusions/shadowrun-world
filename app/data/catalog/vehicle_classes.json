@@ -1,0 +1,678 @@
+{
+  "Aerodesign Systems Condor LDSD-23": {
+    "conc": "Remote Operation",
+    "skill": "Blimp"
+  },
+  "Aerodesign Systems Condor LDSD-41": {
+    "conc": "Remote Operation",
+    "skill": "Blimp"
+  },
+  "Aeroquip \"Redball Express\" Long-Range Resupply Drone": {
+    "conc": "Remote Operation",
+    "skill": "Vectored Thrust"
+  },
+  "Agusta-Cierva Plutocrat (Armed)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Agusta-Cierva Plutocrat (Standard)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Airship Industries Skyswimmer": {
+    "conc": "Pleasure Craft",
+    "skill": "Blimp"
+  },
+  "Ares Arms Sentry II": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Ares Citymaster": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Ares Dragon": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Ares Guardian Drone": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Ares Mobmaster": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Ares Roadmaster": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Ares Sentinel \"P\" Series Drone": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Ares TR-55C Cargoliner": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Ares TR-55E \"President's Edition\" Executive": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Ares TR-55T Traveller": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Artemis Industries Nightglider": {
+    "conc": "Gliders",
+    "skill": "Winged Plane"
+  },
+  "Aztech GCR-23C Crawler": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Aztech Nightrunner (Electric)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Aztech Nightrunner (Standard)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Aztechnology Aguilar-EX": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Aztechnology Halcón Ground-Attack Aircraft": {
+    "conc": "Racing",
+    "skill": "Winged Plane"
+  },
+  "Aztechnology Hedgehog Signal Interceptor": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Aztechnology Liebre Surveillance/Pursuit RPV": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "Aztechnology Lobo Medium Scout LAV": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Aztechnology Tiburón Patrol Boat": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Aztechnology Tiburón Patrol Boat (Interdiction Variant)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "BAC-Dassault-MBB EFA Variants": {
+    "conc": "Racing",
+    "skill": "Winged Plane"
+  },
+  "BMW Blitzen 2050": {
+    "conc": "Racing",
+    "skill": "Bike"
+  },
+  "Blohm & Voss River Commander": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "CAS Wandjina RPV": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "Casa J-239 Raven": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Cessna C750 (Passenger)": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Cessna C750 (Standard)": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Chrysler Nissan Patrol-1": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Chrysler-Nissan G12A (Cargo)": {
+    "conc": "Transport Craft",
+    "skill": "Hovercraft"
+  },
+  "Chrysler-Nissan G12A (Passenger)": {
+    "conc": "Transport Craft",
+    "skill": "Hovercraft"
+  },
+  "Chrysler-Nissan Jackrabbit (Electric)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Chrysler-Nissan Jackrabbit (Methane)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Citroën Brouillard Smoke Generator": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Colorado Craft Cigarette Hydrofoil": {
+    "conc": "Racing",
+    "skill": "Motorboat"
+  },
+  "Conestoga Trailblazer": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Cyberspace Designs Dalmatian": {
+    "conc": "Remote Operation",
+    "skill": "Vectored Thrust"
+  },
+  "Cyberspace Systems Wolfhound Advanced Reconnaissance Aircraft": {
+    "conc": "Remote Operation",
+    "skill": "Vectored Thrust"
+  },
+  "Doc Wagon CRT Air Unit": {
+    "conc": "Tilt-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Doc Wagon CRT Ambulance": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Doc Wagon Citymaster Variant": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Doc Wagon Osprey II": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Doc Wagon SRT Helicopter": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Doc Wagon WK-2 Stallion Variant": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "DocWagon SRT Ambulance": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Dodge Scoot": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "Embraer-Dassault Mistral": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Entertainment Systems Papoose": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "Eurocar Westwind 2000 (Standard)": {
+    "conc": "Racing",
+    "skill": "Car"
+  },
+  "Eurocar Westwind 2000 (Turbo)": {
+    "conc": "Racing",
+    "skill": "Car"
+  },
+  "FMC-Stonebrooke TADS Firebird": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "FMC-Stonebrooke TADS Salamander": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Federated Boeing Commuter": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Federated Boeing Eagle": {
+    "conc": "Vertical Take-Off and Landing",
+    "skill": "Vectored Thrust"
+  },
+  "Ferrari Appaloosa Light Scout": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Ferret RPD-VI Perimeter Drone": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Fiat-Fokker Cloud Nine": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Ford Americar": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Ford-Canada Bison": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "GAZ-Niki GNRD-71 Bis Snooper": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "GAZ-Niki White Eagle": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "GAZ-Willys Nomad": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "GM-Nissan Doberman": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "GM-Nissan Spotter": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "GMC \"Harpy Scout\" LAV": {
+    "conc": "LAV Craft",
+    "skill": "Vectored Thrust"
+  },
+  "GMC 4201": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "GMC Banshee": {
+    "conc": "LAV Craft",
+    "skill": "Vectored Thrust"
+  },
+  "GMC Beachcraft Patroller": {
+    "conc": "Transport Craft",
+    "skill": "Hovercraft"
+  },
+  "GMC Beachcraft Vacationer": {
+    "conc": "Passenger Craft",
+    "skill": "Hovercraft"
+  },
+  "GMC Bulldog Step-Van (BC Var.)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "GMC Bulldog Step-Van (Standard)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "GMC MPUV": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "GMC Riverine": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "GMC Riverine (Police Model)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "GMC Riverine (Security Model)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "GMC-Nissan Hovertruck": {
+    "conc": "Transport Craft",
+    "skill": "Hovercraft"
+  },
+  "GTE-Ford Retrans Unit": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "General Products COP": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Generic Surveillance Drone": {
+    "conc": "Remote Operation",
+    "skill": "Rotor Craft"
+  },
+  "Goodyear Commuter-47": {
+    "conc": "Transport Craft",
+    "skill": "Blimp"
+  },
+  "Harland & Wolff Classique": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Harley Electroglide-1000": {
+    "conc": "Racing",
+    "skill": "Bike"
+  },
+  "Harley-Davidson Scorpion": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "Hawker-Ridley HS-895 Skytruck": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Honda Viking": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "Honda-GM 3220 ZX (Standard)": {
+    "conc": "Racing",
+    "skill": "Car"
+  },
+  "Honda-GM 3220 ZX (Turbo)": {
+    "conc": "Racing",
+    "skill": "Car"
+  },
+  "Hughes Aerospace Airstar 2050": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Hughes WK-2 Stallion": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Hyundai Offroader": {
+    "conc": "Two-wheeler",
+    "skill": "Bike"
+  },
+  "Integrated Weapon System DLK Mk 6 Utility Machine": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Integrated Weapon System DLK Mk 6 Utility Machine (Armed Variant)": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "LAV-103 Striker Light Tank": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "LAV-93 Devil Rat": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Landrover Model 2046 (LW)": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Landrover Model 2046 (SW)": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Lear-Cessna Platinum I": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Lear-Cessna Platinum II": {
+    "conc": "Jets",
+    "skill": "Winged Plane"
+  },
+  "Leyland-Rover Transport/Electric (Encl. Box)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Rover Transport/Electric (Minibus)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Rover Transport/Electric (Open Tray)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Rover Transport/Gasoline (Encl. Box)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Rover Transport/Gasoline (Minibus)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Rover Transport/Gasoline (Open Tray)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Zil Tsarina (Electric)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Leyland-Zil Tsarina (Methane)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Lockheed C-260 Transport": {
+    "conc": "Jets",
+    "skill": "Winged Plane"
+  },
+  "Lone Star \"Black Mariah\" USPTV": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Lone Star Modified Ford Americar": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Lone Star Modified Honda 3220ZX Turbo": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Lone Star SWAT Hovertruck": {
+    "conc": "Passenger Craft",
+    "skill": "Hovercraft"
+  },
+  "Lone Star Strato-9 Surveillance Drone": {
+    "conc": "Remote Operation",
+    "skill": "Rotor Craft"
+  },
+  "Luftschiffbau Zeppelin LZ-2049": {
+    "conc": "Transport Craft",
+    "skill": "Blimp"
+  },
+  "Luftschiffbau Zeppelin LZ-2051-C": {
+    "conc": "Transport Craft",
+    "skill": "Blimp"
+  },
+  "MCT-Nissan Roto-Drone": {
+    "conc": "Remote Operation",
+    "skill": "Rotor Craft"
+  },
+  "Marine Technologies Dolphin II": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Mesametric Kodiak Roadway Clearance System": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Mitsubishi Nightsky": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Mitsubishi Runabout": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Moonlight Aerospace Avenger": {
+    "conc": "Propellers",
+    "skill": "Winged Plane"
+  },
+  "Mostrans KVP-14T (Pass.)": {
+    "conc": "Passenger Craft",
+    "skill": "Hovercraft"
+  },
+  "Mostrans KVP-14T (Standard)": {
+    "conc": "Passenger Craft",
+    "skill": "Hovercraft"
+  },
+  "Nissan-Holden Brumby": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Nordkapp-Conestoga Bergen (Tractor)": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Nordkapp-Conestoga Bergen (Trailer)": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Northrup Wasp (PRC-42B Variant)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Northrup Wasp (PRC-42F Variant)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Northrup Yellowjacket (PRC-44B Variant)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Northrup Yellowjacket (PRC-44F Variant)": {
+    "conc": "Fixed-Rotor",
+    "skill": "Rotor Craft"
+  },
+  "Pratt & Whitney Sundowner Aerial Sprayer": {
+    "conc": "Remote Operation",
+    "skill": "Winged Plane"
+  },
+  "Renault-Fiat Eurovan (Camper)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Renault-Fiat Eurovan (Encl. Cargo)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Renault-Fiat Eurovan (Open Tray)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Renraku Arachnoid Mini-Drone": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Rolls-Royce Phaeton": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Rolls-Royce Prairie Cat": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Saab Dynamit 778 TI": {
+    "conc": "Racing",
+    "skill": "Car"
+  },
+  "Saab-Thyssen Bloodhound": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Samuvani Criscraft Otter": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Sendanko Marlin": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Shiawase Kanmushi Mechanical Crawler": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Sikorsky-Bell Microskimmer": {
+    "conc": "Remote Operation",
+    "skill": "Motorboat"
+  },
+  "Sikorsky-Bell Microskimmer II": {
+    "conc": "Remote Operation",
+    "skill": "Motorboat"
+  },
+  "Sikorsky-Bell Red Ranger": {
+    "conc": "Racing",
+    "skill": "Hovercraft"
+  },
+  "Steel Lynx Ground Combat Drone": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Surfstar Marine Seacop": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Suzuki Aurora": {
+    "conc": "Racing",
+    "skill": "Bike"
+  },
+  "Suzuki Watersport (Elec.)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Suzuki Watersport (Gas)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Thundercloud Pinto": {
+    "conc": "Three-wheeler",
+    "skill": "Bike"
+  },
+  "Toyota Elite": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Toyota MK-Guyver Search and Rescue Robot": {
+    "conc": "Remote Operation",
+    "skill": "Car"
+  },
+  "Toyotacorp Gopher": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Volkswagen Elektro": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Volkswagen Superkombi III (Commuter)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Volkswagen Superkombi III (Encl.Van)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Volkswagen Superkombi III (Flatbed)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Volkswagen Superkombi III (Pickup)": {
+    "conc": "Truck",
+    "skill": "Car"
+  },
+  "Volkswagen Superkombi III (RV)": {
+    "conc": "Passenger Vehicle",
+    "skill": "Car"
+  },
+  "Yamaha Rapier": {
+    "conc": "Racing",
+    "skill": "Bike"
+  },
+  "Zemlya-Poltava Swordsman (Elec.)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Zemlya-Poltava Swordsman (Outboard)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  },
+  "Zemlya-Poltava Swordsman (Standard)": {
+    "conc": "Pleasure Craft",
+    "skill": "Motorboat"
+  }
+}

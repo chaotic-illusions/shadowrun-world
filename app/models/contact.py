@@ -10,6 +10,7 @@ class Contact(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(200), index=True)
     profession: Mapped[str | None] = mapped_column(String(100), default=None)
+    contact_type: Mapped[str | None] = mapped_column(String(20), default=None)
     race: Mapped[str | None] = mapped_column(String(50), default=None)
     loyalty: Mapped[int] = mapped_column(Integer, default=1)
     connection: Mapped[int] = mapped_column(Integer, default=1)

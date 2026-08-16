@@ -16,7 +16,7 @@ import app.models  # noqa: F401 -- registers all ORM models with Base.metadata
 from app.routers import (
     characters, contacts, locations, organizations,
     reputation, adventure_logs, consequences, rtgs,
-    matrix_hosts, matrix_runs, campaign,
+    matrix_hosts, matrix_runs, campaign, catalog,
 )
 from app.routers import auth as auth_router
 from app.auth.dependencies import get_any_token
@@ -83,6 +83,24 @@ async def _ensure_character_deck_builder_state_column():
         print("[startup] Added characters.deck_builder_state column")
 
 
+async def _ensure_character_chargen_state_column():
+    """Startup safety migration for characters.chargen_state on SQLite deployments. create_all won't
+    add columns to an existing characters table; add it in place when an older DB predates it.
+    Idempotent.
+    """
+    if await _ensure_sqlite_column("characters", "chargen_state", "JSON NOT NULL DEFAULT '{}'"):
+        print("[startup] Added characters.chargen_state column")
+
+
+async def _ensure_contact_type_column():
+    """Startup safety migration for contacts.contact_type on SQLite deployments. create_all won't
+    add columns to an existing contacts table; add it in place when an older DB predates it.
+    Idempotent.
+    """
+    if await _ensure_sqlite_column("contacts", "contact_type", "VARCHAR(20)"):
+        print("[startup] Added contacts.contact_type column")
+
+
 async def _ensure_character_math_spu_columns():
     """Startup safety migration for the Math SPU cyberware columns on SQLite deployments.
 
@@ -97,6 +115,44 @@ async def _ensure_character_math_spu_columns():
         "characters", "math_spu_rating", "INTEGER NOT NULL DEFAULT 0"
     ):
         print("[startup] Added characters.math_spu_rating column")
+
+
+async def _ensure_character_sheet_columns():
+    """Startup safety migration for the promoted SR2 character-sheet columns.
+
+    create_all only creates missing tables; it won't add columns to an existing
+    characters table. Add each in place when an older DB file predates it. A
+    select(Character) emits every mapped column, so these must exist before any
+    full-ORM query runs. Idempotent.
+    """
+    specs = (
+        ("strength", "INTEGER NOT NULL DEFAULT 0"),
+        ("charisma", "INTEGER NOT NULL DEFAULT 0"),
+        ("essence", "FLOAT NOT NULL DEFAULT 6.0"),
+        ("body_index", "FLOAT NOT NULL DEFAULT 0.0"),
+        ("magic_rating", "INTEGER NOT NULL DEFAULT 0"),
+        ("magic_type", "VARCHAR(50)"),
+        ("tradition", "VARCHAR(50)"),
+        ("totem", "VARCHAR(50)"),
+        ("nuyen", "INTEGER NOT NULL DEFAULT 0"),
+        ("karma_pool", "INTEGER NOT NULL DEFAULT 1"),
+        ("good_karma", "INTEGER NOT NULL DEFAULT 0"),
+        ("lifestyle_level", "INTEGER"),
+        ("lifestyle_permanent", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("lifestyle_paid_tick", "INTEGER"),
+        ("is_draft", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("priorities", "JSON NOT NULL DEFAULT '{}'"),
+        ("skills", "JSON NOT NULL DEFAULT '[]'"),
+        ("spells", "JSON NOT NULL DEFAULT '[]'"),
+        ("adept_powers", "JSON NOT NULL DEFAULT '[]'"),
+        ("gear", "JSON NOT NULL DEFAULT '{}'"),
+    )
+    added = []
+    for column, definition in specs:
+        if await _ensure_sqlite_column("characters", column, definition):
+            added.append(column)
+    if added:
+        print(f"[startup] Added characters columns: {', '.join(added)}")
 
 
 async def _ensure_matrix_run_version_column():
@@ -240,6 +296,19 @@ async def _ensure_adventure_run_number_schema():
             raise RuntimeError("startup schema guard did not seed adventure run counter")
 
 
+async def _ensure_campaign_state_enabled_books_column():
+    """Startup safety migration for campaign_state.enabled_books on SQLite.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    campaign_state table. get_campaign_state() emits every mapped column, so this
+    must exist before the row is seeded below. Idempotent.
+    """
+    if await _ensure_sqlite_column(
+        "campaign_state", "enabled_books", "JSON NOT NULL DEFAULT '[]'"
+    ):
+        print("[startup] Added campaign_state.enabled_books column")
+
+
 async def _ensure_campaign_state():
     """Seed the single CampaignState row at startup for timeline continuity.
 
@@ -248,7 +317,6 @@ async def _ensure_campaign_state():
     """
     async with async_session() as db:
         await get_campaign_state(db)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -261,6 +329,9 @@ async def lifespan(app: FastAPI):
         # on an existing DB before the guard has a chance to add it.
         await _ensure_character_deck_builder_state_column()
         await _ensure_character_math_spu_columns()
+        await _ensure_character_sheet_columns()
+        await _ensure_character_chargen_state_column()
+        await _ensure_contact_type_column()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()
@@ -268,6 +339,7 @@ async def lifespan(app: FastAPI):
         await _ensure_matrix_host_trap_dest_column()
         await _migrate_plaintext_owner_tokens()
         await _ensure_adventure_run_number_schema()
+        await _ensure_campaign_state_enabled_books_column()
         await _ensure_campaign_state()
         yield
     finally:
@@ -331,6 +403,7 @@ app.include_router(rtgs.router,           prefix="/rtgs",          tags=["RTGs"]
 app.include_router(matrix_hosts.router,   prefix="/matrix-hosts",  tags=["Matrix Hosts"],       dependencies=_auth)
 app.include_router(matrix_runs.router,    prefix="/matrix-runs2",  tags=["Matrix Runs SR2"],    dependencies=_auth)
 app.include_router(campaign.router,       prefix="/campaign",      tags=["Campaign Clock"],     dependencies=_auth)
+app.include_router(catalog.router,        prefix="/catalog",       tags=["Catalog"],            dependencies=_auth)
 
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
 

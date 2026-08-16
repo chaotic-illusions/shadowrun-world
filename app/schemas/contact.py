@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class ContactBase(BaseModel):
     name: str = Field(max_length=200)
     profession: Optional[str] = Field(default=None, max_length=100)
+    contact_type: Optional[str] = Field(default=None, max_length=20)
     race: Optional[str] = Field(default=None, max_length=50)
     loyalty: int = 1
     connection: int = 1
@@ -33,6 +34,7 @@ class ContactUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, max_length=200)
     profession: Optional[str] = Field(default=None, max_length=100)
+    contact_type: Optional[str] = Field(default=None, max_length=20)
     race: Optional[str] = Field(default=None, max_length=50)
     loyalty: Optional[int] = None
     connection: Optional[int] = None

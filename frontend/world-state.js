@@ -569,30 +569,30 @@ function getMyCharIds() {
 }
 
 async function patchNpcConnection(charId, currentVal) {
-  showPrompt('Connection rating (1-6):', currentVal, async (raw) => {
-    const n = parseInt(raw, 10);
-    if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
-    await apiFetch(`${API}/characters/${charId}`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({connection: n})
-    });
-    loadAll();
+  const raw = await showPrompt('Connection rating (1-6):', currentVal, { inputType: 'number', min: 1, max: 6 });
+  if (raw == null) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
+  await apiFetch(`${API}/characters/${charId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({connection: n})
   });
+  loadAll();
 }
 
 async function patchConnection(cardKey, currentVal, contactIds) {
-  showPrompt('Connection rating (1-6):', currentVal, async (raw) => {
-    const n = parseInt(raw, 10);
-    if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
-    await Promise.all(contactIds.map(cid =>
-      apiFetch(`${API}/contacts/${cid}`, {
-        method: 'PATCH',
-        body: JSON.stringify({connection: n})
-      })
-    ));
-    loadAll();
-  });
+  const raw = await showPrompt('Connection rating (1-6):', currentVal, { inputType: 'number', min: 1, max: 6 });
+  if (raw == null) return;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
+  await Promise.all(contactIds.map(cid =>
+    apiFetch(`${API}/contacts/${cid}`, {
+      method: 'PATCH',
+      body: JSON.stringify({connection: n})
+    })
+  ));
+  loadAll();
 }
 
 function buildContactCard(merged, charMap, orgMap) {
