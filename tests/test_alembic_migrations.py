@@ -3,8 +3,8 @@ import subprocess
 import sys
 
 
-FORMER_HEAD = "b2d5f8c1e94a"
-CURRENT_HEAD = "c7e2f9a4b1d3"
+FORMER_HEAD = "d8b3f1a4c609"
+CURRENT_HEAD = "e4a1c7d90b52"
 
 
 def _alembic(database_path, *arguments):

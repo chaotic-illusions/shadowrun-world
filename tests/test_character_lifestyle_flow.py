@@ -172,7 +172,7 @@ def test_player_can_delete_own_draft_but_not_committed(tmp_path):
     asyncio.run(scenario())
 
 
-def test_chargen_contacts_become_poi_and_delete_with_pc(tmp_path):
+def test_chargen_contacts_become_poi_and_persist_after_pc_delete(tmp_path):
     async def scenario():
         async with _database(tmp_path / "poi.db") as sessions:
             admin = {"is_admin": True, "user_token": "admin"}
@@ -192,13 +192,14 @@ def test_chargen_contacts_become_poi_and_delete_with_pc(tmp_path):
                 assert poi is not None and poi.is_pc is False and poi.name == "Fixer Joe"
                 poi_id = poi.id
 
-            # TESTING behavior: deleting the PC removes its contact AND the POI it created.
+            # SHIP behavior (_KEEP_CHARGEN_POI_ON_DELETE=True): deleting the PC removes its own
+            # Contact rows but leaves the POI standing in the Known-Persons registry.
             async with sessions() as db:
                 await delete_character(pid, db=db, ctx=admin)
 
             async with sessions() as db:
                 assert await db.scalar(select(func.count()).select_from(Character).where(Character.id == pid)) == 0
-                assert await db.scalar(select(func.count()).select_from(Character).where(Character.id == poi_id)) == 0
+                assert await db.scalar(select(func.count()).select_from(Character).where(Character.id == poi_id)) == 1
                 assert await db.scalar(select(func.count()).select_from(Contact).where(Contact.owner_id == pid)) == 0
 
     asyncio.run(scenario())

@@ -41,11 +41,8 @@
         <option value="npc">NPCs Only</option>
       </select>
     </div>
-    <a class="btn btn-green mob-hide" href="character-builder.html">+ New Shadowrunner</a>
-    <button class="btn mob-hide" id="newNpcBtn" style="display:none" onclick="openModal()">+ New NPC</button>
+    <button class="btn btn-green mob-hide" id="newNpcBtn" style="display:none" onclick="openModal()">+ New NPC</button>
   </div>
-
-  <div id="draftsWrap"></div>
 
   <div id="tableWrap">
     <div class="loading">Loading characters</div>
@@ -163,7 +160,7 @@
         </div>
       </div>
       <div class="grid2 mb-14">
-        <div class="field">
+        <div class="field" id="typeField">
           <label>Type</label>
           <div class="toggle-wrap pt-6" id="f-type-wrap">
             <label class="toggle">
@@ -874,7 +871,7 @@ function openModal(id) {
   setConnectionValue(ch?.connection ?? 1);
   document.getElementById('addLinkForm').style.display = 'none';
   updatePCLabel();
-  document.getElementById('f-type-wrap').style.display = ch ? '' : 'none';   // no PC/NPC toggle when creating (NPC only)
+  document.getElementById('typeField').style.display = ch ? '' : 'none';   // no PC/NPC toggle when creating (NPC only); Active reflows left
   document.getElementById('f-is_pc').disabled = !isAdminMode();
   syncSkillsSectionUI();
   renderContactLinks();
@@ -1171,12 +1168,11 @@ async function removeContactLinkFromForm(contactId) {
 // -- Load data -------------------------------------------------
 async function loadChars() {
   try {
-    const [charsRes, orgsRes, contactsRes, mineRes, draftsRes] = await Promise.all([
+    const [charsRes, orgsRes, contactsRes, mineRes] = await Promise.all([
       apiFetch(`${API}/characters/`),
       apiFetch(`${API}/organizations/`),
       apiFetch(`${API}/contacts/`),
       apiFetch(`${API}/characters/mine`),
-      apiFetch(`${API}/characters/drafts`),
     ]);
     if (!charsRes.ok) await apiThrow(charsRes);
     allChars    = await charsRes.json();
@@ -1184,7 +1180,6 @@ async function loadChars() {
     allContacts = contactsRes.ok ? await contactsRes.json() : [];
     const mineData = mineRes.ok ? await mineRes.json() : {ids: []};
     _myCharIds = new Set(mineData.ids || []);
-    renderDrafts(draftsRes.ok ? await draftsRes.json() : []);
 
     const sel = document.getElementById('f-organization_id');
     sel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
@@ -1194,41 +1189,6 @@ async function loadChars() {
   } catch(e) {
     document.getElementById('tableWrap').innerHTML =
       `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
-  }
-}
-
-// In-progress chargen drafts (hidden from the main list). Resume reopens the builder;
-// Discard (admin only) deletes the draft row.
-let _draftsById = {};
-function renderDrafts(drafts) {
-  const wrap = document.getElementById('draftsWrap');
-  if (!wrap) return;
-  _draftsById = {};
-  if (!Array.isArray(drafts) || !drafts.length) { wrap.innerHTML = ''; return; }
-  drafts.forEach(d => { _draftsById[d.id] = d.name || ('draft ' + d.id); });
-  wrap.innerHTML = `
-    <div class="drafts-panel">
-      <div class="drafts-panel__hd">&gt;&gt; In-progress dossiers <span class="drafts-panel__n">${drafts.length}</span>
-        <span class="drafts-panel__hint">unfinished character-builder drafts</span></div>
-      ${drafts.map(d => `<div class="drafts-row">
-        <span class="drafts-row__n">${esc(d.name || 'Unnamed draft')}</span>
-        <span class="drafts-row__m">${esc(d.race || 'Human')} &middot; id ${d.id}</span>
-        <a class="btn btn-green" style="padding:4px 12px;font-size:.65rem" href="character-builder.html?resume=${d.id}">Resume</a>
-        <button class="btn btn-red" style="padding:4px 12px;font-size:.65rem" onclick="deleteDraft(${d.id})">Discard</button>
-      </div>`).join('')}
-    </div>`;
-}
-
-async function deleteDraft(id) {
-  try {
-    const name = _draftsById[id] || ('draft ' + id);
-    if (!await showConfirm(`Discard the in-progress dossier "${name}"? This cannot be undone.`, 'Confirm')) return;
-    const res = await apiFetch(`${API}/characters/${id}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await apiThrow(res);
-    showAlert(document.getElementById('alert'), `>> DISCARDED // draft ${id} removed.`, false);
-    loadChars();
-  } catch (e) {
-    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
   }
 }
 

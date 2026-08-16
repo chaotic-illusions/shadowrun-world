@@ -7,7 +7,7 @@ from app.dependencies import get_db, get_or_404, apply_update
 from app.models.character import Character, LIFESTYLE_UPKEEP_TICKS
 from app.models.contact import Contact
 from app.models.reputation import Reputation
-from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, LifestylePurchase
+from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, LifestylePurchase, ChargenStateRead
 from app.schemas.contact import ContactRead
 from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
@@ -52,6 +52,16 @@ def _is_owner_or_admin(char: Character, ctx: dict) -> bool:
     return bool(char.owner_token and char.owner_token == caller_hash)
 
 
+def _assert_character_access(char: Character, ctx: dict) -> None:
+    """Owner-or-admin gate. A hidden draft the caller doesn't own returns 404 so its existence
+    stays private; a committed character the caller doesn't own returns 403."""
+    if _is_owner_or_admin(char, ctx):
+        return
+    if char.is_draft:
+        raise HTTPException(status_code=404, detail="Character not found")
+    raise HTTPException(status_code=403, detail="Admin or character owner required")
+
+
 def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
     if ctx["is_admin"]:
         data = body.model_dump()
@@ -83,10 +93,11 @@ def _dossier_create_data(body: CharacterCreate, ctx: dict) -> dict:
     return data
 
 
-# TESTING TOGGLE -- set True before shipping. Chargen contacts are promoted to NPC "persons of
-# interest" (Known Persons). While False, those POI are deleted along with the PC that named them
-# so scratch characters clean up fully; True keeps them standing in the registry for a live world.
-_KEEP_CHARGEN_POI_ON_DELETE = False
+# SHIP setting. Chargen contacts are promoted to NPC "persons of interest" (Known Persons).
+# When True, those POI keep standing in the registry when the PC that named them is deleted
+# (a live world remembers people); set False only for scratch/test cleanup where the POI should
+# be removed along with the PC.
+_KEEP_CHARGEN_POI_ON_DELETE = True
 
 
 async def _create_dossier_contacts(db: AsyncSession, char: Character, contacts) -> None:
@@ -102,6 +113,7 @@ async def _create_dossier_contacts(db: AsyncSession, char: Character, contacts) 
         await db.flush()  # assign poi.id for the npc link
         db.add(Contact(
             owner_id=char.id, npc_id=poi.id, name=c.name, profession=c.profession,
+            contact_type=getattr(c, "contact_type", None),
             connection=c.connection, loyalty=c.loyalty,
         ))
 
@@ -187,6 +199,19 @@ async def my_draft_characters(
     return [_serialize_character(char, ctx) for char in result.scalars().all()]
 
 
+@router.get("/{character_id}/chargen-state", response_model=ChargenStateRead)
+async def get_chargen_state(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Raw wizard state for resuming a chargen draft losslessly. Owner-or-admin only."""
+    char = await _load_character(db, character_id)
+    if not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
+    return ChargenStateRead(state=char.chargen_state or {})
+
+
 @router.get("/{character_id}/deck-builder-state", response_model=DeckBuilderStateRead)
 async def get_deck_builder_state(
     character_id: int,
@@ -196,8 +221,7 @@ async def get_deck_builder_state(
     char = await _load_character(db, character_id)
     if not char.is_pc:
         raise HTTPException(status_code=400, detail="Deck builder state is only available for PCs")
-    if not _is_owner_or_admin(char, ctx):
-        raise HTTPException(status_code=403, detail="Admin or character owner required")
+    _assert_character_access(char, ctx)
     return DeckBuilderStateRead(state=char.deck_builder_state or {})
 
 
@@ -211,8 +235,7 @@ async def update_deck_builder_state(
     char = await _load_character(db, character_id)
     if not char.is_pc:
         raise HTTPException(status_code=400, detail="Deck builder state is only available for PCs")
-    if not _is_owner_or_admin(char, ctx):
-        raise HTTPException(status_code=403, detail="Admin or character owner required")
+    _assert_character_access(char, ctx)
     char.deck_builder_state = body.state or {}
     await db.commit()
     await db.refresh(char)
@@ -374,21 +397,28 @@ async def purchase_lifestyle(
         raise HTTPException(status_code=404, detail="Character not found")
 
     total = permanent_cost(body.level) if body.permanent else monthly_cost(body.level) * body.months
-    if total > char.nuyen:
+    tick = await current_tick(db)
+    # Prepaid through now + months (permanent never accrues, so just stamp to now).
+    paid_tick = tick if body.permanent else tick + body.months * LIFESTYLE_UPKEEP_TICKS
+    # Atomic conditional debit: the WHERE guard prevents two concurrent purchases from
+    # both passing an affordability check and double-spending the same balance.
+    result = await db.execute(
+        sql_update(Character)
+        .where(Character.id == character_id, Character.nuyen >= total)
+        .values(
+            nuyen=Character.nuyen - total,
+            lifestyle_level=body.level,
+            lifestyle_permanent=body.permanent,
+            lifestyle_paid_tick=paid_tick,
+        )
+    )
+    if result.rowcount != 1:
         raise HTTPException(
             status_code=400,
             detail=f"Insufficient nuyen: need {total}, have {char.nuyen}",
         )
-
-    tick = await current_tick(db)
-    char.nuyen -= total
-    char.lifestyle_level = body.level
-    char.lifestyle_permanent = body.permanent
-    # Prepaid through now + months (permanent never accrues, so just stamp to now).
-    char.lifestyle_paid_tick = tick if body.permanent else tick + body.months * LIFESTYLE_UPKEEP_TICKS
     await db.commit()
-    await db.refresh(char, attribute_names=["organization"])
-    return _serialize_character(char, ctx)
+    return _serialize_character(await _load_character(db, character_id), ctx)
 
 
 @router.get("/{character_id}", response_model=CharacterRead)
@@ -397,7 +427,11 @@ async def get_character(
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    return _serialize_character(await _load_character(db, character_id), ctx)
+    char = await _load_character(db, character_id)
+    # Hidden drafts must not leak (existence or content) to anyone but the owner/admin.
+    if char.is_draft and not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
+    return _serialize_character(char, ctx)
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
@@ -409,10 +443,10 @@ async def update_character(
 ):
     char = await _load_character(db, character_id)
     is_admin = ctx["is_admin"]
-    caller_hash = hash_token(ctx["user_token"])
-    is_owner = bool(char.owner_token and char.owner_token == caller_hash)
-
-    if not is_admin and not is_owner:
+    if not _is_owner_or_admin(char, ctx):
+        # A hidden draft the caller doesn't own returns 404 so its existence stays private.
+        if char.is_draft:
+            raise HTTPException(status_code=404, detail="Character not found")
         raise HTTPException(status_code=403, detail="Admin or character owner required")
 
     # Non-admins may only update a limited set of fields on their own PC
@@ -440,7 +474,7 @@ async def delete_character(
     """
     char = await get_or_404(db, Character, character_id)
     if not ctx["is_admin"]:
-        owns = bool(char.owner_token and char.owner_token == hash_token(ctx["user_token"]))
+        owns = _is_owner_or_admin(char, ctx)
         if char.is_draft and owns:
             pass  # a player discarding their own unfinished dossier
         elif char.is_draft:
@@ -525,11 +559,7 @@ async def unclaim_character(
 ):
     """Admin or the owning player can unclaim a character."""
     char = await _load_character(db, character_id)
-    is_admin = ctx["is_admin"]
-    caller_hash = hash_token(ctx["user_token"])
-    is_owner = bool(char.owner_token and char.owner_token == caller_hash)
-
-    if not is_admin and not is_owner:
+    if not _is_owner_or_admin(char, ctx):
         raise HTTPException(status_code=403, detail="Only the owning player or an admin can unclaim")
 
     char.owner_token = None

@@ -1600,8 +1600,14 @@
   // relaxing between-runs lull that still reads as Shadowrun neon.
   // =====================================================================
   var CH_COLS = [[70, 225, 245], [55, 195, 195], [90, 150, 255], [80, 205, 230], [95, 235, 200], [120, 165, 250]];
-  function ch_bloom(W, H, big) {
-    var c = CH_COLS[(Math.random() * CH_COLS.length) | 0];
+  // Matrix-green variant for the character-builder -- unique to chargen (blue/teal is used elsewhere).
+  var GREEN_COLS = [[60, 235, 120], [40, 205, 100], [95, 240, 140], [70, 220, 130], [120, 245, 160], [40, 200, 110]];
+  // Bokeh-haze palettes: sky gradient, floor-glow 'r,g,b', and the bloom colour set. Any new haze
+  // just supplies one of these to ch_make -- one factory, many colours (no per-scene copies).
+  var CH_COOL  = { sky: 'linear-gradient(180deg,#03070b 0%,#040d12 45%,#02080c 100%)', floor: '30,120,130', cols: CH_COLS };
+  var CH_GREEN = { sky: 'linear-gradient(180deg,#030b06 0%,#04120a 45%,#020805 100%)', floor: '30,130,84',  cols: GREEN_COLS };
+  function ch_bloom(W, H, big, cols) {
+    var c = cols[(Math.random() * cols.length) | 0];
     return {
       x: Math.random() * W, y: Math.random() * H,
       r: big ? (90 + Math.random() * 150) : (10 + Math.random() * 26),
@@ -1612,25 +1618,26 @@
       base: big ? (0.05 + Math.random() * 0.07) : (0.10 + Math.random() * 0.16)
     };
   }
-  scene('coolhaze', {
-    sky: 'linear-gradient(180deg,#03070b 0%,#040d12 45%,#02080c 100%)',
+  function ch_make(P) {
+    return {
+    sky: P.sky,
     vignette: true,
     heat: false,
     init: function (env) { env.store.big = null; env.store.dots = null; },
     resize: function (env) {
       var st = env.store, W = env.W, H = env.H, i;
       var nb = Math.max(7, Math.min(14, Math.round(W / 150)));
-      st.big = []; for (i = 0; i < nb; i++) st.big.push(ch_bloom(W, H, true));
+      st.big = []; for (i = 0; i < nb; i++) st.big.push(ch_bloom(W, H, true, P.cols));
       var nd = Math.max(10, Math.min(22, Math.round(W / 95)));
-      st.dots = []; for (i = 0; i < nd; i++) st.dots.push(ch_bloom(W, H, false));
+      st.dots = []; for (i = 0; i < nd; i++) st.dots.push(ch_bloom(W, H, false, P.cols));
     },
     frame: function (env, t, dt) {
       var ctx = env.ctx, W = env.W, H = env.H, st = env.store, i, b, a, g;
       ctx.clearRect(0, 0, W, H);
-      // soft teal floor glow for depth
+      // soft floor glow for depth (palette-tinted)
       var fl = ctx.createRadialGradient(W * 0.5, H * 1.02, H * 0.05, W * 0.5, H * 1.02, H * 0.9);
-      fl.addColorStop(0, 'rgba(30,120,130,0.16)');
-      fl.addColorStop(1, 'rgba(30,120,130,0)');
+      fl.addColorStop(0, 'rgba(' + P.floor + ',0.16)');
+      fl.addColorStop(1, 'rgba(' + P.floor + ',0)');
       ctx.fillStyle = fl; ctx.fillRect(0, 0, W, H);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -1668,7 +1675,10 @@
       }
       ctx.restore();
     }
-  });
+    };
+  }
+  scene('coolhaze', ch_make(CH_COOL));
+  scene('greenhaze', ch_make(CH_GREEN));
 
   // =====================================================================
   // SCENE: icevoid -- ICE SENTINELS in the deep void. A near-black datascape

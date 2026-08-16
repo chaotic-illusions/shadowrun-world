@@ -21,7 +21,7 @@
     .csheet-list{list-style:none;margin:0;padding:0;}
     .csheet-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid #141c14;}
     .csheet-row .n{color:var(--text-bright);}
-    .csheet-row .r{color:var(--cyan);font-family:var(--font-display);}
+    .csheet-row .r{color:var(--cyan);font-family:var(--font-display);margin-left:auto;}
     .csheet-row .m{color:var(--text-dim);font-size:var(--fs-xs);}
     .csheet-tiers{color:var(--text-dim);font-size:var(--fs-xs);flex-basis:100%;padding-left:2px;}
     .csheet-tiers strong{color:var(--cyan);}
@@ -107,7 +107,7 @@ function block(title, inner) {
 function skillRow(s) {
   const attr = s.attr ? ` <span class="m">(${esc(s.attr)})</span>` : "";
   return `<li class="csheet-row"><span class="n">${esc(s.name || "?")}</span>${attr}
-    <span class="r" style="margin-left:auto">${num(s.rating)}</span>${tiersHTML(s)}</li>`;
+    <span class="r">${num(s.rating)}</span>${tiersHTML(s)}</li>`;
 }
 
 function gearBucketHTML(label, items, fmt) {
@@ -149,7 +149,7 @@ function renderSheet(c, contacts, decks, canManage) {
   const hasSorcery = (Array.isArray(c.skills) ? c.skills : []).some(s => s.name === "Sorcery");
   const taskPool = poolBonus("task");
   const hackingPool = deckMpcp ? Math.floor((num(c.intelligence) + deckMpcp) / 3) + poolBonus("hack") : null;
-  const controlPool = vcrLvl ? reaction + vcrLvl * 2 : null;
+  const controlPool = vcrLvl ? reaction + vcrLvl * 2 + vcrLvl : null;
   const astralPool = c.magic_type === "Full Mage" ? Math.floor((num(c.intelligence) + num(c.willpower) + num(c.charisma)) / 2) : null;
   const spellPool = hasSorcery ? Math.floor((num(c.intelligence) + num(c.willpower) + num(c.magic_rating)) / 3) : null;
   const poolCards = [];
@@ -197,16 +197,16 @@ function renderSheet(c, contacts, decks, canManage) {
   // Magic ------------------------------------------------------------------
   if (c.magic_type) {
     const mrows = [];
-    mrows.push(`<li class="csheet-row"><span class="n">Type</span><span class="r" style="margin-left:auto">${esc(c.magic_type)}</span></li>`);
-    if (c.tradition) mrows.push(`<li class="csheet-row"><span class="n">Tradition</span><span class="r" style="margin-left:auto">${esc(c.tradition)}</span></li>`);
-    if (c.totem) mrows.push(`<li class="csheet-row"><span class="n">Totem</span><span class="r" style="margin-left:auto">${esc(c.totem)}</span></li>`);
+    mrows.push(`<li class="csheet-row"><span class="n">Type</span><span class="r">${esc(c.magic_type)}</span></li>`);
+    if (c.tradition) mrows.push(`<li class="csheet-row"><span class="n">Tradition</span><span class="r">${esc(c.tradition)}</span></li>`);
+    if (c.totem) mrows.push(`<li class="csheet-row"><span class="n">Totem</span><span class="r">${esc(c.totem)}</span></li>`);
     let magicInner = `<ul class="csheet-list">${mrows.join("")}</ul>`;
 
     const spells = Array.isArray(c.spells) ? c.spells : [];
     if (spells.length) {
       magicInner += `<div class="csheet-block"><div class="sub-head">Spells</div><ul class="csheet-list">` +
         spells.map(s => `<li class="csheet-row"><span class="n">${esc(s.name || "?")}</span>
-          <span class="m">${esc(s.cat || "")}</span><span class="r" style="margin-left:auto">Force ${num(s.force)}</span></li>`).join("") +
+          <span class="m">${esc(s.cat || "")}</span><span class="r">Force ${num(s.force)}</span></li>`).join("") +
         `</ul></div>`;
     }
     const powers = Array.isArray(c.adept_powers) ? c.adept_powers : [];
@@ -215,7 +215,7 @@ function renderSheet(c, contacts, decks, canManage) {
         powers.map(p => {
           const lvl = p.rated ? ` <span class="m">Lv ${num(p.lvl) || 1}</span>` : "";
           const pp = round2(num(p.ppEach) * (p.rated ? (num(p.lvl) || 1) : 1));
-          return `<li class="csheet-row"><span class="n">${esc(p.name || "?")}</span>${lvl}<span class="r" style="margin-left:auto">${pp} PP</span></li>`;
+          return `<li class="csheet-row"><span class="n">${esc(p.name || "?")}</span>${lvl}<span class="r">${pp} PP</span></li>`;
         }).join("") + `</ul></div>`;
     }
     if (foci.length) {
@@ -237,7 +237,7 @@ function renderSheet(c, contacts, decks, canManage) {
     skillInner += `<div class="csheet-block"><div class="sub-head">Languages</div><ul class="csheet-list">` +
       languages.map(l => {
         const free = l.free ? ` <span class="m">(free${l.kind === "native" ? ", native" : l.kind === "dialect" ? ", dialect" : ""})</span>` : "";
-        return `<li class="csheet-row"><span class="n">${esc(l.name || "?")}</span>${free}<span class="r" style="margin-left:auto">${num(l.rating)}</span></li>`;
+        return `<li class="csheet-row"><span class="n">${esc(l.name || "?")}</span>${free}<span class="r">${num(l.rating)}</span></li>`;
       }).join("") + `</ul></div>`;
   }
   if (!skillInner) skillInner = `<p class="csheet-empty">No skills recorded.</p>`;
@@ -246,31 +246,31 @@ function renderSheet(c, contacts, decks, canManage) {
   // Gear -------------------------------------------------------------------
   const gearHTML =
     gearBucketHTML("Weapons", gear.weapons, g => `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>
-      <span class="r" style="margin-left:auto">${money(g.cost)}</span></li>`) +
+      <span class="r">${money(g.cost)}</span></li>`) +
     gearBucketHTML("Armor", gear.armor, g => `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>
-      <span class="r" style="margin-left:auto">${money(g.cost)}</span></li>`) +
+      <span class="r">${money(g.cost)}</span></li>`) +
     gearBucketHTML("Cyberware", gear.cyber, g => {
       const grade = g.grade ? ` <span class="m">${esc(g.grade)}</span>` : "";
       const ess = (g.baseEss != null) ? ` <span class="m">Ess base ${num(g.baseEss).toFixed(2)}</span>` : "";
       return `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>${grade}${ess}
-        <span class="r" style="margin-left:auto">${money(g.baseCost != null ? g.baseCost : g.cost)}</span></li>`;
+        <span class="r">${money(g.baseCost != null ? g.baseCost : g.cost)}</span></li>`;
     }) +
     gearBucketHTML("Bioware", gear.bio, g => `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>
-      <span class="r" style="margin-left:auto">${money(g.cost)}</span></li>`) +
+      <span class="r">${money(g.cost)}</span></li>`) +
     gearBucketHTML("Gear", gear.gear, g => `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>
-      <span class="r" style="margin-left:auto">${money(g.cost)}</span></li>`) +
+      <span class="r">${money(g.cost)}</span></li>`) +
     gearBucketHTML("Vehicles &amp; Drones", gear.vehicles, g => {
       const rigCost = g.rigger ? (Number(g.body) || 0) * 2500 + 2800 : 0;
       const rigTag = g.rigger ? ` <span class="m">+ rigger adaptation</span>` : "";
       return `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>${rigTag}
-        <span class="r" style="margin-left:auto">${money((Number(g.cost) || 0) + rigCost)}</span></li>`;
+        <span class="r">${money((Number(g.cost) || 0) + rigCost)}</span></li>`;
     });
   html += block("Gear &amp; Cyberware", gearHTML || `<p class="csheet-empty">No gear recorded.</p>`);
 
   // Deck -------------------------------------------------------------------
   if (Array.isArray(decks) && decks.length) {
     const drows = decks.map(d => `<li class="csheet-row"><span class="n">${esc(d.name || "Cyberdeck")}</span>
-      <span class="m">MPCP ${num(d.mpcp)}</span><span class="r" style="margin-left:auto">${esc(d.deckType || "")}</span></li>`).join("");
+      <span class="m">MPCP ${num(d.mpcp)}</span><span class="r">${esc(d.deckType || "")}</span></li>`).join("");
     html += block("Cyberdeck", `<ul class="csheet-list">${drows}</ul>`);
   }
 
@@ -278,7 +278,7 @@ function renderSheet(c, contacts, decks, canManage) {
   if (Array.isArray(contacts) && contacts.length) {
     const crows = contacts.map(ct => `<li class="csheet-row"><span class="n">${esc(ct.name || "?")}</span>
       <span class="m">${esc(ct.profession || "")}</span>
-      <span class="r" style="margin-left:auto">C${num(ct.connection)} / L${num(ct.loyalty)}</span></li>`).join("");
+      <span class="r">C${num(ct.connection)} / L${num(ct.loyalty)}</span></li>`).join("");
     html += block("Contacts", `<ul class="csheet-list">${crows}</ul>`);
   }
 

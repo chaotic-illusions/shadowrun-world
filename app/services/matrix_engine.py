@@ -57,8 +57,10 @@ def roll_dice(pool: int, tn: int = 4) -> dict[str, Any]:
 
 
 def hacking_pool(intelligence: int, mpcp: int, math_spu: int = 0) -> int:
-    """Hacking Pool = (Intelligence + MPCP) // 3. A Math SPU adds floor(rating/2) to Intelligence."""
-    return (intelligence + (max(0, math_spu) // 2) + mpcp) // 3
+    """Hacking Pool = (Intelligence + MPCP) // 3. A Math SPU (Shadowtech) then adds floor(rating/2)
+    directly to the pool -- it is a dedicated Hacking Pool bonus, not an Intelligence increase, so it
+    is applied AFTER the /3 (VR2's fold-in clause only covers actual Intelligence increases)."""
+    return (intelligence + mpcp) // 3 + (max(0, math_spu) // 2)
 
 
 def detection_factor(masking: int, sleaze_rating: int = 0) -> int:

@@ -18,6 +18,16 @@ LIFESTYLE_UPKEEP_TICKS = 30
 LIFESTYLE_PERMANENT_MONTHS = 100
 
 
+def lifestyle_monthly_cost_for(level: int | None, permanent: bool = False) -> int:
+    """Canonical monthly upkeep for a lifestyle tier (0 for Street/unset/out-of-range/permanent).
+
+    Single source of truth shared by the ORM property and the lifestyle service.
+    """
+    if permanent or level is None or not (0 <= level < len(LIFESTYLE_MONTHLY_COST)):
+        return 0
+    return LIFESTYLE_MONTHLY_COST[level]
+
+
 class Character(Base):
     __tablename__ = "characters"
 
@@ -92,6 +102,11 @@ class Character(Base):
     # Cross-device/browser persisted deck-builder state (programs, loadouts, jobs).
     deck_builder_state: Mapped[dict] = mapped_column(JSON, default=dict)
 
+    # Raw character-builder wizard state, stored verbatim so a saved draft round-trips losslessly
+    # (contacts with type/gang, legal name, and every other free-text input). Structured columns
+    # above still drive gameplay; this is the editable-input backup for resuming the wizard.
+    chargen_state: Mapped[dict] = mapped_column(JSON, default=dict)
+
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -126,10 +141,7 @@ class Character(Base):
     @property
     def lifestyle_monthly_cost(self) -> int:
         """Nuyen charged per month for the current lifestyle (0 for Street/unset/permanent)."""
-        level = self.lifestyle_level
-        if self.lifestyle_permanent or level is None or not (0 <= level < len(LIFESTYLE_MONTHLY_COST)):
-            return 0
-        return LIFESTYLE_MONTHLY_COST[level]
+        return lifestyle_monthly_cost_for(self.lifestyle_level, self.lifestyle_permanent)
 
     contacts: Mapped[list["Contact"]] = relationship(
         "Contact", foreign_keys="Contact.owner_id", back_populates="owner", cascade="all, delete-orphan"
