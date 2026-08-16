@@ -183,11 +183,13 @@ def _deck_bems(mpcp):
     return tuple(base + (1 if i < rem else 0) for i in range(4))
 
 
-def _lifestyle_str(level):
+def _lifestyle_str(level, permanent=False):
     if level is None or not (0 <= level < len(LIFESTYLES)):
         return "Lifestyle: --"
     name, cost = LIFESTYLES[level]
-    if cost >= 1000:
+    if permanent:
+        per = "perm"        # bought outright at chargen -- no ongoing upkeep
+    elif cost >= 1000:
         per = f"{cost // 1000}k/mo"
     elif cost > 0:
         per = f"{cost}/mo"
@@ -241,9 +243,9 @@ def load_character(char_id, db_path=DB):
     if not row:
         raise SystemExit(f"character {char_id} not found")
     c = dict(row)
-    for k in ("skills", "adept_powers", "spells", "gear", "priorities"):
+    for k in ("skills", "adept_powers", "spells", "gear", "priorities", "chargen_state"):
         v = c.get(k)
-        c[k] = json.loads(v) if isinstance(v, str) else (v if v is not None else ({} if k in ("gear", "priorities") else []))
+        c[k] = json.loads(v) if isinstance(v, str) else (v if v is not None else ({} if k in ("gear", "priorities", "chargen_state") else []))
     return c
 
 
@@ -314,6 +316,13 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
 
     # Identity ---------------------------------------------------------------
     handle = c.get("name") or "Unnamed"
+    # Legal name is a chargen free-text input persisted in chargen_state.identity.name; derive it
+    # from the record so every caller (web endpoint or CLI) renders identical content. An explicit
+    # legal_name arg still overrides (CLI --legal-name).
+    if not legal_name:
+        _cg = c.get("chargen_state")
+        if isinstance(_cg, dict):
+            legal_name = (((_cg.get("identity") or {}).get("name")) or "").strip() or None
     put("NAME", f"{handle} ({legal_name})" if legal_name else handle)
     put("RACE", c.get("race"))
     put("SEX", c.get("gender"))
@@ -571,7 +580,7 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
                 mod_notes.append(f"{_display_name(g['n'])}: {note}")
     if mod_notes:
         cnotes.append("Mods: " + " | ".join(mod_notes))
-    cnotes.append(_lifestyle_str(c.get("lifestyle_level")))
+    cnotes.append(_lifestyle_str(c.get("lifestyle_level"), c.get("lifestyle_permanent")))
     put("Character Notes", "\n".join(cnotes))
 
     # Game notes: the deck's program library, "Name-Rating" ------------------
@@ -657,8 +666,11 @@ def fill_pdf(fields, out_path, template=TEMPLATE):
     except Exception:  # noqa: BLE001 -- older pypdf fallback
         from pypdf.generic import BooleanObject
         writer._root_object["/AcroForm"][NameObject("/NeedAppearances")] = BooleanObject(True)
-    with open(out_path, "wb") as fh:
-        writer.write(fh)
+    if hasattr(out_path, "write"):        # a binary stream (e.g. BytesIO from the app endpoint)
+        writer.write(out_path)
+    else:
+        with open(out_path, "wb") as fh:
+            writer.write(fh)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select, update as sql_update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -432,6 +434,45 @@ async def get_character(
     if char.is_draft and not _is_owner_or_admin(char, ctx):
         raise HTTPException(status_code=404, detail="Character not found")
     return _serialize_character(char, ctx)
+
+
+@router.get("/{character_id}/sheet.pdf")
+async def character_sheet_pdf(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Generate and download the filled SR2 character sheet PDF for a completed, owned PC.
+
+    Owner-or-admin only; drafts (still in the builder) 404 -- they haven't been published yet.
+    """
+    char = await _load_character(db, character_id)
+    if not char.is_pc:
+        raise HTTPException(status_code=400, detail="Character sheets are generated for PCs only")
+    if char.is_draft:
+        raise HTTPException(status_code=404, detail="Character not found")
+    _assert_character_access(char, ctx)
+
+    char_dict = {col.name: getattr(char, col.name) for col in Character.__table__.columns}
+    rows = (await db.execute(
+        select(Contact).where(Contact.owner_id == char.id, Contact.is_active == True)  # noqa: E712
+    )).scalars().all()
+    contacts = [
+        (c.name, c.profession or "", c.contact_type or ("Buddy" if (c.loyalty or 0) >= 3 else "Contact"))
+        for c in rows
+    ]
+    try:
+        from app.services.sheet_pdf import render_character_sheet
+        pdf_bytes = render_character_sheet(char_dict, contacts)
+    except ImportError:
+        raise HTTPException(status_code=503, detail="PDF generation is unavailable on this server")
+
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", char.name or "").strip("_") or f"character_{char.id}"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe}_SR2.pdf"'},
+    )
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
