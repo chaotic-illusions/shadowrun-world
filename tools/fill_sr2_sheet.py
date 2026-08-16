@@ -43,15 +43,74 @@ PROG_DISPLAY = {
     "medic": "Medic", "restore": "Restore", "shield": "Shield",
 }
 
-# Standard SR2 firearm range bands (metres) by weapon sub-type -- the item catalog does not carry
-# ranges, so they are looked up here by class. (Wire-up note: the app would need this same table.)
+# SR2/FoF weapon range bands (metres) by weapon sub-type -- the item catalog does not carry ranges,
+# so they are looked up here by class. Strength-based weapons (bows / thrown) are computed below.
 RANGE_TABLE = {
-    "Hold-Out Pistol": ("0-5", "6-10", "11-15", "16-20"),
+    "Hold-Out": ("0-5", "6-15", "16-30", "31-50"),
+    "Hold-Out Pistol": ("0-5", "6-15", "16-30", "31-50"),
     "Light Pistol": ("0-5", "6-15", "16-30", "31-50"),
-    "Heavy Pistol": ("0-5", "6-20", "21-40", "41-60"),
     "Machine Pistol": ("0-5", "6-15", "16-30", "31-50"),
+    "Heavy Pistol": ("0-5", "6-20", "21-40", "41-60"),
     "SMG": ("0-10", "11-40", "41-80", "81-150"),
+    "Submachine Gun": ("0-10", "11-40", "41-80", "81-150"),
+    "Shotgun": ("0-10", "11-20", "21-50", "51-100"),
+    "Taser": ("0-5", "6-10", "11-12", "13-15"),
+    "Sport Rifle": ("0-30", "31-60", "61-150", "151-300"),
+    "Sniper Rifle": ("0-40", "41-80", "81-200", "201-400"),
+    "Assault Rifle": ("0-15", "16-40", "41-100", "101-250"),
+    "Carbine": ("0-15", "16-40", "41-100", "101-250"),   # carbines use assault-rifle ranges
+    "Light Machine Gun": ("0-20", "21-40", "41-80", "81-150"),
+    "Medium Machine Gun": ("0-40", "41-150", "151-300", "301-500"),
+    "Heavy Machine Gun": ("0-40", "41-150", "151-400", "401-800"),
+    "Assault Cannon": ("0-50", "51-150", "151-450", "451-1300"),
+    "Grenade Launcher": ("5-50", "51-100", "101-150", "151-300"),
+    "Missile Launcher": ("20-70", "71-150", "151-450", "451-1500"),
+    "Anti-Tank Guided Missile": ("20-350", "351-750", "751-1500", "1501-5000"),
+    "Mortar": ("150-300", "301-1000", "1001-4000", "4001-6000"),
 }
+
+# Per-name overrides where a specific weapon's ranges differ from its class default.
+NAME_RANGE = {
+    "Ballista Multi-Role Missile Launcher": ("20-100", "101-500", "501-2500", "2501-5000"),
+}
+
+# Strength-based ranges (bows / thrown): the upper bound of each band is Strength x multiplier.
+STR_RANGE_MULT = {
+    "Bow": (1, 10, 30, 60),
+    "Throwing Knife": (1, 2, 3, 5),
+    "Shuriken": (1, 2, 5, 7),
+    "Grenade": (3, 5, 10, 20),   # thrown standard (aerodynamic handled by name/notes)
+    "Thrown": (3, 5, 10, 20),
+}
+CROSSBOW_MULT = {"light": (2, 8, 20, 40), "medium": (3, 12, 30, 50), "heavy": (5, 15, 40, 60)}
+
+
+def _str_bands(mults, strength):
+    """Format Strength-scaled range bands as 'low-high' strings (low = previous high + 1)."""
+    bands, lo = [], 0
+    for m in mults:
+        hi = max(0, int(round((strength or 0) * m)))
+        bands.append(f"{lo}-{hi}")
+        lo = hi + 1
+    return tuple(bands)
+
+
+# Ammo feed words -> sheet abbreviations (compound terms first so they win over substrings).
+_AMMO_FEED_ABBR = {
+    "battery package": "bat", "break-action": "brk", "break-open": "brk",
+    "m-clip": "mc", "magazine": "m", "cylinder": "cy",
+    "clip": "c", "belt": "b", "box": "bx",
+}
+
+
+def _abbr_ammo(s):
+    """Shorten ammo feed words so 'belt or 50 (clip)' -> 'b or 50 (c)' fits the tight Ammo column."""
+    if not s:
+        return s
+    out = str(s)
+    for full, ab in _AMMO_FEED_ABBR.items():
+        out = re.sub(rf"\b{re.escape(full)}\b", ab, out, flags=re.I)
+    return out
 
 # Weapon sub-type -> sheet abbreviation (the "Type" column).
 WEAPON_ABBR = {
@@ -403,14 +462,27 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
             conceal = "\u2014"   # heavy weapon / no concealability rating
         put(f"Weapon {slot} Name", _display_name(wln["n"]))
         put(f"Weapon {slot} Type", _weapon_abbr(sub))
-        put(f"Weapon {slot} Mods", WEAPON_MODS.get(wln["n"]))
+        mods = WEAPON_MODS.get(wln["n"])
+        if mods:
+            put(f"Weapon {slot} Mods", mods.replace("Laser", "Lsr"))
         put(f"Weapon {slot} Conceal", conceal)
         if not _blankish(src.get("reach")):
             put(f"Weapon {slot} Reach", src.get("reach"))
         put(f"Weapon {slot} Mode", src.get("mode"))
         put(f"Weapon {slot} Dmg", src.get("dmg"))
-        put(f"Weapon {slot} Ammo", src.get("ammo"))
-        bands = RANGE_TABLE.get(sub)
+        put(f"Weapon {slot} Ammo", _abbr_ammo(src.get("ammo")))
+        bands = NAME_RANGE.get(wln["n"]) or RANGE_TABLE.get(sub)
+        if not bands:
+            mults = STR_RANGE_MULT.get(sub)
+            if sub == "Crossbow":
+                lname = wln["n"].lower()
+                key = "light" if "light" in lname else "heavy" if "heavy" in lname else "medium"
+                mults = CROSSBOW_MULT[key]
+            elif sub == "Grenade":
+                blob = (wln["n"] + " " + " ".join(src.get("notes") or [])).lower()
+                mults = (3, 5, 20, 30) if "aerodynamic" in blob else STR_RANGE_MULT["Grenade"]
+            if mults:
+                bands = _str_bands(mults, num(c.get("strength")))
         if bands:
             put(f"Weapon {slot} Short", bands[0]); put(f"Weapon {slot} Med", bands[1])
             put(f"Weapon {slot} Long", bands[2]); put(f"Weapon {slot} Extreme", bands[3])
@@ -536,7 +608,9 @@ def _field_size(name):
         return 0
     if re.match(r"Weapon \d+ Name$", name):
         return 0
-    if re.match(r"Weapon \d+ ", name):    # Type/Conceal/Reach/Mode/ranges/Ammo/Dmg/Mods -- tight columns
+    if re.match(r"Weapon \d+ (Type|Mode)$", name):
+        return 6   # very tight columns: "SMG"/"LMG"/"MMG" and "SA/BF/FA" must fit
+    if re.match(r"Weapon \d+ ", name):    # Conceal/Reach/ranges/Ammo/Dmg/Mods -- tight columns
         return 8
     if name in ("Vehicle Type", "Cyberdeck Type"):
         return 0
