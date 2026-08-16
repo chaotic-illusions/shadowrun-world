@@ -25,7 +25,6 @@
     .csheet-row .m{color:var(--text-dim);font-size:var(--fs-xs);}
     .csheet-tiers{color:var(--text-dim);font-size:var(--fs-xs);flex-basis:100%;padding-left:2px;}
     .csheet-tiers strong{color:var(--cyan);}
-    .csheet-empty{color:var(--text-dim);font-style:italic;font-size:var(--fs-sm);}
     .csheet-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px 26px;}
     @media (max-width:720px){.csheet-cols{grid-template-columns:1fr;}}
     .csheet-life{color:var(--text-dim);font-size:var(--fs-sm);}
@@ -240,7 +239,7 @@ function renderSheet(c, contacts, decks, canManage) {
         return `<li class="csheet-row"><span class="n">${esc(l.name || "?")}</span>${free}<span class="r">${num(l.rating)}</span></li>`;
       }).join("") + `</ul></div>`;
   }
-  if (!skillInner) skillInner = `<p class="csheet-empty">No skills recorded.</p>`;
+  if (!skillInner) skillInner = `<p class="empty-state">No skills recorded.</p>`;
   html += block("Skills", skillInner);
 
   // Gear -------------------------------------------------------------------
@@ -265,7 +264,7 @@ function renderSheet(c, contacts, decks, canManage) {
       return `<li class="csheet-row"><span class="n">${esc(g.name || g.n || "?")}</span>${rigTag}
         <span class="r">${money((Number(g.cost) || 0) + rigCost)}</span></li>`;
     });
-  html += block("Gear &amp; Cyberware", gearHTML || `<p class="csheet-empty">No gear recorded.</p>`);
+  html += block("Gear &amp; Cyberware", gearHTML || `<p class="empty-state">No gear recorded.</p>`);
 
   // Deck -------------------------------------------------------------------
   if (Array.isArray(decks) && decks.length) {
@@ -368,10 +367,10 @@ async function readyDecksFor(id) {
 async function loadSheet() {
   const id = new URLSearchParams(location.search).get("id");
   const wrap = document.getElementById("sheet");
-  if (!id) { wrap.innerHTML = `<p class="csheet-empty">No character id in the URL (expected ?id=NUMBER).</p>`; return; }
+  if (!id) { wrap.innerHTML = `<p class="empty-state">No character id in the URL (expected ?id=NUMBER).</p>`; return; }
   const res = await apiFetch(`/characters/${encodeURIComponent(id)}`);
   if (!res.ok) {
-    wrap.innerHTML = `<p class="csheet-empty">Could not load character ${esc(id)} (status ${res.status}).</p>`;
+    wrap.innerHTML = `<p class="empty-state">Could not load character ${esc(id)} (status ${res.status}).</p>`;
     return;
   }
   const c = await res.json();

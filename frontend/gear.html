@@ -8,10 +8,6 @@
   <script src="shared.js"></script>
   <script src="catalog-taxonomy.js"></script>
   <style>
-    .gc-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
-    .gc-tab{background:var(--bg-input,#0a0f0c);color:var(--text-dim);border:1px solid #1a2a1a;
-      padding:6px 12px;cursor:pointer;font-family:inherit;font-size:.72rem;letter-spacing:.5px;text-transform:uppercase;}
-    .gc-tab.is-active{color:var(--green);border-color:var(--green);box-shadow:var(--glow-green);}
     .gc-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
     .gc-toolbar input[type=text]{width:320px;}
     .gc-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.4fr) minmax(260px,.9fr);gap:14px;align-items:start;}
@@ -56,7 +52,6 @@
     .gc-cart__row .c{color:var(--text-dim);white-space:nowrap;}
     .gc-cart__x{background:none;border:none;color:var(--red,#c25b5b);cursor:pointer;font-size:.9rem;padding:0 2px;}
     .gc-cart__total{display:flex;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid #24381f;color:var(--text-bright);font-size:.9rem;}
-    .gc-empty{color:var(--text-dim);font-size:.76rem;font-style:italic;}
     .gc-count{color:var(--text-dim);font-size:.66rem;}
   </style>
 </head>
@@ -79,7 +74,7 @@
 
   <div id="alert" class="alert"></div>
 
-  <div class="gc-tabs" id="gcTabs"></div>
+  <div class="tabs tabs--green" id="gcTabs"></div>
   <div class="gc-toolbar">
     <input type="text" id="gcSearch" placeholder="Search this category..." autocomplete="off">
     <span class="gc-count" id="gcCount"></span>
@@ -92,7 +87,7 @@
     </div>
     <div class="gc-panel">
       <h5 class="gc-panel__h">Inspector</h5>
-      <div id="gcInsp"><p class="gc-empty">Select an item to see its full stat block.</p></div>
+      <div id="gcInsp"><p class="empty-state">Select an item to see its full stat block.</p></div>
     </div>
     <div class="gc-panel">
       <h5 class="gc-panel__h">Shopping List</h5>
@@ -199,7 +194,7 @@ function renderVehicleGroups(items) {
 /* ---------- tabs / list ---------- */
 function renderTabs() {
   document.getElementById("gcTabs").innerHTML = CATS.map(c =>
-    `<button type="button" class="gc-tab ${curCat === c.k ? "is-active" : ""}" data-cat="${c.k}">${esc(c.label)}</button>`).join("");
+    `<button type="button" class="tab ${curCat === c.k ? "is-active" : ""}" data-cat="${c.k}">${esc(c.label)}</button>`).join("");
   document.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
     curCat = b.dataset.cat; selected = null; renderTabs(); renderList(); renderInspector();
   });
@@ -222,7 +217,7 @@ function renderList() {
       return (sec.label ? `<div class="gc-cat">${esc(sec.label)}</div>` : "") + rows;
     }).join("");
   }
-  html = html || `<p class="gc-empty">No matches.</p>`;
+  html = html || `<p class="empty-state">No matches.</p>`;
   const list = document.getElementById("gcList");
   list.innerHTML = html;
   list.querySelectorAll("[data-pick]").forEach(el => el.onclick = () => {
@@ -258,7 +253,7 @@ function fmtVal(v) {
 }
 function renderInspector() {
   const box = document.getElementById("gcInsp");
-  if (!selected) { box.innerHTML = `<p class="gc-empty">Select an item to see its full stat block.</p>`; return; }
+  if (!selected) { box.innerHTML = `<p class="empty-state">Select an item to see its full stat block.</p>`; return; }
   const it = selected.item;
   const sl = statLine(it);
   const meta = [];
@@ -340,7 +335,7 @@ function addToCart(cat, item, rating, qty, opts) {
 }
 function renderCart() {
   const box = document.getElementById("gcCart");
-  if (!cart.length) { box.innerHTML = `<p class="gc-empty">Empty. Add items from the inspector to price them.</p>`; return; }
+  if (!cart.length) { box.innerHTML = `<p class="empty-state">Empty. Add items from the inspector to price them.</p>`; return; }
   let total = 0;
   const rows = cart.map((e, i) => {
     const it = findItem(e.cat, e.n) || {};

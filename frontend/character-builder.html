@@ -92,7 +92,6 @@
   .cbx-x:hover{color:var(--red);}
   .cbx-mini{width:52px;background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-bright);
     padding:3px 5px;font-family:inherit;font-size:var(--fs-xs);}
-  .cbx-empty{color:var(--text-dim);font-size:var(--fs-xs);font-style:italic;margin:4px 0 12px;}
 
   .cbx-skillfocus{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px 0;padding-left:2px;}
   .cbx-skillfocus input{flex:1;min-width:140px;background:var(--bg-input);border:1px solid #1a2a1a;
@@ -158,10 +157,6 @@
   .cbx-stat b{color:var(--accent-cyan);font-weight:600;}
   .cbx-shopdesc__act{display:flex;align-items:center;gap:10px;}
 
-  .cbx-tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;}
-  .cbx-tab{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:6px 12px;
-    cursor:pointer;font-family:inherit;font-size:var(--fs-xs);letter-spacing:.5px;text-transform:uppercase;}
-  .cbx-tab.is-active{border-color:var(--cyan);color:var(--cyan);}
   .cbx-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   @media (max-width:900px){.cbx-resgrid{grid-template-columns:1fr;}}
   .cbx-owned-wrap{min-width:0;}
@@ -562,7 +557,7 @@ function programShopRow(p, added) {
     </button>${detail}</div>`;
 }
 function programRowsHTML() {
-  if (!(state.programs && state.programs.length)) return `<p class="cbx-empty">No programs yet.</p>`;
+  if (!(state.programs && state.programs.length)) return `<p class="empty-state">No programs yet.</p>`;
   return state.programs.map((p,i) => {
     const isAtk = p.prog === "attack";
     const def = window.MatrixPrograms && window.MatrixPrograms.get(p.prog);
@@ -904,7 +899,7 @@ function fociSectionHTML() {
   }).join("");
   return `<div class="cbx-h4">Foci <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- nuyen + Force Points (bonding karma)</span></div>
     <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only Weapon Foci. " : ""}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
-    <div>${state.foci.length ? chosen : `<p class="cbx-empty">No foci.</p>`}</div>
+    <div>${state.foci.length ? chosen : `<p class="empty-state">No foci.</p>`}</div>
     <div class="cbx-shop"><div class="cbx-shoplist">${shop}</div></div>`;
 }
 
@@ -935,7 +930,7 @@ function stepMagic() {
       return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(titleCase(cc))}</div>${list.map(s => magicInspectRow(s, "spell", state.spells.some(x=>x.name===s.n))).join("")}</div>`;
     }).join("");
     body += `<div class="cbx-h4">Spell Formulae <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- Force costs Force Points</span></div>
-      <div>${state.spells.length ? chosenSpells : `<p class="cbx-empty">No spells yet.</p>`}</div>
+      <div>${state.spells.length ? chosenSpells : `<p class="empty-state">No spells yet.</p>`}</div>
       <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search spells..." value="${esc(shopFilter)}">
         <div class="cbx-shoplist">${shop}</div></div>`;
     body += fociSectionHTML();
@@ -949,7 +944,7 @@ function stepMagic() {
     const shop = (CAT.adept_powers||[]).filter(matchesFilter).map((p) =>
       magicInspectRow(p, "power", state.powers.some(x=>x.name===p.n))).join("");
     body += `<div class="cbx-h4">Adept Powers</div>
-      <div>${state.powers.length ? chosen : `<p class="cbx-empty">No powers yet.</p>`}</div>
+      <div>${state.powers.length ? chosen : `<p class="empty-state">No powers yet.</p>`}</div>
       <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search powers..." value="${esc(shopFilter)}">
         <div class="cbx-shoplist">${shop}</div></div>`;
     body += fociSectionHTML();
@@ -1155,7 +1150,7 @@ function languagesSectionHTML() {
   </div>`).join("");
   return `<div class="cbx-langs">
     <div class="cbx-h4">Languages <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- Common/English assumed; buy any others (Intelligence-linked)</span></div>
-    ${state.languages.length ? rows : `<p class="cbx-empty">No extra languages.</p>`}
+    ${state.languages.length ? rows : `<p class="empty-state">No extra languages.</p>`}
     <button type="button" class="cbx-addlang" data-addlang>+ Add language</button>
     ${dl}
   </div>`;
@@ -1180,7 +1175,7 @@ function stepSkills() {
     ${languagesSectionHTML()}
     <div class="cbx-skillcards">${cards}</div>
     <div class="cbx-h4" style="margin-top:14px">Selected Skills</div>
-    <div>${state.skills.length ? state.skills.map((s,i) => chosenSkillHTML(s,i)).join("") : `<p class="cbx-empty">No skills yet.</p>`}</div>`;
+    <div>${state.skills.length ? state.skills.map((s,i) => chosenSkillHTML(s,i)).join("") : `<p class="empty-state">No skills yet.</p>`}</div>`;
 }
 
 /* STEP 5 -- ASSET MANIFEST */
@@ -1423,7 +1418,7 @@ function stepResources() {
     // Kit/Shop/Facility are generic until the player names what kind (e.g. "Programming Shop").
     const isTool = (k === "gear") && ["Kit", "Shop", "Facility"].includes(g.n);
     const rig = (k === "vehicles")
-      ? `<button type="button" class="cbx-tab ${g.rigger?'is-active':''}" data-rigger="${i}" title="Rigger adaptation: (Body x 2500) + 2800">${g.rigger?"Rigger \u2713":"+ Rigger"}</button>${g.rigger?`<span class="cbx-line__f" style="color:var(--cyan)">+${money(riggerGearCost(vehicleBodyOf(g)))}</span>`:""}`
+      ? `<button type="button" class="tab ${g.rigger?'is-active':''}" data-rigger="${i}" title="Rigger adaptation: (Body x 2500) + 2800">${g.rigger?"Rigger \u2713":"+ Rigger"}</button>${g.rigger?`<span class="cbx-line__f" style="color:var(--cyan)">+${money(riggerGearCost(vehicleBodyOf(g)))}</span>`:""}`
       : "";
     const nameHtml = (isTool && g.kind) ? `${esc(g.kind)} ${esc(g.n)}` : `${esc(g.n)} <em>${esc(g.sub||"")}</em>`;
     const kindInput = isTool
@@ -1457,7 +1452,7 @@ function stepResources() {
     const progLines = (k === "matrix" && state.programs && state.programs.length) ? programRowsHTML() : "";
     if (!gearLines && !progLines) return "";
     return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
-  }).join("") || `<p class="cbx-empty">Nothing acquired yet.</p>`;
+  }).join("") || `<p class="empty-state">Nothing acquired yet.</p>`;
   const items = (CAT[def.cat]||[]).filter(matchesFilter).filter(it => !def.pick || def.pick(it));
   const grouped = def.k === "vehicles" || def.k === "weapons" || def.k === "gear" || def.k === "matrix" || def.k === "armor" || def.k === "cyber";
   let shop;
@@ -1495,7 +1490,7 @@ function stepResources() {
       : "";
     const deckRows = decks.length
       ? group("Cyberdecks", decks)
-      : `<p class="cbx-empty">No cyberdecks in the enabled books.</p>`;
+      : `<p class="empty-state">No cyberdecks in the enabled books.</p>`;
     shop = deckRows + group("Cyberdeck Components", comps) + programsPanelHTML();
   } else if (def.k === "cyber") {
     // Grouped by implant location; skillsofts (Active / Know / Linguasofts) cluster in their own group.
@@ -1542,7 +1537,7 @@ function stepResources() {
     <div class="cbx-resgrid">
       <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
       <div>
-        <div class="cbx-tabs">${visibleDefs.map(t => `<button type="button" class="cbx-tab ${shopTab===t.k?'is-active':''}" data-shoptab="${t.k}">${esc(t.label)}</button>`).join("")}</div>
+        <div class="tabs">${visibleDefs.map(t => `<button type="button" class="tab ${shopTab===t.k?'is-active':''}" data-shoptab="${t.k}">${esc(t.label)}</button>`).join("")}</div>
         <input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search ${esc(def.label.toLowerCase())}..." value="${esc(shopFilter)}">
         <div class="cbx-shoplist">${shop}</div>${moreNote}
       </div>
@@ -1551,7 +1546,7 @@ function stepResources() {
       &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
 
     <div class="cbx-h4">Contacts <span class="cbx-h4__note">-- 2 free, then Contact 5,000&yen; / Buddy 10,000&yen; / Gang or Tribe 50,000&yen; / Follower 200,000&yen;</span></div>
-    <div>${state.contacts.length ? contactRows : `<p class="cbx-empty">No contacts yet.</p>`}</div>
+    <div>${state.contacts.length ? contactRows : `<p class="empty-state">No contacts yet.</p>`}</div>
     <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>`;
 }
 
