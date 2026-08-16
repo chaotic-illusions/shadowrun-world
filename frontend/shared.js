@@ -157,9 +157,10 @@ function _buildCharactersNavGroup() {
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
     { href: 'gear.html', label: 'Gear Catalog' },
+    { href: 'hardcopy.html', label: 'Hardcopy' },
   ];
   const here = window.location.pathname;
-  const onCharsPage = childDefs.some(d => here.endsWith(d.href)) || here.endsWith('character-sheet.html');
+  const onCharsPage = childDefs.some(d => here.endsWith(d.href));
 
   const group = document.createElement('div');
   group.className = 'nav-group nav-group--chars' + (onCharsPage ? ' active' : '');

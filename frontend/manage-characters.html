@@ -753,9 +753,6 @@ function renderTable(data) {
       <tbody>
         ${data.map(c => {
           let editBtn = '';
-          const sheetBtn = c.is_pc
-            ? `<a class="btn" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-sheet.html?id=${c.id}">Sheet</a>`
-            : '';
           const canEdit = c.is_pc && (isAdminMode() || myIds.has(c.id));
           // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a
           // full chargen sheet (priorities are only ever set by the builder).
@@ -778,7 +775,7 @@ function renderTable(data) {
             <td class="dim-meta">${esc(c.race||'--')}</td>
             <td class="dim-meta">${esc(titleOrgCell(c))}</td>
             <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
-            <td class="td-act">${sheetBtn}${convertBtn}${editBtn}</td>
+            <td class="td-act">${convertBtn}${editBtn}</td>
           </tr>`;
         }).join('')}
       </tbody>
