@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Fail on mojibake, UTF-8 BOM, invalid UTF-8, or any non-ASCII source text."""
+"""Fail on mojibake, UTF-8 BOM, or invalid UTF-8 in source text.
+
+Legitimate Unicode (accented letters, currency signs, typographic
+punctuation, etc.) is allowed as long as it's clean, correctly-encoded
+UTF-8. This only rejects text that shows signs of double-encoding
+corruption (e.g. UTF-8 bytes misread as Latin-1/cp1252 and re-saved),
+not non-ASCII content in general.
+"""
 
 from __future__ import annotations
 
@@ -36,6 +43,9 @@ EXCLUDED_DIRS = {
     "__pycache__",
 }
 
+# Lone Latin-1 lead bytes that signal UTF-8 mis-decoded as cp1252 ("mojibake"). This is a
+# deliberate ASCII-repo trade-off: a legitimate accented proper noun in a .md/.txt (e.g. "Faure"
+# spelled with an accent) would also trip these, so keep prose ASCII or extend the allowlist.
 MOJIBAKE_MARKERS = ("\u00e2", "\u00c3", "\u00c2", "\ufffd")
 
 
@@ -115,14 +125,7 @@ def check_file(path: Path) -> list[str]:
 
     for marker in MOJIBAKE_MARKERS:
         if marker in text:
-            issues.append(f"mojibake marker found: {marker}")
-
-    non_ascii = sorted({ch for ch in text if ord(ch) > 127})
-    if non_ascii:
-        sample = ", ".join(f"U+{ord(ch):04X}" for ch in non_ascii[:8])
-        if len(non_ascii) > 8:
-            sample += ", ..."
-        issues.append(f"non-ASCII characters present: {sample}")
+            issues.append(f"mojibake marker found: {marker!r} (U+{ord(marker):04X})")
 
     return issues
 

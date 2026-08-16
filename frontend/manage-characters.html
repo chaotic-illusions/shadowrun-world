@@ -41,7 +41,7 @@
         <option value="npc">NPCs Only</option>
       </select>
     </div>
-    <button class="btn btn-green mob-hide" onclick="openModal()">+ New Dossier</button>
+    <button class="btn btn-green mob-hide" id="newNpcBtn" style="display:none" onclick="openModal()">+ New NPC</button>
   </div>
 
   <div id="tableWrap">
@@ -160,7 +160,7 @@
         </div>
       </div>
       <div class="grid2 mb-14">
-        <div class="field">
+        <div class="field" id="typeField">
           <label>Type</label>
           <div class="toggle-wrap pt-6" id="f-type-wrap">
             <label class="toggle">
@@ -753,6 +753,13 @@ function renderTable(data) {
       <tbody>
         ${data.map(c => {
           let editBtn = '';
+          const canEdit = c.is_pc && (isAdminMode() || myIds.has(c.id));
+          // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a
+          // full chargen sheet (priorities are only ever set by the builder).
+          const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
+          const convertBtn = (canEdit && !builtInChargen)
+            ? `<a class="btn" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
+            : '';
           if (isAdminMode()) {
             editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
           } else if (c.is_pc && myIds.has(c.id)) {
@@ -768,7 +775,7 @@ function renderTable(data) {
             <td class="dim-meta">${esc(c.race||'--')}</td>
             <td class="dim-meta">${esc(titleOrgCell(c))}</td>
             <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
-            <td class="td-act">${editBtn}</td>
+            <td class="td-act">${convertBtn}${editBtn}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -799,8 +806,8 @@ function applyFilter() {
 function openModal(id) {
   editingId = id || null;
   const ch = id ? allChars.find(c => c.id === id) : null;
-  const isPC = ch?.is_pc !== false;
-  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New Dossier';
+  const isPC = ch ? (ch.is_pc !== false) : false;   // create path is NPC-only; PCs are built in the character-builder
+  document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New NPC';
   document.getElementById('deleteBtn').style.display = (ch && isAdminMode()) ? '' : 'none';
   document.getElementById('unclaimBtn').style.display = (ch?.is_pc && ch?.is_claimed && isAdminMode()) ? '' : 'none';
   document.getElementById('modalAlert').className = 'alert';
@@ -861,7 +868,7 @@ function openModal(id) {
   setConnectionValue(ch?.connection ?? 1);
   document.getElementById('addLinkForm').style.display = 'none';
   updatePCLabel();
-  document.getElementById('f-type-wrap').style.display = '';
+  document.getElementById('typeField').style.display = ch ? '' : 'none';   // no PC/NPC toggle when creating (NPC only); Active reflows left
   document.getElementById('f-is_pc').disabled = !isAdminMode();
   syncSkillsSectionUI();
   renderContactLinks();
@@ -1190,6 +1197,7 @@ bootstrapAuth().then(u => {
     } else {
       document.getElementById('filterType').value = '';
     }
+    if (isAdminMode()) document.getElementById('newNpcBtn').style.display = '';
     loadChars();
     startPolling(loadChars);
   }

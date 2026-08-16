@@ -143,6 +143,65 @@ function _buildMatrixNavGroup() {
   }
 }
 
+// -- CHARACTERS nav group ------------------------------------------------------
+// Folds the flat "Characters" link (and any legacy flat "Dossier Intake"/"Builder" link) into a
+// "CHARACTERS" dropdown: Known Persons (the registry) + New Runner (the character-builder).
+// Built centrally so every page shares one definition; New Runner is visible to all users.
+function _buildCharactersNavGroup() {
+  const nav = document.querySelector('header nav');
+  if (!nav || nav.querySelector('.nav-group--chars')) return;
+  const anchor = nav.querySelector('a[href="manage-characters.html"]');
+  if (!anchor) return;
+
+  const childDefs = [
+    { href: 'manage-characters.html', label: 'Known Persons' },
+    { href: 'character-builder.html', label: 'New Runner' },
+    { href: 'gear.html', label: 'Gear Catalog' },
+    { href: 'hardcopy.html', label: 'Hardcopy' },
+  ];
+  const here = window.location.pathname;
+  const onCharsPage = childDefs.some(d => here.endsWith(d.href));
+
+  const group = document.createElement('div');
+  group.className = 'nav-group nav-group--chars' + (onCharsPage ? ' active' : '');
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'nav-group-toggle';
+  toggle.setAttribute('aria-haspopup', 'true');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = 'CHARACTERS <span class="nav-caret">&#9662;</span>';
+  const menu = document.createElement('div');
+  menu.className = 'nav-group-menu';
+  childDefs.forEach(d => {
+    const a = document.createElement('a');
+    a.href = d.href;
+    a.textContent = d.label;
+    if (here.endsWith(d.href)) a.className = 'active';
+    menu.appendChild(a);
+  });
+  group.appendChild(toggle);
+  group.appendChild(menu);
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = group.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!group.contains(e.target)) {
+      group.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Remove any flat "Dossier Intake"/"Builder" links FIRST -- before the group (whose menu also
+  // links to the builder) is inserted, so the "New Runner" menu item is not swept up too.
+  nav.querySelectorAll('a[href="character-builder.html"]').forEach(a => a.remove());
+  // Splice the group where the flat Characters link sat, then drop the flat Characters link.
+  nav.insertBefore(group, anchor);
+  anchor.remove();
+}
+
 // -- bootstrapAuth -------------------------------------------------------------
 
 async function bootstrapAuth() {
@@ -183,6 +242,7 @@ async function bootstrapAuth() {
     }
 
     _buildMatrixNavGroup();
+    _buildCharactersNavGroup();
     _applyMatrixRunNavGate();
 
     return _authCtx;
@@ -196,6 +256,16 @@ async function bootstrapAuth() {
 
 function _injectAuthLabel() {
   const nav = document.querySelector('header nav');
+  // Add Dossier Intake (SR2 character builder) link right after Characters, for all users.
+  if (nav && !nav.querySelector('[href="character-builder.html"]')) {
+    const b = document.createElement('a');
+    b.href = 'character-builder.html';
+    b.textContent = 'Dossier Intake';
+    if (window.location.pathname.endsWith('character-builder.html')) b.className = 'active';
+    const charsLink = nav.querySelector('a[href="manage-characters.html"]');
+    if (charsLink) nav.insertBefore(b, charsLink.nextSibling);
+    else nav.appendChild(b);
+  }
   // Add Downtime nav link (GM-only via .gm-only -> hidden for players and in runner view)
   if (nav && !nav.querySelector('[href="manage-downtime.html"]')) {
     const d = document.createElement('a');

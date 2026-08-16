@@ -1,0 +1,292 @@
+{
+  "Armed Combat": {
+    "Clubs": [
+      "(SW)"
+    ],
+    "Edged Weapons": [
+      "(SW)"
+    ],
+    "Pole Arms/Staff": [
+      "(SW)"
+    ],
+    "Whips/Flails": [
+      "(SW)"
+    ]
+  },
+  "Bike": {
+    "Racing": [
+      "(SV)"
+    ],
+    "Three-wheeler": [
+      "(SV)"
+    ],
+    "Two-wheeler": [
+      "(SV)"
+    ]
+  },
+  "Biotech": {
+    "Transimplant Surgery": [
+      "Headware",
+      "Bodyware",
+      "Organic Replacements"
+    ]
+  },
+  "Blimp": {
+    "Pleasure Craft": [
+      "(SV)"
+    ],
+    "Transport Craft": [
+      "(SV)"
+    ]
+  },
+  "Car": {
+    "Passenger Vehicle": [
+      "(SV)"
+    ],
+    "Racing": [
+      "(SV)"
+    ],
+    "Truck": [
+      "(SV)"
+    ]
+  },
+  "Computer": {
+    "Hardware": [
+      "Mainframes",
+      "Micros",
+      "Interface Tech",
+      "Implant Tech"
+    ],
+    "Software": [
+      "Decking",
+      "Matrix Programming",
+      "Non-Matrix Programming",
+      "Interface Programming",
+      "Implant Programming"
+    ]
+  },
+  "Computer Theory": {
+    "Hardware": [
+      "Mainframes",
+      "Micros",
+      "Interface Tech",
+      "Implant Tech"
+    ],
+    "Software": [
+      "Decking",
+      "Matrix Programming",
+      "Non-Matrix Programming",
+      "Interface Programming",
+      "Implant Programming"
+    ]
+  },
+  "Conjuring": {
+    "Elementals": [
+      "Air",
+      "Earth",
+      "Fire",
+      "Water"
+    ],
+    "Nature Spirits": [
+      "City (Man)",
+      "Hearth (Man)",
+      "Field (Man)",
+      "Desert (Land)",
+      "Forest (Land)",
+      "Mountain (Land)",
+      "Prairie (Land)",
+      "Mist (Sky)",
+      "Storm (Sky)",
+      "Lake (Water)",
+      "River (Water)",
+      "Sea (Water)",
+      "Swamp (Water)"
+    ]
+  },
+  "Firearms": {
+    "Grenade Launchers": [
+      "(SW)"
+    ],
+    "Light Machine Guns": [
+      "(SW)"
+    ],
+    "Pistols": [
+      "(SW)"
+    ],
+    "Rifles": [
+      "(SW)"
+    ],
+    "Submachine Guns": [
+      "(SW)"
+    ],
+    "Tasers": [
+      "(SW)"
+    ]
+  },
+  "Gunnery": {
+    "Assault Cannon": [
+      "(SW)"
+    ],
+    "Machine Guns": [
+      "(SW)"
+    ],
+    "Missile/Rocket Launchers": [
+      "(SW)"
+    ],
+    "Vehicle-Mounted Cannon": [
+      "(SW)"
+    ]
+  },
+  "Hovercraft": {
+    "Passenger Craft": [
+      "(SV)"
+    ],
+    "Racing": [
+      "(SV)"
+    ],
+    "Transport Craft": [
+      "(SV)"
+    ]
+  },
+  "Interrogation": {
+    "Machine-Aided": [
+      "Lie Detectors",
+      "Voice Stress Analysis"
+    ]
+  },
+  "Leadership": {
+    "Military": [
+      "Strategy",
+      "Tactics",
+      "Morale"
+    ]
+  },
+  "Magical Theory": {
+    "Design": [
+      "Shamanic",
+      "Hermetic"
+    ],
+    "History": [
+      "Asia",
+      "Africa",
+      "North America",
+      "South America",
+      "Antarctica",
+      "Europe",
+      "Australia/Oceania"
+    ]
+  },
+  "Military Theory": {
+    "Military History": [
+      "Asia",
+      "Africa",
+      "North America",
+      "South America",
+      "Antarctica",
+      "Europe",
+      "Australia/Oceania"
+    ],
+    "Tactics": [
+      "Air",
+      "Land",
+      "Sea"
+    ]
+  },
+  "Motorboat": {
+    "Pleasure Craft": [
+      "(SV)"
+    ],
+    "Racing": [
+      "(SV)"
+    ]
+  },
+  "Projectile Weapons": {
+    "Bows": [
+      "(SW)"
+    ],
+    "Crossbows": [
+      "(SW)"
+    ]
+  },
+  "Rotor Craft": {
+    "Fixed-Rotor": [
+      "(SV)"
+    ],
+    "Tilt-Rotor": [
+      "(SV)"
+    ]
+  },
+  "Sorcery": {
+    "Ritual Sorcery": [
+      "Combat",
+      "Detection",
+      "Health",
+      "Illusion",
+      "Manipulation"
+    ],
+    "Spellcasting": [
+      "Combat",
+      "Detection",
+      "Health",
+      "Illusion",
+      "Manipulation"
+    ]
+  },
+  "Stealth": {
+    "Farmland": [
+      "Sneaking",
+      "Hiding",
+      "Shadowing",
+      "Ambushing"
+    ],
+    "Urban": [
+      "Sneaking",
+      "Hiding",
+      "Shadowing",
+      "Ambushing"
+    ],
+    "Wilderness": [
+      "Sneaking",
+      "Hiding",
+      "Shadowing",
+      "Ambushing"
+    ]
+  },
+  "Throwing Weapons": {
+    "Aerodynamic": [
+      "Shuriken",
+      "Airfoil Grenades"
+    ],
+    "Non-Aerodynamic": [
+      "Grenades",
+      "Knives"
+    ]
+  },
+  "Unarmed Combat": {
+    "Cyber-Implant Weaponry": [
+      "(SW)"
+    ]
+  },
+  "Vectored Thrust": {
+    "LAV Craft": [
+      "(SV)"
+    ],
+    "Vertical Take-Off and Landing": [
+      "(SV)"
+    ]
+  },
+  "Winged Plane": {
+    "Gliders": [
+      "(SV)"
+    ],
+    "Jets": [
+      "(SV)"
+    ],
+    "Propellers": [
+      "(SV)"
+    ],
+    "Racing": [
+      "(SV)"
+    ]
+  }
+}

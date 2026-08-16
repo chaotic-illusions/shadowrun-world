@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cyberware Entry | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    .cyb-form{max-width:760px;display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;margin-top:6px;}
+    .cyb-form .full{grid-column:1 / -1;}
+    .cyb-field{display:flex;flex-direction:column;gap:4px;}
+    .cyb-field label{color:var(--green-dim,#7fae86);font-size:.66rem;letter-spacing:1px;text-transform:uppercase;}
+    .cyb-field input,.cyb-field select,.cyb-field textarea{
+      background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #24381f;border-radius:3px;
+      padding:6px 8px;font-family:inherit;font-size:.82rem;box-sizing:border-box;width:100%;}
+    .cyb-field textarea{min-height:64px;resize:vertical;}
+    .cyb-hint{color:var(--text-dim);font-size:.62rem;margin-top:2px;}
+    .cyb-sub{border:1px solid #1c3540;border-radius:4px;padding:12px 14px;margin-top:4px;background:var(--bg-panel,#0d1512);}
+    .cyb-sub__h{color:var(--cyan);letter-spacing:2px;text-transform:uppercase;font-size:.68rem;margin-bottom:10px;}
+    .cyb-inline{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+    .cyb-inline label{color:var(--text-dim);font-size:.74rem;text-transform:none;letter-spacing:0;}
+    .cyb-actions{display:flex;gap:12px;align-items:center;margin-top:16px;}
+    .cyb-added{margin-top:24px;}
+    .cyb-added__h{color:var(--cyan);letter-spacing:2px;text-transform:uppercase;font-size:.7rem;
+      border-bottom:1px solid #1c3540;padding-bottom:4px;margin-bottom:8px;}
+    .cyb-added ul{list-style:none;margin:0;padding:0;}
+    .cyb-added li{padding:5px 0;border-bottom:1px solid #142019;font-size:.8rem;color:var(--text-bright);}
+    .cyb-added li span{color:var(--text-dim);font-size:.68rem;margin-left:8px;}
+    .cyb-count{color:var(--text-dim);font-size:.68rem;}
+    .cyb-hidden{display:none;}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="character-builder.html">Builder</a>
+    <a href="manage-cyberware.html" class="active gm-only">Cyberware</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Cyberware Registry <em class="sep">//</em> Data Entry</div>
+  <div class="page-sub" style="color:var(--cyan)">APPEND ONE ITEM TO THE CYBERWARE CATALOG</div>
+
+  <div id="alert" class="alert"></div>
+
+  <p class="text-dim" style="font-size:.8rem;max-width:820px;margin:6px 0 14px">
+    Admin-only data-entry tool. Each submission appends a single item to the committed
+    cyberware catalog and is visible immediately (no restart). Currency uses the yen sign
+    &mdash; type <b>&yen;</b> or leave it out; formulas like <b>0.2/lvl</b> or
+    <b>4,500&yen;/lvl</b> are fine for rated items.
+  </p>
+
+  <form class="cyb-form" id="cybForm" onsubmit="return submitCyber(event)">
+    <div class="cyb-field">
+      <label for="f_n">Name *</label>
+      <input type="text" id="f_n" required autocomplete="off">
+    </div>
+    <div class="cyb-field">
+      <label for="f_cat">Category *</label>
+      <select id="f_cat" required>
+        <option value="headware">headware</option>
+        <option value="bodyware">bodyware</option>
+        <option value="eyeware">eyeware</option>
+        <option value="earware">earware</option>
+        <option value="limb">limb</option>
+        <option value="other">other</option>
+      </select>
+    </div>
+
+    <div class="cyb-field">
+      <label for="f_src">Source book code</label>
+      <input type="text" id="f_src" value="SHADOW" autocomplete="off">
+      <span class="cyb-hint">SR2 / SSC / CYB / SHADOW / ...</span>
+    </div>
+    <div class="cyb-field">
+      <label for="f_pg">Page</label>
+      <input type="number" id="f_pg" min="1" step="1" autocomplete="off">
+    </div>
+
+    <div class="cyb-field">
+      <label for="f_avail">Availability</label>
+      <input type="text" id="f_avail" placeholder="4/6 days" autocomplete="off">
+    </div>
+    <div class="cyb-field">
+      <label for="f_index">Street Index</label>
+      <input type="text" id="f_index" value="1" autocomplete="off">
+    </div>
+
+    <div class="cyb-sub full">
+      <div class="cyb-sub__h">Cost &amp; Essence</div>
+      <div class="cyb-inline" style="margin-bottom:12px">
+        <input type="checkbox" id="f_rated" onchange="toggleRated()">
+        <label for="f_rated">Rated item (has per-level ratings)</label>
+      </div>
+      <div class="cyb-form" style="margin-top:0">
+        <div class="cyb-field">
+          <label for="f_ess" id="l_ess">Essence</label>
+          <input type="text" id="f_ess" placeholder="0.2" autocomplete="off">
+          <span class="cyb-hint" id="h_ess">A number (e.g. 0.2) or blank if none.</span>
+        </div>
+        <div class="cyb-field">
+          <label for="f_cost" id="l_cost">Cost *</label>
+          <input type="text" id="f_cost" placeholder="5000" autocomplete="off">
+          <span class="cyb-hint" id="h_cost">A number in yen (e.g. 5000).</span>
+        </div>
+        <div class="cyb-field cyb-hidden" id="wrap_maxRating">
+          <label for="f_maxRating">Max Rating</label>
+          <input type="number" id="f_maxRating" min="1" step="1" autocomplete="off">
+        </div>
+        <div class="cyb-field cyb-hidden" id="wrap_pad"></div>
+        <div class="cyb-field cyb-hidden full" id="wrap_essTbl">
+          <label for="f_essTbl">Essence per level</label>
+          <input type="text" id="f_essTbl" placeholder="0.2, 0.4, 0.6" autocomplete="off">
+          <span class="cyb-hint">Comma-separated, one value per rating level.</span>
+        </div>
+        <div class="cyb-field cyb-hidden full" id="wrap_costTbl">
+          <label for="f_costTbl">Cost per level</label>
+          <input type="text" id="f_costTbl" placeholder="4500, 9000, 13500" autocomplete="off">
+          <span class="cyb-hint">Comma-separated numbers, one per rating level.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cyb-field full">
+      <label for="f_desc">Description</label>
+      <input type="text" id="f_desc" placeholder="One-sentence description." autocomplete="off">
+    </div>
+
+    <div class="cyb-field full">
+      <label for="f_effect">Effect bullets</label>
+      <textarea id="f_effect" placeholder="One mechanical effect per line."></textarea>
+    </div>
+
+    <div class="cyb-sub full">
+      <div class="cyb-sub__h">Attribute Mods (optional)</div>
+      <div class="cyb-inline" style="margin-bottom:10px">
+        <label><input type="radio" name="modKind" value="mods" checked> Fixed total</label>
+        <label><input type="radio" name="modKind" value="modsPer"> Per level</label>
+      </div>
+      <div class="cyb-field">
+        <label for="f_mods">Modifiers</label>
+        <textarea id="f_mods" placeholder="one per line, e.g.&#10;intelligence: 1&#10;strength: 1"></textarea>
+        <span class="cyb-hint">Leave blank for sensor / utility ware. Keys: body, quickness,
+          strength, charisma, intelligence, willpower, reaction, initDice.</span>
+      </div>
+    </div>
+
+    <div class="cyb-actions full">
+      <button type="submit" class="btn btn-green gm-only">&gt;&gt; Add Cyberware</button>
+      <button type="button" class="btn btn-amber" onclick="resetForm()">Clear</button>
+      <span class="cyb-count" id="cybCount"></span>
+    </div>
+  </form>
+
+  <div class="cyb-added">
+    <div class="cyb-added__h">Added this session</div>
+    <ul id="addedList"><li class="text-dim" style="border:none">None yet.</li></ul>
+  </div>
+</main>
+
+<script>
+const MOD_KEYS = new Set(["body","quickness","strength","charisma","intelligence","willpower","reaction","initDice"]);
+let ADDED = [];
+
+function toggleRated() {
+  const rated = document.getElementById("f_rated").checked;
+  ["wrap_maxRating","wrap_essTbl","wrap_costTbl"].forEach(id =>
+    document.getElementById(id).classList.toggle("cyb-hidden", !rated));
+  // When rated, ess/cost hold the display formula; otherwise plain numbers.
+  document.getElementById("l_ess").textContent = rated ? "Essence formula" : "Essence";
+  document.getElementById("l_cost").textContent = rated ? "Cost formula *" : "Cost *";
+  document.getElementById("h_ess").textContent = rated
+    ? "Formula string, e.g. 0.2/lvl (blank if none)."
+    : "A number (e.g. 0.2) or blank if none.";
+  document.getElementById("h_cost").textContent = rated
+    ? "Formula string, e.g. 4,500\u00a5/lvl."
+    : "A number in yen (e.g. 5000).";
+  document.getElementById("f_ess").placeholder = rated ? "0.2/lvl" : "0.2";
+  document.getElementById("f_cost").placeholder = rated ? "4,500\u00a5/lvl" : "5000";
+}
+
+// Return a number when the string is purely numeric, else the trimmed string, else undefined.
+function numOrStr(raw) {
+  const v = (raw || "").trim();
+  if (!v) return undefined;
+  return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
+}
+
+function numList(raw) {
+  const v = (raw || "").trim();
+  if (!v) return undefined;
+  const parts = v.split(",").map(x => x.trim()).filter(Boolean).map(Number);
+  return parts.some(isNaN) ? null : parts;   // null signals a parse error
+}
+
+function parseMods(raw) {
+  const out = {};
+  (raw || "").split("\n").forEach(line => {
+    const s = line.trim();
+    if (!s) return;
+    const m = s.match(/^([a-zA-Z]+)\s*[:=]\s*(-?\d+)$/);
+    if (!m) throw new Error(`Bad modifier line: "${s}" (use attr: number)`);
+    const key = m[1];
+    if (!MOD_KEYS.has(key)) throw new Error(`Unknown attribute "${key}"`);
+    out[key] = parseInt(m[2], 10);
+  });
+  return Object.keys(out).length ? out : undefined;
+}
+
+function collectPayload() {
+  const rated = document.getElementById("f_rated").checked;
+  const val = (id) => document.getElementById(id).value;
+  const payload = {
+    n: val("f_n").trim(),
+    cat: val("f_cat"),
+    src: (val("f_src").trim() || "SHADOW").toUpperCase(),
+    avail: val("f_avail").trim() || "-",
+    index: numOrStr(val("f_index")) ?? 1,
+    desc: val("f_desc").trim(),
+    effect: val("f_effect").split("\n").map(x => x.trim()).filter(Boolean),
+  };
+  if (!payload.n) throw new Error("Name is required.");
+
+  const pg = numOrStr(val("f_pg"));
+  if (pg !== undefined) payload.pg = typeof pg === "number" ? pg : parseInt(pg, 10);
+
+  const essRaw = val("f_ess").trim();
+  const costRaw = val("f_cost").trim();
+  if (!costRaw) throw new Error("Cost is required.");
+
+  if (rated) {
+    payload.rated = true;
+    const mr = numOrStr(val("f_maxRating"));
+    if (mr !== undefined) payload.maxRating = typeof mr === "number" ? mr : parseInt(mr, 10);
+    const essTbl = numList(val("f_essTbl"));
+    const costTbl = numList(val("f_costTbl"));
+    if (essTbl === null) throw new Error("Essence-per-level must be numbers.");
+    if (costTbl === null) throw new Error("Cost-per-level must be numbers.");
+    if (essTbl) payload.essTbl = essTbl;
+    if (costTbl) payload.costTbl = costTbl;
+    if (essRaw) payload.ess = essRaw;      // keep formula string as-is
+    payload.cost = costRaw;
+  } else {
+    if (essRaw) payload.ess = numOrStr(essRaw);
+    payload.cost = numOrStr(costRaw);
+  }
+
+  const kind = document.querySelector('input[name="modKind"]:checked').value;
+  const mods = parseMods(val("f_mods"));
+  if (mods) payload[kind] = mods;
+
+  return payload;
+}
+
+async function submitCyber(ev) {
+  ev.preventDefault();
+  if (!isAdminMode()) {
+    showAlert(document.getElementById("alert"), ">> ADMIN REQUIRED // sign in as admin to add catalog items.", true);
+    return false;
+  }
+  let payload;
+  try {
+    payload = collectPayload();
+  } catch (e) {
+    showAlert(document.getElementById("alert"), `>> INVALID // ${e.message}`, true);
+    return false;
+  }
+  try {
+    const res = await apiFetch("/catalog/cyberware", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) await apiThrow(res);
+    const data = await res.json();
+    const item = data.item || payload;
+    ADDED.unshift(item);
+    renderAdded();
+    document.getElementById("cybCount").textContent = `Catalog now holds ${data.count} cyberware items.`;
+    showAlert(document.getElementById("alert"), `>> ADDED // ${item.n} saved to the cyberware catalog.`, false);
+    resetForm(true);
+    document.getElementById("f_n").focus();
+  } catch (e) {
+    showAlert(document.getElementById("alert"), `>> ADD FAILED // ${e.message}`, true);
+  }
+  return false;
+}
+
+function renderAdded() {
+  const ul = document.getElementById("addedList");
+  if (!ADDED.length) { ul.innerHTML = `<li class="text-dim" style="border:none">None yet.</li>`; return; }
+  ul.innerHTML = ADDED.map(it => {
+    const bits = [it.cat, it.src, it.pg ? `p.${it.pg}` : ""].filter(Boolean).join(" / ");
+    return `<li>${esc(it.n)}<span>${esc(bits)}</span></li>`;
+  }).join("");
+}
+
+// keepMeta: preserve category / source / rated toggle for fast repeated entry.
+function resetForm(keepMeta) {
+  const keepCat = document.getElementById("f_cat").value;
+  const keepSrc = document.getElementById("f_src").value;
+  const keepRated = document.getElementById("f_rated").checked;
+  document.getElementById("cybForm").reset();
+  if (keepMeta) {
+    document.getElementById("f_cat").value = keepCat;
+    document.getElementById("f_src").value = keepSrc;
+    document.getElementById("f_rated").checked = keepRated;
+  }
+  document.getElementById("f_index").value = "1";
+  if (!keepMeta) document.getElementById("f_src").value = "SHADOW";
+  toggleRated();
+}
+
+bootstrapAuth().then(() => { toggleRated(); });
+</script>
+</body>
+</html>
