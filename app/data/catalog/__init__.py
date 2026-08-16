@@ -10,6 +10,7 @@ book code; ``SR2`` core is always included.
 from __future__ import annotations
 
 import json
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -92,6 +93,7 @@ def get_vehicle_classes() -> dict:
 
 
 _CYBERWARE_FILE = _DATA_DIR / "cyberware.json"
+_CYBERWARE_WRITE_LOCK = threading.Lock()
 
 
 def append_cyberware(item: dict) -> dict:
@@ -100,16 +102,21 @@ def append_cyberware(item: dict) -> dict:
 
     The file is rewritten in the existing one-object-per-line array style. Raises
     ``ValueError`` if an item with the same (case-insensitive) name already exists.
+    The write is serialized under a process lock and re-reads the file fresh inside
+    the critical section, so concurrent appends don't lose each other (single-process
+    dev/admin tool -- not safe across multiple worker processes or an ephemeral fs).
     """
-    items = list(get_catalog("cyberware"))
     name = str(item.get("n", "")).strip().lower()
-    if any(str(it.get("n", "")).strip().lower() == name for it in items):
-        raise ValueError(f"Cyberware named {item.get('n')!r} already exists")
-    items.append(item)
-    body = "[\n" + ",\n".join(json.dumps(it, ensure_ascii=False) for it in items) + "\n]\n"
-    with _CYBERWARE_FILE.open("w", encoding="utf-8") as fh:
-        fh.write(body)
-    _load.cache_clear()
+    with _CYBERWARE_WRITE_LOCK:
+        with _CYBERWARE_FILE.open(encoding="utf-8") as fh:
+            items = json.load(fh)
+        if any(str(it.get("n", "")).strip().lower() == name for it in items):
+            raise ValueError(f"Cyberware named {item.get('n')!r} already exists")
+        items.append(item)
+        body = "[\n" + ",\n".join(json.dumps(it, ensure_ascii=False) for it in items) + "\n]\n"
+        with _CYBERWARE_FILE.open("w", encoding="utf-8") as fh:
+            fh.write(body)
+        _load.cache_clear()
     return item
 
 

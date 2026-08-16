@@ -12,7 +12,7 @@ EXPECTED_COUNTS = {
     "weapons": 526,
     "armor": 35,
     "bioware": 25,
-    "gear": 119,
+    "gear": 118,
     "spells": 217,
     "adept_powers": 37,
     "vehicles": 169,

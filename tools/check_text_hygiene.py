@@ -43,6 +43,9 @@ EXCLUDED_DIRS = {
     "__pycache__",
 }
 
+# Lone Latin-1 lead bytes that signal UTF-8 mis-decoded as cp1252 ("mojibake"). This is a
+# deliberate ASCII-repo trade-off: a legitimate accented proper noun in a .md/.txt (e.g. "Faure"
+# spelled with an accent) would also trip these, so keep prose ASCII or extend the allowlist.
 MOJIBAKE_MARKERS = ("\u00e2", "\u00c3", "\u00c2", "\ufffd")
 
 

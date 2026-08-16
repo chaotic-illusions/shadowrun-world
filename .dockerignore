@@ -30,3 +30,13 @@ localdev.ps1
 chat-session-resources/
 workspaceStorage/
 *.log
+
+# Docs: keep docs/ai_parser_reference.md (read at runtime by narrative_parser) and the small
+# design .md files; drop the heavy reference scrapes, generated PDFs, and review CSVs.
+docs/*.pdf
+docs/*.csv
+docs/reference-data/
+
+# Dev-only trees never imported by the app runtime (build/test/one-shot tooling)
+tools/
+tests/
