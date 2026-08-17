@@ -144,7 +144,7 @@ async def get_foci():
             "desc": fx or f["n"],
             "notes": notes,
             "src": "SR2",
-            "pg": 137,
+            "pg": 263,
         }
         if rated:
             item["maxRating"] = max_rating

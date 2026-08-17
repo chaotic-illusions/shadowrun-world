@@ -67,6 +67,15 @@ RANGE_TABLE = {
     "Missile Launcher": ("20-70", "71-150", "151-450", "451-1500"),
     "Anti-Tank Guided Missile": ("20-350", "351-750", "751-1500", "1501-5000"),
     "Mortar": ("150-300", "301-1000", "1001-4000", "4001-6000"),
+    "Laser Weapon": ("0-40", "41-80", "81-200", "201-400"),          # Ares MP Laser III: Sniper Rifle bands
+    "Vehicle Laser": ("0-50", "51-150", "151-450", "451-1300"),      # Ares FireLance: Assault Cannon bands
+    "Light Anti-Armor Weapon": ("20-70", "71-150", "151-450", "451-1500"),   # Missile Launcher bands
+    "Medium Anti-Armor Weapon": ("20-70", "71-150", "151-450", "451-1500"),  # Missile Launcher bands
+    "Minigun": ("0-20", "21-40", "41-80", "81-150"),                 # Light Machine Gun bands
+    "Sentry Gun": ("0-20", "21-40", "41-80", "81-150"),              # LMG bands (mount also takes SMG)
+    "Surface-to-Air Missile": ("20-70", "71-150", "151-450", "451-5000"),
+    "Dart Pistol": ("0-5", "6-15", "16-30", "31-50"),                # Hold-Out Pistol bands
+    "Dart Rifle": ("0-10", "11-20", "21-50", "51-100"),
 }
 
 # Per-name overrides where a specific weapon's ranges differ from its class default.
