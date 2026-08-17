@@ -161,7 +161,6 @@ function sortItems(list, byPrice) {
     ? (a, b) => parseNum(a.cost) - parseNum(b.cost)
     : (a, b) => (a.n || "").localeCompare(b.n || ""));
 }
-const GEAR_CAT_LABELS = { rigger:"Rigger Gear", tool:"Tools & Repair", survival:"Survival", security:"Security & B&E", stealth:"Stealth & Concealment", transport:"Personal Transport", vehweapon:"Vehicle Weapons", program:"Matrix Programs", deck:"Cyberdecks" };
 function orderedSections(items, labelFn, order) {
   const groups = {};
   items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
@@ -177,7 +176,7 @@ function sectionsFor(def, items) {
   const k = def.k;
   if (k === "weapons") return orderedSections(items, weaponGroupLabel, WEAPON_GROUP_ORDER);
   if (k === "armor") return orderedSections(items, armorGroupLabel, ARMOR_GROUP_ORDER);
-  if (k === "gear") return labelSections(items, it => GEAR_CAT_LABELS[it.cat] || titleCase(it.cat || "Other"));
+  if (k === "gear") return labelSections(items, gearGroupLabel);
   if (k === "foci") return orderedSections(items, it => it.sub || "Foci", FOCI_GROUP_ORDER);
   if (k === "matrix") {
     const isComp = it => it.sub === "Cyberdeck Component";

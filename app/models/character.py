@@ -70,7 +70,7 @@ class Character(Base):
     charisma: Mapped[int] = mapped_column(Integer, default=0)
 
     # SR2 character-sheet vitals, promoted from JSON so other tools (initiative
-    # tracker, matrix run) can query them directly. See sr2-character-builder-plan.md S2.
+    # tracker, matrix run) can query them directly.
     essence: Mapped[float] = mapped_column(Float, default=6.0)
     body_index: Mapped[float] = mapped_column(Float, default=0.0)
     magic_rating: Mapped[int] = mapped_column(Integer, default=0)
