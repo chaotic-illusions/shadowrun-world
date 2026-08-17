@@ -1202,11 +1202,17 @@ function itemMeta(it, catName) {
 function chipHTML(label, val) {
   return (val === undefined || val === null || val === "") ? "" : `<span class="cbx-stat"><b>${esc(label)}</b> ${esc(String(val))}</span>`;
 }
+// Weapons/armor always carry a "conceal" key even when the book gives it no rating (heavy weapons,
+// unrated clothing) -- show that as an explicit dash rather than silently dropping the chip, matching
+// the Gear Catalog page's statLine() and the character-sheet PDF filler's own fallback.
+function concealChip(it) {
+  return chipHTML("Conceal", ("conceal" in it) ? (it.conceal != null && it.conceal !== "" ? it.conceal : "—") : null);
+}
 function itemStatChips(it, catName) {
   const c = [];
   if (Array.isArray(it.stats)) it.stats.forEach(p => c.push(chipHTML(p[0], p[1])));
-  if (catName === "weapons") c.push(chipHTML("Dmg", it.dmg), chipHTML("Mode", it.mode), chipHTML("Ammo", it.ammo), chipHTML("Conceal", it.conceal), chipHTML("Reach", it.reach));
-  if (catName === "armor") c.push(chipHTML("Ballistic", it.ballistic), chipHTML("Impact", it.impact), chipHTML("Conceal", it.conceal));
+  if (catName === "weapons") c.push(chipHTML("Dmg", it.dmg), chipHTML("Mode", it.mode), chipHTML("Ammo", it.ammo), concealChip(it), chipHTML("Reach", it.reach));
+  if (catName === "armor") c.push(chipHTML("Ballistic", it.ballistic), chipHTML("Impact", it.impact), concealChip(it));
   if ((catName === "cyberware" || catName === "bioware") && it.rated) c.push(chipHTML("Rating", `1-${it.maxRating || 1}`));
   c.push(chipHTML("Avail", it.avail), chipHTML("Street Index", it.index), chipHTML("Legal", it.legal));
   return c.filter(Boolean).join("");

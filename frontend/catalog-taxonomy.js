@@ -35,10 +35,10 @@ function armorGroupLabel(it) {
     || titleCase(it.cat || "Other");
 }
 
-const CYBER_GROUP_ORDER = ["Headware", "Eyeware", "Earware", "Bodyware", "Cyberlimbs", "Bodywire", "Skillsofts", "Other"];
+const CYBER_GROUP_ORDER = ["Headware", "Eyeware", "Earware", "Bodyware", "Cyberlimbs", "Bodywire", "Rigger Gear", "Skillsofts", "Other"];
 function cyberGroupLabel(it) {
   if (it.soft) return "Skillsofts";   // Active / Know / Linguasofts only
-  return { headware: "Headware", earware: "Earware", eyeware: "Eyeware", bodyware: "Bodyware", limb: "Cyberlimbs", bodywire: "Bodywire", other: "Other" }[it.cat] || titleCase(it.cat || "Other");
+  return { headware: "Headware", earware: "Earware", eyeware: "Eyeware", bodyware: "Bodyware", limb: "Cyberlimbs", bodywire: "Bodywire", rigger: "Rigger Gear", other: "Other" }[it.cat] || titleCase(it.cat || "Other");
 }
 
 // The vehicle catalogue groups by piloting skill, matching the (SV) specialization buckets.
