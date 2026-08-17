@@ -360,7 +360,9 @@ def test_builder_skills_grouping_required_conc_and_na_spec(_browser, _frontend_p
     ctx.close()
 
 
-def test_builder_gm_sources_panel_toggles_books(_browser, _frontend_port):
+def test_sourcebooks_page_toggles_books(_browser, _frontend_port):
+    """The GM sourcebook toggle lives on manage-sourcebooks.html (moved off the character
+    builder, gated admin-only, and reachable from the Admin Control nav dropdown)."""
     ctx = _browser.new_context()
     ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
     pg = ctx.new_page()
@@ -369,15 +371,11 @@ def test_builder_gm_sources_panel_toggles_books(_browser, _frontend_port):
     pg.on("pageerror", lambda exc: errors.append(str(exc)))
     pg.on("request", lambda r: puts.append(r.url) if r.method == "PUT" else None)
     pg.route("**/*", _route)
-    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
-    pg.wait_for_selector("#cbxNewRunner", timeout=15000)
-    pg.locator("#cbxNewRunner").click()
-    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/manage-sourcebooks.html")
+    pg.wait_for_selector("#sbMain", state="visible", timeout=15000)
 
-    # The GM sources panel exposes a Shadowtech toggle (off in the stub).
-    pg.locator("#cbxSources summary").click()
-    pg.wait_for_timeout(60)
-    shadow = pg.locator('#cbxSources [data-book="SHADOW"]')
+    # A Shadowtech toggle is present (off in the stub).
+    shadow = pg.locator('[data-book="SHADOW"]')
     assert shadow.count() == 1
     assert shadow.is_checked() is False
 
@@ -386,5 +384,35 @@ def test_builder_gm_sources_panel_toggles_books(_browser, _frontend_port):
     pg.wait_for_timeout(250)
     assert any(u.endswith("/catalog/books") for u in puts), puts
     assert errors == [], f"JS errors toggling sources: {errors}"
+    ctx.close()
+
+
+def test_admin_control_nav_group_gates_downtime_and_sourcebooks(_browser, _frontend_port):
+    """The Admin Control dropdown is visible to everyone; Downtime/Sourcebooks inside it are
+    gm-only, Tokens is not."""
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_user_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+
+    def _player_route(route):
+        url = route.request.url
+        if "/auth/verify" in url:
+            route.fulfill(json={"is_admin": False, "is_user": True, "is_default_password": False})
+        else:
+            _route(route)
+
+    pg.route("**/*", _player_route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/manage-sourcebooks.html")
+    pg.wait_for_selector(".nav-group--admin", timeout=15000)
+    pg.wait_for_selector("#sbNotGm", state="visible", timeout=15000)  # confirms bootstrapAuth finished
+
+    group = pg.locator(".nav-group--admin")
+    assert group.count() == 1
+    assert group.locator('a[href="manage-tokens.html"]').is_visible()
+    assert not group.locator('a[href="manage-downtime.html"]').is_visible()
+    assert not group.locator('a[href="manage-sourcebooks.html"]').is_visible()
+    assert errors == [], f"JS errors on Admin Control nav gate check: {errors}"
     ctx.close()
 

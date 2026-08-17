@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sourcebooks | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    .sb-wrap { max-width: 760px; }
+    .sb-box { border:1px solid #1a2a1a; background:#0d0d0d; padding:16px 18px; margin-bottom:16px; }
+    .sb-box h3 { margin:0 0 4px; color:var(--amber); letter-spacing:1px; font-size:var(--fs-sm); text-transform:uppercase; }
+    .sb-box p.hint { color:var(--text-dim); font-size:var(--fs-xs); margin:0 0 12px; line-height:1.5; }
+    .sb-grid { display:flex; flex-direction:column; gap:8px; }
+    .sb-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #161616; }
+    .sb-row:last-child { border-bottom:none; }
+    .sb-row label { display:flex; align-items:center; gap:8px; color:var(--text); font-size:var(--fs-sm); cursor:pointer; flex:1; }
+    .sb-row input { width:auto; }
+    .sb-row .code { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; }
+    .sb-core { color:var(--green); font-size:var(--fs-sm); padding:6px 0; }
+    .sb-core .code { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; margin-left:8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
+    <a href="manage-downtime.html" class="gm-only">Downtime</a>
+    <a href="manage-sourcebooks.html" class="active gm-only">Sourcebooks</a>
+  </nav>
+</header>
+
+<main class="sb-wrap">
+  <div class="page-title">&gt;&gt; Sourcebook Control <em class="sep">//</em> Campaign Book Toggles</div>
+  <div class="page-sub" style="color:var(--amber)">GM ONLY <span class="text-dim">&gt;&gt; controls which books' gear, bioware, cyber grades, vehicles &amp; spells are available</span></div>
+
+  <div id="globalAlert" class="alert"></div>
+
+  <div id="sbNotGm" class="empty-state" style="display:none;text-align:center;padding:26px 8px">GM only.</div>
+
+  <div id="sbMain" style="display:none">
+    <div class="sb-box">
+      <h3>Core</h3>
+      <p class="hint">Always available -- cannot be disabled.</p>
+      <div class="sb-core" id="sbCore"></div>
+    </div>
+
+    <div class="sb-box">
+      <h3>Official Sourcebooks</h3>
+      <p class="hint">Enable a book to unlock its gear, armor, weapons, bioware/cyberware grades, vehicles, spells and adept powers in the Gear Catalog and character builder.</p>
+      <div class="sb-grid" id="sbOfficial"></div>
+    </div>
+
+    <div class="sb-box">
+      <h3>Fan Content</h3>
+      <p class="hint" id="sbFanHint"></p>
+      <div class="sb-grid" id="sbFan"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function alertMsg(msg, isErr) { showAlert($('globalAlert'), msg, !!isErr); }
+
+let BOOKS_INFO = null;
+
+function row(code, name, enabled) {
+  return `<div class="sb-row"><label><input type="checkbox" data-book="${esc(code)}" ${enabled ? 'checked' : ''}> ${esc(name)}</label><span class="code">${esc(code)}</span></div>`;
+}
+
+function render() {
+  if (!BOOKS_INFO) return;
+  $('sbCore').innerHTML = `${esc(BOOKS_INFO.core.name)}<span class="code">${esc(BOOKS_INFO.core.code)}</span>`;
+  $('sbOfficial').innerHTML = (BOOKS_INFO.official || []).map(b => row(b.code, b.name, b.enabled)).join('')
+    || `<p class="hint">No official books configured.</p>`;
+  const fan = BOOKS_INFO.fan;
+  $('sbFanHint').textContent = fan
+    ? `Non-canon fan works (${fan.includes.join(', ')}). Off by default.`
+    : '';
+  $('sbFan').innerHTML = fan ? row(fan.code, `${fan.name} (fan content)`, fan.enabled) : '';
+  document.querySelectorAll('#sbMain [data-book]').forEach(cb => cb.onchange = applyBookChange);
+}
+
+async function applyBookChange() {
+  const enabled = Array.from(document.querySelectorAll('#sbMain [data-book]:checked')).map(x => x.dataset.book);
+  document.querySelectorAll('#sbMain [data-book]').forEach(cb => cb.disabled = true);
+  try {
+    const r = await apiFetch('/catalog/books', { method: 'PUT', body: JSON.stringify({ enabled }) });
+    if (!r.ok) await apiThrow(r);
+    BOOKS_INFO = await r.json();
+    render();
+    alertMsg('Sourcebooks updated.', false);
+  } catch (e) {
+    alertMsg(`Could not update sourcebooks: ${esc(e.message || String(e))}`, true);
+    await loadBooks();
+  }
+}
+
+async function loadBooks() {
+  BOOKS_INFO = await apiFetch('/catalog/books').then(r => r.ok ? r.json() : null).catch(() => null);
+  render();
+}
+
+bootstrapAuth().then(ctx => {
+  if (!ctx) return;
+  if (!isAdmin()) { $('sbNotGm').style.display = ''; return; }
+  $('sbMain').style.display = '';
+  loadBooks();
+});
+</script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
+</body>
+</html>
