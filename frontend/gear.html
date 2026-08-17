@@ -104,8 +104,10 @@ const CATS = [
   { k: "bioware",   label: "Bioware" },
   { k: "gear",      label: "Gear",   src: "gear", pick: it => it.cat !== "deck" },
   { k: "matrix",    label: "Matrix", src: "gear", pick: it => it.cat === "deck" },
+  { k: "foci",      label: "Foci",   src: "foci" },
   { k: "vehicles",  label: "Vehicles" },
 ];
+const FOCI_GROUP_ORDER = ["Spell Foci", "Spirit Foci", "Power Foci", "Weapon Foci"];
 const CART_KEY = "sr2_gear_cart_v1";
 const YEN = "\u00A5";
 const DOT = " \u00B7 ";
@@ -136,6 +138,13 @@ function unitCost(item, rating, opts) {
   if (Array.isArray(item.options) && Array.isArray(opts))
     item.options.forEach(o => { if (opts.includes(o.n)) base += parseNum(o.cost); });
   return base;
+}
+// Bonding Karma of one unit of a focus at a given rating (0 for non-magical items).
+function unitKarma(item, rating) {
+  if (!item) return 0;
+  if (item.rated && Array.isArray(item.karmaTbl) && item.karmaTbl[(rating || 1) - 1] != null)
+    return parseNum(item.karmaTbl[(rating || 1) - 1]);
+  return parseNum(item.karma);
 }
 function catDef(k) { return CATS.find(c => c.k === k) || { k, label: k }; }
 function catSrc(k) { const d = catDef(k); return d.src || d.k; }
@@ -169,6 +178,7 @@ function sectionsFor(def, items) {
   if (k === "weapons") return orderedSections(items, weaponGroupLabel, WEAPON_GROUP_ORDER);
   if (k === "armor") return orderedSections(items, armorGroupLabel, ARMOR_GROUP_ORDER);
   if (k === "gear") return labelSections(items, it => GEAR_CAT_LABELS[it.cat] || titleCase(it.cat || "Other"));
+  if (k === "foci") return orderedSections(items, it => it.sub || "Foci", FOCI_GROUP_ORDER);
   if (k === "matrix") {
     const isComp = it => it.sub === "Cyberdeck Component";
     return [{ label: "Cyberdecks", items: items.filter(it => !isComp(it)) },
@@ -271,6 +281,8 @@ function renderInspector() {
       meta.push(`<span><b>Essence</b> ${esc(String(totEss))}</span>`);
     }
   }
+  const kv = unitKarma(it, selRating);
+  if (kv) meta.push(`<span><b>Bonding</b> <span class="text-amber">${kv} Karma</span></span>`);
   if (it.avail) meta.push(`<span><b>Avail</b> ${esc(String(it.avail))}</span>`);
   if (it.index != null) meta.push(`<span><b>Index</b> ${esc(String(it.index))}</span>`);
   if (it.legal) meta.push(`<span><b>Legal</b> ${esc(String(it.legal))}</span>`);
@@ -336,21 +348,24 @@ function addToCart(cat, item, rating, qty, opts) {
 function renderCart() {
   const box = document.getElementById("gcCart");
   if (!cart.length) { box.innerHTML = `<p class="empty-state">Empty. Add items from the inspector to price them.</p>`; return; }
-  let total = 0;
+  let total = 0, totalKarma = 0;
   const rows = cart.map((e, i) => {
     const it = findItem(e.cat, e.n) || {};
     const unit = unitCost(it, e.rating, e.opts);
     const line = unit * e.qty;
+    const kLine = unitKarma(it, e.rating) * e.qty;
     total += line;
+    totalKarma += kLine;
     return `<div class="gc-cart__row">
       <span class="n">${esc(e.n)}${e.rating ? " <span class='c'>R" + e.rating + "</span>" : ""}${(e.opts && e.opts.length) ? " <span class='c'>+ " + esc(e.opts.join(", ")) + "</span>" : ""}</span>
       <span class="c">x${e.qty}</span>
-      <span class="c">${money(line)}</span>
+      <span class="c">${money(line)}${kLine ? " <span class='text-amber'>+ " + kLine + " Karma</span>" : ""}</span>
       <button type="button" class="gc-cart__x" data-del="${i}" title="Remove">&#10005;</button>
     </div>`;
   }).join("");
   box.innerHTML = rows +
     `<div class="gc-cart__total"><span>Total</span><span>${money(total)}</span></div>
+     ${totalKarma ? `<div class="gc-cart__total"><span>Bonding Karma</span><span class="text-amber">${totalKarma} Karma</span></div>` : ""}
      <div class="mt-10 flex-row-8">
        <button type="button" class="btn btn-ghost btn-sm" id="gcClear">Clear list</button>
      </div>`;
