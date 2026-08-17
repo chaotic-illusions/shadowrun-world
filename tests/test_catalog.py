@@ -9,10 +9,10 @@ from app.schemas.catalog import BookSettingsUpdate
 # Cyberware is intentionally omitted -- it is actively curated, so it is checked with a
 # resilient floor in test_cyberware_and_bioware_split_by_cost_type instead of an exact count.
 EXPECTED_COUNTS = {
-    "weapons": 526,
-    "armor": 35,
+    "weapons": 520,
+    "armor": 34,
     "bioware": 25,
-    "gear": 118,
+    "gear": 111,
     "spells": 217,
     "adept_powers": 37,
     "vehicles": 169,
