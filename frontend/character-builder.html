@@ -583,6 +583,11 @@ function budgetViolations() {
   if (skillSpent() > skillBudget()) v.push(`Skills (${skillSpent()}/${skillBudget()} points)`);
   if (nuyenSpent() > res().nuyen) v.push(`Resources (${money(nuyenSpent())}/${money(res().nuyen)})`);
   if (fpSpent() > fpBudget() && (state.magicType === "Full Mage" || (state.foci && state.foci.length))) v.push(`Force Points (${fpSpent()}/${fpBudget()})`);
+  if (awakened() && state.foci.length) {
+    const mr = magicRating();
+    if (state.foci.length > mr) v.push(`Foci count (${state.foci.length}/${mr} = Magic Rating)`);
+    if (fociRatingSum() > mr * 5) v.push(`Foci total rating (${fociRatingSum()}/${mr * 5} = Magic x5)`);
+  }
   if (state.magicType === "Adept" && ppSpent() > ppBudget()) v.push(`Power Points (${round2(ppSpent())}/${ppBudget()})`);
   const cyberEss = state.gear.cyber.reduce((s,g) => s + effCyberEss(g), 0);
   if (cyberEss > 6) v.push(`Cyberware Essence (${cyberEss.toFixed(2)}/6.00)`);
@@ -595,6 +600,8 @@ function focusNuyen(f, rating) { if (!f) return 0; if (f.nuyenFlat != null) retu
 function focusKarma(f, rating) { if (!f) return 0; if (f.karmaFlat != null) return f.karmaFlat; return (f.karmaPer||0) * (Number(rating)||1); }
 function fociNuyen() { return awakened() ? state.foci.reduce((t,x) => t + focusNuyen(focusDef(x.type), x.rating), 0) : 0; }
 function fociFp() { return awakened() ? state.foci.reduce((t,x) => t + focusKarma(focusDef(x.type), x.rating), 0) : 0; }
+// Chargen focus caps (later-edition house rule): count <= Magic Rating; total rating <= Magic x5.
+function fociRatingSum() { return state.foci.reduce((t,x) => t + (Number(x.rating)||1), 0); }
 // ---- cyberware grades --------------------------------------------------------
 function gradeEss(baseEss, grade) {
   const m = (GRADES[grade] || GRADES.Standard).ess;
@@ -897,8 +904,12 @@ function fociSectionHTML() {
     const ny = focusNuyen(f, 1), fp = focusKarma(f, 1);
     return shopRow(f.n, `${money(ny)} + ${fp} FP`, `data-addfocus="${idx}"`, false);
   }).join("");
+  const mr = magicRating(), cnt = state.foci.length, rsum = fociRatingSum();
+  const capBad = cnt > mr || rsum > mr * 5;
+  const capNote = `<p class="cbx-p ${capBad ? "cbx-perk--bad" : ""}">Chargen caps: <strong>${cnt}/${mr}</strong> foci (max = Magic Rating) &middot; <strong>${rsum}/${mr * 5}</strong> total rating (max = Magic &times;5).</p>`;
   return `<div class="cbx-h4">Foci <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- nuyen + Force Points (bonding karma)</span></div>
     <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only Weapon Foci. " : ""}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
+    ${capNote}
     <div>${state.foci.length ? chosen : `<p class="empty-state">No foci.</p>`}</div>
     <div class="cbx-shop"><div class="cbx-shoplist">${shop}</div></div>`;
 }
