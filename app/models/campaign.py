@@ -1,6 +1,12 @@
 from sqlalchemy import Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
+from app.data.catalog import OFFICIAL_BOOKS
 from app.db.base import Base
+
+
+def _default_enabled_books() -> list:
+    """All official sourcebooks on, fan content off, for a brand-new campaign."""
+    return list(OFFICIAL_BOOKS)
 
 
 class CampaignState(Base):
@@ -20,4 +26,5 @@ class CampaignState(Base):
     current_tick: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Enabled optional sourcebook toggles for the gear/spell catalogs (SR2 core is
     # always on and never listed here). "FAN" enables the non-canon fan books.
-    enabled_books: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # Default: every official book on, fan content off.
+    enabled_books: Mapped[list] = mapped_column(JSON, nullable=False, default=_default_enabled_books)

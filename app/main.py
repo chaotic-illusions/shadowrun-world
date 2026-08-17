@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
@@ -10,6 +11,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.db.base import Base
 from app.db.session import engine, async_session
 from app.auth.core import hash_token
+from app.data.catalog import OFFICIAL_BOOKS
 from app.models.character import Character
 import app.models  # noqa: F401 -- registers all ORM models with Base.metadata
 
@@ -302,9 +304,14 @@ async def _ensure_campaign_state_enabled_books_column():
     create_all only creates missing tables; it won't add a column to an existing
     campaign_state table. get_campaign_state() emits every mapped column, so this
     must exist before the row is seeded below. Idempotent.
+
+    Default matches app.models.campaign's default: every official book on, fan
+    content off -- so a campaign_state row from before this column existed gets
+    backfilled the same way a brand-new campaign would.
     """
+    default_books = json.dumps(list(OFFICIAL_BOOKS))
     if await _ensure_sqlite_column(
-        "campaign_state", "enabled_books", "JSON NOT NULL DEFAULT '[]'"
+        "campaign_state", "enabled_books", f"JSON NOT NULL DEFAULT '{default_books}'"
     ):
         print("[startup] Added campaign_state.enabled_books column")
 
