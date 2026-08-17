@@ -41,6 +41,14 @@ function cyberGroupLabel(it) {
   return { headware: "Headware", earware: "Earware", eyeware: "Eyeware", bodyware: "Bodyware", limb: "Cyberlimbs", bodywire: "Bodywire", rigger: "Rigger Gear", other: "Other" }[it.cat] || titleCase(it.cat || "Other");
 }
 
+// The "Gear" shop tab mixes several unrelated sub-categories (rigger gear, tools, survival,
+// surveillance, ...) into one tab -- these are its section headers. Anything not listed falls
+// back to a title-cased version of its raw cat value.
+const GEAR_CAT_LABELS = { rigger: "Rigger Gear", tool: "Tools & Repair", survival: "Survival",
+  security: "Security & B&E", stealth: "Stealth & Concealment", transport: "Personal Transport",
+  vehweapon: "Vehicle Weapons", program: "Matrix Programs", deck: "Cyberdecks" };
+function gearGroupLabel(it) { return GEAR_CAT_LABELS[it.cat] || titleCase(it.cat || "Other"); }
+
 // The vehicle catalogue groups by piloting skill, matching the (SV) specialization buckets.
 const VEHICLE_SKILL_ORDER = ["Bike", "Car", "Hovercraft", "Motorboat", "Blimp", "Rotor Craft", "Winged Plane", "Vectored Thrust", "Drones", "Other"];
 const SV_SKILL = {

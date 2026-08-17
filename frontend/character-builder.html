@@ -214,12 +214,6 @@
   .cbx-landcard__a{margin-top:auto;color:var(--green);font-size:var(--fs-xs);}
   .cbx-landcard--new{border-style:dashed;border-color:#2f4a2f;}
   .cbx-landcard--new .cbx-landcard__h{color:var(--green);}
-  .cbx-sources{border:1px solid #1a2a1a;background:#0d0d0d;margin-bottom:12px;}
-  .cbx-sources summary{cursor:pointer;padding:8px 12px;color:var(--amber);letter-spacing:1px;
-    text-transform:uppercase;font-size:var(--fs-xxs);}
-  .cbx-src-grid{display:flex;flex-wrap:wrap;gap:6px 18px;padding:4px 14px 12px;}
-  .cbx-src{display:flex;align-items:center;gap:6px;color:var(--text-dim);font-size:var(--fs-xs);}
-  .cbx-src input{width:auto;}
   #cbxModeBanner:not(:empty){margin-bottom:12px;padding:8px 12px;background:rgba(0,200,255,.06);
     border:1px solid #14384a;color:var(--cyan);font-size:var(--fs-xs);letter-spacing:.5px;}
   .cbx-resume{margin:0 0 14px;padding:8px 12px;background:#0d0d0d;border:1px solid #1a2a1a;font-size:var(--fs-xs);color:var(--text-dim);}
@@ -260,7 +254,6 @@
     </span>
   </div>
   <div id="cbxModeBanner"></div>
-  <div id="cbxSources"></div>
 
   <div id="cbxLanding" style="display:none"></div>
 
@@ -1408,15 +1401,8 @@ function toggleShopInspect(root, key) {
   else if (or.bottom > lr.bottom) list.scrollTop += (or.bottom - lr.bottom) + 8;
 }
 function shopGroupedByCat(items, catName) {
-  // Nicer group headers than titleCase(cat) for the Gear tab's sub-categories.
-  const CAT_LABELS = {
-    rigger: "Rigger Gear", tool: "Tools & Repair", survival: "Survival",
-    security: "Security & B&E", stealth: "Stealth & Concealment",
-    transport: "Personal Transport", vehweapon: "Vehicle Weapons",
-    program: "Matrix Programs", deck: "Cyberdecks",
-  };
   const groups = {};
-  items.forEach(it => { const g = CAT_LABELS[it.cat] || titleCase(it.cat || "Other"); (groups[g] = groups[g] || []).push(it); });
+  items.forEach(it => { const g = gearGroupLabel(it); (groups[g] = groups[g] || []).push(it); });
   return Object.keys(groups).sort((a,b) => a.localeCompare(b)).map(g => {
     const rows = groups[g].slice().sort((a,b) => (a.n||"").localeCompare(b.n||""))
       .map(it => shopInspectRow(it, catName)).join("");
@@ -1653,40 +1639,9 @@ function renderStep() {
 }
 function render() {
   if (!dataReady) return;
-  renderRail(); renderStep(); renderBudget(); renderSourcesPanel();
+  renderRail(); renderStep(); renderBudget();
   document.getElementById("cbxPrev").disabled = state.step === 0;
   document.getElementById("cbxNext").disabled = state.step === STEPS.length-1;
-}
-
-/* ---------- GM sources panel (enable sourcebooks) ---------- */
-function renderSourcesPanel() {
-  const el = document.getElementById("cbxSources");
-  if (!el) return;
-  const admin = (typeof isAdmin === "function") && isAdmin();
-  if (!admin || !BOOKS_INFO) { el.innerHTML = ""; return; }
-  const wasOpen = !!(el.querySelector("details") && el.querySelector("details").open);
-  const official = BOOKS_INFO.official || [];
-  const fan = BOOKS_INFO.fan || null;
-  const box = (code, name, enabled) => `<label class="cbx-src"><input type="checkbox" data-book="${esc(code)}" ${enabled?"checked":""}> ${esc(name)}</label>`;
-  el.innerHTML = `<details class="cbx-sources" ${wasOpen?"open":""}><summary>Sourcebooks (GM) &mdash; enable to unlock their gear, bioware &amp; cyber grades</summary>
-    <div class="cbx-src-grid">
-      ${official.map(b => box(b.code, `${b.name} (${b.code})`, b.enabled)).join("")}
-      ${fan ? box(fan.code, `${fan.name} (fan content)`, fan.enabled) : ""}
-    </div></details>`;
-  el.querySelectorAll("[data-book]").forEach(cb => cb.onchange = () => applyBookChange(el));
-}
-async function applyBookChange(el) {
-  const enabled = Array.from(el.querySelectorAll("[data-book]:checked")).map(x => x.dataset.book);
-  el.querySelectorAll("[data-book]").forEach(cb => cb.disabled = true);
-  try {
-    const r = await apiFetch("/catalog/books", { method: "PUT", body: JSON.stringify({ enabled }) });
-    if (!r.ok) { await apiThrow(r); }
-    await loadCatalogs();
-    render();  // tabs/items reflect the new books; the panel re-renders too
-  } catch (e) {
-    setModeBanner(`Could not update sourcebooks: ${esc(e.message || String(e))}`);
-    renderSourcesPanel();
-  }
 }
 
 /* ---------- kit application ---------- */
@@ -2244,7 +2199,6 @@ async function doServerSync(force) {
 function wizardChrome(show) {
   const disp = show ? "" : "none";
   const bar = document.querySelector(".cbx-savebar"); if (bar) bar.style.display = disp;
-  const src = document.getElementById("cbxSources"); if (src) src.style.display = disp;
   const panes = document.querySelector(".md3-panes"); if (panes) panes.style.display = disp;
 }
 function landingCardHTML(d) {

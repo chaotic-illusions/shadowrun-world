@@ -202,6 +202,74 @@ function _buildCharactersNavGroup() {
   anchor.remove();
 }
 
+// -- ADMIN CONTROL nav group ---------------------------------------------------
+// Folds Downtime, Sourcebooks and Tokens into one "ADMIN CONTROL" dropdown. Unlike MATRIX/
+// CHARACTERS, none of these have a guaranteed pre-existing flat link on every page (Downtime
+// used to be injected by _injectAuthLabel(), Sourcebooks is brand new), so every child is built
+// fresh from childDefs rather than relying on one always being present to fold in. The group
+// itself is visible to everyone -- Tokens is where a player renames their own token -- while
+// Downtime and Sourcebooks are individually gm-only.
+function _buildAdminNavGroup() {
+  const nav = document.querySelector('header nav');
+  if (!nav || nav.querySelector('.nav-group--admin')) return;
+
+  const childDefs = [
+    { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
+    { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },
+    { href: 'manage-tokens.html',      label: 'Tokens' },
+  ];
+
+  const here = window.location.pathname;
+  const onAdminPage = childDefs.some(d => here.endsWith(d.href));
+
+  const group = document.createElement('div');
+  group.className = 'nav-group nav-group--admin' + (onAdminPage ? ' active' : '');
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'nav-group-toggle';
+  toggle.setAttribute('aria-haspopup', 'true');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = 'ADMIN CONTROL <span class="nav-caret">&#9662;</span>';
+  const menu = document.createElement('div');
+  menu.className = 'nav-group-menu';
+  childDefs.forEach(d => {
+    const a = document.createElement('a');
+    a.href = d.href;
+    a.textContent = d.label;
+    let cls = d.gmOnly ? 'gm-only' : '';
+    if (here.endsWith(d.href)) cls += (cls ? ' ' : '') + 'active';
+    if (cls) a.className = cls;
+    menu.appendChild(a);
+  });
+  group.appendChild(toggle);
+  group.appendChild(menu);
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = group.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!group.contains(e.target)) {
+      group.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Drop any pre-existing flat links for these three pages (some older static navs still have
+  // them), inserting the group where the first one sat so position stays stable; otherwise
+  // append to the end of the nav, matching where Downtime/Tokens used to land.
+  const flats = childDefs
+    .map(d => nav.querySelector(`a[href="${d.href}"]`))
+    .filter(Boolean);
+  if (flats.length) {
+    nav.insertBefore(group, flats[0]);
+    flats.forEach(a => a.remove());
+  } else {
+    nav.appendChild(group);
+  }
+}
+
 // -- bootstrapAuth -------------------------------------------------------------
 
 async function bootstrapAuth() {
@@ -243,6 +311,7 @@ async function bootstrapAuth() {
 
     _buildMatrixNavGroup();
     _buildCharactersNavGroup();
+    _buildAdminNavGroup();
     _applyMatrixRunNavGate();
 
     return _authCtx;
@@ -266,23 +335,7 @@ function _injectAuthLabel() {
     if (charsLink) nav.insertBefore(b, charsLink.nextSibling);
     else nav.appendChild(b);
   }
-  // Add Downtime nav link (GM-only via .gm-only -> hidden for players and in runner view)
-  if (nav && !nav.querySelector('[href="manage-downtime.html"]')) {
-    const d = document.createElement('a');
-    d.href = 'manage-downtime.html';
-    d.textContent = 'Downtime';
-    d.className = 'gm-only';
-    if (window.location.pathname.endsWith('manage-downtime.html')) d.className += ' active';
-    nav.appendChild(d);
-  }
-  // Add Tokens nav link for all authenticated users
-  if (nav && !nav.querySelector('[href="manage-tokens.html"]')) {
-    const a = document.createElement('a');
-    a.href = 'manage-tokens.html';
-    a.textContent = 'Tokens';
-    if (window.location.pathname.endsWith('manage-tokens.html')) a.className = 'active';
-    nav.appendChild(a);
-  }
+  // Downtime, Sourcebooks and Tokens are added by _buildAdminNavGroup() instead of here.
 
   // Bottom-right fixed label
   const label = document.createElement('div');
