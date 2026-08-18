@@ -119,7 +119,7 @@
   .cbx-skillchip{background:var(--bg-input);border:1px solid #24381f;color:var(--text-bright);padding:4px 8px;
     font-family:inherit;font-size:var(--fs-xs);cursor:pointer;white-space:nowrap;}
   .cbx-skillchip:hover{border-color:var(--green);color:var(--green);}
-  .cbx-skillchip.is-taken{opacity:.4;cursor:default;text-decoration:line-through;}
+  .cbx-skillchip.is-taken{opacity:.4;text-decoration:line-through;}
   .cbx-skillrow{display:flex;align-items:center;gap:8px;padding:3px 0;}
   .cbx-skillrow__label{flex:1 1 auto;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
   .cbx-skillrow__label strong{color:var(--accent-cyan);}
@@ -1168,7 +1168,7 @@ function stepSkills() {
     if (!inCat.length) return "";
     const chips = inCat.map(s => {
       const taken = state.skills.some(x => x.name === s.n);
-      return `<button type="button" class="cbx-skillchip ${taken?'is-taken':''}" data-addskill="${esc(s.n)}" ${taken?'disabled':''} title="${esc(s.attr)}">${esc(s.n)}</button>`;
+      return `<button type="button" class="cbx-skillchip ${taken?'is-taken':''}" data-addskill="${esc(s.n)}" title="${taken?'Click to remove':esc(s.attr)}">${esc(s.n)}</button>`;
     }).join("");
     return `<div class="cbx-skillcard"><div class="cbx-skillcard__h">${esc(label)}</div><div class="cbx-skillcard__list">${chips}</div></div>`;
   }).join("");
@@ -1799,6 +1799,10 @@ function wire() {
   root.querySelectorAll("[data-focusapplies]").forEach(el => el.oninput = () => { state.foci[Number(el.dataset.focusapplies)].applies = el.value; save(); });
   root.querySelectorAll("[data-delfocus]").forEach(el => el.onclick = () => { state.foci.splice(Number(el.dataset.delfocus),1); save(); render(); });
   root.querySelectorAll("[data-addskill]").forEach(el => el.onclick = () => {
+    const existing = state.skills.findIndex(s => s.name === el.dataset.addskill);
+    if (existing !== -1) {   // chip toggle: clicking an already-taken skill removes it, like its X button
+      state.skills.splice(existing, 1); save(); render(); return;
+    }
     const d = (SKILLS||[]).find(s => s.n === el.dataset.addskill); if (!d) return;
     // Required-concentration skills (e.g. Etiquette) start with NO concentration so the player
     // is forced to choose one -- the row renders red until they do.
