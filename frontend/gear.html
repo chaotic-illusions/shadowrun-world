@@ -259,7 +259,8 @@ function statLine(it) {
   return parts.join(DOT);
 }
 function fmtVal(v) {
-  if (v === null || v === undefined) return "";
+  if (v === undefined) return "";
+  if (v === null || v === "") return "—";   // present but N/A, e.g. Reach on a firearm -- match statLine()
   if (typeof v === "object") return esc(JSON.stringify(v));
   return esc(String(v));
 }
