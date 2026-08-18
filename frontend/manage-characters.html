@@ -476,8 +476,8 @@ function updatePCLabel() {
   const isPC = document.getElementById('f-is_pc').checked;
   document.getElementById('pcLabel').textContent = isPC ? 'PC // Runner' : 'NPC';
   document.getElementById('npcSection').style.display = isPC ? 'none' : '';
-  // Switch archetype picker and title visibility
-  document.getElementById('f-archetype-wrap').style.display  = isPC ? '' : 'none';
+  // Switch archetype picker and title visibility (the wrap itself always shows -- both
+  // PCs and NPCs get an archetype, just via a different <select> inside it)
   document.getElementById('f-archetype-pc').style.display   = isPC ? '' : 'none';
   document.getElementById('f-archetype').style.display       = isPC ? 'none' : '';
   document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
