@@ -394,5 +394,7 @@ async function loadAll() {
 document.getElementById("gcSearch").addEventListener("input", (e) => { filter = e.target.value; renderList(); });
 bootstrapAuth().then(u => { if (u) loadAll(); });
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('blueprint');</script>
 </body>
 </html>

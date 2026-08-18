@@ -169,7 +169,7 @@
   .cbx-form__wide{grid-column:1/-1;}
   .cbx-form__perm{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:var(--fs-xxs);
     color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin:-6px 0 16px;}
-  .cbx-form__perm input{flex:0 0 auto;width:auto;}
+  .cbx-form__perm input{flex:0 0 auto;}
 
   .cbx-summary{background:#0d0d0d;border:1px solid #1a2a1a;padding:14px 16px;margin-bottom:16px;}
   .cbx-summary__h{color:var(--green);font-size:var(--fs-md);margin-bottom:10px;text-shadow:var(--glow-green);}
@@ -692,7 +692,7 @@ function vcrLevel() {  // level of the best Vehicle Control Rig installed (0 = n
 }
 function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
 function hackingPool() { const m = deckMpcp(); return m ? Math.floor((finalAttr("intelligence") + m) / 3) + poolBonus("hack") : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
-function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 + v : null; }                                                        // needs a VCR (rigging Reaction + VCR level)
+function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 : null; }                                                             // needs a VCR (Control Pool = rigging Reaction, RIG2 p.261)
 function astralPool() { return state.magicType === "Full Mage" ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + finalAttr("charisma")) / 2) : null; }  // needs astral projection
 function spellPool() { return hasSorcery() ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + magicRating()) / 3) : null; }  // needs Sorcery
 function activePools() {
@@ -1598,7 +1598,7 @@ function stepFinish() {
       <label class="cbx-form__wide">Description <input type="text" data-id="desc" value="${esc(id.desc)}"></label>
       <label>Lifestyle <select data-id="lifestyle">${LIFESTYLES.map(l => `<option ${id.lifestyle===l?"selected":""}>${esc(l)}</option>`).join("")}</select></label>
     </div>
-    ${lifestyleMonthly() > 0 ? `<label class="cbx-form__perm"><input type="checkbox" id="cbxLifePerm" ${id.lifestylePermanent?"checked":""}> Buy this lifestyle permanently &mdash; 100 months up front (${money(lifestylePermanentPrice())}); never pay monthly upkeep again <span class="cbx-cite">(SR2 p.245)</span></label>` : `<p class="cbx-help">Street lifestyle has no upkeep.</p>`}
+    ${lifestyleMonthly() > 0 ? `<label class="cbx-form__perm"><input type="checkbox" class="chk-reveal" id="cbxLifePerm" ${id.lifestylePermanent?"checked":""}> Buy this lifestyle permanently &mdash; 100 months up front (${money(lifestylePermanentPrice())}); never pay monthly upkeep again <span class="cbx-cite">(SR2 p.245)</span></label>` : `<p class="cbx-help">Street lifestyle has no upkeep.</p>`}
     <div class="cbx-summary">
       <div class="cbx-summary__h">${esc(id.handle || "UNNAMED SUBJECT")} <em>${esc(state.metatype)}${awakened() ? " - "+esc(state.magicType) : ""}</em></div>
       <div class="cbx-statgroup__h">Attributes</div>

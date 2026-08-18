@@ -31,8 +31,8 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Hardcopy <em class="sep">//</em> Character Sheets</div>
-  <div class="page-sub" style="color:var(--green)">CLICK A RUNNER TO DOWNLOAD THEIR FILLED SR2 SHEET (PDF)</div>
+  <div class="page-title">&gt;&gt; Hardcopy <em class="sep">//</em> Lone Star Criminal Files</div>
+  <div class="page-sub" style="color:var(--green)">CLICK A SHADOWRUNNER TO DOWNLOAD DOSSIER // FOR OFFICIAL LONE STAR USE ONLY</div>
 
   <div id="alert" class="alert"></div>
   <div id="hcList"><div class="loading">Loading runners</div></div>
@@ -49,6 +49,7 @@ async function loadRunners() {
     const myIds = new Set((mine && mine.ids) || []);
     const admin = isAdminMode();
     const owned = (Array.isArray(chars) ? chars : []).filter(c => admin || myIds.has(c.id));
+    window.AMB_CASE_NAMES = owned.map(c => c.name).filter(Boolean);
     if (!owned.length) {
       listEl.innerHTML = `<p class="empty-state">No published runners yet. Build one under Characters &rsaquo; New Runner.</p>`;
       return;
@@ -90,5 +91,7 @@ async function downloadSheet(card, id, name) {
 
 bootstrapAuth().then(u => { if (u) loadRunners(); });
 </script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('corkboard');</script>
 </body>
 </html>

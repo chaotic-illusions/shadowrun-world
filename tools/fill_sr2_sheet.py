@@ -387,8 +387,8 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
         # floor(rating/2) directly to the pool (matches app/services/matrix_engine.hacking_pool).
         pools.append(("Hacking", (INT + mpcp) // 3 + _pool_bonus("hack")))
     if vcr:
-        # SR2: a Vehicle Control Rig grants a Control Pool = rigging Reaction (reaction + VCR*2) + VCR level.
-        pools.append(("Control", reaction + vcr * 2 + vcr))
+        # SR2: a Vehicle Control Rig grants a Control Pool = rigging Reaction (reaction + VCR*2). RIG2 p.261.
+        pools.append(("Control", reaction + vcr * 2))
     task = _pool_bonus("task")            # Task Pool comes entirely from cyber (e.g. Encephalon)
     if task:
         pools.append(("Task", task))
@@ -579,6 +579,12 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
     if tools:
         cnotes.append("Gear: " + "; ".join(
             (f"{g.get('kind', '')} {g['n']}").strip() for g in tools))
+    # Weapon accessories (holsters, sights, silencers, etc.) don't get their own weapon-table row --
+    # their effect (if any) is folded into the carrying weapon's stats above -- but they were still
+    # bought and should still show up on the sheet somewhere.
+    accessories = [w for w in gear.get("weapons", []) if (_find(weap_cat, w["n"]) or {}).get("cat") == "accessory"]
+    if accessories:
+        cnotes.append("Accessories: " + ", ".join(_display_name(w["n"]) for w in accessories))
     # Concise mechanical notes for carried items whose modifier does not fit a dedicated field.
     mod_notes = []
     for bucket in ("weapons", "armor", "cyber", "bio", "gear"):
