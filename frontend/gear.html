@@ -246,12 +246,15 @@ function statLine(it) {
     return it.stats.map(s => Array.isArray(s) ? `${esc(String(s[0]))} ${esc(String(s[1]))}` : esc(String(s))).join(DOT);
   const parts = [];
   const add = (k, v) => { if (v !== undefined && v !== null && v !== "") parts.push(`${k} ${esc(String(v))}`); };
-  if ("conceal" in it) {   // weapons/armor: always show Conceal; a dash means none / NA
-    const cv = it.conceal;
-    const na = cv === null || cv === "" || ["NA", "N/A", "-"].includes(String(cv).toUpperCase());
-    parts.push(`Conceal ${na ? "\u2014" : esc(String(cv))}`);
-  }
-  add("Reach", it.reach); add("Dmg", it.dmg); add("Mode", it.mode); add("Ammo", it.ammo);
+  const isNA = v => v === null || v === "" || ["NA", "N/A", "-"].includes(String(v).toUpperCase());
+  const addNA = (k, key) => {   // weapons/armor: always show the chip when the key is present; a dash means none / NA
+    if (!(key in it)) return;
+    const v = it[key];
+    parts.push(`${k} ${isNA(v) ? "\u2014" : esc(String(v))}`);
+  };
+  addNA("Conceal", "conceal");
+  addNA("Reach", "reach");
+  add("Dmg", it.dmg); add("Mode", it.mode); add("Ammo", it.ammo);
   add("Ballistic", it.ballistic); add("Impact", it.impact);
   return parts.join(DOT);
 }

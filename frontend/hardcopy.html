@@ -58,7 +58,7 @@ async function loadRunners() {
       <button type="button" class="hc-card" data-id="${c.id}" data-name="${esc(c.name || '')}">
         <div class="hc-card__n">${esc(c.name || 'Unnamed')}</div>
         <div class="hc-card__m">${esc(c.archetype || 'Runner')}${c.race ? ' &middot; ' + esc(c.race) : ''}</div>
-        <div class="hc-card__pdf">&#8595; Generate PDF</div>
+        <div class="hc-card__pdf">&#8595; Download Origin PDF</div>
       </button>`).join('')}</div>`;
     listEl.querySelectorAll('[data-id]').forEach(el =>
       el.onclick = () => downloadSheet(el, Number(el.dataset.id), el.dataset.name));
