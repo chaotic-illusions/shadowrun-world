@@ -1869,6 +1869,322 @@
   });
 
   // =====================================================================
+  // SCENE: corkboard -- Lone Star CID evidence board (hardcopy dossiers).
+  // A cork-brown pinboard lit by a single desk lamp in the corner: index
+  // cards pinned with red string tracing a case web, dust drifting through
+  // the beam. Layout (cards + string network) is built once per resize via
+  // rejection sampling so cards never overlap; the frame loop only pulses
+  // the lamp and drifts dust. heat:false -- flavour piece for Hardcopy.
+  // Data hook (set by the page): global.AMB_CASE_NAMES -- array of real
+  // runner names; each gets its own SUBJECT card, used at most once, and
+  // takes priority over the generic flavour cards below.
+  // =====================================================================
+  var CB_LABELS = [
+    ['CASE 04471-DS', 'STATUS: OPEN'],
+    ['LAST KNOWN', 'REDMOND BARRENS'],
+    ['BOLO', 'ARMED // AUGMENTED'],
+    ['LONE STAR CID', 'METROPLEX DIV.'],
+    ['WITNESS STATEMENT', 'UNRELIABLE'],
+    ['PATTERN', '3 INCIDENTS / 6 WK'],
+    ['EVIDENCE LOCKER', 'RACK 7 // SHELF C'],
+    ['GRID TRACE', 'NA/UCAS-SEA-*'],
+    ['ASSOCIATE', 'UNKNOWN FIXER']
+  ];
+  function cb_namesKey() {
+    var names = global.AMB_CASE_NAMES;
+    if (!names || !names.length) return '';
+    return names.length + ':' + names[0] + ':' + names[names.length - 1];
+  }
+  // Rejection-sample a spot for a card that clears every already-placed
+  // card by CB_MIN_DIST (a bounding-circle radius big enough to cover the
+  // card's rotated corners), so the board can never show an overlap. Gives
+  // up after 80 tries and returns null -- cb_build then just has fewer
+  // cards on a small/crowded viewport rather than force a collision.
+  var CB_MIN_DIST = 190;
+  function cb_card(lines, W, H, placed) {
+    var w = 92 + Math.random() * 30, h = 58 + Math.random() * 16;
+    for (var attempt = 0; attempt < 80; attempt++) {
+      var x = W * (0.03 + Math.random() * 0.94), y = H * (0.20 + Math.random() * 0.74);
+      var ok = true;
+      for (var j = 0; j < placed.length; j++) {
+        if (Math.hypot(x - placed[j].x, y - placed[j].y) < CB_MIN_DIST) { ok = false; break; }
+      }
+      if (ok) {
+        return {
+          x: x, y: y, rot: (Math.random() - 0.5) * 0.22, w: w, h: h,
+          lines: lines, pinPh: Math.random() * 6.2832
+        };
+      }
+    }
+    return null;
+  }
+  var CB_MAX_CARDS = 12;
+  var CB_MAX_NAMES = 4;   // real runners never crowd out more than this many flavour cards
+  function cb_build(env) {
+    var W = env.W, H = env.H, st = env.store, i;
+    var n = Math.max(5, Math.min(CB_MAX_CARDS, Math.round((W * H) / 150000)));
+    // shuffle the real runner names (if any) so repeated rebuilds don't always
+    // favour the same subset when there are more names than the cap; each name
+    // is placed on at most one card, and gets first pick of a spot so it isn't
+    // the one that loses out to the rejection sampler. The rest of the board
+    // stays generic flavour cards regardless of how many real names exist.
+    var names = (global.AMB_CASE_NAMES || []).slice();
+    for (i = names.length - 1; i > 0; i--) { var qi = (Math.random() * (i + 1)) | 0, tmp = names[i]; names[i] = names[qi]; names[qi] = tmp; }
+    var nameCount = Math.min(CB_MAX_NAMES, names.length);
+    st.namesKey = cb_namesKey();
+    st.cards = [];
+    var flavor = 0;
+    for (i = 0; i < n; i++) {
+      var lines = i < nameCount ? ['SUBJECT', names[i]] : CB_LABELS[flavor++ % CB_LABELS.length];
+      var cd = cb_card(lines, W, H, st.cards);
+      if (cd) st.cards.push(cd);
+    }
+    // string network: a loose chain plus a couple of cross-links for the web look.
+    // Each string gets its own droop -- some strung taut, some left lazy and
+    // hanging -- plus a little horizontal drift so the sag doesn't all fall on
+    // the exact midpoint.
+    st.strings = [];
+    function addString(a, b) {
+      var pa = st.cards[a], pb = st.cards[b];
+      var span = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+      st.strings.push({
+        a: a, b: b,
+        sag: span * (0.03 + Math.random() * Math.random() * 0.5),
+        drift: (Math.random() - 0.5) * span * 0.18,
+        ph: Math.random() * 6.2832
+      });
+    }
+    for (i = 1; i < st.cards.length; i++) addString(i - 1, i);
+    var extra = Math.max(1, Math.round(st.cards.length / 4));
+    for (i = 0; i < extra; i++) {
+      var a = (Math.random() * st.cards.length) | 0, b = (Math.random() * st.cards.length) | 0;
+      if (a !== b) addString(a, b);
+    }
+    st.lampX = W * 0.08; st.lampY = H * 0.02;
+    var nd = Math.max(16, Math.min(46, Math.round(W / 40)));
+    st.dust = [];
+    for (i = 0; i < nd; i++) st.dust.push({ x: Math.random() * W * 0.4, y: Math.random() * H, vy: 3 + Math.random() * 6, ph: Math.random() * 6.2832, r: 0.5 + Math.random() * 1.1 });
+  }
+  scene('corkboard', {
+    sky: 'radial-gradient(140% 100% at 8% 4%,#241a0e 0%,#140f09 30%,#0a0805 58%,#050403 100%)',
+    vignette: true, heat: false,
+    init: function (env) { env.store.cards = null; env.store.dust = null; env.store.namesKey = '\u0000'; },
+    resize: function (env) { cb_build(env); },
+    frame: function (env, t, dt) {
+      var ctx = env.ctx, W = env.W, H = env.H, st = env.store;
+      // rebuild once the page's runner list shows up (or changes) so real
+      // names replace the placeholder flavour cards without waiting for a resize
+      if (!st.cards || cb_namesKey() !== st.namesKey) cb_build(env);
+      ctx.clearRect(0, 0, W, H);
+      // desk lamp cone from the top-left corner, gently breathing
+      var lx = st.lampX, ly = st.lampY, pulse = 0.85 + 0.15 * Math.sin(t / 1400), reach = Math.max(W, H) * 0.62;
+      var lamp = ctx.createRadialGradient(lx, ly, 0, lx, ly, reach);
+      lamp.addColorStop(0, 'rgba(255,196,120,' + (0.16 * pulse).toFixed(3) + ')');
+      lamp.addColorStop(0.4, 'rgba(180,130,70,' + (0.06 * pulse).toFixed(3) + ')');
+      lamp.addColorStop(1, 'rgba(20,14,8,0)');
+      ctx.fillStyle = lamp; ctx.fillRect(0, 0, W, H);
+      // dust motes drifting up through the beam
+      for (var d = 0; d < st.dust.length; d++) {
+        var m = st.dust[d]; m.y -= m.vy * dt;
+        if (m.y < -4) { m.y = H + 4; m.x = Math.random() * W * 0.4; }
+        var lit = Math.max(0, 1 - Math.hypot(m.x - lx, m.y - ly) / reach);
+        ctx.fillStyle = 'rgba(255,214,160,' + (0.14 * lit * (0.6 + 0.4 * Math.sin(t * 0.001 + m.ph))).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.2832); ctx.fill();
+      }
+      // red string web, drawn under the cards -- each strand sags by its own
+      // amount (some nearly straight, some hanging loose) with a gentle sway
+      ctx.lineWidth = 1.1;
+      for (var s = 0; s < st.strings.length; s++) {
+        var str = st.strings[s], pa = st.cards[str.a], pb = st.cards[str.b];
+        if (!pa || !pb) continue;
+        var sway = Math.sin(t * 0.0003 + str.ph) * Math.min(4, str.sag * 0.12);
+        var midx = (pa.x + pb.x) / 2 + str.drift, midy = (pa.y + pb.y) / 2 + str.sag + sway;
+        ctx.strokeStyle = 'rgba(190,30,30,0.40)';
+        ctx.shadowColor = 'rgba(190,30,30,0.25)'; ctx.shadowBlur = 2;
+        ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.quadraticCurveTo(midx, midy, pb.x, pb.y); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      // pinned index cards
+      for (var c = 0; c < st.cards.length; c++) {
+        var cd = st.cards[c];
+        ctx.save();
+        ctx.translate(cd.x, cd.y); ctx.rotate(cd.rot);
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 3;
+        ctx.fillStyle = 'rgba(214,201,166,0.88)';
+        ctx.fillRect(-cd.w / 2, -cd.h / 2, cd.w, cd.h);
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = 'rgba(40,30,16,0.35)'; ctx.lineWidth = 1;
+        ctx.strokeRect(-cd.w / 2, -cd.h / 2, cd.w, cd.h);
+        ctx.font = "8px 'Share Tech Mono', monospace";
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(40,30,16,0.72)';
+        ctx.fillText(cd.lines[0], -cd.w / 2 + 6, -cd.h / 2 + 8);
+        ctx.fillStyle = 'rgba(90,20,20,0.7)';
+        ctx.fillText(cd.lines[1], -cd.w / 2 + 6, -cd.h / 2 + 22);
+        ctx.strokeStyle = 'rgba(40,30,16,0.14)'; ctx.lineWidth = 1;
+        for (var ln = 0; ln < 3; ln++) {
+          ctx.beginPath(); ctx.moveTo(-cd.w / 2 + 6, -cd.h / 2 + 38 + ln * 6); ctx.lineTo(cd.w / 2 - 6, -cd.h / 2 + 38 + ln * 6); ctx.stroke();
+        }
+        ctx.restore();
+        // push pin
+        var pang = cd.pinPh + t * 0.0002;
+        ctx.fillStyle = 'rgba(200,30,30,0.85)';
+        ctx.shadowColor = 'rgba(255,60,60,0.7)'; ctx.shadowBlur = 4 + 2 * Math.sin(pang);
+        ctx.beginPath(); ctx.arc(cd.x, cd.y - cd.h / 2, 3, 0, 6.2832); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+  });
+
+  // =====================================================================
+  // SCENE: blueprint -- requisition-office spec sheets drifting behind the
+  // Gear Catalog. A cyan grid on navy blueprint ground, two lanes of
+  // ORIGINAL technical silhouettes (abstract schematic line-art, not traced
+  // artwork) captioned with real catalog stats, scrolling in a seamless
+  // loop in opposite directions, under a slow scanner sweep. heat:false --
+  // flavour piece for the Gear Catalog.
+  // =====================================================================
+  var BP_CYAN = '120,220,255';
+  function bp_ticks(ctx, x0, x1, y) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y - 4); ctx.lineTo(x0, y + 4);
+    ctx.moveTo(x1, y - 4); ctx.lineTo(x1, y + 4);
+    ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+    ctx.stroke();
+  }
+  function bp_pistol(ctx, cx, cy, s) {
+    // barrel/slide: a long flat bar, muzzle to the right
+    ctx.strokeRect(cx - 60 * s, cy - 24 * s, 110 * s, 16 * s);
+    // grip: a raked block hanging below the rear of the frame
+    ctx.beginPath();
+    ctx.moveTo(cx - 34 * s, cy - 8 * s); ctx.lineTo(cx - 8 * s, cy - 8 * s);
+    ctx.lineTo(cx - 8 * s, cy + 30 * s); ctx.lineTo(cx - 28 * s, cy + 30 * s);
+    ctx.closePath(); ctx.stroke();
+    // trigger guard
+    ctx.beginPath(); ctx.arc(cx - 15 * s, cy + 2 * s, 8 * s, 0, Math.PI, false); ctx.stroke();
+    bp_ticks(ctx, cx - 60 * s, cx + 50 * s, cy - 34 * s);
+  }
+  function bp_bike(ctx, cx, cy, s) {
+    // low wedge body, tapered front/back, wheels tucked under the base line
+    ctx.beginPath();
+    ctx.moveTo(cx - 90 * s, cy + 20 * s);
+    ctx.lineTo(cx - 68 * s, cy + 4 * s); ctx.lineTo(cx - 38 * s, cy - 6 * s);
+    ctx.lineTo(cx + 22 * s, cy - 6 * s); ctx.lineTo(cx + 56 * s, cy + 2 * s);
+    ctx.lineTo(cx + 90 * s, cy + 20 * s); ctx.lineTo(cx + 90 * s, cy + 26 * s);
+    ctx.lineTo(cx - 90 * s, cy + 26 * s); ctx.closePath(); ctx.stroke();
+    // cockpit hump
+    ctx.beginPath();
+    ctx.moveTo(cx - 16 * s, cy - 6 * s); ctx.lineTo(cx - 6 * s, cy - 22 * s);
+    ctx.lineTo(cx + 30 * s, cy - 22 * s); ctx.lineTo(cx + 36 * s, cy - 6 * s); ctx.stroke();
+    // wheels
+    ctx.beginPath(); ctx.arc(cx - 54 * s, cy + 26 * s, 14 * s, 0, 6.2832); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + 54 * s, cy + 26 * s, 14 * s, 0, 6.2832); ctx.stroke();
+    bp_ticks(ctx, cx - 90 * s, cx + 90 * s, cy + 48 * s);
+  }
+  function bp_katana(ctx, cx, cy, s) {
+    ctx.beginPath();
+    ctx.moveTo(cx - 84 * s, cy + 2 * s);
+    ctx.quadraticCurveTo(cx - 20 * s, cy - 14 * s, cx + 58 * s, cy - 4 * s);
+    ctx.lineTo(cx + 58 * s, cy + 4 * s);
+    ctx.quadraticCurveTo(cx - 20 * s, cy - 6 * s, cx - 84 * s, cy + 10 * s);
+    ctx.closePath(); ctx.stroke();
+    ctx.strokeRect(cx + 58 * s, cy - 5 * s, 34 * s, 10 * s);
+    bp_ticks(ctx, cx - 84 * s, cx + 58 * s, cy + 26 * s);
+  }
+  function bp_deck(ctx, cx, cy, s) {
+    ctx.strokeRect(cx - 66 * s, cy - 28 * s, 132 * s, 56 * s);
+    ctx.strokeRect(cx - 54 * s, cy - 20 * s, 70 * s, 24 * s);
+    for (var i = 0; i < 4; i++) ctx.strokeRect(cx - 54 * s + i * 12 * s, cy + 10 * s, 8 * s, 6 * s);
+    ctx.beginPath(); ctx.moveTo(cx + 56 * s, cy - 28 * s); ctx.lineTo(cx + 70 * s, cy - 46 * s); ctx.stroke();
+    bp_ticks(ctx, cx - 66 * s, cx + 66 * s, cy + 42 * s);
+  }
+  var BP_ITEMS = [
+    { draw: bp_pistol, cap: 'ARES PREDATOR', spec: 'HEAVY PISTOL // 9M // ¥450' },
+    { draw: bp_bike, cap: 'BMW BLITZEN 2050', spec: 'RACING BIKE // SPD 220 // ¥29,300' },
+    { draw: bp_katana, cap: 'KATANA', spec: 'BLADE // (STR+3)M // ¥1,000' },
+    { draw: bp_deck, cap: 'FAIRLIGHT EXCALIBUR', spec: 'CYBERDECK // MPCP 12' }
+  ];
+  function bp_buildStrip(env) {
+    var st = env.store, iw = 260, ih = 150, n = BP_ITEMS.length, unit = iw * n;
+    var cnv = document.createElement('canvas');
+    cnv.width = unit * 2; cnv.height = ih;
+    var g = cnv.getContext('2d');
+    g.lineWidth = 1.2;
+    g.font = "9px 'Share Tech Mono', monospace";
+    g.textAlign = 'center';
+    for (var rep = 0; rep < 2; rep++) {
+      for (var i = 0; i < n; i++) {
+        var it = BP_ITEMS[i], x = rep * unit + i * iw + iw / 2, y = ih * 0.42;
+        g.strokeStyle = 'rgba(' + BP_CYAN + ',0.50)';
+        it.draw(g, x, y, 0.62);
+        g.fillStyle = 'rgba(' + BP_CYAN + ',0.55)';
+        g.fillText(it.cap, x, ih * 0.78);
+        g.fillStyle = 'rgba(' + BP_CYAN + ',0.32)';
+        g.fillText(it.spec, x, ih * 0.78 + 13);
+        g.strokeStyle = 'rgba(' + BP_CYAN + ',0.12)';
+        g.beginPath(); g.moveTo(x - iw / 2 + 10, ih * 0.90); g.lineTo(x + iw / 2 - 10, ih * 0.90); g.stroke();
+      }
+    }
+    st.strip = cnv; st.stripUnit = unit; st.stripH = ih;
+  }
+  function bp_buildGrid(env) {
+    var W = env.W, H = env.H, st = env.store, g0 = 34;
+    var cnv = document.createElement('canvas');
+    cnv.width = W; cnv.height = H;
+    var g = cnv.getContext('2d'), col, x, y;
+    for (x = 0, col = 0; x <= W; x += g0, col++) {
+      g.strokeStyle = (col % 5 === 0) ? 'rgba(' + BP_CYAN + ',0.09)' : 'rgba(' + BP_CYAN + ',0.035)';
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke();
+    }
+    for (y = 0, col = 0; y <= H; y += g0, col++) {
+      g.strokeStyle = (col % 5 === 0) ? 'rgba(' + BP_CYAN + ',0.09)' : 'rgba(' + BP_CYAN + ',0.035)';
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+    }
+    st.grid = cnv;
+  }
+  function bp_drawLane(ctx, strip, unit, h, y, x) {
+    var xx = ((x % unit) + unit) % unit;
+    ctx.drawImage(strip, xx - unit, y, unit, h);
+    ctx.drawImage(strip, xx, y, unit, h);
+  }
+  scene('blueprint', {
+    sky: 'linear-gradient(180deg,#020509 0%,#03070d 55%,#010409 100%)',
+    vignette: true, heat: false,
+    init: function (env) { env.store.grid = null; env.store.strip = null; env.store.stripUnit = 0; env.store.scanY = 0; },
+    resize: function (env) { bp_buildGrid(env); bp_buildStrip(env); },
+    frame: function (env, t, dt) {
+      var ctx = env.ctx, W = env.W, H = env.H, st = env.store;
+      if (!st.grid) bp_buildGrid(env);
+      if (!st.strip) bp_buildStrip(env);
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(st.grid, 0, 0);
+      if (st.stripUnit) {
+        bp_drawLane(ctx, st.strip, st.stripUnit, st.stripH, H * 0.06, -(t * 0.014));
+        bp_drawLane(ctx, st.strip, st.stripUnit, st.stripH, H * 0.86, t * 0.009);
+      }
+      // slow scanner sweep
+      st.scanY = (st.scanY + dt * H * 0.09) % (H + 40);
+      var sg = ctx.createLinearGradient(0, st.scanY - 40, 0, st.scanY + 40);
+      sg.addColorStop(0, 'rgba(' + BP_CYAN + ',0)');
+      sg.addColorStop(0.5, 'rgba(' + BP_CYAN + ',0.05)');
+      sg.addColorStop(1, 'rgba(' + BP_CYAN + ',0)');
+      ctx.fillStyle = sg; ctx.fillRect(0, st.scanY - 40, W, 80);
+      ctx.strokeStyle = 'rgba(' + BP_CYAN + ',0.16)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, st.scanY); ctx.lineTo(W, st.scanY); ctx.stroke();
+      // corner reticles
+      var cs = 16, m = 18;
+      var corners = [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]];
+      ctx.strokeStyle = 'rgba(' + BP_CYAN + ',0.22)'; ctx.lineWidth = 1;
+      for (var ci = 0; ci < corners.length; ci++) {
+        var cc = corners[ci];
+        ctx.beginPath();
+        ctx.moveTo(cc[0], cc[1] + cs * cc[3]); ctx.lineTo(cc[0], cc[1]); ctx.lineTo(cc[0] + cs * cc[2], cc[1]);
+        ctx.stroke();
+      }
+    }
+  });
+
+  // =====================================================================
   // ENGINE
   // =====================================================================
   function start(name, opts) {

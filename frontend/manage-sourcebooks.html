@@ -15,7 +15,6 @@
     .sb-row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #161616; }
     .sb-row:last-child { border-bottom:none; }
     .sb-row label { display:flex; align-items:center; gap:8px; color:var(--text); font-size:var(--fs-sm); cursor:pointer; flex:1; }
-    .sb-row input { width:auto; }
     .sb-row .code { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; }
     .sb-core { color:var(--green); font-size:var(--fs-sm); padding:6px 0; }
     .sb-core .code { color:var(--text-dim); font-size:var(--fs-xxs); letter-spacing:1px; margin-left:8px; }
@@ -77,7 +76,7 @@ function alertMsg(msg, isErr) { showAlert($('globalAlert'), msg, !!isErr); }
 let BOOKS_INFO = null;
 
 function row(code, name, enabled) {
-  return `<div class="sb-row"><label><input type="checkbox" data-book="${esc(code)}" ${enabled ? 'checked' : ''}> ${esc(name)}</label><span class="code">${esc(code)}</span></div>`;
+  return `<div class="sb-row"><label><input type="checkbox" class="chk-select" data-book="${esc(code)}" ${enabled ? 'checked' : ''}> ${esc(name)}</label><span class="code">${esc(code)}</span></div>`;
 }
 
 function render() {
