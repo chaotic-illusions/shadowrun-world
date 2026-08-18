@@ -104,6 +104,18 @@ def _str_bands(mults, strength):
     return tuple(bands)
 
 
+def _display_bands(bands):
+    """Condense 'low-high' bands to just the upper bound for the sheet's narrow range columns,
+    since each band's floor is implied by the previous band's ceiling. Only Short keeps its
+    floor, and only when it is non-zero (indirect-fire weapons like grenade/missile launchers
+    and mortars can't target inside a minimum range)."""
+    out = []
+    for i, band in enumerate(bands):
+        lo, _, hi = band.partition("-")
+        out.append(f"{lo}-{hi}" if i == 0 and lo not in ("0", "") else hi)
+    return tuple(out)
+
+
 # Ammo feed words -> sheet abbreviations (compound terms first so they win over substrings).
 _AMMO_FEED_ABBR = {
     "battery package": "bat", "break-action": "brk", "break-open": "brk",
@@ -501,8 +513,9 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
             if mults:
                 bands = _str_bands(mults, num(c.get("strength")))
         if bands:
-            put(f"Weapon {slot} Short", bands[0]); put(f"Weapon {slot} Med", bands[1])
-            put(f"Weapon {slot} Long", bands[2]); put(f"Weapon {slot} Extreme", bands[3])
+            disp = _display_bands(bands)
+            put(f"Weapon {slot} Short", disp[0]); put(f"Weapon {slot} Med", disp[1])
+            put(f"Weapon {slot} Long", disp[2]); put(f"Weapon {slot} Extreme", disp[3])
 
     # Melee-capable armor (Forearm Guards, Riot Shields) listed as weapon entries.
     for a in worn:
