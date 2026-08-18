@@ -484,8 +484,7 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
         if mods:
             put(f"Weapon {slot} Mods", mods.replace("Laser", "Lsr"))
         put(f"Weapon {slot} Conceal", conceal)
-        if not _blankish(src.get("reach")):
-            put(f"Weapon {slot} Reach", src.get("reach"))
+        put(f"Weapon {slot} Reach", src.get("reach") if not _blankish(src.get("reach")) else EM_DASH)
         put(f"Weapon {slot} Mode", src.get("mode"))
         put(f"Weapon {slot} Dmg", src.get("dmg"))
         put(f"Weapon {slot} Ammo", _abbr_ammo(src.get("ammo")))
