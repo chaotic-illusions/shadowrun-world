@@ -74,6 +74,13 @@ checks already exist. Search first; add second.
 - **Inline styles:** check `style.css` first. Inline is acceptable ONLY for
   runtime-computed values (e.g. `style="color:${dynamicColor}"`). A fixed color/margin
   belongs in a class.
+- **Bare `.btn` has no color and is invisible.** `.btn` (style.css ~line 636) only sets
+  layout/border-width -- no `color`, and browsers do NOT let buttons inherit text color
+  from the page by default, so a plain `class="btn"` renders near-black text on a
+  near-black background. Every button needs a modifier: `.btn-green` (confirm/save/add),
+  `.btn-red` (cancel/delete/destructive), `.btn-amber`, `.btn-cyan`, or `.btn-ghost`
+  (neutral) -- or an explicit inline `color`/`border-color` if none fits. Check this
+  every time you add a `<button class="btn">` or `<a class="btn">`.
 - **Inline color overriding a component class** is a known trap: the inline wins now, but
   merging it into the class may not (CSS source order). Don't blind-convert -- there's an
   enumerated list in the `project_matrix2_review` memory for the UI consistency pass.
@@ -158,6 +165,7 @@ python tools/check_text_hygiene.py           # ASCII / encoding (pre-commit also
 | Symptom | Cause | Fix |
 |---|---|---|
 | Style duplicated across pages | inline `style=` when a class exists | use the `style.css` utility/component class |
+| Button text/border invisible (black on black) | bare `class="btn"` with no color modifier | add `.btn-green`/`.btn-red`/`.btn-amber`/`.btn-cyan`/`.btn-ghost` |
 | Stored XSS via a name/note | `innerHTML` without `esc()` | wrap with `esc()` or use `.textContent` |
 | JSON column change not saved | mutated nested dict/list in place | rebuild + reassign, or `sql_update().values()` |
 | Other requests roll predictable dice | `random.seed()` on global RNG in a handler | local `random.Random` or save/restore state |
