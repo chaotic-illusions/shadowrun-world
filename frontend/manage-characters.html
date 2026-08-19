@@ -94,7 +94,7 @@
           <!-- NPC archetype: full list, populated from /catalog/rules contact_archetypes -- see
                loadContactArchetypes() -- so it stays in lockstep with the chargen contact list.
                No free-text "Custom" option -- new archetypes go through Admin Control > Archetypes. -->
-          <select id="f-archetype"></select>
+          <select id="f-archetype" onchange="onNpcArchetypeChange()"></select>
         </div>
       </div>
       <div class="grid3 mb-14">
@@ -369,16 +369,29 @@ const CONNECTION_TIPS = [
 // the chargen contact list (see character-builder.html) so both surfaces stay in lockstep.
 let CONTACT_ARCHETYPES = {};
 let PREDEFINED_ARCHETYPES = [];   // flattened, for membership checks
+let ARCHETYPE_STARTER_SKILLS = {};   // archetype name -> suggested contact_skills, from /catalog/rules
 
 async function loadContactArchetypes() {
   const r = await apiFetch('/catalog/rules').catch(() => null);
   const rules = (r && r.ok) ? await r.json() : null;
   CONTACT_ARCHETYPES = (rules && rules.contact_archetypes) || {};
   PREDEFINED_ARCHETYPES = Object.values(CONTACT_ARCHETYPES).flat();
+  ARCHETYPE_STARTER_SKILLS = (rules && rules.archetype_starter_skills) || {};
   const sel = document.getElementById('f-archetype');
   sel.innerHTML = Object.entries(CONTACT_ARCHETYPES).map(([group, names]) =>
     `<optgroup label="${esc(group)}">${names.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</optgroup>`
   ).join('');
+}
+
+// New NPC + still-blank skills field + archetype has a starter template -> pre-fill it as a
+// starting point. Never overwrites skills the GM has already typed, and never touches an
+// existing NPC's skills just because its archetype changed.
+function onNpcArchetypeChange() {
+  if (editingId) return;
+  const skillsEl = document.getElementById('f-contact_skills');
+  if (skillsEl.value.trim()) return;
+  const starter = ARCHETYPE_STARTER_SKILLS[document.getElementById('f-archetype').value];
+  if (starter && starter.length) skillsEl.value = starter.join('\n');
 }
 
 const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
