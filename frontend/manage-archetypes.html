@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archetypes | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    .arc-wrap { max-width: 820px; }
+    .arc-box { border:1px solid #1a2a1a; background:#0d0d0d; padding:18px 20px; margin-bottom:18px; }
+    .arc-box h3 { margin:0 0 12px; color:var(--amber); letter-spacing:1px; font-size:var(--fs-xl); text-transform:uppercase; }
+    .arc-box p.hint { color:var(--text-dim); font-size:var(--fs-md); margin:0 0 14px; line-height:1.5; }
+    .arc-form { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+    .arc-form .field { display:flex; flex-direction:column; gap:5px; }
+    .arc-form label { color:var(--text-dim); font-size:var(--fs-sm); letter-spacing:1px; text-transform:uppercase; }
+    .arc-form input, .arc-form select { min-width:220px; font-size:var(--fs-lg); }
+    .arc-group { margin-bottom:16px; }
+    .arc-group h4 { margin:0 0 8px; color:var(--cyan); font-size:var(--fs-lg); letter-spacing:1px; }
+    .arc-chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .arc-chip { display:inline-flex; align-items:center; gap:7px; border:1px solid #1a2a1a; background:#111; color:var(--text); padding:5px 6px 5px 12px; font-size:var(--fs-md); border-radius:2px; }
+    .arc-chip__del { background:none; border:none; color:var(--red); cursor:pointer; font-size:var(--fs-md); line-height:1; padding:2px 5px; }
+    .arc-chip__del:hover { color:#ff6666; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+    <a href="matrix-designer.html" class="gm-only">Matrix Designer</a>
+  </nav>
+</header>
+
+<main class="arc-wrap">
+  <div class="page-title">&gt;&gt; Archetype Control <em class="sep">//</em> Contact &amp; NPC Archetypes</div>
+  <div class="page-sub" style="color:var(--amber)">GM ONLY <span class="text-dim">&gt;&gt; the shared archetype pool used by chargen contacts/followers and the NPC registry</span></div>
+
+  <div id="globalAlert" class="alert"></div>
+
+  <div id="arcNotGm" class="empty-state" style="display:none;text-align:center;padding:26px 8px">GM only.</div>
+
+  <div id="arcMain" style="display:none">
+    <div class="arc-box">
+      <h3>Add Archetype</h3>
+      <div class="arc-form">
+        <div class="field">
+          <label for="arcName">Archetype</label>
+          <input type="text" id="arcName" maxlength="100">
+        </div>
+        <div class="field">
+          <label for="arcGroup">Group</label>
+          <select id="arcGroup"></select>
+        </div>
+        <button type="button" class="btn" onclick="addArchetype()">Add</button>
+      </div>
+    </div>
+
+    <div class="arc-box">
+      <h3>Current Catalog</h3>
+      <p class="hint" id="arcCount"></p>
+      <div id="arcGroups"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+function $(id) { return document.getElementById(id); }
+function alertMsg(msg, isErr) { showAlert($('globalAlert'), msg, !!isErr); }
+
+let ARCHETYPES = {};
+
+function render() {
+  const groups = Object.keys(ARCHETYPES);
+  const total = Object.values(ARCHETYPES).reduce((n, list) => n + list.length, 0);
+  $('arcCount').textContent = `${total} archetypes across ${groups.length} groups.`;
+  $('arcGroups').innerHTML = groups.map(g => `
+    <div class="arc-group">
+      <h4>${esc(g)}</h4>
+      <div class="arc-chips">${ARCHETYPES[g].map(a => `<span class="arc-chip">${esc(a)}<button type="button" class="arc-chip__del" title="Delete ${esc(a)}" data-del="${esc(a)}">&#10005;</button></span>`).join('')}</div>
+    </div>
+  `).join('') || `<p class="hint">No archetypes loaded.</p>`;
+  $('arcGroups').querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteArchetype(btn.dataset.del));
+  $('arcGroup').innerHTML = groups.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+}
+
+async function loadArchetypes() {
+  const r = await apiFetch('/catalog/rules').catch(() => null);
+  const rules = (r && r.ok) ? await r.json() : null;
+  ARCHETYPES = (rules && rules.contact_archetypes) || {};
+  render();
+}
+
+async function addArchetype() {
+  const name = $('arcName').value.trim();
+  const group = $('arcGroup').value;
+  if (!name) { alertMsg('Name is required.', true); return; }
+  try {
+    const r = await apiFetch('/catalog/contact-archetypes', {
+      method: 'POST',
+      body: JSON.stringify({ name, group }),
+    });
+    if (!r.ok) await apiThrow(r);
+    $('arcName').value = '';
+    await loadArchetypes();
+    alertMsg(`>> ADDED // "${name}" filed under ${group}.`, false);
+  } catch (e) {
+    alertMsg(`Could not add archetype: ${esc(e.message || String(e))}`, true);
+  }
+}
+
+async function deleteArchetype(name) {
+  if (!confirm(`Delete "${name}"? This removes it from chargen and the NPC registry. Existing characters that already have it keep it.`)) return;
+  try {
+    const r = await apiFetch(`/catalog/contact-archetypes/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!r.ok) await apiThrow(r);
+    await loadArchetypes();
+    alertMsg(`>> DELETED // "${name}" removed.`, false);
+  } catch (e) {
+    alertMsg(`Could not delete archetype: ${esc(e.message || String(e))}`, true);
+  }
+}
+
+bootstrapAuth().then(ctx => {
+  if (!ctx) return;
+  if (!isAdmin()) { $('arcNotGm').style.display = ''; return; }
+  $('arcMain').style.display = '';
+  loadArchetypes();
+});
+</script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
+</body>
+</html>
