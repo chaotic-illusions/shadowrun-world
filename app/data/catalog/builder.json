@@ -860,32 +860,93 @@
     "Tunnel Talk",
     "Lingua Franca"
   ],
-  "contact_archetypes": [
-    "Fixer",
-    "Mr. Johnson",
-    "Decker",
-    "Street Doc",
-    "Talismonger",
-    "Fence",
-    "Weapons Dealer",
-    "Bartender",
-    "Beat Cop",
-    "Lone Star Officer",
-    "Corporate Suit",
-    "Rigger",
-    "Smuggler",
-    "Gang Member",
-    "Squatter",
-    "Shaman",
-    "Mage",
-    "Reporter",
-    "Simsense Star",
-    "Mafia Soldier",
-    "Yakuza",
-    "Mercenary",
-    "Talislegger",
-    "Dock Worker"
-  ],
+  "contact_archetypes": {
+    "Hired Muscle": [
+      "Bodyguard",
+      "Bounty Hunter",
+      "Former SpecOps",
+      "Hitman",
+      "Mercenary",
+      "Street Rigger"
+    ],
+    "Awakened": [
+      "Corporate Mage",
+      "Street Mage",
+      "Street Shaman",
+      "Talismonger"
+    ],
+    "Matrix & Tech": [
+      "Corporate Decker",
+      "Data Courier",
+      "Street Decker",
+      "Technician"
+    ],
+    "Law Enforcement & Investigation": [
+      "Detective",
+      "Private Investigator",
+      "Street Cop"
+    ],
+    "Street & Underworld": [
+      "Arms Dealer",
+      "Bouncer",
+      "Chop Shop Owner",
+      "Fence",
+      "Fixer",
+      "Gang Boss",
+      "Gang Member",
+      "Info Broker",
+      "Mafia Boss",
+      "Mr. Johnson",
+      "Pawnbroker",
+      "Smuggler",
+      "Squatter",
+      "Yakuza Boss"
+    ],
+    "Corporate": [
+      "Company Man",
+      "Corporate Executive",
+      "Corporate Recruiter",
+      "Corporate Secretary",
+      "Corporate Security Guard",
+      "Corporate Wage Slave",
+      "Former Company Man",
+      "Former Wage Mage"
+    ],
+    "Tribal": [
+      "Tribal Chief",
+      "Tribal Shaman",
+      "Tribal Warrior",
+      "Tribesman"
+    ],
+    "Politics & Activism": [
+      "City Official",
+      "Humanis Policlub Member",
+      "Metahuman Rights Activist",
+      "Politician"
+    ],
+    "Medical": [
+      "Coroner",
+      "Doctor",
+      "Medic",
+      "Nurse",
+      "Pharmacist",
+      "Street Doc"
+    ],
+    "Media & Academia": [
+      "Journalist",
+      "Media Producer",
+      "Professor"
+    ],
+    "Trade & Services": [
+      "Antiquities Dealer",
+      "Barber",
+      "Bartender",
+      "Car Salesman",
+      "Club Owner",
+      "Handyman",
+      "Mechanic"
+    ]
+  },
   "archetypes": {
     "streetsam": {
       "name": "Street Samurai",

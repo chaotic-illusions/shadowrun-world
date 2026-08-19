@@ -216,6 +216,7 @@ function _buildAdminNavGroup() {
   const childDefs = [
     { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
     { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },
+    { href: 'manage-archetypes.html',  label: 'Archetypes',  gmOnly: true },
     { href: 'manage-tokens.html',      label: 'Tokens' },
   ];
 
