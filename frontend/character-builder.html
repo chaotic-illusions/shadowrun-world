@@ -327,15 +327,28 @@ const GEAR_KEYS = SHOP_DEFS.map(d => d.k);
 // -- Reference data (loaded from /catalog) ------------------------------------
 let RULES = null;          // /catalog/rules bundle
 let PR, META, SKILLS, TOTEMS, KITS, MAGIC_RULES, CHARGEN, FOCI = [];
-let CONTACT_ARCHETYPES = [];
+let CONTACT_ARCHETYPES = {};   // group -> [archetype names], from RULES.contact_archetypes
+let CONTACT_ARCHETYPE_LIST = [];   // flattened, for membership checks
 // Premium contact types: Gang/Tribe cost 50,000 (free-text names the gang/tribe); Follower costs
 // 200,000 and must be one of a fixed archetype set, each usable at most once.
 const CONTACT_TYPES = ["Contact", "Buddy", "Gang", "Tribe", "Follower"];
-const FOLLOWER_ARCHETYPES = ["Bodyguard", "Company Man", "Decker", "Detective", "Gang Member", "Mage", "Mercenary", "Rigger", "Shaman", "Street Samurai", "Tribesman"];
 const CONTACT_TYPE_COST = { Gang: 50000, Tribe: 50000, Follower: 200000 };
 // PC archetypes offered at chargen -- mirrors the runner options on manage-characters so new
 // builds line up with the world-state cards. "Custom" reveals a free-text field.
 const PC_ARCHETYPES = ["Street Samurai", "Decker", "Rigger", "Mage", "Shaman", "Adept"];
+// Followers draw from the same CONTACT_ARCHETYPES pool as regular contacts/buddies -- see
+// contactRows() -- the only Follower-specific rule is that each archetype can be used once.
+// Renders <optgroup> blocks (grouped/ordered per CONTACT_ARCHETYPES) for a contact archetype
+// <select>. isTaken(name), if given, flags an option disabled unless it's the current selection.
+function archetypeOptgroupsHTML(selected, isTaken) {
+  return Object.entries(CONTACT_ARCHETYPES).map(([group, names]) => {
+    const opts = names.map(a => {
+      const taken = isTaken ? (isTaken(a) && selected !== a) : false;
+      return `<option value="${esc(a)}" ${selected===a?"selected":""} ${taken?"disabled":""}>${esc(a)}${taken?" (taken)":""}</option>`;
+    }).join("");
+    return `<optgroup label="${esc(group)}">${opts}</optgroup>`;
+  }).join("");
+}
 let MY_DRAFTS = [];
 let LIFESTYLES = LIFESTYLE_TIERS.slice();
 const CAT = {};            // catalog name -> item list
@@ -1508,7 +1521,6 @@ function stepResources() {
   }
   const moreNote = (!grouped && items.length > 250) ? `<p class="cbx-help">Showing first 250 of ${items.length} -- refine the search.</p>` : "";
 
-  const archOpts = [...CONTACT_ARCHETYPES].sort((a,b) => a.localeCompare(b));
   const costs = contactCosts();
   const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
@@ -1516,14 +1528,12 @@ function stepResources() {
     const typeSel = `<select class="cbx-mini" style="width:auto" data-ctype="${i}">${CONTACT_TYPES.map(tp => `<option value="${esc(tp)}" ${t===tp?"selected":""}>${esc(tp)}</option>`).join("")}</select>`;
     let mid = "";
     if (t === "Follower") {
-      const opts = FOLLOWER_ARCHETYPES.map(a => {
-        const taken = usedFollowerArch.has(a) && c.archetype !== a;
-        return `<option value="${esc(a)}" ${c.archetype===a?"selected":""} ${taken?"disabled":""}>${esc(a)}${taken?" (taken)":""}</option>`;
-      }).join("");
-      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- follower --</option>${opts}</select>`;
+      const customOpt = (c.archetype && !CONTACT_ARCHETYPE_LIST.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
+      const opts = archetypeOptgroupsHTML(c.archetype, a => usedFollowerArch.has(a));
+      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- follower --</option>${customOpt}${opts}</select>`;
     } else if (t !== "Gang" && t !== "Tribe") {
-      const customOpt = (c.archetype && !archOpts.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
-      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- archetype --</option>${customOpt}${archOpts.map(a => `<option value="${esc(a)}" ${c.archetype===a?"selected":""}>${esc(a)}</option>`).join("")}</select>`;
+      const customOpt = (c.archetype && !CONTACT_ARCHETYPE_LIST.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
+      mid = `<select class="cbx-mini" style="width:auto" data-carch="${i}"><option value="">-- archetype --</option>${customOpt}${archetypeOptgroupsHTML(c.archetype, null)}</select>`;
     }
     const ph = t === "Gang" ? "gang name" : t === "Tribe" ? "tribe name" : "handle";
     return `<div class="cbx-line">
@@ -1935,7 +1945,7 @@ function wire() {
     const c = state.contacts[Number(el.dataset.ctype)];
     c.type = el.value;
     if (c.type === "Gang" || c.type === "Tribe") c.archetype = "";
-    else if (c.type === "Follower" && !FOLLOWER_ARCHETYPES.includes(c.archetype)) c.archetype = "";
+    else if (c.type === "Follower" && !CONTACT_ARCHETYPE_LIST.includes(c.archetype)) c.archetype = "";
     save(); render();
   });
   root.querySelectorAll("[data-delcontact]").forEach(el => el.onclick = () => { state.contacts.splice(Number(el.dataset.delcontact),1); save(); render(); });
@@ -2148,7 +2158,8 @@ async function loadData() {
   PR = RULES.priority; META = RULES.metatypes; SKILLS = RULES.skills; TOTEMS = RULES.totems;
   KITS = RULES.archetypes; MAGIC_RULES = RULES.magic_rules; CHARGEN = RULES.chargen || {};
   FOCI = RULES.foci || [];
-  CONTACT_ARCHETYPES = RULES.contact_archetypes || [];
+  CONTACT_ARCHETYPES = RULES.contact_archetypes || {};
+  CONTACT_ARCHETYPE_LIST = Object.values(CONTACT_ARCHETYPES).flat();
   LIFESTYLES = (CHARGEN.lifestyles || []).map(l => l.name);
   if (!LIFESTYLES.length) LIFESTYLES = LIFESTYLE_TIERS.slice();
   await loadCatalogs();

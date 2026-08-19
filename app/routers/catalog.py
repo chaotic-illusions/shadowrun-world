@@ -11,9 +11,11 @@ from app.auth.dependencies import get_admin_token
 from app.data import catalog as cat
 from app.dependencies import get_db
 from app.schemas.catalog import (
+    ArchetypeStarterSkillsUpdate,
     BookInfo,
     BookSettingsRead,
     BookSettingsUpdate,
+    ContactArchetypeCreate,
     CoreBook,
     CyberwareCreate,
     FanBook,
@@ -169,6 +171,54 @@ async def add_cyberware(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return {"item": item, "count": len(cat.get_catalog("cyberware"))}
+
+
+@router.post("/contact-archetypes", status_code=201)
+async def add_contact_archetype(
+    body: ContactArchetypeCreate,
+    _: str = Depends(get_admin_token),
+):
+    """Append one archetype to an existing group in the shared contact/NPC
+    archetype catalog (admin data-entry). Returns the stored item and the
+    new total archetype count across all groups."""
+    try:
+        item = cat.append_contact_archetype(body.name, body.group)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    total = sum(len(v) for v in cat.get_rules().get("contact_archetypes", {}).values())
+    return {"item": item, "count": total}
+
+
+@router.delete("/contact-archetypes/{name}")
+async def remove_contact_archetype(
+    name: str,
+    _: str = Depends(get_admin_token),
+):
+    """Remove one archetype from the shared contact/NPC archetype catalog
+    (admin data-entry). Returns the removed item and the new total count."""
+    try:
+        item = cat.remove_contact_archetype(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    total = sum(len(v) for v in cat.get_rules().get("contact_archetypes", {}).values())
+    return {"item": item, "count": total}
+
+
+@router.put("/contact-archetypes/{name}/starter-skills")
+async def set_contact_archetype_starter_skills(
+    name: str,
+    body: ArchetypeStarterSkillsUpdate,
+    _: str = Depends(get_admin_token),
+):
+    """Replace the suggested starter-skill list for one archetype in the shared
+    contact/NPC archetype catalog (admin data-entry). The NPC edit form uses
+    this list to pre-fill a new NPC's contact skills when the archetype is
+    picked; it does not affect existing NPCs. Returns the stored item."""
+    try:
+        item = cat.set_archetype_starter_skills(name, body.skills)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"item": item}
 
 
 @router.get("/{catalog_name}")

@@ -120,6 +120,106 @@ def append_cyberware(item: dict) -> dict:
     return item
 
 
+_BUILDER_FILE = _DATA_DIR / "builder.json"
+_BUILDER_WRITE_LOCK = threading.Lock()
+
+
+def append_contact_archetype(name: str, group: str) -> dict:
+    """Append one archetype to the given group of the committed contact/NPC
+    archetype catalog (``builder.json``'s ``contact_archetypes``) and drop the
+    load cache so it is visible immediately (no restart).
+
+    ``group`` must already exist. Raises ``ValueError`` if it doesn't, or if an
+    archetype with the same (case-insensitive) name already exists in any group.
+    Inserted alphabetically within its group. The write is serialized under a
+    process lock and re-reads the file fresh inside the critical section, so
+    concurrent appends don't lose each other (single-process dev/admin tool --
+    not safe across multiple worker processes or an ephemeral fs).
+    """
+    name = name.strip()
+    lowered = name.lower()
+    with _BUILDER_WRITE_LOCK:
+        with _BUILDER_FILE.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+        archetypes: dict = data.setdefault("contact_archetypes", {})
+        if group not in archetypes:
+            raise ValueError(f"Unknown archetype group: {group!r}")
+        for existing_group, names in archetypes.items():
+            if any(n.strip().lower() == lowered for n in names):
+                raise ValueError(f"Archetype {name!r} already exists (in {existing_group!r})")
+        bucket = archetypes[group]
+        bucket.append(name)
+        bucket.sort(key=str.lower)
+        with _BUILDER_FILE.open("w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        _load.cache_clear()
+    return {"name": name, "group": group}
+
+
+def remove_contact_archetype(name: str) -> dict:
+    """Remove one archetype (case-insensitive match, any group) from the committed
+    contact/NPC archetype catalog, drop its starter-skill template if it has one,
+    and drop the load cache so it is visible immediately (no restart). Raises
+    ``ValueError`` if no archetype matches.
+
+    Same locking/re-read/rewrite shape as :func:`append_contact_archetype`.
+    """
+    lowered = name.strip().lower()
+    with _BUILDER_WRITE_LOCK:
+        with _BUILDER_FILE.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+        archetypes: dict = data.setdefault("contact_archetypes", {})
+        for group, names in archetypes.items():
+            match = next((n for n in names if n.strip().lower() == lowered), None)
+            if match is not None:
+                names.remove(match)
+                starter: dict = data.setdefault("archetype_starter_skills", {})
+                starter.pop(match, None)
+                with _BUILDER_FILE.open("w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=2, ensure_ascii=False)
+                    fh.write("\n")
+                _load.cache_clear()
+                return {"name": match, "group": group}
+        raise ValueError(f"Archetype {name!r} not found")
+
+
+def set_archetype_starter_skills(name: str, skills: list[str]) -> dict:
+    """Replace the suggested starter-skill list for one contact/NPC archetype
+    (``builder.json``'s ``archetype_starter_skills``) and drop the load cache
+    so it is visible immediately (no restart).
+
+    These are convenience defaults only -- the NPC edit form uses them to
+    pre-fill a new NPC's ``contact_skills`` when its archetype is picked, but
+    each NPC's actual skills remain freeform and per-NPC after that. Raises
+    ``ValueError`` if ``name`` isn't a known archetype (any group).
+
+    Same locking/re-read/rewrite shape as :func:`append_contact_archetype`.
+    """
+    lowered = name.strip().lower()
+    skills = [s.strip() for s in skills if s.strip()]
+    with _BUILDER_WRITE_LOCK:
+        with _BUILDER_FILE.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+        archetypes: dict = data.setdefault("contact_archetypes", {})
+        match = next(
+            (n for names in archetypes.values() for n in names if n.strip().lower() == lowered),
+            None,
+        )
+        if match is None:
+            raise ValueError(f"Archetype {name!r} not found")
+        starter: dict = data.setdefault("archetype_starter_skills", {})
+        if skills:
+            starter[match] = skills
+        else:
+            starter.pop(match, None)
+        with _BUILDER_FILE.open("w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        _load.cache_clear()
+    return {"name": match, "skills": skills}
+
+
 def resolve_src_codes(enabled: list[str] | None) -> set[str]:
     """Expand a campaign's enabled toggles into the set of allowed ``src`` codes.
 

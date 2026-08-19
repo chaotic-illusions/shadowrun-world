@@ -91,48 +91,10 @@
           <div id="f-archetype-pc-custom-wrap" style="display:none;margin-top:6px">
             <input type="text" id="f-archetype-pc-custom" placeholder="Enter archetype..." maxlength="100" oninput="onPCArchetypeChange()">
           </div>
-          <!-- NPC archetype: full list -->
-          <select id="f-archetype" onchange="onArchetypeChange()">
-            <optgroup label="-- Runners --">
-              <option value="Street Samurai">Street Samurai</option>
-              <option value="Decker">Decker</option>
-              <option value="Mage">Mage</option>
-              <option value="Shaman">Shaman</option>
-              <option value="Rigger">Rigger</option>
-              <option value="Face">Face</option>
-              <option value="Adept">Adept</option>
-              <option value="Weapons Specialist">Weapons Specialist</option>
-              <option value="Infiltrator">Infiltrator</option>
-              <option value="Combat Mage">Combat Mage</option>
-            </optgroup>
-            <optgroup label="-- Street / Underworld --">
-              <option value="Fixer">Fixer</option>
-              <option value="Ganger">Ganger</option>
-              <option value="Gang Boss">Gang Boss</option>
-              <option value="Mercenary">Mercenary</option>
-              <option value="Bodyguard">Bodyguard</option>
-              <option value="Assassin">Assassin</option>
-              <option value="Smuggler">Smuggler</option>
-              <option value="Bounty Hunter">Bounty Hunter</option>
-              <option value="Street Doc">Street Doc</option>
-              <option value="Tribesman">Tribesman</option>
-            </optgroup>
-            <optgroup label="-- Corporate / Authority --">
-              <option value="Corporate Security">Corporate Security</option>
-              <option value="Corporate Executive">Corporate Executive</option>
-              <option value="Company Man">Company Man</option>
-              <option value="Wage Slave">Wage Slave</option>
-              <option value="Mr. Johnson">Mr. Johnson</option>
-              <option value="Detective">Detective</option>
-              <option value="Beat Cop">Beat Cop</option>
-            </optgroup>
-            <optgroup label="-- Other --">
-              <option value="Custom">Custom...</option>
-            </optgroup>
-          </select>
-          <div id="f-archetype-custom-wrap" style="display:none;margin-top:6px">
-            <input type="text" id="f-archetype-custom" placeholder="Enter archetype..." maxlength="100">
-          </div>
+          <!-- NPC archetype: full list, populated from /catalog/rules contact_archetypes -- see
+               loadContactArchetypes() -- so it stays in lockstep with the chargen contact list.
+               No free-text "Custom" option -- new archetypes go through Admin Control > Archetypes. -->
+          <select id="f-archetype"></select>
         </div>
       </div>
       <div class="grid3 mb-14">
@@ -403,11 +365,21 @@ const CONNECTION_TIPS = [
   'Global',
 ];
 
-const PREDEFINED_ARCHETYPES = [
-  'Street Samurai','Decker','Mage','Shaman','Rigger','Face','Adept','Weapons Specialist','Infiltrator','Combat Mage',
-  'Fixer','Ganger','Gang Boss','Mercenary','Bodyguard','Assassin','Smuggler','Bounty Hunter','Street Doc','Tribesman',
-  'Corporate Security','Corporate Executive','Company Man','Wage Slave','Mr. Johnson','Detective','Beat Cop',
-];
+// NPC archetype catalog: group -> [names], from /catalog/rules contact_archetypes. Shared with
+// the chargen contact list (see character-builder.html) so both surfaces stay in lockstep.
+let CONTACT_ARCHETYPES = {};
+let PREDEFINED_ARCHETYPES = [];   // flattened, for membership checks
+
+async function loadContactArchetypes() {
+  const r = await apiFetch('/catalog/rules').catch(() => null);
+  const rules = (r && r.ok) ? await r.json() : null;
+  CONTACT_ARCHETYPES = (rules && rules.contact_archetypes) || {};
+  PREDEFINED_ARCHETYPES = Object.values(CONTACT_ARCHETYPES).flat();
+  const sel = document.getElementById('f-archetype');
+  sel.innerHTML = Object.entries(CONTACT_ARCHETYPES).map(([group, names]) =>
+    `<optgroup label="${esc(group)}">${names.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</optgroup>`
+  ).join('');
+}
 
 const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
 const PC_SKILL_KEYS = ['computer', 'software', 'matrix', 'computer_br'];
@@ -421,11 +393,6 @@ function titleOrgCell(c) {
   if (!title && !org) return '--';
   if (!title) return org;
   return `${title}, ${org}`;
-}
-
-function onArchetypeChange() {
-  const val = document.getElementById('f-archetype').value;
-  document.getElementById('f-archetype-custom-wrap').style.display = val === 'Custom' ? '' : 'none';
 }
 
 // PC archetype picker: copies selection into the hidden title field
@@ -830,15 +797,13 @@ function openModal(id) {
       document.getElementById('f-title').value = PC_ARCHETYPES[0];
     }
   } else {
-    if (!archVal || PREDEFINED_ARCHETYPES.includes(archVal)) {
-      document.getElementById('f-archetype').value = archVal;
-      document.getElementById('f-archetype-custom').value = '';
-      document.getElementById('f-archetype-custom-wrap').style.display = 'none';
-    } else {
-      document.getElementById('f-archetype').value = 'Custom';
-      document.getElementById('f-archetype-custom').value = archVal;
-      document.getElementById('f-archetype-custom-wrap').style.display = '';
+    const sel = document.getElementById('f-archetype');
+    // Legacy archetype no longer in the catalog (e.g. since deleted via Admin Control) --
+    // keep it visible/selected instead of silently swapping it out from under the GM.
+    if (archVal && !Array.from(sel.options).some(o => o.value === archVal)) {
+      sel.insertAdjacentHTML('afterbegin', `<option value="${esc(archVal)}">${esc(archVal)}</option>`);
     }
+    sel.value = archVal;
   }
   document.getElementById('f-race').value          = ch?.race || 'Human';
   document.getElementById('f-gender').value        = ch?.gender || '';
@@ -925,10 +890,7 @@ async function saveChar() {
       ? (document.getElementById('f-archetype-pc-custom').value.trim() || null)
       : (pcSel || null);
   } else {
-    const npcSel = document.getElementById('f-archetype').value;
-    archetypeVal = npcSel === 'Custom'
-      ? (document.getElementById('f-archetype-custom').value.trim() || null)
-      : (npcSel || null);
+    archetypeVal = document.getElementById('f-archetype').value || null;
   }
   const effectiveTitle = isPC ? (archetypeVal || null) : (title || null);
   const payload = (editingId && !isAdminMode())
@@ -1198,6 +1160,7 @@ bootstrapAuth().then(u => {
       document.getElementById('filterType').value = '';
     }
     if (isAdminMode()) document.getElementById('newNpcBtn').style.display = '';
+    loadContactArchetypes();
     loadChars();
     startPolling(loadChars);
   }

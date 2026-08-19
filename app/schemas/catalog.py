@@ -129,3 +129,39 @@ class CyberwareCreate(BaseModel):
         if self.pg is not None:
             item["pg"] = self.pg
         return item
+
+
+class ContactArchetypeCreate(BaseModel):
+    """One contact/NPC archetype to append to an existing group in the shared
+    ``contact_archetypes`` catalog (admin data-entry form)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    group: str
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("name is required")
+        return value
+
+    @field_validator("group")
+    @classmethod
+    def _group(cls, value: str) -> str:
+        value = value.strip()
+        known = cat.get_rules().get("contact_archetypes", {})
+        if value not in known:
+            raise ValueError(f"group must be one of: {', '.join(sorted(known))}")
+        return value
+
+
+class ArchetypeStarterSkillsUpdate(BaseModel):
+    """Replace the suggested starter-skill list for one contact/NPC archetype
+    (admin data-entry form). An empty list clears the template."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skills: list[str] = []
