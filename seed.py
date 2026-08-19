@@ -96,6 +96,11 @@ def seed(base_url, seed_file, admin_token=None, upsert_rtgs_only=False):
 def _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids):
     upsert_rtgs(client, data, rtg_ids)
 
+    # Archetype -> suggested contact-skill list (GM-editable catalog; see /catalog/rules).
+    # NPCs below already carry hand-written, flavorful contact_skills, so this only ever
+    # fills in a sane default for an NPC entry that omits contact_skills entirely.
+    starter_skills = get_json(client, "/catalog/rules").get("archetype_starter_skills", {})
+
     print("\n[1/7] Organizations")
     for org in data.get("organizations", []):
         payload = {k: v for k, v in org.items() if k not in ("ally_names", "enemy_names")}
@@ -125,6 +130,10 @@ def _seed_data(client, data, rtg_ids, org_ids, location_ids, character_ids):
         rep_data = char.pop("reputation", None)
         org_name = char.pop("organization_name", None)
         char["organization_id"] = org_ids.get(org_name) if org_name else None
+        if not char.get("is_pc") and not char.get("contact_skills"):
+            template = starter_skills.get(char.get("archetype"))
+            if template:
+                char["contact_skills"] = list(template)
         result = post(client, "/characters/", char)
         char_id = result["id"]
         character_ids[char["name"]] = char_id

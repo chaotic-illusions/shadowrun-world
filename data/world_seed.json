@@ -2422,13 +2422,61 @@
             "background": "Ex-Lone Star officer gone corporate. Burned his badge after a black op went wrong.",
             "is_active": true,
             "notes": "Owes a favor to Mr. Johnson at Ares. Don't bring it up.",
+            "title": "Street Samurai",
+            "body": 6,
+            "quickness": 6,
+            "strength": 4,
+            "charisma": 2,
+            "intelligence": 3,
+            "willpower": 3,
+            "essence": 3.2,
+            "magic_rating": 0,
+            "nuyen": 93000,
+            "karma_pool": 1,
+            "good_karma": 0,
+            "lifestyle_level": 3,
+            "lifestyle_permanent": false,
+            "priorities": {"resources": "A", "attributes": "B", "skills": "C", "race": "D", "magic": "E"},
+            "skills": [
+                {"name": "Firearms", "attr": "Quickness", "group": "combat", "rating": 6, "conc": "Submachine Guns", "spec": ""},
+                {"name": "Armed Combat", "attr": "Strength", "group": "combat", "rating": 5, "conc": "Edged Weapons", "spec": ""},
+                {"name": "Unarmed Combat", "attr": "Strength", "group": "combat", "rating": 4, "conc": "", "spec": ""},
+                {"name": "Stealth", "attr": "Quickness", "group": "physical", "rating": 4, "conc": "Urban", "spec": ""},
+                {"name": "Athletics", "attr": "Quickness", "group": "physical", "rating": 3, "conc": "Running", "spec": ""},
+                {"name": "Etiquette", "attr": "Charisma", "group": "social", "rating": 2, "conc": "", "spec": ""}
+            ],
+            "spells": [],
+            "adept_powers": [],
+            "gear": {
+                "weapons": [
+                    {"n": "Katana", "sub": "Blade", "cost": 1000, "src": "SR2"},
+                    {"n": "Uzi III", "sub": "SMG", "cost": 600, "src": "SR2"},
+                    {"n": "Ares Predator", "sub": "Heavy Pistol", "cost": 450, "src": "SR2"}
+                ],
+                "armor": [
+                    {"n": "Armor Jacket", "sub": "worn", "cost": 900, "src": "SR2"}
+                ],
+                "cyber": [
+                    {"n": "Wired Reflexes Level 1", "sub": "bodyware", "grade": "Standard", "baseEss": 2, "baseCost": 55000, "src": "SR2", "mods": {"reaction": 2, "initDice": 1}},
+                    {"n": "Smartlink", "sub": "bodyware", "grade": "Standard", "baseEss": 0.5, "baseCost": 7000, "src": "SR2"},
+                    {"n": "Datajack", "sub": "headware", "grade": "Standard", "baseEss": 0.2, "baseCost": 1000, "src": "SR2"},
+                    {"n": "Display Link", "sub": "headware", "grade": "Standard", "baseEss": 0.1, "baseCost": 1000, "src": "SR2"}
+                ],
+                "bio": [],
+                "gear": [
+                    {"n": "Medkit", "sub": "Medical", "cost": 200, "src": "SR2"}
+                ],
+                "vehicles": [],
+                "matrix": [],
+                "foci": [],
+                "programs": []
+            },
             "reputation": {
                 "street_cred": 8,
                 "notoriety": 2,
                 "public_awareness": 0,
                 "notes": "Known in Redmond circles as reliable muscle."
-            },
-            "title": "Street Samurai"
+            }
         },
         {
             "name": "Static",
@@ -2441,13 +2489,76 @@
             "background": "Self-taught matrix runner from the Barrens. Never trusted corps.",
             "is_active": true,
             "notes": "Has a backdoor into the Lone Star dispatch grid. Valuable asset.",
+            "title": "Decker",
+            "body": 3,
+            "quickness": 2,
+            "strength": 2,
+            "charisma": 3,
+            "intelligence": 7,
+            "willpower": 5,
+            "essence": 5.3,
+            "magic_rating": 0,
+            "nuyen": 61000,
+            "karma_pool": 1,
+            "good_karma": 0,
+            "lifestyle_level": 2,
+            "lifestyle_permanent": false,
+            "priorities": {"resources": "A", "skills": "B", "attributes": "C", "race": "D", "magic": "E"},
+            "computer_skill_enabled": true,
+            "computer_skill_rating": 6,
+            "software_skill_enabled": true,
+            "software_skill_rating": 6,
+            "matrix_skill_enabled": true,
+            "matrix_skill_rating": 8,
+            "computer_br_skill_enabled": true,
+            "computer_br_skill_rating": 4,
+            "math_spu_enabled": false,
+            "skills": [
+                {"name": "Computer", "attr": "Intelligence", "group": "technical", "rating": 6, "conc": "Software", "spec": "Matrix Programming"},
+                {"name": "Computer B/R", "attr": "Intelligence", "group": "br", "rating": 4, "conc": "", "spec": ""},
+                {"name": "Electronics", "attr": "Intelligence", "group": "technical", "rating": 5, "conc": "Electronic Warfare", "spec": ""},
+                {"name": "Firearms", "attr": "Quickness", "group": "combat", "rating": 3, "conc": "Pistols", "spec": ""},
+                {"name": "Stealth", "attr": "Quickness", "group": "physical", "rating": 4, "conc": "Urban", "spec": ""},
+                {"name": "Negotiation", "attr": "Charisma", "group": "social", "rating": 3, "conc": "", "spec": ""}
+            ],
+            "spells": [],
+            "adept_powers": [],
+            "gear": {
+                "weapons": [
+                    {"n": "Ares Predator", "sub": "Heavy Pistol", "cost": 450, "src": "SR2"}
+                ],
+                "armor": [
+                    {"n": "Armor Vest", "sub": "worn", "cost": 200, "src": "SR2"}
+                ],
+                "cyber": [
+                    {"n": "Datajack", "sub": "headware", "grade": "Standard", "baseEss": 0.2, "baseCost": 1000, "src": "SR2"},
+                    {"n": "Encephalon", "sub": "headware", "grade": "Standard", "rated": true, "maxRating": 4, "rating": 1, "essUnit": 0.5, "costUnit": 15000, "essTbl": [0.5, 0.75, 1.5, 1.75], "costTbl": [15000, 40000, 75000, 115000], "src": "SHADOW"}
+                ],
+                "bio": [],
+                "gear": [
+                    {"n": "Pocket Secretary", "sub": "Utility", "cost": 500, "src": "SR2"},
+                    {"n": "Medkit", "sub": "Medical", "cost": 200, "src": "SR2"}
+                ],
+                "vehicles": [],
+                "matrix": [
+                    {"n": "Fuchi Cyber-6", "sub": "Cyberdeck", "cost": 334500, "src": "SR2", "mpcp": 8}
+                ],
+                "foci": [],
+                "programs": [
+                    {"prog": "attack", "rating": 6, "dmg": "M"},
+                    {"prog": "sleaze", "rating": 5},
+                    {"prog": "analyze", "rating": 5},
+                    {"prog": "deception", "rating": 4},
+                    {"prog": "medic", "rating": 4},
+                    {"prog": "browse", "rating": 5}
+                ]
+            },
             "reputation": {
                 "street_cred": 6,
                 "notoriety": 1,
                 "public_awareness": 0,
                 "notes": "Ghost on the grid. Hard to trace."
-            },
-            "title": "Decker"
+            }
         },
         {
             "name": "Fingers",
@@ -2881,6 +2992,7 @@
             "objective": "Extract Dr. Yolanda Vega from Aztechnology Research Campus before she's transferred.",
             "result": "Dr. Vega extracted successfully. Static took a light wound. Facility placed on alert.",
             "outcome": "success",
+            "employer": "Santos",
             "payout": "60,000 nuyen split evenly. 5 karma each.",
             "casualties": "Two Aztechnology security guards KO'd. No runner deaths.",
             "outcome_tags": [
