@@ -67,7 +67,7 @@
           <label for="arcGroup">Group</label>
           <select id="arcGroup"></select>
         </div>
-        <button type="button" class="btn" onclick="addArchetype()">Add</button>
+        <button type="button" class="btn btn-green" onclick="addArchetype()">Add</button>
       </div>
     </div>
 
@@ -116,7 +116,7 @@ function skillsEditorHTML(name) {
       <textarea id="skillsTextarea-${id}" placeholder="One skill per line">${esc(skills)}</textarea>
       <div class="actions mt-10">
         <button type="button" class="btn btn-green" style="font-size:0.65rem" onclick="saveStarterSkills(${JSON.stringify(name)})">Save</button>
-        <button type="button" class="btn" style="font-size:0.65rem" onclick="editingArch=null;render()">Cancel</button>
+        <button type="button" class="btn btn-red" style="font-size:0.65rem" onclick="editingArch=null;render()">Cancel</button>
       </div>
     </div>`;
 }
