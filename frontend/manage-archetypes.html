@@ -18,9 +18,16 @@
     .arc-group { margin-bottom:16px; }
     .arc-group h4 { margin:0 0 8px; color:var(--cyan); font-size:var(--fs-lg); letter-spacing:1px; }
     .arc-chips { display:flex; flex-wrap:wrap; gap:8px; }
-    .arc-chip { display:inline-flex; align-items:center; gap:7px; border:1px solid #1a2a1a; background:#111; color:var(--text); padding:5px 6px 5px 12px; font-size:var(--fs-md); border-radius:2px; }
+    .arc-chip { display:inline-flex; align-items:center; gap:7px; border:1px solid #1a2a1a; background:#111; color:var(--text); padding:5px 6px 5px 12px; font-size:var(--fs-md); border-radius:2px; cursor:pointer; }
+    .arc-chip:hover { border-color:var(--cyan); }
     .arc-chip__del { background:none; border:none; color:var(--red); cursor:pointer; font-size:var(--fs-md); line-height:1; padding:2px 5px; }
     .arc-chip__del:hover { color:#ff6666; }
+    .arc-skills-edit { display:none; margin-top:8px; padding:12px; border:1px solid #1a2a1a; background:#111; }
+    .arc-skills-edit.open { display:block; }
+    .arc-skills-edit h5 { margin:0 0 6px; color:var(--text); font-size:var(--fs-md); letter-spacing:0.5px; }
+    .arc-skills-edit textarea { width:100%; min-height:80px; font-size:var(--fs-md); }
+    .arc-skills-edit .hint { color:var(--text-dim); font-size:var(--fs-sm); margin:4px 0 8px; }
+    .arc-skills-edit .actions { display:flex; gap:8px; }
   </style>
 </head>
 <body>
@@ -77,25 +84,65 @@ function $(id) { return document.getElementById(id); }
 function alertMsg(msg, isErr) { showAlert($('globalAlert'), msg, !!isErr); }
 
 let ARCHETYPES = {};
+let STARTER_SKILLS = {};   // archetype name -> suggested contact_skills list
+let editingArch = null;    // archetype whose starter-skills editor is open, or null
 
 function render() {
   const groups = Object.keys(ARCHETYPES);
   const total = Object.values(ARCHETYPES).reduce((n, list) => n + list.length, 0);
-  $('arcCount').textContent = `${total} archetypes across ${groups.length} groups.`;
+  $('arcCount').textContent = `${total} archetypes across ${groups.length} groups. Click an archetype to edit its starter skills -- pre-filled onto a new NPC's Contact Skills when this archetype is picked.`;
   $('arcGroups').innerHTML = groups.map(g => `
     <div class="arc-group">
       <h4>${esc(g)}</h4>
-      <div class="arc-chips">${ARCHETYPES[g].map(a => `<span class="arc-chip">${esc(a)}<button type="button" class="arc-chip__del" title="Delete ${esc(a)}" data-del="${esc(a)}">&#10005;</button></span>`).join('')}</div>
+      <div class="arc-chips">${ARCHETYPES[g].map(a => `<span class="arc-chip" data-edit="${esc(a)}">${esc(a)}${(STARTER_SKILLS[a]||[]).length ? ' <span style="color:var(--cyan)">&#9679;</span>' : ''}<button type="button" class="arc-chip__del" title="Delete ${esc(a)}" data-del="${esc(a)}">&#10005;</button></span>`).join('')}</div>
+      ${editingArch && ARCHETYPES[g].includes(editingArch) ? skillsEditorHTML(editingArch) : ''}
     </div>
   `).join('') || `<p class="hint">No archetypes loaded.</p>`;
-  $('arcGroups').querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteArchetype(btn.dataset.del));
+  $('arcGroups').querySelectorAll('[data-del]').forEach(btn => btn.onclick = (e) => { e.stopPropagation(); deleteArchetype(btn.dataset.del); });
+  $('arcGroups').querySelectorAll('[data-edit]').forEach(chip => chip.onclick = () => { editingArch = (editingArch === chip.dataset.edit) ? null : chip.dataset.edit; render(); });
   $('arcGroup').innerHTML = groups.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if (editingArch) $(`skillsTextarea-${cssId(editingArch)}`)?.focus();
+}
+
+function cssId(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function skillsEditorHTML(name) {
+  const skills = (STARTER_SKILLS[name] || []).join('\n');
+  const id = cssId(name);
+  return `
+    <div class="arc-skills-edit open">
+      <h5>Starter Skills &mdash; ${esc(name)}</h5>
+      <p class="hint">One skill/service per line. Pre-fills a new NPC's Contact Skills when this archetype is picked (only if that field is still blank) &mdash; existing NPCs are never touched.</p>
+      <textarea id="skillsTextarea-${id}" placeholder="One skill per line">${esc(skills)}</textarea>
+      <div class="actions mt-10">
+        <button type="button" class="btn btn-green" style="font-size:0.65rem" onclick="saveStarterSkills(${JSON.stringify(name)})">Save</button>
+        <button type="button" class="btn" style="font-size:0.65rem" onclick="editingArch=null;render()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveStarterSkills(name) {
+  const raw = $(`skillsTextarea-${cssId(name)}`).value;
+  const skills = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  try {
+    const r = await apiFetch(`/catalog/contact-archetypes/${encodeURIComponent(name)}/starter-skills`, {
+      method: 'PUT',
+      body: JSON.stringify({ skills }),
+    });
+    if (!r.ok) await apiThrow(r);
+    editingArch = null;
+    await loadArchetypes();
+    alertMsg(`>> SAVED // starter skills for "${name}".`, false);
+  } catch (e) {
+    alertMsg(`Could not save starter skills: ${esc(e.message || String(e))}`, true);
+  }
 }
 
 async function loadArchetypes() {
   const r = await apiFetch('/catalog/rules').catch(() => null);
   const rules = (r && r.ok) ? await r.json() : null;
   ARCHETYPES = (rules && rules.contact_archetypes) || {};
+  STARTER_SKILLS = (rules && rules.archetype_starter_skills) || {};
   render();
 }
 
@@ -122,6 +169,7 @@ async function deleteArchetype(name) {
   try {
     const r = await apiFetch(`/catalog/contact-archetypes/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (!r.ok) await apiThrow(r);
+    if (editingArch === name) editingArch = null;
     await loadArchetypes();
     alertMsg(`>> DELETED // "${name}" removed.`, false);
   } catch (e) {
