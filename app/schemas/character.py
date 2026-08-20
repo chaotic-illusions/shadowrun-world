@@ -62,6 +62,9 @@ class CharacterBase(BaseModel):
     nuyen: int = Field(default=0, ge=0)
     karma_pool: int = Field(default=1, ge=0)
     good_karma: int = Field(default=0, ge=0)
+    physical_damage: int = Field(default=0, ge=0, le=10)
+    stun_damage: int = Field(default=0, ge=0, le=10)
+    physical_overflow: int = Field(default=0, ge=0)
     lifestyle_level: Optional[int] = Field(default=None, ge=0, le=5)
     lifestyle_permanent: bool = False
     is_draft: bool = False
@@ -150,6 +153,9 @@ class CharacterUpdate(BaseModel):
     nuyen: Optional[int] = Field(default=None, ge=0)
     karma_pool: Optional[int] = Field(default=None, ge=0)
     good_karma: Optional[int] = Field(default=None, ge=0)
+    physical_damage: Optional[int] = Field(default=None, ge=0, le=10)
+    stun_damage: Optional[int] = Field(default=None, ge=0, le=10)
+    physical_overflow: Optional[int] = Field(default=None, ge=0)
     lifestyle_level: Optional[int] = Field(default=None, ge=0, le=5)
     lifestyle_permanent: Optional[bool] = None
     is_draft: Optional[bool] = None

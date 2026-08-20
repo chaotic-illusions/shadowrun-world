@@ -80,6 +80,11 @@ class Character(Base):
     nuyen: Mapped[int] = mapped_column(Integer, default=0)
     karma_pool: Mapped[int] = mapped_column(Integer, default=1)
     good_karma: Mapped[int] = mapped_column(Integer, default=0)
+    # Condition monitor: 10-box Physical/Stun tracks (boxes filled, 0-10) plus Physical Overflow
+    # (boxes filled beyond the 10th Physical box; capped client-side at the Body attribute).
+    physical_damage: Mapped[int] = mapped_column(Integer, default=0)
+    stun_damage: Mapped[int] = mapped_column(Integer, default=0)
+    physical_overflow: Mapped[int] = mapped_column(Integer, default=0)
     # Ordinal lifestyle tier (0=Street ... 5=Luxury); None until set. See LIFESTYLE_TIERS.
     lifestyle_level: Mapped[int | None] = mapped_column(Integer, default=None)
     # Lifestyle bought outright (100 months up front): never charged monthly upkeep again.
