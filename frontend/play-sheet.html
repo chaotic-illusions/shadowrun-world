@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Play Sheet | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    /* ---- layout: identity/armor row, attributes/condition row, weapons full width, then a
+       skills/vehicle column and an armor-detail/gear/cyberware/contacts/notes column ---- */
+    .ps-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start;}
+    .ps-col{display:flex;flex-direction:column;gap:16px;}
+    @media(max-width:980px){.ps-row{grid-template-columns:1fr;}}
+
+    .ps-panel{background:var(--bg-panel,#0d1512);border:1px solid var(--border-dark);}
+    .ps-sec{padding:12px 14px;border-bottom:1px solid var(--border-dark);}
+    .ps-sec:last-child{border-bottom:none;}
+    .ps-sec__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+    .ps-sec__title{font-family:var(--font-display);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-bright);}
+    .ps-sec__title::before{content:'// ';color:var(--text-dim);}
+    .sec-green{color:var(--green);} .sec-cyan{color:var(--cyan);} .sec-amber{color:var(--amber);}
+    .sec-red{color:var(--red);} .sec-violet{color:var(--violet);}
+    .ps-sec__title.sec-green::before,.ps-sec__title.sec-cyan::before,.ps-sec__title.sec-amber::before,
+    .ps-sec__title.sec-red::before,.ps-sec__title.sec-violet::before{color:inherit;opacity:.55;}
+
+    .ps-fgrid{display:grid;gap:8px 12px;}
+    .fg-3{grid-template-columns:repeat(3,1fr);} .fg-6{grid-template-columns:repeat(6,1fr);}
+    .fg-5{grid-template-columns:repeat(5,1fr);} .fg-2{grid-template-columns:repeat(2,1fr);}
+    @media(max-width:640px){.fg-6,.fg-5,.fg-3{grid-template-columns:repeat(2,1fr);}}
+    .ps-field{display:flex;flex-direction:column;gap:3px;min-width:0;}
+    .ps-field .field-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ps-ro{background:transparent;border:none;padding:2px 0;color:var(--cyan);font-size:.82rem;}
+
+    .identity-row{display:grid;grid-template-columns:1fr 80px;gap:14px;align-items:start;}
+    .karma-stack{display:flex;flex-direction:column;gap:6px;}
+    .karma-stack input{text-align:center;}
+
+    .ps-stat-list{border:1px solid var(--border-dark);}
+    .ps-stat-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 10px;
+      border-top:1px solid var(--border-dark);font-size:.76rem;}
+    .ps-stat-row:first-child{border-top:none;}
+    .ps-stat-row .k{color:var(--text-dim);} .ps-stat-row .v{color:var(--text-bright);font-variant-numeric:tabular-nums;}
+    .ps-stat-row .v.computed{color:var(--cyan);}
+    .equip-badge{color:var(--green);font-weight:700;margin-left:6px;text-shadow:var(--glow-green);}
+
+    .cond-track{margin-bottom:6px;}
+    .cond-track__label{font-size:.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);
+      margin-bottom:5px;display:flex;justify-content:space-between;}
+    .cond-track__stage.stun{color:#eecc22;} .cond-track__stage.phys{color:var(--red);}
+    .cond-boxes{display:flex;gap:3px;}
+    .cond-box{flex:1;aspect-ratio:1;max-width:32px;border:1px solid var(--border-dark);background:var(--bg-input);}
+    .cond-box.stun.is-filled{background:#eecc22;border-color:#eecc22;box-shadow:0 0 6px #eecc2288;}
+    .cond-box.phys.is-filled{background:var(--red);border-color:var(--red);box-shadow:var(--glow-red);}
+    .cond-stagemarks{display:flex;gap:3px;margin-top:3px;}
+    .cond-stagemarks span{flex:1;max-width:32px;text-align:center;font-size:.6rem;color:var(--text-dim);}
+    .dmg-select{display:flex;gap:4px;margin:6px 0 10px;}
+    .dmg-btn{flex:1;border:1px solid var(--border-dark);background:var(--bg-input);color:var(--text-dim);
+      font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;padding:6px 0;cursor:pointer;font-family:inherit;}
+    .dmg-select.mode-heal .dmg-btn:hover{border-color:var(--green);color:var(--green);}
+    .dmg-select:not(.mode-heal) .dmg-btn:hover{border-color:var(--red);color:var(--red);}
+    .cond-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:6px;}
+    .cond-overflow__label{font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;}
+    .cond-overflow__boxes{display:flex;gap:3px;}
+    .cond-overflow__boxes .cond-box{max-width:20px;cursor:pointer;}
+    .seg{display:flex;border:1px solid var(--border-dark);}
+    .seg-btn{background:var(--bg-input);color:var(--text-dim);border:none;padding:6px 12px;font-size:.62rem;
+      letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:inherit;}
+    .seg-btn+.seg-btn{border-left:1px solid var(--border-dark);}
+    .seg-btn.is-active[data-mode="damage"]{background:#2a0a0a;color:var(--red);}
+    .seg-btn.is-active[data-mode="heal"]{background:var(--green-dark);color:var(--green);}
+
+    .sk-list{border:1px solid var(--border-dark);}
+    .sk-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;border-top:1px solid var(--border-dark);}
+    .sk-row:first-child{border-top:none;}
+    .sk-row.sub{padding-left:22px;border-left:2px solid var(--cyan);}
+    .sk-row.sub.spec{border-left-color:var(--violet);}
+    .sk-name{font-size:.78rem;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .sk-row.sub .sk-name{color:var(--text);font-size:.74rem;}
+    .sk-rating{color:var(--text-bright);font-variant-numeric:tabular-nums;font-size:.8rem;flex:none;}
+    .sk-row.sub .sk-rating{color:var(--text);}
+
+    .armor-row{display:flex;gap:12px;align-items:flex-start;}
+    .armor-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:6px;
+      border-top:1px solid var(--border-dark);}
+    .armor-total__l{font-size:.66rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);}
+    .armor-total span:last-child{font-size:.82rem;color:var(--amber);font-variant-numeric:tabular-nums;}
+    .portrait-box{border:1px dashed var(--border-dark);width:180px;height:180px;flex:none;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:4px;color:var(--text-dim);font-size:.62rem;letter-spacing:1px;
+      text-transform:uppercase;text-align:center;padding:0 10px;}
+
+    table.ps-data{width:100%;border-collapse:collapse;font-size:.76rem;}
+    table.ps-data th{text-align:left;font-size:.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);
+      padding:0 8px 6px;font-weight:400;border-bottom:1px solid var(--border-dark);white-space:nowrap;}
+    table.ps-data td{padding:5px 8px;border-bottom:1px solid #101c14;color:var(--text-bright);white-space:nowrap;
+      font-variant-numeric:tabular-nums;}
+    table.ps-data tr:last-child td{border-bottom:none;}
+    table.ps-data input{width:100%;min-width:90px;}
+
+    .contact-tag{font-size:.6rem;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border:1px solid var(--border-dark);flex:none;}
+    .tag-contact{color:var(--green);border-color:var(--green-dark);}
+    .tag-buddy{color:var(--cyan);border-color:#0a3a4a;}
+    .tag-gangtribe{color:var(--amber);border-color:#4a3000;}
+    .tag-follower{color:var(--violet);border-color:#2a1a4a;}
+
+    .ps-header{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:flex-end;margin-bottom:18px;}
+    .ps-header__col{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;}
+    .ps-header__col--right{justify-content:flex-end;}
+    @media(max-width:980px){.ps-header{grid-template-columns:1fr;}}
+    .ps-name{font-family:var(--font-display);font-size:2rem;color:var(--green);text-shadow:var(--glow-green);letter-spacing:1px;line-height:1;}
+    .ps-legal{font-size:.8rem;color:var(--text-bright);margin-top:2px;}
+    .ps-nuyen-val,.ps-nuyen-input{font-family:var(--font-display);font-size:2rem;color:var(--amber);
+      text-shadow:var(--glow-amber);letter-spacing:1px;line-height:1;cursor:pointer;}
+    .ps-nuyen-input{background:var(--bg-input);border:1px solid var(--amber);padding:2px 6px;width:9ch;cursor:text;}
+    .ghost-note{font-size:.6rem;color:var(--text-dim);font-style:italic;}
+    .btn-ghost-violet{background:none;border:1px solid #2a1a4a;color:var(--violet);font-size:.6rem;
+      letter-spacing:1px;text-transform:uppercase;padding:4px 10px;cursor:pointer;font-family:inherit;}
+    .btn-ghost-violet:hover{border-color:var(--violet);}
+    .picker-card{background:var(--bg-panel,#0d1512);border:1px solid var(--border-dark);padding:14px 16px;
+      cursor:pointer;transition:border-color .12s;}
+    .picker-card:hover{border-color:var(--green);}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-runs.html">Runs</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Play Sheet <em class="sep">//</em> <span id="pageCharName">Loading...</span></div>
+  <div class="page-sub" style="color:var(--cyan)">LIVE CHARACTER DOSSIER -- EDITS SAVE DIRECTLY</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div id="pickerWrap" style="display:none;">
+    <p class="dim-meta mb-16">Pick a runner to open:</p>
+    <div id="pickerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
+  </div>
+
+  <div id="emptyWrap" class="empty-state" style="display:none;">
+    No runners found for your token. Build one under <a href="character-builder.html">Characters &rsaquo; New Runner</a>.
+  </div>
+
+  <div id="sheetWrap" style="display:none;">
+
+    <div class="ps-header">
+      <div class="ps-header__col">
+        <div>
+          <div class="dim-label">Runner Dossier</div>
+          <div class="ps-name" id="hName">GAMBIT</div>
+          <div class="ps-legal" id="hSub">Elf &middot; Male &middot; 33 &middot; Rigger</div>
+        </div>
+        <div>
+          <div class="dim-label">Nuyen</div>
+          <div class="ps-nuyen-val" id="nuyenDisplay" tabindex="0" role="button">&#165;0</div>
+        </div>
+      </div>
+      <div class="ps-header__col ps-header__col--right">
+        <a class="btn btn-amber" href="gear.html" target="_blank" rel="noopener">+ Buy Gear</a>
+        <button class="btn btn-green" id="exportBtn">&#8595; Export Official PDF</button>
+      </div>
+    </div>
+
+    <!-- IDENTITY | ARMOR+PORTRAIT -->
+    <div class="ps-row">
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-green">Identity</span>
+            <button class="btn-ghost-violet" id="manageIdentityBtn">Manage</button></div>
+          <div class="identity-row">
+            <div>
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field"><span class="field-label">Alias</span><div class="ps-ro" id="idAlias">-</div></div>
+                <div class="ps-field"><span class="field-label">Legal Name</span><div class="ps-ro" id="idLegal">-</div></div>
+                <div class="ps-field"><span class="field-label">Archetype</span><div class="ps-ro" id="idArchetype">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field"><span class="field-label">Race</span><div class="ps-ro" id="idRace">-</div></div>
+                <div class="ps-field"><span class="field-label">Sex</span><div class="ps-ro" id="idSex">-</div></div>
+                <div class="ps-field"><span class="field-label">Age</span><div class="ps-ro" id="idAge">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-2">
+                <div class="ps-field"><span class="field-label">Lifestyle</span><div class="ps-ro" id="idLifestyle">-</div></div>
+                <div class="ps-field"><span class="field-label">Upkeep</span><div class="ps-ro" id="idUpkeep">-</div></div>
+              </div>
+            </div>
+            <div class="karma-stack">
+              <div class="ps-field"><span class="field-label">Good Karma</span><input type="number" id="goodKarmaInput" min="0" max="50"></div>
+              <div class="ps-field"><span class="field-label">Karma Pool</span><input type="number" id="karmaPoolInput" min="0" max="50"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Armor</span>
+            <button class="btn-ghost-violet" id="manageArmorBtn">Manage</button></div>
+          <div class="armor-row">
+            <div style="flex:1;">
+              <div class="ps-stat-list" id="armorList"></div>
+              <div class="armor-total"><span class="armor-total__l">Total Armor</span><span id="armorTotal">0/0</span></div>
+            </div>
+            <div class="portrait-box">Portrait upload needs a real image-storage endpoint &mdash; not built yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ATTRIBUTES | CONDITION MONITOR -->
+    <div class="ps-row">
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Attributes</span>
+            <button class="btn-ghost-violet" id="manageAttrsBtn">Manage</button></div>
+          <div class="ps-fgrid fg-3 mb-8">
+            <div class="ps-field"><span class="field-label">Body</span><div class="ps-ro" id="atB">-</div></div>
+            <div class="ps-field"><span class="field-label">Quickness</span><div class="ps-ro" id="atQ">-</div></div>
+            <div class="ps-field"><span class="field-label">Strength</span><div class="ps-ro" id="atS">-</div></div>
+            <div class="ps-field"><span class="field-label">Charisma</span><div class="ps-ro" id="atCH">-</div></div>
+            <div class="ps-field"><span class="field-label">Intelligence</span><div class="ps-ro" id="atINT">-</div></div>
+            <div class="ps-field"><span class="field-label">Willpower</span><div class="ps-ro" id="atW">-</div></div>
+          </div>
+          <div class="ps-fgrid fg-2">
+            <div class="ps-field"><span class="field-label">Essence</span><div class="ps-ro" id="dvEssence">-</div></div>
+            <div class="ps-field"><span class="field-label">Magic</span><div class="ps-ro" id="dvMagic">-</div></div>
+            <div class="ps-field"><span class="field-label">Reaction</span><div class="ps-ro" id="dvReaction">-</div></div>
+            <div class="ps-field"><span class="field-label">Initiative</span><div class="ps-ro" id="dvInit">-</div></div>
+          </div>
+        </div>
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Dice Pools</span></div>
+          <div class="ps-stat-list" id="poolList"></div>
+        </div>
+      </div>
+
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-red">Condition Monitor</span></div>
+          <div class="cond-track">
+            <div class="cond-track__label"><span>Stun</span><span class="cond-track__stage stun" id="stunStage">Uninjured</span></div>
+            <div class="cond-boxes" id="stunTrack"></div>
+            <div class="cond-stagemarks" id="stunMarks"></div>
+          </div>
+          <div class="dmg-select" id="stunDmgBtns"></div>
+          <div class="cond-track">
+            <div class="cond-track__label"><span>Physical</span><span class="cond-track__stage phys" id="physStage">Uninjured</span></div>
+            <div class="cond-boxes" id="physTrack"></div>
+            <div class="cond-stagemarks" id="physMarks"></div>
+          </div>
+          <div class="dmg-select" id="physDmgBtns"></div>
+          <div class="cond-footer">
+            <div>
+              <div class="cond-overflow__label">Physical Overflow (max = Body, currently <span id="overflowMax">0</span>)</div>
+              <div class="cond-overflow__boxes" id="overflowTrack"></div>
+            </div>
+            <div>
+              <div class="cond-overflow__label" style="text-align:right;">Mode</div>
+              <div class="seg" id="dmgHealToggle">
+                <button class="seg-btn is-active" data-mode="damage">Damage</button>
+                <button class="seg-btn" data-mode="heal">Heal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEAPONS: full width -->
+    <div class="ps-panel" style="margin-bottom:16px;">
+      <div class="ps-sec">
+        <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Weapons</span></div>
+        <div style="overflow-x:auto;">
+          <table class="ps-data" id="weaponsTbl">
+            <thead><tr>
+              <th>Name</th><th>Type</th><th>Mode</th><th>Dmg</th><th>Ammo</th><th>Conceal</th>
+              <th>Short (4)</th><th>Med (5)</th><th>Long (6)</th><th>Extreme (8)</th><th>Mods</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="ghost-note mt-6">Stats shown are raw catalog values (no armor/holster conceal stacking applied yet).</p>
+      </div>
+    </div>
+
+    <!-- REMAINING SECTIONS: two columns -->
+    <div class="ps-row">
+      <div class="ps-col">
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Skills</span>
+              <button class="btn-ghost-violet" id="manageSkillsBtn">Manage</button></div>
+            <div class="sk-list" id="skillList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Primary Vehicle</span></div>
+            <div id="noVehicle" class="empty-state" style="display:none;">No vehicle owned.</div>
+            <div id="vehicleFields">
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field" style="grid-column:1/3;"><span class="field-label">Vehicle</span><div class="ps-ro" id="vehName">-</div></div>
+                <div class="ps-field"><span class="field-label">Type</span><div class="ps-ro" id="vehType">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-5 mb-8">
+                <div class="ps-field"><span class="field-label">Handling</span><div class="ps-ro" id="vehHandling">-</div></div>
+                <div class="ps-field"><span class="field-label">Speed</span><div class="ps-ro" id="vehSpeed">-</div></div>
+                <div class="ps-field"><span class="field-label">Body</span><div class="ps-ro" id="vehBody">-</div></div>
+                <div class="ps-field"><span class="field-label">Armor</span><div class="ps-ro" id="vehArmor">-</div></div>
+                <div class="ps-field"><span class="field-label">Signature</span><div class="ps-ro" id="vehSig">-</div></div>
+                <div class="ps-field"><span class="field-label">Load</span><div class="ps-ro" id="vehLoad">-</div></div>
+                <div class="ps-field"><span class="field-label">Rigger Gear</span>
+                  <select id="riggerGearSelect"><option value="false">No</option><option value="true">Yes</option></select></div>
+              </div>
+              <div class="ps-field"><span class="field-label">Notes / Mods</span>
+                <textarea id="vehicleNotes" rows="2"></textarea></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ps-col">
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Gear</span>
+              <button class="btn-ghost-violet" id="manageGearBtn">Manage</button></div>
+            <table class="ps-data" id="gearTbl"><thead><tr><th>Item</th><th>Type</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Cyberware</span></div>
+            <div class="ps-stat-list" id="cyberList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Contacts &amp; Information</span></div>
+            <div class="ps-stat-list" id="contactsList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Character Notes</span></div>
+            <textarea id="charNotes" rows="3"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- shared manage modal -->
+<div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">Manage</div>
+    </div>
+    <div class="edit-modal-body" id="modalBody"></div>
+    <div class="edit-modal-foot" id="modalFoot">
+      <button class="btn btn-red" id="modalCancelBtn">Cancel</button>
+      <button class="btn btn-green" id="modalCommitBtn">Commit Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let CHAR = null;          // live character record from the API
+let CONTACTS = [];
+let SKILL_CATALOG = [];   // [{n, attr, group, conc:[...]}]
+let SKILL_SPECS = {};     // {skillName: {concName: [specNames]}}
+let ARMOR_CAT = new Map();
+let WEAPON_CAT = new Map();
+let CAN_EDIT = false;
+let dmgMode = 'damage';
+let currentModalMode = null;
+let draft = {};           // scratch copy used by draft-and-commit modals
+
+const STAGES = ['Light','Light','Light','Moderate','Moderate','Moderate','Serious','Serious','Serious','Deadly'];
+const STAGE_MARK_IDX = { 0:'L', 2:'M', 5:'S', 9:'D' };
+const DMG_AMOUNTS = { L:1, M:3, S:6, D:10 };
+const LIFESTYLE_TIERS = ['Street','Squatter','Low','Middle','High','Luxury'];
+
+function $(s, r=document){ return r.querySelector(s); }
+function $$(s, r=document){ return Array.from(r.querySelectorAll(s)); }
+function money(n){ return '¥' + (Number(n)||0).toLocaleString(); }
+
+// ---------------------------------------------------------------- boot / character resolution
+async function boot(){
+  await bootstrapAuth();
+  const params = new URLSearchParams(location.search);
+  const idParam = params.get('id');
+  try {
+    if (idParam) { await loadCharacter(Number(idParam)); return; }
+    const mineRes = await apiFetch('/characters/mine');
+    if (!mineRes.ok) throw new Error('Could not load your characters');
+    const mine = await mineRes.json();
+    const ids = mine.ids || [];
+    if (ids.length === 0) { $('#emptyWrap').style.display = ''; return; }
+    if (ids.length === 1) { await loadCharacter(ids[0]); return; }
+    const allRes = await apiFetch('/characters/?is_pc=true&is_active=true');
+    const all = allRes.ok ? await allRes.json() : [];
+    const mySet = new Set(ids);
+    const mine2 = all.filter(c => mySet.has(c.id));
+    $('#pickerWrap').style.display = '';
+    $('#pickerList').innerHTML = mine2.map(c => `
+      <div class="picker-card" data-id="${c.id}">
+        <div style="color:var(--text-bright);font-size:.9rem;">${esc(c.name)}</div>
+        <div class="dim-meta">${esc(c.archetype||'Runner')}${c.race?' &middot; '+esc(c.race):''}</div>
+      </div>`).join('');
+    $$('.picker-card').forEach(el => el.onclick = () => { location.search = '?id=' + el.dataset.id; });
+  } catch (e) {
+    showAlert($('#alert'), e.message, true);
+  }
+}
+
+async function loadCharacter(id){
+  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes] = await Promise.all([
+    apiFetch(`/characters/${id}`),
+    apiFetch(`/characters/${id}/contacts`),
+    apiFetch('/characters/mine'),
+    apiFetch('/catalog/skill-specs'),
+    apiFetch('/catalog/armor'),
+    apiFetch('/catalog/weapons'),
+  ]);
+  if (!charRes.ok) { showAlert($('#alert'), 'Character not found or not visible to you.', true); return; }
+  CHAR = await charRes.json();
+  CONTACTS = contactsRes.ok ? await contactsRes.json() : [];
+  const mine = mineRes.ok ? await mineRes.json() : { ids: [] };
+  CAN_EDIT = CHAR.is_pc && (isAdminMode() || (mine.ids||[]).includes(CHAR.id));
+
+  if (skillsRes.ok) {
+    const sk = await skillsRes.json();
+    SKILL_CATALOG = sk.skills || [];
+    SKILL_SPECS = sk.specs || {};
+  }
+  if (armorRes.ok) (await armorRes.json()).items.forEach(it => ARMOR_CAT.set(it.n, it));
+  if (weaponsRes.ok) (await weaponsRes.json()).items.forEach(it => WEAPON_CAT.set(it.n, it));
+
+  document.title = `${CHAR.name} | Play Sheet`;
+  $('#pageCharName').textContent = CHAR.name;
+  $('#sheetWrap').style.display = '';
+  renderAll();
+  wireStatic();
+}
+
+function renderAll(){
+  renderHeader();
+  renderIdentity();
+  renderAttributes();
+  renderArmor();
+  renderCyber();
+  renderWeapons();
+  renderGear();
+  renderContacts();
+  renderVehicle();
+  renderSkills();
+  renderCond();
+  renderDmgButtons();
+  $('#charNotes').value = CHAR.notes || '';
+  $('#charNotes').disabled = !CAN_EDIT;
+  initNumSteppers(document);
+  applyEditGating();
+}
+
+function applyEditGating(){
+  if (CAN_EDIT) return;
+  $$('#manageIdentityBtn,#manageArmorBtn,#manageAttrsBtn,#manageSkillsBtn,#manageGearBtn').forEach(b => b.style.display = 'none');
+  const nd = $('#nuyenDisplay'); nd.style.cursor = 'default'; nd.removeAttribute('tabindex'); nd.removeAttribute('role');
+  $$('#dmgHealToggle .seg-btn, .dmg-btn').forEach(b => b.disabled = true);
+  $$('.cond-overflow__boxes .cond-box').forEach(b => b.style.pointerEvents = 'none');
+  $$('#vehicleFields input, #vehicleFields select, #vehicleFields textarea').forEach(el => el.disabled = true);
+}
+
+function renderHeader(){
+  $('#hName').textContent = (CHAR.name || '').toUpperCase();
+  $('#hSub').textContent = [CHAR.race, CHAR.gender, CHAR.age, CHAR.archetype].filter(Boolean).join(' · ');
+  $('#nuyenDisplay').textContent = money(CHAR.nuyen);
+}
+
+// ---------------------------------------------------------------- identity
+function renderIdentity(){
+  $('#idAlias').textContent = CHAR.name || '—';
+  const legal = (CHAR.chargen_state && CHAR.chargen_state.identity && CHAR.chargen_state.identity.name) || '';
+  $('#idLegal').textContent = legal || '—';
+  $('#idArchetype').textContent = CHAR.archetype || '—';
+  $('#idRace').textContent = CHAR.race || '—';
+  $('#idSex').textContent = CHAR.gender || '—';
+  $('#idAge').textContent = CHAR.age != null ? CHAR.age : '—';
+  $('#idLifestyle').textContent = CHAR.lifestyle_name || '—';
+  $('#idUpkeep').textContent = CHAR.lifestyle_monthly_cost ? money(CHAR.lifestyle_monthly_cost) + '/mo'
+    : (CHAR.lifestyle_permanent ? 'Paid outright' : 'No upkeep');
+  $('#goodKarmaInput').value = CHAR.good_karma || 0;
+  $('#karmaPoolInput').value = CHAR.karma_pool || 0;
+}
+
+// ---------------------------------------------------------------- attributes / pools
+function reactionInit(){
+  const Q = CHAR.quickness||0, INT = CHAR.intelligence||0, W = CHAR.willpower||0;
+  const vcr = vcrLevel();
+  const reactionPhys = Math.floor((Q+INT)/2);
+  const reactionRig = reactionPhys + vcr*2;
+  return { reactionPhys, reactionRig, combatPool: Math.floor((Q+INT+W)/2), vcr };
+}
+function vcrLevel(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  const vcr = cyber.find(c => /vehicle control rig/i.test(c.n||''));
+  if (!vcr) return 0;
+  const m = /level\s+(\d+)/i.exec(vcr.n||'');
+  return m ? Number(m[1]) : 1;
+}
+function renderAttributes(){
+  $('#atB').textContent = CHAR.body; $('#atQ').textContent = CHAR.quickness; $('#atS').textContent = CHAR.strength;
+  $('#atCH').textContent = CHAR.charisma; $('#atINT').textContent = CHAR.intelligence; $('#atW').textContent = CHAR.willpower;
+  $('#dvEssence').textContent = Number(CHAR.essence||0).toFixed(2);
+  $('#dvMagic').textContent = CHAR.magic_rating > 0 ? CHAR.magic_rating : '—';
+  const { reactionPhys, reactionRig, combatPool, vcr } = reactionInit();
+  $('#dvReaction').textContent = vcr ? `${reactionPhys} / ${reactionRig}` : `${reactionPhys}`;
+  $('#dvInit').textContent = vcr ? `1D6 / ${1+vcr}D6` : '1D6';
+  const pools = [['Combat', combatPool]];
+  if (vcr) pools.push(['Control', reactionRig]);
+  $('#poolList').innerHTML = pools.map(([k,v]) => `<div class="ps-stat-row"><span class="k">${k}</span><span class="v computed">${v}</span></div>`).join('');
+  const body = CHAR.body || 0;
+  $('#overflowMax').textContent = body;
+}
+
+// ---------------------------------------------------------------- armor
+function renderArmor(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  if (!armor.length) { $('#armorList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No armor owned.</p>'; }
+  else {
+    $('#armorList').innerHTML = armor.map(a => {
+      const cat = ARMOR_CAT.get(a.n) || {};
+      const equipped = a.equipped !== false; // default true for legacy rows with no flag
+      return `<div class="ps-stat-row"><span class="k">${esc(a.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</span>
+        <span class="v">${cat.ballistic ?? '-'}/${cat.impact ?? '-'} &middot; Conceal ${cat.conceal ?? '-'}</span></div>`;
+    }).join('');
+  }
+  const total = armor.filter(a => a.equipped !== false).reduce((acc,a) => {
+    const cat = ARMOR_CAT.get(a.n) || {};
+    return { b: acc.b + (Number(cat.ballistic)||0), i: acc.i + (Number(cat.impact)||0) };
+  }, { b:0, i:0 });
+  $('#armorTotal').textContent = `${total.b}/${total.i}`;
+}
+
+// ---------------------------------------------------------------- cyberware
+function renderCyber(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  if (!cyber.length) { $('#cyberList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">None.</p>'; return; }
+  $('#cyberList').innerHTML = cyber.map(c => `
+    <div class="ps-stat-row"><span class="k">${esc(c.n)} <span style="color:var(--text-dim);font-size:.66rem;">${esc(c.grade||'Standard')}</span></span>
+    <span class="v">${c.baseEss != null ? Number(c.baseEss).toFixed(1)+' Ess' : ''}</span></div>`).join('');
+}
+
+// ---------------------------------------------------------------- weapons
+function renderWeapons(){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const rows = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
+  if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="11" class="empty-state">No weapons owned.</td></tr>`; return; }
+  $('#weaponsTbl tbody').innerHTML = rows.map((w,i) => {
+    const cat = WEAPON_CAT.get(w.n) || {};
+    return `<tr><td>${esc(w.n)}</td><td>${esc(cat.sub||'')}</td><td>${esc(cat.mode||'')}</td><td>${esc(cat.dmg||'')}</td>
+      <td>${esc(cat.ammo||'')}</td><td>${cat.conceal ?? '-'}</td><td>-</td><td>-</td><td>-</td><td>-</td>
+      <td><input data-mods="${i}" value="${esc(w.mods||'')}" placeholder="recoil comp, sights..." ${CAN_EDIT?'':'disabled'}></td></tr>`;
+  }).join('');
+  $$('[data-mods]').forEach(inp => inp.onchange = () => {
+    rows[Number(inp.dataset.mods)].mods = inp.value;
+    patchGear();
+  });
+}
+
+// ---------------------------------------------------------------- gear
+function renderGear(){
+  const gear = (CHAR.gear && CHAR.gear.gear) || [];
+  const accessories = ((CHAR.gear && CHAR.gear.weapons) || []).filter(w => (WEAPON_CAT.get(w.n)||{}).cat === 'accessory');
+  const all = [...gear.map(g => ({ n:g.n, kind:g.kind||'', tag:g.kind ? g.kind : 'Gear' })), ...accessories.map(w => ({ n:w.n, kind:'', tag:'Accessory' }))];
+  // group identical rows into qty
+  const grouped = [];
+  all.forEach(item => {
+    const existing = grouped.find(g => g.n === item.n && g.tag === item.tag);
+    if (existing) existing.qty += 1; else grouped.push({ ...item, qty: 1 });
+  });
+  if (!grouped.length) { $('#gearTbl tbody').innerHTML = `<tr><td colspan="2" class="empty-state">No gear owned.</td></tr>`; return; }
+  $('#gearTbl tbody').innerHTML = grouped.map(g => {
+    const label = (g.kind ? `${g.n} - ${g.kind}` : g.n) + (g.qty > 1 ? ` ×${g.qty}` : '');
+    return `<tr><td>${esc(label)}</td><td>${esc(g.tag)}</td></tr>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- contacts (read-only, world-state driven)
+const CONTACT_TAG_CLASS = { Contact:'tag-contact', Buddy:'tag-buddy', Gang:'tag-gangtribe', Tribe:'tag-gangtribe', Follower:'tag-follower' };
+function renderContacts(){
+  if (!CONTACTS.length) { $('#contactsList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No contacts yet.</p>'; return; }
+  $('#contactsList').innerHTML = CONTACTS.map(c => {
+    const tag = c.contact_type || (c.loyalty >= 3 ? 'Buddy' : 'Contact');
+    return `<div class="ps-stat-row"><span class="k">${esc(c.name)}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>
+      <span class="contact-tag ${CONTACT_TAG_CLASS[tag]||''}">${esc(tag)}</span></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- vehicle
+function renderVehicle(){
+  const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+  const v = vehicles[0];
+  if (!v) { $('#noVehicle').style.display = ''; $('#vehicleFields').style.display = 'none'; return; }
+  $('#noVehicle').style.display = 'none'; $('#vehicleFields').style.display = '';
+  $('#vehName').textContent = v.n; $('#vehType').textContent = v.sub || '—';
+  $('#vehHandling').textContent = v.handling ?? '—';
+  $('#vehSpeed').textContent = v.speed ?? '—';
+  $('#vehBody').textContent = v.body ?? '—';
+  $('#vehArmor').textContent = v.armor ?? '0';
+  $('#vehSig').textContent = v.sig ?? '—';
+  $('#vehLoad').textContent = v.load ?? '—';
+  $('#riggerGearSelect').value = String(!!v.rigger);
+  $('#vehicleNotes').value = v.notes || '';
+}
+function wireVehicle(){
+  $('#riggerGearSelect').addEventListener('change', () => {
+    const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+    if (vehicles[0]) { vehicles[0].rigger = $('#riggerGearSelect').value === 'true'; patchGear(); }
+  });
+  let notesTimer = null;
+  $('#vehicleNotes').addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+      if (vehicles[0]) { vehicles[0].notes = $('#vehicleNotes').value; patchGear(); }
+    }, 800);
+  });
+}
+
+// ---------------------------------------------------------------- skills (read-only list; edits via Manage)
+function skillSummary(s){
+  let t = `General ${s.rating||0}`;
+  if (s.conc) t += ` · ${s.conc} ${s.concRating != null ? s.concRating : (s.rating||0)+1}`;
+  if (s.spec) t += ` · ${s.spec} ${s.specRating != null ? s.specRating : (s.rating||0)+2}`;
+  return t;
+}
+function renderSkills(){
+  const skills = CHAR.skills || [];
+  if (!skills.length) { $('#skillList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No skills recorded.</p>'; return; }
+  const rows = [];
+  [...skills].sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(s => {
+    rows.push(`<div class="sk-row"><span class="sk-name">${esc(s.name)}</span><span class="sk-rating">${s.rating||0}</span></div>`);
+    if (s.conc) rows.push(`<div class="sk-row sub conc"><span class="sk-name">${esc(s.conc)}</span><span class="sk-rating">${s.concRating != null ? s.concRating : (s.rating||0)+1}</span></div>`);
+    if (s.spec) rows.push(`<div class="sk-row sub spec"><span class="sk-name">${esc(s.spec)}</span><span class="sk-rating">${s.specRating != null ? s.specRating : (s.rating||0)+2}</span></div>`);
+  });
+  $('#skillList').innerHTML = rows.join('');
+}
+
+// ---------------------------------------------------------------- condition monitor
+function renderStageMarks(el){
+  el.innerHTML = '';
+  for (let i=0;i<10;i++){ const s=document.createElement('span'); s.textContent=STAGE_MARK_IDX[i]||''; el.appendChild(s); }
+}
+function renderCond(){
+  ['phys','stun'].forEach(kind => {
+    const val = kind === 'phys' ? (CHAR.physical_damage||0) : (CHAR.stun_damage||0);
+    const wrap = $(kind==='phys' ? '#physTrack' : '#stunTrack'); wrap.innerHTML = '';
+    for (let i=1;i<=10;i++){
+      const b = document.createElement('div');
+      b.className = `cond-box ${kind}` + (i <= val ? ' is-filled' : '');
+      wrap.appendChild(b);
+    }
+    $(kind==='phys' ? '#physStage' : '#stunStage').textContent = val === 0 ? 'Uninjured' : STAGES[val-1];
+  });
+  renderStageMarks($('#physMarks')); renderStageMarks($('#stunMarks'));
+  const body = CHAR.body || 0, overflow = CHAR.physical_overflow || 0;
+  const wrap = $('#overflowTrack'); wrap.innerHTML = '';
+  for (let i=1;i<=body;i++){
+    const b = document.createElement('div');
+    b.className = 'cond-box phys' + (i <= overflow ? ' is-filled' : '');
+    b.onclick = () => { if (!CAN_EDIT) return; CHAR.physical_overflow = (overflow === i) ? i-1 : i; patchChar({ physical_overflow: CHAR.physical_overflow }); renderCond(); };
+    wrap.appendChild(b);
+  }
+}
+function applyDamage(kind, amount){
+  const key = kind === 'phys' ? 'physical_damage' : 'stun_damage';
+  const total = (CHAR[key]||0) + amount;
+  const patch = {};
+  if (total > 10){
+    const spill = total - 10;
+    CHAR[key] = 10; patch[key] = 10;
+    if (kind === 'stun'){
+      showAlert($('#alert'), `Stun maxed — ${spill} spills into Physical`, false);
+      applyDamage('phys', spill);
+    } else {
+      CHAR.physical_overflow = Math.min((CHAR.physical_overflow||0) + spill, CHAR.body||0);
+      patch.physical_overflow = CHAR.physical_overflow;
+      showAlert($('#alert'), `Physical maxed — ${spill} spills into Overflow`, false);
+    }
+  } else {
+    CHAR[key] = total; patch[key] = total;
+  }
+  patchChar(patch);
+  renderCond();
+}
+function applyHeal(kind, amount){
+  const patch = {};
+  if (kind === 'phys'){
+    const overflow = CHAR.physical_overflow||0;
+    const fromOverflow = Math.min(overflow, amount);
+    CHAR.physical_overflow = overflow - fromOverflow; patch.physical_overflow = CHAR.physical_overflow;
+    CHAR.physical_damage = Math.max(0, (CHAR.physical_damage||0) - (amount - fromOverflow)); patch.physical_damage = CHAR.physical_damage;
+  } else {
+    CHAR.stun_damage = Math.max(0, (CHAR.stun_damage||0) - amount); patch.stun_damage = CHAR.stun_damage;
+  }
+  patchChar(patch);
+  renderCond();
+}
+function renderDmgButtons(){
+  ['stun','phys'].forEach(kind => {
+    const wrap = $('#' + kind + 'DmgBtns'); wrap.innerHTML = '';
+    wrap.className = 'dmg-select' + (dmgMode === 'heal' ? ' mode-heal' : '');
+    ['L','M','S','D'].forEach(letter => {
+      const b = document.createElement('button');
+      b.className = 'dmg-btn'; b.textContent = `${letter} / ${DMG_AMOUNTS[letter]}`;
+      b.disabled = !CAN_EDIT;
+      b.onclick = () => (dmgMode === 'damage' ? applyDamage : applyHeal)(kind, DMG_AMOUNTS[letter]);
+      wrap.appendChild(b);
+    });
+  });
+}
+function setDmgMode(mode){
+  dmgMode = mode;
+  $$('#dmgHealToggle .seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
+  renderDmgButtons();
+}
+
+// ---------------------------------------------------------------- PATCH helpers
+async function patchChar(fields){
+  try {
+    const res = await apiFetch(`/characters/${CHAR.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+    if (!res.ok) return apiThrow(res);
+    const updated = await res.json();
+    Object.assign(CHAR, updated);
+  } catch (e) {
+    showAlert($('#alert'), e.message, true);
+  }
+}
+function patchGear(){ return patchChar({ gear: CHAR.gear }); }
+
+// ---------------------------------------------------------------- nuyen: click-to-edit
+function wireNuyenEdit(){
+  const start = () => {
+    if (!CAN_EDIT) return;
+    const el = $('#nuyenDisplay');
+    if (!el || el.tagName === 'INPUT') return;
+    const input = document.createElement('input');
+    input.type = 'text'; input.id = 'nuyenDisplay'; input.className = 'ps-nuyen-input';
+    input.value = CHAR.nuyen;
+    el.replaceWith(input);
+    input.focus(); input.select();
+    const commit = async () => {
+      const v = parseInt(String(input.value).replace(/[^\d-]/g, ''), 10);
+      const next = Number.isNaN(v) ? CHAR.nuyen : Math.max(0, v);
+      const span = document.createElement('div');
+      span.className = 'ps-nuyen-val'; span.id = 'nuyenDisplay';
+      span.tabIndex = 0; span.setAttribute('role', 'button');
+      input.replaceWith(span);
+      if (next !== CHAR.nuyen) await patchChar({ nuyen: next });
+      span.textContent = money(CHAR.nuyen);
+      span.addEventListener('click', start);
+      span.addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  };
+  $('#nuyenDisplay').addEventListener('click', start);
+  $('#nuyenDisplay').addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+}
+
+// ================================================================== MANAGE MODALS
+function openModal(mode, title, hasFoot=true){
+  currentModalMode = mode;
+  $('#modalTitle').textContent = title;
+  $('#modalFoot').style.display = hasFoot ? 'flex' : 'none';
+  $('#editOverlay').classList.add('open');
+}
+function closeModal(){ $('#editOverlay').classList.remove('open'); }
+
+// ---- Manage Identity (draft/commit) ----
+function openManageIdentity(){
+  draft = { archetype: CHAR.archetype||'', race: CHAR.race||'', gender: CHAR.gender||'', age: CHAR.age||0, lifestyle_level: CHAR.lifestyle_level };
+  openModal('identity', '// Manage Identity');
+  $('#modalBody').innerHTML = `
+    <div class="field mb-16"><label>Archetype</label><input id="mgArchetype" value="${esc(draft.archetype)}"></div>
+    <div class="field mb-16"><label>Race</label><input id="mgRace" value="${esc(draft.race)}"></div>
+    <div class="field mb-16"><label>Sex</label><input id="mgSex" value="${esc(draft.gender)}"></div>
+    <div class="field mb-16"><label>Age</label><input id="mgAge" type="number" value="${draft.age}"></div>
+    <div class="field"><label>Lifestyle</label>
+      <select id="mgLifestyle">${LIFESTYLE_TIERS.map((t,i) => `<option value="${i}" ${i===draft.lifestyle_level?'selected':''}>${t}</option>`).join('')}</select></div>`;
+  initNumSteppers($('#modalBody'));
+}
+
+// ---- Manage Attributes (draft/commit, real karma-cost placeholder) ----
+const ATTR_KEYS = { Body:'body', Quickness:'quickness', Strength:'strength', Charisma:'charisma', Intelligence:'intelligence', Willpower:'willpower' };
+function openManageAttrs(){
+  draft = { ...ATTR_KEYS };
+  Object.keys(ATTR_KEYS).forEach(label => draft[ATTR_KEYS[label]] = CHAR[ATTR_KEYS[label]]);
+  draft.good_karma = CHAR.good_karma || 0;
+  openModal('attrs', '// Manage Attributes');
+  renderManageAttrs();
+}
+function renderManageAttrs(){
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Illustrative cost only (new rating &times; 3 karma) &mdash; placeholder pending the real SR2 advancement table.</p>
+    <div class="ps-stat-row" style="border:none;padding:0 0 12px;"><span class="k">Good Karma after changes</span>
+      <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` +
+    Object.entries(ATTR_KEYS).map(([label,key]) => {
+      const cur = draft[key], cost = (cur+1)*3;
+      return `<div class="ps-stat-row"><span class="k">${label} <span style="color:var(--text-bright);">${cur}</span></span>
+        <button class="btn btn-amber" data-raise="${key}" data-cost="${cost}">Raise to ${cur+1} &mdash; ${cost} karma</button></div>`;
+    }).join('');
+  $$('[data-raise]').forEach(b => b.onclick = () => {
+    const key = b.dataset.raise, cost = Number(b.dataset.cost);
+    if (draft.good_karma < cost) showAlert($('#alert'), `Only ${draft.good_karma} karma available — raising anyway`, false);
+    draft.good_karma = Math.max(0, draft.good_karma - cost);
+    draft[key] += 1;
+    renderManageAttrs();
+  });
+}
+
+// ---- Manage Skills (draft/commit, real SR2 formulas) ----
+function tierRaiseCost(tier, desired){
+  if (tier === 'general') return desired * 2;
+  if (tier === 'conc') return Math.ceil(desired * 1.5);
+  return desired;
+}
+const CONC_MIN_BASE = 2, SPEC_MIN_BASE = 3;
+function skillWeb(name){ return SKILL_CATALOG.find(s => s.n === name); }
+function expandOptions(list, skillName){
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  list.forEach(opt => {
+    if (opt === '(SW)') ((CHAR.gear&&CHAR.gear.weapons)||[]).forEach(w => out.push(w.n));
+    else if (opt === '(SV)') ((CHAR.gear&&CHAR.gear.vehicles)||[]).forEach(v => out.push(v.n));
+    else out.push(opt);
+  });
+  return out;
+}
+function openManageSkills(){
+  draft = { skills: JSON.parse(JSON.stringify(CHAR.skills || [])), good_karma: CHAR.good_karma || 0 };
+  openModal('skills', '// Manage Skills');
+  renderManageSkills();
+}
+function renderManageSkills(){
+  const blocks = draft.skills.map((s,i) => {
+    let rows = `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);padding-top:10px;margin-top:10px;">
+      <span class="k" style="color:var(--text-bright);">${esc(s.name)}</span></div>`;
+    const gCost = tierRaiseCost('general', (s.rating||0)+1);
+    rows += `<div class="ps-stat-row"><span class="k">General <span style="color:var(--text-bright);">${s.rating||0}</span></span>
+      <button class="btn btn-amber" data-raise-skill="${i}" data-raise-tier="general" data-cost="${gCost}">Raise to ${(s.rating||0)+1} &mdash; ${gCost} karma</button></div>`;
+
+    if (s.conc){
+      const curConc = s.concRating != null ? s.concRating : (s.rating||0)+1;
+      const cCost = tierRaiseCost('conc', curConc+1);
+      rows += `<div class="ps-stat-row"><span class="k">${esc(s.conc)} (Conc) <span style="color:var(--text-bright);">${curConc}</span></span>
+        <button class="btn btn-amber" data-raise-skill="${i}" data-raise-tier="conc" data-cost="${cCost}">Raise to ${curConc+1} &mdash; ${cCost} karma</button></div>`;
+    } else if ((s.rating||0) >= CONC_MIN_BASE) {
+      const web = skillWeb(s.name);
+      const opts = web ? web.conc : [];
+      if (opts && opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
+        <select data-addconc="${i}"><option value="">+ Concentration (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
+      else rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
+        <button class="btn btn-cyan" data-freeconc="${i}">+ Type one in&hellip;</button></div>`;
+    } else {
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
+        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${CONC_MIN_BASE}</span></div>`;
+    }
+
+    if (s.spec){
+      const curSpec = s.specRating != null ? s.specRating : (s.rating||0)+2;
+      const sCost = tierRaiseCost('spec', curSpec+1);
+      rows += `<div class="ps-stat-row"><span class="k">${esc(s.spec)} (Spec) <span style="color:var(--text-bright);">${curSpec}</span></span>
+        <button class="btn btn-amber" data-raise-skill="${i}" data-raise-tier="spec" data-cost="${sCost}">Raise to ${curSpec+1} &mdash; ${sCost} karma</button></div>`;
+    } else if (s.conc && (s.rating||0) >= SPEC_MIN_BASE) {
+      const web = skillWeb(s.name);
+      const opts = web && SKILL_SPECS[s.name] ? expandOptions(SKILL_SPECS[s.name][s.conc], s.name) : [];
+      if (opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
+        <select data-addspec="${i}"><option value="">+ Specialization (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
+      else if (s.conc) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
+        <button class="btn btn-cyan" data-freespec="${i}">+ Type one in&hellip;</button></div>`;
+    } else if (s.conc) {
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
+        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${SPEC_MIN_BASE}</span></div>`;
+    }
+    return rows;
+  }).join('');
+
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">General advances at 2&times; desired rating, Concentration at 1.5&times; (rounded up),
+    Specialization at 1&times;. Declaring a new Concentration or Specialization costs no karma &mdash; it just splits the rating.</p>
+    <div class="ps-stat-row" style="border:none;padding:0 0 4px;"><span class="k">Good Karma after changes</span>
+      <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` + blocks;
+
+  $$('[data-raise-skill]').forEach(b => b.onclick = () => {
+    const s = draft.skills[Number(b.dataset.raiseSkill)];
+    const tier = b.dataset.raiseTier, cost = Number(b.dataset.cost);
+    if (tier === 'general') s.rating = (s.rating||0) + 1;
+    else if (tier === 'conc') s.concRating = (s.concRating != null ? s.concRating : (s.rating||0)+1) + 1;
+    else s.specRating = (s.specRating != null ? s.specRating : (s.rating||0)+2) + 1;
+    draft.good_karma -= cost;
+    renderManageSkills();
+  });
+  $$('[data-addconc]').forEach(sel => sel.onchange = () => {
+    if (!sel.value) return;
+    const s = draft.skills[Number(sel.dataset.addconc)];
+    const points = s.rating||0;
+    s.rating = points - 1; s.conc = sel.value; s.concRating = points + 1;
+    renderManageSkills();
+  });
+  $$('[data-addspec]').forEach(sel => sel.onchange = () => {
+    if (!sel.value) return;
+    const s = draft.skills[Number(sel.dataset.addspec)];
+    const points = (s.rating||0) + 1;
+    s.rating = points - 2; s.concRating = points; s.spec = sel.value; s.specRating = points + 2;
+    renderManageSkills();
+  });
+  $$('[data-freeconc]').forEach(b => b.onclick = async () => {
+    const label = await showPrompt('Concentration name?', '', { title: '// CONCENTRATION' });
+    if (!label) return;
+    const s = draft.skills[Number(b.dataset.freeconc)];
+    const points = s.rating||0;
+    s.rating = points - 1; s.conc = label; s.concRating = points + 1;
+    renderManageSkills();
+  });
+  $$('[data-freespec]').forEach(b => b.onclick = async () => {
+    const label = await showPrompt('Specialization name?', '', { title: '// SPECIALIZATION' });
+    if (!label) return;
+    const s = draft.skills[Number(b.dataset.freespec)];
+    const points = (s.rating||0) + 1;
+    s.rating = points - 2; s.concRating = points; s.spec = label; s.specRating = points + 2;
+    renderManageSkills();
+  });
+}
+
+// ---- Manage Armor (immediate apply) ----
+function openManageArmor(){
+  openModal('armor', '// Manage Armor', false);
+  renderManageArmor();
+}
+function renderManageArmor(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">One item per slot (Worn/Military, Helmet, Shield) equipped at a time.
+    Total Armor on the sheet only counts equipped items.</p>` +
+    armor.map((a,i) => {
+      const cat = ARMOR_CAT.get(a.n) || {};
+      const equipped = a.equipped !== false;
+      const slot = cat.cat || 'worn';
+      return `<div class="ps-stat-row"><span class="k">${esc(a.n)} <span style="color:var(--text-dim);font-size:.66rem;text-transform:uppercase;">${esc(slot)}</span></span>
+        <button class="btn ${equipped?'btn-green':''}" data-equip="${i}" data-slot="${esc(slot)}">${equipped?'Equipped':'Equip'}</button></div>`;
+    }).join('');
+  $$('[data-equip]').forEach(b => b.onclick = () => {
+    const idx = Number(b.dataset.equip), slot = b.dataset.slot;
+    const armor = CHAR.gear.armor;
+    const wasEquipped = armor[idx].equipped !== false;
+    armor.forEach(a => {
+      const s = (ARMOR_CAT.get(a.n)||{}).cat || 'worn';
+      if (s === slot) a.equipped = false;
+    });
+    armor[idx].equipped = !wasEquipped;
+    patchGear().then(() => { renderArmor(); renderManageArmor(); });
+  });
+}
+
+// ---- Manage Gear (immediate apply: remove / reduce qty only) ----
+function openManageGear(){
+  openModal('gear', '// Manage Gear', false);
+  renderManageGear();
+}
+function renderManageGear(){
+  const gear = (CHAR.gear && CHAR.gear.gear) || [];
+  if (!gear.length){ $('#modalBody').innerHTML = '<p class="empty-state">No gear owned.</p>'; return; }
+  $('#modalBody').innerHTML = gear.map((g,i) => `
+    <div class="ps-stat-row"><span class="k">${esc(g.kind ? g.n+' - '+g.kind : g.n)}</span>
+      <button class="btn btn-red" data-remove="${i}">Remove</button></div>`).join('');
+  $$('[data-remove]').forEach(b => b.onclick = () => {
+    CHAR.gear.gear.splice(Number(b.dataset.remove), 1);
+    patchGear().then(() => { renderGear(); renderManageGear(); });
+  });
+}
+
+// ---- shared commit/cancel ----
+async function commitModal(){
+  if (currentModalMode === 'identity'){
+    await patchChar({
+      archetype: $('#mgArchetype').value.trim(),
+      race: $('#mgRace').value.trim(),
+      gender: $('#mgSex').value.trim(),
+      age: Number($('#mgAge').value) || 0,
+      lifestyle_level: Number($('#mgLifestyle').value),
+    });
+    renderIdentity(); renderHeader();
+  } else if (currentModalMode === 'attrs'){
+    const fields = {};
+    Object.values(ATTR_KEYS).forEach(key => fields[key] = draft[key]);
+    fields.good_karma = Math.max(0, draft.good_karma);
+    await patchChar(fields);
+    renderAttributes(); renderIdentity();
+  } else if (currentModalMode === 'skills'){
+    await patchChar({ skills: draft.skills, good_karma: Math.max(0, draft.good_karma) });
+    renderSkills(); renderIdentity();
+  } else {
+    closeModal(); return;
+  }
+  showAlert($('#alert'), 'Changes committed.', false);
+  closeModal();
+}
+function cancelModal(){ closeModal(); }
+
+// ================================================================== wire-up
+function wireStatic(){
+  $('#manageIdentityBtn').onclick = openManageIdentity;
+  $('#manageAttrsBtn').onclick = openManageAttrs;
+  $('#manageSkillsBtn').onclick = openManageSkills;
+  $('#manageArmorBtn').onclick = openManageArmor;
+  $('#manageGearBtn').onclick = openManageGear;
+  $('#modalCommitBtn').onclick = commitModal;
+  $('#modalCancelBtn').onclick = cancelModal;
+
+  $$('#dmgHealToggle .seg-btn').forEach(b => b.onclick = () => setDmgMode(b.dataset.mode));
+
+  const kpApply = () => {
+    let v = parseInt($('#karmaPoolInput').value, 10);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.min(50, Math.max(0, v));
+    $('#karmaPoolInput').value = v;
+    if (v !== CHAR.karma_pool) patchChar({ karma_pool: v });
+  };
+  const gkApply = () => {
+    let v = parseInt($('#goodKarmaInput').value, 10);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.min(50, Math.max(0, v));
+    $('#goodKarmaInput').value = v;
+    if (v !== CHAR.good_karma) patchChar({ good_karma: v });
+  };
+  $('#karmaPoolInput').addEventListener('change', kpApply);
+  $('#goodKarmaInput').addEventListener('change', gkApply);
+  if (!CAN_EDIT) { $('#karmaPoolInput').disabled = true; $('#goodKarmaInput').disabled = true; }
+
+  let notesTimer = null;
+  $('#charNotes').addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => patchChar({ notes: $('#charNotes').value }), 800);
+  });
+
+  wireNuyenEdit();
+  wireVehicle();
+
+  $('#exportBtn').onclick = async () => {
+    const res = await apiFetch(`/characters/${CHAR.id}/sheet.pdf`);
+    if (!res.ok) { showAlert($('#alert'), `PDF export failed (status ${res.status})`, true); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${CHAR.name || 'character'}_SR2.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+}
+
+boot();
+</script>
+</body>
+</html>

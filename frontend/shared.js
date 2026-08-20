@@ -156,6 +156,7 @@ function _buildCharactersNavGroup() {
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
+    { href: 'play-sheet.html', label: 'Play Sheet' },
     { href: 'gear.html', label: 'Gear Catalog' },
     { href: 'hardcopy.html', label: 'Hardcopy' },
   ];
