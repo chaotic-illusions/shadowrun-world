@@ -22,6 +22,13 @@ router = APIRouter()
 _PLAYER_WRITABLE_FIELDS = {
     "name", "archetype", "title", "race", "nationality", "gender",
     "age", "description", "background", "notes", "is_active",
+    # Career fields: post-chargen play-sheet edits (karma spend, purchases, condition
+    # tracking). Trust-the-player, same philosophy as the chargen dossier commit --
+    # the GM reviews the sheet rather than the server enforcing a points budget.
+    "nuyen", "karma_pool", "good_karma", "skills", "gear",
+    "body", "quickness", "strength", "charisma", "intelligence", "willpower",
+    "essence", "magic_rating", "lifestyle_level", "lifestyle_permanent",
+    "physical_damage", "stun_damage", "physical_overflow",
 }
 
 
