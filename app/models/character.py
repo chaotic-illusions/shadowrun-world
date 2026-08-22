@@ -43,6 +43,8 @@ class Character(Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     background: Mapped[str | None] = mapped_column(Text, default=None)
     show_background: Mapped[bool] = mapped_column(default=False)
+    # Relative URL under the /uploads static mount (see app/main.py), e.g. "/uploads/portraits/<uuid>.jpg".
+    portrait_url: Mapped[str | None] = mapped_column(String(500), default=None)
 
     # Services/skills this NPC can provide as a contact
     contact_skills: Mapped[list] = mapped_column(JSON, default=list)
