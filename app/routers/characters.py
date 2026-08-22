@@ -1,6 +1,9 @@
+import os
 import re
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+import aiofiles
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from sqlalchemy import select, update as sql_update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,10 +28,14 @@ _PLAYER_WRITABLE_FIELDS = {
     # Career fields: post-chargen play-sheet edits (karma spend, purchases, condition
     # tracking). Trust-the-player, same philosophy as the chargen dossier commit --
     # the GM reviews the sheet rather than the server enforcing a points budget.
-    "nuyen", "karma_pool", "good_karma", "skills", "gear",
+    "nuyen", "karma_pool", "good_karma", "skills", "gear", "spells",
     "body", "quickness", "strength", "charisma", "intelligence", "willpower",
     "essence", "magic_rating", "lifestyle_level", "lifestyle_permanent",
     "physical_damage", "stun_damage", "physical_overflow",
+    # Play-sheet karma-raise commits patch chargen_state.base (the true pre-augmentation
+    # attribute ratings) alongside the recomputed aggregate above -- see play-sheet.html's
+    # commitModal() 'attrs' branch.
+    "chargen_state",
 }
 
 
@@ -435,6 +442,42 @@ async def character_sheet_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{safe}_SR2.pdf"'},
     )
+
+
+_PORTRAIT_CONTENT_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+_PORTRAIT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/{character_id}/portrait", response_model=CharacterRead)
+async def upload_character_portrait(
+    character_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Upload/replace a character's portrait image. Owner-or-admin only. Stored on local disk
+    under data/uploads/portraits (served via the /uploads static mount in app/main.py)."""
+    char = await _load_character(db, character_id)
+    _assert_character_access(char, ctx)
+
+    ext = _PORTRAIT_CONTENT_TYPES.get(file.content_type)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Portrait must be a PNG, JPEG, or WEBP image")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(data) > _PORTRAIT_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Portrait image is too large (limit 5MB)")
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join("data", "uploads", "portraits", filename)
+    async with aiofiles.open(path, "wb") as f:
+        await f.write(data)
+
+    char.portrait_url = f"/uploads/portraits/{filename}"
+    await db.commit()
+    await db.refresh(char)
+    return _serialize_character(char, ctx)
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
