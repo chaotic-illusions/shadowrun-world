@@ -94,6 +94,15 @@ async def _ensure_character_chargen_state_column():
         print("[startup] Added characters.chargen_state column")
 
 
+async def _ensure_character_portrait_column():
+    """Startup safety migration for characters.portrait_url on SQLite deployments. create_all won't
+    add columns to an existing characters table; add it in place when an older DB predates it.
+    Idempotent.
+    """
+    if await _ensure_sqlite_column("characters", "portrait_url", "VARCHAR(500)"):
+        print("[startup] Added characters.portrait_url column")
+
+
 async def _ensure_contact_type_column():
     """Startup safety migration for contacts.contact_type on SQLite deployments. create_all won't
     add columns to an existing contacts table; add it in place when an older DB predates it.
@@ -338,6 +347,7 @@ async def lifespan(app: FastAPI):
         await _ensure_character_math_spu_columns()
         await _ensure_character_sheet_columns()
         await _ensure_character_chargen_state_column()
+        await _ensure_character_portrait_column()
         await _ensure_contact_type_column()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
@@ -413,6 +423,10 @@ app.include_router(campaign.router,       prefix="/campaign",      tags=["Campai
 app.include_router(catalog.router,        prefix="/catalog",       tags=["Catalog"],            dependencies=_auth)
 
 app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
+# StaticFiles checks the directory exists at construction time (module import, before the lifespan
+# startup hook runs), so create it here rather than in lifespan().
+os.makedirs("data/uploads/portraits", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 @app.get("/", tags=["Info"], include_in_schema=False)

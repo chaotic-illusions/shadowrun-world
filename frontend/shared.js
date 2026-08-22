@@ -157,7 +157,6 @@ function _buildCharactersNavGroup() {
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
     { href: 'play-sheet.html', label: 'Play Sheet' },
-    { href: 'gear.html', label: 'Gear Catalog' },
     { href: 'hardcopy.html', label: 'Hardcopy' },
   ];
   const here = window.location.pathname;
@@ -470,11 +469,13 @@ function esc(s) {
     .replace(/`/g,'&#96;');
 }
 
-/** Flash an alert banner inside the given element. */
-function showAlert(el, msg, isErr) {
+/** Flash an alert banner inside the given element. Pass noScroll to leave the page's scroll
+ *  position untouched (e.g. for actions triggered from inside a modal, where jumping the
+ *  background page to reveal the banner is disorienting rather than helpful). */
+function showAlert(el, msg, isErr, noScroll) {
   el.textContent = msg;
   el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (!noScroll) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -544,12 +545,15 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-green') {
  * opts: { okLabel='OK', okClass='btn-green', title='>> INPUT REQUIRED',
  *         inputType='text', placeholder='', min=null, max=null }
  */
+// opts.options (string[]), when given, renders a <select> of those choices instead of a free-text
+// <input> -- used for pick-one prompts like "which active skill is this Activesoft loaded with?".
 function showPrompt(message, defaultVal = '', opts = {}) {
   const okLabel     = opts.okLabel     || 'OK';
   const okClass     = opts.okClass     || 'btn-green';
   const title       = opts.title       || '>> INPUT REQUIRED';
   const inputType   = opts.inputType   || 'text';
   const placeholder = opts.placeholder || '';
+  const options     = opts.options;
   return new Promise(resolve => {
     let overlay = document.getElementById('_sharedPromptOverlay');
     if (!overlay) {
@@ -573,23 +577,44 @@ function showPrompt(message, defaultVal = '', opts = {}) {
 
     const titleEl = document.getElementById('_sharedPromptTitle');
     const msgEl   = document.getElementById('_sharedPromptMsg');
-    const input   = document.getElementById('_sharedPromptInput');
     const okBtn   = document.getElementById('_sharedPromptOk');
     const cancel  = document.getElementById('_sharedPromptCancel');
 
+    // The field node is cached/reused across calls; swap it between <input> and <select> as needed
+    // so a previous call's kind doesn't leak into this one.
+    let field = document.getElementById('_sharedPromptInput');
+    const wantSelect = Array.isArray(options) && options.length > 0;
+    if (wantSelect && field.tagName !== 'SELECT') {
+      const sel = document.createElement('select');
+      sel.id = '_sharedPromptInput';
+      sel.style.marginBottom = '22px';
+      field.replaceWith(sel); field = sel;
+    } else if (!wantSelect && field.tagName !== 'INPUT') {
+      const inp = document.createElement('input');
+      inp.id = '_sharedPromptInput'; inp.type = 'text';
+      inp.style.marginBottom = '22px';
+      field.replaceWith(inp); field = inp;
+    }
+
     titleEl.textContent = title;
     msgEl.textContent   = message;
-    input.type          = inputType;
-    // Optional numeric bounds -- reset every call (the input node is cached and reused).
-    if (opts.max != null) input.max = String(opts.max); else input.removeAttribute('max');
-    if (opts.min != null) input.min = String(opts.min); else input.removeAttribute('min');
-    input.placeholder   = placeholder;
-    input.value         = defaultVal == null ? '' : String(defaultVal);
+    if (wantSelect) {
+      field.innerHTML = options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      field.value = defaultVal && options.includes(defaultVal) ? defaultVal : options[0];
+    } else {
+      field.type = inputType;
+      // Optional numeric bounds / max length -- reset every call (the input node is cached and reused).
+      if (opts.max != null) field.max = String(opts.max); else field.removeAttribute('max');
+      if (opts.min != null) field.min = String(opts.min); else field.removeAttribute('min');
+      if (opts.maxLength != null) field.maxLength = opts.maxLength; else field.removeAttribute('maxlength');
+      field.placeholder = placeholder;
+      field.value = defaultVal == null ? '' : String(defaultVal);
+    }
     okBtn.textContent   = okLabel;
     okBtn.className     = `btn ${okClass}`;
     pausePoll();
     overlay.style.display = 'flex';
-    setTimeout(() => { input.focus(); input.select(); }, 30);
+    setTimeout(() => { field.focus(); if (field.select) field.select(); }, 30);
 
     function cleanup(result) {
       resumePoll();
@@ -597,21 +622,21 @@ function showPrompt(message, defaultVal = '', opts = {}) {
       okBtn.removeEventListener('click', onOk);
       cancel.removeEventListener('click', onCancel);
       overlay.removeEventListener('click', onBackdrop);
-      input.removeEventListener('keydown', onKey);
+      field.removeEventListener('keydown', onKey);
       resolve(result);
     }
-    function onOk()       { cleanup(input.value); }
+    function onOk()       { cleanup(field.value); }
     function onCancel()   { cleanup(null); }
     function onBackdrop(e){ if (e.target === overlay) cleanup(null); }
     function onKey(e) {
-      if (e.key === 'Enter')  { e.preventDefault(); cleanup(input.value); }
+      if (e.key === 'Enter')  { e.preventDefault(); cleanup(field.value); }
       if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
     }
 
     okBtn.addEventListener('click', onOk);
     cancel.addEventListener('click', onCancel);
     overlay.addEventListener('click', onBackdrop);
-    input.addEventListener('keydown', onKey);
+    field.addEventListener('keydown', onKey);
   });
 }
 
@@ -757,6 +782,90 @@ function computeHackingPool(intelligence, mpcp, mathSpu = 0) {
   const brain = Math.max(0, parseInt(mpcp, 10) || 0);
   const spu   = Math.max(0, parseInt(mathSpu, 10) || 0);
   return Math.floor((intel + Math.floor(spu / 2) + brain) / 3);
+}
+
+
+// -- Gear catalog helpers -------------------------------------------------------
+// Ported from character-builder.html's chargen shop logic (kept there untouched -- its own local
+// copies still shadow these for its own script) so gear-picker.js can convert a purchased catalog
+// item into the same owned-gear-line shape chargen already produces, without duplicating the rules.
+
+// Parse a leading number out of a value that may be a number, a formula string, a range
+// ("15,000 - 60,000"), or null. Returns 0 when nothing numeric is present.
+function parseNum(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v !== 'string') return 0;
+  const m = v.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+
+// Pull a named row out of an item's stats:[[label,value],...] array (vehicles, cyberdecks).
+function statVal(item, key) {
+  const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
+  return row ? (parseNum(row[1]) || 0) : 0;
+}
+function vehicleStatBody(item) { return statVal(item, 'body'); }
+
+// Convert a catalog item into the shape stored on a character's gear.{cyber,bio,weapons,armor,gear,
+// vehicles} lines (character-builder.html:makeGearLine).
+function makeGearLine(item, catalogName) {
+  if (catalogName === 'cyberware') {
+    const line = { n: item.n, sub: item.cat || '', grade: 'Standard', baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
+    if (item.cat === 'other') line.noGrade = true;   // software chips (skillsofts) carry no cyber grade
+    if (item.soft) line.soft = item.soft;            // skillsoft type: 'active' | 'knowledge' | 'language'
+    if (item.skillBonus) line.skillBonus = item.skillBonus;   // e.g. Math SPU: +floor(Rating/2) to matching skills
+    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Wired Reflexes: +Reaction, +Init dice)
+    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating attribute bonuses (e.g. Muscle Replacement: +Str/+Qui per level)
+    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task / Hacking / Combat)
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    }
+    return line;
+  }
+  const line = { n: item.n, sub: item.sub || item.cat || '', cost: parseNum(item.cost), src: item.src };
+  if (catalogName === 'bioware') {
+    line.ess = parseNum(item.ess);
+    if (item.mods) line.mods = item.mods;
+    if (item.modsPer) line.modsPer = item.modsPer;
+    if (item.poolTbl) line.poolTbl = item.poolTbl;
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+      if (item.capBody) line.capBody = true;
+    }
+  }
+  if ((catalogName === 'gear' || catalogName === 'weapons' || catalogName === 'armor') && item.rated) {
+    line.rated = true;
+    line.maxRating = Number(item.maxRating) || 1;
+    line.rating = 1;
+    if (item.costUnit != null) line.costUnit = Number(item.costUnit);
+    if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    if (Array.isArray(item.rateLabels)) line.rateLabels = item.rateLabels.slice();
+  }
+  if (item.cat === 'deck') line.mpcp = statVal(item, 'MPCP');
+  if (catalogName === 'vehicles') { line.body = vehicleStatBody(item); line.rigger = false; }
+  return line;
+}
+
+// Current nuyen cost of an owned gear line (rated weapons/armor/gear use their rating's costTbl slot).
+function gearLineCost(g) {
+  if (!g.rated) return Number(g.cost) || 0;
+  const r = Number(g.rating) || 1;
+  if (Array.isArray(g.costTbl) && g.costTbl[r - 1] != null) return Number(g.costTbl[r - 1]) || 0;
+  return (Number(g.costUnit) || 0) * r;
 }
 
 
