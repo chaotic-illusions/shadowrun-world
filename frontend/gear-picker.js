@@ -21,7 +21,6 @@ const initGearPicker = (function () {
 
   let root = null;
   let onPurchase = null;
-  let onAttach = null;
   let DATA = {};                 // cat key -> [items]
   let dataLoaded = false;
   let curCat = "weapons";
@@ -117,6 +116,10 @@ const initGearPicker = (function () {
     const def = catDef(curCat);
     const base = (DATA[def.src || def.k] || []).filter(def.pick || (() => true));
     const items = base
+      // Attach-only items (Smartgun System, Gel-Pack Armor, ...) fold into an already-owned
+      // weapon/armor line instead of being a standalone purchase -- they're bought from a control
+      // on that owned line (Manage Weapons/Manage Armor), not browsed here.
+      .filter(it => !it.attachToWeapon && !it.attachToArmor)
       .filter(it => { const q = filter.toLowerCase(); return !q || (it.n || "").toLowerCase().includes(q) || (it.sub || "").toLowerCase().includes(q); });
     qs("#gcCount").textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
     const byPrice = (curCat === "vehicles" || curCat === "matrix");
@@ -140,30 +143,6 @@ const initGearPicker = (function () {
       selOpts = [];
       renderList(); renderInspector();
     });
-  }
-
-  /* ---------- attach-to-host (Smartgun System, Gel-Pack Armor, etc.) ----------
-   * Some accessories aren't a standalone gear line -- they fold into an already-owned weapon or
-   * armor piece (name + cost change in place). Catalog items carry attachToWeapon/attachToArmor;
-   * the host picker below mirrors character-builder.html's chargen-time shop control. */
-  function attachHostList(it) {
-    const bucket = it.attachToWeapon ? "weapons" : "armor";
-    const excl = it.attachToWeapon ? ["accessory", "ammo"] : ["accessory"];
-    const owned = (typeof CHAR !== "undefined" && CHAR && CHAR.gear && CHAR.gear[bucket]) || [];
-    return owned.map((g, i) => ({ g, i })).filter(({ g }) => {
-      const src = findItem(bucket, g.n);
-      return src && !excl.includes(src.cat);
-    });
-  }
-  function attachBlockHTML(it) {
-    const owned = attachHostList(it);
-    const label = it.attachToWeapon ? "weapon" : "armor piece";
-    if (!owned.length) return `<p class="dim-meta">Add a ${label} to your loadout first &mdash; this attaches to one already owned.</p>`;
-    const opts = owned.map(({ g, i }) => `<option value="${i}">${esc(g.n)} (${money(gearLineCost(g))})</option>`).join("");
-    return `<div class="gc-add">
-      <select id="gcAttachHost" class="gc-rsel" style="width:auto">${opts}</select>
-      <button type="button" class="btn btn-green btn-sm" id="gcAttach" ${onAttach ? "" : "disabled"}>Attach</button>
-    </div>`;
   }
 
   /* ---------- inspector ---------- */
@@ -239,12 +218,6 @@ const initGearPicker = (function () {
     const rawRows = Object.keys(it).filter(k => !HIDE_KEYS.has(k) && !["cost", "ess", "avail", "index", "legal", "src", "pg"].includes(k))
       .map(k => `<tr><td>${esc(k)}</td><td>${fmtVal(it[k])}</td></tr>`).join("");
     const raw = rawRows ? `<div class="gc-raw"><table>${rawRows}</table></div>` : "";
-    const isAttach = it.attachToWeapon || it.attachToArmor;
-    const addBlock = isAttach ? attachBlockHTML(it) : `
-      <div class="gc-add">
-        <input type="number" id="gcQty" min="1" value="1" style="width:56px" title="Quantity">
-        <button type="button" class="btn btn-green btn-sm" id="gcBuy" ${onPurchase ? "" : "disabled"}>Buy</button>
-      </div>`;
 
     box.innerHTML = `
       <div class="gc-insp__n">${esc(it.n)}</div>
@@ -253,7 +226,10 @@ const initGearPicker = (function () {
       <div class="gc-meta">${meta.join("")}</div>
       ${it.desc ? `<div class="gc-desc">${esc(it.desc)}</div>` : ""}
       ${effect}${optionsBlk}${notes}
-      ${addBlock}
+      <div class="gc-add">
+        <input type="number" id="gcQty" min="1" value="1" style="width:56px" title="Quantity">
+        <button type="button" class="btn btn-green btn-sm" id="gcBuy" ${onPurchase ? "" : "disabled"}>Buy</button>
+      </div>
       ${raw}`;
     const rsel = qs("#gcRating");
     if (rsel) rsel.onchange = () => { selRating = Number(rsel.value) || 1; renderInspector(); };
@@ -271,27 +247,10 @@ const initGearPicker = (function () {
       buyBtn.disabled = true; buyBtn.textContent = "Buying…";
       try {
         await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, item: it }]);
-        showAlert(alertEl(), `>> BOUGHT // ${it.n}${rating ? " R" + rating : ""}${opts.length ? " +" + opts.length + " opt" : ""} x${qty}`, false, true);
       } catch (e) {
         showAlert(alertEl(), `>> PURCHASE FAILED // ${e.message}`, true, true);
       } finally {
         buyBtn.disabled = false; buyBtn.textContent = "Buy";
-      }
-    };
-    const attachBtn = qs("#gcAttach");
-    if (attachBtn && onAttach) attachBtn.onclick = async () => {
-      const hostSel = qs("#gcAttachHost");
-      const hostIndex = hostSel ? Number(hostSel.value) : -1;
-      attachBtn.disabled = true; attachBtn.textContent = "Attaching…";
-      try {
-        await onAttach({ cat: selected.cat, item: it, hostIndex });
-        showAlert(alertEl(), `>> ATTACHED // ${it.n}`, false, true);
-        selected = null;
-        renderList(); renderInspector();
-      } catch (e) {
-        showAlert(alertEl(), `>> ATTACH FAILED // ${e.message}`, true, true);
-      } finally {
-        attachBtn.disabled = false; attachBtn.textContent = "Attach";
       }
     };
   }
@@ -319,7 +278,6 @@ const initGearPicker = (function () {
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
-    onAttach = (opts && opts.onAttach) || null;
     if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a
       // *different* tab than whatever was last active, a leftover search term from browsing a
