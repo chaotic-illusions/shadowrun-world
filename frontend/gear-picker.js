@@ -1,9 +1,10 @@
 // Reusable SR2 gear catalog browser, mounted inside the play-sheet's Buy Gear modal
-// (frontend/play-sheet.html). Each item buys immediately from its own inspector -- no separate
-// shopping-cart/checkout step. State is a module-level singleton (not per-call locals) so
-// reopening the modal within the same page session redraws instantly from already-loaded catalog
-// data instead of refetching. Depends on shared.js (esc/apiFetch/showAlert/parseNum/makeGearLine)
-// and catalog-taxonomy.js (grouping helpers) already being loaded on the page.
+// (frontend/play-sheet.html) and chargen's Asset Manifest step (frontend/character-builder.html).
+// Each item buys immediately from its own inspector -- no separate shopping-cart/checkout step.
+// State is a module-level singleton (not per-call locals) so reopening the modal within the same
+// page session redraws instantly from already-loaded catalog data instead of refetching. Depends on
+// shared.js (esc/apiFetch/parseNum/makeGearLine) and catalog-taxonomy.js (grouping helpers) already
+// being loaded on the page.
 const initGearPicker = (function () {
   const CATS = [
     { k: "weapons",   label: "Weapons" },
@@ -20,7 +21,6 @@ const initGearPicker = (function () {
 
   let root = null;
   let onPurchase = null;
-  let alertTarget = null;        // opts.alertEl override -- falls back to #alert (play-sheet.html's convention)
   let DATA = {};                 // cat key -> [items]
   let dataLoaded = false;
   let curCat = "weapons";
@@ -37,7 +37,6 @@ const initGearPicker = (function () {
   let maxQtyFn = null;            // opts.maxQty(item, cat) -- how many more of this the host would actually let through
 
   function qs(sel) { return root.querySelector(sel); }
-  function alertEl() { return alertTarget || document.getElementById("alert"); }
   // Cyberware only (bioware has no grade concept); skillsoft-style "other" cyberware items are
   // ungraded too (matches makeGearLine's item.cat === 'other' -> noGrade rule in shared.js).
   function isGradeable(it, cat) { return !!gradeTable && cat === "cyberware" && it && it.cat !== "other"; }
@@ -294,20 +293,30 @@ const initGearPicker = (function () {
       const grade = isGradeable(it, selected.cat) ? selGrade : undefined;
       buyBtn.disabled = true; buyBtn.textContent = "Buying…";
       try {
-        // onPurchase returning false means the host silently skipped the purchase (ownership cap,
-        // prerequisite, Essence/Body Index block, etc. -- play-sheet.html's purchaseGear does this
-        // without throwing, since a block is an expected outcome, not an error). Anything else
-        // (undefined included, for hosts like chargen's that never block) counts as success.
+        // onPurchase returns a message string when the host has something the player needs to see
+        // (a full block -- ownership cap, prerequisite, Essence/Body Index, "already own this exact
+        // configuration" -- or a partial skip within a multi-unit buy). It's rendered right here in
+        // the modal instead of the page-level #alert, which sits behind the modal overlay and was
+        // going unseen. Anything else (undefined, for a clean success or a host like chargen's that
+        // never blocks) shows the normal "Purchased!" confirmation.
         const result = await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, item: it }]);
         const msg = qs("#gcBuyMsg");
-        if (msg && result !== false) {
-          msg.textContent = "Purchased!";
-          msg.classList.remove("is-show");
+        if (msg) {
+          const blocked = typeof result === "string" && result;
+          msg.textContent = blocked || "Purchased!";
+          msg.classList.remove("is-show", "is-err");
           void msg.offsetWidth;   // restart the fade animation on a repeat buy
           msg.classList.add("is-show");
+          if (blocked) msg.classList.add("is-err");
         }
       } catch (e) {
-        showAlert(alertEl(), `>> PURCHASE FAILED // ${e.message}`, true, true);
+        const msg = qs("#gcBuyMsg");
+        if (msg) {
+          msg.textContent = `Purchase failed // ${e.message}`;
+          msg.classList.remove("is-show");
+          void msg.offsetWidth;
+          msg.classList.add("is-show", "is-err");
+        }
       } finally {
         buyBtn.disabled = false; buyBtn.textContent = "Buy";
       }
@@ -326,8 +335,9 @@ const initGearPicker = (function () {
       dataLoaded = true;
       renderTabs(); renderList(); renderInspector();
     } catch (e) {
-      qs("#gcList").innerHTML = "";
-      showAlert(alertEl(), `>> LOAD FAILED // ${e.message}`, true, true);
+      // In-modal like every other message here now -- the page-level #alert sits behind the modal
+      // overlay and would go unseen.
+      qs("#gcList").innerHTML = `<p class="empty-state" style="color:var(--red,#ff3333)">Load failed // ${esc(e.message)}</p>`;
     }
   }
 
@@ -337,17 +347,16 @@ const initGearPicker = (function () {
   // opts.gradeTable: {GradeName: {ess,nuyen,book}} -- omit to hide grade choice entirely (bioware-only
   // hosts, or a host that doesn't want grade selection). opts.enabledBooks: Set of sourcebook keys,
   // used only to grey out a book-gated grade (e.g. Alpha needs SSC), same as every other catalog item.
-  // opts.alertEl: element to show a purchase-failure message in -- defaults to #alert (play-sheet.html
-  // has one; a host without it, like character-builder.html, must pass its own).
   // opts.maxQty(item, cat): returns how many more of this item can actually be bought right now: 0
   // hides the Buy button (already owned, or an incompatible qty), 1 collapses the Qty control to a
   // dash (nothing to choose), >1 makes it an editable number capped at that value. Omit for unlimited.
+  // Purchase-result messages (blocked, failed, "Purchased!") render inline in the modal itself
+  // (#gcBuyMsg) rather than through any page-level alert element, which can sit behind the modal.
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
     gradeTable = (opts && opts.gradeTable) || null;
     pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
-    alertTarget = (opts && opts.alertEl) || null;
     maxQtyFn = (opts && opts.maxQty) || null;
     if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a

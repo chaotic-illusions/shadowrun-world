@@ -3906,5 +3906,6 @@ main:has(.md3) { max-width: 1800px; }
 .gc-dash{color:var(--text-dim,#888);font-size:.85rem;padding:5px 8px;opacity:.5;}
 .gc-count{color:var(--text-dim);font-size:.66rem;}
 .gc-buy-msg{color:var(--green-bright,#0f0);font-size:.78rem;opacity:0;}
+.gc-buy-msg.is-err{color:var(--red,#ff3333);}
 .gc-buy-msg.is-show{animation:gcBuyMsgFade 2.2s ease forwards;}
 @keyframes gcBuyMsgFade{0%{opacity:1}70%{opacity:1}100%{opacity:0}}

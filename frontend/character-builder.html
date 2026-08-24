@@ -1345,7 +1345,6 @@ function stepResources() {
       <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
       <div>
         <div id="cbxGearPicker"></div>
-        <div id="cbxGearAlert" class="cbx-note"></div>
         ${programsPanelHTML()}
       </div>
     </div>
@@ -1615,7 +1614,6 @@ function wire() {
       onPurchase: chargenBuyGear,
       gradeTable: GRADES,
       enabledBooks,
-      alertEl: document.getElementById("cbxGearAlert"),
     });
   }
   root.querySelectorAll("[data-inspect]").forEach(el => el.onclick = () => toggleShopInspect(root, el.dataset.inspect));
