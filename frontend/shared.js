@@ -926,7 +926,9 @@ function cyberBaseCost(g) {
 // spent (SR2's minimum meaningful Essence cost) -- a plain multiply can round an Alpha-grade item
 // below that floor.
 function gradeEssenceCost(baseEss, essMult) {
-  const v = Math.ceil((Number(baseEss) || 0) * essMult * 100) / 100;
+  // The tiny epsilon keeps binary floating-point noise (e.g. 3*0.8 === 2.4000000000000004) from
+  // pushing an exact value like 2.40 over the ceiling into 2.41.
+  const v = Math.ceil((Number(baseEss) || 0) * essMult * 100 - 1e-9) / 100;
   return (Number(baseEss) || 0) > 0 ? Math.max(0.05, v) : 0;
 }
 function gradeNuyenCost(baseCost, nuyenMult) {
