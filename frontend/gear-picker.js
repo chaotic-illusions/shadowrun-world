@@ -34,12 +34,17 @@ const initGearPicker = (function () {
   // grade table or sourcebook-gating policy -- see gradedCyberEssence/gradedCyberCost in shared.js.
   let gradeTable = null;         // {GradeName: {ess, nuyen, book}} or null if the host doesn't offer grade choice
   let pickerEnabledBooks = new Set();
+  let maxQtyFn = null;            // opts.maxQty(item, cat) -- how many more of this the host would actually let through
 
   function qs(sel) { return root.querySelector(sel); }
   function alertEl() { return alertTarget || document.getElementById("alert"); }
   // Cyberware only (bioware has no grade concept); skillsoft-style "other" cyberware items are
   // ungraded too (matches makeGearLine's item.cat === 'other' -> noGrade rule in shared.js).
   function isGradeable(it, cat) { return !!gradeTable && cat === "cyberware" && it && it.cat !== "other"; }
+  // Defaults to unlimited for hosts that don't supply opts.maxQty (chargen, which has no ownership
+  // caps at all). play-sheet.html supplies one so a max-1 item (most cyberware/bioware/armor) can't
+  // have an obviously-wrong quantity typed into it.
+  function maxQtyFor(it, cat) { return maxQtyFn ? Math.max(0, maxQtyFn(it, cat)) : Infinity; }
   // money() lives in shared.js now.
 
   // Cost of one unit of an item at a given rating (uses costTbl for rated items) plus any selected options.
@@ -189,18 +194,7 @@ const initGearPicker = (function () {
     const essLabel = selected.cat === "bioware" ? "Body Index" : "Essence";
     const gradeable = isGradeable(it, selected.cat);
     const gMult = gradeable ? (gradeTable[selGrade] || gradeTable.Standard) : null;
-    if (gradeable) {
-      const gopts = Object.keys(gradeTable).map(g => {
-        const book = gradeTable[g].book;
-        const locked = book && !pickerEnabledBooks.has(book);
-        return `<option value="${esc(g)}" ${g === selGrade ? "selected" : ""} ${locked ? "disabled" : ""}>${esc(g)}${locked ? ` (needs ${esc(book)})` : ""}</option>`;
-      }).join("");
-      meta.push(`<span><b>Grade</b> <select id="gcGrade" class="gc-rsel">${gopts}</select></span>`);
-    }
     if (it.rated) {
-      const ropts = Array.from({ length: Math.max(1, Number(it.maxRating) || 1) }, (_, i) => i + 1)
-        .map(r => `<option value="${r}" ${r === selRating ? "selected" : ""}>${r}</option>`).join("");
-      meta.push(`<span><b>Rating</b> <select id="gcRating" class="gc-rsel">${ropts}</select></span>`);
       const baseCost = unitCost(it, selRating);
       meta.push(`<span><b>Cost</b> ${money(gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost)}</span>`);
       if (Array.isArray(it.essTbl) && it.essTbl[selRating - 1] != null) {
@@ -245,6 +239,27 @@ const initGearPicker = (function () {
       .map(k => `<tr><td>${esc(k)}</td><td>${fmtVal(it[k])}</td></tr>`).join("");
     const raw = rawRows ? `<div class="gc-raw"><table>${rawRows}</table></div>` : "";
 
+    // Grade / Rating / Qty / Buy sit together as one action row -- whichever of the first three
+    // doesn't apply to this item shows a greyed "-" instead of a live control.
+    const gradeCtrl = gradeable
+      ? (() => {
+          const gopts = Object.keys(gradeTable).map(g => {
+            const book = gradeTable[g].book;
+            const locked = book && !pickerEnabledBooks.has(book);
+            return `<option value="${esc(g)}" ${g === selGrade ? "selected" : ""} ${locked ? "disabled" : ""}>${esc(g)}${locked ? ` (needs ${esc(book)})` : ""}</option>`;
+          }).join("");
+          return `<select id="gcGrade" class="gc-rsel">${gopts}</select>`;
+        })()
+      : `<span class="gc-dash">&mdash;</span>`;
+    const ratingCtrl = it.rated
+      ? `<select id="gcRating" class="gc-rsel">${Array.from({ length: Math.max(1, Number(it.maxRating) || 1) }, (_, i) => i + 1)
+          .map(r => `<option value="${r}" ${r === selRating ? "selected" : ""}>${r}</option>`).join("")}</select>`
+      : `<span class="gc-dash">&mdash;</span>`;
+    const qtyCap = maxQtyFor(it, selected.cat);
+    const qtyCtrl = qtyCap > 1
+      ? `<input type="number" id="gcQty" min="1" max="${qtyCap}" value="1" style="width:56px">`
+      : `<span class="gc-dash">&mdash;</span>`;
+
     box.innerHTML = `
       <div class="gc-insp__n">${esc(it.n)}</div>
       <div class="gc-insp__sub">${esc(it.cat || "")}${it.sub ? " " + DOT + " " + esc(it.sub) : ""}</div>
@@ -253,8 +268,10 @@ const initGearPicker = (function () {
       ${it.desc ? `<div class="gc-desc">${esc(it.desc)}</div>` : ""}
       ${effect}${optionsBlk}${notes}
       <div class="gc-add">
-        <input type="number" id="gcQty" min="1" value="1" style="width:56px" title="Quantity">
-        <button type="button" class="btn btn-green btn-sm" id="gcBuy" ${onPurchase ? "" : "disabled"}>Buy</button>
+        <span class="gc-add__f"><b>Grade</b> ${gradeCtrl}</span>
+        <span class="gc-add__f"><b>Rating</b> ${ratingCtrl}</span>
+        <span class="gc-add__f"><b>Qty</b> ${qtyCtrl}</span>
+        <button type="button" class="btn btn-green btn-sm" id="gcBuy" ${onPurchase && qtyCap >= 1 ? "" : "disabled"}>Buy</button>
         <span class="gc-buy-msg" id="gcBuyMsg"></span>
       </div>
       ${raw}`;
@@ -270,7 +287,8 @@ const initGearPicker = (function () {
     });
     const buyBtn = qs("#gcBuy");
     if (buyBtn && onPurchase) buyBtn.onclick = async () => {
-      const qty = Math.max(1, Number(qs("#gcQty").value) || 1);
+      const qtyEl = qs("#gcQty");
+      const qty = qtyEl ? Math.max(1, Math.min(qtyCap, Number(qtyEl.value) || 1)) : 1;
       const rating = it.rated ? selRating : null;
       const opts = selOpts.slice();
       const grade = isGradeable(it, selected.cat) ? selGrade : undefined;
@@ -321,12 +339,16 @@ const initGearPicker = (function () {
   // used only to grey out a book-gated grade (e.g. Alpha needs SSC), same as every other catalog item.
   // opts.alertEl: element to show a purchase-failure message in -- defaults to #alert (play-sheet.html
   // has one; a host without it, like character-builder.html, must pass its own).
+  // opts.maxQty(item, cat): returns how many more of this item can actually be bought right now: 0
+  // hides the Buy button (already owned, or an incompatible qty), 1 collapses the Qty control to a
+  // dash (nothing to choose), >1 makes it an editable number capped at that value. Omit for unlimited.
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
     gradeTable = (opts && opts.gradeTable) || null;
     pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
     alertTarget = (opts && opts.alertEl) || null;
+    maxQtyFn = (opts && opts.maxQty) || null;
     if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a
       // *different* tab than whatever was last active, a leftover search term from browsing a
