@@ -52,6 +52,9 @@
     .armor-slot-group:first-child .armor-slot-head{padding-top:2px;}
     .armor-slot-head + .ps-stat-row{border-top:none;}
     .armor-slot-group .ps-stat-row{padding-left:20px;}
+    /* Mods modal rows are short (a name + one benefit line) -- the shared .edit-modal's ~1060px
+       max-width leaves it swimming in whitespace, so narrow it to roughly half. */
+    .mode-weaponmods .edit-modal{max-width:530px;}
 
     /* Experimental -- grouping border around each track + its damage buttons. Delete this rule and
        the .cond-group wrapper divs around Stun/Physical below to revert. */
@@ -373,7 +376,7 @@
           <table class="ps-data" id="weaponsTbl">
             <thead><tr>
               <th>Name</th><th>Type</th><th>Mode</th><th>Dmg</th><th>Ammo</th><th>Conceal</th>
-              <th>Short (4)</th><th>Med (5)</th><th>Long (6)</th><th>Extreme (8)</th><th>Mods</th>
+              <th>Short (4)</th><th>Med (5)</th><th>Long (6)</th><th>Extreme (8)</th><th>Mods</th><th style="width:1%;"></th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -533,7 +536,7 @@ const LIFESTYLE_TIERS = ['Street','Squatter','Low','Middle','High','Luxury'];
 
 function $(s, r=document){ return r.querySelector(s); }
 function $$(s, r=document){ return Array.from(r.querySelectorAll(s)); }
-function money(n){ return '¥' + (Number(n)||0).toLocaleString(); }
+// money() lives in shared.js now.
 
 // ---------------------------------------------------------------- boot / character resolution
 async function boot(){
@@ -616,6 +619,7 @@ async function loadCharacter(id){
   // skill that arrived pre-tagged from chargen (e.g. rating 3, conc "Two-Wheeler") displays correctly
   // split (2/4) instead of showing the raw unsplit rating next to a guessed concentration number.
   if (normalizeSkillSplits() && CAN_EDIT) await patchChar({ skills: CHAR.skills });
+  if (ensureWeaponIds() && CAN_EDIT) await patchChar({ gear: CHAR.gear });
 
   document.title = `${CHAR.name} | Play Sheet`;
   $('#pageCharName').textContent = CHAR.name;
@@ -738,10 +742,10 @@ function reactionInit(){
   const Q = CHAR.quickness||0, INT = CHAR.intelligence||0, W = CHAR.willpower||0;
   const vcr = vcrLevel();
   const reactionPhys = Math.floor((Q+INT)/2);
-  const reactionRig = reactionPhys + vcr*2;
+  const reactionRig = controlPoolFormula(reactionPhys, vcr);
   // Base (Q+I+W)/2, plus the Combat Sense adept power and any cyberware Combat Pool bonus (Tactical
   // Computer), minus a Heavy/Military armor encumbrance penalty.
-  const combatPool = Math.max(0, Math.floor((Q+INT+W)/2) + powerLevel('Combat Sense') + poolBonus('combat') - armorTotals().cpPenalty);
+  const combatPool = Math.max(0, combatPoolFormula(Q, INT, W, powerLevel('Combat Sense') + poolBonus('combat')) - armorTotals().cpPenalty);
   return { reactionPhys, reactionRig, combatPool, vcr };
 }
 function vcrLevel(){
@@ -803,31 +807,43 @@ function skillAugSources(skillName){
   return out;
 }
 
-// Remaining Essence after all owned cyberware (bioware costs Body Index instead, not tracked on the
-// sheet yet). Mirrors character-builder.html's essence()/cyberBaseEss(), grade-aware so pre-existing
-// Alpha-grade items from chargen aren't mis-costed by a Standard-only assumption.
-const ESS_GRADE_MULT = { Standard: 1.0, Alpha: 0.8 };
-function ownedCyberEss(g){
-  const base = !g.rated ? (Number(g.baseEss)||0) : (() => {
-    const lo = Number(g.minRating)||1, r = Number(g.rating)||lo;
-    return (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo])||0) : (Number(g.essUnit)||0)*r;
-  })();
-  const graded = g.noGrade ? base : base * (ESS_GRADE_MULT[g.grade || 'Standard'] ?? 1.0);
-  // Purchase-time options (e.g. Dermal Sheath's Cyber Controller) are their own add-on part, not
-  // graded along with the host.
-  const optEss = Array.isArray(g.options) ? g.options.reduce((s,o) => s + (Number(o.ess)||0), 0) : 0;
-  return graded + optEss;
-}
+// Remaining Essence after all owned cyberware (bioware costs Body Index instead, tracked via
+// ownedBioIndex/ownedBioIndexTotal below). Grade-aware so pre-existing Alpha-grade items from
+// chargen aren't mis-costed by a Standard-only assumption -- the actual grade/rating/options math
+// lives in shared.js's gradedCyberEssence (also used by character-builder.html's chargen shop), this
+// page just supplies its own grade-multiplier table.
+const ESS_GRADE_MULT = { Standard: { ess: 1.0 }, Alpha: { ess: 0.8 } };
+function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
   return Math.max(0, 6 - cyber.reduce((s,g) => s + ownedCyberEss(g), 0));
 }
-// Bioware costs Body Index, not Essence -- display-only (no grade multiplier, no aggregate/cap
-// tracked yet), reading the .ess field bioware lines use instead of cyberware's .baseEss.
+// Bioware costs Body Index, not Essence -- no grade multiplier (bioware has no grade concept),
+// reading the .ess field bioware lines use instead of cyberware's .baseEss.
 function ownedBioIndex(g){
   if (!g.rated) return Number(g.ess) || 0;
   const lo = Number(g.minRating)||1, r = Number(g.rating)||lo;
   return (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo])||0) : (Number(g.essUnit)||0)*r;
+}
+function ownedBioIndexTotal(){
+  const bio = (CHAR.gear && CHAR.gear.bio) || [];
+  return bio.reduce((s,g) => s + ownedBioIndex(g), 0);
+}
+// Essence can never go below 0; Body Index (bioware) is capped at the character's UNMODIFIED Body
+// (karmaBaseAttr, not the augmented finalAttr -- a Body-boosting cyberlimb never raises the cap,
+// only spending karma on the base Body value does). Shared by purchaseGear (fromLine omitted --
+// delta is the whole new line's cost) and the Manage Cyberware in-place rating upgrade (fromLine =
+// the line's current state, so delta is just the increase).
+function essenceOrBioIndexBlocked(bucket, line, fromLine){
+  if (bucket === 'cyber') {
+    const delta = ownedCyberEss(line) - (fromLine ? ownedCyberEss(fromLine) : 0);
+    if (delta > essenceRemaining() + 1e-9) return `${line.n} (would exceed Essence)`;
+  } else if (bucket === 'bio') {
+    const delta = ownedBioIndex(line) - (fromLine ? ownedBioIndex(fromLine) : 0);
+    const cap = karmaBaseAttr('body');
+    if (ownedBioIndexTotal() + delta > cap + 1e-9) return `${line.n} (would exceed Body Index — max ${cap})`;
+  }
+  return null;
 }
 
 function renderAttributes(){
@@ -840,19 +856,20 @@ function renderAttributes(){
   $('#dvInit').textContent = vcr ? `1D6 / ${1+vcr}D6` : '1D6';
   const pools = [['Combat', combatPool]];
   if (vcr) pools.push(['Control', reactionRig]);
-  // These match character-builder.html's own already-established pool formulas exactly (hackingPool/
-  // controlPool/astralPool/spellPool, character-builder.html:707-710) -- ported rather than re-derived,
-  // so a magician's pools compute identically at chargen and here.
+  // Formulas live in shared.js (combatPoolFormula/hackingPoolFormula/astralPoolFormula/
+  // spellPoolFormula/controlPoolFormula) -- same functions character-builder.html's chargen shop
+  // calls, so a magician's pools compute identically at chargen and here. This page just gathers
+  // its own inputs and gates each pool on its prerequisite (owns a deck, knows Sorcery, etc.).
   // Hacking Pool = floor((Intelligence + best owned deck's MPCP)/3) + a Math SPU's bonus.
   const mpcp = primaryDeckMpcp();
-  if (mpcp > 0) pools.push(['Hacking', Math.floor(((CHAR.intelligence||0) + mpcp) / 3) + poolBonus('hack')]);
+  if (mpcp > 0) pools.push(['Hacking', hackingPoolFormula(CHAR.intelligence, mpcp, poolBonus('hack'))]);
   // Task Pool comes entirely from cyber/bioware (Encephalon, Cerebral Booster) -- no base formula.
   const taskPool = poolBonus('task');
   if (taskPool > 0) pools.push(['Task', taskPool]);
   // Astral Pool: floor((Int+Will+Cha)/2), Full Mage only -- used while astrally projecting/perceiving.
   // Distinct from Spell Pool below (different formula, different context); a Full Mage has both.
   if (CHAR.magic_type === 'Full Mage') {
-    const astral = Math.floor(((CHAR.intelligence||0) + (CHAR.willpower||0) + (CHAR.charisma||0)) / 2);
+    const astral = astralPoolFormula(CHAR.intelligence, CHAR.willpower, CHAR.charisma);
     if (astral > 0) pools.push(['Astral', astral]);
   }
   // Spell Pool: floor((Int+Will+Magic Rating)/3), gated on actually knowing Sorcery (not just magic_type
@@ -861,7 +878,7 @@ function renderAttributes(){
   // foci aren't part of that calculation there, but the bonus is real and has to land somewhere.
   if ((CHAR.skills||[]).some(s => s.name === 'Sorcery')) {
     const focusBonus = ((CHAR.gear && CHAR.gear.foci) || []).filter(f => f.n === 'Power Focus').reduce((s,f) => s + (Number(f.rating)||0), 0);
-    const spell = Math.floor(((CHAR.intelligence||0) + (CHAR.willpower||0) + (CHAR.magic_rating||0)) / 3) + focusBonus;
+    const spell = spellPoolFormula(CHAR.intelligence, CHAR.willpower, CHAR.magic_rating, focusBonus);
     if (spell > 0) pools.push(['Spell', spell]);
   }
   $('#poolList').innerHTML = pools.map(([k,v]) => `<div class="ps-stat-row"><span class="k">${k}</span><span class="v computed">${v}</span></div>`).join('');
@@ -1048,6 +1065,8 @@ function renderManageCyber(){
       const blocked = orthoskinRatingBlocked(nextRating, CHAR.gear);
       if (blocked) { showAlert($('#alert'), `>> BLOCKED // ${blocked}`, true, true); return; }
     }
+    const resourceBlock = essenceOrBioIndexBlocked(bucket, { ...g, rating: nextRating }, g);
+    if (resourceBlock) { showAlert($('#alert'), `>> BLOCKED // ${resourceBlock}`, true, true); return; }
     g.rating = nextRating;
     const patch = { gear: CHAR.gear };
     if (bucket === 'cyber') patch.essence = Math.round(essenceRemaining() * 100) / 100;
@@ -1179,20 +1198,41 @@ function armorConcealBonus(){
   });
   return { flat, pct, minRating };
 }
+// A Concealable Holster (like every other mod now) is sized for a handgun or taser -- a shotgun
+// or SMG/machine gun just doesn't fit. Every firearm sub containing "Pistol" (Light/Heavy/Machine/
+// Hold-Out/Dart) qualifies by name already; Tasers are their own "exotic" category with sub
+// "Taser", so they need an explicit check too. Gates which weapons a holster can be Attached to in
+// openManageWeaponMods -- see WEAPON_MOD_NAMES.
+function holsterEligible(cat){ return /pistol/i.test(cat.sub||'') || cat.sub === 'Taser'; }
+// A weapon's built-in notes (weapons.json) are free text -- "Integral Ares Smartlink" tells you
+// it HAS a smartlink, not what a smartlink actually does. Where the concept is unambiguous
+// (matches one of the same real accessories WEAPON_MOD_NOTES already documents), decode it to the
+// same benefit text; a gas-vent note without a stated rating, or a note with no recognizable
+// concept (flavor text like "very reliable"), is left to just show as-is rather than guess.
+function decodeBuiltInBenefit(note){
+  if (/smart\s*(gun|link)/i.test(note)) return WEAPON_MOD_NOTES['Smartgun System, Internal'];
+  if (/laser/i.test(note)) return WEAPON_MOD_NOTES['Laser Sight'];
+  if (/silencer|suppressor/i.test(note)) return WEAPON_MOD_NOTES['Silencer'];
+  const gv = note.match(/gas-vent\D*(\d)/i);
+  if (gv) { const n = Number(gv[1]); return `${n} pt${n===1?'':'s'} Recoil Comp`; }
+  return null;
+}
+// One combined list per weapon: what's built into the gun (catalog notes, read-only) plus whatever
+// mods are actively attached (WEAPON_MOD_NAMES accessories with hostId === w.id, assigned via the
+// MOD button/openManageWeaponMods). Shown together since a player doesn't care which bucket a given
+// bonus came from -- they just want the full picture for that gun.
+function weaponModEntries(w, cat, weapons){
+  const builtIns = (Array.isArray(cat.notes) ? cat.notes : []).map(note => ({ n: note, benefit: decodeBuiltInBenefit(note) }));
+  const attached = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && g.hostId === w.id)
+    .map(g => ({ n: g.n, benefit: WEAPON_MOD_NOTES[g.n] }));
+  return [...builtIns, ...attached];
+}
 function renderWeapons(){
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
   // Every carried weapon shows, equipped or not -- same convention as Armor's (E) badge, rather
   // than hiding unequipped ones. Manage Weapons toggles equip state / removes.
   const rows = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
-  if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="11" class="empty-state">No weapons owned.</td></tr>`; return; }
-  // Concealable Holster (+2 to a pistol's concealability, conceal_scope 'pistol') is a separate
-  // owned accessory line, not attached to a specific gun -- assign one holster per carried pistol,
-  // best bonus first, in list order (mirrors how a player would actually holster their guns).
-  const holsterBonuses = weapons
-    .filter(w2 => { const c = WEAPON_CAT.get(w2.n) || {}; return c.cat === 'accessory' && c.conceal_scope === 'pistol'; })
-    .map(w2 => Number((WEAPON_CAT.get(w2.n)||{}).conceal_bonus) || 0)
-    .sort((a,b) => b-a);
-  let holsterIdx = 0;
+  if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="12" class="empty-state">No weapons owned.</td></tr>`; return; }
   const coatBonus = armorConcealBonus();
   $('#weaponsTbl tbody').innerHTML = rows.map((w,i) => {
     const cat = WEAPON_CAT.get(w.n) || {};
@@ -1201,8 +1241,10 @@ function renderWeapons(){
     let concealCell = '-', concealTitle = '';
     if (cat.conceal != null) {
       const base = Number(cat.conceal);
-      let holsterBonus = 0;
-      if (/pistol/i.test(cat.sub||'') && holsterIdx < holsterBonuses.length) holsterBonus = holsterBonuses[holsterIdx++];
+      // Concealable Holster is just another mod now -- its +2 applies only when one is actually
+      // attached to THIS weapon, not auto-distributed across every carried pistol.
+      const holsterAttached = weapons.some(g => g.n === 'Concealable Holster' && g.hostId === w.id);
+      const holsterBonus = holsterAttached ? (Number((WEAPON_CAT.get('Concealable Holster')||{}).conceal_bonus) || 0) : 0;
       let val = base + holsterBonus + coatBonus.flat;
       if (coatBonus.pct && base >= coatBonus.minRating) val += Math.floor(base * coatBonus.pct / 100);
       concealCell = String(val);
@@ -1212,25 +1254,15 @@ function renderWeapons(){
       if (coatBonus.pct && base >= coatBonus.minRating) parts.push(`Coat +${coatBonus.pct}%`);
       if (parts.length > 1) concealTitle = ` title="${esc(parts.join(' · '))}"`;
     }
-    // Built-in accessories (integral smartlink, gas-vent, laser sight, ...) live in the catalog's own
-    // notes -- shown automatically, read-only, since they're a fact about the weapon itself, not
-    // something bought or typed in. The editable input below stays for anything the player tracks by
-    // hand (recoil comp from a purchased accessory, house-ruled bonuses, etc.).
-    const builtIn = Array.isArray(cat.notes) && cat.notes.length ? cat.notes.join(', ') : '';
+    const modEntries = weaponModEntries(w, cat, weapons);
+    const modsList = modEntries.map(m => m.n).join(', ');
+    const modsTitle = modEntries.map(m => m.benefit ? `${m.n} — ${m.benefit}` : m.n).join('\n');
     return `<tr><td>${esc(w.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</td><td>${esc(cat.sub||'')}</td><td>${esc(cat.mode||'')}</td><td>${esc(cat.dmg||'')}</td>
       <td>${esc(cat.ammo||'')}</td><td${concealTitle}>${concealCell}</td><td>${esc(short)}</td><td>${esc(med)}</td><td>${esc(long)}</td><td>${esc(extreme)}</td>
-      <td>${builtIn ? `<div class="dim-meta" style="font-size:.66rem;margin-bottom:2px;" title="${esc(builtIn)}">${esc(builtIn)}</div>` : ''}<input type="text" data-mods="${i}" value="${esc(w.mods||'')}" title="${esc(w.mods||'')}" placeholder="recoil comp, sights..." ${CAN_EDIT?'':'disabled'}></td></tr>`;
+      <td><span class="dim-meta" style="font-size:.72rem;white-space:normal;"${modsTitle ? ` title="${esc(modsTitle)}"` : ''}>${modsList ? esc(modsList) : '—'}</span></td>
+      <td style="white-space:nowrap;">${CAN_EDIT ? `<button type="button" class="btn btn-amber btn-sm" data-mod-weapon="${esc(w.id)}">MOD</button>` : ''}</td></tr>`;
   }).join('');
-  // Mods accumulate as a comma-joined list (recoil comp, laser sight, gyro mount, ...) and can run
-  // well past what the narrow input can show -- title gives the full list on hover instead of just
-  // whatever's left un-scrolled.
-  $$('[data-mods]').forEach(inp => {
-    inp.oninput = () => { inp.title = inp.value; };
-    inp.onchange = () => {
-      rows[Number(inp.dataset.mods)].mods = inp.value;
-      patchGear();
-    };
-  });
+  $$('[data-mod-weapon]').forEach(b => b.onclick = () => openManageWeaponMods(b.dataset.modWeapon));
 }
 
 // ---------------------------------------------------------------- gear
@@ -1242,19 +1274,23 @@ function renderGear(){
   // pattern -- they don't also get listed here. Cyberdecks have their own Cyberdeck panel too.
   const foci = (CHAR.gear && CHAR.gear.foci) || [];
   const all = [
-    ...gear.map(g => ({ n:g.n, kind:g.kind||'', tag:g.kind ? g.kind : 'Gear' })),
-    ...accessories.map(w => ({ n:w.n, kind:'', tag:'Accessory' })),
-    ...foci.map(f => ({ n:f.n || f.type, kind:'', tag:'Focus' })),
+    ...gear.map(g => ({ n:g.n, kind:g.kind||'', tag:g.kind ? g.kind : 'Gear', mount:null })),
+    // A weapon-mod accessory (WEAPON_MOD_NAMES) attached via the Weapons table's MOD button carries
+    // hostId -- resolve it to the host's name so it groups (and displays) separately from an
+    // identical unattached copy still sitting loose in inventory.
+    ...accessories.map(w => ({ n:w.n, kind:'', tag:'Accessory',
+      mount: (WEAPON_MOD_NAMES.has(w.n) && w.hostId) ? (weapons.find(h => h.id === w.hostId)||{}).n || null : null })),
+    ...foci.map(f => ({ n:f.n || f.type, kind:'', tag:'Focus', mount:null })),
   ];
-  // group identical rows into qty
+  // group identical rows (same name/tag/mount) into qty
   const grouped = [];
   all.forEach(item => {
-    const existing = grouped.find(g => g.n === item.n && g.tag === item.tag);
+    const existing = grouped.find(g => g.n === item.n && g.tag === item.tag && g.mount === item.mount);
     if (existing) existing.qty += 1; else grouped.push({ ...item, qty: 1 });
   });
   if (!grouped.length) { $('#gearList').innerHTML = '<p class="empty-state">No gear owned.</p>'; return; }
   $('#gearList').innerHTML = grouped.map(g => {
-    const label = (g.kind ? `${g.n} - ${g.kind}` : g.n) + (g.qty > 1 ? ` ×${g.qty}` : '');
+    const label = (g.kind ? `${g.n} - ${g.kind}` : g.n) + (g.qty > 1 ? ` ×${g.qty}` : '') + (g.mount ? ` — mounted on ${g.mount}` : '');
     // Weapon accessories (Laser Sight, Gas-Vent, Smartgun System, ...) show what they grant right
     // here -- looked up live by name, so it shows for anything already owned, not just new buys.
     const note = WEAPON_MOD_NOTES[g.n];
@@ -1466,16 +1502,21 @@ function renderCond(){
     wrap.appendChild(b);
   }
 }
-function applyDamage(kind, amount){
+// patch is threaded through the stun->physical spillover recursion (by reference) so the whole
+// cascade sends exactly ONE PATCH at the end, rather than two separate requests to the same
+// character racing each other -- patchChar's Object.assign(CHAR, updated) applies a full-row
+// snapshot per response, so two concurrent/out-of-order responses can silently stomp each other's
+// field. One combined request has no ordering to get wrong.
+async function applyDamage(kind, amount, patch = {}){
   const key = kind === 'phys' ? 'physical_damage' : 'stun_damage';
   const total = (CHAR[key]||0) + amount;
-  const patch = {};
   if (total > 10){
     const spill = total - 10;
     CHAR[key] = 10; patch[key] = 10;
     if (kind === 'stun'){
       showAlert($('#alert'), `Stun maxed — ${spill} spills into Physical`, false);
-      applyDamage('phys', spill);
+      await applyDamage('phys', spill, patch);   // accumulates into the same patch and sends it
+      return;
     } else {
       CHAR.physical_overflow = Math.min((CHAR.physical_overflow||0) + spill, CHAR.body||0);
       patch.physical_overflow = CHAR.physical_overflow;
@@ -1484,8 +1525,8 @@ function applyDamage(kind, amount){
   } else {
     CHAR[key] = total; patch[key] = total;
   }
-  patchChar(patch);
   renderCond();
+  await patchChar(patch);
 }
 function applyHeal(kind, amount){
   const patch = {};
@@ -2165,11 +2206,14 @@ const SITUATIONAL_NOTES = {
   'Articulate Arm': () => `Articulate Arm: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
 };
 
-// ---- Weapon accessory effect text (weapons.json), looked up live at render time (renderGear())
-// rather than written once at purchase -- a stored, purchase-time-only note would never show for
-// gear a character already owned before this table existed, and there's no reliable way to tie an
-// accessory to one specific weapon anyway. Keyed by the accessory's own catalog name.
+// ---- Weapon accessory effect text (weapons.json), looked up live at render time (renderGear(),
+// renderWeapons()) rather than written once at purchase -- a stored, purchase-time-only note would
+// never show for gear a character already owned before this table existed. Keyed by the accessory's
+// own catalog name. This is also the master list of which accessories are "weapon mods" assignable
+// via the Weapons table's MOD button (openManageWeaponMods) -- everything else in the accessory
+// category (Spare Clips, Bow Accessory Mount, ...) keeps its own separate mechanic instead.
 const WEAPON_MOD_NOTES = {
+  'Concealable Holster': '+2 Conceal (pistols/tasers only, see holsterEligible)',
   'Bipod': '2 pts Recoil Comp',
   'Gas-Vent II': '1 pt Recoil Comp, -1 Conceal',
   'Gas-Vent III': '2 pts Recoil Comp, -2 Conceal',
@@ -2190,6 +2234,61 @@ const WEAPON_MOD_NOTES = {
   'Smartgun System, Internal': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles',
   'Smartgun System, External': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles, -2 Conceal',
 };
+const WEAPON_MOD_NAMES = new Set(Object.keys(WEAPON_MOD_NOTES));
+
+// ---- Weapon mod assignment (MOD button on the Weapons table) ----
+// A weapon mod is just an ordinary owned gear.weapons accessory line (bought via Buy Gear like any
+// other item) with a hostId pointing at the gun it's mounted on -- null/absent hostId means it's
+// still loose in inventory. Every gear.weapons line (guns and accessories alike) needs a stable id
+// to be a hostId target; ensureWeaponIds() backfills one onto any line that predates this feature.
+function newId(){ return 'w' + Math.random().toString(36).slice(2, 10); }
+function ensureWeaponIds(){
+  let changed = false;
+  ((CHAR.gear && CHAR.gear.weapons) || []).forEach(w => { if (!w.id) { w.id = newId(); changed = true; } });
+  return changed;
+}
+function openManageWeaponMods(weaponId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const host = weapons.find(w => w.id === weaponId);
+  if (!host) return;
+  openModal('weaponmods', `// Mods — ${host.n}`, false);
+  renderManageWeaponMods(weaponId);
+}
+function renderManageWeaponMods(weaponId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const host = weapons.find(w => w.id === weaponId);
+  const hostCat = WEAPON_CAT.get((host||{}).n) || {};
+  const attached = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && g.hostId === weaponId);
+  const attachedNames = new Set(attached.map(g => g.n));
+  // A weapon can't carry the same mod twice -- if a second copy of an already-attached mod is
+  // owned, it stays offered to every *other* weapon but not this one. Concealable Holster is
+  // further restricted: only offered as Attachable on a pistol/taser (holsterEligible), same as
+  // its old auto-assign logic used to enforce -- a shotgun just doesn't fit in one.
+  const available = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && !g.hostId && !attachedNames.has(g.n)
+    && (g.n !== 'Concealable Holster' || holsterEligible(hostCat)));
+  const attachedRows = attached.length ? attached.map(g =>
+    `<div class="ps-stat-row"><span class="k">${esc(g.n)}<div class="dim-meta" style="font-size:.7rem;">${esc(WEAPON_MOD_NOTES[g.n])}</div></span>
+      <button class="row-x" data-unmod="${esc(g.id)}" title="Remove">&#10005;</button></div>`
+  ).join('') : '<p class="empty-state">No mods attached.</p>';
+  const availableRows = available.length ? available.map(g =>
+    `<div class="ps-stat-row"><span class="k">${esc(g.n)}<div class="dim-meta" style="font-size:.7rem;">${esc(WEAPON_MOD_NOTES[g.n])}</div></span>
+      <button class="btn btn-amber btn-sm" data-mod-on="${esc(g.id)}">Attach</button></div>`
+  ).join('') : '<p class="empty-state">No unattached mods owned.</p>';
+  $('#modalBody').innerHTML = `
+    <div class="armor-slot-head">Attached</div>${attachedRows}
+    <div class="armor-slot-head mt-10">Available</div>${availableRows}
+  ` + buyShortcutRow('weapons', 'Buy Weapon');
+  $$('[data-mod-on]').forEach(b => b.onclick = () => setModHost(b.dataset.modOn, weaponId).then(() => renderManageWeaponMods(weaponId)));
+  $$('[data-unmod]').forEach(b => b.onclick = () => setModHost(b.dataset.unmod, null).then(() => renderManageWeaponMods(weaponId)));
+  wireBuyShortcut();
+}
+function setModHost(modId, hostId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const mod = weapons.find(g => g.id === modId);
+  if (!mod) return Promise.resolve();
+  mod.hostId = hostId;
+  return patchGear().then(() => { renderWeapons(); renderGear(); });
+}
 
 // ---- Attach-to-host purchases (Smartgun System, Gel-Pack Armor) ----
 // These fold into an already-owned weapon/armor line (name + cost change in place) instead of
@@ -2346,7 +2445,11 @@ async function purchaseGear(entries){
         continue;
       }
       const line = makeGearLine(item, catalogName);
+      if (bucket === 'weapons') line.id = newId();   // needed as a MOD-assignment hostId target
       if (rating) line.rating = rating;
+      // Unlike nuyen (deliberately not gated post-chargen), Essence and Body Index are hard limits.
+      const resourceBlock = essenceOrBioIndexBlocked(bucket, line);
+      if (resourceBlock) { skipped.push(resourceBlock); continue; }
       // Enriched {n,cost,ess} per option (matches character-builder.html's chargen shop) so
       // ownedCyberEss() below can actually count a paid/essence option's cost into Essence used --
       // storing bare option names here silently dropped that essence before this fix.
@@ -2359,7 +2462,13 @@ async function purchaseGear(entries){
           notesTouched = true;
         }
       }
-      if (LIMB_GROUP.has(item.n)) await assignLimbSlot(line, gear);
+      if (LIMB_GROUP.has(item.n)) {
+        await assignLimbSlot(line, gear);
+        // Cancelling the slot prompt must not add an unslotted limb item -- ownedLimbSlots()
+        // reads g.slot to compute occupied slots, so a slot-less line would silently let a 5th
+        // slot-consuming device slip past the 4-slot cap later.
+        if (line.slot == null) { skipped.push(`${item.n} (no slot chosen)`); continue; }
+      }
       if (item.soft) {
         await assignSkillsoftSkill(line, item);
         // Own a library: same skill at different ratings is fine (different chips), but an
