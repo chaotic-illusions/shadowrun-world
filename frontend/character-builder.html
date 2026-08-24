@@ -8,6 +8,7 @@
 <script src="shared.js"></script>
 <script src="catalog-taxonomy.js"></script>
 <script src="matrix-programs.js"></script>
+<script src="gear-picker.js"></script>
 <style>
   .cbx-p{color:var(--text-dim);font-size:var(--fs-sm);line-height:1.55;margin:0 0 14px;}
   .cbx-p strong{color:var(--text-bright);}
@@ -360,10 +361,8 @@ let dataReady = false;
 
 const KEY = "sr2_dossier_v1";
 let state = normalizeState(load() || freshState());
-let shopTab = "weapons";
 let shopFilter = "";
-let shopInspect = null;    // name of the shop item whose summary is expanded
-let shopOpts = [];         // option names selected in the open shop inspector (e.g. Voice Modulator add-ons)
+let shopInspect = null;    // name of the open item in the Magic step's spell/power/program browse lists
 
 // Hold-to-repeat for the +/- steppers (consistent with the number steppers elsewhere in the app).
 // render() rebuilds the buttons on every tick, so the repeat loop lives on a module-global and is
@@ -1157,114 +1156,13 @@ function stepSkills() {
     <div>${state.skills.length ? state.skills.map((s,i) => chosenSkillHTML(s,i)).join("") : `<p class="empty-state">No skills yet.</p>`}</div>`;
 }
 
-/* STEP 5 -- ASSET MANIFEST */
+// Search filter shared by the Magic step's spell/power browse lists (shopFilter is still the search
+// box's state there -- only the gear shop's own search moved onto gear-picker.js's internal filter).
 function matchesFilter(it) { const q = (shopFilter||"").toLowerCase(); return !q || (it.n||"").toLowerCase().includes(q) || (it.kw||"").toLowerCase().includes(q); }
-function itemMeta(it, catName) {
-  if (catName === "cyberware") return `${it.cat||""} - Ess ${parseNum(it.ess)} - ${money(parseNum(it.cost))}`;
-  if (catName === "bioware")   return `${it.cat||""} - BI ${parseNum(it.ess)} - ${money(parseNum(it.cost))}`;
-  if (catName === "armor")     return `${it.ballistic??0}/${it.impact??0} - ${money(parseNum(it.cost))}`;
-  const sub = it.sub || it.cat || "";
-  return `${sub}${sub?" - ":""}${money(parseNum(it.cost))}`;
-}
+/* STEP 5 -- ASSET MANIFEST */
 // Click-to-expand inspector: a row shows the item summary, then an Add button commits it.
 function chipHTML(label, val) {
   return (val === undefined || val === null || val === "") ? "" : `<span class="cbx-stat"><b>${esc(label)}</b> ${esc(String(val))}</span>`;
-}
-// Weapons/armor always carry "conceal" and "reach" keys even when the book gives them no rating
-// (heavy weapons, unrated clothing, ranged weapons) -- show that as an explicit dash rather than
-// silently dropping the chip, matching the Gear Catalog page's statLine() and the character-sheet
-// PDF filler's own fallback.
-function naChip(label, it, key) {
-  return chipHTML(label, (key in it) ? (it[key] != null && it[key] !== "" ? it[key] : "—") : null);
-}
-function itemStatChips(it, catName) {
-  const c = [];
-  if (Array.isArray(it.stats)) it.stats.forEach(p => c.push(chipHTML(p[0], p[1])));
-  if (catName === "weapons") c.push(chipHTML("Dmg", it.dmg), chipHTML("Mode", it.mode), chipHTML("Ammo", it.ammo), naChip("Conceal", it, "conceal"), naChip("Reach", it, "reach"));
-  if (catName === "armor") c.push(chipHTML("Ballistic", it.ballistic), chipHTML("Impact", it.impact), naChip("Conceal", it, "conceal"));
-  if ((catName === "cyberware" || catName === "bioware") && it.rated) c.push(chipHTML("Rating", `1-${it.maxRating || 1}`));
-  c.push(chipHTML("Avail", it.avail), chipHTML("Street Index", it.index), chipHTML("Legal", it.legal));
-  return c.filter(Boolean).join("");
-}
-// Internal smartgun (and similar): priced to the weapon it's built into, so it requires an owned
-// weapon and its cost mirrors that weapon (installing it doubles the weapon's effective cost).
-function attachWeaponControl(it) {
-  const owned = state.gear.weapons
-    .map((g, i) => ({ g, i }))
-    .filter(({ g }) => { const src = (CAT.weapons || []).find(x => x.n === g.n); return src && !["accessory","ammo"].includes(src.cat); });
-  if (!owned.length) return `<span class="cbx-help">Add a weapon to your loadout first &mdash; an internal smartgun is priced to the weapon it's built into.</span>`;
-  const opts = owned.map(({ g, i }) => `<option value="${i}">${esc(g.n)} (${money(gearLineCost(g))})</option>`).join("");
-  return `<select class="cbx-mini" style="width:auto" id="cbxAttachWeapon">${opts}</select>
-    <button type="button" class="btn btn-green btn-sm" data-buyattach="${esc(it.n)}">+ Add to loadout</button>`;
-}
-// Gel-pack armor (and similar): upgrades an EXISTING armor piece -- requires one, and costs 4x the
-// host (host x1 + this x4 = x5 total). Also summarizes the Hardened/Conceal/Avail/SI transform.
-function gelAvail(avail) {
-  const m = /^\s*(\d+)\s*\/\s*(\d+)\s*(.*)$/.exec(String(avail || ""));
-  return m ? `${Number(m[1]) * 2}/${Number(m[2]) * 4} ${m[3]}`.trim() : (avail || "");
-}
-function gelPackTransform(armorName) {
-  const a = (CAT.armor || []).find(x => x.n === armorName);
-  if (!a) return "";
-  const parts = [`${a.ballistic != null ? a.ballistic : 0}/${a.impact != null ? a.impact : 0} Hardened`];
-  if (a.conceal != null) parts.push(`Conceal ${Math.floor(a.conceal / 2)}`);
-  if (a.avail) parts.push(`Avail ${gelAvail(a.avail)}`);
-  if (a.index != null) parts.push(`SI ${round2(a.index * 2)}`);
-  return parts.join(", ");
-}
-// Replace a host gear line in place with a modified version: the mod label is folded into the name,
-// the cost is multiplied (freezing any rating), and the line records the mod so it can't be applied
-// twice (the modified name no longer matches the catalog, so it drops out of the attach dropdowns).
-function attachModToHost(host, modItem, mult, label, sub) {
-  const base = gearLineCost(host);
-  host.baseName = host.baseName || host.n;
-  host.n = host.baseName + " (" + label + ")";
-  host.cost = base * mult;
-  host.mod = modItem.n;
-  host.modLabel = label;
-  if (sub != null) host.sub = sub;
-  delete host.rated; delete host.rating; delete host.maxRating;
-  delete host.costUnit; delete host.costTbl; delete host.rateLabels;
-}
-function attachArmorControl(it) {
-  const owned = state.gear.armor
-    .map((g, i) => ({ g, i }))
-    .filter(({ g }) => { const src = (CAT.armor || []).find(x => x.n === g.n); return src && src.cat !== "accessory"; });
-  if (!owned.length) return `<span class="cbx-help">Add an armor piece to your loadout first &mdash; gel packs upgrade an existing armor (Hardened, cost x5).</span>`;
-  const opts = owned.map(({ g, i }) => `<option value="${i}">${esc(g.n)} (${money(gearLineCost(g))})</option>`).join("");
-  return `<select class="cbx-mini" style="width:auto" id="cbxAttachArmor">${opts}</select>
-    <button type="button" class="btn btn-green btn-sm" data-buyarmorattach="${esc(it.n)}">+ Add to loadout</button>`;
-}
-function shopInspectRow(it, catName) {
-  const open = shopInspect === it.n;
-  const bullets = it.effect || it.notes || [];
-  const chips = itemStatChips(it, catName);
-  const optCost = o => Number(String(o.cost || 0).replace(/[^\d.]/g, "")) || 0;
-  const optionsList = (open && Array.isArray(it.options) && it.options.length)
-    ? `<div class="cbx-opts">${it.options.map(o => {
-        const on = shopOpts.includes(o.n);
-        const bits = [money(optCost(o))]; if (Number(o.ess)) bits.push(esc(String(o.ess)) + " Ess");
-        return `<label class="cbx-opt"><input type="checkbox" class="chk-reveal" data-shopopt="${esc(o.n)}"${on ? " checked" : ""}>
-          <span class="cbx-opt__b"><span class="cbx-opt__n">${esc(o.n)} <span class="cbx-opt__c">${bits.join(" \u00B7 ")}</span></span>
-          ${o.desc ? `<span class="cbx-opt__d">${esc(o.desc)}</span>` : ""}</span></label>`;
-      }).join("")}</div>`
-    : "";
-  const detail = open ? `<div class="cbx-shopdesc">
-      ${it.desc ? `<p class="cbx-shopdesc__d">${esc(it.desc)}</p>` : ""}
-      ${bullets.length ? `<ul class="cbx-shopdesc__l">${bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
-      ${optionsList}
-      ${chips ? `<div class="cbx-shopdesc__s">${chips}</div>` : ""}
-      <div class="cbx-shopdesc__act">
-        ${it.attachToWeapon ? attachWeaponControl(it) : it.attachToArmor ? attachArmorControl(it) : `<button type="button" class="btn btn-green btn-sm" data-buy="${esc(it.n)}">+ Add to loadout</button>`}
-        ${it.pg ? `<span class="cbx-cite">${esc(String(it.src || ""))} p.${esc(String(it.pg))}</span>` : ""}
-      </div>
-    </div>` : "";
-  return `<div class="cbx-shopitem ${open ? "is-open" : ""}">
-    <button type="button" class="cbx-shoprow" data-inspect="${esc(it.n)}" aria-expanded="${open}">
-      <span class="cbx-shoprow__n">${esc(it.n)}</span>
-      <span class="cbx-shoprow__m">${esc(itemMeta(it, catName))}</span>
-      <span class="cbx-shoprow__c">${open ? "&#9650;" : "&#9660;"}</span>
-    </button>${detail}</div>`;
 }
 // Inspector rows for the magic step (spells / adept powers): same expand-then-add pattern.
 function spellStatChips(s) {
@@ -1327,18 +1225,8 @@ function cyberLineHTML(g, i) {
     ${priceCells}
     <button type="button" class="cbx-x" data-delgear="cyber:${i}">&#10005;</button></div>`;
 }
-// Group items by a label function, honoring an explicit section order (unknown labels appended A-Z).
-function shopGroupedByLabel(items, catName, labelFn, order) {
-  const groups = {};
-  items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
-  const extra = Object.keys(groups).filter(g => !order.includes(g)).sort((a,b) => a.localeCompare(b));
-  return [...order, ...extra].map(g => {
-    const list = (groups[g] || []).slice().sort((a,b) => (a.n||"").localeCompare(b.n||""));
-    if (!list.length) return "";
-    return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(g)}</div>${list.map(it => shopInspectRow(it, catName)).join("")}</div>`;
-  }).join("");
-}
-// The deckware program picker markup (lives inside the Matrix tab): all programs listed by type.
+// The deckware program picker markup (rendered below the Buy Gear picker's Matrix tab -- programs
+// aren't a catalog item, so they don't route through gear-picker.js).
 function programsPanelHTML() {
   const CATS = ["Operational", "Offensive", "Defensive", "Special"];
   const byCat = {};
@@ -1363,7 +1251,6 @@ function toggleShopInspect(root, key) {
   const top = before ? before.scrollTop : 0;
   const expanding = shopInspect !== key;
   shopInspect = expanding ? key : null;
-  if (expanding) shopOpts = [];   // fresh option selection each time a row opens
   renderStep();
   const list = root.querySelector(".cbx-shoplist");
   if (!list) return;
@@ -1376,21 +1263,8 @@ function toggleShopInspect(root, key) {
   if (or.height > lr.height || or.top < lr.top) list.scrollTop += (or.top - lr.top) - 8;
   else if (or.bottom > lr.bottom) list.scrollTop += (or.bottom - lr.bottom) + 8;
 }
-function shopGroupedByCat(items, catName) {
-  const groups = {};
-  items.forEach(it => { const g = gearGroupLabel(it); (groups[g] = groups[g] || []).push(it); });
-  return Object.keys(groups).sort((a,b) => a.localeCompare(b)).map(g => {
-    const rows = groups[g].slice().sort((a,b) => (a.n||"").localeCompare(b.n||""))
-      .map(it => shopInspectRow(it, catName)).join("");
-    return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(g)}</div>${rows}</div>`;
-  }).join("");
-}
 function stepResources() {
   const over = nuyenCommitted() > res().nuyen;
-  // Hide shop tabs whose catalogue is empty (e.g. Bioware without Shadowtech, Vehicles without Rigger 2).
-  const visibleDefs = SHOP_DEFS.filter(t => (CAT[t.cat]||[]).length > 0);
-  if (visibleDefs.length && !visibleDefs.some(t => t.k === shopTab)) shopTab = visibleDefs[0].k;
-  const def = visibleDefs.find(d => d.k === shopTab) || visibleDefs[0] || SHOP_DEFS[0];
   const lines = (k) => state.gear[k].map((g,i) => {
     if (k === "cyber") return cyberLineHTML(g, i);
     const showEss = (k === "bio");
@@ -1432,57 +1306,12 @@ function stepResources() {
     if (!gearLines && !progLines) return "";
     return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
   }).join("") || `<p class="empty-state">Nothing acquired yet.</p>`;
-  const items = (CAT[def.cat]||[]).filter(matchesFilter).filter(it => !def.pick || def.pick(it));
-  const grouped = def.k === "vehicles" || def.k === "weapons" || def.k === "gear" || def.k === "matrix" || def.k === "armor" || def.k === "cyber";
-  let shop;
-  if (def.k === "vehicles") {
-    // Browse vehicles grouped by piloting skill (same buckets as the (SV) specializations),
-    // then sub-grouped by vehicle subtype, cheapest first -- matching the Gear Catalog page.
-    const vcost = v => Number(String(v.cost || 0).replace(/[^\d.]/g, "")) || 0;
-    const groups = {};
-    items.forEach(v => { const t = vehicleSkillCategory(v); (groups[t] = groups[t] || []).push(v); });
-    shop = VEHICLE_SKILL_ORDER.map(t => {
-      const list = groups[t] || [];
-      if (!list.length) return "";
-      const subs = {};
-      list.forEach(v => { const s = v.sub || "Other"; (subs[s] = subs[s] || []).push(v); });
-      const inner = Object.keys(subs).sort((a, b) => a.localeCompare(b)).map(s => {
-        const rows = subs[s].slice().sort((a, b) => vcost(a) - vcost(b)).map(v => shopInspectRow(v, "vehicles")).join("");
-        return `<div class="cbx-subcat"><div class="cbx-subcat__h">${esc(s)}</div>${rows}</div>`;
-      }).join("");
-      return `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${esc(t)}</div>${inner}</div>`;
-    }).join("");
-  } else if (def.k === "weapons") {
-    // Firearms split into Pistols/SMGs/Rifles/...; other weapon cats each get a section.
-    shop = shopGroupedByLabel(items, "weapons", weaponGroupLabel, WEAPON_GROUP_ORDER);
-  } else if (def.k === "gear") {
-    // Split into alphabetical category groups (like vehicles), items A-Z within each.
-    shop = shopGroupedByCat(items, def.cat);
-  } else if (def.k === "matrix") {
-    // Matrix tab: cyberdecks (cheapest first) and cyberdeck components, then the deckware program picker.
-    const byCost = (a,b) => (Number(String(a.cost||0).replace(/[^\d.]/g,"")) || 0) - (Number(String(b.cost||0).replace(/[^\d.]/g,"")) || 0);
-    const isComponent = (it) => it.sub === "Cyberdeck Component";
-    const decks = items.filter(it => !isComponent(it)).sort(byCost);
-    const comps = items.filter(isComponent).sort(byCost);
-    const group = (label, list) => list.length
-      ? `<div class="cbx-skillcat"><div class="cbx-skillcat__h">${label}</div>${list.map(it => shopInspectRow(it, "gear")).join("")}</div>`
-      : "";
-    const deckRows = decks.length
-      ? group("Cyberdecks", decks)
-      : `<p class="empty-state">No cyberdecks in the enabled books.</p>`;
-    shop = deckRows + group("Cyberdeck Components", comps) + programsPanelHTML();
-  } else if (def.k === "cyber") {
-    // Grouped by implant location; skillsofts (Active / Know / Linguasofts) cluster in their own group.
-    shop = shopGroupedByLabel(items, def.cat, cyberGroupLabel, CYBER_GROUP_ORDER);
-  } else if (def.k === "armor") {
-    // Armor grouped by type: Worn / Military-Grade / Helmets / Shields / Accessories.
-    shop = shopGroupedByLabel(items, "armor", armorGroupLabel, ARMOR_GROUP_ORDER);
-  } else {
-    // Flat catalogs (bioware): straight alphabetical.
-    shop = items.slice().sort((a,b) => (a.n||"").localeCompare(b.n||"")).slice(0, 250).map((it) => shopInspectRow(it, def.cat)).join("");
-  }
-  const moreNote = (!grouped && items.length > 250) ? `<p class="cbx-help">Showing first 250 of ${items.length} -- refine the search.</p>` : "";
-
+  // Weapons/armor/cyber/bio/gear/matrix/vehicles browsing and purchasing is the shared gear picker
+  // (gear-picker.js), mounted into #cbxGearPicker by wire() once this HTML is in the DOM -- see
+  // chargenBuyGear(). Matrix programs (deckware) aren't a catalog item, so they still get their own
+  // panel below the deck/component list; the shop-tab-per-cat and shopInspectRow machinery that used
+  // to live here is gone, along with weapon/armor attach-mods (Smartgun System, Gel-Pack Armor, etc.)
+  // -- those are bought post-chargen now, via play-sheet's Manage Weapons/Armor MOD controls.
   const costs = contactCosts();
   const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
@@ -1513,9 +1342,9 @@ function stepResources() {
     <div class="cbx-resgrid">
       <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
       <div>
-        <div class="tabs">${visibleDefs.map(t => `<button type="button" class="tab ${shopTab===t.k?'is-active':''}" data-shoptab="${t.k}">${esc(t.label)}</button>`).join("")}</div>
-        <input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search ${esc(def.label.toLowerCase())}..." value="${esc(shopFilter)}">
-        <div class="cbx-shoplist">${shop}</div>${moreNote}
+        <div id="cbxGearPicker"></div>
+        <div id="cbxGearAlert" class="cbx-note"></div>
+        ${programsPanelHTML()}
       </div>
     </div>
     <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
@@ -1655,6 +1484,27 @@ function findCatalogItem(name) {
 }
 // makeGearLine()/vehicleStatBody() live in shared.js now.
 
+// onPurchase callback for the shared gear picker (gear-picker.js), mounted into #cbxGearPicker by
+// wire(). Unlike play-sheet's purchaseGear there's no ownership/family/prereq gating here (chargen
+// never had one) and nuyen/Essence/Body Index stay advisory while drafting -- budgetViolations()
+// is what blocks the final Submit, same as before this backport.
+async function chargenBuyGear(entries) {
+  entries.forEach(({ cat, item, rating, qty, opts, grade }) => {
+    const catalogName = GEAR_LINE_CATALOG[cat] || cat;
+    const bucket = GEAR_BUCKET[cat] || cat;
+    state.gear[bucket] = state.gear[bucket] || [];
+    for (let i = 0; i < qty; i++) {
+      const line = makeGearLine(item, catalogName, grade);
+      if (rating) line.rating = rating;
+      if (opts && opts.length && Array.isArray(item.options)) {
+        line.options = item.options.filter(o => opts.includes(o.n)).map(o => ({ n: o.n, cost: Number(o.cost) || 0, ess: Number(o.ess) || 0 }));
+      }
+      state.gear[bucket].push(line);
+    }
+  });
+  save(); render();
+}
+
 /* ---------- wiring ---------- */
 function wire() {
   const root = document.getElementById("cbxStepBody");
@@ -1757,48 +1607,16 @@ function wire() {
   root.querySelectorAll("[data-dellang]").forEach(el => el.onclick = () => { state.languages.splice(Number(el.dataset.dellang),1); save(); render(); });
   const addLangEl = root.querySelector("[data-addlang]");
   if (addLangEl) addLangEl.onclick = () => { state.languages.push({ name:"", rating:1 }); save(); render(); };
-  root.querySelectorAll("[data-shoptab]").forEach(el => el.onclick = () => { shopTab = el.dataset.shoptab; shopFilter = ""; shopInspect = null; renderStep(); });
-  root.querySelectorAll("[data-buy]").forEach(el => el.onclick = () => {
-    const def = SHOP_DEFS.find(d => d.k === shopTab); const it = (CAT[def.cat]||[]).find(x => x.n === el.dataset.buy);
-    if (!it) return;
-    const before = root.querySelector(".cbx-shoplist");
-    const top = before ? before.scrollTop : 0;   // keep the shop where the user was after adding
-    const line = makeGearLine(it, def.cat);
-    if (def.cat === "cyberware" && Array.isArray(it.options) && shopOpts.length)
-      line.options = it.options.filter(o => shopOpts.includes(o.n)).map(o => ({ n: o.n, cost: Number(o.cost) || 0, ess: Number(o.ess) || 0 }));
-    shopOpts = [];
-    state.gear[def.k].push(line); save(); render();
-    const after = root.querySelector(".cbx-shoplist");
-    if (after) after.scrollTop = top;
-  });
-  root.querySelectorAll("[data-buyattach]").forEach(el => el.onclick = () => {
-    const it = (CAT.weapons || []).find(x => x.n === el.dataset.buyattach); if (!it) return;
-    const sel = document.getElementById("cbxAttachWeapon");
-    const wpn = state.gear.weapons[sel ? Number(sel.value) : -1]; if (!wpn) return;
-    const before = root.querySelector(".cbx-shoplist");
-    const top = before ? before.scrollTop : 0;
-    attachModToHost(wpn, it, 2, "Internal Smartlink");
-    save(); render();
-    const after = root.querySelector(".cbx-shoplist");
-    if (after) after.scrollTop = top;
-  });
-  root.querySelectorAll("[data-buyarmorattach]").forEach(el => el.onclick = () => {
-    const it = (CAT.armor || []).find(x => x.n === el.dataset.buyarmorattach); if (!it) return;
-    const sel = document.getElementById("cbxAttachArmor");
-    const host = state.gear.armor[sel ? Number(sel.value) : -1]; if (!host) return;
-    const before = root.querySelector(".cbx-shoplist");
-    const top = before ? before.scrollTop : 0;
-    attachModToHost(host, it, 5, "Gel-Packs", gelPackTransform(host.n));
-    save(); render();
-    const after = root.querySelector(".cbx-shoplist");
-    if (after) after.scrollTop = top;
-  });
+  const gearPickerMount = root.querySelector("#cbxGearPicker");
+  if (gearPickerMount) {
+    initGearPicker(gearPickerMount, {
+      onPurchase: chargenBuyGear,
+      gradeTable: GRADES,
+      enabledBooks,
+      alertEl: document.getElementById("cbxGearAlert"),
+    });
+  }
   root.querySelectorAll("[data-inspect]").forEach(el => el.onclick = () => toggleShopInspect(root, el.dataset.inspect));
-  root.querySelectorAll("[data-shopopt]").forEach(el => el.onchange = () => {
-    const nm = el.dataset.shopopt;
-    if (el.checked) { if (!shopOpts.includes(nm)) shopOpts.push(nm); }
-    else shopOpts = shopOpts.filter(x => x !== nm);
-  });
   root.querySelectorAll("[data-delgear]").forEach(el => el.onclick = () => {
     const [k,idx] = el.dataset.delgear.split(":"); state.gear[k].splice(Number(idx),1); save(); render();
   });
@@ -2159,7 +1977,7 @@ function showWizard() {
   render();
 }
 function startNewRunner() {
-  state = freshState(); shopTab = "weapons"; shopFilter = ""; shopInspect = null;
+  state = freshState(); shopFilter = ""; shopInspect = null;
   localStorage.removeItem(KEY);
   clearTimeout(_syncTimer);   // no empty-draft sync until the player enters something
   history.replaceState(null, "", "character-builder.html");
@@ -2171,7 +1989,7 @@ document.getElementById("cbxReset").onclick = async () => {
   if (!await showConfirm("Discard this draft dossier? This deletes the saved draft and clears all entered data.")) return;
   const oldId = state.draftId;
   if (oldId) { try { await apiFetch(`/characters/${encodeURIComponent(oldId)}`, { method: "DELETE" }); } catch (_) {} }
-  state = freshState(); shopTab = "weapons"; shopFilter = ""; shopInspect = null;
+  state = freshState(); shopFilter = ""; shopInspect = null;
   localStorage.removeItem(KEY); clearTimeout(_syncTimer);
   history.replaceState(null, "", "character-builder.html");
   MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : MY_DRAFTS).catch(() => MY_DRAFTS);

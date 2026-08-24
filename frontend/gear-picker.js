@@ -20,6 +20,7 @@ const initGearPicker = (function () {
 
   let root = null;
   let onPurchase = null;
+  let alertTarget = null;        // opts.alertEl override -- falls back to #alert (play-sheet.html's convention)
   let DATA = {};                 // cat key -> [items]
   let dataLoaded = false;
   let curCat = "weapons";
@@ -35,7 +36,7 @@ const initGearPicker = (function () {
   let pickerEnabledBooks = new Set();
 
   function qs(sel) { return root.querySelector(sel); }
-  function alertEl() { return document.getElementById("alert"); }
+  function alertEl() { return alertTarget || document.getElementById("alert"); }
   // Cyberware only (bioware has no grade concept); skillsoft-style "other" cyberware items are
   // ungraded too (matches makeGearLine's item.cat === 'other' -> noGrade rule in shared.js).
   function isGradeable(it, cat) { return !!gradeTable && cat === "cyberware" && it && it.cat !== "other"; }
@@ -275,9 +276,13 @@ const initGearPicker = (function () {
       const grade = isGradeable(it, selected.cat) ? selGrade : undefined;
       buyBtn.disabled = true; buyBtn.textContent = "Buying…";
       try {
-        await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, item: it }]);
+        // onPurchase returning false means the host silently skipped the purchase (ownership cap,
+        // prerequisite, Essence/Body Index block, etc. -- play-sheet.html's purchaseGear does this
+        // without throwing, since a block is an expected outcome, not an error). Anything else
+        // (undefined included, for hosts like chargen's that never block) counts as success.
+        const result = await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, item: it }]);
         const msg = qs("#gcBuyMsg");
-        if (msg) {
+        if (msg && result !== false) {
           msg.textContent = "Purchased!";
           msg.classList.remove("is-show");
           void msg.offsetWidth;   // restart the fade animation on a repeat buy
@@ -314,11 +319,14 @@ const initGearPicker = (function () {
   // opts.gradeTable: {GradeName: {ess,nuyen,book}} -- omit to hide grade choice entirely (bioware-only
   // hosts, or a host that doesn't want grade selection). opts.enabledBooks: Set of sourcebook keys,
   // used only to grey out a book-gated grade (e.g. Alpha needs SSC), same as every other catalog item.
+  // opts.alertEl: element to show a purchase-failure message in -- defaults to #alert (play-sheet.html
+  // has one; a host without it, like character-builder.html, must pass its own).
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
     gradeTable = (opts && opts.gradeTable) || null;
     pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
+    alertTarget = (opts && opts.alertEl) || null;
     if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a
       // *different* tab than whatever was last active, a leftover search term from browsing a

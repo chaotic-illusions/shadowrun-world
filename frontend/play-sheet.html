@@ -1929,10 +1929,7 @@ function renderManageGear(){
 }
 
 // ---- Buy Gear (embeds gear-picker.js's catalog+cart engine; Purchase writes straight onto CHAR) ----
-// Cart entries come back tagged with the picker's own tab key (e.g. "cyberware", "matrix") --
-// map each to the owned-gear bucket / makeGearLine catalog name it actually belongs under.
-const GEAR_BUCKET =        { weapons:'weapons', armor:'armor', cyberware:'cyber', bioware:'bio', gear:'gear', matrix:'matrix', foci:'foci', vehicles:'vehicles' };
-const GEAR_LINE_CATALOG =  { weapons:'weapons', armor:'armor', cyberware:'cyberware', bioware:'bioware', gear:'gear', matrix:'gear', foci:'foci', vehicles:'vehicles' };
+// GEAR_BUCKET/GEAR_LINE_CATALOG live in shared.js now (also used by character-builder.html's chargen shop).
 // Cybergun implants need a cyberarm to sit in -- SR2 allows at most one per arm (2 total),
 // and never more than the number of arm-slot Cyber Limbs actually owned.
 const CYBERGUN_NAMES = new Set(['Cybergun: Hold-Out Pistol','Cybergun: Light Pistol','Cybergun: Machine Pistol','Cybergun: SMG','Cybergun: Heavy Pistol','Cybergun: Shotgun']);
@@ -2545,7 +2542,7 @@ async function purchaseGear(entries){
   }
   if (!added) {
     showAlert($('#alert'), `>> BLOCKED // ${skipped.join('; ')}`, true, true);
-    return;
+    return false;   // tells gear-picker.js's Buy handler not to show "Purchased!" -- nothing actually was
   }
   // New armor defaults to equipped (same convention as weapons) -- a freshly bought Body/Helmet/
   // Shield piece would otherwise show equipped alongside whatever already occupied that slot.
