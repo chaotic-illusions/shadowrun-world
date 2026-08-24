@@ -852,7 +852,9 @@ function totemBlockHTML() {
 // Foci shop -- costs nuyen AND Force Points (bonding karma). SR2 p.137 / p.263.
 function fociSectionHTML() {
   const all = FOCI || [];
-  const allow = state.magicType === "Adept" ? all.filter(f => f.who === "both") : all;
+  // SR2 p.137: Weapon Foci are the only foci an Adept can bond, and the only foci an Adept CAN bond
+  // -- a Full Mage/Shaman can bond anything except a Weapon Focus.
+  const allow = all.filter(f => state.magicType === "Adept" ? f.who === "adept" : f.who !== "adept");
   const chosen = state.foci.map((x,i) => {
     const f = focusDef(x.type); if (!f) return "";
     const ny = focusNuyen(f, x.rating), fp = focusKarma(f, x.rating);
@@ -875,7 +877,7 @@ function fociSectionHTML() {
   const capBad = cnt > mr || rsum > mr * 5;
   const capNote = `<p class="cbx-p ${capBad ? "cbx-perk--bad" : ""}">Chargen caps: <strong>${cnt}/${mr}</strong> foci (max = Magic Rating) &middot; <strong>${rsum}/${mr * 5}</strong> total rating (max = Magic &times;5).</p>`;
   return `<div class="cbx-h4">Foci <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- nuyen + Force Points (bonding karma)</span></div>
-    <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only Weapon Foci. " : ""}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
+    <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only a Weapon Focus. " : "Weapon Foci are Adept-only, so they're not offered here. "}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
     ${capNote}
     <div>${state.foci.length ? chosen : `<p class="empty-state">No foci.</p>`}</div>
     <div class="cbx-shop"><div class="cbx-shoplist">${shop}</div></div>`;
