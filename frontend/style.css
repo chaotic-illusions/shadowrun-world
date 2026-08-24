@@ -3882,6 +3882,7 @@ main:has(.md3) { max-width: 1800px; }
 .gc-meta b{color:var(--green-dim,#7fae86);font-weight:600;}
 .gc-meta select{background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #1a2a1a;font-family:inherit;font-size:.74rem;padding:3px 6px;vertical-align:middle;}
 .gc-rsel{width:52px;}
+#gcGrade{width:100px;}
 .gc-opts{display:flex;flex-direction:column;gap:7px;}
 .gc-opt{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
 .gc-opt input{margin-top:1px;flex:none;}
