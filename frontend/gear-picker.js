@@ -27,10 +27,18 @@ const initGearPicker = (function () {
   let selected = null;           // {cat, item}
   let selRating = 1;             // chosen rating for a rated selected item
   let selOpts = [];              // chosen add-on option names for the selected item
+  let selGrade = "Standard";     // chosen cyberware grade for the selected item
   let VEHICLE_CLASSES = {};      // name -> {skill, conc}; GM overlay for vehicle piloting groups
+  // Host page supplies these (play-sheet.html) so this shared component doesn't hardcode a
+  // grade table or sourcebook-gating policy -- see gradedCyberEssence/gradedCyberCost in shared.js.
+  let gradeTable = null;         // {GradeName: {ess, nuyen, book}} or null if the host doesn't offer grade choice
+  let pickerEnabledBooks = new Set();
 
   function qs(sel) { return root.querySelector(sel); }
   function alertEl() { return document.getElementById("alert"); }
+  // Cyberware only (bioware has no grade concept); skillsoft-style "other" cyberware items are
+  // ungraded too (matches makeGearLine's item.cat === 'other' -> noGrade rule in shared.js).
+  function isGradeable(it, cat) { return !!gradeTable && cat === "cyberware" && it && it.cat !== "other"; }
   // money() lives in shared.js now.
 
   // Cost of one unit of an item at a given rating (uses costTbl for rated items) plus any selected options.
@@ -140,6 +148,7 @@ const initGearPicker = (function () {
       selected = { cat: curCat, item: it };
       selRating = 1;
       selOpts = [];
+      selGrade = "Standard";
       renderList(); renderInspector();
     });
   }
@@ -177,18 +186,35 @@ const initGearPicker = (function () {
     const sl = statLine(it);
     const meta = [];
     const essLabel = selected.cat === "bioware" ? "Body Index" : "Essence";
+    const gradeable = isGradeable(it, selected.cat);
+    const gMult = gradeable ? (gradeTable[selGrade] || gradeTable.Standard) : null;
+    if (gradeable) {
+      const gopts = Object.keys(gradeTable).map(g => {
+        const book = gradeTable[g].book;
+        const locked = book && !pickerEnabledBooks.has(book);
+        return `<option value="${esc(g)}" ${g === selGrade ? "selected" : ""} ${locked ? "disabled" : ""}>${esc(g)}${locked ? ` (needs ${esc(book)})` : ""}</option>`;
+      }).join("");
+      meta.push(`<span><b>Grade</b> <select id="gcGrade" class="gc-rsel">${gopts}</select></span>`);
+    }
     if (it.rated) {
       const ropts = Array.from({ length: Math.max(1, Number(it.maxRating) || 1) }, (_, i) => i + 1)
         .map(r => `<option value="${r}" ${r === selRating ? "selected" : ""}>${r}</option>`).join("");
       meta.push(`<span><b>Rating</b> <select id="gcRating" class="gc-rsel">${ropts}</select></span>`);
-      meta.push(`<span><b>Cost</b> ${money(unitCost(it, selRating))}</span>`);
-      if (Array.isArray(it.essTbl) && it.essTbl[selRating - 1] != null) meta.push(`<span><b>${essLabel}</b> ${esc(String(it.essTbl[selRating - 1]))}</span>`);
+      const baseCost = unitCost(it, selRating);
+      meta.push(`<span><b>Cost</b> ${money(gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost)}</span>`);
+      if (Array.isArray(it.essTbl) && it.essTbl[selRating - 1] != null) {
+        const baseEss = Number(it.essTbl[selRating - 1]);
+        meta.push(`<span><b>${essLabel}</b> ${esc(String(gradeable ? gradeEssenceCost(baseEss, gMult.ess) : baseEss))}</span>`);
+      }
     } else {
-      if (it.cost != null) meta.push(`<span><b>Cost</b> ${money(unitCost(it, selRating, selOpts))}</span>`);
+      if (it.cost != null) {
+        const baseCost = unitCost(it, selRating, selOpts);
+        meta.push(`<span><b>Cost</b> ${money(gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost)}</span>`);
+      }
       if (it.ess != null) {
         const optEss = Array.isArray(it.options) ? it.options.reduce((a, o) => a + (selOpts.includes(o.n) ? (Number(o.ess) || 0) : 0), 0) : 0;
         const totEss = Math.round(((Number(it.ess) || 0) + optEss) * 100) / 100;
-        meta.push(`<span><b>${essLabel}</b> ${esc(String(totEss))}</span>`);
+        meta.push(`<span><b>${essLabel}</b> ${esc(String(gradeable ? gradeEssenceCost(totEss, gMult.ess) : totEss))}</span>`);
       }
     }
     const kv = unitKarma(it, selRating);
@@ -228,10 +254,13 @@ const initGearPicker = (function () {
       <div class="gc-add">
         <input type="number" id="gcQty" min="1" value="1" style="width:56px" title="Quantity">
         <button type="button" class="btn btn-green btn-sm" id="gcBuy" ${onPurchase ? "" : "disabled"}>Buy</button>
+        <span class="gc-buy-msg" id="gcBuyMsg"></span>
       </div>
       ${raw}`;
     const rsel = qs("#gcRating");
     if (rsel) rsel.onchange = () => { selRating = Number(rsel.value) || 1; renderInspector(); };
+    const gsel = qs("#gcGrade");
+    if (gsel) gsel.onchange = () => { selGrade = gsel.value; renderInspector(); };
     box.querySelectorAll("[data-opt]").forEach(cb => cb.onchange = () => {
       const nm = cb.dataset.opt;
       if (cb.checked) { if (!selOpts.includes(nm)) selOpts.push(nm); }
@@ -243,9 +272,17 @@ const initGearPicker = (function () {
       const qty = Math.max(1, Number(qs("#gcQty").value) || 1);
       const rating = it.rated ? selRating : null;
       const opts = selOpts.slice();
+      const grade = isGradeable(it, selected.cat) ? selGrade : undefined;
       buyBtn.disabled = true; buyBtn.textContent = "Buying…";
       try {
-        await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, item: it }]);
+        await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, item: it }]);
+        const msg = qs("#gcBuyMsg");
+        if (msg) {
+          msg.textContent = "Purchased!";
+          msg.classList.remove("is-show");
+          void msg.offsetWidth;   // restart the fade animation on a repeat buy
+          msg.classList.add("is-show");
+        }
       } catch (e) {
         showAlert(alertEl(), `>> PURCHASE FAILED // ${e.message}`, true, true);
       } finally {
@@ -273,10 +310,15 @@ const initGearPicker = (function () {
 
   // rootEl: container to mount into (its innerHTML is fully owned/replaced by this module).
   // opts.onPurchase(entries): async callback invoked with a single-item array
-  // [{cat,n,rating,qty,opts,item}] the moment "Buy" is clicked -- there's no cart/checkout step.
+  // [{cat,n,rating,qty,opts,grade,item}] the moment "Buy" is clicked -- there's no cart/checkout step.
+  // opts.gradeTable: {GradeName: {ess,nuyen,book}} -- omit to hide grade choice entirely (bioware-only
+  // hosts, or a host that doesn't want grade selection). opts.enabledBooks: Set of sourcebook keys,
+  // used only to grey out a book-gated grade (e.g. Alpha needs SSC), same as every other catalog item.
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
+    gradeTable = (opts && opts.gradeTable) || null;
+    pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
     if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a
       // *different* tab than whatever was last active, a leftover search term from browsing a

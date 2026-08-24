@@ -814,10 +814,12 @@ function statVal(item, key) {
 function vehicleStatBody(item) { return statVal(item, 'body'); }
 
 // Convert a catalog item into the shape stored on a character's gear.{cyber,bio,weapons,armor,gear,
-// vehicles} lines (character-builder.html:makeGearLine).
-function makeGearLine(item, catalogName) {
+// vehicles} lines (character-builder.html:makeGearLine). grade is cyberware-only (bioware has no
+// grades) and defaults to Standard -- callers that let the player pick a grade at purchase time
+// (gear-picker.js) pass the chosen grade through explicitly.
+function makeGearLine(item, catalogName, grade) {
   if (catalogName === 'cyberware') {
-    const line = { n: item.n, sub: item.cat || '', grade: 'Standard', baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
+    const line = { n: item.n, sub: item.cat || '', grade: grade || 'Standard', baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
     if (item.cat === 'other') line.noGrade = true;   // software chips (skillsofts) carry no cyber grade
     if (item.soft) line.soft = item.soft;            // skillsoft type: 'active' | 'knowledge' | 'language'
     if (item.skillBonus) line.skillBonus = item.skillBonus;   // e.g. Math SPU: +floor(Rating/2) to matching skills

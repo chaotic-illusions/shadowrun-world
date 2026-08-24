@@ -2457,7 +2457,7 @@
                     {"n": "Armor Jacket", "sub": "worn", "cost": 900, "src": "SR2"}
                 ],
                 "cyber": [
-                    {"n": "Wired Reflexes Level 1", "sub": "bodyware", "grade": "Standard", "baseEss": 2, "baseCost": 55000, "src": "SR2", "mods": {"reaction": 2, "initDice": 1}},
+                    {"n": "Wired Reflexes", "sub": "bodyware", "grade": "Standard", "src": "SR2", "rated": true, "maxRating": 3, "rating": 1, "essUnit": 2, "costUnit": 55000, "essTbl": [2, 3, 5], "costTbl": [55000, 165000, 500000], "modsPer": {"reaction": 2, "initDice": 1}},
                     {"n": "Smartlink", "sub": "bodyware", "grade": "Standard", "baseEss": 0.5, "baseCost": 7000, "src": "SR2"},
                     {"n": "Datajack", "sub": "headware", "grade": "Standard", "baseEss": 0.2, "baseCost": 1000, "src": "SR2"},
                     {"n": "Display Link", "sub": "headware", "grade": "Standard", "baseEss": 0.1, "baseCost": 1000, "src": "SR2"}
