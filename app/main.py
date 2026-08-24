@@ -94,6 +94,20 @@ async def _ensure_character_chargen_state_column():
         print("[startup] Added characters.chargen_state column")
 
 
+async def _ensure_character_condition_monitor_columns():
+    """Startup safety migration for the condition-monitor columns on SQLite deployments.
+
+    create_all only creates missing tables; it won't add columns to an existing characters
+    table. Add them in place when an older DB file predates them. Idempotent.
+    """
+    added = []
+    for column in ("physical_damage", "stun_damage", "physical_overflow"):
+        if await _ensure_sqlite_column("characters", column, "INTEGER NOT NULL DEFAULT 0"):
+            added.append(column)
+    if added:
+        print(f"[startup] Added characters columns: {', '.join(added)}")
+
+
 async def _ensure_character_portrait_column():
     """Startup safety migration for characters.portrait_url on SQLite deployments. create_all won't
     add columns to an existing characters table; add it in place when an older DB predates it.
@@ -347,6 +361,7 @@ async def lifespan(app: FastAPI):
         await _ensure_character_math_spu_columns()
         await _ensure_character_sheet_columns()
         await _ensure_character_chargen_state_column()
+        await _ensure_character_condition_monitor_columns()
         await _ensure_character_portrait_column()
         await _ensure_contact_type_column()
         await _ensure_matrix_run_version_column()

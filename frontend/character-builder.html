@@ -444,18 +444,14 @@ function save() {
 }
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 
-const money = (n) => (Number(n)||0).toLocaleString("en-US") + "\u00A5";
+// money() lives in shared.js now (was a local, format-drifted duplicate).
 const clamp = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
 const round2 = (n) => Math.round((Number(n)||0) * 100) / 100;
-
-// Parse a leading number out of a value that may be a number, a formula string,
-// a range ("15,000 - 60,000"), or null. Returns 0 when nothing numeric is present.
-function parseNum(v) {
-  if (typeof v === "number") return v;
-  if (typeof v !== "string") return 0;
-  const m = v.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : 0;
-}
+// parseNum/statVal/vehicleStatBody/makeGearLine/gearLineCost live in shared.js (loaded above) --
+// this page used to shadow them with identical local copies, which had silently drifted (this
+// page's gearLineCost clamped rating into [1,maxRating] before indexing costTbl; shared.js's
+// didn't). shared.js's gearLineCost now carries that same clamp, so nothing here relies on a
+// local copy anymore.
 
 // ---- derived / budget --------------------------------------------------------
 function isMeta() { return state.prio.race === "A"; }
@@ -487,13 +483,8 @@ function skillSpent() { return state.skills.reduce((s,x) => s + Number(x.rating|
 function res() { return (PR.resources||{})[state.prio.resources] || { nuyen:0, fp:0 }; }
 function gearNuyen() { return GEAR_KEYS.reduce((s,k) => s + state.gear[k].reduce((s2,g) => s2 + (k==="cyber" ? effCyberCost(g) : k==="bio" ? bioCost(g) : k==="vehicles" ? vehicleLineCost(g) : gearLineCost(g)), 0), 0); }
 // Rated plain gear (e.g. rigger modules priced "Cost Rating x N"): rating picker + computed cost.
+// gearLineCost() itself lives in shared.js now (its costTbl-index clamp matches gearRating() here).
 function gearRating(g) { return clamp(Number(g.rating)||1, 1, Math.max(1, Number(g.maxRating)||1)); }
-function gearLineCost(g) {
-  if (!g.rated) return Number(g.cost)||0;
-  const r = gearRating(g);
-  if (Array.isArray(g.costTbl) && g.costTbl[r-1] != null) return Number(g.costTbl[r-1])||0;
-  return (Number(g.costUnit)||0) * r;
-}
 // Rigger adaptation makes a vehicle riggable/remote-controllable: (Body x 2500) + 2800 nuyen.
 function riggerGearCost(body) { return (Number(body)||0) * 2500 + 2800; }
 function vehicleBodyOf(g) {
@@ -609,40 +600,15 @@ function fociFp() { return awakened() ? state.foci.reduce((t,x) => t + focusKarm
 // Chargen focus caps (later-edition house rule): count <= Magic Rating; total rating <= Magic x5.
 function fociRatingSum() { return state.foci.reduce((t,x) => t + (Number(x.rating)||1), 0); }
 // ---- cyberware grades --------------------------------------------------------
-function gradeEss(baseEss, grade) {
-  const m = (GRADES[grade] || GRADES.Standard).ess;
-  const v = Math.ceil((Number(baseEss)||0) * m * 100) / 100;  // round UP to 2 decimals
-  return (Number(baseEss)||0) > 0 ? Math.max(0.05, v) : 0;    // essence floor of 0.05
-}
-function gradeCost(baseCost, grade) { return Math.round((Number(baseCost)||0) * (GRADES[grade] || GRADES.Standard).nuyen); }
-// Rating-aware pre-grade base: rated items read their per-level essTbl/costTbl (authoritative,
-// handles non-linear tables like Bone Lacing) and fall back to a per-level unit x Rating.
+// cyberBaseEss/cyberBaseCost/clampedRating live in shared.js now (identical logic, shared with
+// play-sheet.html's post-chargen Essence tracking). cyberRating/effCyberEss/effCyberCost stay
+// defined here as this page's own 1-arg adapters -- shared.js's graded* versions take an explicit
+// gradeTable param since chargen's GRADES (book-gated) and play-sheet's ESS_GRADE_MULT differ in
+// shape, but every call site on this page still wants the plain 1-arg form.
 // minRating supports band entries (e.g. Skillwire Plus R4-6): the picker and tables start at minRating.
-function cyberRating(g) { const lo = Number(g.minRating) || 1; return clamp(Number(g.rating) || lo, lo, Math.max(lo, Number(g.maxRating) || lo)); }
-function cyberBaseEss(g) {
-  let base;
-  if (!g.rated) base = Number(g.baseEss) || 0;
-  else {
-    const lo = Number(g.minRating) || 1, r = cyberRating(g);
-    base = (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo]) || 0) : (Number(g.essUnit) || 0) * r;
-  }
-  return base + optionsEss(g);
-}
-function cyberBaseCost(g) {
-  let base;
-  if (!g.rated) base = Number(g.baseCost) || 0;
-  else {
-    const lo = Number(g.minRating) || 1, r = cyberRating(g);
-    base = (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) ? (Number(g.costTbl[r-lo]) || 0) : (Number(g.costUnit) || 0) * r;
-  }
-  return base + optionsCost(g);
-}
-// Voice-Modulator-style add-on options carried on a cyber line: flat nuyen + Essence, folded into
-// the base before grade multipliers apply.
-function optionsEss(g) { return (g.options || []).reduce((s, o) => s + (Number(o.ess) || 0), 0); }
-function optionsCost(g) { return (g.options || []).reduce((s, o) => s + (Number(o.cost) || 0), 0); }
-function effCyberEss(g) { return g.noGrade ? cyberBaseEss(g) : gradeEss(cyberBaseEss(g), g.grade || "Standard"); }
-function effCyberCost(g) { return g.noGrade ? cyberBaseCost(g) : gradeCost(cyberBaseCost(g), g.grade || "Standard"); }
+function cyberRating(g) { return clampedRating(g); }
+function effCyberEss(g) { return gradedCyberEssence(g, GRADES); }
+function effCyberCost(g) { return gradedCyberCost(g, GRADES); }
 // Bioware Rating (Body Index cost + nuyen), mirroring the cyber rating helpers. Bioware has no grades.
 // Rating ceiling: capBody items cap at the character's (natural, unaugmented) Body.
 function bioMaxRating(g) { return g.capBody ? Math.max(1, naturalAttr("body")) : (Number(g.maxRating) || 1); }
@@ -678,7 +644,7 @@ function ppBudget() { return state.magicType === "Adept" ? magicRating() : 0; }
 function ppSpent() { return state.powers.reduce((s,p) => s + (Number(p.ppEach)||0) * (p.rated ? (p.lvl||1) : 1), 0); }
 function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
 function initDice() { return 1 + augAttr("initDice"); }
-function combatPool() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence") + finalAttr("willpower")) / 2) + poolBonus("combat"); }
+function combatPool() { return combatPoolFormula(finalAttr("quickness"), finalAttr("intelligence"), finalAttr("willpower"), poolBonus("combat")); }
 // Dice-pool bonuses from installed cyber/bio: Encephalon/Cerebral Booster -> task, Math SPU -> hack,
 // Tactical Computer -> combat. poolTbl[name] is an array indexed by the item's effective rating.
 function poolBonus(name) {
@@ -689,10 +655,7 @@ function poolBonus(name) {
 }
 function taskPool() { return poolBonus("task"); }
 // Pools shown only when their requirements are met AND the value is > 0 (null == not applicable).
-function statVal(item, key) {
-  const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
-  return row ? (parseNum(row[1]) || 0) : 0;
-}
+// statVal() lives in shared.js now.
 function deckMpcp() {  // MPCP of the best owned cyberdeck (0 = no deck)
   let mx = 0;
   (state.gear.matrix || []).forEach(g => { const v = Number(g.mpcp) || statVal((CAT.gear || []).find(x => x.n === g.n), "MPCP"); if (v > mx) mx = v; });
@@ -704,10 +667,10 @@ function vcrLevel() {  // level of the best Vehicle Control Rig installed (0 = n
   return lvl;
 }
 function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
-function hackingPool() { const m = deckMpcp(); return m ? Math.floor((finalAttr("intelligence") + m) / 3) + poolBonus("hack") : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
-function controlPool() { const v = vcrLevel(); return v ? reaction() + v * 2 : null; }                                                             // needs a VCR (Control Pool = rigging Reaction, RIG2 p.261)
-function astralPool() { return state.magicType === "Full Mage" ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + finalAttr("charisma")) / 2) : null; }  // needs astral projection
-function spellPool() { return hasSorcery() ? Math.floor((finalAttr("intelligence") + finalAttr("willpower") + magicRating()) / 3) : null; }  // needs Sorcery
+function hackingPool() { const m = deckMpcp(); return m ? hackingPoolFormula(finalAttr("intelligence"), m, poolBonus("hack")) : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
+function controlPool() { const v = vcrLevel(); return v ? controlPoolFormula(reaction(), v) : null; }                                                             // needs a VCR (Control Pool = rigging Reaction, RIG2 p.261)
+function astralPool() { return state.magicType === "Full Mage" ? astralPoolFormula(finalAttr("intelligence"), finalAttr("willpower"), finalAttr("charisma")) : null; }  // needs astral projection
+function spellPool() { return hasSorcery() ? spellPoolFormula(finalAttr("intelligence"), finalAttr("willpower"), magicRating()) : null; }  // needs Sorcery
 function activePools() {
   const out = [["Combat Pool", combatPool()]];
   const add = (label, v) => { if (v != null && v > 0) out.push([label, v]); };
@@ -1691,62 +1654,7 @@ function findCatalogItem(name) {
   }
   return null;
 }
-function makeGearLine(item, catalogName) {
-  if (catalogName === "cyberware") {
-    const line = { n: item.n, sub: item.cat || "", grade: "Standard", baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
-    if (item.cat === "other") line.noGrade = true;   // software chips (skillsofts) carry no cyber grade
-    if (item.soft) line.soft = item.soft;            // skillsoft type: 'active' | 'knowledge' | 'language'
-    if (item.skillBonus) line.skillBonus = item.skillBonus;   // e.g. Math SPU: +floor(Rating/2) to matching skills
-    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Wired Reflexes: +Reaction, +Init dice)
-    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating attribute bonuses (e.g. Muscle Replacement: +Str/+Qui per level)
-    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task / Hacking / Combat)
-    if (item.rated) {
-      line.rated = true;
-      line.maxRating = Number(item.maxRating) || 1;
-      if (item.minRating) line.minRating = Number(item.minRating);
-      line.rating = Number(item.minRating) || 1;
-      line.essUnit = parseNum(item.ess);
-      line.costUnit = parseNum(item.cost);
-      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
-      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
-    }
-    return line;
-  }
-  const line = { n: item.n, sub: item.sub || item.cat || "", cost: parseNum(item.cost), src: item.src };
-  if (catalogName === "bioware") {
-    line.ess = parseNum(item.ess);
-    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Suprathyroid: +Body/+Qui/+Str/+Reaction)
-    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating bonuses (e.g. Muscle Augmentation: +Str/+Qui per level)
-    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task Pool)
-    if (item.rated) {
-      line.rated = true;
-      line.maxRating = Number(item.maxRating) || 1;
-      if (item.minRating) line.minRating = Number(item.minRating);
-      line.rating = Number(item.minRating) || 1;
-      line.essUnit = parseNum(item.ess);
-      line.costUnit = parseNum(item.cost);
-      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
-      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
-      if (item.capBody) line.capBody = true;
-    }
-  }
-  if ((catalogName === "gear" || catalogName === "weapons" || catalogName === "armor") && item.rated) {
-    line.rated = true;
-    line.maxRating = Number(item.maxRating) || 1;
-    line.rating = 1;
-    if (item.costUnit != null) line.costUnit = Number(item.costUnit);
-    if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
-    if (Array.isArray(item.rateLabels)) line.rateLabels = item.rateLabels.slice();
-  }
-  if (item.cat === "deck") line.mpcp = statVal(item, "MPCP");   // cyberdeck: keep MPCP for the Hacking Pool
-  if (catalogName === "vehicles") { line.body = vehicleStatBody(item); line.rigger = false; }
-  return line;
-}
-// Pull the Body rating out of a vehicle's stats array (["Body", N]).
-function vehicleStatBody(item) {
-  const row = (item.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === "body");
-  return row ? (parseNum(row[1]) || 0) : 0;
-}
+// makeGearLine()/vehicleStatBody() live in shared.js now.
 
 /* ---------- wiring ---------- */
 function wire() {

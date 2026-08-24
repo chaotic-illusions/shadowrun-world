@@ -456,6 +456,13 @@ function _confirmNewToken(token) {
 
 // -- Shared DOM helpers -------------------------------------------------------
 
+/** Format a nuyen amount for display. Three separately-maintained copies of this (play-sheet.html,
+ *  gear-picker.js, character-builder.html) had quietly drifted to different formats (prefix vs.
+ *  suffix, with/without a pinned locale) -- this is the one canonical version. */
+function money(n) {
+  return '¥' + (Number(n) || 0).toLocaleString('en-US');
+}
+
 /** HTML-escape a string for safe insertion into HTML text and quoted HTML attributes.
  *  Never interpolate data into inline JavaScript handlers; HTML entities are decoded before
  *  those handlers are compiled. Use data attributes and addEventListener instead. */
@@ -786,9 +793,9 @@ function computeHackingPool(intelligence, mpcp, mathSpu = 0) {
 
 
 // -- Gear catalog helpers -------------------------------------------------------
-// Ported from character-builder.html's chargen shop logic (kept there untouched -- its own local
-// copies still shadow these for its own script) so gear-picker.js can convert a purchased catalog
-// item into the same owned-gear-line shape chargen already produces, without duplicating the rules.
+// Shared by character-builder.html's chargen shop and gear-picker.js/play-sheet.html's post-chargen
+// purchases, so both convert a catalog item into the same owned-gear-line shape and cost the same
+// item the same way, without maintaining separate copies of the rules.
 
 // Parse a leading number out of a value that may be a number, a formula string, a range
 // ("15,000 - 60,000"), or null. Returns 0 when nothing numeric is present.
@@ -861,11 +868,100 @@ function makeGearLine(item, catalogName) {
 }
 
 // Current nuyen cost of an owned gear line (rated weapons/armor/gear use their rating's costTbl slot).
+// Rating is clamped into [1, maxRating] before indexing costTbl -- defends against a corrupted or
+// out-of-range stored rating landing on an undefined table slot (or, worse, silently falling
+// through to the flat costUnit*r multiply with an absurd r).
 function gearLineCost(g) {
   if (!g.rated) return Number(g.cost) || 0;
-  const r = Number(g.rating) || 1;
+  const r = Math.max(1, Math.min(Number(g.rating) || 1, Math.max(1, Number(g.maxRating) || 1)));
   if (Array.isArray(g.costTbl) && g.costTbl[r - 1] != null) return Number(g.costTbl[r - 1]) || 0;
   return (Number(g.costUnit) || 0) * r;
+}
+
+// -- Cyberware grade/Essence/cost math ------------------------------------------
+// character-builder.html (chargen) and play-sheet.html (post-chargen Manage Cyberware/Buy Gear)
+// each need "what does this cyberware line cost in Essence/nuyen at its grade and rating" -- this
+// used to be two independently-maintained implementations that had quietly drifted (unclamped vs.
+// clamped rating; whether add-on options get graded with the base or added after). One shared
+// version here, each page supplies its own grade-multiplier table (e.g. {Standard:{ess:1,nuyen:1},
+// Alpha:{ess:0.8,nuyen:2}}) since that table's shape/extra fields (chargen's book-gating) are
+// page-specific, but the actual math never should be.
+
+// Rating clamped into [minRating, maxRating] -- same defensive reasoning as gearLineCost above.
+function clampedRating(g) {
+  const lo = Number(g.minRating) || 1;
+  return Math.max(lo, Math.min(Number(g.rating) || lo, Math.max(lo, Number(g.maxRating) || lo)));
+}
+// Pre-grade Essence cost at the line's (clamped) rating, including add-on options' Essence --
+// options are graded together with the base cost, not added on afterward ungraded.
+function cyberBaseEss(g) {
+  let base;
+  if (!g.rated) base = Number(g.baseEss) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = clampedRating(g);
+    base = (Array.isArray(g.essTbl) && g.essTbl[r - lo] != null) ? (Number(g.essTbl[r - lo]) || 0) : (Number(g.essUnit) || 0) * r;
+  }
+  return base + (g.options || []).reduce((s, o) => s + (Number(o.ess) || 0), 0);
+}
+// Pre-grade nuyen cost at the line's (clamped) rating, including add-on options' cost.
+function cyberBaseCost(g) {
+  let base;
+  if (!g.rated) base = Number(g.baseCost) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = clampedRating(g);
+    base = (Array.isArray(g.costTbl) && g.costTbl[r - lo] != null) ? (Number(g.costTbl[r - lo]) || 0) : (Number(g.costUnit) || 0) * r;
+  }
+  return base + (g.options || []).reduce((s, o) => s + (Number(o.cost) || 0), 0);
+}
+// Grade-adjusted Essence: rounds UP to 2 decimals, with a 0.05 floor once any Essence is actually
+// spent (SR2's minimum meaningful Essence cost) -- a plain multiply can round an Alpha-grade item
+// below that floor.
+function gradeEssenceCost(baseEss, essMult) {
+  const v = Math.ceil((Number(baseEss) || 0) * essMult * 100) / 100;
+  return (Number(baseEss) || 0) > 0 ? Math.max(0.05, v) : 0;
+}
+function gradeNuyenCost(baseCost, nuyenMult) {
+  return Math.round((Number(baseCost) || 0) * nuyenMult);
+}
+// Final Essence/nuyen cost of an owned cyberware line. gradeTable maps grade name -> {ess, nuyen}
+// multipliers; g.noGrade items (e.g. skillsoft chips) skip grading entirely. Named gradedCyber* --
+// not effCyberEss/effCyberCost -- because character-builder.html defines its own 1-arg wrappers
+// under those exact names that close over its GRADES table and delegate to these; giving this
+// function the same name character-builder wraps it under would make that wrapper call itself.
+function gradedCyberEssence(g, gradeTable) {
+  const base = cyberBaseEss(g);
+  if (g.noGrade) return base;
+  const mult = (gradeTable[g.grade || 'Standard'] || gradeTable.Standard).ess;
+  return gradeEssenceCost(base, mult);
+}
+function gradedCyberCost(g, gradeTable) {
+  const base = cyberBaseCost(g);
+  if (g.noGrade) return base;
+  const mult = (gradeTable[g.grade || 'Standard'] || gradeTable.Standard).nuyen;
+  return gradeNuyenCost(base, mult);
+}
+
+// -- SR2 dice-pool formulas ------------------------------------------------------
+// character-builder.html (chargen) and play-sheet.html (live play) each need these same five
+// pool formulas and had drifted into separately-maintained copies. The formula lives here so it
+// can't drift again; each page still gathers its own inputs (attribute totals, which
+// bonuses/penalties apply, whether a prerequisite like "owns a cyberdeck" or "knows Sorcery" is
+// met) and calls these with plain numbers -- that gating logic is page-specific (chargen's
+// state.gear vs. the live sheet's CHAR.gear) and stays where it is.
+function combatPoolFormula(quickness, intelligence, willpower, bonus) {
+  return Math.floor(((Number(quickness)||0) + (Number(intelligence)||0) + (Number(willpower)||0)) / 2) + (Number(bonus) || 0);
+}
+function hackingPoolFormula(intelligence, mpcp, bonus) {
+  return Math.floor(((Number(intelligence)||0) + (Number(mpcp)||0)) / 3) + (Number(bonus) || 0);
+}
+function controlPoolFormula(reactionValue, vcrLevel) {
+  return (Number(reactionValue) || 0) + (Number(vcrLevel) || 0) * 2;
+}
+function astralPoolFormula(intelligence, willpower, charisma) {
+  return Math.floor(((Number(intelligence)||0) + (Number(willpower)||0) + (Number(charisma)||0)) / 2);
+}
+function spellPoolFormula(intelligence, willpower, magicRating, bonus) {
+  return Math.floor(((Number(intelligence)||0) + (Number(willpower)||0) + (Number(magicRating)||0)) / 3) + (Number(bonus) || 0);
 }
 
 
