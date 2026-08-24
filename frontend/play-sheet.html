@@ -818,7 +818,6 @@ function skillAugSources(skillName){
 // page just supplies its own grade-multiplier table. Mirrors character-builder.html's GRADES exactly
 // (same book-gating) so a given grade prices identically whether bought at chargen or post-chargen.
 const ESS_GRADE_MULT = { Standard: { ess: 1.0, nuyen: 1, book: null }, Alpha: { ess: 0.8, nuyen: 2, book: "SSC" } };
-const GRADE_ORDER = ["Standard", "Alpha"];
 function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -1027,19 +1026,10 @@ function cyberTableRows(items, bucket, forModal){
       const val = bucket === 'cyber' ? (ownedCyberEss(g) ? ownedCyberEss(g).toFixed(2)+' Ess' : '') : (ownedBioIndex(g) ? ownedBioIndex(g).toFixed(2)+' BI' : '');
       return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td><td>${val}</td></tr>`;
     }
-    const canUpgrade = g.rated && (g.rating||1) < (g.maxRating||1);
-    const nextRating = (g.rating||1) + 1;
-    const upgradeCost = canUpgrade ? ratedCostAt(g, nextRating) : 0;
-    // Grade upgrade: cyberware only (bio has no grade), pays the FULL price at the target grade (not
-    // a delta) and re-grades the line in place -- next grade up GRADE_ORDER, book-gated same as a
-    // fresh purchase. Never Essence-blocked: every grade above Standard only lowers Essence cost.
-    const nextGrade = (bucket === 'cyber' && !g.noGrade) ? GRADE_ORDER[GRADE_ORDER.indexOf(g.grade || 'Standard') + 1] : null;
-    const gradeLocked = nextGrade && ESS_GRADE_MULT[nextGrade].book && !enabledBooks.has(ESS_GRADE_MULT[nextGrade].book);
-    const gradeUpgradeCost = nextGrade ? gradedCyberCost({ ...g, grade: nextGrade }, ESS_GRADE_MULT) : 0;
+    // Rating/grade changes happen by re-buying the item from the picker (see upgradeExistingSingular
+    // in purchaseGear) -- Manage Cyberware only removes a line now, it doesn't offer in-place controls.
     return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td>
       <td class="flex-row-8">
-        ${canUpgrade ? `<button class="btn btn-amber btn-sm" data-cyber-upgrade="${bucket}:${i}">To ${nextRating} &mdash; ${money(upgradeCost)}</button>` : ''}
-        ${nextGrade && !gradeLocked ? `<button class="btn btn-cyan btn-sm" data-cyber-grade-upgrade="${bucket}:${i}">To ${esc(nextGrade)} &mdash; ${money(gradeUpgradeCost)}</button>` : ''}
         <button class="row-x" data-cyber-remove="${bucket}:${i}" title="Remove">&#10005;</button>
       </td></tr>`;
   }).join('');
@@ -1052,12 +1042,7 @@ function renderCyber(){
   $('#cyberList').innerHTML = `<table class="ps-data"><thead><tr><th>Type</th><th>Grade</th><th>Rating</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ---- Manage Cyberware / Bioware (purchase via the shared picker, upgrade rating, remove) ----
-function ratedCostAt(g, r){
-  const lo = Number(g.minRating)||1;
-  if (Array.isArray(g.costTbl) && g.costTbl[r-lo] != null) return Number(g.costTbl[r-lo])||0;
-  return (Number(g.costUnit)||0) * r;
-}
+// ---- Manage Cyberware / Bioware (purchase/upgrade via the shared picker, remove here) ----
 function openManageCyber(){
   openModal('cyber', '// Manage Cyberware / Bioware', false);
   renderManageCyber();
@@ -1070,30 +1055,6 @@ function renderManageCyber(){
   const rows = cyberTableRows(cyber, 'cyber', true) + cyberTableRows(bio, 'bio', true);
   const table = rows ? `<table class="ps-data"><thead><tr><th>Type</th><th>Grade</th><th>Rating</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty-state">No cyberware or bioware owned.</p>';
   $('#modalBody').innerHTML = table + buyShortcutRow('cyberware', 'Buy Cyberware / Bioware');
-  $$('[data-cyber-upgrade]').forEach(b => b.onclick = () => {
-    const [bucket, idx] = b.dataset.cyberUpgrade.split(':');
-    const g = CHAR.gear[bucket][Number(idx)];
-    const nextRating = (g.rating||1) + 1;
-    if (g.n === 'Orthoskin') {
-      const blocked = orthoskinRatingBlocked(nextRating, CHAR.gear);
-      if (blocked) { showAlert($('#alert'), `>> BLOCKED // ${blocked}`, true, true); return; }
-    }
-    const resourceBlock = essenceOrBioIndexBlocked(bucket, { ...g, rating: nextRating }, g);
-    if (resourceBlock) { showAlert($('#alert'), `>> BLOCKED // ${resourceBlock}`, true, true); return; }
-    g.rating = nextRating;
-    const patch = { gear: CHAR.gear };
-    if (bucket === 'cyber') patch.essence = Math.round(essenceRemaining() * 100) / 100;
-    patchChar(patch).then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
-  });
-  $$('[data-cyber-grade-upgrade]').forEach(b => b.onclick = () => {
-    const [bucket, idx] = b.dataset.cyberGradeUpgrade.split(':');
-    const g = CHAR.gear[bucket][Number(idx)];
-    const nextGrade = GRADE_ORDER[GRADE_ORDER.indexOf(g.grade || 'Standard') + 1];
-    if (!nextGrade) return;
-    g.grade = nextGrade;
-    patchChar({ gear: CHAR.gear, essence: Math.round(essenceRemaining() * 100) / 100 })
-      .then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
-  });
   $$('[data-cyber-remove]').forEach(b => b.onclick = () => {
     const [bucket, idx] = b.dataset.cyberRemove.split(':');
     CHAR.gear[bucket].splice(Number(idx), 1);
@@ -2117,7 +2078,46 @@ function pickerMaxQty(item, cat){
   const bucket = GEAR_BUCKET[cat] || cat;
   const owned = (CHAR.gear && CHAR.gear[bucket]) || [];
   const ownedCount = owned.filter(g => g.n === item.n).length;
-  return Math.max(0, (cap === undefined ? 1 : cap) - ownedCount);
+  const remaining = Math.max(0, (cap === undefined ? 1 : cap) - ownedCount);
+  // A cap-1 item you already own (VCR, Wired Reflexes, most cyberware/bioware) isn't necessarily
+  // done being "bought" -- re-buying it at a different rating and/or grade is how you upgrade it in
+  // place (see upgradeExistingSingular). Only re-offer Buy when there's actually a rating or grade
+  // dimension to change; a flat item with neither has nothing left to pick differently.
+  if (remaining === 0 && cap === undefined && ownedCount === 1 && (bucket === 'cyber' || bucket === 'bio')) {
+    if (item.rated || (bucket === 'cyber' && item.cat !== 'other')) return 1;
+  }
+  return remaining;
+}
+// A cap-1 cyberware/bioware item already owned can be "bought" again to change its rating and/or
+// grade in place, at the FULL price/Essence of the new configuration (not a delta) -- e.g. picking
+// Alpha + Rating 2 on an owned Standard Rating-1 VCR upgrades that one line instead of being blocked
+// as a duplicate. This is the only way to change rating or grade post-chargen now (replaces the old
+// dedicated Manage Cyberware upgrade buttons). Returns true if it handled the purchase (mutated gear
+// in place), a block-reason string if it applies but can't proceed, or null if this isn't that
+// scenario at all (not owned, not a cap-1 category, or nothing about it is actually reconfigurable).
+function upgradeExistingSingular(cat, item, bucket, gear, rating, grade){
+  if (!SINGULAR_CATEGORIES.has(cat)) return null;
+  if (OWNERSHIP_CAP[item.n] !== undefined) return null;   // only the plain "at most 1 by name" cap style
+  const existing = (gear[bucket] || []).find(g => g.n === item.n);
+  if (!existing) return null;
+  const canRerate = !!item.rated;
+  const canRegrade = bucket === 'cyber' && item.cat !== 'other';
+  if (!canRerate && !canRegrade) return null;
+  if (item.n === 'Orthoskin') {
+    const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
+    if (orthoBlock) return orthoBlock;
+  }
+  const newRating = canRerate ? (rating || 1) : existing.rating;
+  const newGrade = canRegrade ? (grade || 'Standard') : existing.grade;
+  const sameRating = !canRerate || Number(existing.rating || 1) === Number(newRating);
+  const sameGrade = !canRegrade || (existing.grade || 'Standard') === newGrade;
+  if (sameRating && sameGrade) return `${item.n} (already own this exact configuration)`;
+  const candidate = { ...existing, rating: newRating, grade: newGrade };
+  const resourceBlock = essenceOrBioIndexBlocked(bucket, candidate, existing);
+  if (resourceBlock) return resourceBlock;
+  if (canRerate) existing.rating = newRating;
+  if (canRegrade) existing.grade = newGrade;
+  return true;
 }
 function ownershipBlocked(cat, item, gear, rating){
   if (item.n === 'Orthoskin') {
@@ -2480,6 +2480,9 @@ async function purchaseGear(entries){
     const bucket = GEAR_BUCKET[cat] || cat;
     gear[bucket] = gear[bucket] || [];
     for (let i = 0; i < qty; i++) {
+      const upgrade = upgradeExistingSingular(cat, item, bucket, gear, rating, grade);
+      if (upgrade === true) { added++; boughtCyberOrBio = true; continue; }
+      if (typeof upgrade === 'string') { skipped.push(upgrade); continue; }
       const blockReason = ownershipBlocked(cat, item, gear, rating);
       if (blockReason) { skipped.push(blockReason); continue; }
       const famBlock = familyReplaceOrBlock(item, gear);
