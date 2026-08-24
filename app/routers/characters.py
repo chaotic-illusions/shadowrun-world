@@ -1,9 +1,11 @@
+import io
 import os
 import re
 import uuid
 
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select, update as sql_update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -446,6 +448,8 @@ async def character_sheet_pdf(
 
 _PORTRAIT_CONTENT_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 _PORTRAIT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+_PORTRAIT_CHUNK_BYTES = 256 * 1024  # read size for the streamed size-cap check below
+_PORTRAIT_PIL_FORMATS = {"png": "PNG", "jpg": "JPEG", "webp": "WEBP"}
 
 
 @router.post("/{character_id}/portrait", response_model=CharacterRead)
@@ -463,11 +467,33 @@ async def upload_character_portrait(
     ext = _PORTRAIT_CONTENT_TYPES.get(file.content_type)
     if not ext:
         raise HTTPException(status_code=400, detail="Portrait must be a PNG, JPEG, or WEBP image")
-    data = await file.read()
+
+    # Read in bounded chunks so an oversized upload is rejected as soon as the cap is crossed,
+    # instead of buffering the entire body first just to measure it.
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(_PORTRAIT_CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _PORTRAIT_MAX_BYTES:
+            raise HTTPException(status_code=400, detail="Portrait image is too large (limit 5MB)")
+        chunks.append(chunk)
+    data = b"".join(chunks)
     if not data:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
-    if len(data) > _PORTRAIT_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Portrait image is too large (limit 5MB)")
+
+    # The Content-Type header above is entirely client-supplied and trivially spoofed -- verify
+    # the bytes actually decode as an image, and as the SPECIFIC type claimed, before trusting it.
+    try:
+        img = Image.open(io.BytesIO(data))
+        detected_format = img.format
+        img.verify()
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=400, detail="File is not a valid image")
+    if detected_format != _PORTRAIT_PIL_FORMATS.get(ext):
+        raise HTTPException(status_code=400, detail="Image content doesn't match its declared type")
 
     filename = f"{uuid.uuid4().hex}.{ext}"
     path = os.path.join("data", "uploads", "portraits", filename)

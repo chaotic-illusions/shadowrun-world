@@ -17,7 +17,6 @@ const initGearPicker = (function () {
   ];
   const FOCI_GROUP_ORDER = ["Spell Foci", "Spirit Foci", "Power Foci", "Weapon Foci"];
   const DOT = " · ";
-  const YEN = "¥";
 
   let root = null;
   let onPurchase = null;
@@ -32,7 +31,7 @@ const initGearPicker = (function () {
 
   function qs(sel) { return root.querySelector(sel); }
   function alertEl() { return document.getElementById("alert"); }
-  function money(n) { return (Number(n) || 0).toLocaleString("en-US") + YEN; }
+  // money() lives in shared.js now.
 
   // Cost of one unit of an item at a given rating (uses costTbl for rated items) plus any selected options.
   function unitCost(item, rating, opts) {
