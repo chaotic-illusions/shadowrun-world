@@ -2579,8 +2579,9 @@ async function purchaseGear(entries){
     if (bucket === 'armor') boughtArmor = true;
   }
   if (!added) {
-    showAlert($('#alert'), `>> BLOCKED // ${skipped.join('; ')}`, true, true);
-    return false;   // tells gear-picker.js's Buy handler not to show "Purchased!" -- nothing actually was
+    // Returning the message (instead of calling showAlert on the page-level #alert, which sits
+    // behind the modal and goes unseen) lets gear-picker.js render it right in the modal, next to Buy.
+    return `Blocked: ${skipped.join('; ')}`;
   }
   // New armor defaults to equipped (same convention as weapons) -- a freshly bought Body/Helmet/
   // Shield piece would otherwise show equipped alongside whatever already occupied that slot.
@@ -2592,11 +2593,10 @@ async function purchaseGear(entries){
   if (notesTouched) patch.notes = CHAR.notes;
   await patchChar(patch);
   renderAll();
-  // No banner on a clean purchase -- only surface something when part of the batch was blocked,
-  // since that's information the player actually needs (why an item didn't show up), not just noise
-  // confirming what they already watched happen.
+  // No message on a clean purchase (gear-picker.js shows its own "Purchased!") -- only surface
+  // something when part of the batch was blocked, since that's information the player actually needs.
   if (skipped.length) {
-    showAlert($('#alert'), `>> ${added} item${added===1?'':'s'} added (skipped ${skipped.length}: ${skipped.join('; ')})`, true, true);
+    return `${added} item${added===1?'':'s'} added (skipped ${skipped.length}: ${skipped.join('; ')})`;
   }
 }
 
