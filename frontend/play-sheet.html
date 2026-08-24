@@ -1964,9 +1964,6 @@ const FAMILY_GROUPS = {
   cryptoCircuit: { bucket:'cyber', order: ['Crypto Circuit HD Level 1-4','Crypto Circuit HD Level 5-7','Crypto Circuit HD Level 8-9','Crypto Circuit HD Level 10'] },
   scrambleBreaker: { bucket:'cyber', order: ['Scramble Breaker HD Level 1-4','Scramble Breaker HD Level 5-7','Scramble Breaker HD Level 8'] },
   skillwirePlus: { bucket:'cyber', order: ['Skillwire Plus (R1-3)','Skillwire Plus (R4-6)','Skillwire Plus (R7-9)'] },
-  moveByWire: { bucket:'cyber', order: ['Move-by-Wire System Level 1','Move-by-Wire System Level 2','Move-by-Wire System Level 3','Move-by-Wire System Level 4'] },
-  dermalPlating: { bucket:'cyber', order: ['Dermal Plating Level 1 (SR2)','Dermal Plating Level 2 (SR2)','Dermal Plating Level 3 (SR2)'] },
-  dermalSheath: { bucket:'cyber', order: ['Dermal Sheath Level 1','Dermal Sheath Level 2','Dermal Sheath Level 3'] },
   damageCompensator: { bucket:'bio', order: ['Damage Compensator (R1-2)','Damage Compensator (R3-5)','Damage Compensator (R6-9)'] },
 };
 const FAMILY_BY_NAME = new Map();
@@ -1995,7 +1992,7 @@ function familyReplaceOrBlock(item, gear){
 // itself didn't flag it (the catalog's own item text states it). Hydraulic Jack's cyberleg
 // requirement was found the same way (catalog text: "Must be installed in a cyberleg").
 function hasItem(gear, name){ return ((gear.cyber)||[]).some(g => g.n === name) || ((gear.bio)||[]).some(g => g.n === name); }
-const EYE_ITEMS = ['Rangefinder','Video Link','Optical Magnification 1','Optical Magnification 2','Optical Magnification 3','Electronic Magnification 1','Electronic Magnification 2','Electronic Magnification 3','Retinal Clock','Protective Covers','Eye Datajack','Optical Scanning Datajack','Optical Scanning Datajack Emitter','Eye Light System','BrightLight Addition','Eye Dart','Eye Gun','Laser Tracker','Tool Laser','Laser Designator'];
+const EYE_ITEMS = ['Rangefinder','Video Link','Optical Magnification','Electronic Magnification','Retinal Clock','Protective Covers','Eye Datajack','Optical Scanning Datajack','Optical Scanning Datajack Emitter','Eye Light System','BrightLight Addition','Eye Dart','Eye Gun','Laser Tracker','Tool Laser','Laser Designator'];
 const PREREQ = {
   ...Object.fromEntries(EYE_ITEMS.map(n => [n, g => hasItem(g,'Cyber Eye Replacement')])),
   'Tracking Mount': g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && ownedCyberLimbSlotCount(g,'Arm') > 0,
@@ -2014,12 +2011,8 @@ const PREREQ = {
   'Sense Link Receiver': g => hasItem(g,'Sense Link'),
   'Sense Link External Transmitter': g => hasItem(g,'Sense Link'),
   'Sense Link External Recorder': g => hasItem(g,'Sense Link'),
-  'Dermal Plating Level 1 (SR2)': g => hasItem(g,'Cybertorso'),
-  'Dermal Plating Level 2 (SR2)': g => hasItem(g,'Cybertorso'),
-  'Dermal Plating Level 3 (SR2)': g => hasItem(g,'Cybertorso'),
-  'Dermal Sheath Level 1': g => hasItem(g,'Cybertorso'),
-  'Dermal Sheath Level 2': g => hasItem(g,'Cybertorso'),
-  'Dermal Sheath Level 3': g => hasItem(g,'Cybertorso'),
+  'Dermal Plating': g => hasItem(g,'Cybertorso'),
+  'Dermal Sheath': g => hasItem(g,'Cybertorso'),
   'Body Plating: Soft Armor (per level)': g => hasItem(g,'Cybertorso'),
   'Body Plating: Hard Armor (per level)': g => hasItem(g,'Cybertorso'),
   'Cyberarm Gyromount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
@@ -2045,23 +2038,25 @@ const EXCLUDES = {
   'Boosted Reflexes': g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes'),
   'Vehicle Control Rig': g => hasItem(g,'Boosted Reflexes'),
   'Wired Reflexes': g => hasItem(g,'Boosted Reflexes'),
-  'Reaction Enhancer': g => hasFamily(g,'moveByWire'),
-  'Dermal Sheath Level 3': g => hasFamily(g,'dermalPlating'),
-  'Dermal Plating Level 1 (SR2)': g => hasItem(g,'Dermal Sheath Level 3') || hasOrthoskinAtRating(g,3),
-  'Dermal Plating Level 2 (SR2)': g => hasItem(g,'Dermal Sheath Level 3') || hasOrthoskinAtRating(g,3),
-  'Dermal Plating Level 3 (SR2)': g => hasItem(g,'Dermal Sheath Level 3') || hasOrthoskinAtRating(g,3),
+  'Reaction Enhancer': g => hasItem(g,'Move-by-Wire System'),
+  'Dermal Plating': g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3),
   'Trauma Damper': g => hasItem(g,'Pain Editor'),
   'Pain Editor': g => hasItem(g,'Trauma Damper'),
 };
-function hasOrthoskinAtRating(gear, minR){
-  return ((gear.bio)||[]).some(g => g.n === 'Orthoskin' && (Number(g.rating)||1) >= minR);
+function hasItemAtRating(gear, name, minR){
+  return ((gear.cyber)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR) ||
+         ((gear.bio)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR);
 }
-// Orthoskin only becomes incompatible with Dermal Plating at Rating 3 specifically (its own catalog
-// text: "L3 ... incompatible with dermal plating") -- not a plain EXCLUDES entry since the trigger is
-// rating-conditional, not "owned at all". Checked both on a fresh purchase (targetRating = the rating
-// being bought) and on an in-place Upgrade from Manage Cyberware (targetRating = rating+1).
+function hasOrthoskinAtRating(gear, minR){ return hasItemAtRating(gear, 'Orthoskin', minR); }
+// Orthoskin and Dermal Sheath only become incompatible with Dermal Plating at Rating 3 specifically
+// (their own catalog text) -- not a plain EXCLUDES entry since the trigger is rating-conditional, not
+// "owned at all". Checked both on a fresh purchase (ownershipBlocked) and an in-place upgrade
+// (upgradeExistingSingular), same as every other rating change now that both go through re-buying.
 function orthoskinRatingBlocked(targetRating, gear){
-  return targetRating >= 3 && hasFamily(gear,'dermalPlating') ? `Orthoskin R3 (incompatible with Dermal Plating)` : null;
+  return targetRating >= 3 && hasItem(gear,'Dermal Plating') ? `Orthoskin R3 (incompatible with Dermal Plating)` : null;
+}
+function dermalSheathRatingBlocked(targetRating, gear){
+  return targetRating >= 3 && hasItem(gear,'Dermal Plating') ? `Dermal Sheath R3 (incompatible with Dermal Plating)` : null;
 }
 // Combines the default-singular/quantity-cap rules with the prerequisite/exclusion tables above.
 // PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
@@ -2107,6 +2102,10 @@ function upgradeExistingSingular(cat, item, bucket, gear, rating, grade){
     const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
     if (orthoBlock) return orthoBlock;
   }
+  if (item.n === 'Dermal Sheath') {
+    const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
+    if (sheathBlock) return sheathBlock;
+  }
   const newRating = canRerate ? (rating || 1) : existing.rating;
   const newGrade = canRegrade ? (grade || 'Standard') : existing.grade;
   const sameRating = !canRerate || Number(existing.rating || 1) === Number(newRating);
@@ -2123,6 +2122,10 @@ function ownershipBlocked(cat, item, gear, rating){
   if (item.n === 'Orthoskin') {
     const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
     if (orthoBlock) return orthoBlock;
+  }
+  if (item.n === 'Dermal Sheath') {
+    const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
+    if (sheathBlock) return sheathBlock;
   }
   const prereq = PREREQ[item.n];
   if (prereq && !prereq(gear)) return `${item.n} (prerequisite not met)`;
@@ -2186,12 +2189,8 @@ const SITUATIONAL_NOTES = {
   // specifically "for damage resistance tests," not a real Body attribute increase (unlike Cybertorso/
   // Cyberskull's flat +1 Body, which is a genuine structural replacement) -- noted rather than modeled
   // as a global attribute change that would also skew Encumbrance/karma costs.
-  'Dermal Sheath Level 1': () => `Dermal Sheath L1: +1 Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Sheath Level 2': () => `Dermal Sheath L2: +2 Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Sheath Level 3': () => `Dermal Sheath L3: +3 Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Plating Level 1 (SR2)': () => `Dermal Plating L1: +1 Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Plating Level 2 (SR2)': () => `Dermal Plating L2: +2 Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Plating Level 3 (SR2)': () => `Dermal Plating L3: +3 Body for damage-resistance tests only (armor already counted in the total).`,
+  'Dermal Sheath': g => `Dermal Sheath R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
+  'Dermal Plating': g => `Dermal Plating R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
   'Bone Lacing': g => `Bone Lacing R${g.rating||1} (${['Plastic','Aluminum','Titanium'][(g.rating||1)-1]||'Plastic'}): Unarmed Blow does (STR+${g.rating||1})M.`,
   'Orthoskin': g => (g.rating||1) >= 3 ? `Orthoskin R3: +TN to tactile Perception.` : '',
   // Weapon-granting cyberware not auto-added to the Weapons table (same treatment as Hand Blade/Shock
@@ -2271,14 +2270,20 @@ function ensureWeaponIds(){
   ((CHAR.gear && CHAR.gear.weapons) || []).forEach(w => { if (!w.id) { w.id = newId(); changed = true; } });
   return changed;
 }
-// Vehicle Control Rig / Wired Reflexes / Boosted Reflexes used to be 3 separate flat catalog SKUs
-// per level; each is now one rated item (see cyberware.json). A character that bought one under the
-// old catalog still has the old per-level name baked into its stored gear line, which would silently
-// stop being recognized by EXCLUDES/PREREQ/vcrLevel() -- rewrite it in place to the new rated shape.
+// These used to be several separate flat catalog SKUs per level/rating-band; each is now one rated
+// item (see cyberware.json). A character that bought one under the old catalog still has the old
+// per-level name baked into its stored gear line, which would silently stop being recognized by
+// EXCLUDES/PREREQ/vcrLevel() -- rewrite it in place to the new rated shape.
 const LEGACY_CYBER_BAND_RENAME = {
   'Vehicle Control Rig Level 1': ['Vehicle Control Rig', 1], 'Vehicle Control Rig Level 2': ['Vehicle Control Rig', 2], 'Vehicle Control Rig Level 3': ['Vehicle Control Rig', 3],
   'Wired Reflexes Level 1': ['Wired Reflexes', 1], 'Wired Reflexes Level 2': ['Wired Reflexes', 2], 'Wired Reflexes Level 3': ['Wired Reflexes', 3],
   'Boosted Reflexes Level 1': ['Boosted Reflexes', 1], 'Boosted Reflexes Level 2': ['Boosted Reflexes', 2], 'Boosted Reflexes Level 3': ['Boosted Reflexes', 3],
+  'Move-by-Wire System Level 1': ['Move-by-Wire System', 1], 'Move-by-Wire System Level 2': ['Move-by-Wire System', 2],
+  'Move-by-Wire System Level 3': ['Move-by-Wire System', 3], 'Move-by-Wire System Level 4': ['Move-by-Wire System', 4],
+  'Dermal Plating Level 1 (SR2)': ['Dermal Plating', 1], 'Dermal Plating Level 2 (SR2)': ['Dermal Plating', 2], 'Dermal Plating Level 3 (SR2)': ['Dermal Plating', 3],
+  'Dermal Sheath Level 1': ['Dermal Sheath', 1], 'Dermal Sheath Level 2': ['Dermal Sheath', 2], 'Dermal Sheath Level 3': ['Dermal Sheath', 3],
+  'Optical Magnification 1': ['Optical Magnification', 1], 'Optical Magnification 2': ['Optical Magnification', 2], 'Optical Magnification 3': ['Optical Magnification', 3],
+  'Electronic Magnification 1': ['Electronic Magnification', 1], 'Electronic Magnification 2': ['Electronic Magnification', 2], 'Electronic Magnification 3': ['Electronic Magnification', 3],
 };
 function migrateLegacyCyberBands(){
   let changed = false;
@@ -2298,8 +2303,13 @@ function migrateLegacyCyberBands(){
     if (Array.isArray(cat.costTbl)) g.costTbl = cat.costTbl.slice();
     if (cat.modsPer) g.modsPer = cat.modsPer; else delete g.modsPer;
     if (cat.mods) g.mods = cat.mods; else delete g.mods;
-    // modsTbl (Boosted Reflexes) isn't copied onto owned lines -- augAttr() resolves it fresh from
-    // CYBER_CAT by name each time, same as Encephalon.
+    if (cat.skillBonus) g.skillBonus = cat.skillBonus; else delete g.skillBonus;
+    // Dermal Plating/Sheath's old flat ballistic_bonus/impact_bonus fields are dead weight now that
+    // the new catalog entry carries an armorTbl instead -- bioArmorBonus() resolves either one fresh
+    // from the catalog by name (same as modsTbl/Encephalon below), so drop the stale fields for a
+    // clean record rather than leave them sitting unused on the line.
+    delete g.ballistic_bonus; delete g.impact_bonus;
+    // modsTbl/armorTbl aren't copied onto owned lines -- resolved fresh from CYBER_CAT/BIO_CAT by name each time (same as Encephalon).
     delete g.baseEss; delete g.baseCost;
     changed = true;
   });
