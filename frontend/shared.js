@@ -813,6 +813,13 @@ function statVal(item, key) {
 }
 function vehicleStatBody(item) { return statVal(item, 'body'); }
 
+// gear-picker.js's onPurchase entries come back tagged with the picker's own tab key (e.g.
+// "cyberware", "matrix") -- map each to the owned-gear bucket / makeGearLine catalog name it
+// actually belongs under. Shared by play-sheet.html and character-builder.html, the two hosts that
+// mount the picker.
+const GEAR_BUCKET =        { weapons:'weapons', armor:'armor', cyberware:'cyber', bioware:'bio', gear:'gear', matrix:'matrix', foci:'foci', vehicles:'vehicles' };
+const GEAR_LINE_CATALOG =  { weapons:'weapons', armor:'armor', cyberware:'cyberware', bioware:'bioware', gear:'gear', matrix:'gear', foci:'foci', vehicles:'vehicles' };
+
 // Convert a catalog item into the shape stored on a character's gear.{cyber,bio,weapons,armor,gear,
 // vehicles} lines (character-builder.html:makeGearLine). grade is cyberware-only (bioware has no
 // grades) and defaults to Standard -- callers that let the player pick a grade at purchase time
