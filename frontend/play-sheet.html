@@ -1933,6 +1933,7 @@ function renderManageGear(){
 // Cybergun implants need a cyberarm to sit in -- SR2 allows at most one per arm (2 total),
 // and never more than the number of arm-slot Cyber Limbs actually owned.
 const CYBERGUN_NAMES = new Set(['Cybergun: Hold-Out Pistol','Cybergun: Light Pistol','Cybergun: Machine Pistol','Cybergun: SMG','Cybergun: Heavy Pistol','Cybergun: Shotgun']);
+const WEAPON_FOCUS_NAMES = new Set(['Weapon Focus (Small)', 'Weapon Focus (Large)']);
 function ownedCybergunCount(gear){ return ((gear.cyber)||[]).filter(g => CYBERGUN_NAMES.has(g.n)).length; }
 
 // ---- Ownership rules from the SR2 gear-quantity audit ----
@@ -2467,9 +2468,13 @@ async function purchaseGear(entries){
         skipped.push(`${item.n} (needs a cyberleg)`);
         continue;
       }
-      if ((item.n === 'Weapon Focus (Small)' || item.n === 'Weapon Focus (Large)') && CHAR.magic_type !== 'Adept') {
-        skipped.push(`${item.n} (Adepts only)`);
-        continue;
+      // SR2 p.137: Weapon Foci are the only foci Adepts can bond, and the only foci Adepts CAN bond
+      // -- a Full Mage/Shaman can bond anything except a Weapon Focus.
+      if (bucket === 'foci') {
+        const isWeaponFocus = WEAPON_FOCUS_NAMES.has(item.n);
+        const isAdept = CHAR.magic_type === 'Adept';
+        if (isWeaponFocus && !isAdept) { skipped.push(`${item.n} (Adepts only)`); continue; }
+        if (!isWeaponFocus && isAdept) { skipped.push(`${item.n} (Adepts may only bond a Weapon Focus)`); continue; }
       }
       const line = makeGearLine(item, catalogName, grade);
       if (bucket === 'weapons') line.id = newId();   // needed as a MOD-assignment hostId target
