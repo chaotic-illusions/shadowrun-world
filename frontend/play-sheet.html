@@ -522,6 +522,7 @@ let CYBER_CAT = new Map();
 let BIO_CAT = new Map();
 let SPELL_CAT = new Map();
 let GEAR_CAT = new Map();   // /catalog/gear -- used to look up full cyberdeck stats (MPCP, etc.)
+let enabledBooks = new Set();   // /catalog/books -- only used to gate Alpha grade in the gear picker
 let DECK_WORKSHOP_DECKS = [];   // deck_builder_state.stores.sr2_decks_v1 -- see Deck Workshop
 let RULES = null;         // /catalog/rules bundle -- used for metatype attribute mods
 let CAN_EDIT = false;
@@ -568,7 +569,7 @@ async function boot(){
 }
 
 async function loadCharacter(id){
-  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes, vehiclesRes, cyberRes, bioRes, rulesRes, spellsRes, chargenRes, gearCatRes, deckStateRes] = await Promise.all([
+  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes, vehiclesRes, cyberRes, bioRes, rulesRes, spellsRes, chargenRes, gearCatRes, booksRes, deckStateRes] = await Promise.all([
     apiFetch(`/characters/${id}`),
     apiFetch(`/characters/${id}/contacts`),
     apiFetch('/characters/mine'),
@@ -582,6 +583,7 @@ async function loadCharacter(id){
     apiFetch('/catalog/spells'),
     apiFetch(`/characters/${id}/chargen-state`),
     apiFetch('/catalog/gear'),
+    apiFetch('/catalog/books'),
     apiFetch(`/characters/${id}/deck-builder-state`),
   ]);
   if (!charRes.ok) { showAlert($('#alert'), 'Character not found or not visible to you.', true); return; }
@@ -611,6 +613,8 @@ async function loadCharacter(id){
   if (bioRes.ok) (await bioRes.json()).items.forEach(it => BIO_CAT.set(it.n, it));
   if (spellsRes.ok) (await spellsRes.json()).items.forEach(it => SPELL_CAT.set(it.n, it));
   if (gearCatRes.ok) (await gearCatRes.json()).items.forEach(it => GEAR_CAT.set(it.n, it));
+  const booksInfo = booksRes.ok ? await booksRes.json() : null;
+  enabledBooks = new Set((booksInfo && booksInfo.enabled) || []);
   RULES = rulesRes.ok ? await rulesRes.json() : { metatypes: {} };
 
   // Chargen (character-builder.html) tags skills with conc/spec names but never computes the
@@ -619,7 +623,9 @@ async function loadCharacter(id){
   // skill that arrived pre-tagged from chargen (e.g. rating 3, conc "Two-Wheeler") displays correctly
   // split (2/4) instead of showing the raw unsplit rating next to a guessed concentration number.
   if (normalizeSkillSplits() && CAN_EDIT) await patchChar({ skills: CHAR.skills });
-  if (ensureWeaponIds() && CAN_EDIT) await patchChar({ gear: CHAR.gear });
+  let gearChanged = ensureWeaponIds();
+  if (migrateLegacyCyberBands()) gearChanged = true;
+  if (gearChanged && CAN_EDIT) await patchChar({ gear: CHAR.gear });
 
   document.title = `${CHAR.name} | Play Sheet`;
   $('#pageCharName').textContent = CHAR.name;
@@ -750,10 +756,8 @@ function reactionInit(){
 }
 function vcrLevel(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
-  const vcr = cyber.find(c => /vehicle control rig/i.test(c.n||''));
-  if (!vcr) return 0;
-  const m = /level\s+(\d+)/i.exec(vcr.n||'');
-  return m ? Number(m[1]) : 1;
+  const vcr = cyber.find(c => c.n === 'Vehicle Control Rig');
+  return vcr ? (Number(vcr.rating) || 0) : 0;
 }
 // CHAR.body/.../.willpower are the FINAL aggregate (base + metatype racial mod + cyberware/bioware
 // augmentation), baked in at chargen submission (see character-builder.html's finalAttr()). The true
@@ -811,8 +815,9 @@ function skillAugSources(skillName){
 // ownedBioIndex/ownedBioIndexTotal below). Grade-aware so pre-existing Alpha-grade items from
 // chargen aren't mis-costed by a Standard-only assumption -- the actual grade/rating/options math
 // lives in shared.js's gradedCyberEssence (also used by character-builder.html's chargen shop), this
-// page just supplies its own grade-multiplier table.
-const ESS_GRADE_MULT = { Standard: { ess: 1.0 }, Alpha: { ess: 0.8 } };
+// page just supplies its own grade-multiplier table. Mirrors character-builder.html's GRADES exactly
+// (same book-gating) so a given grade prices identically whether bought at chargen or post-chargen.
+const ESS_GRADE_MULT = { Standard: { ess: 1.0, nuyen: 1, book: null }, Alpha: { ess: 0.8, nuyen: 2, book: "SSC" } };
 function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -1983,9 +1988,6 @@ const FAMILY_GROUPS = {
   cryptoCircuit: { bucket:'cyber', order: ['Crypto Circuit HD Level 1-4','Crypto Circuit HD Level 5-7','Crypto Circuit HD Level 8-9','Crypto Circuit HD Level 10'] },
   scrambleBreaker: { bucket:'cyber', order: ['Scramble Breaker HD Level 1-4','Scramble Breaker HD Level 5-7','Scramble Breaker HD Level 8'] },
   skillwirePlus: { bucket:'cyber', order: ['Skillwire Plus (R1-3)','Skillwire Plus (R4-6)','Skillwire Plus (R7-9)'] },
-  vcr: { bucket:'cyber', order: ['Vehicle Control Rig Level 1','Vehicle Control Rig Level 2','Vehicle Control Rig Level 3'] },
-  wiredReflexes: { bucket:'cyber', order: ['Wired Reflexes Level 1','Wired Reflexes Level 2','Wired Reflexes Level 3'] },
-  boostedReflexes: { bucket:'cyber', order: ['Boosted Reflexes Level 1','Boosted Reflexes Level 2','Boosted Reflexes Level 3'] },
   moveByWire: { bucket:'cyber', order: ['Move-by-Wire System Level 1','Move-by-Wire System Level 2','Move-by-Wire System Level 3','Move-by-Wire System Level 4'] },
   dermalPlating: { bucket:'cyber', order: ['Dermal Plating Level 1 (SR2)','Dermal Plating Level 2 (SR2)','Dermal Plating Level 3 (SR2)'] },
   dermalSheath: { bucket:'cyber', order: ['Dermal Sheath Level 1','Dermal Sheath Level 2','Dermal Sheath Level 3'] },
@@ -2023,7 +2025,7 @@ const PREREQ = {
   'Tracking Mount': g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && ownedCyberLimbSlotCount(g,'Arm') > 0,
   'External Mount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
   'Smartlink': g => hasItem(g,'Display Link'),
-  'Reflex Trigger': g => hasFamily(g,'wiredReflexes'),
+  'Reflex Trigger': g => hasItem(g,'Wired Reflexes'),
   'Improved Hand Razors': g => hasItem(g,'Hand Razors') || hasItem(g,'Retractable Hand Razors'),
   'BrightLight One-Shot Flash-pak': g => hasItem(g,'BrightLight Addition'),
   'Video Link Internal Transmitter': g => hasItem(g,'Video Link'),
@@ -2054,7 +2056,7 @@ const PREREQ = {
   'Hydraulic Jack': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
   'Orientation System': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
   'Cyber Limb — Built-In Device': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
-  'Reaction Enhancer': g => hasFamily(g,'wiredReflexes'),
+  'Reaction Enhancer': g => hasItem(g,'Wired Reflexes'),
   'Activesoft (General)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
   'Activesoft (Concentration)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
   'Activesoft (Specialization)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
@@ -2064,15 +2066,9 @@ const PREREQ = {
   'Linguasoft': g => hasItem(g,'Softlink'),
 };
 const EXCLUDES = {
-  'Boosted Reflexes Level 1': g => hasFamily(g,'vcr') || hasFamily(g,'wiredReflexes'),
-  'Boosted Reflexes Level 2': g => hasFamily(g,'vcr') || hasFamily(g,'wiredReflexes'),
-  'Boosted Reflexes Level 3': g => hasFamily(g,'vcr') || hasFamily(g,'wiredReflexes'),
-  'Vehicle Control Rig Level 1': g => hasFamily(g,'boostedReflexes'),
-  'Vehicle Control Rig Level 2': g => hasFamily(g,'boostedReflexes'),
-  'Vehicle Control Rig Level 3': g => hasFamily(g,'boostedReflexes'),
-  'Wired Reflexes Level 1': g => hasFamily(g,'boostedReflexes'),
-  'Wired Reflexes Level 2': g => hasFamily(g,'boostedReflexes'),
-  'Wired Reflexes Level 3': g => hasFamily(g,'boostedReflexes'),
+  'Boosted Reflexes': g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes'),
+  'Vehicle Control Rig': g => hasItem(g,'Boosted Reflexes'),
+  'Wired Reflexes': g => hasItem(g,'Boosted Reflexes'),
   'Reaction Enhancer': g => hasFamily(g,'moveByWire'),
   'Dermal Sheath Level 3': g => hasFamily(g,'dermalPlating'),
   'Dermal Plating Level 1 (SR2)': g => hasItem(g,'Dermal Sheath Level 3') || hasOrthoskinAtRating(g,3),
@@ -2247,6 +2243,40 @@ function ensureWeaponIds(){
   ((CHAR.gear && CHAR.gear.weapons) || []).forEach(w => { if (!w.id) { w.id = newId(); changed = true; } });
   return changed;
 }
+// Vehicle Control Rig / Wired Reflexes / Boosted Reflexes used to be 3 separate flat catalog SKUs
+// per level; each is now one rated item (see cyberware.json). A character that bought one under the
+// old catalog still has the old per-level name baked into its stored gear line, which would silently
+// stop being recognized by EXCLUDES/PREREQ/vcrLevel() -- rewrite it in place to the new rated shape.
+const LEGACY_CYBER_BAND_RENAME = {
+  'Vehicle Control Rig Level 1': ['Vehicle Control Rig', 1], 'Vehicle Control Rig Level 2': ['Vehicle Control Rig', 2], 'Vehicle Control Rig Level 3': ['Vehicle Control Rig', 3],
+  'Wired Reflexes Level 1': ['Wired Reflexes', 1], 'Wired Reflexes Level 2': ['Wired Reflexes', 2], 'Wired Reflexes Level 3': ['Wired Reflexes', 3],
+  'Boosted Reflexes Level 1': ['Boosted Reflexes', 1], 'Boosted Reflexes Level 2': ['Boosted Reflexes', 2], 'Boosted Reflexes Level 3': ['Boosted Reflexes', 3],
+};
+function migrateLegacyCyberBands(){
+  let changed = false;
+  ((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => {
+    const rename = LEGACY_CYBER_BAND_RENAME[g.n];
+    if (!rename) return;
+    const [newName, rating] = rename;
+    const cat = CYBER_CAT.get(newName);
+    if (!cat) return;   // catalog not loaded / item not book-enabled -- leave the old line alone rather than corrupt it
+    g.n = newName;
+    g.rated = true;
+    g.maxRating = Number(cat.maxRating) || rating;
+    g.rating = rating;
+    g.essUnit = parseNum(cat.ess);
+    g.costUnit = parseNum(cat.cost);
+    if (Array.isArray(cat.essTbl)) g.essTbl = cat.essTbl.slice();
+    if (Array.isArray(cat.costTbl)) g.costTbl = cat.costTbl.slice();
+    if (cat.modsPer) g.modsPer = cat.modsPer; else delete g.modsPer;
+    if (cat.mods) g.mods = cat.mods; else delete g.mods;
+    // modsTbl (Boosted Reflexes) isn't copied onto owned lines -- augAttr() resolves it fresh from
+    // CYBER_CAT by name each time, same as Encephalon.
+    delete g.baseEss; delete g.baseCost;
+    changed = true;
+  });
+  return changed;
+}
 function openManageWeaponMods(weaponId){
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
   const host = weapons.find(w => w.id === weaponId);
@@ -2334,7 +2364,7 @@ function openManageBuyGear(initialCat){
   openModal('buygear', '// Buy Gear', true);
   $('#modalCommitBtn').style.display = 'none';
   $('#modalCancelBtn').textContent = 'Close';
-  initGearPicker($('#modalBody'), { onPurchase: purchaseGear, initialCat });
+  initGearPicker($('#modalBody'), { onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks });
 }
 // Skillsofts don't carry a target skill in the catalog -- the player picks what it's loaded with.
 // Activesoft -> an Active skill from the web (with optional conc/spec, same web Manage Skills uses);
@@ -2417,7 +2447,7 @@ async function purchaseGear(entries){
   let boughtCyberOrBio = false, boughtArmor = false, notesTouched = false, added = 0;
   const skipped = [];
   for (const entry of entries) {
-    const { cat, item, rating, qty, opts } = entry;
+    const { cat, item, rating, qty, opts, grade } = entry;
     const catalogName = GEAR_LINE_CATALOG[cat] || cat;
     const bucket = GEAR_BUCKET[cat] || cat;
     gear[bucket] = gear[bucket] || [];
@@ -2444,7 +2474,7 @@ async function purchaseGear(entries){
         skipped.push(`${item.n} (Adepts only)`);
         continue;
       }
-      const line = makeGearLine(item, catalogName);
+      const line = makeGearLine(item, catalogName, grade);
       if (bucket === 'weapons') line.id = newId();   // needed as a MOD-assignment hostId target
       if (rating) line.rating = rating;
       // Unlike nuyen (deliberately not gated post-chargen), Essence and Body Index are hard limits.
