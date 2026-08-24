@@ -71,21 +71,25 @@ const initGearPicker = (function () {
     const cost = it.rated ? "rated" : (it.cost != null ? money(parseNum(it.cost)) : "--");
     return `<div class="gc-item ${sel ? "is-sel" : ""}" data-pick="${esc(it.n)}"><span>${esc(it.n)}</span><span class="gc-item__c">${esc(cost)}</span></div>`;
   }
+  // {numeric:true} makes localeCompare treat an embedded digit run as one number instead of
+  // comparing it character-by-character -- without it, "Level 1-4" / "5-7" / "8-9" / "10" (banded
+  // items like Crypto Circuit HD, Scramble Breaker HD, Skillwire Plus, Damage Compensator) sort as
+  // "1-4, 10, 5-7, 8-9" since "1" < "5" < "8" as the first character but "10" also starts with "1".
   function sortItems(list, byPrice) {
     return list.slice().sort(byPrice
       ? (a, b) => parseNum(a.cost) - parseNum(b.cost)
-      : (a, b) => (a.n || "").localeCompare(b.n || ""));
+      : (a, b) => (a.n || "").localeCompare(b.n || "", undefined, { numeric: true }));
   }
   function orderedSections(items, labelFn, order) {
     const groups = {};
     items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
-    const extra = Object.keys(groups).filter(g => !order.includes(g)).sort((a, b) => a.localeCompare(b));
+    const extra = Object.keys(groups).filter(g => !order.includes(g)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     return [...order, ...extra].map(g => ({ label: g, items: groups[g] || [] }));
   }
   function labelSections(items, labelFn) {
     const groups = {};
     items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
-    return Object.keys(groups).sort((a, b) => a.localeCompare(b)).map(g => ({ label: g, items: groups[g] }));
+    return Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(g => ({ label: g, items: groups[g] }));
   }
   function sectionsFor(def, items) {
     const k = def.k;
@@ -109,7 +113,7 @@ const initGearPicker = (function () {
       if (!list.length) return "";
       const subs = {};
       list.forEach(v => { const s = v.sub || "Other"; (subs[s] = subs[s] || []).push(v); });
-      const inner = Object.keys(subs).sort((a, b) => a.localeCompare(b)).map(s =>
+      const inner = Object.keys(subs).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(s =>
         `<div class="gc-subcat">${esc(s)}</div>${sortItems(subs[s], true).map(gcItemRow).join("")}`).join("");
       return `<div class="gc-cat">${esc(t)}</div>${inner}`;
     }).join("");
