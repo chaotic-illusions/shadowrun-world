@@ -3902,3 +3902,6 @@ main:has(.md3) { max-width: 1800px; }
 .gc-add{display:flex;gap:8px;align-items:center;margin-top:10px;}
 .gc-add select,.gc-add input{background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #1a2a1a;padding:5px 8px;font-family:inherit;font-size:.78rem;}
 .gc-count{color:var(--text-dim);font-size:.66rem;}
+.gc-buy-msg{color:var(--green-bright,#0f0);font-size:.78rem;opacity:0;}
+.gc-buy-msg.is-show{animation:gcBuyMsgFade 2.2s ease forwards;}
+@keyframes gcBuyMsgFade{0%{opacity:1}70%{opacity:1}100%{opacity:0}}

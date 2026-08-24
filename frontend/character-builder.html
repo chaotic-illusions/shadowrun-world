@@ -661,10 +661,9 @@ function deckMpcp() {  // MPCP of the best owned cyberdeck (0 = no deck)
   (state.gear.matrix || []).forEach(g => { const v = Number(g.mpcp) || statVal((CAT.gear || []).find(x => x.n === g.n), "MPCP"); if (v > mx) mx = v; });
   return mx;
 }
-function vcrLevel() {  // level of the best Vehicle Control Rig installed (0 = none)
-  let lvl = 0;
-  (state.gear.cyber || []).forEach(g => { const m = /vehicle control rig level (\d)/i.exec(g.n || ""); if (m) lvl = Math.max(lvl, Number(m[1])); });
-  return lvl;
+function vcrLevel() {  // rating of the owned Vehicle Control Rig (0 = none)
+  const vcr = (state.gear.cyber || []).find(g => g.n === "Vehicle Control Rig");
+  return vcr ? (Number(vcr.rating) || 0) : 0;
 }
 function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
 function hackingPool() { const m = deckMpcp(); return m ? hackingPoolFormula(finalAttr("intelligence"), m, poolBonus("hack")) : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
