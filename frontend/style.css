@@ -3899,8 +3899,11 @@ main:has(.md3) { max-width: 1800px; }
 .gc-raw td{padding:2px 6px;vertical-align:top;border-bottom:1px solid #0f1a14;}
 .gc-raw td:first-child{color:var(--green-dim,#7fae86);white-space:nowrap;width:38%;}
 .gc-raw td:last-child{color:var(--text-dim);word-break:break-word;}
-.gc-add{display:flex;gap:8px;align-items:center;margin-top:10px;}
+.gc-add{display:flex;gap:16px;align-items:center;margin-top:10px;flex-wrap:wrap;}
 .gc-add select,.gc-add input{background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #1a2a1a;padding:5px 8px;font-family:inherit;font-size:.78rem;}
+.gc-add__f{display:flex;align-items:center;gap:6px;}
+.gc-add__f b{color:var(--text-dim);font-weight:400;text-transform:uppercase;font-size:.6rem;letter-spacing:1px;}
+.gc-dash{color:var(--text-dim,#888);font-size:.85rem;padding:5px 8px;opacity:.5;}
 .gc-count{color:var(--text-dim);font-size:.66rem;}
 .gc-buy-msg{color:var(--green-bright,#0f0);font-size:.78rem;opacity:0;}
 .gc-buy-msg.is-show{animation:gcBuyMsgFade 2.2s ease forwards;}

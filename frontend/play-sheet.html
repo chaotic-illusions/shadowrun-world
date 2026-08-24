@@ -818,6 +818,7 @@ function skillAugSources(skillName){
 // page just supplies its own grade-multiplier table. Mirrors character-builder.html's GRADES exactly
 // (same book-gating) so a given grade prices identically whether bought at chargen or post-chargen.
 const ESS_GRADE_MULT = { Standard: { ess: 1.0, nuyen: 1, book: null }, Alpha: { ess: 0.8, nuyen: 2, book: "SSC" } };
+const GRADE_ORDER = ["Standard", "Alpha"];
 function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -1029,9 +1030,16 @@ function cyberTableRows(items, bucket, forModal){
     const canUpgrade = g.rated && (g.rating||1) < (g.maxRating||1);
     const nextRating = (g.rating||1) + 1;
     const upgradeCost = canUpgrade ? ratedCostAt(g, nextRating) : 0;
+    // Grade upgrade: cyberware only (bio has no grade), pays the FULL price at the target grade (not
+    // a delta) and re-grades the line in place -- next grade up GRADE_ORDER, book-gated same as a
+    // fresh purchase. Never Essence-blocked: every grade above Standard only lowers Essence cost.
+    const nextGrade = (bucket === 'cyber' && !g.noGrade) ? GRADE_ORDER[GRADE_ORDER.indexOf(g.grade || 'Standard') + 1] : null;
+    const gradeLocked = nextGrade && ESS_GRADE_MULT[nextGrade].book && !enabledBooks.has(ESS_GRADE_MULT[nextGrade].book);
+    const gradeUpgradeCost = nextGrade ? gradedCyberCost({ ...g, grade: nextGrade }, ESS_GRADE_MULT) : 0;
     return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td>
       <td class="flex-row-8">
         ${canUpgrade ? `<button class="btn btn-amber btn-sm" data-cyber-upgrade="${bucket}:${i}">To ${nextRating} &mdash; ${money(upgradeCost)}</button>` : ''}
+        ${nextGrade && !gradeLocked ? `<button class="btn btn-cyan btn-sm" data-cyber-grade-upgrade="${bucket}:${i}">To ${esc(nextGrade)} &mdash; ${money(gradeUpgradeCost)}</button>` : ''}
         <button class="row-x" data-cyber-remove="${bucket}:${i}" title="Remove">&#10005;</button>
       </td></tr>`;
   }).join('');
@@ -1076,6 +1084,15 @@ function renderManageCyber(){
     const patch = { gear: CHAR.gear };
     if (bucket === 'cyber') patch.essence = Math.round(essenceRemaining() * 100) / 100;
     patchChar(patch).then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
+  });
+  $$('[data-cyber-grade-upgrade]').forEach(b => b.onclick = () => {
+    const [bucket, idx] = b.dataset.cyberGradeUpgrade.split(':');
+    const g = CHAR.gear[bucket][Number(idx)];
+    const nextGrade = GRADE_ORDER[GRADE_ORDER.indexOf(g.grade || 'Standard') + 1];
+    if (!nextGrade) return;
+    g.grade = nextGrade;
+    patchChar({ gear: CHAR.gear, essence: Math.round(essenceRemaining() * 100) / 100 })
+      .then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
   });
   $$('[data-cyber-remove]').forEach(b => b.onclick = () => {
     const [bucket, idx] = b.dataset.cyberRemove.split(':');
@@ -2089,6 +2106,19 @@ function orthoskinRatingBlocked(targetRating, gear){
 // PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
 // family member AND excludes the VCR family) -- only the *default-singular quantity cap* is skipped
 // for family members, since familyReplaceOrBlock (called separately) governs their ownership count.
+// How many more of this item the gear picker's Qty field should even offer -- mirrors
+// ownershipBlocked's SINGULAR_CATEGORIES/OWNERSHIP_CAP math (not the family/limb/orthoskin special
+// cases below, which are rare enough that the purchase-time block message covers them fine) so a
+// cap-1 item like Vehicle Control Rig can't have an obviously-wrong quantity typed into it.
+function pickerMaxQty(item, cat){
+  if (!SINGULAR_CATEGORIES.has(cat)) return Infinity;
+  const cap = OWNERSHIP_CAP[item.n];
+  if (cap === Infinity) return Infinity;
+  const bucket = GEAR_BUCKET[cat] || cat;
+  const owned = (CHAR.gear && CHAR.gear[bucket]) || [];
+  const ownedCount = owned.filter(g => g.n === item.n).length;
+  return Math.max(0, (cap === undefined ? 1 : cap) - ownedCount);
+}
 function ownershipBlocked(cat, item, gear, rating){
   if (item.n === 'Orthoskin') {
     const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
@@ -2362,7 +2392,7 @@ function openManageBuyGear(initialCat){
   openModal('buygear', '// Buy Gear', true);
   $('#modalCommitBtn').style.display = 'none';
   $('#modalCancelBtn').textContent = 'Close';
-  initGearPicker($('#modalBody'), { onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks });
+  initGearPicker($('#modalBody'), { onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks, maxQty: pickerMaxQty });
 }
 // Skillsofts don't carry a target skill in the catalog -- the player picks what it's loaded with.
 // Activesoft -> an Active skill from the web (with optional conc/spec, same web Manage Skills uses);
