@@ -191,6 +191,7 @@ const initGearPicker = (function () {
     return esc(String(v));
   }
   function renderInspector() {
+    qs("#gcGrid").classList.toggle("is-inspecting", !!selected);
     const box = qs("#gcInsp");
     if (!selected) { box.innerHTML = `<p class="empty-state">Select an item to see its full stat block.</p>`; return; }
     const it = selected.item;
@@ -401,16 +402,23 @@ const initGearPicker = (function () {
         <input type="text" id="gcSearch" placeholder="Search this category..." autocomplete="off">
         <span class="gc-count" id="gcCount"></span>
       </div>
-      <div class="gc-grid gc-grid--2col">
-        <div class="gc-panel">
+      <div class="gc-grid gc-grid--2col" id="gcGrid">
+        <div class="gc-panel" id="gcListPanel">
           <h5 class="gc-panel__h">Items</h5>
           <div class="gc-list" id="gcList"><div class="loading">Loading catalog</div></div>
         </div>
-        <div class="gc-panel">
-          <h5 class="gc-panel__h">Inspector</h5>
+        <div class="gc-panel" id="gcInspPanel">
+          <h5 class="gc-panel__h"><button type="button" class="gc-back" id="gcBack">&larr; Back to list</button>Inspector</h5>
           <div id="gcInsp"><p class="empty-state">Select an item to see its full stat block, then Buy.</p></div>
         </div>
       </div>`;
+    // Mobile only (see .gc-grid--2col media rules in style.css) -- the desktop side-by-side layout
+    // gives list and inspector each their own independent scroll region, which only works with both
+    // columns visible at once. Once that collapses to one column on a narrow screen there's no room
+    // for both at natural height, so instead only one panel shows at a time (list vs inspector) and
+    // the modal scrolls normally again. #gcGrid's is-inspecting class (set in renderInspector() below,
+    // whenever something is selected) drives which one -- inert on desktop, where both always show.
+    qs("#gcBack").onclick = () => { selected = null; renderList(); renderInspector(); };
     qs("#gcSearch").value = filter;
     // Debounced ~180ms so a full filter/sort/rebuild pass doesn't run on every keystroke.
     qs("#gcSearch").addEventListener("input", (e) => {

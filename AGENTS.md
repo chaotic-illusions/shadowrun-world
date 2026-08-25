@@ -141,7 +141,43 @@ unbeatable** (a flat d6 maxes at 6) and the test silently always yields 0 succes
 
 ---
 
-## 5. Validate after (before saying "done")
+## 5. Testing on a phone or another PC on the LAN
+
+For checking mobile/responsive changes on a real device, run the dev server bound to all
+interfaces instead of just localhost:
+
+```
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+This reuses the same `data/shadowrun.db` as any other local run -- no reseed needed. Find
+this machine's LAN IP with `Get-NetIPAddress` (or `ipconfig`) and browse to
+`http://<lan-ip>:8000/ui/<page>.html` from the other device (must be on the same Wi-Fi/LAN
+-- check the router isn't putting the device on an isolated Guest network).
+
+Windows Firewall blocks this by default. Use `tools/lan-dev-access.ps1` (elevated
+PowerShell) rather than hand-rolling firewall commands:
+
+```
+.\tools\lan-dev-access.ps1 -Action Enable    # opens it up
+.\tools\lan-dev-access.ps1 -Action Disable   # reverts everything it changed
+.\tools\lan-dev-access.ps1 -Action Status    # check current state
+```
+
+**Why a plain port-Allow rule isn't enough:** Windows auto-generates inbound "TCP/UDP
+Query User" Block rules for a program the first time it tries to listen and the prompt is
+dismissed/times out. A Block rule always overrides an Allow rule for the same program,
+regardless of which is more specific -- so a leftover Block rule for Python silently wins
+even after you add a port-based Allow rule. Worse, `.venv\Scripts\python.exe` is a
+launcher stub on Windows that re-execs a separate shared interpreter path, so the Block
+rule Windows created is scoped to *that* resolved path, not the venv Scripts path you'd
+expect to check. `lan-dev-access.ps1` resolves the real interpreter via `sys.executable`
+and handles both the Allow rule and any matching Block rules together. Always prefer
+`-Action Disable` to actually revert scope (don't leave the port open indefinitely).
+
+---
+
+## 6. Validate after (before saying "done")
 
 Run these for the layers you touched:
 
@@ -160,7 +196,7 @@ python tools/check_text_hygiene.py           # ASCII / encoding (pre-commit also
 
 ---
 
-## 6. Common pitfalls (quick reference)
+## 7. Common pitfalls (quick reference)
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -177,3 +213,4 @@ python tools/check_text_hygiene.py           # ASCII / encoding (pre-commit also
 | Sensitive/bloaty files in the image | something not listed in `.dockerignore` (Docker ignores `.gitignore`) | add it to `.dockerignore` |
 | Auth backoff bypassed when exposed | `TRUST_PROXY_HEADERS=1` without a real proxy | only set it behind a proxy that overwrites XFF |
 | Two pages drift on one helper | redefined `showAlert` etc. instead of using `shared.js` | use the shared helper |
+| Phone/other PC times out reaching the dev server on the LAN | leftover Windows Firewall "Query User" Block rule for the resolved python.exe path overrides a new port-Allow rule (Block always wins) | `tools/lan-dev-access.ps1 -Action Enable` -- see section 5 |
