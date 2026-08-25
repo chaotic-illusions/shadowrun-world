@@ -380,6 +380,10 @@ nav a {
   text-transform: uppercase;
   transition: all .2s;
 }
+/* Desktop default for the Dossier nav's "Organizations"->"Orgs" abbreviation (shared.js
+   _buildDossierNavLink()) -- flipped below 720px/930px-landscape, see the mobile media query
+   further down this file ("Nav label abbreviation"). */
+.nav-abbr { display: none; }
 nav a:hover, nav a.active {
   color: var(--green);
   border-color: var(--green-dark);
@@ -3858,6 +3862,13 @@ main:has(.md3) { max-width: 1800px; }
      never removes anything from the DOM, so the existing desktop JS that
      reads these fields on save is unaffected. */
   .mob-hide { display: none !important; }
+
+  /* Nav label abbreviation (see _buildDossierNavLink() in shared.js) -- "Organizations" shrinks
+     to "Orgs" once the flat Dossier link is added, to keep the nav row from wrapping any worse
+     than it already does at this width. Default (desktop) state is set outside this media query,
+     right below. */
+  .nav-abbr { display: inline; }
+  .nav-full { display: none; }
 }
 
 /* Gear picker (frontend/gear-picker.js) -- shared catalog-browser + shopping-cart engine, mounted
@@ -3869,8 +3880,22 @@ main:has(.md3) { max-width: 1800px; }
 .gc-grid--2col{grid-template-columns:minmax(260px,1fr) minmax(360px,1.6fr);}
 @media (max-width:760px){.gc-grid--2col{grid-template-columns:1fr;}}
 .gc-panel{background:var(--bg-panel,#0d1512);border:1px solid #1c2b22;border-radius:4px;padding:12px 14px;}
-.gc-panel__h{color:var(--text-bright);font-size:.7rem;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;border-bottom:1px solid #142019;padding-bottom:6px;}
+.gc-panel__h{color:var(--text-bright);font-size:.7rem;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;border-bottom:1px solid #142019;padding-bottom:6px;display:flex;align-items:center;gap:8px;}
 .gc-list{max-height:70vh;overflow:auto;}
+.gc-back{display:none;}
+/* Mobile master-detail for the gear picker (frontend/gear-picker.js): the desktop 2-column layout
+   (list + inspector, each scrolling independently) has no room to stack at natural height on a
+   narrow screen, so below 760px only one panel shows at a time -- #gcGrid.is-inspecting (set by
+   gear-picker.js whenever an item is selected) picks which. See #editOverlay.mode-buygear's own
+   mobile override in play-sheet.html for how the surrounding modal gives up its independent-scroll
+   trick to match. */
+@media (max-width:760px){
+  .gc-toolbar input[type=text]{width:100%;}
+  .gc-back{display:inline-block;background:none;border:1px solid #1c2b22;color:var(--cyan);font-family:inherit;
+    font-size:.68rem;letter-spacing:.5px;text-transform:none;padding:3px 8px;cursor:pointer;}
+  #gcGrid:not(.is-inspecting) #gcInspPanel{display:none;}
+  #gcGrid.is-inspecting #gcListPanel{display:none;}
+}
 .gc-cat{color:var(--green-dim,#7fae86);font-size:.6rem;letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;}
 .gc-subcat{color:var(--cyan);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin:6px 0 2px 8px;}
 .gc-item{display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border-radius:3px;cursor:pointer;font-size:.78rem;}
