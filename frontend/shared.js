@@ -143,10 +143,40 @@ function _buildMatrixNavGroup() {
   }
 }
 
+// -- DOSSIER nav link -----------------------------------------------------------
+// Play Sheet (renamed Dossier) used to live buried inside the CHARACTERS dropdown -- fine on
+// desktop, but it's the one page people actually need mid-session on a phone, so it gets its own
+// flat, always-visible link instead. Built centrally (like the *NavGroup functions below) so every
+// page's nav gets it in the same spot without hand-editing ~20 static <nav> blocks. Inserted right
+// before Organizations, i.e. World State -> Dossier -> Organizations -> ...; falls back to
+// appending at the end of nav if a page's nav has no Organizations link to anchor on.
+// Also abbreviates "Organizations" to "Orgs" below the mobile breakpoint (matches
+// isMobileViewport()'s breakpoint in this file) -- adding Dossier to an already-wrapping mobile
+// nav needed the space back from somewhere, and Organizations was the longest label in the row.
+function _buildDossierNavLink() {
+  const nav = document.querySelector('header nav');
+  if (!nav || nav.querySelector('a[href="play-sheet.html"]')) return;
+
+  const here = window.location.pathname;
+  const a = document.createElement('a');
+  a.href = 'play-sheet.html';
+  a.textContent = 'Dossier';
+  if (here.endsWith('play-sheet.html')) a.className = 'active';
+  const orgsLink = nav.querySelector('a[href="manage-organizations.html"]');
+  if (orgsLink) {
+    nav.insertBefore(a, orgsLink);
+    orgsLink.innerHTML = '<span class="nav-full">Organizations</span><span class="nav-abbr">Orgs</span>';
+  } else {
+    nav.appendChild(a);
+  }
+}
+
 // -- CHARACTERS nav group ------------------------------------------------------
-// Folds the flat "Characters" link (and any legacy flat "Dossier Intake"/"Builder" link) into a
-// "CHARACTERS" dropdown: Known Persons (the registry) + New Runner (the character-builder).
-// Built centrally so every page shares one definition; New Runner is visible to all users.
+// Folds the flat "Characters" link into a "CHARACTERS" dropdown: Known Persons (the registry) +
+// New Runner (the character-builder). Built centrally so every page shares one definition; New
+// Runner is visible to all users. Play Sheet/Hardcopy used to live here too -- Play Sheet (now
+// Dossier) is its own flat link now (_buildDossierNavLink above), and Hardcopy is gone entirely
+// now that Dossier's own Export Official PDF button covers what it did.
 function _buildCharactersNavGroup() {
   const nav = document.querySelector('header nav');
   if (!nav || nav.querySelector('.nav-group--chars')) return;
@@ -156,8 +186,6 @@ function _buildCharactersNavGroup() {
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
-    { href: 'play-sheet.html', label: 'Play Sheet' },
-    { href: 'hardcopy.html', label: 'Hardcopy' },
   ];
   const here = window.location.pathname;
   const onCharsPage = childDefs.some(d => here.endsWith(d.href));
@@ -310,6 +338,7 @@ async function bootstrapAuth() {
       document.head.appendChild(style);
     }
 
+    _buildDossierNavLink();
     _buildMatrixNavGroup();
     _buildCharactersNavGroup();
     _buildAdminNavGroup();
