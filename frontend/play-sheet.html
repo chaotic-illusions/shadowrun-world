@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Play Sheet | Shadowrun World Engine</title>
+  <title>Dossier | Shadowrun World Engine</title>
   <link rel="stylesheet" href="style.css">
   <script src="shared.js"></script>
   <script src="catalog-taxonomy.js"></script>
@@ -19,6 +19,7 @@
     .ps-sec{padding:10px 12px;border-bottom:1px solid var(--border-dark);}
     .ps-sec:last-child{border-bottom:none;}
     .ps-sec__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+    .ps-sec__head-right{display:flex;align-items:center;gap:8px;}
     .ps-sec__title{font-family:var(--font-display);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-bright);}
     .ps-sec__title::before{content:'// ';color:var(--text-dim);}
     .sec-green{color:var(--green);} .sec-cyan{color:var(--cyan);} .sec-amber{color:var(--amber);}
@@ -26,11 +27,25 @@
     .ps-sec__title.sec-green::before,.ps-sec__title.sec-cyan::before,.ps-sec__title.sec-amber::before,
     .ps-sec__title.sec-red::before,.ps-sec__title.sec-violet::before{color:inherit;opacity:.55;}
 
+    /* Collapsible panels -- mobile only (matches shared.js isMobileViewport()'s breakpoint: portrait
+       <=720px, or landscape phones up to 930px). Desktop always shows every panel expanded; the
+       .is-collapsed class placed on specific panels below has no effect outside this media query, so
+       which panels start collapsed is decided by markup, not JS. Chevron is hidden/inert on desktop
+       and the head isn't clickable there, so desktop behavior is unchanged. */
+    .ps-chevron{display:none;flex:none;color:var(--text-dim);transition:transform .15s;font-size:.6rem;}
+    @media (max-width:720px), (max-width:930px) and (orientation:landscape) {
+      .ps-panel.ps-collapsible > .ps-sec > .ps-sec__head{cursor:pointer;}
+      .ps-panel.ps-collapsible .ps-chevron{display:inline-block;}
+      .ps-panel.ps-collapsible.is-collapsed .ps-chevron{transform:rotate(-90deg);}
+      .ps-panel.ps-collapsible.is-collapsed .ps-sec__body{display:none;}
+    }
+
     .ps-fgrid{display:grid;gap:8px 12px;}
     .fg-3{grid-template-columns:repeat(3,1fr);} .fg-6{grid-template-columns:repeat(6,1fr);}
     .fg-5{grid-template-columns:repeat(5,1fr);} .fg-2{grid-template-columns:repeat(2,1fr);}
     .fg-4{grid-template-columns:repeat(4,1fr);}
     @media(max-width:640px){.fg-6,.fg-5,.fg-4,.fg-3{grid-template-columns:repeat(2,1fr);}}
+    @media(max-width:480px){.fg-6,.fg-5,.fg-4{grid-template-columns:repeat(2,1fr);}}
     .ps-field{display:flex;flex-direction:column;gap:3px;min-width:0;}
     .ps-field .field-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .ps-ro{background:transparent;border:none;padding:2px 0;color:var(--cyan);font-size:.82rem;}
@@ -128,6 +143,16 @@
       font-variant-numeric:tabular-nums;}
     table.ps-data tr:last-child td{border-bottom:none;}
     table.ps-data input{width:100%;min-width:90px;}
+    /* Weapons table header abbreviations (th-full/th-abbr pair) -- only swapped in on narrow/landscape
+       phones. The full range labels ("Short (4)") plus letter-spacing across 12 columns is what forced
+       the table wider than a landscape phone, requiring the overflow-x:auto scroll on every use. */
+    .ps-data th .th-abbr{display:none;}
+    @media (max-width:720px), (max-width:930px) and (orientation:landscape) {
+      .ps-data th .th-full{display:none;}
+      .ps-data th .th-abbr{display:inline;}
+      #weaponsTbl th{padding:0 4px 5px;letter-spacing:.25px;}
+      #weaponsTbl td{padding:4px 5px;}
+    }
 
     .gear-2col{column-count:2;column-gap:16px;}
     .gear-item{font-size:.76rem;color:var(--text-bright);padding:4px 0;border-bottom:1px solid #101c14;break-inside:avoid;}
@@ -176,6 +201,17 @@
     #editOverlay.mode-buygear .gc-panel__h { flex: none; }
     #editOverlay.mode-buygear .gc-list { flex: 1; min-height: 0; max-height: none; }
     #editOverlay.mode-buygear #gcInsp { flex: 1; min-height: 0; overflow: auto; }
+    /* Mobile: give up the independent-scroll-columns trick above -- .gc-grid--2col stacks to one
+       column at this width (style.css), and only one of list/inspector is even visible at a time
+       (also style.css, #gcGrid.is-inspecting) -- so let the modal body scroll normally again instead
+       of clipping whichever panel doesn't fit in the flex-constrained height. */
+    @media (max-width:760px) {
+      #editOverlay.mode-buygear .edit-modal-body { display: block; overflow-y: auto; }
+      #editOverlay.mode-buygear .gc-grid { display: block; }
+      #editOverlay.mode-buygear .gc-panel { display: block; min-height: 0; }
+      #editOverlay.mode-buygear .gc-list { flex: none; max-height: none; overflow: visible; }
+      #editOverlay.mode-buygear #gcInsp { flex: none; overflow: visible; }
+    }
     /* Standard dialog convention: secondary/destructive action left, primary action right-most,
        both bottom-right rather than left-packed. style.css's .edit-modal-foot is shared by every
        page's big editor, so scope the override to this page instead of changing it globally. */
@@ -220,7 +256,7 @@
 </header>
 
 <main>
-  <div class="page-title">&gt;&gt; Play Sheet <em class="sep">//</em> <span id="pageCharName">Loading...</span></div>
+  <div class="page-title">&gt;&gt; Dossier <em class="sep">//</em> <span id="pageCharName">Loading...</span></div>
   <div class="page-sub" style="color:var(--cyan)">LIVE CHARACTER DOSSIER -- EDITS SAVE DIRECTLY</div>
 
   <div id="alert" class="alert"></div>
@@ -372,8 +408,13 @@
         <div style="overflow-x:auto;">
           <table class="ps-data" id="weaponsTbl">
             <thead><tr>
-              <th>Name</th><th>Type</th><th>Mode</th><th>Dmg</th><th>Ammo</th><th>Conceal</th>
-              <th>Short (4)</th><th>Med (5)</th><th>Long (6)</th><th>Extreme (8)</th><th>Mods</th><th style="width:1%;"></th>
+              <th>Name</th><th>Type</th><th>Mode</th><th>Dmg</th><th>Ammo</th>
+              <th><span class="th-full">Conceal</span><span class="th-abbr">Cnc</span></th>
+              <th><span class="th-full">Short (4)</span><span class="th-abbr">S4</span></th>
+              <th><span class="th-full">Med (5)</span><span class="th-abbr">M5</span></th>
+              <th><span class="th-full">Long (6)</span><span class="th-abbr">L6</span></th>
+              <th><span class="th-full">Extreme (8)</span><span class="th-abbr">E8</span></th>
+              <th>Mods</th><th style="width:1%;"></th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -393,10 +434,11 @@
           </div>
         </div>
 
-        <div class="ps-panel" id="magicPanel" style="display:none;">
+        <div class="ps-panel ps-collapsible is-collapsed" id="magicPanel" style="display:none;">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Awakened</span>
-              <button class="btn btn-violet btn-sm" id="manageMagicBtn">Manage</button></div>
+              <span class="ps-sec__head-right"><button class="btn btn-violet btn-sm" id="manageMagicBtn">Manage</button><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body">
             <div class="ps-fgrid fg-3 mb-8">
               <div class="ps-field"><span class="field-label">Type</span><div class="ps-ro" id="magicType">-</div></div>
               <div class="ps-field"><span class="field-label">Tradition</span><div class="ps-ro" id="magicTradition">-</div></div>
@@ -410,13 +452,15 @@
               <div class="dim-label mb-8">Adept Powers <span class="ghost-note">(bought at chargen only)</span></div>
               <table class="ps-data" id="powersTbl"><thead><tr><th>Power</th><th>Level</th><th>PP</th></tr></thead><tbody></tbody></table>
             </div>
+            </div>
           </div>
         </div>
 
-        <div class="ps-panel">
+        <div class="ps-panel ps-collapsible is-collapsed">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-green">Primary Vehicle</span>
-              <button class="btn btn-violet btn-sm" data-buy-shortcut="vehicles">Manage</button></div>
+              <span class="ps-sec__head-right"><button class="btn btn-violet btn-sm" data-buy-shortcut="vehicles">Manage</button><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body">
             <div id="noVehicle" style="display:none;">
               <p class="empty-state">No vehicle owned.</p>
             </div>
@@ -446,46 +490,49 @@
                 <div class="veh-grid" id="vehicleList"></div>
               </div>
             </div>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="ps-col">
-        <div class="ps-panel">
+        <div class="ps-panel ps-collapsible is-collapsed">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Gear</span>
-              <button class="btn btn-violet btn-sm" id="manageGearBtn">Manage</button></div>
-            <div class="gear-2col" id="gearList"></div>
+              <span class="ps-sec__head-right"><button class="btn btn-violet btn-sm" id="manageGearBtn">Manage</button><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body"><div class="gear-2col" id="gearList"></div></div>
           </div>
         </div>
 
-        <div class="ps-panel">
+        <div class="ps-panel ps-collapsible is-collapsed">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Cyberware</span>
-              <button class="btn btn-violet btn-sm" id="manageCyberBtn">Manage</button></div>
-            <div class="ps-stat-list" id="cyberList"></div>
+              <span class="ps-sec__head-right"><button class="btn btn-violet btn-sm" id="manageCyberBtn">Manage</button><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body"><div class="ps-stat-list" id="cyberList"></div></div>
           </div>
         </div>
 
-        <div class="ps-panel" id="matrixPanel" style="display:none;">
+        <div class="ps-panel ps-collapsible is-collapsed" id="matrixPanel" style="display:none;">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Cyberdecks</span>
-              <span class="ghost-note">managed in Deck Workshop</span></div>
-            <div class="ps-stat-list" id="matrixList"></div>
+              <span class="ps-sec__head-right"><span class="ghost-note">managed in Deck Workshop</span><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body"><div class="ps-stat-list" id="matrixList"></div></div>
           </div>
         </div>
 
-        <div class="ps-panel">
+        <div class="ps-panel ps-collapsible is-collapsed">
           <div class="ps-sec">
-            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Contacts &amp; Information</span></div>
-            <div class="ps-stat-list" id="contactsList"></div>
+            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Contacts &amp; Information</span>
+              <span class="ps-sec__head-right"><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body"><div class="ps-stat-list" id="contactsList"></div></div>
           </div>
         </div>
 
-        <div class="ps-panel">
+        <div class="ps-panel ps-collapsible is-collapsed">
           <div class="ps-sec">
-            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Character Notes</span></div>
-            <textarea id="charNotes" rows="3"></textarea>
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Character Notes</span>
+              <span class="ps-sec__head-right"><span class="ps-chevron">&#9660;</span></span></div>
+            <div class="ps-sec__body"><textarea id="charNotes" rows="3"></textarea></div>
           </div>
         </div>
       </div>
@@ -625,7 +672,7 @@ async function loadCharacter(id){
   if (migrateLegacyCyberBands()) gearChanged = true;
   if (gearChanged && CAN_EDIT) await patchChar({ gear: CHAR.gear });
 
-  document.title = `${CHAR.name} | Play Sheet`;
+  document.title = `${CHAR.name} | Dossier`;
   $('#pageCharName').textContent = CHAR.name;
   $('#sheetWrap').style.display = '';
   renderAll();
@@ -2774,7 +2821,21 @@ async function commitModal(){
 function cancelModal(){ closeModal(); }
 
 // ================================================================== wire-up
+// Mobile-only accordion (see .ps-collapsible in the <style> block -- inert outside that media
+// query, so this wiring is harmless on desktop even though it always runs). A click anywhere on
+// the head toggles it, EXCEPT on the Manage button (or any other interactive control riding along
+// in .ps-sec__head-right) -- those should fire their own action, not also flip the panel.
+function initCollapsiblePanels(){
+  $$('.ps-panel.ps-collapsible > .ps-sec > .ps-sec__head').forEach(head => {
+    head.onclick = (e) => {
+      if (e.target.closest('button, a, input, select, textarea')) return;
+      head.closest('.ps-panel').classList.toggle('is-collapsed');
+    };
+  });
+}
+
 function wireStatic(){
+  initCollapsiblePanels();
   $('#manageIdentityBtn').onclick = openManageIdentity;
   $('#manageAttrsBtn').onclick = openManageAttrs;
   $('#manageSkillsBtn').onclick = openManageSkills;
