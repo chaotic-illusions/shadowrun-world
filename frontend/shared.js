@@ -222,7 +222,7 @@ function _buildCharactersNavGroup() {
     }
   });
 
-  // Remove any flat "Dossier Intake"/"Builder" links FIRST -- before the group (whose menu also
+  // Remove any flat character-builder.html link FIRST -- before the group (whose menu also
   // links to the builder) is inserted, so the "New Runner" menu item is not swept up too.
   nav.querySelectorAll('a[href="character-builder.html"]').forEach(a => a.remove());
   // Splice the group where the flat Characters link sat, then drop the flat Characters link.
@@ -355,11 +355,11 @@ async function bootstrapAuth() {
 
 function _injectAuthLabel() {
   const nav = document.querySelector('header nav');
-  // Add Dossier Intake (SR2 character builder) link right after Characters, for all users.
+  // Add New Runner (SR2 character builder) link right after Characters, for all users.
   if (nav && !nav.querySelector('[href="character-builder.html"]')) {
     const b = document.createElement('a');
     b.href = 'character-builder.html';
-    b.textContent = 'Dossier Intake';
+    b.textContent = 'New Runner';
     if (window.location.pathname.endsWith('character-builder.html')) b.className = 'active';
     const charsLink = nav.querySelector('a[href="manage-characters.html"]');
     if (charsLink) nav.insertBefore(b, charsLink.nextSibling);
