@@ -1874,7 +1874,7 @@ async function commitDossier() {
     const saved = await res.json();
     status.className = "cbx-note is-ok";
     status.innerHTML = `${converting ? "Converted" : "Committed"} as <strong>${esc(saved.name)}</strong> (id ${saved.id}). ` +
-      `<a href="hardcopy.html">Get PDF &rsaquo;</a> &middot; ` +
+      `<a href="play-sheet.html?id=${saved.id}">Open Dossier &rsaquo;</a> &middot; ` +
       `<a href="manage-characters.html">Open in Characters &rsaquo;</a>`;
     setModeBanner("");
     localStorage.removeItem(KEY);
