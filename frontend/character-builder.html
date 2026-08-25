@@ -307,9 +307,10 @@ const LIFESTYLE_PERMANENT_MONTHS = 100;
 // Cyberware grades available AT CHARGEN only: Standard and Alphaware. Beta (career) and
 // Delta (GM) are never buyable during character creation, so they're not offered here.
 // Alpha requires the Street Samurai Catalog (SSC) book toggle. Bioware has no grades.
+// Grade table per Cybertechnology p.44 (essence reduction / cost multiplier).
 const GRADES = {
   Standard: { ess: 1.0, nuyen: 1, book: null },
-  Alpha:    { ess: 0.8, nuyen: 2, book: "SSC" },
+  Alpha:    { ess: 0.8, nuyen: 3, book: "SSC" },
 };
 const GRADE_ORDER = ["Standard","Alpha"];
 

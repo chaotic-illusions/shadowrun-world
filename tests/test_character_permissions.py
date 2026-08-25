@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.models.character import Character
 from app.routers.characters import (
     _assert_chargen_grades_allowed,
+    _assert_gear_grades_allowed,
     _character_create_data,
     _dossier_create_data,
     _validate_hard_gear_caps,
@@ -287,6 +288,88 @@ def test_chargen_grade_gating_blocks_beta_and_delta_for_players():
         assert exc.value.status_code == 400
     # An admin (GM) may commit any grade -- that is how Delta is applied.
     _assert_chargen_grades_allowed({"cyber": [{"n": "Wired Reflexes", "grade": "Delta"}]}, is_admin=True)
+
+
+def test_gear_grade_gating_blocks_unapproved_beta_and_delta():
+    char = Character(name="Chrome", beta_grade_approved=False, delta_grade_approved=False)
+    for gated in ("Beta", "Delta"):
+        with pytest.raises(HTTPException) as exc:
+            _assert_gear_grades_allowed(char, {"gear": {"cyber": [{"n": "Wired Reflexes", "grade": gated}]}})
+        assert exc.value.status_code == 403
+
+
+def test_gear_grade_gating_allows_approved_grade_only():
+    char = Character(name="Chrome", beta_grade_approved=True, delta_grade_approved=False)
+    _assert_gear_grades_allowed(char, {"gear": {"cyber": [{"n": "Wired Reflexes", "grade": "Beta"}]}})  # must not raise
+    with pytest.raises(HTTPException) as exc:
+        _assert_gear_grades_allowed(char, {"gear": {"cyber": [{"n": "Boosted Reflexes", "grade": "Delta"}]}})
+    assert exc.value.status_code == 403
+
+
+def test_gear_grade_gating_ignores_standard_and_alpha():
+    char = Character(name="Chrome")  # both approval flags default False
+    _assert_gear_grades_allowed(char, {"gear": {"cyber": [
+        {"n": "Datajack", "grade": "Standard"}, {"n": "Smartlink", "grade": "Alpha"},
+    ]}})  # must not raise
+
+
+def test_patch_character_blocks_player_from_setting_grade_approval_flags(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "grade_approval_flag.db") as sessions:
+            async with sessions() as db:
+                char = Character(name="Chrome", is_pc=True, owner_token=hash_token("runner-token"))
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db:
+                ctx = {"is_admin": False, "is_user": True, "user_token": "runner-token", "view_as_player": False}
+                body = CharacterUpdate(delta_grade_approved=True)
+                with pytest.raises(HTTPException) as exc:
+                    await update_character(char_id, body, db, ctx)
+                assert exc.value.status_code == 403
+
+    asyncio.run(scenario())
+
+
+def test_patch_character_blocks_player_gear_patch_with_unapproved_grade(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "grade_gear_patch.db") as sessions:
+            async with sessions() as db:
+                char = Character(name="Chrome", is_pc=True, owner_token=hash_token("runner-token"), essence=6.0)
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db:
+                ctx = {"is_admin": False, "is_user": True, "user_token": "runner-token", "view_as_player": False}
+                body = CharacterUpdate(gear={"cyber": [{"n": "Wired Reflexes", "baseEss": 4.0, "grade": "Beta"}]})
+                with pytest.raises(HTTPException) as exc:
+                    await update_character(char_id, body, db, ctx)
+                assert exc.value.status_code == 403
+
+    asyncio.run(scenario())
+
+
+def test_patch_character_allows_player_gear_patch_once_gm_approves_grade(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "grade_gear_approved.db") as sessions:
+            async with sessions() as db:
+                char = Character(
+                    name="Chrome", is_pc=True, owner_token=hash_token("runner-token"),
+                    essence=6.0, beta_grade_approved=True,
+                )
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db:
+                ctx = {"is_admin": False, "is_user": True, "user_token": "runner-token", "view_as_player": False}
+                body = CharacterUpdate(gear={"cyber": [{"n": "Wired Reflexes", "baseEss": 4.0, "grade": "Beta"}]})
+                result = await update_character(char_id, body, db, ctx)
+                assert result["gear"]["cyber"][0]["grade"] == "Beta"
+
+    asyncio.run(scenario())
 
 
 def test_dossier_preserves_draft_flag_for_player():

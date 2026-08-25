@@ -862,7 +862,17 @@ function skillAugSources(skillName){
 // lives in shared.js's gradedCyberEssence (also used by character-builder.html's chargen shop), this
 // page just supplies its own grade-multiplier table. Mirrors character-builder.html's GRADES exactly
 // (same book-gating) so a given grade prices identically whether bought at chargen or post-chargen.
-const ESS_GRADE_MULT = { Standard: { ess: 1.0, nuyen: 1, book: null }, Alpha: { ess: 0.8, nuyen: 2, book: "SSC" } };
+// Beta/Delta are post-chargen-only (character-builder.html's GRADES deliberately omits them) and
+// reuse the picker's book-lock mechanism to require a per-character GM approval flag instead of a
+// sourcebook -- see openManageBuyGear's gradeBooks below and CHAR.beta_grade_approved/
+// delta_grade_approved (server-enforced too, see _assert_gear_grades_allowed in characters router).
+// Grade table per Cybertechnology p.44 (essence reduction / cost multiplier).
+const ESS_GRADE_MULT = {
+  Standard: { ess: 1.0, nuyen: 1, book: null },
+  Alpha:    { ess: 0.8, nuyen: 3, book: "SSC" },
+  Beta:     { ess: 0.6, nuyen: 7, book: "Beta Approval" },
+  Delta:    { ess: 0.5, nuyen: 10, book: "Delta Approval" },
+};
 function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -2479,8 +2489,14 @@ function openManageBuyGear(initialCat){
   openModal('buygear', '// Buy Gear', true);
   $('#modalCommitBtn').style.display = 'none';
   $('#modalCancelBtn').textContent = 'Close';
+  // Beta/Delta ride the same "book" lock the picker already uses for sourcebook gating (see
+  // ESS_GRADE_MULT above) -- add this character's GM-approval tokens to the enabled set instead of
+  // teaching the picker a second locking mechanism.
+  const gradeBooks = new Set(enabledBooks);
+  if (CHAR.beta_grade_approved) gradeBooks.add('Beta Approval');
+  if (CHAR.delta_grade_approved) gradeBooks.add('Delta Approval');
   initGearPicker($('#modalBody'), {
-    onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks, maxQty: pickerMaxQty,
+    onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks: gradeBooks, maxQty: pickerMaxQty,
     data: {
       weapons: [...WEAPON_CAT.values()], armor: [...ARMOR_CAT.values()], cyberware: [...CYBER_CAT.values()],
       bioware: [...BIO_CAT.values()], gear: [...GEAR_CAT.values()], vehicles: [...VEHICLE_CAT.values()],

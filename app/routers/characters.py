@@ -57,7 +57,13 @@ _PLAYER_WRITABLE_FIELDS = _PLAYER_IDENTITY_FIELDS | {
 # frontend/shared.js's cyberBaseEss/gradedCyberEssence and play-sheet.html's ownedBioIndex to
 # recompute both totals from a submitted gear blob, without a client round-trip. Grade multipliers
 # must stay in sync with play-sheet.html's ESS_GRADE_MULT if a new grade is ever added there.
-_ESS_GRADE_MULT = {"Standard": 1.0, "Alpha": 0.8}
+_ESS_GRADE_MULT = {"Standard": 1.0, "Alpha": 0.8, "Beta": 0.6, "Delta": 0.5}
+
+# Cyber grade -> the Character boolean column a GM must have set before a player's gear PATCH may
+# introduce that grade. Beta/Delta are never offered at chargen (see _assert_chargen_grades_allowed)
+# and stay GM-gated post-chargen too -- a player can spend nuyen/karma freely (_PLAYER_WRITABLE_FIELDS
+# trusts them there) but not unlock a narratively-restricted grade by hand-editing a gear PATCH.
+_GRADE_APPROVAL_COLUMN = {"Beta": "beta_grade_approved", "Delta": "delta_grade_approved"}
 _STARTING_ESSENCE = 6.0
 
 
@@ -126,6 +132,22 @@ def _validate_hard_gear_caps(char: Character, submitted: dict) -> None:
             raise HTTPException(
                 status_code=422,
                 detail=f"Gear implies {body_used:.2f} Body Index used, exceeding Body {base_body}.",
+            )
+
+
+def _assert_gear_grades_allowed(char: Character, submitted: dict) -> None:
+    """Reject a non-admin's gear PATCH that introduces a GM-gated cyber grade (Beta/Delta) the
+    character hasn't been approved for. Defense-in-depth behind the play-sheet gear picker, which
+    already greys out ungranted grades -- see openManageBuyGear's gradeBooks in play-sheet.html.
+    """
+    gear = submitted.get("gear") or {}
+    for line in gear.get("cyber") or []:
+        grade = line.get("grade") if isinstance(line, dict) else None
+        column = _GRADE_APPROVAL_COLUMN.get(grade)
+        if column and not getattr(char, column):
+            raise HTTPException(
+                status_code=403,
+                detail=f"{grade}-grade cyberware requires GM approval for this character",
             )
 
 
@@ -617,6 +639,8 @@ async def update_character(
             raise HTTPException(status_code=403, detail=f"Players cannot modify: {', '.join(sorted(forbidden))}")
         if "gear" in submitted or "chargen_state" in submitted:
             _validate_hard_gear_caps(char, submitted)
+        if "gear" in submitted:
+            _assert_gear_grades_allowed(char, submitted)
 
     await apply_update(db, char, body, exclude={"owner_token"})
     return _serialize_character(char, ctx)
