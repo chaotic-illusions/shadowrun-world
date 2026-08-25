@@ -148,9 +148,6 @@
       text-shadow:var(--glow-amber);letter-spacing:1px;line-height:1;cursor:pointer;}
     .ps-nuyen-input{background:var(--bg-input);border:1px solid var(--amber);padding:2px 6px;width:9ch;cursor:text;}
     .ghost-note{font-size:.6rem;color:var(--text-dim);font-style:italic;}
-    .btn-ghost-violet{background:none;border:1px solid #2a1a4a;color:var(--violet);font-size:.6rem;
-      letter-spacing:1px;text-transform:uppercase;padding:4px 10px;cursor:pointer;font-family:inherit;}
-    .btn-ghost-violet:hover{border-color:var(--violet);}
     .picker-card{background:var(--bg-panel,#0d1512);border:1px solid var(--border-dark);padding:14px 16px;
       cursor:pointer;transition:border-color .12s;}
     .picker-card:hover{border-color:var(--green);}
@@ -261,7 +258,7 @@
       <div class="ps-panel">
         <div class="ps-sec">
           <div class="ps-sec__head"><span class="ps-sec__title sec-green">Identity</span>
-            <button class="btn-ghost-violet" id="manageIdentityBtn">Manage</button></div>
+            <button class="btn btn-violet btn-sm" id="manageIdentityBtn">Manage</button></div>
           <div class="identity-row">
             <div>
               <div class="ps-fgrid fg-3 mb-8">
@@ -292,7 +289,7 @@
           <div class="armor-row">
             <div style="flex:1;">
               <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Armor</span>
-                <button class="btn-ghost-violet" id="manageArmorBtn">Manage</button></div>
+                <button class="btn btn-violet btn-sm" id="manageArmorBtn">Manage</button></div>
               <div class="ps-stat-list" id="armorList"></div>
               <div class="armor-total"><span class="armor-total__l">Total Armor</span><span id="armorTotal">0/0</span></div>
             </div>
@@ -308,7 +305,7 @@
       <div class="ps-panel">
         <div class="ps-sec">
           <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Attributes</span>
-            <button class="btn-ghost-violet" id="manageAttrsBtn">Manage</button></div>
+            <button class="btn btn-violet btn-sm" id="manageAttrsBtn">Manage</button></div>
           <div class="ps-fgrid fg-3 mb-8">
             <div class="ps-field"><span class="field-label">Body</span><div class="ps-ro" id="atB">-</div></div>
             <div class="ps-field"><span class="field-label">Quickness</span><div class="ps-ro" id="atQ">-</div></div>
@@ -371,7 +368,7 @@
     <div class="ps-panel" style="margin-bottom:16px;">
       <div class="ps-sec">
         <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Weapons</span>
-          <button class="btn-ghost-violet" id="manageWeaponsBtn">Manage</button></div>
+          <button class="btn btn-violet btn-sm" id="manageWeaponsBtn">Manage</button></div>
         <div style="overflow-x:auto;">
           <table class="ps-data" id="weaponsTbl">
             <thead><tr>
@@ -391,7 +388,7 @@
         <div class="ps-panel">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Skills</span>
-              <button class="btn-ghost-violet" id="manageSkillsBtn">Manage</button></div>
+              <button class="btn btn-violet btn-sm" id="manageSkillsBtn">Manage</button></div>
             <div class="sk-list" id="skillList"></div>
           </div>
         </div>
@@ -399,7 +396,7 @@
         <div class="ps-panel" id="magicPanel" style="display:none;">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Awakened</span>
-              <button class="btn-ghost-violet" id="manageMagicBtn">Manage</button></div>
+              <button class="btn btn-violet btn-sm" id="manageMagicBtn">Manage</button></div>
             <div class="ps-fgrid fg-3 mb-8">
               <div class="ps-field"><span class="field-label">Type</span><div class="ps-ro" id="magicType">-</div></div>
               <div class="ps-field"><span class="field-label">Tradition</span><div class="ps-ro" id="magicTradition">-</div></div>
@@ -419,7 +416,7 @@
         <div class="ps-panel">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-green">Primary Vehicle</span>
-              <button class="btn-ghost-violet" data-buy-shortcut="vehicles">Manage</button></div>
+              <button class="btn btn-violet btn-sm" data-buy-shortcut="vehicles">Manage</button></div>
             <div id="noVehicle" style="display:none;">
               <p class="empty-state">No vehicle owned.</p>
             </div>
@@ -457,7 +454,7 @@
         <div class="ps-panel">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Gear</span>
-              <button class="btn-ghost-violet" id="manageGearBtn">Manage</button></div>
+              <button class="btn btn-violet btn-sm" id="manageGearBtn">Manage</button></div>
             <div class="gear-2col" id="gearList"></div>
           </div>
         </div>
@@ -465,7 +462,7 @@
         <div class="ps-panel">
           <div class="ps-sec">
             <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Cyberware</span>
-              <button class="btn-ghost-violet" id="manageCyberBtn">Manage</button></div>
+              <button class="btn btn-violet btn-sm" id="manageCyberBtn">Manage</button></div>
             <div class="ps-stat-list" id="cyberList"></div>
           </div>
         </div>
@@ -502,6 +499,7 @@
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">Manage</div>
     </div>
+    <div class="alert" id="modalAlert"></div>
     <div class="edit-modal-body" id="modalBody"></div>
     <div class="edit-modal-foot" id="modalFoot">
       <button class="btn btn-green" id="modalCommitBtn">Commit Changes</button>
@@ -827,7 +825,9 @@ function essenceRemaining(){
 // reading the .ess field bioware lines use instead of cyberware's .baseEss.
 function ownedBioIndex(g){
   if (!g.rated) return Number(g.ess) || 0;
-  const lo = Number(g.minRating)||1, r = Number(g.rating)||lo;
+  // clampedRating() (shared.js) keeps an out-of-range rating from indexing past essTbl or from
+  // multiplying essUnit by an unbounded value -- the same guard cyberBaseEss() applies for cyberware.
+  const lo = Number(g.minRating)||1, r = clampedRating(g);
   return (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo])||0) : (Number(g.essUnit)||0)*r;
 }
 function ownedBioIndexTotal(){
@@ -915,7 +915,7 @@ function wirePortrait(){
       // Raw fetch, not apiFetch -- apiFetch forces Content-Type: application/json whenever a body
       // is present, which would break the browser's multipart/form-data boundary for this upload.
       const res = await fetch(`/characters/${CHAR.id}/portrait`, { method: 'POST', headers: authHeaders(), body: fd });
-      if (!res.ok) return apiThrow(res);
+      if (!res.ok) await apiThrow(res);
       const updated = await res.json();
       Object.assign(CHAR, updated);
       renderPortrait();
@@ -1023,7 +1023,8 @@ function cyberTableRows(items, bucket, forModal){
     const bioTag = bucket === 'bio' ? ' <span style="color:var(--violet);font-size:.7rem;">(Bio)</span>' : '';
     const ratingCell = rating != null ? esc(String(rating)) : '&mdash;';
     if (!forModal) {
-      const val = bucket === 'cyber' ? (ownedCyberEss(g) ? ownedCyberEss(g).toFixed(2)+' Ess' : '') : (ownedBioIndex(g) ? ownedBioIndex(g).toFixed(2)+' BI' : '');
+      const ess = bucket === 'cyber' ? ownedCyberEss(g) : ownedBioIndex(g);
+      const val = ess ? ess.toFixed(2) + (bucket === 'cyber' ? ' Ess' : ' BI') : '';
       return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td><td>${val}</td></tr>`;
     }
     // Rating/grade changes happen by re-buying the item from the picker (see upgradeExistingSingular
@@ -1057,9 +1058,24 @@ function renderManageCyber(){
   $('#modalBody').innerHTML = table + buyShortcutRow('cyberware', 'Buy Cyberware / Bioware');
   $$('[data-cyber-remove]').forEach(b => b.onclick = () => {
     const [bucket, idx] = b.dataset.cyberRemove.split(':');
+    const removed = CHAR.gear[bucket][Number(idx)];
+    // Mirror purchaseGear()'s snapshot-before-mutate: figure out which attributes this item was
+    // boosting (mods/modsPer live on the line, modsTbl -- e.g. Encephalon -- only on the catalog
+    // def) and freeze their karma-base BEFORE removing it, so the post-removal augAttr() drop gets
+    // baked into CHAR[attr] instead of leaving it permanently stale at the augmented total.
+    const src = (bucket === 'cyber' ? CYBER_CAT : BIO_CAT).get(removed.n) || removed;
+    const touchedAttrs = new Set();
+    if (src.mods) Object.keys(src.mods).forEach(a => touchedAttrs.add(a));
+    if (src.modsPer) Object.keys(src.modsPer).forEach(a => touchedAttrs.add(a));
+    if (src.modsTbl) Object.keys(src.modsTbl).forEach(a => touchedAttrs.add(a));
+    const baseSnapshot = {};
+    touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
+
     CHAR.gear[bucket].splice(Number(idx), 1);
     const patch = { gear: CHAR.gear };
+    Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
     if (bucket === 'cyber') patch.essence = Math.round(essenceRemaining() * 100) / 100;
+    else if (bucket === 'bio') patch.body_index = Math.round(ownedBioIndexTotal() * 100) / 100;
     patchChar(patch).then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
   });
   wireBuyShortcut();
@@ -1547,7 +1563,7 @@ function setDmgMode(mode){
 async function patchChar(fields){
   try {
     const res = await apiFetch(`/characters/${CHAR.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
-    if (!res.ok) return apiThrow(res);
+    if (!res.ok) await apiThrow(res);
     const updated = await res.json();
     Object.assign(CHAR, updated);
   } catch (e) {
@@ -1593,6 +1609,7 @@ function openModal(mode, title, hasFoot=true){
   $('#modalFoot').style.display = hasFoot ? 'flex' : 'none';
   $('#modalCommitBtn').style.display = '';       // reset -- buygear mode hides this (nothing to commit)
   $('#modalCancelBtn').textContent = 'Cancel';    // reset -- buygear mode relabels this to "Close"
+  $('#modalAlert').className = 'alert';           // reset -- clear any leftover message from a prior open
   const overlay = $('#editOverlay');
   overlay.className = 'edit-overlay mode-' + mode;
   overlay.classList.add('open');
@@ -1646,7 +1663,7 @@ function renderManageAttrs(){
     }).join('');
   $$('[data-raise]').forEach(b => b.onclick = () => {
     const key = b.dataset.raise, cost = Number(b.dataset.cost);
-    if (draft.good_karma < cost) { showAlert($('#alert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
+    if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
     draft.good_karma -= cost;
     draft[key] += 1;
     renderManageAttrs();
@@ -1724,7 +1741,7 @@ function renderManageSkills(){
   $$('[data-raise-skill]').forEach(b => b.onclick = () => {
     const s = draft.skills[Number(b.dataset.raiseSkill)];
     const tier = b.dataset.raiseTier, cost = Number(b.dataset.cost);
-    if (draft.good_karma < cost) { showAlert($('#alert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
+    if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
     if (tier === 'general') s.rating = (s.rating||0) + 1;
     else if (tier === 'conc') s.concRating = (s.concRating != null ? s.concRating : (s.rating||0)+1) + 1;
     else s.specRating = (s.specRating != null ? s.specRating : (s.rating||0)+2) + 1;
@@ -1789,7 +1806,7 @@ function wireAttachRow(catMap, onDone){
       await attachGearMod({ item, hostIndex: i });
       onDone();
     } catch (e) {
-      showAlert($('#alert'), `>> ATTACH FAILED // ${e.message}`, true, true);
+      showAlert($('#modalAlert'), `>> ATTACH FAILED // ${e.message}`, true, true);
       b.disabled = false; b.textContent = 'Attach';
     }
   });
@@ -1911,7 +1928,6 @@ function renderManageGear(){
 // Cybergun implants need a cyberarm to sit in -- SR2 allows at most one per arm (2 total),
 // and never more than the number of arm-slot Cyber Limbs actually owned.
 const CYBERGUN_NAMES = new Set(['Cybergun: Hold-Out Pistol','Cybergun: Light Pistol','Cybergun: Machine Pistol','Cybergun: SMG','Cybergun: Heavy Pistol','Cybergun: Shotgun']);
-const WEAPON_FOCUS_NAMES = new Set(['Weapon Focus (Small)', 'Weapon Focus (Large)']);
 function ownedCybergunCount(gear){ return ((gear.cyber)||[]).filter(g => CYBERGUN_NAMES.has(g.n)).length; }
 
 // ---- Ownership rules from the SR2 gear-quantity audit ----
@@ -2043,6 +2059,17 @@ const EXCLUDES = {
   'Trauma Damper': g => hasItem(g,'Pain Editor'),
   'Pain Editor': g => hasItem(g,'Trauma Damper'),
 };
+// Shared duplicate-purchase check for "same item, different configuration is fine" cases (skillsoft
+// chip, reflex recorder, Kit/Shop/Facility type, focus target, Power Focus rating) -- true if
+// gear[bucket] already owns `name` with every [field, value, mode] tuple matching: 'ci' compares
+// strings case-insensitively, 'num' compares numerically, anything else is a strict ===.
+function dupeCheck(gear, bucket, name, checks){
+  return (gear[bucket] || []).some(g => g.n === name && checks.every(([field, value, mode]) => {
+    if (mode === 'ci') return String(g[field] || '').toLowerCase() === String(value || '').toLowerCase();
+    if (mode === 'num') return Number(g[field]) === Number(value);
+    return g[field] === value;
+  }));
+}
 function hasItemAtRating(gear, name, minR){
   return ((gear.cyber)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR) ||
          ((gear.bio)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR);
@@ -2052,12 +2079,15 @@ function hasOrthoskinAtRating(gear, minR){ return hasItemAtRating(gear, 'Orthosk
 // (their own catalog text) -- not a plain EXCLUDES entry since the trigger is rating-conditional, not
 // "owned at all". Checked both on a fresh purchase (ownershipBlocked) and an in-place upgrade
 // (upgradeExistingSingular), same as every other rating change now that both go through re-buying.
-function orthoskinRatingBlocked(targetRating, gear){
-  return targetRating >= 3 && hasItem(gear,'Dermal Plating') ? `Orthoskin R3 (incompatible with Dermal Plating)` : null;
+// A rank-specific mutual exclusion: raising `itemName` to `targetRating` (>= minRating) is blocked
+// if `excludesName` is already owned (any rating). Mirrors EXCLUDES' opposite-direction check
+// (Dermal Plating -> hasItemAtRating(Dermal Sheath/Orthoskin, 3)) for the other two items in this
+// three-way exclusion.
+function ratingExclusionBlocked(itemName, targetRating, minRating, excludesName, gear){
+  return targetRating >= minRating && hasItem(gear, excludesName) ? `${itemName} R${minRating} (incompatible with ${excludesName})` : null;
 }
-function dermalSheathRatingBlocked(targetRating, gear){
-  return targetRating >= 3 && hasItem(gear,'Dermal Plating') ? `Dermal Sheath R3 (incompatible with Dermal Plating)` : null;
-}
+function orthoskinRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Orthoskin', targetRating, 3, 'Dermal Plating', gear); }
+function dermalSheathRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Dermal Sheath', targetRating, 3, 'Dermal Plating', gear); }
 // Combines the default-singular/quantity-cap rules with the prerequisite/exclusion tables above.
 // PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
 // family member AND excludes the VCR family) -- only the *default-singular quantity cap* is skipped
@@ -2402,7 +2432,13 @@ function openManageBuyGear(initialCat){
   openModal('buygear', '// Buy Gear', true);
   $('#modalCommitBtn').style.display = 'none';
   $('#modalCancelBtn').textContent = 'Close';
-  initGearPicker($('#modalBody'), { onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks, maxQty: pickerMaxQty });
+  initGearPicker($('#modalBody'), {
+    onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks, maxQty: pickerMaxQty,
+    data: {
+      weapons: [...WEAPON_CAT.values()], armor: [...ARMOR_CAT.values()], cyberware: [...CYBER_CAT.values()],
+      bioware: [...BIO_CAT.values()], gear: [...GEAR_CAT.values()], vehicles: [...VEHICLE_CAT.values()],
+    },
+  });
 }
 // Skillsofts don't carry a target skill in the catalog -- the player picks what it's loaded with.
 // Activesoft -> an Active skill from the web (with optional conc/spec, same web Manage Skills uses);
@@ -2482,7 +2518,7 @@ async function purchaseGear(entries){
   const baseSnapshot = {};
   touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
 
-  let boughtCyberOrBio = false, boughtArmor = false, notesTouched = false, added = 0;
+  let boughtCyber = false, boughtBio = false, boughtArmor = false, notesTouched = false, added = 0;
   const skipped = [];
   for (const entry of entries) {
     const { cat, item, rating, qty, opts, grade } = entry;
@@ -2491,7 +2527,11 @@ async function purchaseGear(entries){
     gear[bucket] = gear[bucket] || [];
     for (let i = 0; i < qty; i++) {
       const upgrade = upgradeExistingSingular(cat, item, bucket, gear, rating, grade);
-      if (upgrade === true) { added++; boughtCyberOrBio = true; continue; }
+      if (upgrade === true) {
+        added++;
+        if (cat === 'cyberware') boughtCyber = true; else if (cat === 'bioware') boughtBio = true;
+        continue;
+      }
       if (typeof upgrade === 'string') { skipped.push(upgrade); continue; }
       const blockReason = ownershipBlocked(cat, item, gear, rating);
       if (blockReason) { skipped.push(blockReason); continue; }
@@ -2514,7 +2554,7 @@ async function purchaseGear(entries){
       // SR2 p.137: Weapon Foci are the only foci Adepts can bond, and the only foci Adepts CAN bond
       // -- a Full Mage/Shaman can bond anything except a Weapon Focus.
       if (bucket === 'foci') {
-        const isWeaponFocus = WEAPON_FOCUS_NAMES.has(item.n);
+        const isWeaponFocus = item.who === 'adept';
         const isAdept = CHAR.magic_type === 'Adept';
         if (isWeaponFocus && !isAdept) { skipped.push(`${item.n} (Adepts only)`); continue; }
         if (!isWeaponFocus && isAdept) { skipped.push(`${item.n} (Adepts may only bond a Weapon Focus)`); continue; }
@@ -2546,37 +2586,40 @@ async function purchaseGear(entries){
       }
       if (item.soft) {
         await assignSkillsoftSkill(line, item);
+        // Cancelling the "which skill?" prompt must not add an unconfigured, still-Essence-costing
+        // chip -- same reasoning as the limb-slot guard above.
+        if (line.skill == null) { skipped.push(`${item.n} (no skill chosen)`); continue; }
         // Own a library: same skill at different ratings is fine (different chips), but an
         // exact (item, skill, rating) duplicate would just be the identical chip twice.
-        if (line.skill != null) {
-          const dupe = gear[bucket].some(g => g.n === item.n && g.skill === line.skill && Number(g.rating) === Number(line.rating));
-          if (dupe) { skipped.push(`${item.n} — ${line.skill} R${line.rating} (already owned)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['skill', line.skill], ['rating', line.rating, 'num']])) {
+          skipped.push(`${item.n} — ${line.skill} R${line.rating} (already owned)`); continue;
         }
       }
       if (item.n === 'Reflex Recorder (Concentration)' || item.n === 'Reflex Recorder (General)') {
         await assignReflexRecorderSkill(line, item);
-        if (line.skill != null) {
-          const dupe = gear[bucket].some(g => g.n === item.n && g.skill === line.skill);
-          if (dupe) { skipped.push(`${item.n} — ${line.skill} (already owned)`); continue; }
+        if (line.skill == null) { skipped.push(`${item.n} (no skill chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['skill', line.skill]])) {
+          skipped.push(`${item.n} — ${line.skill} (already owned)`); continue;
         }
       }
       if (item.n === 'Kit' || item.n === 'Shop' || item.n === 'Facility') {
         await assignGearType(line, item);
-        if (line.kind != null) {
-          const dupe = gear[bucket].some(g => g.n === item.n && String(g.kind || '').toLowerCase() === String(line.kind).toLowerCase());
-          if (dupe) { skipped.push(`${item.n} — ${line.kind} (already owned)`); continue; }
+        if (line.kind == null) { skipped.push(`${item.n} (no type chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['kind', line.kind, 'ci']])) {
+          skipped.push(`${item.n} — ${line.kind} (already owned)`); continue;
         }
       }
       if (item.n === 'Specific Spell Focus' || item.n === 'Spell Category Focus' || item.n === 'Spirit Focus') {
         await assignFocusTarget(line, item);
-        if (line.target != null) {
-          const dupe = gear[bucket].some(g => g.n === item.n && String(g.target || '').toLowerCase() === String(line.target).toLowerCase());
-          if (dupe) { skipped.push(`${item.n} — ${line.target} (already owned)`); continue; }
+        if (line.target == null) { skipped.push(`${item.n} (no target chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['target', line.target, 'ci']])) {
+          skipped.push(`${item.n} — ${line.target} (already owned)`); continue;
         }
       }
       if (item.n === 'Power Focus' && rating != null) {
-        const dupe = gear[bucket].some(g => g.n === item.n && Number(g.rating) === Number(rating));
-        if (dupe) { skipped.push(`${item.n} R${rating} (already owned)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['rating', rating, 'num']])) {
+          skipped.push(`${item.n} R${rating} (already owned)`); continue;
+        }
       }
       if (SITUATIONAL_NOTES[item.n]) {
         const noteText = SITUATIONAL_NOTES[item.n](line);
@@ -2585,7 +2628,8 @@ async function purchaseGear(entries){
       gear[bucket].push(line);
       added++;
     }
-    if (cat === 'cyberware' || cat === 'bioware') boughtCyberOrBio = true;
+    if (cat === 'cyberware') boughtCyber = true;
+    if (cat === 'bioware') boughtBio = true;
     if (bucket === 'armor') boughtArmor = true;
   }
   if (!added) {
@@ -2599,7 +2643,8 @@ async function purchaseGear(entries){
   const patch = { gear };
   // baseSnapshot already includes metatype (it's karma-base, not raw base) -- don't add it twice.
   Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
-  if (boughtCyberOrBio) patch.essence = Math.round(essenceRemaining() * 100) / 100;
+  if (boughtCyber) patch.essence = Math.round(essenceRemaining() * 100) / 100;
+  if (boughtBio) patch.body_index = Math.round(ownedBioIndexTotal() * 100) / 100;
   if (notesTouched) patch.notes = CHAR.notes;
   await patchChar(patch);
   renderAll();
@@ -2662,17 +2707,26 @@ function renderManageMagic(){
   $('#mgSpellPick').addEventListener('change', updatePreview);
   $('#mgSpellForce').addEventListener('input', updatePreview);
   updatePreview();
-  $('#mgSpellBuy').onclick = async () => {
+  const buyBtn = $('#mgSpellBuy');
+  buyBtn.onclick = async () => {
     const name = $('#mgSpellPick').value, force = Math.max(1, Number($('#mgSpellForce').value) || 1);
     const cat = SPELL_CAT.get(name) || {};
     const info = spellCostInfo(cat, force);
-    if (!info) { showAlert($('#alert'), 'This spell has no standard drain data — price it manually.', true); return; }
-    CHAR.spells = CHAR.spells || [];
-    CHAR.spells.push({ name, cat: cat.cat || '', force });
-    const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
-    await patchChar({ spells: CHAR.spells, nuyen: nextNuyen });
-    renderMagic(); renderHeader(); renderManageMagic();
-    showAlert($('#alert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}`, false, true);
+    if (!info) { showAlert($('#modalAlert'), 'This spell has no standard drain data — price it manually.', true); return; }
+    // Disable for the duration of the request -- without this, two rapid clicks both read the same
+    // pre-patch CHAR.nuyen before either PATCH resolves, learning the spell twice while nuyen is
+    // only deducted once. Mirrors gear-picker.js's own Buy button, which guards for this same reason.
+    buyBtn.disabled = true;
+    try {
+      CHAR.spells = CHAR.spells || [];
+      CHAR.spells.push({ name, cat: cat.cat || '', force });
+      const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
+      await patchChar({ spells: CHAR.spells, nuyen: nextNuyen });
+      renderMagic(); renderHeader(); renderManageMagic();
+      showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}`, false, true);
+    } finally {
+      buyBtn.disabled = false;
+    }
   };
   wireBuyShortcut();
 }

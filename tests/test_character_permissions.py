@@ -1,16 +1,38 @@
 """Focused character create/update permission tests."""
 
+import asyncio
+from contextlib import asynccontextmanager
+
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.orm.exc import StaleDataError
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.core import hash_token
+from app.db.base import Base
 from app.models.character import Character
 from app.routers.characters import (
     _assert_chargen_grades_allowed,
     _character_create_data,
     _dossier_create_data,
+    _validate_hard_gear_caps,
+    update_character,
 )
-from app.schemas.character import CharacterCreate, DossierCommit
+from app.schemas.character import CharacterCreate, CharacterUpdate, DossierCommit
+
+
+# Same throwaway-DB pattern as tests/test_character_lifestyle_flow.py -- calls the real router
+# function directly (no HTTP layer needed; FastAPI's dependency injection is just Python here).
+@asynccontextmanager
+async def _database(path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{path.as_posix()}", connect_args={"timeout": 5})
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        yield sessions
+    finally:
+        await engine.dispose()
 
 
 def test_player_create_forces_pc_and_ignores_gm_only_fields():
@@ -97,6 +119,117 @@ def test_player_create_excludes_sheet_fields():
 
     for field in ("strength", "essence", "nuyen", "skills", "gear"):
         assert field not in data
+
+
+def test_validate_hard_gear_caps_allows_gear_within_essence():
+    char = Character(name="Chrome", gear={}, chargen_state={})
+    # Standard Vehicle Control Rig: baseEss 2.0, grade multiplier 1.0 -- well under 6.0 Essence.
+    submitted = {"gear": {"cyber": [{"n": "Vehicle Control Rig", "baseEss": 2.0, "grade": "Standard"}]}}
+    _validate_hard_gear_caps(char, submitted)  # must not raise
+
+
+def test_validate_hard_gear_caps_blocks_essence_over_cap():
+    char = Character(name="Chrome", gear={}, chargen_state={})
+    submitted = {"gear": {"cyber": [
+        {"n": "Wired Reflexes", "baseEss": 4.0, "grade": "Standard"},
+        {"n": "Vehicle Control Rig", "baseEss": 3.0, "grade": "Standard"},
+    ]}}
+    with pytest.raises(HTTPException) as exc:
+        _validate_hard_gear_caps(char, submitted)
+    assert exc.value.status_code == 422
+    assert "Essence" in exc.value.detail
+
+
+def test_validate_hard_gear_caps_blocks_body_index_over_karma_base_body():
+    char = Character(name="Chrome", gear={}, chargen_state={"base": {"body": 3}})
+    submitted = {"gear": {"bio": [{"n": "Bone Lacing", "ess": 4.0}]}}
+    with pytest.raises(HTTPException) as exc:
+        _validate_hard_gear_caps(char, submitted)
+    assert exc.value.status_code == 422
+    assert "Body Index" in exc.value.detail
+
+
+def test_validate_hard_gear_caps_skips_body_index_without_stored_base():
+    # Older records without a chargen_state.base snapshot skip the Body Index half of the check
+    # rather than cap against the wrong (augmented) number -- see _validate_hard_gear_caps.
+    char = Character(name="Chrome", gear={}, chargen_state={})
+    submitted = {"gear": {"bio": [{"n": "Bone Lacing", "ess": 4.0}]}}
+    _validate_hard_gear_caps(char, submitted)  # must not raise
+
+
+# -- End-to-end coverage for the real PATCH /characters/{id} handler (not just the pure functions
+# above) -- calls update_character() directly against a throwaway DB, same pattern
+# tests/test_character_lifestyle_flow.py uses.
+
+_OVER_CAP_CYBER_GEAR = {"gear": {"cyber": [
+    {"n": "Wired Reflexes", "baseEss": 4.0, "grade": "Standard"},
+    {"n": "Vehicle Control Rig", "baseEss": 3.0, "grade": "Standard"},
+]}}
+
+
+def test_patch_character_blocks_essence_over_cap_for_player(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "essence_patch.db") as sessions:
+            async with sessions() as db:
+                char = Character(name="Chrome", is_pc=True, owner_token=hash_token("runner-token"), essence=6.0)
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db:
+                ctx = {"is_admin": False, "is_user": True, "user_token": "runner-token", "view_as_player": False}
+                body = CharacterUpdate(**_OVER_CAP_CYBER_GEAR)
+                with pytest.raises(HTTPException) as exc:
+                    await update_character(char_id, body, db, ctx)
+                assert exc.value.status_code == 422
+
+    asyncio.run(scenario())
+
+
+def test_patch_character_allows_admin_to_bypass_essence_cap(tmp_path):
+    # Enforcement is intentionally scoped to non-admin requests (see update_character) -- a GM can
+    # still deliberately hand out over-cap gear for narrative reasons.
+    async def scenario():
+        async with _database(tmp_path / "essence_admin_patch.db") as sessions:
+            async with sessions() as db:
+                char = Character(name="Chrome", is_pc=True, owner_token=hash_token("runner-token"), essence=6.0)
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db:
+                ctx = {"is_admin": True, "is_user": True, "user_token": "admin-token", "view_as_player": False}
+                body = CharacterUpdate(**_OVER_CAP_CYBER_GEAR)
+                result = await update_character(char_id, body, db, ctx)
+                assert result["gear"]["cyber"]
+
+    asyncio.run(scenario())
+
+
+def test_patch_character_optimistic_lock_rejects_stale_concurrent_write(tmp_path):
+    # Two overlapping PATCHes (e.g. two browser tabs) each load the character BEFORE either
+    # commits -- the realistic race. The second commit must raise StaleDataError instead of
+    # silently clobbering the first write's gear -- see Character.version / __mapper_args__.
+    async def scenario():
+        async with _database(tmp_path / "optimistic_lock.db") as sessions:
+            async with sessions() as db:
+                char = Character(name="Chrome", is_pc=True, owner_token=hash_token("runner-token"))
+                db.add(char)
+                await db.commit()
+                char_id = char.id
+
+            async with sessions() as db_a, sessions() as db_b:
+                char_a = await db_a.get(Character, char_id)
+                char_b = await db_b.get(Character, char_id)  # both tabs see version=0
+
+                char_a.nuyen = 100
+                await db_a.commit()  # bumps version to 1
+
+                char_b.nuyen = 200
+                with pytest.raises(StaleDataError):
+                    await db_b.commit()  # still targets WHERE version=0 -- no row matches
+
+    asyncio.run(scenario())
 
 
 def test_lifestyle_name_property_maps_ordinal_to_label():

@@ -35,8 +35,13 @@ const initGearPicker = (function () {
   let gradeTable = null;         // {GradeName: {ess, nuyen, book}} or null if the host doesn't offer grade choice
   let pickerEnabledBooks = new Set();
   let maxQtyFn = null;            // opts.maxQty(item, cat) -- how many more of this the host would actually let through
+  let excludedCats = new Set();   // opts.excludeCategories -- tabs this host doesn't want to expose at all
+  let presetData = null;          // opts.data -- {src: [items]} the host already has loaded; skips a refetch per src
+  let presetVehicleClasses = null; // opts.vehicleClasses -- skips the /catalog/vehicle-classes refetch
+  let searchTimer = null;         // debounce handle for the item-list search box
 
   function qs(sel) { return root.querySelector(sel); }
+  function activeCats() { return CATS.filter(c => !excludedCats.has(c.k)); }
   // Cyberware only (bioware has no grade concept); skillsoft-style "other" cyberware items are
   // ungraded too (matches makeGearLine's item.cat === 'other' -> noGrade rule in shared.js).
   function isGradeable(it, cat) { return !!gradeTable && cat === "cyberware" && it && it.cat !== "other"; }
@@ -80,22 +85,19 @@ const initGearPicker = (function () {
       ? (a, b) => parseNum(a.cost) - parseNum(b.cost)
       : (a, b) => (a.n || "").localeCompare(b.n || "", undefined, { numeric: true }));
   }
+  // order=[] degenerates to "every group sorted, nothing pinned first" -- the same result a
+  // dedicated labelSections(items, labelFn) used to compute via a near-identical copy of this loop.
   function orderedSections(items, labelFn, order) {
     const groups = {};
     items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
     const extra = Object.keys(groups).filter(g => !order.includes(g)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     return [...order, ...extra].map(g => ({ label: g, items: groups[g] || [] }));
   }
-  function labelSections(items, labelFn) {
-    const groups = {};
-    items.forEach(it => { const g = labelFn(it); (groups[g] = groups[g] || []).push(it); });
-    return Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(g => ({ label: g, items: groups[g] }));
-  }
   function sectionsFor(def, items) {
     const k = def.k;
     if (k === "weapons") return orderedSections(items, weaponGroupLabel, WEAPON_GROUP_ORDER);
     if (k === "armor") return orderedSections(items, armorGroupLabel, ARMOR_GROUP_ORDER);
-    if (k === "gear") return labelSections(items, gearGroupLabel);
+    if (k === "gear") return orderedSections(items, gearGroupLabel, []);
     if (k === "foci") return orderedSections(items, it => it.sub || "Foci", FOCI_GROUP_ORDER);
     if (k === "matrix") {
       const isComp = it => it.sub === "Cyberdeck Component";
@@ -121,7 +123,7 @@ const initGearPicker = (function () {
 
   /* ---------- tabs / list ---------- */
   function renderTabs() {
-    qs("#gcTabs").innerHTML = CATS.map(c =>
+    qs("#gcTabs").innerHTML = activeCats().map(c =>
       `<button type="button" class="tab ${curCat === c.k ? "is-active" : ""}" data-cat="${c.k}">${esc(c.label)}</button>`).join("");
     root.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => {
       curCat = b.dataset.cat; selected = null; renderTabs(); renderList(); renderInspector();
@@ -230,7 +232,7 @@ const initGearPicker = (function () {
       ? `<div class="gc-blk"><h5>Options</h5><div class="gc-opts">${it.options.map(o => {
           const on = selOpts.includes(o.n);
           const bits = [money(parseNum(o.cost))];
-          if (Number(o.ess)) bits.push(esc(String(o.ess)) + " Ess");
+          if (o.ess != null) bits.push(esc(String(o.ess)) + " Ess");
           if (o.index != null) bits.push("Index " + esc(String(o.index)));
           if (o.avail) bits.push("Avail " + esc(String(o.avail)));
           return `<label class="gc-opt"><input type="checkbox" class="chk-reveal" data-opt="${esc(o.n)}"${on ? " checked" : ""}>
@@ -328,14 +330,27 @@ const initGearPicker = (function () {
   }
 
   /* ---------- boot ---------- */
+  // Both hosts (play-sheet.html, character-builder.html) already fetch weapons/armor/cyberware/
+  // bioware/gear/vehicles for their own page before ever opening this picker -- opts.data lets them
+  // hand that over so this only fetches the src(s) the host didn't already have (typically just
+  // "foci", which neither host preloads).
   async function loadAll() {
     try {
-      const srcs = [...new Set(CATS.map(c => c.src || c.k))];
-      const results = await Promise.all(srcs.map(s =>
-        apiFetch("/catalog/" + s).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] }))));
-      srcs.forEach((s, i) => { DATA[s] = (results[i] && results[i].items) || []; });
-      const vc = await apiFetch("/catalog/vehicle-classes").then(r => r.ok ? r.json() : null).catch(() => null);
-      VEHICLE_CLASSES = (vc && vc.classes) || {};
+      const srcs = [...new Set(activeCats().map(c => c.src || c.k))];
+      const missing = srcs.filter(s => !(presetData && presetData[s]));
+      const fetched = {};
+      if (missing.length) {
+        const results = await Promise.all(missing.map(s =>
+          apiFetch("/catalog/" + s).then(r => r.ok ? r.json() : { items: [] }).catch(() => ({ items: [] }))));
+        missing.forEach((s, i) => { fetched[s] = (results[i] && results[i].items) || []; });
+      }
+      srcs.forEach(s => { DATA[s] = (presetData && presetData[s]) || fetched[s] || []; });
+      if (presetVehicleClasses) {
+        VEHICLE_CLASSES = presetVehicleClasses;
+      } else {
+        const vc = await apiFetch("/catalog/vehicle-classes").then(r => r.ok ? r.json() : null).catch(() => null);
+        VEHICLE_CLASSES = (vc && vc.classes) || {};
+      }
       dataLoaded = true;
       renderTabs(); renderList(); renderInspector();
     } catch (e) {
@@ -356,13 +371,21 @@ const initGearPicker = (function () {
   // dash (nothing to choose), >1 makes it an editable number capped at that value. Omit for unlimited.
   // Purchase-result messages (blocked, failed, "Purchased!") render inline in the modal itself
   // (#gcBuyMsg) rather than through any page-level alert element, which can sit behind the modal.
+  // opts.excludeCategories: array of CATS keys to hide entirely -- e.g. chargen excludes "foci"
+  // because it has its own dedicated Foci step (Magic Rating cap, Adept-only weapon-focus gating,
+  // bonding karma) that a bare picker purchase would silently bypass and then lose at commit time.
+  // opts.data: {src: [items]} of catalogs the host already fetched for its own page -- skips this
+  // module's own fetch for any src present. opts.vehicleClasses: same idea for /catalog/vehicle-classes.
   return function initGearPicker(rootEl, opts) {
     root = rootEl;
     onPurchase = (opts && opts.onPurchase) || null;
     gradeTable = (opts && opts.gradeTable) || null;
     pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
     maxQtyFn = (opts && opts.maxQty) || null;
-    if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat)) {
+    excludedCats = new Set((opts && opts.excludeCategories) || []);
+    presetData = (opts && opts.data) || null;
+    presetVehicleClasses = (opts && opts.vehicleClasses) || null;
+    if (opts && opts.initialCat && CATS.some(c => c.k === opts.initialCat) && !excludedCats.has(opts.initialCat)) {
       // A Manage-X panel's "Buy X" shortcut always names its own tab explicitly -- if that's a
       // *different* tab than whatever was last active, a leftover search term from browsing a
       // different category would be confusing (e.g. searched "vehicle" while buying Cyberware, then
@@ -371,6 +394,7 @@ const initGearPicker = (function () {
       curCat = opts.initialCat;
       selected = null;
     }
+    if (excludedCats.has(curCat)) { curCat = activeCats()[0].k; selected = null; }
     root.innerHTML = `
       <div class="tabs tabs--green" id="gcTabs"></div>
       <div class="gc-toolbar">
@@ -388,7 +412,12 @@ const initGearPicker = (function () {
         </div>
       </div>`;
     qs("#gcSearch").value = filter;
-    qs("#gcSearch").addEventListener("input", (e) => { filter = e.target.value; renderList(); });
+    // Debounced ~180ms so a full filter/sort/rebuild pass doesn't run on every keystroke.
+    qs("#gcSearch").addEventListener("input", (e) => {
+      const val = e.target.value;
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { filter = val; renderList(); }, 180);
+    });
     if (dataLoaded) { renderTabs(); renderList(); renderInspector(); }
     else { loadAll(); }
   };
