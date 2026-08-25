@@ -117,6 +117,18 @@ async def _ensure_character_portrait_column():
         print("[startup] Added characters.portrait_url column")
 
 
+async def _ensure_character_version_column():
+    """Startup safety migration for the characters optimistic-lock column.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    characters table. Add it in place when an older DB file predates the column.
+    """
+    if await _ensure_sqlite_column(
+        "characters", "version", "INTEGER NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added characters.version column")
+
+
 async def _ensure_contact_type_column():
     """Startup safety migration for contacts.contact_type on SQLite deployments. create_all won't
     add columns to an existing contacts table; add it in place when an older DB predates it.
@@ -238,6 +250,17 @@ async def _ensure_matrix_host_id_code_column():
     """
     if await _ensure_sqlite_column("matrix_hosts", "id_code", "VARCHAR(20)"):
         print("[startup] Added matrix_hosts.id_code column")
+
+
+async def _ensure_matrix_host_trap_doors_json_column():
+    """Startup safety migration for matrix_hosts.trap_doors_json on SQLite deployments.
+
+    create_all only creates missing tables; it won't add a column to an existing
+    matrix_hosts table. The reconciliation query in _ensure_matrix_host_trap_dest_column
+    reads this column, so it must exist before that guard runs.
+    """
+    if await _ensure_sqlite_column("matrix_hosts", "trap_doors_json", "JSON"):
+        print("[startup] Added matrix_hosts.trap_doors_json column")
 
 
 async def _ensure_matrix_host_trap_dest_column():
@@ -363,11 +386,13 @@ async def lifespan(app: FastAPI):
         await _ensure_character_chargen_state_column()
         await _ensure_character_condition_monitor_columns()
         await _ensure_character_portrait_column()
+        await _ensure_character_version_column()
         await _ensure_contact_type_column()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()
         await _ensure_matrix_host_id_code_column()
+        await _ensure_matrix_host_trap_doors_json_column()
         await _ensure_matrix_host_trap_dest_column()
         await _migrate_plaintext_owner_tokens()
         await _ensure_adventure_run_number_schema()
