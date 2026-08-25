@@ -239,6 +239,29 @@
             </div>
           </div>
         </div>
+
+        <!-- Beta/Delta cyber grades are GM-narrative-gated (never buyable at chargen -- see
+             character-builder.html's GRADES). This is the only place a GM unlocks them for a
+             specific character; the play-sheet Buy Gear picker greys the grade out until this is
+             checked (see ESS_GRADE_MULT/openManageBuyGear in play-sheet.html), and the server
+             rejects a player gear PATCH that sets it anyway (_assert_gear_grades_allowed). -->
+        <div id="gradeAccessSection" class="mt-10">
+          <div class="skills-head-row">
+            <span class="skills-col-head">Grade Access <span style="font-size:0.55rem;color:var(--text-dim);letter-spacing:1px">// GM ONLY</span></span>
+          </div>
+          <div class="mb-8 skills-row">
+            <label id="grade-label-beta" class="chk-row skills-label">
+              <input type="checkbox" class="chk-reveal" id="f-beta_grade_approved">
+              Beta Grade Unlocked
+            </label>
+          </div>
+          <div class="mb-8 skills-row">
+            <label id="grade-label-delta" class="chk-row skills-label">
+              <input type="checkbox" class="chk-reveal" id="f-delta_grade_approved">
+              Delta Grade Unlocked
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- Organization -->
@@ -630,6 +653,20 @@ function syncSkillsSectionUI() {
   });
 
   syncMathSpuUI(isAdminView);
+  syncGradeAccessUI(isAdminView);
+}
+
+// Grade Access is GM-only (see gradeAccessSection above): admins get live checkboxes, players get a
+// plain locked/unlocked readout -- always visible either way, unlike math_spu's hide-when-off,
+// since knowing whether they're approved is exactly the point (drives the "ask your GM" conversation).
+function syncGradeAccessUI(isAdminView) {
+  ['beta', 'delta'].forEach((grade) => {
+    const enabledEl = document.getElementById(`f-${grade}_grade_approved`);
+    const label = document.getElementById(`grade-label-${grade}`);
+    if (!enabledEl) return;
+    enabledEl.disabled = !isAdminView;
+    if (label) label.classList.toggle('skills-label-disabled', !isAdminView);
+  });
 }
 
 function syncMathSpuUI(isAdminView) {
@@ -839,6 +876,8 @@ function openModal(id) {
   document.getElementById('f-computer_br_skill_rating').value = ch?.computer_br_skill_rating ?? 0;
   document.getElementById('f-math_spu_enabled').checked = !!ch?.math_spu_enabled;
   document.getElementById('f-math_spu_rating').value = ch?.math_spu_rating ?? 0;
+  document.getElementById('f-beta_grade_approved').checked = !!ch?.beta_grade_approved;
+  document.getElementById('f-delta_grade_approved').checked = !!ch?.delta_grade_approved;
   document.getElementById('f-intelligence').value = ch?.intelligence ?? 0;
   document.getElementById('f-quickness').value = ch?.quickness ?? 0;
   document.getElementById('f-willpower').value = ch?.willpower ?? 0;
@@ -968,6 +1007,8 @@ async function saveChar() {
               ? Math.min(4, Math.max(1, parseInt(document.getElementById('f-math_spu_rating').value) || 1))
               : 0)
           : 0,
+        beta_grade_approved: isPC ? !!document.getElementById('f-beta_grade_approved').checked : false,
+        delta_grade_approved: isPC ? !!document.getElementById('f-delta_grade_approved').checked : false,
         intelligence: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-intelligence').value) || 0)) : 0,
         quickness: isPC ? Math.min(12, Math.max(0, parseInt(document.getElementById('f-quickness').value) || 0)) : 0,
         willpower: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-willpower').value) || 0)) : 0,

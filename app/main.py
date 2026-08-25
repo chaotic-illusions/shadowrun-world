@@ -154,6 +154,20 @@ async def _ensure_character_math_spu_columns():
         print("[startup] Added characters.math_spu_rating column")
 
 
+async def _ensure_character_grade_approval_columns():
+    """Startup safety migration for the Beta/Delta cyber grade GM-approval columns on SQLite
+    deployments. create_all won't add columns to an existing characters table. Idempotent.
+    """
+    if await _ensure_sqlite_column(
+        "characters", "beta_grade_approved", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added characters.beta_grade_approved column")
+    if await _ensure_sqlite_column(
+        "characters", "delta_grade_approved", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added characters.delta_grade_approved column")
+
+
 async def _ensure_character_sheet_columns():
     """Startup safety migration for the promoted SR2 character-sheet columns.
 
@@ -382,6 +396,7 @@ async def lifespan(app: FastAPI):
         # on an existing DB before the guard has a chance to add it.
         await _ensure_character_deck_builder_state_column()
         await _ensure_character_math_spu_columns()
+        await _ensure_character_grade_approval_columns()
         await _ensure_character_sheet_columns()
         await _ensure_character_chargen_state_column()
         await _ensure_character_condition_monitor_columns()

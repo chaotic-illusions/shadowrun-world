@@ -64,6 +64,11 @@ class Character(Base):
     # Math SPU cyberware: adds floor(rating/2) to Intelligence for Hacking Pool. 0 when disabled.
     math_spu_enabled: Mapped[bool] = mapped_column(default=False)
     math_spu_rating: Mapped[int] = mapped_column(Integer, default=0)
+    # GM authorization to buy Beta/Delta-grade cyberware post-chargen (narratively gated, never
+    # player-writable -- see _PLAYER_WRITABLE_FIELDS in app/routers/characters.py). Defaults False
+    # so no existing character is auto-approved.
+    beta_grade_approved: Mapped[bool] = mapped_column(default=False)
+    delta_grade_approved: Mapped[bool] = mapped_column(default=False)
     intelligence: Mapped[int] = mapped_column(Integer, default=0)
     quickness: Mapped[int] = mapped_column(Integer, default=0)
     willpower: Mapped[int] = mapped_column(Integer, default=0)

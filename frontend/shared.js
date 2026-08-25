@@ -922,7 +922,7 @@ function gearLineCost(g) {
 // used to be two independently-maintained implementations that had quietly drifted (unclamped vs.
 // clamped rating; whether add-on options get graded with the base or added after). One shared
 // version here, each page supplies its own grade-multiplier table (e.g. {Standard:{ess:1,nuyen:1},
-// Alpha:{ess:0.8,nuyen:2}}) since that table's shape/extra fields (chargen's book-gating) are
+// Alpha:{ess:0.8,nuyen:3}}) since that table's shape/extra fields (chargen's book-gating) are
 // page-specific, but the actual math never should be.
 
 // Rating clamped into [minRating, maxRating] -- same defensive reasoning as gearLineCost above.
