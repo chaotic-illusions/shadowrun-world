@@ -144,15 +144,17 @@ function _buildMatrixNavGroup() {
 }
 
 // -- DOSSIER nav link -----------------------------------------------------------
-// Play Sheet (renamed Dossier) used to live buried inside the CHARACTERS dropdown -- fine on
-// desktop, but it's the one page people actually need mid-session on a phone, so it gets its own
-// flat, always-visible link instead. Built centrally (like the *NavGroup functions below) so every
-// page's nav gets it in the same spot without hand-editing ~20 static <nav> blocks. Inserted right
-// before Organizations, i.e. World State -> Dossier -> Organizations -> ...; falls back to
-// appending at the end of nav if a page's nav has no Organizations link to anchor on.
-// Also abbreviates "Organizations" to "Orgs" below the mobile breakpoint (matches
-// isMobileViewport()'s breakpoint in this file) -- adding Dossier to an already-wrapping mobile
-// nav needed the space back from somewhere, and Organizations was the longest label in the row.
+// Play Sheet (renamed Dossier) lives in the CHARACTERS dropdown on desktop (_buildCharactersNavGroup
+// below) -- but .nav-group dropdowns are hidden entirely on mobile (style.css), and Dossier is the
+// one page people actually need mid-session on a phone, so it ALSO gets this flat, mobile-only
+// link (style.css hides this copy above the mobile breakpoint so desktop doesn't show it twice).
+// Built centrally (like the *NavGroup functions below) so every page's nav gets it in the same spot
+// without hand-editing ~20 static <nav> blocks. Inserted right before Organizations, i.e. World
+// State -> Dossier -> Organizations -> ...; falls back to appending at the end of nav if a page's
+// nav has no Organizations link to anchor on. Also abbreviates "Organizations" to "Orgs" below the
+// mobile breakpoint (matches isMobileViewport()'s breakpoint in this file) -- adding Dossier to an
+// already-wrapping mobile nav needed the space back from somewhere, and Organizations was the
+// longest label in the row.
 function _buildDossierNavLink() {
   const nav = document.querySelector('header nav');
   if (!nav || nav.querySelector('a[href="play-sheet.html"]')) return;
@@ -173,10 +175,12 @@ function _buildDossierNavLink() {
 
 // -- CHARACTERS nav group ------------------------------------------------------
 // Folds the flat "Characters" link into a "CHARACTERS" dropdown: Known Persons (the registry) +
-// New Runner (the character-builder). Built centrally so every page shares one definition; New
-// Runner is visible to all users. Play Sheet/Hardcopy used to live here too -- Play Sheet (now
-// Dossier) is its own flat link now (_buildDossierNavLink above), and Hardcopy is gone entirely
-// now that Dossier's own Export Official PDF button covers what it did.
+// New Runner (the character-builder) + Dossier (the play sheet). Built centrally so every page
+// shares one definition; New Runner and Dossier are visible to all users. Hardcopy is gone
+// entirely now that Dossier's own Export Official PDF button covers what it did. Dossier ALSO
+// gets its own flat top-level link (_buildDossierNavLink above) -- that copy is mobile-only (see
+// style.css's nav > a[href="play-sheet.html"] rules) since .nav-group dropdowns are hidden
+// entirely on mobile and Dossier needs to stay reachable there; this menu item is its desktop home.
 function _buildCharactersNavGroup() {
   const nav = document.querySelector('header nav');
   if (!nav || nav.querySelector('.nav-group--chars')) return;
@@ -186,6 +190,7 @@ function _buildCharactersNavGroup() {
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
+    { href: 'play-sheet.html', label: 'Dossier' },
   ];
   const here = window.location.pathname;
   const onCharsPage = childDefs.some(d => here.endsWith(d.href));

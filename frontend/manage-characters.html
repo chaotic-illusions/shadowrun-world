@@ -244,21 +244,21 @@
              character-builder.html's GRADES). This is the only place a GM unlocks them for a
              specific character; the play-sheet Buy Gear picker greys the grade out until this is
              checked (see ESS_GRADE_MULT/openManageBuyGear in play-sheet.html), and the server
-             rejects a player gear PATCH that sets it anyway (_assert_gear_grades_allowed). -->
+             rejects a player gear PATCH that sets it anyway (_assert_gear_grades_allowed). Runner
+             view (syncGradeAccessUI) hides each checkbox until it's actually checked -- a player
+             sees only what they've been granted, not the full menu of things they don't have. -->
         <div id="gradeAccessSection" class="mt-10">
           <div class="skills-head-row">
-            <span class="skills-col-head">Grade Access <span style="font-size:0.55rem;color:var(--text-dim);letter-spacing:1px">// GM ONLY</span></span>
+            <span class="skills-col-head">Cyberware Grade Access</span>
           </div>
-          <div class="mb-8 skills-row">
+          <div class="mb-8" style="display:flex;gap:20px;flex-wrap:wrap;margin-top:6px">
             <label id="grade-label-beta" class="chk-row skills-label">
               <input type="checkbox" class="chk-reveal" id="f-beta_grade_approved">
-              Beta Grade Unlocked
+              Betaware Available
             </label>
-          </div>
-          <div class="mb-8 skills-row">
             <label id="grade-label-delta" class="chk-row skills-label">
               <input type="checkbox" class="chk-reveal" id="f-delta_grade_approved">
-              Delta Grade Unlocked
+              Deltaware Available
             </label>
           </div>
         </div>
@@ -656,17 +656,27 @@ function syncSkillsSectionUI() {
   syncGradeAccessUI(isAdminView);
 }
 
-// Grade Access is GM-only (see gradeAccessSection above): admins get live checkboxes, players get a
-// plain locked/unlocked readout -- always visible either way, unlike math_spu's hide-when-off,
-// since knowing whether they're approved is exactly the point (drives the "ask your GM" conversation).
+// Admins get both live checkboxes always. A runner only ever sees the grades they've actually
+// been granted -- an unchecked box would just be a menu of things they don't have, so it (and the
+// whole section, if neither is granted) stays hidden rather than shown-but-disabled.
 function syncGradeAccessUI(isAdminView) {
-  ['beta', 'delta'].forEach((grade) => {
-    const enabledEl = document.getElementById(`f-${grade}_grade_approved`);
-    const label = document.getElementById(`grade-label-${grade}`);
-    if (!enabledEl) return;
-    enabledEl.disabled = !isAdminView;
-    if (label) label.classList.toggle('skills-label-disabled', !isAdminView);
-  });
+  const section = document.getElementById('gradeAccessSection');
+  const betaEl = document.getElementById('f-beta_grade_approved');
+  const deltaEl = document.getElementById('f-delta_grade_approved');
+  if (!section || !betaEl || !deltaEl) return;
+  betaEl.disabled = !isAdminView;
+  deltaEl.disabled = !isAdminView;
+  const betaLabel = document.getElementById('grade-label-beta');
+  const deltaLabel = document.getElementById('grade-label-delta');
+  if (isAdminView) {
+    section.style.display = '';
+    if (betaLabel) betaLabel.style.display = '';
+    if (deltaLabel) deltaLabel.style.display = '';
+  } else {
+    section.style.display = (betaEl.checked || deltaEl.checked) ? '' : 'none';
+    if (betaLabel) betaLabel.style.display = betaEl.checked ? '' : 'none';
+    if (deltaLabel) deltaLabel.style.display = deltaEl.checked ? '' : 'none';
+  }
 }
 
 function syncMathSpuUI(isAdminView) {

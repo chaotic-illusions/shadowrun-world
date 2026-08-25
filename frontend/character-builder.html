@@ -215,6 +215,11 @@
   .cbx-landcard__a{margin-top:auto;color:var(--green);font-size:var(--fs-xs);}
   .cbx-landcard--new{border-style:dashed;border-color:#2f4a2f;}
   .cbx-landcard--new .cbx-landcard__h{color:var(--green);}
+  .cbx-landcard-wrap{position:relative;}
+  .cbx-landcard-wrap .cbx-landcard{width:100%;}
+  .cbx-landcard__x{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--red);
+    cursor:pointer;font-size:1.1rem;line-height:1;padding:4px;z-index:1;}
+  .cbx-landcard__x:hover{color:#ff5555;}
   #cbxModeBanner:not(:empty){margin-bottom:12px;padding:8px 12px;background:rgba(0,200,255,.06);
     border:1px solid #14384a;color:var(--cyan);font-size:var(--fs-xs);letter-spacing:.5px;}
   .cbx-resume{margin:0 0 14px;padding:8px 12px;background:#0d0d0d;border:1px solid #1a2a1a;font-size:var(--fs-xs);color:var(--text-dim);}
@@ -1954,11 +1959,14 @@ function wizardChrome(show) {
 }
 function landingCardHTML(d) {
   const meta = [d.race, d.archetype].filter(Boolean).map(esc).join(" - ");
-  return `<button type="button" class="cbx-landcard" data-resume="${esc(String(d.id))}">
-    <div class="cbx-landcard__h">${esc(d.name || "Unnamed Runner")}</div>
-    <div class="cbx-landcard__m">Draft #${esc(String(d.id))}${meta ? " - " + meta : ""}</div>
-    <div class="cbx-landcard__a">Resume &rsaquo;</div>
-  </button>`;
+  return `<div class="cbx-landcard-wrap">
+    <button type="button" class="cbx-landcard" data-resume="${esc(String(d.id))}">
+      <div class="cbx-landcard__h">${esc(d.name || "Unnamed Runner")}</div>
+      <div class="cbx-landcard__m">Draft #${esc(String(d.id))}${meta ? " - " + meta : ""}</div>
+      <div class="cbx-landcard__a">Resume &rsaquo;</div>
+    </button>
+    <button type="button" class="cbx-landcard__x" data-delete-draft="${esc(String(d.id))}" title="Delete draft" aria-label="Delete draft">&times;</button>
+  </div>`;
 }
 function showLanding() {
   const land = document.getElementById("cbxLanding");
@@ -1980,6 +1988,17 @@ function showLanding() {
   land.querySelectorAll("[data-resume]").forEach(el => el.onclick = () => {
     window.location.href = `character-builder.html?resume=${encodeURIComponent(el.dataset.resume)}`;
   });
+  land.querySelectorAll("[data-delete-draft]").forEach(el => el.onclick = () => deleteDraftCard(el.dataset.deleteDraft));
+}
+// Discard a saved draft from the landing page without resuming it first -- same DELETE the
+// in-wizard "Reset Draft" button uses (cbxReset above), just reachable from the draft's own card.
+async function deleteDraftCard(id) {
+  const draft = (MY_DRAFTS || []).find(d => String(d.id) === String(id));
+  const label = draft ? (draft.name || "Unnamed Runner") : "this draft";
+  if (!await showConfirm(`DELETE draft "${label}"? This cannot be undone.`, 'Confirm')) return;
+  try { await apiFetch(`/characters/${encodeURIComponent(id)}`, { method: "DELETE" }); } catch (_) {}
+  MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : MY_DRAFTS).catch(() => MY_DRAFTS);
+  showLanding();
 }
 function showWizard() {
   document.getElementById("cbxLanding").style.display = "none";
