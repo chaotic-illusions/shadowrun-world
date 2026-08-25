@@ -384,6 +384,11 @@ nav a {
    _buildDossierNavLink()) -- flipped below 720px/930px-landscape, see the mobile media query
    further down this file ("Nav label abbreviation"). */
 .nav-abbr { display: none; }
+/* The flat Dossier link (_buildDossierNavLink()) is mobile-only -- on desktop it lives inside the
+   CHARACTERS dropdown instead (_buildCharactersNavGroup()'s childDefs), so hide the flat copy here
+   and re-show it in the mobile media query below, where dropdowns (.nav-group) are hidden entirely
+   and Dossier needs its own always-visible link to stay reachable. */
+nav > a[href="play-sheet.html"] { display: none; }
 nav a:hover, nav a.active {
   color: var(--green);
   border-color: var(--green-dark);
@@ -3805,7 +3810,8 @@ main:has(.md3) { max-width: 1800px; }
   nav > a[href="world-state.html"],
   nav > a[href="manage-characters.html"],
   nav > a[href="manage-locations.html"],
-  nav > a[href="manage-organizations.html"] { display: inline-block; }
+  nav > a[href="manage-organizations.html"],
+  nav > a[href="play-sheet.html"] { display: inline-block; }
 
   /* Form-row grids: stack to one column instead of squeezing onto a phone
      width. */
