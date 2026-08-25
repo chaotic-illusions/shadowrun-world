@@ -662,6 +662,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .btn-ghost:hover { color: var(--text-bright); border-color: #444; }
 .btn-cyan { color: var(--cyan); border-color: #045; }
 .btn-cyan:hover { background: rgba(0,204,255,.08); box-shadow: var(--glow-cyan, 0 0 8px rgba(0,204,255,.35)); text-shadow: var(--glow-cyan, 0 0 8px rgba(0,204,255,.35)); }
+.btn-violet { color: var(--violet); border-color: #2a1a4a; }
+.btn-violet:hover { background: rgba(153,102,255,.08); box-shadow: 0 0 8px rgba(153,102,255,.35); text-shadow: 0 0 8px rgba(153,102,255,.35); }
 .btn-sm { font-size: var(--btn-sm-fs); padding: var(--btn-sm-pad); letter-spacing: 1px; }
 .btn-submit { width: 100%; justify-content: center; font-size: var(--fs-xl); padding: 14px; letter-spacing: 3px; margin-top: 10px; }
 
@@ -2209,7 +2211,11 @@ body.deck-interrupt-active main {
   text-transform: uppercase;
   cursor: pointer;
 }
-.limit-target-row input[type=radio].opt-radio {
+/* App-wide circular radio control -- was defined scoped-only under .limit-target-row and never
+   actually used anywhere; generalized so any page can drop a themed radio in with class="opt-radio"
+   instead of a bare native one (or a bare native one styled only with accent-color, which still
+   renders as a plain OS control on most browsers). */
+input[type=radio].opt-radio {
   appearance: none;
   -webkit-appearance: none;
   width: 14px;
@@ -2223,12 +2229,12 @@ body.deck-interrupt-active main {
   cursor: pointer;
   transition: border-color .12s, background .12s;
 }
-.limit-target-row input[type=radio].opt-radio:hover { border-color: #006600; }
-.limit-target-row input[type=radio].opt-radio:checked {
+input[type=radio].opt-radio:hover { border-color: #006600; }
+input[type=radio].opt-radio:checked {
   border-color: var(--green);
   background: rgba(0,255,65,.12);
 }
-.limit-target-row input[type=radio].opt-radio:checked::after {
+input[type=radio].opt-radio:checked::after {
   content: '';
   position: absolute;
   width: 6px;
@@ -2238,6 +2244,7 @@ body.deck-interrupt-active main {
   top: 3px;
   left: 3px;
 }
+input[type=radio].opt-radio:disabled { cursor: not-allowed; opacity: .5; }
 .opt-row {
   display: flex;
   align-items: center;
@@ -3852,3 +3859,56 @@ main:has(.md3) { max-width: 1800px; }
      reads these fields on save is unaffected. */
   .mob-hide { display: none !important; }
 }
+
+/* Gear picker (frontend/gear-picker.js) -- shared catalog-browser + shopping-cart engine, mounted
+   on the standalone Gear Catalog page and inside the play-sheet's Buy Gear modal. */
+.gc-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+.gc-toolbar input[type=text]{width:320px;}
+.gc-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.4fr) minmax(260px,.9fr);gap:14px;align-items:start;}
+@media (max-width:1100px){.gc-grid{grid-template-columns:1fr;}}
+.gc-grid--2col{grid-template-columns:minmax(260px,1fr) minmax(360px,1.6fr);}
+@media (max-width:760px){.gc-grid--2col{grid-template-columns:1fr;}}
+.gc-panel{background:var(--bg-panel,#0d1512);border:1px solid #1c2b22;border-radius:4px;padding:12px 14px;}
+.gc-panel__h{color:var(--text-bright);font-size:.7rem;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;border-bottom:1px solid #142019;padding-bottom:6px;}
+.gc-list{max-height:70vh;overflow:auto;}
+.gc-cat{color:var(--green-dim,#7fae86);font-size:.6rem;letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;}
+.gc-subcat{color:var(--cyan);font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin:6px 0 2px 8px;}
+.gc-item{display:flex;justify-content:space-between;gap:8px;padding:4px 6px;border-radius:3px;cursor:pointer;font-size:.78rem;}
+.gc-item:hover{background:#122019;}
+.gc-item.is-sel{background:#16281e;color:var(--text-bright);}
+.gc-item__c{color:var(--text-dim);white-space:nowrap;}
+.gc-insp__n{color:var(--text-bright);font-size:1rem;letter-spacing:.5px;}
+.gc-insp__sub{color:var(--green);font-size:.62rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.gc-stat{color:var(--text-dim);font-size:.8rem;margin:6px 0;}
+.gc-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.74rem;color:var(--text-dim);margin:8px 0;}
+.gc-meta b{color:var(--green-dim,#7fae86);font-weight:600;}
+.gc-meta select{background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #1a2a1a;font-family:inherit;font-size:.74rem;padding:3px 6px;vertical-align:middle;}
+.gc-rsel{width:52px;}
+#gcGrade{width:100px;}
+.gc-opts{display:flex;flex-direction:column;gap:7px;}
+.gc-opt{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
+.gc-opt input{margin-top:1px;flex:none;}
+.gc-opt__b{display:flex;flex-direction:column;gap:1px;}
+.gc-opt__n{color:var(--text-bright);font-size:.8rem;}
+.gc-opt__c{color:var(--green-dim,#7fae86);font-size:.72rem;}
+.gc-opt__d{color:var(--text-dim);font-size:.72rem;line-height:1.35;}
+.gc-desc{color:var(--text-dim);font-size:.78rem;line-height:1.4;margin:8px 0;}
+.gc-blk{margin:8px 0;}
+.gc-blk h5{color:var(--green-dim,#7fae86);font-size:.6rem;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px;}
+.gc-blk ul{margin:0;padding-left:16px;}
+.gc-blk li{color:var(--text-dim);font-size:.76rem;padding:1px 0;}
+.gc-raw{margin-top:10px;border-top:1px solid #142019;padding-top:8px;}
+.gc-raw table{width:100%;border-collapse:collapse;font-size:.72rem;}
+.gc-raw td{padding:2px 6px;vertical-align:top;border-bottom:1px solid #0f1a14;}
+.gc-raw td:first-child{color:var(--green-dim,#7fae86);white-space:nowrap;width:38%;}
+.gc-raw td:last-child{color:var(--text-dim);word-break:break-word;}
+.gc-add{display:flex;gap:16px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+.gc-add select,.gc-add input{background:var(--bg-input,#0a0f0c);color:var(--text-bright);border:1px solid #1a2a1a;padding:5px 8px;font-family:inherit;font-size:.78rem;}
+.gc-add__f{display:flex;align-items:center;gap:6px;}
+.gc-add__f b{color:var(--text-dim);font-weight:400;text-transform:uppercase;font-size:.6rem;letter-spacing:1px;}
+.gc-dash{color:var(--text-dim,#888);font-size:.85rem;padding:5px 8px;opacity:.5;}
+.gc-count{color:var(--text-dim);font-size:.66rem;}
+.gc-buy-msg{color:var(--green-bright,#0f0);font-size:.78rem;opacity:0;}
+.gc-buy-msg.is-err{color:var(--red,#ff3333);}
+.gc-buy-msg.is-show{animation:gcBuyMsgFade 2.2s ease forwards;}
+@keyframes gcBuyMsgFade{0%{opacity:1}70%{opacity:1}100%{opacity:0}}

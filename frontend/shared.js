@@ -156,7 +156,7 @@ function _buildCharactersNavGroup() {
   const childDefs = [
     { href: 'manage-characters.html', label: 'Known Persons' },
     { href: 'character-builder.html', label: 'New Runner' },
-    { href: 'gear.html', label: 'Gear Catalog' },
+    { href: 'play-sheet.html', label: 'Play Sheet' },
     { href: 'hardcopy.html', label: 'Hardcopy' },
   ];
   const here = window.location.pathname;
@@ -456,6 +456,13 @@ function _confirmNewToken(token) {
 
 // -- Shared DOM helpers -------------------------------------------------------
 
+/** Format a nuyen amount for display. Three separately-maintained copies of this (play-sheet.html,
+ *  gear-picker.js, character-builder.html) had quietly drifted to different formats (prefix vs.
+ *  suffix, with/without a pinned locale) -- this is the one canonical version. */
+function money(n) {
+  return '¥' + (Number(n) || 0).toLocaleString('en-US');
+}
+
 /** HTML-escape a string for safe insertion into HTML text and quoted HTML attributes.
  *  Never interpolate data into inline JavaScript handlers; HTML entities are decoded before
  *  those handlers are compiled. Use data attributes and addEventListener instead. */
@@ -469,11 +476,13 @@ function esc(s) {
     .replace(/`/g,'&#96;');
 }
 
-/** Flash an alert banner inside the given element. */
-function showAlert(el, msg, isErr) {
+/** Flash an alert banner inside the given element. Pass noScroll to leave the page's scroll
+ *  position untouched (e.g. for actions triggered from inside a modal, where jumping the
+ *  background page to reveal the banner is disorienting rather than helpful). */
+function showAlert(el, msg, isErr, noScroll) {
   el.textContent = msg;
   el.className = `alert show ${isErr ? 'alert-err' : 'alert-ok'}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (!noScroll) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -543,12 +552,15 @@ function showConfirm(message, okLabel = 'Confirm', okClass = 'btn-green') {
  * opts: { okLabel='OK', okClass='btn-green', title='>> INPUT REQUIRED',
  *         inputType='text', placeholder='', min=null, max=null }
  */
+// opts.options (string[]), when given, renders a <select> of those choices instead of a free-text
+// <input> -- used for pick-one prompts like "which active skill is this Activesoft loaded with?".
 function showPrompt(message, defaultVal = '', opts = {}) {
   const okLabel     = opts.okLabel     || 'OK';
   const okClass     = opts.okClass     || 'btn-green';
   const title       = opts.title       || '>> INPUT REQUIRED';
   const inputType   = opts.inputType   || 'text';
   const placeholder = opts.placeholder || '';
+  const options     = opts.options;
   return new Promise(resolve => {
     let overlay = document.getElementById('_sharedPromptOverlay');
     if (!overlay) {
@@ -572,23 +584,44 @@ function showPrompt(message, defaultVal = '', opts = {}) {
 
     const titleEl = document.getElementById('_sharedPromptTitle');
     const msgEl   = document.getElementById('_sharedPromptMsg');
-    const input   = document.getElementById('_sharedPromptInput');
     const okBtn   = document.getElementById('_sharedPromptOk');
     const cancel  = document.getElementById('_sharedPromptCancel');
 
+    // The field node is cached/reused across calls; swap it between <input> and <select> as needed
+    // so a previous call's kind doesn't leak into this one.
+    let field = document.getElementById('_sharedPromptInput');
+    const wantSelect = Array.isArray(options) && options.length > 0;
+    if (wantSelect && field.tagName !== 'SELECT') {
+      const sel = document.createElement('select');
+      sel.id = '_sharedPromptInput';
+      sel.style.marginBottom = '22px';
+      field.replaceWith(sel); field = sel;
+    } else if (!wantSelect && field.tagName !== 'INPUT') {
+      const inp = document.createElement('input');
+      inp.id = '_sharedPromptInput'; inp.type = 'text';
+      inp.style.marginBottom = '22px';
+      field.replaceWith(inp); field = inp;
+    }
+
     titleEl.textContent = title;
     msgEl.textContent   = message;
-    input.type          = inputType;
-    // Optional numeric bounds -- reset every call (the input node is cached and reused).
-    if (opts.max != null) input.max = String(opts.max); else input.removeAttribute('max');
-    if (opts.min != null) input.min = String(opts.min); else input.removeAttribute('min');
-    input.placeholder   = placeholder;
-    input.value         = defaultVal == null ? '' : String(defaultVal);
+    if (wantSelect) {
+      field.innerHTML = options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      field.value = defaultVal && options.includes(defaultVal) ? defaultVal : options[0];
+    } else {
+      field.type = inputType;
+      // Optional numeric bounds / max length -- reset every call (the input node is cached and reused).
+      if (opts.max != null) field.max = String(opts.max); else field.removeAttribute('max');
+      if (opts.min != null) field.min = String(opts.min); else field.removeAttribute('min');
+      if (opts.maxLength != null) field.maxLength = opts.maxLength; else field.removeAttribute('maxlength');
+      field.placeholder = placeholder;
+      field.value = defaultVal == null ? '' : String(defaultVal);
+    }
     okBtn.textContent   = okLabel;
     okBtn.className     = `btn ${okClass}`;
     pausePoll();
     overlay.style.display = 'flex';
-    setTimeout(() => { input.focus(); input.select(); }, 30);
+    setTimeout(() => { field.focus(); if (field.select) field.select(); }, 30);
 
     function cleanup(result) {
       resumePoll();
@@ -596,21 +629,21 @@ function showPrompt(message, defaultVal = '', opts = {}) {
       okBtn.removeEventListener('click', onOk);
       cancel.removeEventListener('click', onCancel);
       overlay.removeEventListener('click', onBackdrop);
-      input.removeEventListener('keydown', onKey);
+      field.removeEventListener('keydown', onKey);
       resolve(result);
     }
-    function onOk()       { cleanup(input.value); }
+    function onOk()       { cleanup(field.value); }
     function onCancel()   { cleanup(null); }
     function onBackdrop(e){ if (e.target === overlay) cleanup(null); }
     function onKey(e) {
-      if (e.key === 'Enter')  { e.preventDefault(); cleanup(input.value); }
+      if (e.key === 'Enter')  { e.preventDefault(); cleanup(field.value); }
       if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
     }
 
     okBtn.addEventListener('click', onOk);
     cancel.addEventListener('click', onCancel);
     overlay.addEventListener('click', onBackdrop);
-    input.addEventListener('keydown', onKey);
+    field.addEventListener('keydown', onKey);
   });
 }
 
@@ -756,6 +789,190 @@ function computeHackingPool(intelligence, mpcp, mathSpu = 0) {
   const brain = Math.max(0, parseInt(mpcp, 10) || 0);
   const spu   = Math.max(0, parseInt(mathSpu, 10) || 0);
   return Math.floor((intel + Math.floor(spu / 2) + brain) / 3);
+}
+
+
+// -- Gear catalog helpers -------------------------------------------------------
+// Shared by character-builder.html's chargen shop and gear-picker.js/play-sheet.html's post-chargen
+// purchases, so both convert a catalog item into the same owned-gear-line shape and cost the same
+// item the same way, without maintaining separate copies of the rules.
+
+// Parse a leading number out of a value that may be a number, a formula string, a range
+// ("15,000 - 60,000"), or null. Returns 0 when nothing numeric is present.
+function parseNum(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v !== 'string') return 0;
+  const m = v.replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+
+// Pull a named row out of an item's stats:[[label,value],...] array (vehicles, cyberdecks).
+function statVal(item, key) {
+  const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
+  return row ? (parseNum(row[1]) || 0) : 0;
+}
+function vehicleStatBody(item) { return statVal(item, 'body'); }
+
+// gear-picker.js's onPurchase entries come back tagged with the picker's own tab key (e.g.
+// "cyberware", "matrix") -- map each to the owned-gear bucket / makeGearLine catalog name it
+// actually belongs under. Shared by play-sheet.html and character-builder.html, the two hosts that
+// mount the picker.
+const GEAR_BUCKET =        { weapons:'weapons', armor:'armor', cyberware:'cyber', bioware:'bio', gear:'gear', matrix:'matrix', foci:'foci', vehicles:'vehicles' };
+const GEAR_LINE_CATALOG =  { weapons:'weapons', armor:'armor', cyberware:'cyberware', bioware:'bioware', gear:'gear', matrix:'gear', foci:'foci', vehicles:'vehicles' };
+
+// Convert a catalog item into the shape stored on a character's gear.{cyber,bio,weapons,armor,gear,
+// vehicles} lines (character-builder.html:makeGearLine). grade is cyberware-only (bioware has no
+// grades) and defaults to Standard -- callers that let the player pick a grade at purchase time
+// (gear-picker.js) pass the chosen grade through explicitly.
+function makeGearLine(item, catalogName, grade) {
+  if (catalogName === 'cyberware') {
+    const line = { n: item.n, sub: item.cat || '', grade: grade || 'Standard', baseEss: parseNum(item.ess), baseCost: parseNum(item.cost), src: item.src };
+    if (item.cat === 'other') line.noGrade = true;   // software chips (skillsofts) carry no cyber grade
+    if (item.soft) line.soft = item.soft;            // skillsoft type: 'active' | 'knowledge' | 'language'
+    if (item.skillBonus) line.skillBonus = item.skillBonus;   // e.g. Math SPU: +floor(Rating/2) to matching skills
+    if (item.mods) line.mods = item.mods;            // fixed attribute bonuses (e.g. Wired Reflexes: +Reaction, +Init dice)
+    if (item.modsPer) line.modsPer = item.modsPer;   // per-rating attribute bonuses (e.g. Muscle Replacement: +Str/+Qui per level)
+    if (item.poolTbl) line.poolTbl = item.poolTbl;   // dice-pool bonuses by rating (Task / Hacking / Combat)
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    }
+    return line;
+  }
+  const line = { n: item.n, sub: item.sub || item.cat || '', cost: parseNum(item.cost), src: item.src };
+  if (catalogName === 'bioware') {
+    line.ess = parseNum(item.ess);
+    if (item.mods) line.mods = item.mods;
+    if (item.modsPer) line.modsPer = item.modsPer;
+    if (item.poolTbl) line.poolTbl = item.poolTbl;
+    if (item.rated) {
+      line.rated = true;
+      line.maxRating = Number(item.maxRating) || 1;
+      if (item.minRating) line.minRating = Number(item.minRating);
+      line.rating = Number(item.minRating) || 1;
+      line.essUnit = parseNum(item.ess);
+      line.costUnit = parseNum(item.cost);
+      if (Array.isArray(item.essTbl)) line.essTbl = item.essTbl.slice();
+      if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+      if (item.capBody) line.capBody = true;
+    }
+  }
+  if ((catalogName === 'gear' || catalogName === 'weapons' || catalogName === 'armor') && item.rated) {
+    line.rated = true;
+    line.maxRating = Number(item.maxRating) || 1;
+    line.rating = 1;
+    if (item.costUnit != null) line.costUnit = Number(item.costUnit);
+    if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
+    if (Array.isArray(item.rateLabels)) line.rateLabels = item.rateLabels.slice();
+  }
+  if (item.cat === 'deck') line.mpcp = statVal(item, 'MPCP');
+  if (catalogName === 'vehicles') { line.body = vehicleStatBody(item); line.rigger = false; }
+  return line;
+}
+
+// Current nuyen cost of an owned gear line (rated weapons/armor/gear use their rating's costTbl slot).
+// Rating is clamped into [1, maxRating] before indexing costTbl -- defends against a corrupted or
+// out-of-range stored rating landing on an undefined table slot (or, worse, silently falling
+// through to the flat costUnit*r multiply with an absurd r).
+function gearLineCost(g) {
+  if (!g.rated) return Number(g.cost) || 0;
+  const r = Math.max(1, Math.min(Number(g.rating) || 1, Math.max(1, Number(g.maxRating) || 1)));
+  if (Array.isArray(g.costTbl) && g.costTbl[r - 1] != null) return Number(g.costTbl[r - 1]) || 0;
+  return (Number(g.costUnit) || 0) * r;
+}
+
+// -- Cyberware grade/Essence/cost math ------------------------------------------
+// character-builder.html (chargen) and play-sheet.html (post-chargen Manage Cyberware/Buy Gear)
+// each need "what does this cyberware line cost in Essence/nuyen at its grade and rating" -- this
+// used to be two independently-maintained implementations that had quietly drifted (unclamped vs.
+// clamped rating; whether add-on options get graded with the base or added after). One shared
+// version here, each page supplies its own grade-multiplier table (e.g. {Standard:{ess:1,nuyen:1},
+// Alpha:{ess:0.8,nuyen:2}}) since that table's shape/extra fields (chargen's book-gating) are
+// page-specific, but the actual math never should be.
+
+// Rating clamped into [minRating, maxRating] -- same defensive reasoning as gearLineCost above.
+function clampedRating(g) {
+  const lo = Number(g.minRating) || 1;
+  return Math.max(lo, Math.min(Number(g.rating) || lo, Math.max(lo, Number(g.maxRating) || lo)));
+}
+// Pre-grade Essence cost at the line's (clamped) rating, including add-on options' Essence --
+// options are graded together with the base cost, not added on afterward ungraded.
+function cyberBaseEss(g) {
+  let base;
+  if (!g.rated) base = Number(g.baseEss) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = clampedRating(g);
+    base = (Array.isArray(g.essTbl) && g.essTbl[r - lo] != null) ? (Number(g.essTbl[r - lo]) || 0) : (Number(g.essUnit) || 0) * r;
+  }
+  return base + (g.options || []).reduce((s, o) => s + (Number(o.ess) || 0), 0);
+}
+// Pre-grade nuyen cost at the line's (clamped) rating, including add-on options' cost.
+function cyberBaseCost(g) {
+  let base;
+  if (!g.rated) base = Number(g.baseCost) || 0;
+  else {
+    const lo = Number(g.minRating) || 1, r = clampedRating(g);
+    base = (Array.isArray(g.costTbl) && g.costTbl[r - lo] != null) ? (Number(g.costTbl[r - lo]) || 0) : (Number(g.costUnit) || 0) * r;
+  }
+  return base + (g.options || []).reduce((s, o) => s + (Number(o.cost) || 0), 0);
+}
+// Grade-adjusted Essence: rounds UP to 2 decimals, with a 0.05 floor once any Essence is actually
+// spent (SR2's minimum meaningful Essence cost) -- a plain multiply can round an Alpha-grade item
+// below that floor.
+function gradeEssenceCost(baseEss, essMult) {
+  // The tiny epsilon keeps binary floating-point noise (e.g. 3*0.8 === 2.4000000000000004) from
+  // pushing an exact value like 2.40 over the ceiling into 2.41.
+  const v = Math.ceil((Number(baseEss) || 0) * essMult * 100 - 1e-9) / 100;
+  return (Number(baseEss) || 0) > 0 ? Math.max(0.05, v) : 0;
+}
+function gradeNuyenCost(baseCost, nuyenMult) {
+  return Math.round((Number(baseCost) || 0) * nuyenMult);
+}
+// Final Essence/nuyen cost of an owned cyberware line. gradeTable maps grade name -> {ess, nuyen}
+// multipliers; g.noGrade items (e.g. skillsoft chips) skip grading entirely. Named gradedCyber* --
+// not effCyberEss/effCyberCost -- because character-builder.html defines its own 1-arg wrappers
+// under those exact names that close over its GRADES table and delegate to these; giving this
+// function the same name character-builder wraps it under would make that wrapper call itself.
+function gradedCyberEssence(g, gradeTable) {
+  const base = cyberBaseEss(g);
+  if (g.noGrade) return base;
+  const mult = (gradeTable[g.grade || 'Standard'] || gradeTable.Standard).ess;
+  return gradeEssenceCost(base, mult);
+}
+function gradedCyberCost(g, gradeTable) {
+  const base = cyberBaseCost(g);
+  if (g.noGrade) return base;
+  const mult = (gradeTable[g.grade || 'Standard'] || gradeTable.Standard).nuyen;
+  return gradeNuyenCost(base, mult);
+}
+
+// -- SR2 dice-pool formulas ------------------------------------------------------
+// character-builder.html (chargen) and play-sheet.html (live play) each need these same five
+// pool formulas and had drifted into separately-maintained copies. The formula lives here so it
+// can't drift again; each page still gathers its own inputs (attribute totals, which
+// bonuses/penalties apply, whether a prerequisite like "owns a cyberdeck" or "knows Sorcery" is
+// met) and calls these with plain numbers -- that gating logic is page-specific (chargen's
+// state.gear vs. the live sheet's CHAR.gear) and stays where it is.
+function combatPoolFormula(quickness, intelligence, willpower, bonus) {
+  return Math.floor(((Number(quickness)||0) + (Number(intelligence)||0) + (Number(willpower)||0)) / 2) + (Number(bonus) || 0);
+}
+function hackingPoolFormula(intelligence, mpcp, bonus) {
+  return Math.floor(((Number(intelligence)||0) + (Number(mpcp)||0)) / 3) + (Number(bonus) || 0);
+}
+function controlPoolFormula(reactionValue, vcrLevel) {
+  return (Number(reactionValue) || 0) + (Number(vcrLevel) || 0) * 2;
+}
+function astralPoolFormula(intelligence, willpower, charisma) {
+  return Math.floor(((Number(intelligence)||0) + (Number(willpower)||0) + (Number(charisma)||0)) / 2);
+}
+function spellPoolFormula(intelligence, willpower, magicRating, bonus) {
+  return Math.floor(((Number(intelligence)||0) + (Number(willpower)||0) + (Number(magicRating)||0)) / 3) + (Number(bonus) || 0);
 }
 
 

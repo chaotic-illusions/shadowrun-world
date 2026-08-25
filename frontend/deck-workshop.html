@@ -1229,11 +1229,6 @@ async function seedChargenPurchases() {
       }
     } catch (_) { /* fall back to MPCP-only specs below */ }
   }
-  const _deckStat = (item, key) => {
-    const row = ((item && item.stats) || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === key.toLowerCase());
-    return row ? (Number(row[1]) || 0) : 0;
-  };
-
   // Cyberdecks -> DECK_STORE as ready/bought iron, fully speced from the catalog (MPCP unlocks the buy route).
   const decks = _loadStore(DECK_STORE) || [];
   const haveDeck = new Set(decks.map(d => String(d.name || '').toLowerCase()));
@@ -1241,15 +1236,15 @@ async function seedChargenPurchases() {
   chargenDecks.forEach(d => {
     const name = String(d.n || d.name || '').trim();
     const src = deckCatalog[name.toLowerCase()] || null;
-    const mpcp = _deckStat(src, 'MPCP') || Number(d.mpcp) || 0;
+    const mpcp = statVal(src, 'MPCP') || Number(d.mpcp) || 0;
     if (!name || mpcp <= 0 || haveDeck.has(name.toLowerCase())) return;
     decks.push({
       name, deckName: name, savedAt: Date.now(), deckType: 'hot', mpcp,
       pBod: 0, pEvasion: 0, pMasking: 0, pSensor: 0,
-      hardening: _deckStat(src, 'Hardening'), respIncrease: 0,
+      hardening: statVal(src, 'Hardening'), respIncrease: 0,
       iccm: false, realityFilter: false,
-      activeMem: _deckStat(src, 'Active Mem'), ioSpeed: _deckStat(src, 'I/O'),
-      offlineStorage: _deckStat(src, 'Storage'),
+      activeMem: statVal(src, 'Active Mem'), ioSpeed: statVal(src, 'I/O'),
+      offlineStorage: statVal(src, 'Storage'),
       casingLvl: 0, satlink: false, hitcherJack: false,
       status: 'ready', origin: 'bought', sources: noDeckSources(),
     });
