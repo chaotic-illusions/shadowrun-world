@@ -31,6 +31,9 @@ data/backups/
 # Per-action engine trace logs (SR_TRACE developer observability)
 data/traces/
 
+# User-uploaded character portraits
+data/uploads/
+
 # IDE
 .vscode/
 .idea/

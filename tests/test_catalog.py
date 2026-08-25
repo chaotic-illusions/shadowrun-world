@@ -43,7 +43,10 @@ def test_cyberware_and_bioware_split_by_cost_type():
     assert all(item.get("bio") for item in bio)
     assert not any(item.get("bio") for item in cyber)
     # Cyberware is actively curated; guard against a broken/empty load with a floor, not an exact count.
-    assert len(cyber) >= 150
+    # (Lowered from 150: consolidating several level-banded items -- e.g. Move-by-Wire System,
+    # Dermal Plating/Sheath, Optical/Electronic Magnification -- into single rated entries legitimately
+    # dropped the count, matching the same rating/grade-upgrade treatment Vehicle Control Rig got.)
+    assert len(cyber) >= 140
     # Cyberware and bioware are a clean partition (no shared names).
     assert not ({i["n"] for i in cyber} & {i["n"] for i in bio})
 

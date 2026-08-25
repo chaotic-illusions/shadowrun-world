@@ -43,6 +43,8 @@ class Character(Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     background: Mapped[str | None] = mapped_column(Text, default=None)
     show_background: Mapped[bool] = mapped_column(default=False)
+    # Relative URL under the /uploads static mount (see app/main.py), e.g. "/uploads/portraits/<uuid>.jpg".
+    portrait_url: Mapped[str | None] = mapped_column(String(500), default=None)
 
     # Services/skills this NPC can provide as a contact
     contact_skills: Mapped[list] = mapped_column(JSON, default=list)
@@ -80,6 +82,11 @@ class Character(Base):
     nuyen: Mapped[int] = mapped_column(Integer, default=0)
     karma_pool: Mapped[int] = mapped_column(Integer, default=1)
     good_karma: Mapped[int] = mapped_column(Integer, default=0)
+    # Condition monitor: 10-box Physical/Stun tracks (boxes filled, 0-10) plus Physical Overflow
+    # (boxes filled beyond the 10th Physical box; capped client-side at the Body attribute).
+    physical_damage: Mapped[int] = mapped_column(Integer, default=0)
+    stun_damage: Mapped[int] = mapped_column(Integer, default=0)
+    physical_overflow: Mapped[int] = mapped_column(Integer, default=0)
     # Ordinal lifestyle tier (0=Street ... 5=Luxury); None until set. See LIFESTYLE_TIERS.
     lifestyle_level: Mapped[int | None] = mapped_column(Integer, default=None)
     # Lifestyle bought outright (100 months up front): never charged monthly upkeep again.
@@ -119,6 +126,13 @@ class Character(Base):
         default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
+    # Optimistic-lock counter (declared as version_id_col below), same pattern as MatrixRun. SQLAlchemy
+    # adds `WHERE version = :old` to every UPDATE and raises StaleDataError (caught globally in
+    # app/main.py -> 409) if a concurrent writer already bumped it -- prevents two overlapping PATCHes
+    # (e.g. two browser tabs buying gear) from silently clobbering each other's whole-object `gear`/
+    # `chargen_state` JSON replacement.
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     organization: Mapped[Optional["Organization"]] = relationship(
         "Organization", foreign_keys=[organization_id]
     )
@@ -155,3 +169,5 @@ class Character(Base):
     adventure_logs: Mapped[list["AdventureLog"]] = relationship(
         "AdventureLog", secondary=log_characters, back_populates="participants"
     )
+
+    __mapper_args__ = {"version_id_col": version}
