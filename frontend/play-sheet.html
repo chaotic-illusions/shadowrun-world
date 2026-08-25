@@ -1,0 +1,2835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Play Sheet | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <script src="catalog-taxonomy.js"></script>
+  <script src="gear-picker.js"></script>
+  <style>
+    /* ---- layout: identity/armor row, attributes/condition row, weapons full width, then a
+       skills/vehicle column and an armor-detail/gear/cyberware/contacts/notes column ---- */
+    .ps-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;align-items:start;}
+    .ps-col{display:flex;flex-direction:column;gap:14px;}
+    @media(max-width:980px){.ps-row{grid-template-columns:1fr;}}
+
+    .ps-panel{background:var(--bg-panel,#0d1512);border:1px solid var(--border-dark);}
+    .ps-sec{padding:10px 12px;border-bottom:1px solid var(--border-dark);}
+    .ps-sec:last-child{border-bottom:none;}
+    .ps-sec__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+    .ps-sec__title{font-family:var(--font-display);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-bright);}
+    .ps-sec__title::before{content:'// ';color:var(--text-dim);}
+    .sec-green{color:var(--green);} .sec-cyan{color:var(--cyan);} .sec-amber{color:var(--amber);}
+    .sec-red{color:var(--red);} .sec-violet{color:var(--violet);}
+    .ps-sec__title.sec-green::before,.ps-sec__title.sec-cyan::before,.ps-sec__title.sec-amber::before,
+    .ps-sec__title.sec-red::before,.ps-sec__title.sec-violet::before{color:inherit;opacity:.55;}
+
+    .ps-fgrid{display:grid;gap:8px 12px;}
+    .fg-3{grid-template-columns:repeat(3,1fr);} .fg-6{grid-template-columns:repeat(6,1fr);}
+    .fg-5{grid-template-columns:repeat(5,1fr);} .fg-2{grid-template-columns:repeat(2,1fr);}
+    .fg-4{grid-template-columns:repeat(4,1fr);}
+    @media(max-width:640px){.fg-6,.fg-5,.fg-4,.fg-3{grid-template-columns:repeat(2,1fr);}}
+    .ps-field{display:flex;flex-direction:column;gap:3px;min-width:0;}
+    .ps-field .field-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .ps-ro{background:transparent;border:none;padding:2px 0;color:var(--cyan);font-size:.82rem;}
+
+    .identity-row{display:grid;grid-template-columns:1fr 80px;gap:14px;align-items:start;}
+    .karma-stack{display:flex;flex-direction:column;gap:6px;}
+    .karma-stack input{text-align:center;}
+
+    .ps-stat-list{border:1px solid var(--border-dark);}
+    .ps-stat-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 10px;
+      border-top:1px solid var(--border-dark);font-size:.76rem;}
+    .ps-stat-row:first-child{border-top:none;}
+    .ps-stat-row .k{color:var(--text-dim);} .ps-stat-row .v{color:var(--text-bright);font-variant-numeric:tabular-nums;}
+    .ps-stat-row .v.computed{color:var(--cyan);}
+    .equip-badge{color:var(--green);font-weight:700;margin-left:6px;text-shadow:var(--glow-green);}
+    .armor-slot-group{border-bottom:1px solid var(--border-dark);padding-bottom:4px;margin-bottom:4px;}
+    .armor-slot-group:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+    .armor-slot-head{padding:6px 10px 2px;text-transform:uppercase;color:var(--text-bright);}
+    .armor-slot-group:first-child .armor-slot-head{padding-top:2px;}
+    .armor-slot-head + .ps-stat-row{border-top:none;}
+    .armor-slot-group .ps-stat-row{padding-left:20px;}
+    /* Mods modal rows are short (a name + one benefit line) -- the shared .edit-modal's ~1060px
+       max-width leaves it swimming in whitespace, so narrow it to roughly half. */
+    .mode-weaponmods .edit-modal{max-width:530px;}
+
+    /* Experimental -- grouping border around each track + its damage buttons. Delete this rule and
+       the .cond-group wrapper divs around Stun/Physical below to revert. */
+    .cond-group{border:1px solid var(--border-dark);padding:10px 12px;margin-bottom:10px;}
+    .cond-track{margin-bottom:6px;}
+    .cond-track__label{font-size:.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);
+      margin-bottom:5px;display:flex;justify-content:space-between;}
+    .cond-track__stage.stun{color:#eecc22;} .cond-track__stage.phys{color:var(--red);}
+    /* Prefixed ps-cond-box (not .cond-box) -- style.css already defines an unrelated .cond-box for
+       matrix-run.html's persona tracker (fixed 14x14px). Same class name, different component: since
+       that rule sets width/height directly and this one only sets max-width/aspect-ratio, neither
+       overrides the other -- both applied, and the explicit 14px width silently won. Renaming avoids
+       the collision instead of fighting it with !important. */
+    .ps-cond-boxes{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;}
+    .ps-cond-box{width:100%;aspect-ratio:1;max-width:44px;border:1px solid var(--border-dark);background:var(--bg-input);}
+    .ps-cond-box.stun.is-filled{background:#eecc22;border-color:#eecc22;box-shadow:0 0 6px #eecc2288;}
+    .ps-cond-box.phys.is-filled{background:var(--red);border-color:var(--red);box-shadow:var(--glow-red);}
+    /* Must mirror .ps-cond-boxes' grid exactly (same columns/gap) so each L/M/S/D label sits under
+       its actual box -- a flex row with a different gap/max-width than the boxes above it drifts
+       out of alignment across 10 columns. */
+    .cond-stagemarks{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:3px;}
+    .cond-stagemarks span{max-width:44px;text-align:center;font-size:.6rem;color:var(--text-dim);}
+    .dmg-select{display:flex;gap:4px;margin:6px 0 10px;}
+    .dmg-btn{flex:1;border:1px solid var(--border-dark);background:var(--bg-input);color:var(--text-dim);
+      font-size:.6rem;letter-spacing:.5px;text-transform:uppercase;padding:6px 0;cursor:pointer;font-family:inherit;}
+    .dmg-select.mode-heal .dmg-btn:hover{border-color:var(--green);color:var(--green);}
+    .dmg-select:not(.mode-heal) .dmg-btn:hover{border-color:var(--red);color:var(--red);}
+    /* Experimental -- severity-graded border/text color (Light->Deadly), reusing the app's existing
+       palette so it stays on-brand. Suggestion 1 of a few; see chat for alternatives. Delete these
+       4 rules (and the lvl-* class names in renderDmgButtons()) to revert. */
+    .dmg-btn.lvl-L{border-color:var(--green-dim);color:var(--green-dim);}
+    .dmg-btn.lvl-M{border-color:#f2d024;color:#f2d024;}
+    .dmg-btn.lvl-S{border-color:var(--amber);color:var(--amber);}
+    .dmg-btn.lvl-D{border-color:var(--red);color:var(--red);}
+    .cond-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-top:6px;}
+    .cond-overflow__label{font-size:.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;}
+    .cond-overflow__boxes{display:grid;grid-auto-flow:column;grid-auto-columns:30px;gap:4px;}
+    .cond-overflow__boxes .ps-cond-box{width:100%;max-width:30px;cursor:pointer;}
+    .seg{display:flex;border:1px solid var(--border-dark);}
+    .seg-btn{background:var(--bg-input);color:var(--text-dim);border:none;padding:6px 12px;font-size:.62rem;
+      letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:inherit;}
+    .seg-btn+.seg-btn{border-left:1px solid var(--border-dark);}
+    .seg-btn.is-active[data-mode="damage"]{background:#2a0a0a;color:var(--red);}
+    .seg-btn.is-active[data-mode="heal"]{background:var(--green-dark);color:var(--green);}
+
+    .sk-list{border:1px solid var(--border-dark);}
+    .sk-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;border-top:1px solid var(--border-dark);}
+    .sk-row:first-child{border-top:none;}
+    .sk-row.sub{padding-left:22px;border-left:2px solid var(--cyan);}
+    .sk-row.sub.spec{border-left-color:var(--violet);}
+    .sk-name{font-size:.78rem;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .sk-row.sub .sk-name{color:var(--text);font-size:.74rem;}
+    .sk-rating{color:var(--text-bright);font-variant-numeric:tabular-nums;font-size:.8rem;flex:none;}
+    .sk-row.sub .sk-rating{color:var(--text);}
+
+    .armor-row{display:flex;gap:12px;align-items:flex-start;}
+    .armor-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:6px;
+      border-top:1px solid var(--border-dark);}
+    .armor-total__l{font-size:.66rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);}
+    .armor-total span:last-child{font-size:.82rem;color:var(--amber);font-variant-numeric:tabular-nums;}
+    .portrait-box{border:1px dashed var(--border-dark);width:180px;height:180px;flex:none;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:4px;color:var(--text-dim);font-size:.62rem;letter-spacing:1px;
+      text-transform:uppercase;text-align:center;padding:0 10px;overflow:hidden;cursor:pointer;}
+    .portrait-box img{width:100%;height:100%;object-fit:cover;}
+    .portrait-box.is-static{cursor:default;}
+
+    table.ps-data{width:100%;border-collapse:collapse;font-size:.76rem;}
+    table.ps-data th{text-align:left;font-size:.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);
+      padding:0 8px 6px;font-weight:400;border-bottom:1px solid var(--border-dark);white-space:nowrap;}
+    table.ps-data td{padding:5px 8px;border-bottom:1px solid #101c14;color:var(--text-bright);white-space:nowrap;
+      font-variant-numeric:tabular-nums;}
+    table.ps-data tr:last-child td{border-bottom:none;}
+    table.ps-data input{width:100%;min-width:90px;}
+
+    .gear-2col{column-count:2;column-gap:16px;}
+    .gear-item{font-size:.76rem;color:var(--text-bright);padding:4px 0;border-bottom:1px solid #101c14;break-inside:avoid;}
+
+    .contact-tag{font-size:.6rem;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border:1px solid var(--border-dark);flex:none;}
+    .tag-contact{color:var(--green);border-color:var(--green-dark);}
+    .tag-buddy{color:var(--cyan);border-color:#0a3a4a;}
+    .tag-gangtribe{color:var(--amber);border-color:#4a3000;}
+    .tag-follower{color:var(--violet);border-color:#2a1a4a;}
+
+    .ps-header{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:flex-end;margin-bottom:18px;}
+    .ps-header__col{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;}
+    .ps-header__col--right{justify-content:flex-end;}
+    @media(max-width:980px){.ps-header{grid-template-columns:1fr;}}
+    .ps-name{font-family:var(--font-display);font-size:2rem;color:var(--green);text-shadow:var(--glow-green);letter-spacing:1px;line-height:1;}
+    .ps-legal{font-size:.8rem;color:var(--text-bright);margin-top:2px;}
+    .ps-nuyen-val,.ps-nuyen-input{font-family:var(--font-display);font-size:2rem;color:var(--amber);
+      text-shadow:var(--glow-amber);letter-spacing:1px;line-height:1;cursor:pointer;}
+    .ps-nuyen-input{background:var(--bg-input);border:1px solid var(--amber);padding:2px 6px;width:9ch;cursor:text;}
+    .ghost-note{font-size:.6rem;color:var(--text-dim);font-style:italic;}
+    .picker-card{background:var(--bg-panel,#0d1512);border:1px solid var(--border-dark);padding:14px 16px;
+      cursor:pointer;transition:border-color .12s;}
+    .picker-card:hover{border-color:var(--green);}
+
+    /* The shared .edit-modal (style.css) defaults to max-width:1060px for the big org/character
+       editor -- override per mode so the short Identity/Armor/Gear/Skills forms don't float in
+       acres of empty space. */
+    #editOverlay.mode-identity .edit-modal { max-width: 520px; }
+    #editOverlay.mode-armor .edit-modal,
+    #editOverlay.mode-weapons .edit-modal,
+    #editOverlay.mode-gear .edit-modal { max-width: 640px; }
+    #editOverlay.mode-attrs .edit-modal,
+    #editOverlay.mode-skills .edit-modal,
+    #editOverlay.mode-magic .edit-modal { max-width: 680px; }
+    #editOverlay.mode-cyber .edit-modal { max-width: 640px; }
+    #editOverlay.mode-buygear .edit-modal { max-width: 820px; }
+    /* Buy Gear's item list + inspector used a viewport-relative max-height (.gc-list{max-height:70vh})
+       that ignored how much of that viewport the modal chrome (header/tabs/search/footer) already
+       ate into, so the two columns together routinely ran taller than the modal itself, forcing an
+       outer scrollbar on #modalBody. Make #modalBody a column flexbox that doesn't scroll itself,
+       and have .gc-grid fill/scroll within whatever space is actually left. */
+    #editOverlay.mode-buygear .edit-modal-body { display: flex; flex-direction: column; overflow: hidden; }
+    #editOverlay.mode-buygear #gcTabs, #editOverlay.mode-buygear .gc-toolbar { flex: none; }
+    #editOverlay.mode-buygear .gc-grid { flex: 1; min-height: 0; align-items: stretch; }
+    #editOverlay.mode-buygear .gc-panel { display: flex; flex-direction: column; min-height: 0; }
+    #editOverlay.mode-buygear .gc-panel__h { flex: none; }
+    #editOverlay.mode-buygear .gc-list { flex: 1; min-height: 0; max-height: none; }
+    #editOverlay.mode-buygear #gcInsp { flex: 1; min-height: 0; overflow: auto; }
+    /* Standard dialog convention: secondary/destructive action left, primary action right-most,
+       both bottom-right rather than left-packed. style.css's .edit-modal-foot is shared by every
+       page's big editor, so scope the override to this page instead of changing it globally. */
+    #modalFoot { justify-content: flex-end; }
+
+    /* Manage Attributes/Skills: raise buttons and the conc/spec choice dropdowns should line up as
+       one consistent-width, centered action column, sized for the longest label
+       ("Raise to 20 -- 40 karma"). .btn is display:inline-flex with no justify-content (defaults to
+       flex-start), so text-align alone doesn't center a button's label -- justify-content is needed too. */
+    .raise-action { width: 260px; flex: none; text-align: center; white-space: nowrap; justify-content: center; }
+
+    /* Plain-X delete button -- same glyph/treatment character-builder.html already uses everywhere
+       (its .cbx-x) for removing a list row, ported here since that rule lives in its own page's
+       inline <style> rather than the shared style.css. */
+    .row-x{color:rgba(255,51,51,.6);cursor:pointer;background:none;border:none;font-size:var(--fs-md);font-family:inherit;padding:0 4px;flex:none;}
+    .row-x:hover{color:var(--red);}
+
+    /* Vehicle list: every owned vehicle gets a card; whichever is marked Primary fills out the
+       fielded section above. Three per row per request, collapsing on narrower viewports. */
+    .veh-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+    @media(max-width:900px){.veh-grid{grid-template-columns:repeat(2,1fr);}}
+    @media(max-width:560px){.veh-grid{grid-template-columns:1fr;}}
+    .veh-card{border:1px solid var(--border-dark);padding:8px 10px;display:flex;flex-direction:column;gap:4px;position:relative;}
+    .veh-card.is-primary{border-color:var(--green-dim);}
+    .veh-card__n{color:var(--text-bright);font-size:.8rem;padding-right:16px;}
+    .veh-card__t{color:var(--text-dim);font-size:.66rem;text-transform:uppercase;letter-spacing:1px;}
+    .veh-card__primary{display:flex;align-items:center;gap:6px;font-size:.66rem;letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;margin-top:2px;}
+    .veh-card__x{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--red);cursor:pointer;font-size:.95rem;line-height:1;padding:0;}
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-runs.html">Runs</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-title">&gt;&gt; Play Sheet <em class="sep">//</em> <span id="pageCharName">Loading...</span></div>
+  <div class="page-sub" style="color:var(--cyan)">LIVE CHARACTER DOSSIER -- EDITS SAVE DIRECTLY</div>
+
+  <div id="alert" class="alert"></div>
+
+  <div id="pickerWrap" style="display:none;">
+    <p class="dim-meta mb-16">Pick a runner to open:</p>
+    <div id="pickerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
+  </div>
+
+  <div id="emptyWrap" class="empty-state" style="display:none;">
+    No runners found for your token. Build one under <a href="character-builder.html">Characters &rsaquo; New Runner</a>.
+  </div>
+
+  <div id="sheetWrap" style="display:none;">
+
+    <div class="ps-header">
+      <div class="ps-header__col">
+        <div>
+          <div class="dim-label">Runner Dossier</div>
+          <div class="ps-name" id="hName">GAMBIT</div>
+          <div class="ps-legal" id="hSub">Elf &middot; Male &middot; 33 &middot; Rigger</div>
+        </div>
+        <div>
+          <div class="dim-label">Nuyen</div>
+          <div class="ps-nuyen-val" id="nuyenDisplay" tabindex="0" role="button">&#165;0</div>
+        </div>
+      </div>
+      <div class="ps-header__col ps-header__col--right">
+        <button class="btn btn-green" id="exportBtn">&#8595; Export Official PDF</button>
+      </div>
+    </div>
+
+    <!-- IDENTITY | ARMOR+PORTRAIT -->
+    <div class="ps-row">
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-green">Identity</span>
+            <button class="btn btn-violet btn-sm" id="manageIdentityBtn">Manage</button></div>
+          <div class="identity-row">
+            <div>
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field"><span class="field-label">Alias</span><div class="ps-ro" id="idAlias">-</div></div>
+                <div class="ps-field"><span class="field-label">Legal Name</span><div class="ps-ro" id="idLegal">-</div></div>
+                <div class="ps-field"><span class="field-label">Archetype</span><div class="ps-ro" id="idArchetype">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field"><span class="field-label">Race</span><div class="ps-ro" id="idRace">-</div></div>
+                <div class="ps-field"><span class="field-label">Sex</span><div class="ps-ro" id="idSex">-</div></div>
+                <div class="ps-field"><span class="field-label">Age</span><div class="ps-ro" id="idAge">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-2">
+                <div class="ps-field"><span class="field-label">Lifestyle</span><div class="ps-ro" id="idLifestyle">-</div></div>
+                <div class="ps-field"><span class="field-label">Upkeep</span><div class="ps-ro" id="idUpkeep">-</div></div>
+              </div>
+            </div>
+            <div class="karma-stack">
+              <div class="ps-field"><span class="field-label">Good Karma</span><input type="number" id="goodKarmaInput" min="0" max="50"></div>
+              <div class="ps-field"><span class="field-label">Karma Pool</span><input type="number" id="karmaPoolInput" min="0" max="50"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="armor-row">
+            <div style="flex:1;">
+              <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Armor</span>
+                <button class="btn btn-violet btn-sm" id="manageArmorBtn">Manage</button></div>
+              <div class="ps-stat-list" id="armorList"></div>
+              <div class="armor-total"><span class="armor-total__l">Total Armor</span><span id="armorTotal">0/0</span></div>
+            </div>
+            <div class="portrait-box" id="portraitBox" tabindex="0" role="button"></div>
+            <input type="file" id="portraitFile" accept="image/png,image/jpeg,image/webp" style="display:none">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ATTRIBUTES | CONDITION MONITOR -->
+    <div class="ps-row">
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Attributes</span>
+            <button class="btn btn-violet btn-sm" id="manageAttrsBtn">Manage</button></div>
+          <div class="ps-fgrid fg-3 mb-8">
+            <div class="ps-field"><span class="field-label">Body</span><div class="ps-ro" id="atB">-</div></div>
+            <div class="ps-field"><span class="field-label">Quickness</span><div class="ps-ro" id="atQ">-</div></div>
+            <div class="ps-field"><span class="field-label">Strength</span><div class="ps-ro" id="atS">-</div></div>
+            <div class="ps-field"><span class="field-label">Charisma</span><div class="ps-ro" id="atCH">-</div></div>
+            <div class="ps-field"><span class="field-label">Intelligence</span><div class="ps-ro" id="atINT">-</div></div>
+            <div class="ps-field"><span class="field-label">Willpower</span><div class="ps-ro" id="atW">-</div></div>
+          </div>
+          <div class="ps-fgrid fg-2">
+            <div class="ps-field"><span class="field-label">Essence</span><div class="ps-ro" id="dvEssence">-</div></div>
+            <div class="ps-field"><span class="field-label">Magic</span><div class="ps-ro" id="dvMagic">-</div></div>
+            <div class="ps-field"><span class="field-label">Reaction</span><div class="ps-ro" id="dvReaction">-</div></div>
+            <div class="ps-field"><span class="field-label">Initiative</span><div class="ps-ro" id="dvInit">-</div></div>
+          </div>
+        </div>
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Dice Pools</span></div>
+          <div class="ps-stat-list" id="poolList"></div>
+        </div>
+      </div>
+
+      <div class="ps-panel">
+        <div class="ps-sec">
+          <div class="ps-sec__head"><span class="ps-sec__title sec-red">Condition Monitor</span></div>
+          <!-- Experimental grouping border -- easy to pull back out, see .cond-group below. -->
+          <div class="cond-group">
+            <div class="cond-track">
+              <div class="cond-track__label"><span>Stun</span><span class="cond-track__stage stun" id="stunStage">Uninjured</span></div>
+              <div class="ps-cond-boxes" id="stunTrack"></div>
+              <div class="cond-stagemarks" id="stunMarks"></div>
+            </div>
+            <div class="dmg-select" id="stunDmgBtns"></div>
+          </div>
+          <div class="cond-group">
+            <div class="cond-track">
+              <div class="cond-track__label"><span>Physical</span><span class="cond-track__stage phys" id="physStage">Uninjured</span></div>
+              <div class="ps-cond-boxes" id="physTrack"></div>
+              <div class="cond-stagemarks" id="physMarks"></div>
+            </div>
+            <div class="dmg-select" id="physDmgBtns"></div>
+          </div>
+          <div class="cond-footer">
+            <div>
+              <div class="cond-overflow__label">Physical Overflow (max = Body, currently <span id="overflowMax">0</span>)</div>
+              <div class="cond-overflow__boxes" id="overflowTrack"></div>
+            </div>
+            <div>
+              <div class="cond-overflow__label" style="text-align:right;">Mode</div>
+              <div class="seg" id="dmgHealToggle">
+                <button class="seg-btn is-active" data-mode="damage">Damage</button>
+                <button class="seg-btn" data-mode="heal">Heal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEAPONS: full width -->
+    <div class="ps-panel" style="margin-bottom:16px;">
+      <div class="ps-sec">
+        <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Weapons</span>
+          <button class="btn btn-violet btn-sm" id="manageWeaponsBtn">Manage</button></div>
+        <div style="overflow-x:auto;">
+          <table class="ps-data" id="weaponsTbl">
+            <thead><tr>
+              <th>Name</th><th>Type</th><th>Mode</th><th>Dmg</th><th>Ammo</th><th>Conceal</th>
+              <th>Short (4)</th><th>Med (5)</th><th>Long (6)</th><th>Extreme (8)</th><th>Mods</th><th style="width:1%;"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="ghost-note mt-6">Conceal includes equipped Concealable Holster / coat bonuses (hover a value for the breakdown). Other stats are raw catalog values.</p>
+      </div>
+    </div>
+
+    <!-- REMAINING SECTIONS: two columns -->
+    <div class="ps-row">
+      <div class="ps-col">
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Skills</span>
+              <button class="btn btn-violet btn-sm" id="manageSkillsBtn">Manage</button></div>
+            <div class="sk-list" id="skillList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel" id="magicPanel" style="display:none;">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Awakened</span>
+              <button class="btn btn-violet btn-sm" id="manageMagicBtn">Manage</button></div>
+            <div class="ps-fgrid fg-3 mb-8">
+              <div class="ps-field"><span class="field-label">Type</span><div class="ps-ro" id="magicType">-</div></div>
+              <div class="ps-field"><span class="field-label">Tradition</span><div class="ps-ro" id="magicTradition">-</div></div>
+              <div class="ps-field"><span class="field-label">Totem</span><div class="ps-ro" id="magicTotem">-</div></div>
+            </div>
+            <div id="spellsWrap" style="display:none;">
+              <div class="dim-label mb-8">Spells</div>
+              <table class="ps-data mb-8" id="spellsTbl"><thead><tr><th>Spell</th><th>Category</th><th>Force</th><th>Drain</th></tr></thead><tbody></tbody></table>
+            </div>
+            <div id="powersWrap" style="display:none;">
+              <div class="dim-label mb-8">Adept Powers <span class="ghost-note">(bought at chargen only)</span></div>
+              <table class="ps-data" id="powersTbl"><thead><tr><th>Power</th><th>Level</th><th>PP</th></tr></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Primary Vehicle</span>
+              <button class="btn btn-violet btn-sm" data-buy-shortcut="vehicles">Manage</button></div>
+            <div id="noVehicle" style="display:none;">
+              <p class="empty-state">No vehicle owned.</p>
+            </div>
+            <div id="vehicleFields">
+              <div class="ps-fgrid fg-3 mb-8">
+                <div class="ps-field" style="grid-column:1/3;"><span class="field-label">Vehicle</span><div class="ps-ro" id="vehName">-</div></div>
+                <div class="ps-field"><span class="field-label">Type</span><div class="ps-ro" id="vehType">-</div></div>
+              </div>
+              <div class="ps-fgrid fg-6 mb-8">
+                <div class="ps-field"><span class="field-label">Handling</span><input type="text" id="vehHandling"></div>
+                <div class="ps-field"><span class="field-label">Speed</span><input type="number" id="vehSpeed"></div>
+                <div class="ps-field"><span class="field-label">Body</span><input type="number" id="vehBody"></div>
+                <div class="ps-field"><span class="field-label">Armor</span><input type="number" id="vehArmor"></div>
+                <div class="ps-field"><span class="field-label">Signature</span><input type="number" id="vehSig"></div>
+                <div class="ps-field"><span class="field-label" id="vehAutopilotLabel">Autonav</span><input type="text" id="vehAutopilot"></div>
+                <div class="ps-field"><span class="field-label">Accel</span><input type="number" id="vehAccel"></div>
+                <div class="ps-field"><span class="field-label">Sensor</span><input type="number" id="vehSensor"></div>
+                <div class="ps-field"><span class="field-label">Cargo</span><input type="number" id="vehCargo"></div>
+                <div class="ps-field"><span class="field-label">Load</span><input type="number" id="vehLoad"></div>
+                <div class="ps-field"><span class="field-label">Rigger Gear</span>
+                  <select id="riggerGearSelect"><option value="false">No</option><option value="true">Yes</option></select></div>
+              </div>
+              <div class="ps-field mb-8"><span class="field-label">Notes / Mods</span>
+                <textarea id="vehicleNotes" rows="2"></textarea></div>
+              <div id="vehicleListWrap" style="display:none;">
+                <div class="dim-label mb-8">All Vehicles</div>
+                <div class="veh-grid" id="vehicleList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ps-col">
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Gear</span>
+              <button class="btn btn-violet btn-sm" id="manageGearBtn">Manage</button></div>
+            <div class="gear-2col" id="gearList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-violet">Cyberware</span>
+              <button class="btn btn-violet btn-sm" id="manageCyberBtn">Manage</button></div>
+            <div class="ps-stat-list" id="cyberList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel" id="matrixPanel" style="display:none;">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Cyberdecks</span>
+              <span class="ghost-note">managed in Deck Workshop</span></div>
+            <div class="ps-stat-list" id="matrixList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-green">Contacts &amp; Information</span></div>
+            <div class="ps-stat-list" id="contactsList"></div>
+          </div>
+        </div>
+
+        <div class="ps-panel">
+          <div class="ps-sec">
+            <div class="ps-sec__head"><span class="ps-sec__title sec-cyan">Character Notes</span></div>
+            <textarea id="charNotes" rows="3"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- shared manage modal -->
+<div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title" id="modalTitle">Manage</div>
+    </div>
+    <div class="alert" id="modalAlert"></div>
+    <div class="edit-modal-body" id="modalBody"></div>
+    <div class="edit-modal-foot" id="modalFoot">
+      <button class="btn btn-green" id="modalCommitBtn">Commit Changes</button>
+      <button class="btn btn-red" id="modalCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let CHAR = null;          // live character record from the API
+let CONTACTS = [];
+let SKILL_CATALOG = [];   // [{n, attr, group, conc:[...]}]
+let SKILL_SPECS = {};     // {skillName: {concName: [specNames]}}
+let ARMOR_CAT = new Map();
+let WEAPON_CAT = new Map();
+let VEHICLE_CAT = new Map();
+let CYBER_CAT = new Map();
+let BIO_CAT = new Map();
+let SPELL_CAT = new Map();
+let GEAR_CAT = new Map();   // /catalog/gear -- used to look up full cyberdeck stats (MPCP, etc.)
+let enabledBooks = new Set();   // /catalog/books -- only used to gate Alpha grade in the gear picker
+let DECK_WORKSHOP_DECKS = [];   // deck_builder_state.stores.sr2_decks_v1 -- see Deck Workshop
+let RULES = null;         // /catalog/rules bundle -- used for metatype attribute mods
+let CAN_EDIT = false;
+let dmgMode = 'damage';
+let currentModalMode = null;
+let draft = {};           // scratch copy used by draft-and-commit modals
+
+const STAGES = ['Light','Light','Light','Moderate','Moderate','Moderate','Serious','Serious','Serious','Deadly'];
+const STAGE_MARK_IDX = { 0:'L', 2:'M', 5:'S', 9:'D' };
+const DMG_AMOUNTS = { L:1, M:3, S:6, D:10 };
+const LIFESTYLE_TIERS = ['Street','Squatter','Low','Middle','High','Luxury'];
+
+function $(s, r=document){ return r.querySelector(s); }
+function $$(s, r=document){ return Array.from(r.querySelectorAll(s)); }
+// money() lives in shared.js now.
+
+// ---------------------------------------------------------------- boot / character resolution
+async function boot(){
+  await bootstrapAuth();
+  const params = new URLSearchParams(location.search);
+  const idParam = params.get('id');
+  try {
+    if (idParam) { await loadCharacter(Number(idParam)); return; }
+    const mineRes = await apiFetch('/characters/mine');
+    if (!mineRes.ok) throw new Error('Could not load your characters');
+    const mine = await mineRes.json();
+    const ids = mine.ids || [];
+    if (ids.length === 0) { $('#emptyWrap').style.display = ''; return; }
+    if (ids.length === 1) { await loadCharacter(ids[0]); return; }
+    const allRes = await apiFetch('/characters/?is_pc=true&is_active=true');
+    const all = allRes.ok ? await allRes.json() : [];
+    const mySet = new Set(ids);
+    const mine2 = all.filter(c => mySet.has(c.id));
+    $('#pickerWrap').style.display = '';
+    $('#pickerList').innerHTML = mine2.map(c => `
+      <div class="picker-card" data-id="${c.id}">
+        <div style="color:var(--text-bright);font-size:.9rem;">${esc(c.name)}</div>
+        <div class="dim-meta">${esc(c.archetype||'Runner')}${c.race?' &middot; '+esc(c.race):''}</div>
+      </div>`).join('');
+    $$('.picker-card').forEach(el => el.onclick = () => { location.search = '?id=' + el.dataset.id; });
+  } catch (e) {
+    showAlert($('#alert'), e.message, true);
+  }
+}
+
+async function loadCharacter(id){
+  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes, vehiclesRes, cyberRes, bioRes, rulesRes, spellsRes, chargenRes, gearCatRes, booksRes, deckStateRes] = await Promise.all([
+    apiFetch(`/characters/${id}`),
+    apiFetch(`/characters/${id}/contacts`),
+    apiFetch('/characters/mine'),
+    apiFetch('/catalog/skill-specs'),
+    apiFetch('/catalog/armor'),
+    apiFetch('/catalog/weapons'),
+    apiFetch('/catalog/vehicles'),
+    apiFetch('/catalog/cyberware'),
+    apiFetch('/catalog/bioware'),
+    apiFetch('/catalog/rules'),
+    apiFetch('/catalog/spells'),
+    apiFetch(`/characters/${id}/chargen-state`),
+    apiFetch('/catalog/gear'),
+    apiFetch('/catalog/books'),
+    apiFetch(`/characters/${id}/deck-builder-state`),
+  ]);
+  if (!charRes.ok) { showAlert($('#alert'), 'Character not found or not visible to you.', true); return; }
+  CHAR = await charRes.json();
+  // CharacterRead intentionally omits chargen_state (it can run up to 256KB and would bloat every
+  // character-list response elsewhere in the app) -- fetch it separately from the dedicated
+  // endpoint. Owner-or-admin only; 404s for a non-owner viewing someone else's sheet, which is fine
+  // since rawBaseAttr()'s backfill covers the gap and only the owner can open Manage Attributes anyway.
+  CHAR.chargen_state = chargenRes.ok ? (await chargenRes.json()).state || {} : {};
+  // Deck Workshop (frontend/deck-workshop.html) keeps its own richer deck records (status, persona,
+  // build origin) in deck_builder_state.stores.sr2_decks_v1, separate from gear.matrix -- merge both
+  // sources for display since either can hold a deck the player never cross-visited the other page for.
+  DECK_WORKSHOP_DECKS = (deckStateRes.ok ? ((await deckStateRes.json()).state || {}) : {}).stores?.sr2_decks_v1 || [];
+  CONTACTS = contactsRes.ok ? await contactsRes.json() : [];
+  const mine = mineRes.ok ? await mineRes.json() : { ids: [] };
+  CAN_EDIT = CHAR.is_pc && (isAdminMode() || (mine.ids||[]).includes(CHAR.id));
+
+  if (skillsRes.ok) {
+    const sk = await skillsRes.json();
+    SKILL_CATALOG = sk.skills || [];
+    SKILL_SPECS = sk.specs || {};
+  }
+  if (armorRes.ok) (await armorRes.json()).items.forEach(it => ARMOR_CAT.set(it.n, it));
+  if (weaponsRes.ok) (await weaponsRes.json()).items.forEach(it => WEAPON_CAT.set(it.n, it));
+  if (vehiclesRes.ok) (await vehiclesRes.json()).items.forEach(it => VEHICLE_CAT.set(it.n, it));
+  if (cyberRes.ok) (await cyberRes.json()).items.forEach(it => CYBER_CAT.set(it.n, it));
+  if (bioRes.ok) (await bioRes.json()).items.forEach(it => BIO_CAT.set(it.n, it));
+  if (spellsRes.ok) (await spellsRes.json()).items.forEach(it => SPELL_CAT.set(it.n, it));
+  if (gearCatRes.ok) (await gearCatRes.json()).items.forEach(it => GEAR_CAT.set(it.n, it));
+  const booksInfo = booksRes.ok ? await booksRes.json() : null;
+  enabledBooks = new Set((booksInfo && booksInfo.enabled) || []);
+  RULES = rulesRes.ok ? await rulesRes.json() : { metatypes: {} };
+
+  // Chargen (character-builder.html) tags skills with conc/spec names but never computes the
+  // General/Concentration/Specialization rating split -- that's a play-sheet-only mechanic. Backfill
+  // it once here using the exact same math as the interactive add-conc/add-spec handlers below, so a
+  // skill that arrived pre-tagged from chargen (e.g. rating 3, conc "Two-Wheeler") displays correctly
+  // split (2/4) instead of showing the raw unsplit rating next to a guessed concentration number.
+  if (normalizeSkillSplits() && CAN_EDIT) await patchChar({ skills: CHAR.skills });
+  let gearChanged = ensureWeaponIds();
+  if (migrateLegacyCyberBands()) gearChanged = true;
+  if (gearChanged && CAN_EDIT) await patchChar({ gear: CHAR.gear });
+
+  document.title = `${CHAR.name} | Play Sheet`;
+  $('#pageCharName').textContent = CHAR.name;
+  $('#sheetWrap').style.display = '';
+  renderAll();
+  wireStatic();
+}
+function normalizeSkillSplits(){
+  let changed = false;
+  (CHAR.skills || []).forEach(s => {
+    if (s.conc && s.concRating == null) {
+      const points = s.rating || 0;
+      s.rating = points - 1;
+      s.concRating = points + 1;
+      changed = true;
+    }
+    if (s.spec && s.specRating == null) {
+      const points = (s.rating || 0) + 1;
+      s.rating = points - 2;
+      s.concRating = points;
+      s.specRating = points + 2;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+function renderAll(){
+  renderHeader();
+  renderIdentity();
+  renderPortrait();
+  renderAttributes();
+  renderArmor();
+  renderCyber();
+  renderMatrix();
+  renderWeapons();
+  renderGear();
+  renderContacts();
+  renderVehicle();
+  renderSkills();
+  renderMagic();
+  renderCond();
+  renderDmgButtons();
+  $('#charNotes').value = CHAR.notes || '';
+  $('#charNotes').disabled = !CAN_EDIT;
+  initNumSteppers(document);
+  applyEditGating();
+}
+
+function applyEditGating(){
+  if (CAN_EDIT) return;
+  $$('#manageIdentityBtn,#manageArmorBtn,#manageAttrsBtn,#manageSkillsBtn,#manageGearBtn,#manageMagicBtn,#manageWeaponsBtn,#manageCyberBtn').forEach(b => b.style.display = 'none');
+  const nd = $('#nuyenDisplay'); nd.style.cursor = 'default'; nd.removeAttribute('tabindex'); nd.removeAttribute('role');
+  $$('#dmgHealToggle .seg-btn, .dmg-btn').forEach(b => b.disabled = true);
+  $$('.cond-overflow__boxes .ps-cond-box').forEach(b => b.style.pointerEvents = 'none');
+  $$('#vehicleFields input, #vehicleFields select, #vehicleFields textarea').forEach(el => el.disabled = true);
+  $$('[data-buy-shortcut]').forEach(b => b.style.display = 'none');
+}
+
+function renderHeader(){
+  $('#hName').textContent = (CHAR.name || '').toUpperCase();
+  $('#hSub').textContent = [CHAR.race, CHAR.gender, CHAR.age, CHAR.archetype].filter(Boolean).join(' · ');
+  $('#nuyenDisplay').textContent = money(CHAR.nuyen);
+}
+
+// ---------------------------------------------------------------- identity
+function renderIdentity(){
+  $('#idAlias').textContent = CHAR.name || '—';
+  const legal = (CHAR.chargen_state && CHAR.chargen_state.identity && CHAR.chargen_state.identity.name) || '';
+  $('#idLegal').textContent = legal || '—';
+  $('#idArchetype').textContent = CHAR.archetype || '—';
+  $('#idRace').textContent = CHAR.race || '—';
+  $('#idSex').textContent = CHAR.gender || '—';
+  $('#idAge').textContent = CHAR.age != null ? CHAR.age : '—';
+  $('#idLifestyle').textContent = CHAR.lifestyle_name || '—';
+  $('#idUpkeep').textContent = CHAR.lifestyle_monthly_cost ? money(CHAR.lifestyle_monthly_cost) + '/mo'
+    : (CHAR.lifestyle_permanent ? 'Paid outright' : 'No upkeep');
+  $('#goodKarmaInput').value = CHAR.good_karma || 0;
+  $('#karmaPoolInput').value = CHAR.karma_pool || 0;
+}
+
+// ---------------------------------------------------------------- attributes / pools
+// Sums a cyber/bioware dice-pool bonus (poolTbl[kind]) across every owned augmentation -- same
+// formula tools/fill_sr2_sheet.py's _pool_bonus() uses for the PDF export. poolTbl is normally copied
+// onto the line at purchase time (makeGearLine); fall back to the catalog entry for older records.
+function poolBonus(kind){
+  let total = 0;
+  const apply = (g, cat) => {
+    const src = g.poolTbl ? g : (cat.get(g.n) || g);
+    const tbl = src.poolTbl && src.poolTbl[kind];
+    if (!Array.isArray(tbl)) return;
+    const r = Math.max(1, Number(g.rating) || 1);
+    total += Number(tbl[Math.min(r, tbl.length) - 1]) || 0;
+  };
+  ((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => apply(g, CYBER_CAT));
+  ((CHAR.gear && CHAR.gear.bio) || []).forEach(g => apply(g, BIO_CAT));
+  return total;
+}
+function powerLevel(name){
+  const p = (CHAR.adept_powers || []).find(x => (x.name || x.n) === name);
+  return p ? (Number(p.lvl) || 1) : 0;
+}
+// Best MPCP among every deck the character owns (gear.matrix lines, plus the richer Deck Workshop
+// store where a deck's been set up there) -- used for Hacking Pool. Mirrors renderMatrix()'s own
+// deck list so "your deck" means the same thing in both places.
+function primaryDeckMpcp(){
+  const gearDecks = (CHAR.gear && CHAR.gear.matrix) || [];
+  const workshopDecks = DECK_WORKSHOP_DECKS || [];
+  const workshopNames = new Set(workshopDecks.map(d => d.deckName || d.name));
+  const mpcps = workshopDecks.map(d => Number(d.mpcp) || 0);
+  gearDecks.forEach(g => {
+    if (workshopNames.has(g.n)) return;
+    const cat = GEAR_CAT.get(g.n) || {};
+    const mpcpRow = (cat.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === 'mpcp');
+    mpcps.push(Number(g.mpcp ?? (mpcpRow ? mpcpRow[1] : 0)) || 0);
+  });
+  return mpcps.length ? Math.max(...mpcps) : 0;
+}
+function reactionInit(){
+  const Q = CHAR.quickness||0, INT = CHAR.intelligence||0, W = CHAR.willpower||0;
+  const vcr = vcrLevel();
+  const reactionPhys = Math.floor((Q+INT)/2);
+  const reactionRig = controlPoolFormula(reactionPhys, vcr);
+  // Base (Q+I+W)/2, plus the Combat Sense adept power and any cyberware Combat Pool bonus (Tactical
+  // Computer), minus a Heavy/Military armor encumbrance penalty.
+  const combatPool = Math.max(0, combatPoolFormula(Q, INT, W, powerLevel('Combat Sense') + poolBonus('combat')) - armorTotals().cpPenalty);
+  return { reactionPhys, reactionRig, combatPool, vcr };
+}
+function vcrLevel(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  const vcr = cyber.find(c => c.n === 'Vehicle Control Rig');
+  return vcr ? (Number(vcr.rating) || 0) : 0;
+}
+// CHAR.body/.../.willpower are the FINAL aggregate (base + metatype racial mod + cyberware/bioware
+// augmentation), baked in at chargen submission (see character-builder.html's finalAttr()). The true
+// pre-augmentation base only survives in CHAR.chargen_state.base -- reconstruct it if that's missing
+// (older records) by reversing the same math, so karma-raise costs are always keyed off base, never
+// off a total that's inflated by an encephalon/wired reflexes/etc.
+function metatypeMod(attr){
+  const mt = RULES && RULES.metatypes ? RULES.metatypes[CHAR.race] : null;
+  return (mt && mt.mods && mt.mods[attr]) || 0;
+}
+function augAttr(attr){
+  let t = 0;
+  const apply = (g, cat, rating) => {
+    if (g.mods) t += Number(g.mods[attr]) || 0;
+    if (g.modsPer) t += (Number(g.modsPer[attr]) || 0) * rating;
+    const src = cat.get(g.n) || g;   // modsTbl (e.g. Encephalon) isn't copied onto the owned line
+    if (src.modsTbl && Array.isArray(src.modsTbl[attr])) t += Number(src.modsTbl[attr][rating - 1]) || 0;
+  };
+  ((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => apply(g, CYBER_CAT, Number(g.rating) || 1));
+  ((CHAR.gear && CHAR.gear.bio) || []).forEach(g => apply(g, BIO_CAT, Number(g.rating) || 1));
+  return t;
+}
+// Pure pre-racial base (chargen_state.base, or backfilled). Not what karma raises are costed
+// against -- see karmaBaseAttr().
+function rawBaseAttr(attr){
+  const stored = CHAR.chargen_state && CHAR.chargen_state.base && CHAR.chargen_state.base[attr];
+  if (stored != null) return stored;
+  return Math.max(1, (CHAR[attr] || 1) - metatypeMod(attr) - augAttr(attr));
+}
+// What a karma raise is costed against: base + metatype/racial bonus. Only gear/cyberware/bioware
+// bonuses (augAttr) are excluded -- an Elf's +1 Quickness is part of "base" for this purpose, e.g.
+// a 3-base Quickness Elf has a karma-base of 4, and raising to 5 costs (4+1)x2 = 10 karma.
+function karmaBaseAttr(attr){ return rawBaseAttr(attr) + metatypeMod(attr); }
+function finalAttr(attr){ return karmaBaseAttr(attr) + augAttr(attr); }
+
+// Skill-rating bonuses from installed cyber/bio with a `skillBonus` (e.g. Math SPU: +floor(rating/2)
+// to matching skills). Applied only for display -- CHAR.skills[].rating stays pure base, so the
+// karma raise cost never needs adjusting for these.
+function skillAugSources(skillName){
+  const web = skillWeb(skillName);
+  const group = web ? web.group : null;
+  const out = [];
+  ((CHAR.gear && CHAR.gear.cyber) || []).concat((CHAR.gear && CHAR.gear.bio) || []).forEach(g => {
+    const sb = g.skillBonus; if (!sb) return;
+    const matches = (group && (sb.groups || []).includes(group)) || (sb.skills || []).includes(skillName);
+    if (!matches) return;
+    const rating = Number(g.rating) || 1;
+    const mag = sb.per === 'halfRating' ? Math.floor(rating / 2) : sb.per === 'rating' ? rating : (Number(sb.flat) || 0);
+    if (mag > 0) out.push({ n: g.n, mag });
+  });
+  return out;
+}
+
+// Remaining Essence after all owned cyberware (bioware costs Body Index instead, tracked via
+// ownedBioIndex/ownedBioIndexTotal below). Grade-aware so pre-existing Alpha-grade items from
+// chargen aren't mis-costed by a Standard-only assumption -- the actual grade/rating/options math
+// lives in shared.js's gradedCyberEssence (also used by character-builder.html's chargen shop), this
+// page just supplies its own grade-multiplier table. Mirrors character-builder.html's GRADES exactly
+// (same book-gating) so a given grade prices identically whether bought at chargen or post-chargen.
+const ESS_GRADE_MULT = { Standard: { ess: 1.0, nuyen: 1, book: null }, Alpha: { ess: 0.8, nuyen: 2, book: "SSC" } };
+function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
+function essenceRemaining(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  return Math.max(0, 6 - cyber.reduce((s,g) => s + ownedCyberEss(g), 0));
+}
+// Bioware costs Body Index, not Essence -- no grade multiplier (bioware has no grade concept),
+// reading the .ess field bioware lines use instead of cyberware's .baseEss.
+function ownedBioIndex(g){
+  if (!g.rated) return Number(g.ess) || 0;
+  // clampedRating() (shared.js) keeps an out-of-range rating from indexing past essTbl or from
+  // multiplying essUnit by an unbounded value -- the same guard cyberBaseEss() applies for cyberware.
+  const lo = Number(g.minRating)||1, r = clampedRating(g);
+  return (Array.isArray(g.essTbl) && g.essTbl[r-lo] != null) ? (Number(g.essTbl[r-lo])||0) : (Number(g.essUnit)||0)*r;
+}
+function ownedBioIndexTotal(){
+  const bio = (CHAR.gear && CHAR.gear.bio) || [];
+  return bio.reduce((s,g) => s + ownedBioIndex(g), 0);
+}
+// Essence can never go below 0; Body Index (bioware) is capped at the character's UNMODIFIED Body
+// (karmaBaseAttr, not the augmented finalAttr -- a Body-boosting cyberlimb never raises the cap,
+// only spending karma on the base Body value does). Shared by purchaseGear (fromLine omitted --
+// delta is the whole new line's cost) and the Manage Cyberware in-place rating upgrade (fromLine =
+// the line's current state, so delta is just the increase).
+function essenceOrBioIndexBlocked(bucket, line, fromLine){
+  if (bucket === 'cyber') {
+    const delta = ownedCyberEss(line) - (fromLine ? ownedCyberEss(fromLine) : 0);
+    if (delta > essenceRemaining() + 1e-9) return `${line.n} (would exceed Essence)`;
+  } else if (bucket === 'bio') {
+    const delta = ownedBioIndex(line) - (fromLine ? ownedBioIndex(fromLine) : 0);
+    const cap = karmaBaseAttr('body');
+    if (ownedBioIndexTotal() + delta > cap + 1e-9) return `${line.n} (would exceed Body Index — max ${cap})`;
+  }
+  return null;
+}
+
+function renderAttributes(){
+  $('#atB').textContent = CHAR.body; $('#atQ').textContent = CHAR.quickness; $('#atS').textContent = CHAR.strength;
+  $('#atCH').textContent = CHAR.charisma; $('#atINT').textContent = CHAR.intelligence; $('#atW').textContent = CHAR.willpower;
+  $('#dvEssence').textContent = Number(CHAR.essence||0).toFixed(2);
+  $('#dvMagic').textContent = CHAR.magic_rating > 0 ? CHAR.magic_rating : '—';
+  const { reactionPhys, reactionRig, combatPool, vcr } = reactionInit();
+  $('#dvReaction').textContent = vcr ? `${reactionPhys} / ${reactionRig}` : `${reactionPhys}`;
+  $('#dvInit').textContent = vcr ? `1D6 / ${1+vcr}D6` : '1D6';
+  const pools = [['Combat', combatPool]];
+  if (vcr) pools.push(['Control', reactionRig]);
+  // Formulas live in shared.js (combatPoolFormula/hackingPoolFormula/astralPoolFormula/
+  // spellPoolFormula/controlPoolFormula) -- same functions character-builder.html's chargen shop
+  // calls, so a magician's pools compute identically at chargen and here. This page just gathers
+  // its own inputs and gates each pool on its prerequisite (owns a deck, knows Sorcery, etc.).
+  // Hacking Pool = floor((Intelligence + best owned deck's MPCP)/3) + a Math SPU's bonus.
+  const mpcp = primaryDeckMpcp();
+  if (mpcp > 0) pools.push(['Hacking', hackingPoolFormula(CHAR.intelligence, mpcp, poolBonus('hack'))]);
+  // Task Pool comes entirely from cyber/bioware (Encephalon, Cerebral Booster) -- no base formula.
+  const taskPool = poolBonus('task');
+  if (taskPool > 0) pools.push(['Task', taskPool]);
+  // Astral Pool: floor((Int+Will+Cha)/2), Full Mage only -- used while astrally projecting/perceiving.
+  // Distinct from Spell Pool below (different formula, different context); a Full Mage has both.
+  if (CHAR.magic_type === 'Full Mage') {
+    const astral = astralPoolFormula(CHAR.intelligence, CHAR.willpower, CHAR.charisma);
+    if (astral > 0) pools.push(['Astral', astral]);
+  }
+  // Spell Pool: floor((Int+Will+Magic Rating)/3), gated on actually knowing Sorcery (not just magic_type
+  // -- matches hasSorcery()/spellPool() in chargen). Power Focus adds its Rating on top per its own
+  // catalog text ("+Rating dice to the Magic Pool") -- chargen's own formula doesn't include this since
+  // foci aren't part of that calculation there, but the bonus is real and has to land somewhere.
+  if ((CHAR.skills||[]).some(s => s.name === 'Sorcery')) {
+    const focusBonus = ((CHAR.gear && CHAR.gear.foci) || []).filter(f => f.n === 'Power Focus').reduce((s,f) => s + (Number(f.rating)||0), 0);
+    const spell = spellPoolFormula(CHAR.intelligence, CHAR.willpower, CHAR.magic_rating, focusBonus);
+    if (spell > 0) pools.push(['Spell', spell]);
+  }
+  $('#poolList').innerHTML = pools.map(([k,v]) => `<div class="ps-stat-row"><span class="k">${k}</span><span class="v computed">${v}</span></div>`).join('');
+  const body = CHAR.body || 0;
+  $('#overflowMax').textContent = body;
+}
+
+// ---------------------------------------------------------------- armor
+// ---------------------------------------------------------------- portrait
+function renderPortrait(){
+  const box = $('#portraitBox');
+  box.classList.toggle('is-static', !CAN_EDIT);
+  box.innerHTML = CHAR.portrait_url
+    ? `<img src="${esc(CHAR.portrait_url)}" alt="${esc(CHAR.name || 'Portrait')}">`
+    : `<span>${CAN_EDIT ? 'Click to upload portrait' : 'No portrait'}</span>`;
+}
+function wirePortrait(){
+  const box = $('#portraitBox'), input = $('#portraitFile');
+  const open = () => { if (CAN_EDIT) input.click(); };
+  box.addEventListener('click', open);
+  box.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      // Raw fetch, not apiFetch -- apiFetch forces Content-Type: application/json whenever a body
+      // is present, which would break the browser's multipart/form-data boundary for this upload.
+      const res = await fetch(`/characters/${CHAR.id}/portrait`, { method: 'POST', headers: authHeaders(), body: fd });
+      if (!res.ok) await apiThrow(res);
+      const updated = await res.json();
+      Object.assign(CHAR, updated);
+      renderPortrait();
+      showAlert($('#alert'), 'Portrait updated.', false);
+    } catch (e) {
+      showAlert($('#alert'), e.message, true);
+    }
+  });
+}
+
+// SR2 armor doesn't stack: only the single highest-rated worn body armor counts. Helmet and Shield
+// are the documented exceptions (their catalog notes explicitly call out "stacks with other exterior
+// armor") and add on top. Heavy/military armor's cp_penalty_per note ("reduces Combat Pool by 1 per
+// N points of Ballistic above Quickness") is also totalled here so reactionInit() can apply it.
+// Armor equip slots: only one Body piece (worn or military/hard-armor -- they're mutually exclusive
+// suits), one Helmet, and one Shield can be worn at once. Body is the catch-all for anything that
+// isn't explicitly a helmet or shield.
+function armorSlot(cat){
+  return cat.cat === 'helmet' ? 'Helmet' : cat.cat === 'shield' ? 'Shield' : 'Body';
+}
+const ARMOR_SLOTS = ['Body', 'Helmet', 'Shield'];
+// Keeps at most one equipped item per slot, favoring the most recently added/toggled (last in
+// array order) when a conflict is found -- used after a purchase auto-equips a new piece.
+function enforceArmorSlotExclusivity(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  const bySlot = {};
+  armor.forEach(a => {
+    if (a.equipped === false) return;
+    const slot = armorSlot(ARMOR_CAT.get(a.n)||{});
+    (bySlot[slot] = bySlot[slot] || []).push(a);
+  });
+  Object.values(bySlot).forEach(items => { items.slice(0, -1).forEach(a => a.equipped = false); });
+}
+// Cyberware/bioware armor (Dermal Sheath/Plating: flat ballistic_bonus/impact_bonus per catalog row;
+// Bone Lacing/Orthoskin: rated, ballistic/impact scale by rating via armorTbl) is subdermal -- it
+// stacks additively on top of worn armor rather than competing for a body slot like worn pieces do.
+function bioArmorBonus(){
+  let ballistic = 0, impact = 0;
+  const apply = (g, cat) => {
+    const src = cat.get(g.n) || g;
+    if (src.ballistic_bonus != null || src.impact_bonus != null) {
+      ballistic += Number(src.ballistic_bonus) || 0;
+      impact += Number(src.impact_bonus) || 0;
+      return;
+    }
+    if (src.armorTbl) {
+      const r = Math.max(1, Number(g.rating) || 1);
+      const bt = src.armorTbl.ballistic, it = src.armorTbl.impact;
+      if (Array.isArray(bt)) ballistic += Number(bt[Math.min(r, bt.length) - 1]) || 0;
+      if (Array.isArray(it)) impact += Number(it[Math.min(r, it.length) - 1]) || 0;
+    }
+  };
+  ((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => apply(g, CYBER_CAT));
+  ((CHAR.gear && CHAR.gear.bio) || []).forEach(g => apply(g, BIO_CAT));
+  return { ballistic, impact };
+}
+function armorTotals(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  const Q = CHAR.quickness || 0;
+  let bestB = 0, bestI = 0, addB = 0, addI = 0, cpPenalty = 0;
+  armor.filter(a => a.equipped !== false).forEach(a => {
+    const cat = ARMOR_CAT.get(a.n) || {};
+    const b = Number(cat.ballistic) || 0, i = Number(cat.impact) || 0;
+    if (armorSlot(cat) !== 'Body') { addB += b; addI += i; }
+    else { if (b > bestB) bestB = b; if (i > bestI) bestI = i; }
+    if (cat.cp_penalty_per) cpPenalty += Math.floor(Math.max(0, b - Q) / (Number(cat.cp_penalty_per)||1));
+  });
+  const bio = bioArmorBonus();
+  return { ballistic: bestB + addB + bio.ballistic, impact: bestI + addI + bio.impact, cpPenalty };
+}
+function renderArmor(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  if (!armor.length) { $('#armorList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No armor owned.</p>'; }
+  else {
+    // Flat list on the main sheet -- no slot sub-headings/dividers, that grouping only lives in
+    // Manage Armor where equip-slot exclusivity actually needs explaining.
+    $('#armorList').innerHTML = armor.map(a => {
+      const cat = ARMOR_CAT.get(a.n) || {};
+      const equipped = a.equipped !== false; // default true for legacy rows with no flag
+      return `<div class="ps-stat-row"><span class="k">${esc(a.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</span>
+        <span class="v">${cat.ballistic ?? '-'}/${cat.impact ?? '-'} &middot; Conceal ${cat.conceal ?? '-'}</span></div>`;
+    }).join('');
+  }
+  const { ballistic, impact } = armorTotals();
+  $('#armorTotal').textContent = `${ballistic}/${impact}`;
+}
+
+// ---------------------------------------------------------------- cyberware
+// A good number of cyberware/bioware families (Vehicle Control Rig, Wired Reflexes, Boosted
+// Reflexes, Dermal Sheath/Plating, Move-by-Wire System, Optical/Electronic Magnification, Crypto
+// Circuit HD, Scramble Breaker HD...) aren't modeled as one `rated:true` catalog item with a rating
+// field -- each level is its own separate catalog entry, named either "<Type> Level <N>", plain
+// "<Type> <N>", or either of those with a trailing "(SR2)"-style source tag. Parse the level back out
+// for display so e.g. "Vehicle Control Rig Level 1" reads as Type "Vehicle Control Rig", Rating 1,
+// same as a truly-rated item. Per-point range entries ("Strength Enhancement 1-3 (per point)") don't
+// end in a bare number so they correctly fall through untouched.
+function cyberTypeRating(g){
+  if (g.rated) return { type: g.n, rating: g.rating || 1 };
+  const m = /^(.+?)\s+(?:Level\s+)?(\d+)(?:\s*\([^)]*\))?$/.exec(g.n || '');
+  return m ? { type: m[1], rating: Number(m[2]) } : { type: g.n, rating: null };
+}
+function cyberTableRows(items, bucket, forModal){
+  return items.map((g,i) => {
+    const { type, rating } = cyberTypeRating(g);
+    const bioTag = bucket === 'bio' ? ' <span style="color:var(--violet);font-size:.7rem;">(Bio)</span>' : '';
+    const ratingCell = rating != null ? esc(String(rating)) : '&mdash;';
+    if (!forModal) {
+      const ess = bucket === 'cyber' ? ownedCyberEss(g) : ownedBioIndex(g);
+      const val = ess ? ess.toFixed(2) + (bucket === 'cyber' ? ' Ess' : ' BI') : '';
+      return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td><td>${val}</td></tr>`;
+    }
+    // Rating/grade changes happen by re-buying the item from the picker (see upgradeExistingSingular
+    // in purchaseGear) -- Manage Cyberware only removes a line now, it doesn't offer in-place controls.
+    return `<tr><td>${esc(type)}${bioTag}</td><td>${g.grade ? esc(g.grade) : '&mdash;'}</td><td>${ratingCell}</td>
+      <td class="flex-row-8">
+        <button class="row-x" data-cyber-remove="${bucket}:${i}" title="Remove">&#10005;</button>
+      </td></tr>`;
+  }).join('');
+}
+function renderCyber(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  const bio = (CHAR.gear && CHAR.gear.bio) || [];
+  if (!cyber.length && !bio.length) { $('#cyberList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">None.</p>'; return; }
+  const rows = cyberTableRows(cyber, 'cyber', false) + cyberTableRows(bio, 'bio', false);
+  $('#cyberList').innerHTML = `<table class="ps-data"><thead><tr><th>Type</th><th>Grade</th><th>Rating</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---- Manage Cyberware / Bioware (purchase/upgrade via the shared picker, remove here) ----
+function openManageCyber(){
+  openModal('cyber', '// Manage Cyberware / Bioware', false);
+  renderManageCyber();
+}
+function renderManageCyber(){
+  const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
+  const bio = (CHAR.gear && CHAR.gear.bio) || [];
+  // One shared Type/Grade/Rating table for both -- a "Cyberware"/"Bioware" section title would just
+  // repeat what the modal's own header already says; bio rows carry an inline (Bio) tag instead.
+  const rows = cyberTableRows(cyber, 'cyber', true) + cyberTableRows(bio, 'bio', true);
+  const table = rows ? `<table class="ps-data"><thead><tr><th>Type</th><th>Grade</th><th>Rating</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="empty-state">No cyberware or bioware owned.</p>';
+  $('#modalBody').innerHTML = table + buyShortcutRow('cyberware', 'Buy Cyberware / Bioware');
+  $$('[data-cyber-remove]').forEach(b => b.onclick = () => {
+    const [bucket, idx] = b.dataset.cyberRemove.split(':');
+    const removed = CHAR.gear[bucket][Number(idx)];
+    // Mirror purchaseGear()'s snapshot-before-mutate: figure out which attributes this item was
+    // boosting (mods/modsPer live on the line, modsTbl -- e.g. Encephalon -- only on the catalog
+    // def) and freeze their karma-base BEFORE removing it, so the post-removal augAttr() drop gets
+    // baked into CHAR[attr] instead of leaving it permanently stale at the augmented total.
+    const src = (bucket === 'cyber' ? CYBER_CAT : BIO_CAT).get(removed.n) || removed;
+    const touchedAttrs = new Set();
+    if (src.mods) Object.keys(src.mods).forEach(a => touchedAttrs.add(a));
+    if (src.modsPer) Object.keys(src.modsPer).forEach(a => touchedAttrs.add(a));
+    if (src.modsTbl) Object.keys(src.modsTbl).forEach(a => touchedAttrs.add(a));
+    const baseSnapshot = {};
+    touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
+
+    CHAR.gear[bucket].splice(Number(idx), 1);
+    const patch = { gear: CHAR.gear };
+    Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
+    if (bucket === 'cyber') patch.essence = Math.round(essenceRemaining() * 100) / 100;
+    else if (bucket === 'bio') patch.body_index = Math.round(ownedBioIndexTotal() * 100) / 100;
+    patchChar(patch).then(() => { renderCyber(); renderManageCyber(); renderAttributes(); });
+  });
+  wireBuyShortcut();
+}
+
+// ---------------------------------------------------------------- matrix / cyberdeck
+// Persona combat ratings (Bod/Evasion/Masking/Sensors) by MPCP -- ported from
+// tools/fill_sr2_sheet.py's BEMS_TABLE/_deck_bems(), the same formula used for the PDF export.
+const BEMS_TABLE = { 2:[2,2,1,1], 3:[3,2,2,2], 6:[5,5,4,4], 8:[6,6,6,6], 10:[8,8,7,7], 12:[9,9,9,9] };
+function deckBems(mpcp){
+  if (BEMS_TABLE[mpcp]) return BEMS_TABLE[mpcp];
+  const base = Math.floor((mpcp*3)/4), rem = (mpcp*3)%4;
+  return [0,1,2,3].map(i => base + (i < rem ? 1 : 0));
+}
+// Deck Workshop (frontend/deck-workshop.html) is the actual management surface for decks -- this
+// panel is read-only, just a combined list. Workshop-store decks (richer: status, persona, origin)
+// take priority; any gear.matrix deck not yet represented there (bought here but the player never
+// opened Deck Workshop to get it seeded in) is listed too so nothing owned goes missing.
+function renderMatrix(){
+  const gearDecks = (CHAR.gear && CHAR.gear.matrix) || [];
+  const workshopDecks = DECK_WORKSHOP_DECKS || [];
+  const workshopNames = new Set(workshopDecks.map(d => d.deckName || d.name));
+  const rows = workshopDecks.map(d => ({
+    n: d.deckName || d.name || 'Deck',
+    mpcp: d.mpcp,
+    tag: d.status ? `<span class="contact-tag" style="margin-left:6px;">${esc(d.status)}</span>` : '',
+  }));
+  gearDecks.forEach(g => {
+    if (workshopNames.has(g.n)) return;   // already represented via the workshop store
+    const cat = GEAR_CAT.get(g.n) || {};
+    const mpcpRow = (cat.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === 'mpcp');
+    rows.push({ n: g.n, mpcp: g.mpcp ?? (mpcpRow ? mpcpRow[1] : null), tag: '' });
+  });
+
+  $('#matrixPanel').style.display = rows.length ? '' : 'none';
+  if (!rows.length) return;
+  $('#matrixList').innerHTML = rows.map(r => {
+    const mpcp = Number(r.mpcp) || 0;
+    const bems = mpcp ? deckBems(mpcp) : null;
+    const bemsStr = bems ? ` &middot; Bod ${bems[0]}/Eva ${bems[1]}/Mask ${bems[2]}/Sen ${bems[3]}` : '';
+    return `<div class="ps-stat-row"><span class="k">${esc(r.n)}${r.tag}</span><span class="v">MPCP ${r.mpcp ?? '—'}${bemsStr}</span></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- weapons
+// SR2/FoF range bands (metres) by weapon sub-type -- not in the item catalog, so they're looked up
+// here by class (ported from tools/fill_sr2_sheet.py's RANGE_TABLE, already used for the PDF export).
+// Strength-based weapons (bows/thrown/crossbows) are computed from CHAR.strength.
+const RANGE_TABLE = {
+  'Hold-Out': ['0-5','6-15','16-30','31-50'], 'Hold-Out Pistol': ['0-5','6-15','16-30','31-50'],
+  'Light Pistol': ['0-5','6-15','16-30','31-50'], 'Machine Pistol': ['0-5','6-15','16-30','31-50'],
+  'Heavy Pistol': ['0-5','6-20','21-40','41-60'],
+  'SMG': ['0-10','11-40','41-80','81-150'], 'Submachine Gun': ['0-10','11-40','41-80','81-150'],
+  'Shotgun': ['0-10','11-20','21-50','51-100'],
+  'Taser': ['0-5','6-10','11-12','13-15'],
+  'Sport Rifle': ['0-30','31-60','61-150','151-300'],
+  'Sniper Rifle': ['0-40','41-80','81-200','201-400'],
+  'Assault Rifle': ['0-15','16-40','41-100','101-250'], 'Carbine': ['0-15','16-40','41-100','101-250'],
+  'Light Machine Gun': ['0-20','21-40','41-80','81-150'],
+  'Medium Machine Gun': ['0-40','41-150','151-300','301-500'],
+  'Heavy Machine Gun': ['0-40','41-150','151-400','401-800'],
+  'Assault Cannon': ['0-50','51-150','151-450','451-1300'],
+  'Grenade Launcher': ['5-50','51-100','101-150','151-300'],
+  'Missile Launcher': ['20-70','71-150','151-450','451-1500'],
+  'Anti-Tank Guided Missile': ['20-350','351-750','751-1500','1501-5000'],
+  'Mortar': ['150-300','301-1000','1001-4000','4001-6000'],
+  'Laser Weapon': ['0-40','41-80','81-200','201-400'],
+  'Vehicle Laser': ['0-50','51-150','151-450','451-1300'],
+  'Light Anti-Armor Weapon': ['20-70','71-150','151-450','451-1500'],
+  'Medium Anti-Armor Weapon': ['20-70','71-150','151-450','451-1500'],
+  'Minigun': ['0-20','21-40','41-80','81-150'],
+  'Sentry Gun': ['0-20','21-40','41-80','81-150'],
+  'Surface-to-Air Missile': ['20-70','71-150','151-450','451-5000'],
+  'Dart Pistol': ['0-5','6-15','16-30','31-50'], 'Dart Rifle': ['0-10','11-20','21-50','51-100'],
+};
+const NAME_RANGE = { 'Ballista Multi-Role Missile Launcher': ['20-100','101-500','501-2500','2501-5000'] };
+const STR_RANGE_MULT = { Bow:[1,10,30,60], 'Throwing Knife':[1,2,3,5], Shuriken:[1,2,5,7], Grenade:[3,5,10,20], Thrown:[3,5,10,20] };
+const CROSSBOW_MULT = { light:[2,8,20,40], medium:[3,12,30,50], heavy:[5,15,40,60] };
+function strRangeBands(mults, strength){
+  const bands = []; let lo = 0;
+  mults.forEach(m => { const hi = Math.max(0, Math.round((strength||0)*m)); bands.push(`${lo}-${hi}`); lo = hi + 1; });
+  return bands;
+}
+// Condense "lo-hi" bands to a single "up to" number -- each band's floor is implied by the
+// previous band's ceiling, so only Short keeps its own floor, and only when it's non-zero
+// (indirect-fire weapons like grenade/missile launchers have a genuine minimum range). Matches
+// tools/fill_sr2_sheet.py's _display_bands(), used for the same tables on the PDF export.
+function displayBands(bands){
+  return bands.map((band, i) => {
+    const [lo, hi] = String(band).split('-');
+    if (hi == null) return band;   // already a bare "-" placeholder
+    return (i === 0 && lo !== '0') ? `${lo}-${hi}` : hi;
+  });
+}
+function weaponRangeBands(w, cat){
+  let bands = NAME_RANGE[w.n] || RANGE_TABLE[cat.sub];
+  if (!bands) {
+    let mults = STR_RANGE_MULT[cat.sub];
+    if (cat.sub === 'Crossbow') {
+      const lname = (w.n || '').toLowerCase();
+      const key = lname.includes('light') ? 'light' : lname.includes('heavy') ? 'heavy' : 'medium';
+      mults = CROSSBOW_MULT[key];
+    }
+    if (mults) bands = strRangeBands(mults, CHAR.strength);
+  }
+  return displayBands(bands || ['-','-','-','-']);
+}
+// Armor items with conceal_scope 'beneath' (Lined Coat, Secure Long Coat) grant a bonus to any
+// weapon concealed under them -- flat (+2) or percentage (+50% for rated-4+ weapons), per the SR2
+// item text baked into armor.json. Summed across equipped qualifying pieces.
+function armorConcealBonus(){
+  let flat = 0, pct = 0, minRating = 0;
+  ((CHAR.gear && CHAR.gear.armor) || []).forEach(a => {
+    if (a.equipped === false) return;
+    const cat = ARMOR_CAT.get(a.n) || {};
+    if (cat.conceal_scope !== 'beneath') return;
+    if (cat.conceal_bonus) flat += Number(cat.conceal_bonus) || 0;
+    if (cat.conceal_bonus_pct) { pct += Number(cat.conceal_bonus_pct) || 0; minRating = Math.max(minRating, Number(cat.conceal_min_rating) || 0); }
+  });
+  return { flat, pct, minRating };
+}
+// A Concealable Holster (like every other mod now) is sized for a handgun or taser -- a shotgun
+// or SMG/machine gun just doesn't fit. Every firearm sub containing "Pistol" (Light/Heavy/Machine/
+// Hold-Out/Dart) qualifies by name already; Tasers are their own "exotic" category with sub
+// "Taser", so they need an explicit check too. Gates which weapons a holster can be Attached to in
+// openManageWeaponMods -- see WEAPON_MOD_NAMES.
+function holsterEligible(cat){ return /pistol/i.test(cat.sub||'') || cat.sub === 'Taser'; }
+// A weapon's built-in notes (weapons.json) are free text -- "Integral Ares Smartlink" tells you
+// it HAS a smartlink, not what a smartlink actually does. Where the concept is unambiguous
+// (matches one of the same real accessories WEAPON_MOD_NOTES already documents), decode it to the
+// same benefit text; a gas-vent note without a stated rating, or a note with no recognizable
+// concept (flavor text like "very reliable"), is left to just show as-is rather than guess.
+function decodeBuiltInBenefit(note){
+  if (/smart\s*(gun|link)/i.test(note)) return WEAPON_MOD_NOTES['Smartgun System, Internal'];
+  if (/laser/i.test(note)) return WEAPON_MOD_NOTES['Laser Sight'];
+  if (/silencer|suppressor/i.test(note)) return WEAPON_MOD_NOTES['Silencer'];
+  const gv = note.match(/gas-vent\D*(\d)/i);
+  if (gv) { const n = Number(gv[1]); return `${n} pt${n===1?'':'s'} Recoil Comp`; }
+  return null;
+}
+// One combined list per weapon: what's built into the gun (catalog notes, read-only) plus whatever
+// mods are actively attached (WEAPON_MOD_NAMES accessories with hostId === w.id, assigned via the
+// MOD button/openManageWeaponMods). Shown together since a player doesn't care which bucket a given
+// bonus came from -- they just want the full picture for that gun.
+function weaponModEntries(w, cat, weapons){
+  const builtIns = (Array.isArray(cat.notes) ? cat.notes : []).map(note => ({ n: note, benefit: decodeBuiltInBenefit(note) }));
+  const attached = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && g.hostId === w.id)
+    .map(g => ({ n: g.n, benefit: WEAPON_MOD_NOTES[g.n] }));
+  return [...builtIns, ...attached];
+}
+function renderWeapons(){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  // Every carried weapon shows, equipped or not -- same convention as Armor's (E) badge, rather
+  // than hiding unequipped ones. Manage Weapons toggles equip state / removes.
+  const rows = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
+  if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="12" class="empty-state">No weapons owned.</td></tr>`; return; }
+  const coatBonus = armorConcealBonus();
+  $('#weaponsTbl tbody').innerHTML = rows.map((w,i) => {
+    const cat = WEAPON_CAT.get(w.n) || {};
+    const equipped = w.equipped !== false;
+    const [short, med, long, extreme] = weaponRangeBands(w, cat);
+    let concealCell = '-', concealTitle = '';
+    if (cat.conceal != null) {
+      const base = Number(cat.conceal);
+      // Concealable Holster is just another mod now -- its +2 applies only when one is actually
+      // attached to THIS weapon, not auto-distributed across every carried pistol.
+      const holsterAttached = weapons.some(g => g.n === 'Concealable Holster' && g.hostId === w.id);
+      const holsterBonus = holsterAttached ? (Number((WEAPON_CAT.get('Concealable Holster')||{}).conceal_bonus) || 0) : 0;
+      let val = base + holsterBonus + coatBonus.flat;
+      if (coatBonus.pct && base >= coatBonus.minRating) val += Math.floor(base * coatBonus.pct / 100);
+      concealCell = String(val);
+      const parts = [`Base ${base}`];
+      if (holsterBonus) parts.push(`Holster +${holsterBonus}`);
+      if (coatBonus.flat) parts.push(`Coat +${coatBonus.flat}`);
+      if (coatBonus.pct && base >= coatBonus.minRating) parts.push(`Coat +${coatBonus.pct}%`);
+      if (parts.length > 1) concealTitle = ` title="${esc(parts.join(' · '))}"`;
+    }
+    const modEntries = weaponModEntries(w, cat, weapons);
+    const modsList = modEntries.map(m => m.n).join(', ');
+    const modsTitle = modEntries.map(m => m.benefit ? `${m.n} — ${m.benefit}` : m.n).join('\n');
+    return `<tr><td>${esc(w.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</td><td>${esc(cat.sub||'')}</td><td>${esc(cat.mode||'')}</td><td>${esc(cat.dmg||'')}</td>
+      <td>${esc(cat.ammo||'')}</td><td${concealTitle}>${concealCell}</td><td>${esc(short)}</td><td>${esc(med)}</td><td>${esc(long)}</td><td>${esc(extreme)}</td>
+      <td><span class="dim-meta" style="font-size:.72rem;white-space:normal;"${modsTitle ? ` title="${esc(modsTitle)}"` : ''}>${modsList ? esc(modsList) : '—'}</span></td>
+      <td style="white-space:nowrap;">${CAN_EDIT ? `<button type="button" class="btn btn-amber btn-sm" data-mod-weapon="${esc(w.id)}">MOD</button>` : ''}</td></tr>`;
+  }).join('');
+  $$('[data-mod-weapon]').forEach(b => b.onclick = () => openManageWeaponMods(b.dataset.modWeapon));
+}
+
+// ---------------------------------------------------------------- gear
+function renderGear(){
+  const gear = (CHAR.gear && CHAR.gear.gear) || [];
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const accessories = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat === 'accessory');
+  // Weapons (equipped or not) live entirely in their own Weapons table now, like Armor's (E)
+  // pattern -- they don't also get listed here. Cyberdecks have their own Cyberdeck panel too.
+  const foci = (CHAR.gear && CHAR.gear.foci) || [];
+  const all = [
+    ...gear.map(g => ({ n:g.n, kind:g.kind||'', tag:g.kind ? g.kind : 'Gear', mount:null })),
+    // A weapon-mod accessory (WEAPON_MOD_NAMES) attached via the Weapons table's MOD button carries
+    // hostId -- resolve it to the host's name so it groups (and displays) separately from an
+    // identical unattached copy still sitting loose in inventory.
+    ...accessories.map(w => ({ n:w.n, kind:'', tag:'Accessory',
+      mount: (WEAPON_MOD_NAMES.has(w.n) && w.hostId) ? (weapons.find(h => h.id === w.hostId)||{}).n || null : null })),
+    ...foci.map(f => ({ n:f.n || f.type, kind:'', tag:'Focus', mount:null })),
+  ];
+  // group identical rows (same name/tag/mount) into qty
+  const grouped = [];
+  all.forEach(item => {
+    const existing = grouped.find(g => g.n === item.n && g.tag === item.tag && g.mount === item.mount);
+    if (existing) existing.qty += 1; else grouped.push({ ...item, qty: 1 });
+  });
+  if (!grouped.length) { $('#gearList').innerHTML = '<p class="empty-state">No gear owned.</p>'; return; }
+  $('#gearList').innerHTML = grouped.map(g => {
+    const label = (g.kind ? `${g.n} - ${g.kind}` : g.n) + (g.qty > 1 ? ` ×${g.qty}` : '') + (g.mount ? ` — mounted on ${g.mount}` : '');
+    // Weapon accessories (Laser Sight, Gas-Vent, Smartgun System, ...) show what they grant right
+    // here -- looked up live by name, so it shows for anything already owned, not just new buys.
+    const note = WEAPON_MOD_NOTES[g.n];
+    return `<div class="gear-item">${esc(label)}${note ? `<div class="dim-meta" style="font-size:.66rem;">${esc(note)}</div>` : ''}</div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- contacts (read-only, world-state driven)
+const CONTACT_TAG_CLASS = { Contact:'tag-contact', Buddy:'tag-buddy', Gang:'tag-gangtribe', Tribe:'tag-gangtribe', Follower:'tag-follower' };
+function renderContacts(){
+  if (!CONTACTS.length) { $('#contactsList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No contacts yet.</p>'; return; }
+  $('#contactsList').innerHTML = CONTACTS.map(c => {
+    const tag = c.contact_type || (c.loyalty >= 3 ? 'Buddy' : 'Contact');
+    return `<div class="ps-stat-row"><span class="k">${esc(c.name)}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>
+      <span class="contact-tag ${CONTACT_TAG_CLASS[tag]||''}">${esc(tag)}</span></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- vehicle
+// The owned gear.vehicles[] line only ever carries `body`+`rigger` from chargen (makeGearLine) --
+// every other stat falls back to the catalog's stats:[[label,value],...] array.
+function vehicleStatMap(item){
+  const m = {};
+  (item.stats || []).forEach(s => { if (Array.isArray(s)) m[String(s[0]).toLowerCase()] = s[1]; });
+  return m;
+}
+// The primary vehicle (marked via the card grid's radio, or vehicles[0] if none marked yet) is
+// the one whose stats fill the fielded section above the list.
+function primaryVehicle(vehicles){ return vehicles.find(v => v.primary) || vehicles[0]; }
+function renderVehicle(){
+  const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+  const v = primaryVehicle(vehicles);
+  if (!v) { $('#noVehicle').style.display = ''; $('#vehicleFields').style.display = 'none'; return; }
+  $('#noVehicle').style.display = 'none'; $('#vehicleFields').style.display = '';
+  const cat = vehicleStatMap(VEHICLE_CAT.get(v.n) || {});
+  $('#vehName').textContent = v.n; $('#vehType').textContent = v.sub || '—';
+  $('#vehHandling').value = v.handling ?? cat.handling ?? '';
+  $('#vehSpeed').value = v.speed ?? cat.speed ?? '';
+  $('#vehAccel').value = v.accel ?? cat.accel ?? '';
+  $('#vehBody').value = v.body ?? cat.body ?? '';
+  $('#vehArmor').value = v.armor ?? cat.armor ?? 0;
+  $('#vehSig').value = v.sig ?? cat.sig ?? '';
+  // Autonav (civilian autopilot) and Pilot (drone autonomy) are mutually exclusive in the catalog --
+  // every entry carries both keys but only one is ever populated (drones get Pilot, everything else
+  // gets Autonav; the other reads "—"). Show whichever one actually applies, dynamically labeled.
+  const isDash = x => x == null || ['', '—', '-'].includes(String(x).trim());
+  const usePilot = !isDash(cat.pilot);
+  $('#vehAutopilotLabel').textContent = usePilot ? 'Pilot' : 'Autonav';
+  $('#vehAutopilot').value = v.autopilot ?? (usePilot ? cat.pilot : cat.autonav) ?? '';
+  $('#vehSensor').value = v.sensor ?? cat.sensor ?? '';
+  $('#vehCargo').value = v.cargo ?? cat.cargo ?? '';
+  $('#vehLoad').value = v.load ?? cat.load ?? '';
+  $('#riggerGearSelect').value = String(!!v.rigger);
+  $('#vehicleNotes').value = v.notes || '';
+  renderVehicleList(vehicles);
+}
+function renderVehicleList(vehicles){
+  $('#vehicleListWrap').style.display = vehicles.length > 1 ? '' : 'none';
+  if (vehicles.length < 2) return;
+  const primary = primaryVehicle(vehicles);
+  $('#vehicleList').innerHTML = vehicles.map((v,i) => {
+    const isPrimary = v === primary;
+    return `<div class="veh-card ${isPrimary?'is-primary':''}">
+      <button class="veh-card__x" data-remove-vehicle="${i}" title="Remove" ${CAN_EDIT?'':'disabled'}>&times;</button>
+      <div class="veh-card__n">${esc(v.n)}</div>
+      <div class="veh-card__t">${esc(v.sub||'')}</div>
+      <label class="veh-card__primary"><input type="radio" class="opt-radio" name="vehPrimary" data-primary-vehicle="${i}" ${isPrimary?'checked':''} ${CAN_EDIT?'':'disabled'}> Primary</label>
+    </div>`;
+  }).join('');
+  $$('[data-primary-vehicle]').forEach(r => r.onchange = () => {
+    vehicles.forEach(v => delete v.primary);
+    vehicles[Number(r.dataset.primaryVehicle)].primary = true;
+    patchGear().then(() => renderVehicle());
+  });
+  $$('[data-remove-vehicle]').forEach(b => b.onclick = () => {
+    vehicles.splice(Number(b.dataset.removeVehicle), 1);
+    patchGear().then(() => renderVehicle());
+  });
+}
+function wireVehicle(){
+  $('#riggerGearSelect').addEventListener('change', () => {
+    const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+    const v = primaryVehicle(vehicles);
+    if (v) { v.rigger = $('#riggerGearSelect').value === 'true'; patchGear(); }
+  });
+  // Vehicle stat fields double as modification tracking -- editing Body/Armor/Speed/etc. writes an
+  // explicit override onto the primary vehicle's owned line (renderVehicle() prefers it over the
+  // catalog stock value above), so upgrades like armor plating or an engine swap persist. Clearing
+  // a field back to blank falls back to the catalog stock value again.
+  [['vehHandling','handling','text'], ['vehSpeed','speed','number'], ['vehAccel','accel','number'],
+   ['vehBody','body','number'], ['vehArmor','armor','number'], ['vehSig','sig','number'],
+   ['vehAutopilot','autopilot','text'], ['vehSensor','sensor','number'], ['vehCargo','cargo','number'],
+   ['vehLoad','load','number']].forEach(([id, key, type]) => {
+    $('#' + id).addEventListener('change', () => {
+      const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+      const v = primaryVehicle(vehicles);
+      if (!v) return;
+      const raw = $('#' + id).value;
+      v[key] = type === 'number' ? (raw === '' ? null : Number(raw)) : (raw || null);
+      patchGear();
+    });
+  });
+  let notesTimer = null;
+  $('#vehicleNotes').addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => {
+      const vehicles = (CHAR.gear && CHAR.gear.vehicles) || [];
+      const v = primaryVehicle(vehicles);
+      if (v) { v.notes = $('#vehicleNotes').value; patchGear(); }
+    }, 800);
+  });
+}
+
+// ---------------------------------------------------------------- skills (read-only list; edits via Manage)
+function skillSummary(s){
+  let t = `General ${s.rating||0}`;
+  if (s.conc) t += ` · ${s.conc} ${s.concRating != null ? s.concRating : (s.rating||0)+1}`;
+  if (s.spec) t += ` · ${s.spec} ${s.specRating != null ? s.specRating : (s.rating||0)+2}`;
+  return t;
+}
+function renderSkills(){
+  const skills = CHAR.skills || [];
+  const rows = [];
+  [...skills].sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(s => {
+    const aug = skillAugSources(s.name);
+    const augNote = aug.length ? ` <span style="color:var(--cyan);font-size:.66rem;">+${aug.reduce((a,x)=>a+x.mag,0)} (${aug.map(x=>esc(x.n)).join(', ')})</span>` : '';
+    rows.push(`<div class="sk-row"><span class="sk-name">${esc(s.name)}${augNote}</span><span class="sk-rating">${s.rating||0}</span></div>`);
+    if (s.conc) rows.push(`<div class="sk-row sub conc"><span class="sk-name">${esc(s.conc)}</span><span class="sk-rating">${s.concRating != null ? s.concRating : (s.rating||0)+1}</span></div>`);
+    if (s.spec) rows.push(`<div class="sk-row sub spec"><span class="sk-name">${esc(s.spec)}</span><span class="sk-rating">${s.specRating != null ? s.specRating : (s.rating||0)+2}</span></div>`);
+  });
+  // Skillwire/skillsoft-granted skills never enter CHAR.skills -- they live only as gear.cyber
+  // lines with a `soft` type + `skill` name, and can never be raised with karma (only replaced by
+  // buying a higher-rated skillsoft), so they're shown read-only with no raise path anywhere.
+  const softSkills = ((CHAR.gear && CHAR.gear.cyber) || []).filter(g => g.soft && g.skill);
+  softSkills.forEach(g => {
+    rows.push(`<div class="sk-row"><span class="sk-name">${esc(g.skill)} <span style="color:var(--violet);font-size:.66rem;">(Skillwire &middot; ${esc(g.n)})</span></span><span class="sk-rating">${Number(g.rating)||0}</span></div>`);
+  });
+  if (!rows.length) { $('#skillList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No skills recorded.</p>'; return; }
+  $('#skillList').innerHTML = rows.join('');
+}
+
+// ---------------------------------------------------------------- magic (spells / adept powers)
+// Spell-learning nuyen cost by drain category (not karma). Availability = Force/acquisition time.
+// Required test (Sorcery, TN = Force x2) is reference-only -- the app never rolls it.
+const SPELL_DRAIN_TABLE = {
+  L: { label: 'Light',    nuyenPerForce: 50,   hours: 24 },
+  M: { label: 'Moderate', nuyenPerForce: 100,  hours: 48 },
+  S: { label: 'Serious',  nuyenPerForce: 500,  hours: 72 },
+  D: { label: 'Deadly',   nuyenPerForce: 1000, days: 7 },
+};
+function spellDrainCode(spell){
+  const m = /([LMSD])\s*$/.exec((spell && spell.drn) || '');
+  return m ? m[1] : null;
+}
+function spellCostInfo(spell, force){
+  const tier = SPELL_DRAIN_TABLE[spellDrainCode(spell)];
+  if (!tier) return null;
+  const f = Math.max(1, Number(force) || 1);
+  const time = tier.days ? `${tier.days} day${tier.days === 1 ? '' : 's'}` : `${tier.hours} hours`;
+  return { label: tier.label, force: f, nuyen: tier.nuyenPerForce * f, avail: `${f}/${time}`, tn: f * 2 };
+}
+function renderMagic(){
+  const awakened = CHAR.magic_type && CHAR.magic_type !== 'Mundane';
+  $('#magicPanel').style.display = awakened ? '' : 'none';
+  if (!awakened) return;
+  const isAdept = CHAR.magic_type === 'Adept';
+  $('#magicType').textContent = CHAR.magic_type || '—';
+  $('#magicTradition').textContent = CHAR.tradition || '—';
+  $('#magicTotem').textContent = CHAR.totem || '—';
+  $('#spellsWrap').style.display = isAdept ? 'none' : '';
+  $('#powersWrap').style.display = isAdept ? '' : 'none';
+  if (!isAdept) {
+    const spells = CHAR.spells || [];
+    $('#spellsTbl tbody').innerHTML = spells.length ? spells.map(s => {
+      const cat = SPELL_CAT.get(s.name) || {};
+      const info = spellCostInfo(cat, s.force);
+      return `<tr><td>${esc(s.name)}</td><td>${esc(s.cat || cat.cat || '—')}</td><td>${s.force ?? '—'}</td><td>${info ? esc(info.label) : '—'}</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="empty-state">No spells known.</td></tr>`;
+  }
+  const powers = CHAR.adept_powers || [];
+  $('#powersTbl tbody').innerHTML = powers.length ? powers.map(p =>
+    `<tr><td>${esc(p.name)}</td><td>${p.rated ? (p.lvl||1) : '—'}</td><td>${p.ppEach ?? '—'}</td></tr>`
+  ).join('') : `<tr><td colspan="3" class="empty-state">No powers.</td></tr>`;
+}
+
+// ---------------------------------------------------------------- condition monitor
+function renderStageMarks(el){
+  el.innerHTML = '';
+  for (let i=0;i<10;i++){ const s=document.createElement('span'); s.textContent=STAGE_MARK_IDX[i]||''; el.appendChild(s); }
+}
+function renderCond(){
+  ['phys','stun'].forEach(kind => {
+    const val = kind === 'phys' ? (CHAR.physical_damage||0) : (CHAR.stun_damage||0);
+    const wrap = $(kind==='phys' ? '#physTrack' : '#stunTrack'); wrap.innerHTML = '';
+    for (let i=1;i<=10;i++){
+      const b = document.createElement('div');
+      b.className = `ps-cond-box ${kind}` + (i <= val ? ' is-filled' : '');
+      wrap.appendChild(b);
+    }
+    $(kind==='phys' ? '#physStage' : '#stunStage').textContent = val === 0 ? 'Uninjured' : STAGES[val-1];
+  });
+  renderStageMarks($('#physMarks')); renderStageMarks($('#stunMarks'));
+  const body = CHAR.body || 0, overflow = CHAR.physical_overflow || 0;
+  const wrap = $('#overflowTrack'); wrap.innerHTML = '';
+  for (let i=1;i<=body;i++){
+    const b = document.createElement('div');
+    b.className = 'ps-cond-box phys' + (i <= overflow ? ' is-filled' : '');
+    b.onclick = () => { if (!CAN_EDIT) return; CHAR.physical_overflow = (overflow === i) ? i-1 : i; patchChar({ physical_overflow: CHAR.physical_overflow }); renderCond(); };
+    wrap.appendChild(b);
+  }
+}
+// patch is threaded through the stun->physical spillover recursion (by reference) so the whole
+// cascade sends exactly ONE PATCH at the end, rather than two separate requests to the same
+// character racing each other -- patchChar's Object.assign(CHAR, updated) applies a full-row
+// snapshot per response, so two concurrent/out-of-order responses can silently stomp each other's
+// field. One combined request has no ordering to get wrong.
+async function applyDamage(kind, amount, patch = {}){
+  const key = kind === 'phys' ? 'physical_damage' : 'stun_damage';
+  const total = (CHAR[key]||0) + amount;
+  if (total > 10){
+    const spill = total - 10;
+    CHAR[key] = 10; patch[key] = 10;
+    if (kind === 'stun'){
+      showAlert($('#alert'), `Stun maxed — ${spill} spills into Physical`, false);
+      await applyDamage('phys', spill, patch);   // accumulates into the same patch and sends it
+      return;
+    } else {
+      CHAR.physical_overflow = Math.min((CHAR.physical_overflow||0) + spill, CHAR.body||0);
+      patch.physical_overflow = CHAR.physical_overflow;
+      showAlert($('#alert'), `Physical maxed — ${spill} spills into Overflow`, false);
+    }
+  } else {
+    CHAR[key] = total; patch[key] = total;
+  }
+  renderCond();
+  await patchChar(patch);
+}
+function applyHeal(kind, amount){
+  const patch = {};
+  if (kind === 'phys'){
+    const overflow = CHAR.physical_overflow||0;
+    const fromOverflow = Math.min(overflow, amount);
+    CHAR.physical_overflow = overflow - fromOverflow; patch.physical_overflow = CHAR.physical_overflow;
+    CHAR.physical_damage = Math.max(0, (CHAR.physical_damage||0) - (amount - fromOverflow)); patch.physical_damage = CHAR.physical_damage;
+  } else {
+    CHAR.stun_damage = Math.max(0, (CHAR.stun_damage||0) - amount); patch.stun_damage = CHAR.stun_damage;
+  }
+  patchChar(patch);
+  renderCond();
+}
+function renderDmgButtons(){
+  ['stun','phys'].forEach(kind => {
+    const wrap = $('#' + kind + 'DmgBtns'); wrap.innerHTML = '';
+    wrap.className = 'dmg-select' + (dmgMode === 'heal' ? ' mode-heal' : '');
+    ['L','M','S','D'].forEach(letter => {
+      const b = document.createElement('button');
+      b.className = `dmg-btn lvl-${letter}`; b.textContent = `${letter} / ${DMG_AMOUNTS[letter]}`;
+      b.disabled = !CAN_EDIT;
+      b.onclick = () => (dmgMode === 'damage' ? applyDamage : applyHeal)(kind, DMG_AMOUNTS[letter]);
+      wrap.appendChild(b);
+    });
+  });
+}
+function setDmgMode(mode){
+  dmgMode = mode;
+  $$('#dmgHealToggle .seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === mode));
+  renderDmgButtons();
+}
+
+// ---------------------------------------------------------------- PATCH helpers
+async function patchChar(fields){
+  try {
+    const res = await apiFetch(`/characters/${CHAR.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+    if (!res.ok) await apiThrow(res);
+    const updated = await res.json();
+    Object.assign(CHAR, updated);
+  } catch (e) {
+    showAlert($('#alert'), e.message, true);
+  }
+}
+function patchGear(){ return patchChar({ gear: CHAR.gear }); }
+
+// ---------------------------------------------------------------- nuyen: click-to-edit
+function wireNuyenEdit(){
+  const start = () => {
+    if (!CAN_EDIT) return;
+    const el = $('#nuyenDisplay');
+    if (!el || el.tagName === 'INPUT') return;
+    const input = document.createElement('input');
+    input.type = 'text'; input.id = 'nuyenDisplay'; input.className = 'ps-nuyen-input';
+    input.value = CHAR.nuyen;
+    el.replaceWith(input);
+    input.focus(); input.select();
+    const commit = async () => {
+      const v = parseInt(String(input.value).replace(/[^\d-]/g, ''), 10);
+      const next = Number.isNaN(v) ? CHAR.nuyen : Math.max(0, v);
+      const span = document.createElement('div');
+      span.className = 'ps-nuyen-val'; span.id = 'nuyenDisplay';
+      span.tabIndex = 0; span.setAttribute('role', 'button');
+      input.replaceWith(span);
+      if (next !== CHAR.nuyen) await patchChar({ nuyen: next });
+      span.textContent = money(CHAR.nuyen);
+      span.addEventListener('click', start);
+      span.addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  };
+  $('#nuyenDisplay').addEventListener('click', start);
+  $('#nuyenDisplay').addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+}
+
+// ================================================================== MANAGE MODALS
+function openModal(mode, title, hasFoot=true){
+  currentModalMode = mode;
+  $('#modalTitle').textContent = title;
+  $('#modalFoot').style.display = hasFoot ? 'flex' : 'none';
+  $('#modalCommitBtn').style.display = '';       // reset -- buygear mode hides this (nothing to commit)
+  $('#modalCancelBtn').textContent = 'Cancel';    // reset -- buygear mode relabels this to "Close"
+  $('#modalAlert').className = 'alert';           // reset -- clear any leftover message from a prior open
+  const overlay = $('#editOverlay');
+  overlay.className = 'edit-overlay mode-' + mode;
+  overlay.classList.add('open');
+}
+function closeModal(){ $('#editOverlay').classList.remove('open'); }
+
+// ---- Manage Identity (draft/commit) ----
+function openManageIdentity(){
+  draft = { archetype: CHAR.archetype||'', race: CHAR.race||'', gender: CHAR.gender||'', age: CHAR.age||0, lifestyle_level: CHAR.lifestyle_level };
+  openModal('identity', '// Manage Identity');
+  $('#modalBody').innerHTML = `
+    <div class="grid3">
+      <div class="field"><label>Archetype</label><input type="text" id="mgArchetype" value="${esc(draft.archetype)}"></div>
+      <div class="field"><label>Race</label><input type="text" id="mgRace" value="${esc(draft.race)}"></div>
+      <div class="field"><label>Sex</label><input type="text" id="mgSex" value="${esc(draft.gender)}"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Age</label><input id="mgAge" type="number" value="${draft.age}"></div>
+      <div class="field"><label>Lifestyle</label>
+        <select id="mgLifestyle">${LIFESTYLE_TIERS.map((t,i) => `<option value="${i}" ${i===draft.lifestyle_level?'selected':''}>${t}</option>`).join('')}</select></div>
+    </div>`;
+  initNumSteppers($('#modalBody'));
+}
+
+// ---- Manage Attributes (draft/commit, real karma-cost placeholder) ----
+const ATTR_KEYS = { Body:'body', Quickness:'quickness', Strength:'strength', Charisma:'charisma', Intelligence:'intelligence', Willpower:'willpower' };
+function openManageAttrs(){
+  draft = {};
+  // draft[key] tracks the KARMA-BASE rating (natural base + metatype/racial bonus) -- never the
+  // full aggregate CHAR[key], so raising Intelligence with an Encephalon installed costs against
+  // the pre-cyberware value, but an Elf's racial Quickness bonus *is* part of what's raised.
+  Object.values(ATTR_KEYS).forEach(key => draft[key] = karmaBaseAttr(key));
+  draft.good_karma = CHAR.good_karma || 0;
+  openModal('attrs', '// Manage Attributes');
+  renderManageAttrs();
+}
+function renderManageAttrs(){
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Illustrative cost only (new rating &times; 2 karma) &mdash; placeholder pending the real SR2 advancement table.
+    Cost is keyed off base + metatype/racial bonus; gear/cyberware/bioware bonuses shown in parentheses never affect what a raise costs.</p>
+    <div class="ps-stat-row" style="border:none;padding:0 0 12px;"><span class="k">Good Karma after changes</span>
+      <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` +
+    Object.entries(ATTR_KEYS).map(([label,key]) => {
+      const cur = draft[key], cost = (cur+1)*2;
+      const bonus = augAttr(key);
+      const totalNow = cur + bonus;
+      // The row label already shows the aggregate ("base (N total)") -- keep the button's own text
+      // as short and uniform as the Manage Skills raise buttons so the shared width fits everything.
+      const afford = draft.good_karma >= cost;
+      return `<div class="ps-stat-row"><span class="k">${label} <span style="color:var(--text-bright);">${cur}</span>${bonus ? ` <span style="color:var(--text-dim);font-size:.7rem;">base (${totalNow} total)</span>` : ''}</span>
+        <button class="btn btn-amber raise-action" data-raise="${key}" data-cost="${cost}" ${afford?'':'disabled title="Not enough karma"'}>Raise to ${cur+1} &mdash; ${cost} karma</button></div>`;
+    }).join('');
+  $$('[data-raise]').forEach(b => b.onclick = () => {
+    const key = b.dataset.raise, cost = Number(b.dataset.cost);
+    if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
+    draft.good_karma -= cost;
+    draft[key] += 1;
+    renderManageAttrs();
+  });
+}
+
+// ---- Manage Skills (draft/commit, real SR2 formulas) ----
+function tierRaiseCost(tier, desired){
+  if (tier === 'general') return desired * 2;
+  if (tier === 'conc') return Math.ceil(desired * 1.5);
+  return desired;
+}
+const CONC_MIN_BASE = 2, SPEC_MIN_BASE = 3;
+function skillWeb(name){ return SKILL_CATALOG.find(s => s.n === name); }
+function expandOptions(list, skillName){
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  list.forEach(opt => {
+    if (opt === '(SW)') ((CHAR.gear&&CHAR.gear.weapons)||[]).forEach(w => out.push(w.n));
+    else if (opt === '(SV)') ((CHAR.gear&&CHAR.gear.vehicles)||[]).forEach(v => out.push(v.n));
+    else out.push(opt);
+  });
+  return out;
+}
+function openManageSkills(){
+  draft = { skills: JSON.parse(JSON.stringify(CHAR.skills || [])), good_karma: CHAR.good_karma || 0 };
+  openModal('skills', '// Manage Skills');
+  renderManageSkills();
+}
+function renderManageSkills(){
+  const blocks = draft.skills.map((s,i) => {
+    let rows = `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);padding-top:10px;margin-top:10px;">
+      <span class="k" style="color:var(--text-bright);">${esc(s.name)}</span></div>`;
+    const gCost = tierRaiseCost('general', (s.rating||0)+1);
+    rows += `<div class="ps-stat-row"><span class="k">General <span style="color:var(--text-bright);">${s.rating||0}</span></span>
+      <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="general" data-cost="${gCost}" ${draft.good_karma>=gCost?'':'disabled title="Not enough karma"'}>Raise to ${(s.rating||0)+1} &mdash; ${gCost} karma</button></div>`;
+
+    if (s.conc){
+      const curConc = s.concRating != null ? s.concRating : (s.rating||0)+1;
+      const cCost = tierRaiseCost('conc', curConc+1);
+      rows += `<div class="ps-stat-row"><span class="k">${esc(s.conc)} (Conc) <span style="color:var(--text-bright);">${curConc}</span></span>
+        <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="conc" data-cost="${cCost}" ${draft.good_karma>=cCost?'':'disabled title="Not enough karma"'}>Raise to ${curConc+1} &mdash; ${cCost} karma</button></div>`;
+    } else if ((s.rating||0) >= CONC_MIN_BASE) {
+      const web = skillWeb(s.name);
+      const opts = web ? web.conc : [];
+      if (opts && opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
+        <select class="raise-action" data-addconc="${i}"><option value="">+ Concentration (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
+    } else {
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
+        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${CONC_MIN_BASE}</span></div>`;
+    }
+
+    if (s.spec){
+      const curSpec = s.specRating != null ? s.specRating : (s.rating||0)+2;
+      const sCost = tierRaiseCost('spec', curSpec+1);
+      rows += `<div class="ps-stat-row"><span class="k">${esc(s.spec)} (Spec) <span style="color:var(--text-bright);">${curSpec}</span></span>
+        <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="spec" data-cost="${sCost}" ${draft.good_karma>=sCost?'':'disabled title="Not enough karma"'}>Raise to ${curSpec+1} &mdash; ${sCost} karma</button></div>`;
+    } else if (s.conc && (s.rating||0) >= SPEC_MIN_BASE) {
+      const web = skillWeb(s.name);
+      const opts = web && SKILL_SPECS[s.name] ? expandOptions(SKILL_SPECS[s.name][s.conc], s.name) : [];
+      if (opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
+        <select class="raise-action" data-addspec="${i}"><option value="">+ Specialization (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
+    } else if (s.conc) {
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
+        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${SPEC_MIN_BASE}</span></div>`;
+    }
+    return rows;
+  }).join('');
+
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">General advances at 2&times; desired rating, Concentration at 1.5&times; (rounded up),
+    Specialization at 1&times;. Declaring a new Concentration or Specialization costs no karma &mdash; it just splits the rating.</p>
+    <div class="ps-stat-row" style="border:none;padding:0 0 4px;"><span class="k">Good Karma after changes</span>
+      <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` + blocks;
+
+  $$('[data-raise-skill]').forEach(b => b.onclick = () => {
+    const s = draft.skills[Number(b.dataset.raiseSkill)];
+    const tier = b.dataset.raiseTier, cost = Number(b.dataset.cost);
+    if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
+    if (tier === 'general') s.rating = (s.rating||0) + 1;
+    else if (tier === 'conc') s.concRating = (s.concRating != null ? s.concRating : (s.rating||0)+1) + 1;
+    else s.specRating = (s.specRating != null ? s.specRating : (s.rating||0)+2) + 1;
+    draft.good_karma -= cost;
+    renderManageSkills();
+  });
+  $$('[data-addconc]').forEach(sel => sel.onchange = () => {
+    if (!sel.value) return;
+    const s = draft.skills[Number(sel.dataset.addconc)];
+    const points = s.rating||0;
+    s.rating = points - 1; s.conc = sel.value; s.concRating = points + 1;
+    renderManageSkills();
+  });
+  $$('[data-addspec]').forEach(sel => sel.onchange = () => {
+    if (!sel.value) return;
+    const s = draft.skills[Number(sel.dataset.addspec)];
+    const points = (s.rating||0) + 1;
+    s.rating = points - 2; s.concRating = points; s.spec = sel.value; s.specRating = points + 2;
+    renderManageSkills();
+  });
+}
+
+// ---- Manage Armor (immediate apply) ----
+function openManageArmor(){
+  openModal('armor', '// Manage Armor', false);
+  renderManageArmor();
+}
+// Every Manage modal that lists an ownable category gets a shortcut straight into Buy Gear,
+// pre-filtered to that category's tab, instead of making the player close this modal, find the
+// generic Buy Gear button, and re-select the tab themselves.
+// These immediate-apply modals (Armor/Weapons/Gear/Magic) have no shared footer (hasFoot=false --
+// every click already saves), so give them their own bottom bar: the buy shortcut bottom-left,
+// Cancel (just closes -- there's no pending draft to discard) bottom-right.
+function buyShortcutRow(cat, label){
+  return `<div class="mt-10" style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-dark);padding-top:10px;">
+    <button class="btn btn-amber btn-sm" data-buy-shortcut="${esc(cat)}">+ ${esc(label)}</button>
+    <button class="btn btn-red btn-sm" data-close-modal>Close</button></div>`;
+}
+function wireBuyShortcut(){
+  $$('[data-buy-shortcut]').forEach(b => b.onclick = () => openManageBuyGear(b.dataset.buyShortcut));
+  $$('[data-close-modal]').forEach(b => b.onclick = () => closeModal());
+}
+// Attach-only catalog items (Smartgun System, Gel-Pack Armor) fold into an owned line instead of
+// being browsable in Buy Gear -- this is the control that triggers that fold, shown per-row on
+// whichever owned Armor/Weapon lines don't already carry a mod (g.mod). See ATTACH_RULES/attachGearMod.
+function attachCandidates(bucket){ return Object.keys(ATTACH_RULES).filter(n => ATTACH_RULES[n].bucket === bucket); }
+function attachRowHTML(g, i, bucket){
+  if (g.mod) return '';
+  const names = attachCandidates(bucket);
+  if (!names.length) return '';
+  return `<select class="cbx-mini" style="width:auto" data-attach-item="${i}">${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>
+    <button class="btn btn-amber btn-sm" data-attach-go="${i}">Attach</button>`;
+}
+function wireAttachRow(catMap, onDone){
+  $$('[data-attach-go]').forEach(b => b.onclick = async () => {
+    const i = Number(b.dataset.attachGo);
+    const sel = document.querySelector(`[data-attach-item="${i}"]`);
+    const item = sel && catMap.get(sel.value);
+    if (!item) return;
+    b.disabled = true; b.textContent = '...';
+    try {
+      await attachGearMod({ item, hostIndex: i });
+      onDone();
+    } catch (e) {
+      showAlert($('#modalAlert'), `>> ATTACH FAILED // ${e.message}`, true, true);
+      b.disabled = false; b.textContent = 'Attach';
+    }
+  });
+}
+function renderManageArmor(){
+  const armor = (CHAR.gear && CHAR.gear.armor) || [];
+  const groups = { Body: [], Helmet: [], Shield: [] };
+  armor.forEach(a => groups[armorSlot(ARMOR_CAT.get(a.n)||{})].push(a));
+  $('#modalBody').innerHTML = ARMOR_SLOTS.map(slot => {
+      const items = groups[slot];
+      if (!items.length) return '';
+      const rows = items.map(a => {
+        const i = armor.indexOf(a);
+        const equipped = a.equipped !== false;
+        return `<div class="ps-stat-row"><span class="k">${esc(a.n)}</span>
+          <span class="flex-row-8">
+            ${attachRowHTML(a, i, 'armor')}
+            <button class="btn btn-sm ${equipped?'btn-green':'btn-ghost'}" data-equip="${i}" data-slot="${esc(slot)}">${equipped?'Equipped':'Equip'}</button>
+            <button class="row-x" data-remove-armor="${i}" title="Remove">&#10005;</button>
+          </span></div>`;
+      }).join('');
+      return `<div class="armor-slot-group"><div class="armor-slot-head">${esc(slot)}</div>${rows}</div>`;
+    }).join('') + buyShortcutRow('armor', 'Buy Armor');
+  $$('[data-equip]').forEach(b => b.onclick = () => {
+    const idx = Number(b.dataset.equip), slot = b.dataset.slot;
+    const armor = CHAR.gear.armor;
+    const wasEquipped = armor[idx].equipped !== false;
+    armor.forEach(a => {
+      if (armorSlot(ARMOR_CAT.get(a.n)||{}) === slot) a.equipped = false;
+    });
+    armor[idx].equipped = !wasEquipped;
+    // Equipping/unequipping a "beneath"-scope coat (Lined Coat, Secure Long Coat) changes the
+    // concealability bonus every carried weapon shows -- re-render Weapons too, not just Armor.
+    patchGear().then(() => { renderArmor(); renderManageArmor(); renderWeapons(); });
+  });
+  $$('[data-remove-armor]').forEach(b => b.onclick = () => {
+    CHAR.gear.armor.splice(Number(b.dataset.removeArmor), 1);
+    patchGear().then(() => { renderArmor(); renderManageArmor(); renderWeapons(); });
+  });
+  wireAttachRow(ARMOR_CAT, () => { renderArmor(); renderManageArmor(); renderWeapons(); });
+  wireBuyShortcut();
+}
+
+// ---- Manage Weapons (equip/unequip like Manage Armor, plus Remove) ----
+function openManageWeapons(){
+  openModal('weapons', '// Manage Weapons', false);
+  renderManageWeapons();
+}
+function renderManageWeapons(){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const carried = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
+  const rows = carried.map(w => {
+    const i = weapons.indexOf(w);
+    const equipped = w.equipped !== false;
+    return `<div class="ps-stat-row"><span class="k">${esc(w.n)}</span>
+      <span class="flex-row-8">
+        <button class="btn btn-sm ${equipped?'btn-green':'btn-ghost'}" data-equip-weapon="${i}">${equipped?'Equipped':'Equip'}</button>
+        <button class="row-x" data-remove-weapon="${i}" title="Remove">&#10005;</button>
+      </span></div>`;
+  }).join('') || '<p class="empty-state">No weapons owned.</p>';
+  $('#modalBody').innerHTML = rows + buyShortcutRow('weapons', 'Buy Weapon');
+  $$('[data-equip-weapon]').forEach(b => b.onclick = () => {
+    const w = weapons[Number(b.dataset.equipWeapon)];
+    w.equipped = w.equipped === false ? true : false;
+    patchGear().then(() => { renderWeapons(); renderManageWeapons(); });
+  });
+  $$('[data-remove-weapon]').forEach(b => b.onclick = () => {
+    weapons.splice(Number(b.dataset.removeWeapon), 1);
+    patchGear().then(() => { renderWeapons(); renderManageWeapons(); });
+  });
+  wireBuyShortcut();
+}
+
+// ---- Manage Gear (immediate apply: remove / reduce qty only) ----
+function openManageGear(){
+  openModal('gear', '// Manage Gear', false);
+  renderManageGear();
+}
+function renderManageGear(){
+  const gear = (CHAR.gear && CHAR.gear.gear) || [];
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const accessories = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat === 'accessory');
+  const foci = (CHAR.gear && CHAR.gear.foci) || [];
+
+  const section = (title, rows) => rows.length
+    ? `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);margin-top:10px;padding-top:10px;"><span class="k" style="color:var(--text-bright);">${esc(title)}</span></div>${rows.join('')}`
+    : '';
+
+  const gearRows = gear.map((g,i) => `<div class="ps-stat-row"><span class="k">${esc(g.kind ? g.n+' - '+g.kind : g.n)}</span>
+    <button class="row-x" data-remove-gear="${i}" title="Remove">&#10005;</button></div>`);
+  const accRows = accessories.map(w => {
+    const i = weapons.indexOf(w);
+    return `<div class="ps-stat-row"><span class="k">${esc(w.n)}</span>
+      <button class="row-x" data-remove-weapon="${i}" title="Remove">&#10005;</button></div>`;
+  });
+  const fociRows = foci.map((f,i) => `<div class="ps-stat-row"><span class="k">${esc(f.n || f.type)}</span>
+    <button class="row-x" data-remove-focus="${i}" title="Remove">&#10005;</button></div>`);
+
+  const html = section('Gear', gearRows) + section('Accessories', accRows) + section('Foci', fociRows);
+  $('#modalBody').innerHTML = (html || '<p class="empty-state">No gear owned.</p>') + buyShortcutRow('gear', 'Buy Gear');
+
+  $$('[data-remove-gear]').forEach(b => b.onclick = () => {
+    CHAR.gear.gear.splice(Number(b.dataset.removeGear), 1);
+    patchGear().then(() => { renderGear(); renderManageGear(); });
+  });
+  $$('[data-remove-weapon]').forEach(b => b.onclick = () => {
+    weapons.splice(Number(b.dataset.removeWeapon), 1);
+    patchGear().then(() => { renderGear(); renderManageGear(); });
+  });
+  $$('[data-remove-focus]').forEach(b => b.onclick = () => {
+    CHAR.gear.foci.splice(Number(b.dataset.removeFocus), 1);
+    patchGear().then(() => { renderGear(); renderManageGear(); });
+  });
+  wireBuyShortcut();
+}
+
+// ---- Buy Gear (embeds gear-picker.js's catalog+cart engine; Purchase writes straight onto CHAR) ----
+// GEAR_BUCKET/GEAR_LINE_CATALOG live in shared.js now (also used by character-builder.html's chargen shop).
+// Cybergun implants need a cyberarm to sit in -- SR2 allows at most one per arm (2 total),
+// and never more than the number of arm-slot Cyber Limbs actually owned.
+const CYBERGUN_NAMES = new Set(['Cybergun: Hold-Out Pistol','Cybergun: Light Pistol','Cybergun: Machine Pistol','Cybergun: SMG','Cybergun: Heavy Pistol','Cybergun: Shotgun']);
+function ownedCybergunCount(gear){ return ((gear.cyber)||[]).filter(g => CYBERGUN_NAMES.has(g.n)).length; }
+
+// ---- Ownership rules from the SR2 gear-quantity audit ----
+// Armor, Cyberware, and Bioware are singular installs by default (one body slot each) -- buying a
+// second copy of the identical catalog item is blocked. Weapons, Gear, Foci, Vehicles, and Matrix
+// have no default cap. The tables below carry the named exceptions from that audit.
+const SINGULAR_CATEGORIES = new Set(['armor','cyberware','bioware']);
+// name -> hard count cap for items allowed multiples with a flat limit. Infinity = the cap/dedup is
+// handled by bespoke logic elsewhere in purchaseGear (skillsofts, Reflex Recorder, Cybergun).
+const OWNERSHIP_CAP = {
+  'Ear Modification': 8,
+  'Fingertip Compartment': 3,
+  'Retractable Spur': 2,
+  'Spur': 2,
+  'Datasoft': Infinity,
+  'Activesoft (General)': Infinity, 'Activesoft (Concentration)': Infinity, 'Activesoft (Specialization)': Infinity,
+  'Knowsoft (General)': Infinity, 'Knowsoft (Concentration)': Infinity, 'Knowsoft (Specialization)': Infinity,
+  'Linguasoft': Infinity,
+  'Reflex Recorder (Concentration)': Infinity, 'Reflex Recorder (General)': Infinity,
+  'Cybergun: Hold-Out Pistol': Infinity, 'Cybergun: Light Pistol': Infinity, 'Cybergun: Machine Pistol': Infinity,
+  'Cybergun: SMG': Infinity, 'Cybergun: Heavy Pistol': Infinity, 'Cybergun: Shotgun': Infinity,
+};
+// Simple Replacement Limb and Cyber Limb occupy the same 4 limb slots (2 arms + 2 legs) and are
+// mutually exclusive per slot -- capped as a combined group. Each purchase is tagged with a specific
+// slot (Left/Right Arm/Leg, see assignLimbSlot) so arm-only/leg-only prerequisites elsewhere can tell
+// which is which. Only a full Cyber Limb has "internal modification slots" per its own catalog text --
+// a Simple Replacement Limb explicitly has none -- so arm/leg-specific PREREQ checks below only ever
+// count Cyber Limb, while the combined 4-slot cap counts both (they still occupy the same body slot).
+const LIMB_GROUP = new Set(['Simple Replacement Limb','Cyber Limb']);
+const LIMB_SLOTS = ['Left Arm','Right Arm','Left Leg','Right Leg'];
+function ownedLimbSlots(gear, onlyName){
+  return ((gear.cyber)||[]).filter(g => LIMB_GROUP.has(g.n) && (!onlyName || g.n === onlyName)).map(g => g.slot).filter(Boolean);
+}
+function ownedLimbGroupCount(gear){ return ownedLimbSlots(gear).length; }
+function ownedCyberLimbSlotCount(gear, kind){ return ownedLimbSlots(gear, 'Cyber Limb').filter(s => s.endsWith(kind)).length; }
+function ownedMagLimbSystemCount(gear){ return ((gear.cyber)||[]).filter(g => g.n === 'Magnetic Cyberlimb System').length; }
+async function assignLimbSlot(line, gear){
+  const taken = new Set(ownedLimbSlots(gear));
+  const avail = LIMB_SLOTS.filter(s => !taken.has(s));
+  if (!avail.length) return;   // shouldn't happen -- the 4-slot cap above already blocks this case
+  const chosen = await showPrompt(`Which slot is this ${line.n} in?`, '', { title: '// LIMB SLOT', options: avail, okLabel: 'Set' });
+  if (chosen) line.slot = chosen;
+}
+
+// ---- Cyberware/bioware "families": same body slot spread across separate catalog rows per
+// level/rating-band (e.g. Boosted Reflexes Level 1/2/3). Buying a higher-ranked member of a family
+// you already own replaces the old line in place; buying an equal-or-lower one is blocked. See
+// familyReplaceOrBlock(). Order is ascending capability, not alphabetical.
+const FAMILY_GROUPS = {
+  cryptoCircuit: { bucket:'cyber', order: ['Crypto Circuit HD Level 1-4','Crypto Circuit HD Level 5-7','Crypto Circuit HD Level 8-9','Crypto Circuit HD Level 10'] },
+  scrambleBreaker: { bucket:'cyber', order: ['Scramble Breaker HD Level 1-4','Scramble Breaker HD Level 5-7','Scramble Breaker HD Level 8'] },
+  skillwirePlus: { bucket:'cyber', order: ['Skillwire Plus (R1-3)','Skillwire Plus (R4-6)','Skillwire Plus (R7-9)'] },
+  damageCompensator: { bucket:'bio', order: ['Damage Compensator (R1-2)','Damage Compensator (R3-5)','Damage Compensator (R6-9)'] },
+};
+const FAMILY_BY_NAME = new Map();
+Object.entries(FAMILY_GROUPS).forEach(([key, fam]) => fam.order.forEach((name, idx) => FAMILY_BY_NAME.set(name, { key, idx, bucket: fam.bucket })));
+function hasFamily(gear, key){
+  const fam = FAMILY_GROUPS[key];
+  return (gear[fam.bucket]||[]).some(g => { const f = FAMILY_BY_NAME.get(g.n); return f && f.key === key; });
+}
+// Mutates gear (removes the outclassed line) only when the purchase is allowed to proceed as an
+// upgrade. Returns a skip-reason string if blocked, else null.
+function familyReplaceOrBlock(item, gear){
+  const fam = FAMILY_BY_NAME.get(item.n);
+  if (!fam) return null;
+  const list = gear[fam.bucket] || [];
+  const owned = list.find(g => { const f = FAMILY_BY_NAME.get(g.n); return f && f.key === fam.key; });
+  if (!owned) return null;
+  if (fam.idx <= FAMILY_BY_NAME.get(owned.n).idx) return `${item.n} (already own ${owned.n})`;
+  gear[fam.bucket] = list.filter(g => g !== owned);
+  return null;
+}
+
+// ---- Base-item prerequisites and mutual exclusions, from the CSV's explicit "Requires X" /
+// "Blocks Y" / "incompatible with" notes only -- nothing inferred beyond what was written, except two
+// points confirmed directly with the user: Dermal Sheath L3 vs. Dermal Plating is bidirectional, and
+// Activesoft/Knowsoft's Softlink(+Skillwires) requirement is enforced even though the CSV review
+// itself didn't flag it (the catalog's own item text states it). Hydraulic Jack's cyberleg
+// requirement was found the same way (catalog text: "Must be installed in a cyberleg").
+function hasItem(gear, name){ return ((gear.cyber)||[]).some(g => g.n === name) || ((gear.bio)||[]).some(g => g.n === name); }
+const EYE_ITEMS = ['Rangefinder','Video Link','Optical Magnification','Electronic Magnification','Retinal Clock','Protective Covers','Eye Datajack','Optical Scanning Datajack','Optical Scanning Datajack Emitter','Eye Light System','BrightLight Addition','Eye Dart','Eye Gun','Laser Tracker','Tool Laser','Laser Designator'];
+const PREREQ = {
+  ...Object.fromEntries(EYE_ITEMS.map(n => [n, g => hasItem(g,'Cyber Eye Replacement')])),
+  'Tracking Mount': g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'External Mount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Smartlink': g => hasItem(g,'Display Link'),
+  'Reflex Trigger': g => hasItem(g,'Wired Reflexes'),
+  'Improved Hand Razors': g => hasItem(g,'Hand Razors') || hasItem(g,'Retractable Hand Razors'),
+  'BrightLight One-Shot Flash-pak': g => hasItem(g,'BrightLight Addition'),
+  'Video Link Internal Transmitter': g => hasItem(g,'Video Link'),
+  'Video Link External Transmitter': g => hasItem(g,'Video Link'),
+  'Video Link External Recorder': g => hasItem(g,'Video Link'),
+  'Hearing Amplification': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Spatial Recognizer': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Balance Augmenter': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Sense Link Internal Transmitter': g => hasItem(g,'Sense Link'),
+  'Sense Link Receiver': g => hasItem(g,'Sense Link'),
+  'Sense Link External Transmitter': g => hasItem(g,'Sense Link'),
+  'Sense Link External Recorder': g => hasItem(g,'Sense Link'),
+  'Dermal Plating': g => hasItem(g,'Cybertorso'),
+  'Dermal Sheath': g => hasItem(g,'Cybertorso'),
+  'Body Plating: Soft Armor (per level)': g => hasItem(g,'Cybertorso'),
+  'Body Plating: Hard Armor (per level)': g => hasItem(g,'Cybertorso'),
+  'Cyberarm Gyromount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Hand Blade (Retractable)': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Shock Hand': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Cyberarm Taser': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'CyberSquirt': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Cyber Limb — Built-In Smartlink': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Foot Anchor': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Hydraulic Jack': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Orientation System': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Cyber Limb — Built-In Device': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Reaction Enhancer': g => hasItem(g,'Wired Reflexes'),
+  'Activesoft (General)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Activesoft (Concentration)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Activesoft (Specialization)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Knowsoft (General)': g => hasItem(g,'Softlink'),
+  'Knowsoft (Concentration)': g => hasItem(g,'Softlink'),
+  'Knowsoft (Specialization)': g => hasItem(g,'Softlink'),
+  'Linguasoft': g => hasItem(g,'Softlink'),
+};
+const EXCLUDES = {
+  'Boosted Reflexes': g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes'),
+  'Vehicle Control Rig': g => hasItem(g,'Boosted Reflexes'),
+  'Wired Reflexes': g => hasItem(g,'Boosted Reflexes'),
+  'Reaction Enhancer': g => hasItem(g,'Move-by-Wire System'),
+  'Dermal Plating': g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3),
+  'Trauma Damper': g => hasItem(g,'Pain Editor'),
+  'Pain Editor': g => hasItem(g,'Trauma Damper'),
+};
+// Shared duplicate-purchase check for "same item, different configuration is fine" cases (skillsoft
+// chip, reflex recorder, Kit/Shop/Facility type, focus target, Power Focus rating) -- true if
+// gear[bucket] already owns `name` with every [field, value, mode] tuple matching: 'ci' compares
+// strings case-insensitively, 'num' compares numerically, anything else is a strict ===.
+function dupeCheck(gear, bucket, name, checks){
+  return (gear[bucket] || []).some(g => g.n === name && checks.every(([field, value, mode]) => {
+    if (mode === 'ci') return String(g[field] || '').toLowerCase() === String(value || '').toLowerCase();
+    if (mode === 'num') return Number(g[field]) === Number(value);
+    return g[field] === value;
+  }));
+}
+function hasItemAtRating(gear, name, minR){
+  return ((gear.cyber)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR) ||
+         ((gear.bio)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR);
+}
+function hasOrthoskinAtRating(gear, minR){ return hasItemAtRating(gear, 'Orthoskin', minR); }
+// Orthoskin and Dermal Sheath only become incompatible with Dermal Plating at Rating 3 specifically
+// (their own catalog text) -- not a plain EXCLUDES entry since the trigger is rating-conditional, not
+// "owned at all". Checked both on a fresh purchase (ownershipBlocked) and an in-place upgrade
+// (upgradeExistingSingular), same as every other rating change now that both go through re-buying.
+// A rank-specific mutual exclusion: raising `itemName` to `targetRating` (>= minRating) is blocked
+// if `excludesName` is already owned (any rating). Mirrors EXCLUDES' opposite-direction check
+// (Dermal Plating -> hasItemAtRating(Dermal Sheath/Orthoskin, 3)) for the other two items in this
+// three-way exclusion.
+function ratingExclusionBlocked(itemName, targetRating, minRating, excludesName, gear){
+  return targetRating >= minRating && hasItem(gear, excludesName) ? `${itemName} R${minRating} (incompatible with ${excludesName})` : null;
+}
+function orthoskinRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Orthoskin', targetRating, 3, 'Dermal Plating', gear); }
+function dermalSheathRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Dermal Sheath', targetRating, 3, 'Dermal Plating', gear); }
+// Combines the default-singular/quantity-cap rules with the prerequisite/exclusion tables above.
+// PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
+// family member AND excludes the VCR family) -- only the *default-singular quantity cap* is skipped
+// for family members, since familyReplaceOrBlock (called separately) governs their ownership count.
+// How many more of this item the gear picker's Qty field should even offer -- mirrors
+// ownershipBlocked's SINGULAR_CATEGORIES/OWNERSHIP_CAP math (not the family/limb/orthoskin special
+// cases below, which are rare enough that the purchase-time block message covers them fine) so a
+// cap-1 item like Vehicle Control Rig can't have an obviously-wrong quantity typed into it.
+function pickerMaxQty(item, cat){
+  if (!SINGULAR_CATEGORIES.has(cat)) return Infinity;
+  const cap = OWNERSHIP_CAP[item.n];
+  if (cap === Infinity) return Infinity;
+  const bucket = GEAR_BUCKET[cat] || cat;
+  const owned = (CHAR.gear && CHAR.gear[bucket]) || [];
+  const ownedCount = owned.filter(g => g.n === item.n).length;
+  const remaining = Math.max(0, (cap === undefined ? 1 : cap) - ownedCount);
+  // A cap-1 item you already own (VCR, Wired Reflexes, most cyberware/bioware) isn't necessarily
+  // done being "bought" -- re-buying it at a different rating and/or grade is how you upgrade it in
+  // place (see upgradeExistingSingular). Only re-offer Buy when there's actually a rating or grade
+  // dimension to change; a flat item with neither has nothing left to pick differently.
+  if (remaining === 0 && cap === undefined && ownedCount === 1 && (bucket === 'cyber' || bucket === 'bio')) {
+    if (item.rated || (bucket === 'cyber' && item.cat !== 'other')) return 1;
+  }
+  return remaining;
+}
+// A cap-1 cyberware/bioware item already owned can be "bought" again to change its rating and/or
+// grade in place, at the FULL price/Essence of the new configuration (not a delta) -- e.g. picking
+// Alpha + Rating 2 on an owned Standard Rating-1 VCR upgrades that one line instead of being blocked
+// as a duplicate. This is the only way to change rating or grade post-chargen now (replaces the old
+// dedicated Manage Cyberware upgrade buttons). Returns true if it handled the purchase (mutated gear
+// in place), a block-reason string if it applies but can't proceed, or null if this isn't that
+// scenario at all (not owned, not a cap-1 category, or nothing about it is actually reconfigurable).
+function upgradeExistingSingular(cat, item, bucket, gear, rating, grade){
+  if (!SINGULAR_CATEGORIES.has(cat)) return null;
+  if (OWNERSHIP_CAP[item.n] !== undefined) return null;   // only the plain "at most 1 by name" cap style
+  const existing = (gear[bucket] || []).find(g => g.n === item.n);
+  if (!existing) return null;
+  const canRerate = !!item.rated;
+  const canRegrade = bucket === 'cyber' && item.cat !== 'other';
+  if (!canRerate && !canRegrade) return null;
+  if (item.n === 'Orthoskin') {
+    const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
+    if (orthoBlock) return orthoBlock;
+  }
+  if (item.n === 'Dermal Sheath') {
+    const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
+    if (sheathBlock) return sheathBlock;
+  }
+  const newRating = canRerate ? (rating || 1) : existing.rating;
+  const newGrade = canRegrade ? (grade || 'Standard') : existing.grade;
+  const sameRating = !canRerate || Number(existing.rating || 1) === Number(newRating);
+  const sameGrade = !canRegrade || (existing.grade || 'Standard') === newGrade;
+  if (sameRating && sameGrade) return `${item.n} (already own this exact configuration)`;
+  const candidate = { ...existing, rating: newRating, grade: newGrade };
+  const resourceBlock = essenceOrBioIndexBlocked(bucket, candidate, existing);
+  if (resourceBlock) return resourceBlock;
+  if (canRerate) existing.rating = newRating;
+  if (canRegrade) existing.grade = newGrade;
+  return true;
+}
+function ownershipBlocked(cat, item, gear, rating){
+  if (item.n === 'Orthoskin') {
+    const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
+    if (orthoBlock) return orthoBlock;
+  }
+  if (item.n === 'Dermal Sheath') {
+    const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
+    if (sheathBlock) return sheathBlock;
+  }
+  const prereq = PREREQ[item.n];
+  if (prereq && !prereq(gear)) return `${item.n} (prerequisite not met)`;
+  const excl = EXCLUDES[item.n];
+  if (excl && excl(gear)) return `${item.n} (blocked by an incompatible item already installed)`;
+  if (FAMILY_BY_NAME.has(item.n)) return null;
+  if (LIMB_GROUP.has(item.n)) {
+    return ownedLimbGroupCount(gear) >= 4 ? `${item.n} (max 4 limbs)` : null;
+  }
+  if (item.n === 'Magnetic Cyberlimb System') {
+    const limbs = ownedLimbGroupCount(gear);
+    if (limbs === 0) return `${item.n} (needs a Cyber Limb or Simple Replacement Limb)`;
+    const cap = Math.min(4, limbs);
+    return ownedMagLimbSystemCount(gear) >= cap ? `${item.n} (max ${cap} for your limbs)` : null;
+  }
+  if (!SINGULAR_CATEGORIES.has(cat)) return null;
+  const cap = OWNERSHIP_CAP[item.n];
+  if (cap === Infinity) return null;   // dedup/cap handled by bespoke logic below
+  const bucket = GEAR_BUCKET[cat] || cat;
+  const owned = gear[bucket] || [];
+  if (cap === undefined) return owned.some(g => g.n === item.n) ? `${item.n} (already owned)` : null;
+  return owned.filter(g => g.n === item.n).length >= cap ? `${item.n} (max ${cap})` : null;
+}
+
+// ---- Situational bonuses too narrow/one-off to model as a first-class field -- CSV said to note
+// them on the character instead. CHAR.notes is a real, existing free-text field (see Manage
+// Identity); appendCharNote writes into it once per purchase, skipping an exact-duplicate line so
+// re-buying (e.g. a family upgrade) doesn't pile up the same sentence twice.
+function appendCharNote(text){
+  const cur = CHAR.notes || '';
+  if (cur.split('\n').includes(text)) return;
+  CHAR.notes = cur ? cur + '\n' + text : text;
+}
+const SITUATIONAL_NOTES = {
+  'Olfactory Booster': g => `Olfactory Booster R${g.rating||1}: +1 die to smell Perception per level, +1 die to taste per 3 levels.`,
+  'Hydraulic Jack': g => `Hydraulic Jack R${g.rating||1}: leaping distance/height x${g.rating||1}; falling-damage Power -${g.rating||1}.`,
+  'Damage Compensator (R1-2)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  'Damage Compensator (R3-5)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  'Damage Compensator (R6-9)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  // Just a note, not a mechanical piece of code -- both the actual damage-shifting effect and the
+  // Damage-Compensator-threshold gate would need condition-monitor logic that doesn't exist yet.
+  'Trauma Damper': () => `Trauma Damper: shifts one box of Physical damage to Stun instead, but only once an owned Damage Compensator's threshold has been exceeded (no effect without one). +2 TN to others' attempts to cause you pain. Incompatible with a Pain Editor.`,
+  // Cyberware that's meant to grant a Weapons-table entry -- not auto-added there, just noted with
+  // what it grants so it can be tracked by hand.
+  'Hand Blade (Retractable)': () => `Hand Blade (Retractable): melee weapon, Reach 0, Damage (STR+3)L. Retracts into the limb when not in use.`,
+  'Shock Hand': () => `Shock Hand: melee weapon, Reach 0, Damage 8S. Recharges between uses -- one strike per recharge.`,
+  'Cyberarm Taser': () => `Cyberarm Taser: ranged weapon, Damage 8S. 10 charges before reload.`,
+  'CyberSquirt': () => `CyberSquirt: ranged chemical injector, 10 shots of a chosen chemical/biological agent. Rigid armor reduces effect.`,
+  'Cyberarm Gyromount': () => `Cyberarm Gyromount: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+  'Toxin Extractor': g => `Toxin Extractor R${g.rating||1}: reduces blood-toxin attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Pathogenic Defense': g => `Pathogenic Defense R${g.rating||1}: +${g.rating||1} die resisting disease/allergens; reduces microbiological attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Nephritic Screen': () => `Nephritic Screen: +1 Body resisting toxins/pathogens; reduces blood-vectored toxin attack Power by 1.`,
+  'Extended Volume': g => `Extended Volume R${g.rating||1}: +${[0,45,90,135][g.rating||1]||45}s breath-hold${(g.rating||1)>=3 ? ' (small stamina penalty at R3)' : ''}.`,
+  // Activated/temporary, not a permanent mod -- applying it as an always-on attribute bonus would be
+  // wrong (it only applies for 10-15 turns, then costs Stun Drain and fatigue).
+  'Adrenal Pump': g => `Adrenal Pump R${g.rating||1}: on activation, ${g.rating===2?'+2 Quickness/+2 Strength/+1 Willpower/+4 Reaction':'+1 Quickness/+1 Strength/+1 Willpower/+2 Reaction'} for 10-15 turns, then Stun Drain and fatigue.`,
+  // Knowledge/Language skills aren't tracked as a structured list on this sheet yet, so this bonus
+  // has nowhere to attach -- noted instead of silently dropped.
+  'Mnemonic Enhancer': g => `Mnemonic Enhancer R${g.rating||1}: +${Math.floor((g.rating||1)/2)} die to Knowledge/Language tests; -${g.rating||1} TN to recall tests.`,
+  // Ballistic/Impact are wired into the Armor total (bioArmorBonus). The Body bonus described here is
+  // specifically "for damage resistance tests," not a real Body attribute increase (unlike Cybertorso/
+  // Cyberskull's flat +1 Body, which is a genuine structural replacement) -- noted rather than modeled
+  // as a global attribute change that would also skew Encumbrance/karma costs.
+  'Dermal Sheath': g => `Dermal Sheath R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
+  'Dermal Plating': g => `Dermal Plating R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
+  'Bone Lacing': g => `Bone Lacing R${g.rating||1} (${['Plastic','Aluminum','Titanium'][(g.rating||1)-1]||'Plastic'}): Unarmed Blow does (STR+${g.rating||1})M.`,
+  'Orthoskin': g => (g.rating||1) >= 3 ? `Orthoskin R3: +TN to tactile Perception.` : '',
+  // Weapon-granting cyberware not auto-added to the Weapons table (same treatment as Hand Blade/Shock
+  // Hand/Cyberarm Taser/CyberSquirt above) -- noted with what it grants instead.
+  'Hand Razors': () => `Hand Razors: Unarmed melee weapon, cyber-claws.`,
+  'Retractable Hand Razors': () => `Retractable Hand Razors: Unarmed melee weapon, cyber-claws (concealable, retracts when not in use).`,
+  'Improved Hand Razors': () => `Improved Hand Razors: Unarmed melee weapon, Damage (STR+2).`,
+  'Spur': () => `Spur: melee weapon, Damage (STR+2), always extended.`,
+  'Retractable Spur': () => `Retractable Spur: melee weapon, Damage (STR+2), retracts when not in use.`,
+  'Oral Dart': () => `Oral Dart: ranged narcoject/toxin injector, 3 rounds, reload 1 min/dart, ammo x3 cost.`,
+  'Oral Gun': () => `Oral Gun: ranged weapon, 4 rounds, reload 1 min/round, ammo x3 cost.`,
+  'Oral Spur': () => `Oral Spur: melee weapon (tongue-mounted), extends/retracts as a free action.`,
+  'Oral Whip': () => `Oral Whip: ranged melee weapon, Range 1m, Damage 6M.`,
+  'Eye Dart': () => `Eye Dart: ranged narcoject/toxin injector, 1 round, reloads in 10 Combat Turns, ammo x3 cost.`,
+  'Eye Gun': () => `Eye Gun: ranged weapon, 1 round (-1 damage, -1 recoil mod), reloads in 10 Combat Turns.`,
+  'Tool Laser': () => `Tool Laser: Damage Code 4L beyond 1m; can't pierce Barrier Rating > 8.`,
+  'Toxin Exhaler': () => `Toxin Exhaler: ranged toxin injector (Quickness Test to hit, +1 TN per half-meter, range capped at half unaugmented Body in meters).`,
+  // Implanted lethal/self-destruct devices -- severe, non-obvious effects worth flagging clearly.
+  'Kink Bomb': () => `Kink Bomb (Illegal): kills the wearer outright on detonation; can cause permanent neurological damage if it fails to kill.`,
+  'Microbomb': () => `Microbomb: kills wearer and destroys identifying tissue, Power 8 Damage Level M blast.`,
+  'Area Bomb': () => `Area Bomb: Power 10 Damage Level M blast beyond the wearer, -1 Power per meter of distance.`,
+  'Cortex Bomb (Illegal)': () => `Cortex Bomb (Illegal): lethal explosive in a 1m radius, remote/signal/condition-triggered.`,
+  // Resistance-test bonuses that have nowhere to attach (no toxin/pathogen/gas-attack mechanic on this
+  // sheet) -- same treatment as Toxin Extractor/Pathogenic Defense/Nephritic Screen above.
+  'Air Filtration': g => `Air Filtration R${g.rating||1}: opposes inhaled toxins with Rating ${g.rating||1}.`,
+  'Blood Filtration': g => `Blood Filtration R${g.rating||1}: opposes blood-borne toxins with Rating ${g.rating||1}.`,
+  'Ingested Toxin Filtration': g => `Ingested Toxin Filtration R${g.rating||1}: opposes ingested toxins with Rating ${g.rating||1}.`,
+  'Tracheal Filter': g => `Tracheal Filter R${g.rating||1}: reduces gas/airborne attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Platelet Factory': () => `Platelet Factory: forces a clot against embolism/serious blood loss once daily; +1 TN to Body Tests per use (cumulative thrombosis risk).`,
+  'Symbiotes': g => `Symbiotes R${g.rating||1}: heals in ${[90,70,50][(g.rating||1)-1]||90}% normal time${(g.rating||1)>=2 ? `; +${(g.rating||1)===2?50:100}% food intake` : ''}.`,
+  'Suprathyroid Gland': () => `Suprathyroid Gland: requires roughly triple normal food/drink intake; tendency toward hyperactivity.`,
+  // The -2 TN bonus has nowhere to attach (no attack-TN mechanic on this sheet); the Display Link
+  // prerequisite is enforced separately in PREREQ.
+  'Smartlink': () => `Smartlink: -2 TN on smartgun-equipped weapons.`,
+  'External Mount': () => `External Mount: weapon mount, triple ammo cost for the external feed.`,
+  'Articulate Arm': () => `Articulate Arm: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+};
+
+// ---- Weapon accessory effect text (weapons.json), looked up live at render time (renderGear(),
+// renderWeapons()) rather than written once at purchase -- a stored, purchase-time-only note would
+// never show for gear a character already owned before this table existed. Keyed by the accessory's
+// own catalog name. This is also the master list of which accessories are "weapon mods" assignable
+// via the Weapons table's MOD button (openManageWeaponMods) -- everything else in the accessory
+// category (Spare Clips, Bow Accessory Mount, ...) keeps its own separate mechanic instead.
+const WEAPON_MOD_NOTES = {
+  'Concealable Holster': '+2 Conceal (pistols/tasers only, see holsterEligible)',
+  'Bipod': '2 pts Recoil Comp',
+  'Gas-Vent II': '1 pt Recoil Comp, -1 Conceal',
+  'Gas-Vent III': '2 pts Recoil Comp, -2 Conceal',
+  'Gyro Mount, Standard': '5 pts Recoil/Movement Comp, -5 Conceal',
+  'Gyro Mount, Deluxe': '6 pts Recoil/Movement Comp, built-in smartlink, integral armor, -6 Conceal',
+  'Improved Gyro-Mount System': 'negates recoil/movement up to rating, half Combat Pool, +4 TN melee',
+  'Deluxe Gyro-Mount System': 'negates recoil/movement up to rating, half Combat Pool, +4 TN melee',
+  'Laser Sight': '-1 TN short range',
+  'Shock Pads': '1 pt Recoil Comp',
+  'Silencer': '+2 TN to locate shooter (non-auto only)',
+  'Sound Suppressor': '+2 TN to locate shooter (wears out ~300 rounds burst/auto)',
+  'Light Fire 70 Silencer': '+2 TN to locate shooter (wears out ~3 shots)',
+  'Tripod': '6 pts Recoil Comp, not concealable',
+  'Smart Goggles': 'substitutes for Smartlink cyberware',
+  'Ultrasound Sight': 'reveals targets in dark/thermo-countered/invisible',
+  'Ultrasound Goggles': 'halves visibility penalties',
+  'Electrothermal Ammo Enhancement': '+50% Power/range, insulated vs electrical attacks',
+  'Smartgun System, Internal': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles',
+  'Smartgun System, External': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles, -2 Conceal',
+};
+const WEAPON_MOD_NAMES = new Set(Object.keys(WEAPON_MOD_NOTES));
+
+// ---- Weapon mod assignment (MOD button on the Weapons table) ----
+// A weapon mod is just an ordinary owned gear.weapons accessory line (bought via Buy Gear like any
+// other item) with a hostId pointing at the gun it's mounted on -- null/absent hostId means it's
+// still loose in inventory. Every gear.weapons line (guns and accessories alike) needs a stable id
+// to be a hostId target; ensureWeaponIds() backfills one onto any line that predates this feature.
+function newId(){ return 'w' + Math.random().toString(36).slice(2, 10); }
+function ensureWeaponIds(){
+  let changed = false;
+  ((CHAR.gear && CHAR.gear.weapons) || []).forEach(w => { if (!w.id) { w.id = newId(); changed = true; } });
+  return changed;
+}
+// These used to be several separate flat catalog SKUs per level/rating-band; each is now one rated
+// item (see cyberware.json). A character that bought one under the old catalog still has the old
+// per-level name baked into its stored gear line, which would silently stop being recognized by
+// EXCLUDES/PREREQ/vcrLevel() -- rewrite it in place to the new rated shape.
+const LEGACY_CYBER_BAND_RENAME = {
+  'Vehicle Control Rig Level 1': ['Vehicle Control Rig', 1], 'Vehicle Control Rig Level 2': ['Vehicle Control Rig', 2], 'Vehicle Control Rig Level 3': ['Vehicle Control Rig', 3],
+  'Wired Reflexes Level 1': ['Wired Reflexes', 1], 'Wired Reflexes Level 2': ['Wired Reflexes', 2], 'Wired Reflexes Level 3': ['Wired Reflexes', 3],
+  'Boosted Reflexes Level 1': ['Boosted Reflexes', 1], 'Boosted Reflexes Level 2': ['Boosted Reflexes', 2], 'Boosted Reflexes Level 3': ['Boosted Reflexes', 3],
+  'Move-by-Wire System Level 1': ['Move-by-Wire System', 1], 'Move-by-Wire System Level 2': ['Move-by-Wire System', 2],
+  'Move-by-Wire System Level 3': ['Move-by-Wire System', 3], 'Move-by-Wire System Level 4': ['Move-by-Wire System', 4],
+  'Dermal Plating Level 1 (SR2)': ['Dermal Plating', 1], 'Dermal Plating Level 2 (SR2)': ['Dermal Plating', 2], 'Dermal Plating Level 3 (SR2)': ['Dermal Plating', 3],
+  'Dermal Sheath Level 1': ['Dermal Sheath', 1], 'Dermal Sheath Level 2': ['Dermal Sheath', 2], 'Dermal Sheath Level 3': ['Dermal Sheath', 3],
+  'Optical Magnification 1': ['Optical Magnification', 1], 'Optical Magnification 2': ['Optical Magnification', 2], 'Optical Magnification 3': ['Optical Magnification', 3],
+  'Electronic Magnification 1': ['Electronic Magnification', 1], 'Electronic Magnification 2': ['Electronic Magnification', 2], 'Electronic Magnification 3': ['Electronic Magnification', 3],
+};
+function migrateLegacyCyberBands(){
+  let changed = false;
+  ((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => {
+    const rename = LEGACY_CYBER_BAND_RENAME[g.n];
+    if (!rename) return;
+    const [newName, rating] = rename;
+    const cat = CYBER_CAT.get(newName);
+    if (!cat) return;   // catalog not loaded / item not book-enabled -- leave the old line alone rather than corrupt it
+    g.n = newName;
+    g.rated = true;
+    g.maxRating = Number(cat.maxRating) || rating;
+    g.rating = rating;
+    g.essUnit = parseNum(cat.ess);
+    g.costUnit = parseNum(cat.cost);
+    if (Array.isArray(cat.essTbl)) g.essTbl = cat.essTbl.slice();
+    if (Array.isArray(cat.costTbl)) g.costTbl = cat.costTbl.slice();
+    if (cat.modsPer) g.modsPer = cat.modsPer; else delete g.modsPer;
+    if (cat.mods) g.mods = cat.mods; else delete g.mods;
+    if (cat.skillBonus) g.skillBonus = cat.skillBonus; else delete g.skillBonus;
+    // Dermal Plating/Sheath's old flat ballistic_bonus/impact_bonus fields are dead weight now that
+    // the new catalog entry carries an armorTbl instead -- bioArmorBonus() resolves either one fresh
+    // from the catalog by name (same as modsTbl/Encephalon below), so drop the stale fields for a
+    // clean record rather than leave them sitting unused on the line.
+    delete g.ballistic_bonus; delete g.impact_bonus;
+    // modsTbl/armorTbl aren't copied onto owned lines -- resolved fresh from CYBER_CAT/BIO_CAT by name each time (same as Encephalon).
+    delete g.baseEss; delete g.baseCost;
+    changed = true;
+  });
+  return changed;
+}
+function openManageWeaponMods(weaponId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const host = weapons.find(w => w.id === weaponId);
+  if (!host) return;
+  openModal('weaponmods', `// Mods — ${host.n}`, false);
+  renderManageWeaponMods(weaponId);
+}
+function renderManageWeaponMods(weaponId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const host = weapons.find(w => w.id === weaponId);
+  const hostCat = WEAPON_CAT.get((host||{}).n) || {};
+  const attached = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && g.hostId === weaponId);
+  const attachedNames = new Set(attached.map(g => g.n));
+  // A weapon can't carry the same mod twice -- if a second copy of an already-attached mod is
+  // owned, it stays offered to every *other* weapon but not this one. Concealable Holster is
+  // further restricted: only offered as Attachable on a pistol/taser (holsterEligible), same as
+  // its old auto-assign logic used to enforce -- a shotgun just doesn't fit in one.
+  const available = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && !g.hostId && !attachedNames.has(g.n)
+    && (g.n !== 'Concealable Holster' || holsterEligible(hostCat)));
+  const attachedRows = attached.length ? attached.map(g =>
+    `<div class="ps-stat-row"><span class="k">${esc(g.n)}<div class="dim-meta" style="font-size:.7rem;">${esc(WEAPON_MOD_NOTES[g.n])}</div></span>
+      <button class="row-x" data-unmod="${esc(g.id)}" title="Remove">&#10005;</button></div>`
+  ).join('') : '<p class="empty-state">No mods attached.</p>';
+  const availableRows = available.length ? available.map(g =>
+    `<div class="ps-stat-row"><span class="k">${esc(g.n)}<div class="dim-meta" style="font-size:.7rem;">${esc(WEAPON_MOD_NOTES[g.n])}</div></span>
+      <button class="btn btn-amber btn-sm" data-mod-on="${esc(g.id)}">Attach</button></div>`
+  ).join('') : '<p class="empty-state">No unattached mods owned.</p>';
+  $('#modalBody').innerHTML = `
+    <div class="armor-slot-head">Attached</div>${attachedRows}
+    <div class="armor-slot-head mt-10">Available</div>${availableRows}
+  ` + buyShortcutRow('weapons', 'Buy Weapon');
+  $$('[data-mod-on]').forEach(b => b.onclick = () => setModHost(b.dataset.modOn, weaponId).then(() => renderManageWeaponMods(weaponId)));
+  $$('[data-unmod]').forEach(b => b.onclick = () => setModHost(b.dataset.unmod, null).then(() => renderManageWeaponMods(weaponId)));
+  wireBuyShortcut();
+}
+function setModHost(modId, hostId){
+  const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  const mod = weapons.find(g => g.id === modId);
+  if (!mod) return Promise.resolve();
+  mod.hostId = hostId;
+  return patchGear().then(() => { renderWeapons(); renderGear(); });
+}
+
+// ---- Attach-to-host purchases (Smartgun System, Gel-Pack Armor) ----
+// These fold into an already-owned weapon/armor line (name + cost change in place) instead of
+// becoming their own gear line -- same mechanic character-builder.html's chargen shop already uses.
+const ATTACH_RULES = {
+  'Gel-Pack Armor (Mil-Spec Gel Packs)': { bucket: 'armor', mult: 5, label: 'Gel-Packs', sub: gelPackTransform },
+};
+function gelAvail(avail){
+  const m = /^\s*(\d+)\s*\/\s*(\d+)\s*(.*)$/.exec(String(avail || ''));
+  return m ? `${Number(m[1]) * 2}/${Number(m[2]) * 4} ${m[3]}`.trim() : (avail || '');
+}
+function gelPackTransform(armorName){
+  const a = ARMOR_CAT.get(armorName);
+  if (!a) return '';
+  const parts = [`${a.ballistic != null ? a.ballistic : 0}/${a.impact != null ? a.impact : 0} Hardened`];
+  if (a.conceal != null) parts.push(`Conceal ${Math.floor(a.conceal / 2)}`);
+  if (a.avail) parts.push(`Avail ${gelAvail(a.avail)}`);
+  if (a.index != null) parts.push(`SI ${Math.round(a.index * 2 * 100) / 100}`);
+  return parts.join(', ');
+}
+async function attachGearMod({ item, hostIndex }){
+  const rule = ATTACH_RULES[item.n];
+  if (!rule) throw new Error('No attach rule for ' + item.n);
+  const gear = CHAR.gear = CHAR.gear || {};
+  const list = gear[rule.bucket] || [];
+  const host = list[hostIndex];
+  if (!host) throw new Error('Pick a host item first');
+  const baseName = host.baseName || host.n;
+  const base = gearLineCost(host);
+  const sub = rule.sub ? rule.sub(baseName) : undefined;
+  host.baseName = baseName;
+  host.n = baseName + ' (' + rule.label + ')';
+  host.cost = rule.mult != null ? base * rule.mult : base + (rule.add != null ? rule.add : (parseNum(item.cost) || 0));
+  host.mod = item.n;
+  host.modLabel = rule.label;
+  if (sub != null) host.sub = sub;
+  delete host.rated; delete host.rating; delete host.maxRating; delete host.costUnit; delete host.costTbl; delete host.rateLabels;
+  await patchChar({ gear });
+  renderAll();
+}
+
+function openManageBuyGear(initialCat){
+  openModal('buygear', '// Buy Gear', true);
+  $('#modalCommitBtn').style.display = 'none';
+  $('#modalCancelBtn').textContent = 'Close';
+  initGearPicker($('#modalBody'), {
+    onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks, maxQty: pickerMaxQty,
+    data: {
+      weapons: [...WEAPON_CAT.values()], armor: [...ARMOR_CAT.values()], cyberware: [...CYBER_CAT.values()],
+      bioware: [...BIO_CAT.values()], gear: [...GEAR_CAT.values()], vehicles: [...VEHICLE_CAT.values()],
+    },
+  });
+}
+// Skillsofts don't carry a target skill in the catalog -- the player picks what it's loaded with.
+// Activesoft -> an Active skill from the web (with optional conc/spec, same web Manage Skills uses);
+// Knowsoft -> free-text knowledge skill; Linguasoft -> free-text language, capped at 30 characters.
+async function assignSkillsoftSkill(line, item){
+  if (item.soft === 'active') {
+    const names = SKILL_CATALOG.map(s => s.n).slice().sort();
+    const chosen = await showPrompt(`Which Active skill is this ${item.n} loaded with?`, '', { title: '// ACTIVESOFT', options: names, okLabel: 'Load' });
+    if (!chosen) return;
+    line.skill = chosen;
+    const web = skillWeb(chosen);
+    if (web && Array.isArray(web.conc) && web.conc.length) {
+      const concChoice = await showPrompt(`Concentration for ${chosen}? (optional)`, '(none)', { title: '// CONCENTRATION', options: ['(none)', ...web.conc], okLabel: 'Set' });
+      if (concChoice && concChoice !== '(none)') {
+        line.conc = concChoice;
+        const specOpts = SKILL_SPECS[chosen] ? expandOptions(SKILL_SPECS[chosen][concChoice], chosen) : [];
+        if (specOpts.length) {
+          const specChoice = await showPrompt(`Specialization for ${concChoice}? (optional)`, '(none)', { title: '// SPECIALIZATION', options: ['(none)', ...specOpts], okLabel: 'Set' });
+          if (specChoice && specChoice !== '(none)') line.spec = specChoice;
+        }
+      }
+    }
+  } else if (item.soft === 'knowledge') {
+    const chosen = await showPrompt(`Which knowledge skill is this ${item.n} loaded with?`, '', { title: '// KNOWSOFT', okLabel: 'Load' });
+    if (chosen) line.skill = chosen;
+  } else if (item.soft === 'language') {
+    const chosen = await showPrompt(`Which language is this ${item.n} loaded with? (max 30 characters)`, '', { title: '// LINGUASOFT', okLabel: 'Load', maxLength: 30 });
+    if (chosen) line.skill = chosen;
+  }
+}
+// Reflex Recorder permanently improves one already-known skill -- pick from CHAR's own skill list
+// (unlike skillsofts, which can target any catalog skill even if the character hasn't learned it).
+async function assignReflexRecorderSkill(line, item){
+  const names = (CHAR.skills || []).map(s => s.name).filter(Boolean).sort();
+  const chosen = await showPrompt(`Which known skill does this ${item.n} improve?`, '', { title: '// REFLEX RECORDER', options: names, okLabel: 'Set' });
+  if (chosen) line.skill = chosen;
+}
+// Kit/Shop/Facility are generic until the player names what kind (e.g. "Programming Shop") --
+// mirrors character-builder.html's chargen-time .kind field, just prompted up front instead of
+// left blank-then-edited, so the dedup check below has something to compare against immediately.
+async function assignGearType(line, item){
+  const chosen = await showPrompt(`What kind of ${item.n.toLowerCase()} is this? (e.g. "Programming")`, '', { title: `// ${item.n.toUpperCase()}`, okLabel: 'Set' });
+  if (chosen) line.kind = chosen;
+}
+const SPIRIT_TYPES = () => Object.values(SKILL_SPECS['Conjuring'] || {}).flat();
+const SPELL_CATEGORIES = () => [...new Set([...SPELL_CAT.values()].map(s => s.cat).filter(Boolean))].sort();
+// Specific/Category Spell Foci and Spirit Focus each bind to one target (a known spell, a spell
+// category, or a spirit type respectively) -- tag it on the line so the dedup check can enforce
+// "one per target" instead of blocking the item outright.
+async function assignFocusTarget(line, item){
+  if (item.n === 'Specific Spell Focus') {
+    const names = (CHAR.spells || []).map(s => s.name).filter(Boolean).sort();
+    const chosen = await showPrompt(`Which known spell is this focus for?`, '', { title: '// SPECIFIC SPELL FOCUS', options: names, okLabel: 'Set' });
+    if (chosen) line.target = chosen;
+  } else if (item.n === 'Spell Category Focus') {
+    const chosen = await showPrompt(`Which spell category is this focus for?`, '', { title: '// SPELL CATEGORY FOCUS', options: SPELL_CATEGORIES(), okLabel: 'Set' });
+    if (chosen) line.target = chosen;
+  } else if (item.n === 'Spirit Focus') {
+    const chosen = await showPrompt(`Which spirit type is this focus for?`, '', { title: '// SPIRIT FOCUS', options: SPIRIT_TYPES(), okLabel: 'Set' });
+    if (chosen) line.target = chosen;
+  }
+}
+async function purchaseGear(entries){
+  if (!entries.length) return;
+  const gear = CHAR.gear = CHAR.gear || {};
+  // Snapshot karma-base ratings for every attribute a purchased item could touch BEFORE mutating
+  // gear. rawBaseAttr()'s backfill path (for records lacking a stored chargen_state.base) derives
+  // base by subtracting the CURRENT augAttr() from CHAR[attr] -- computing that after the new
+  // augmentation is already in CHAR.gear would treat the very bonus we're adding as already priced
+  // in, silently canceling it out.
+  const touchedAttrs = new Set();
+  entries.forEach(({ item }) => {
+    if (item.mods) Object.keys(item.mods).forEach(a => touchedAttrs.add(a));
+    if (item.modsPer) Object.keys(item.modsPer).forEach(a => touchedAttrs.add(a));
+    if (item.modsTbl) Object.keys(item.modsTbl).forEach(a => touchedAttrs.add(a));   // e.g. Encephalon's non-linear +Int
+  });
+  const baseSnapshot = {};
+  touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
+
+  let boughtCyber = false, boughtBio = false, boughtArmor = false, notesTouched = false, added = 0;
+  const skipped = [];
+  for (const entry of entries) {
+    const { cat, item, rating, qty, opts, grade } = entry;
+    const catalogName = GEAR_LINE_CATALOG[cat] || cat;
+    const bucket = GEAR_BUCKET[cat] || cat;
+    gear[bucket] = gear[bucket] || [];
+    for (let i = 0; i < qty; i++) {
+      const upgrade = upgradeExistingSingular(cat, item, bucket, gear, rating, grade);
+      if (upgrade === true) {
+        added++;
+        if (cat === 'cyberware') boughtCyber = true; else if (cat === 'bioware') boughtBio = true;
+        continue;
+      }
+      if (typeof upgrade === 'string') { skipped.push(upgrade); continue; }
+      const blockReason = ownershipBlocked(cat, item, gear, rating);
+      if (blockReason) { skipped.push(blockReason); continue; }
+      const famBlock = familyReplaceOrBlock(item, gear);
+      if (famBlock) { skipped.push(famBlock); continue; }
+      if (CYBERGUN_NAMES.has(item.n)) {
+        const armCount = ownedCyberLimbSlotCount(gear, 'Arm');
+        const cap = Math.min(2, armCount);
+        if (armCount === 0) { skipped.push(`${item.n} (needs a cyberarm)`); continue; }
+        if (ownedCybergunCount(gear) >= cap) { skipped.push(`${item.n} (max ${cap} cyberguns for your cyberarms)`); continue; }
+      }
+      if (item.n === 'Cyber Limb — Increased Strength' && ownedCyberLimbSlotCount(gear, 'Arm') === 0) {
+        skipped.push(`${item.n} (needs a cyberarm)`);
+        continue;
+      }
+      if (item.n === 'Cyber Limb — Increased Quickness' && ownedCyberLimbSlotCount(gear, 'Leg') === 0) {
+        skipped.push(`${item.n} (needs a cyberleg)`);
+        continue;
+      }
+      // SR2 p.137: Weapon Foci are the only foci Adepts can bond, and the only foci Adepts CAN bond
+      // -- a Full Mage/Shaman can bond anything except a Weapon Focus.
+      if (bucket === 'foci') {
+        const isWeaponFocus = item.who === 'adept';
+        const isAdept = CHAR.magic_type === 'Adept';
+        if (isWeaponFocus && !isAdept) { skipped.push(`${item.n} (Adepts only)`); continue; }
+        if (!isWeaponFocus && isAdept) { skipped.push(`${item.n} (Adepts may only bond a Weapon Focus)`); continue; }
+      }
+      const line = makeGearLine(item, catalogName, grade);
+      if (bucket === 'weapons') line.id = newId();   // needed as a MOD-assignment hostId target
+      if (rating) line.rating = rating;
+      // Unlike nuyen (deliberately not gated post-chargen), Essence and Body Index are hard limits.
+      const resourceBlock = essenceOrBioIndexBlocked(bucket, line);
+      if (resourceBlock) { skipped.push(resourceBlock); continue; }
+      // Enriched {n,cost,ess} per option (matches character-builder.html's chargen shop) so
+      // ownedCyberEss() below can actually count a paid/essence option's cost into Essence used --
+      // storing bare option names here silently dropped that essence before this fix.
+      if (opts && opts.length && Array.isArray(item.options)) {
+        line.options = item.options.filter(o => opts.includes(o.n)).map(o => ({ n: o.n, cost: parseNum(o.cost) || 0, ess: parseNum(o.ess) || 0 }));
+        // Fingertip ExpertPicks grants a Lockpicking skill (no matching entry in this catalog's
+        // skill list, so it can't be wired as a real skill line) -- record it on the character instead.
+        if (line.options.some(o => o.n === 'Fingertip ExpertPicks')) {
+          appendCharNote(`Fingertip ExpertPicks: Lockpicking Skill Rating 3 (no catalog skill entry -- noted here).`);
+          notesTouched = true;
+        }
+      }
+      if (LIMB_GROUP.has(item.n)) {
+        await assignLimbSlot(line, gear);
+        // Cancelling the slot prompt must not add an unslotted limb item -- ownedLimbSlots()
+        // reads g.slot to compute occupied slots, so a slot-less line would silently let a 5th
+        // slot-consuming device slip past the 4-slot cap later.
+        if (line.slot == null) { skipped.push(`${item.n} (no slot chosen)`); continue; }
+      }
+      if (item.soft) {
+        await assignSkillsoftSkill(line, item);
+        // Cancelling the "which skill?" prompt must not add an unconfigured, still-Essence-costing
+        // chip -- same reasoning as the limb-slot guard above.
+        if (line.skill == null) { skipped.push(`${item.n} (no skill chosen)`); continue; }
+        // Own a library: same skill at different ratings is fine (different chips), but an
+        // exact (item, skill, rating) duplicate would just be the identical chip twice.
+        if (dupeCheck(gear, bucket, item.n, [['skill', line.skill], ['rating', line.rating, 'num']])) {
+          skipped.push(`${item.n} — ${line.skill} R${line.rating} (already owned)`); continue;
+        }
+      }
+      if (item.n === 'Reflex Recorder (Concentration)' || item.n === 'Reflex Recorder (General)') {
+        await assignReflexRecorderSkill(line, item);
+        if (line.skill == null) { skipped.push(`${item.n} (no skill chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['skill', line.skill]])) {
+          skipped.push(`${item.n} — ${line.skill} (already owned)`); continue;
+        }
+      }
+      if (item.n === 'Kit' || item.n === 'Shop' || item.n === 'Facility') {
+        await assignGearType(line, item);
+        if (line.kind == null) { skipped.push(`${item.n} (no type chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['kind', line.kind, 'ci']])) {
+          skipped.push(`${item.n} — ${line.kind} (already owned)`); continue;
+        }
+      }
+      if (item.n === 'Specific Spell Focus' || item.n === 'Spell Category Focus' || item.n === 'Spirit Focus') {
+        await assignFocusTarget(line, item);
+        if (line.target == null) { skipped.push(`${item.n} (no target chosen)`); continue; }
+        if (dupeCheck(gear, bucket, item.n, [['target', line.target, 'ci']])) {
+          skipped.push(`${item.n} — ${line.target} (already owned)`); continue;
+        }
+      }
+      if (item.n === 'Power Focus' && rating != null) {
+        if (dupeCheck(gear, bucket, item.n, [['rating', rating, 'num']])) {
+          skipped.push(`${item.n} R${rating} (already owned)`); continue;
+        }
+      }
+      if (SITUATIONAL_NOTES[item.n]) {
+        const noteText = SITUATIONAL_NOTES[item.n](line);
+        if (noteText) { appendCharNote(noteText); notesTouched = true; }
+      }
+      gear[bucket].push(line);
+      added++;
+    }
+    if (cat === 'cyberware') boughtCyber = true;
+    if (cat === 'bioware') boughtBio = true;
+    if (bucket === 'armor') boughtArmor = true;
+  }
+  if (!added) {
+    // Returning the message (instead of calling showAlert on the page-level #alert, which sits
+    // behind the modal and goes unseen) lets gear-picker.js render it right in the modal, next to Buy.
+    return `Blocked: ${skipped.join('; ')}`;
+  }
+  // New armor defaults to equipped (same convention as weapons) -- a freshly bought Body/Helmet/
+  // Shield piece would otherwise show equipped alongside whatever already occupied that slot.
+  if (boughtArmor) enforceArmorSlotExclusivity();
+  const patch = { gear };
+  // baseSnapshot already includes metatype (it's karma-base, not raw base) -- don't add it twice.
+  Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
+  if (boughtCyber) patch.essence = Math.round(essenceRemaining() * 100) / 100;
+  if (boughtBio) patch.body_index = Math.round(ownedBioIndexTotal() * 100) / 100;
+  if (notesTouched) patch.notes = CHAR.notes;
+  await patchChar(patch);
+  renderAll();
+  // No message on a clean purchase (gear-picker.js shows its own "Purchased!") -- only surface
+  // something when part of the batch was blocked, since that's information the player actually needs.
+  if (skipped.length) {
+    return `${added} item${added===1?'':'s'} added (skipped ${skipped.length}: ${skipped.join('; ')})`;
+  }
+}
+
+// ---- Manage Magic (spells bought with nuyen; adept powers are chargen-only, read-only) ----
+function openManageMagic(){
+  openModal('magic', '// Manage Magic', false);
+  renderManageMagic();
+}
+function renderManageMagic(){
+  const isAdept = CHAR.magic_type === 'Adept';
+  let html = '';
+  if (isAdept) {
+    html += `<p class="dim-meta mb-16">Physical Adepts buy every power at chargen and cannot purchase or raise additional powers afterward.</p>`;
+    const powers = CHAR.adept_powers || [];
+    html += powers.length ? powers.map(p =>
+      `<div class="ps-stat-row"><span class="k">${esc(p.name)}</span><span class="v">${p.rated ? `Lvl ${p.lvl||1}` : ''}${p.ppEach ? ` (${p.ppEach} PP${p.rated?'/lvl':''})` : ''}</span></div>`
+    ).join('') : '<p class="empty-state">No powers.</p>';
+    $('#modalBody').innerHTML = html + buyShortcutRow('foci', 'Buy Focus');
+    wireBuyShortcut();
+    return;
+  }
+  const spells = CHAR.spells || [];
+  html += `<p class="dim-meta mb-16">Spells are learned with nuyen, priced by drain category: Light 50&times;Force, Moderate 100&times;Force,
+    Serious 500&times;Force, Deadly 1000&times;Force. Availability = Force/acquisition time. The required Sorcery test
+    (TN = Force&times;2) is shown for reference &mdash; the app does not roll it.</p>` +
+    (spells.length ? spells.map((s,i) => {
+      const cat = SPELL_CAT.get(s.name) || {};
+      const info = spellCostInfo(cat, s.force);
+      return `<div class="ps-stat-row"><span class="k">${esc(s.name)} <span style="color:var(--text-dim);font-size:.66rem;">${esc(s.cat || cat.cat || '')} &middot; Force ${s.force ?? '-'}</span></span>
+        <button class="row-x" data-delspell="${i}" title="Remove">&#10005;</button></div>`;
+    }).join('') : '<p class="empty-state">No spells known.</p>') +
+    `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);margin-top:10px;padding-top:10px;"><span class="k" style="color:var(--text-bright);">+ Learn a Spell</span></div>
+    <div class="grid3">
+      <div class="field"><label>Spell</label><select id="mgSpellPick">${[...SPELL_CAT.values()].sort((a,b)=>a.n.localeCompare(b.n)).map(sp=>`<option value="${esc(sp.n)}">${esc(sp.n)}</option>`).join('')}</select></div>
+      <div class="field"><label>Force</label><input id="mgSpellForce" type="number" min="1" max="12" value="3"></div>
+      <div class="field"><label>&nbsp;</label><button class="btn btn-green" id="mgSpellBuy" style="width:100%;">Buy</button></div>
+    </div>
+    <p class="dim-meta mt-6" id="mgSpellPreview"></p>` +
+    buyShortcutRow('foci', 'Buy Focus');
+  $('#modalBody').innerHTML = html;
+  initNumSteppers($('#modalBody'));
+  $$('[data-delspell]').forEach(b => b.onclick = () => {
+    CHAR.spells.splice(Number(b.dataset.delspell), 1);
+    patchChar({ spells: CHAR.spells }).then(() => { renderMagic(); renderManageMagic(); });
+  });
+  const updatePreview = () => {
+    const cat = SPELL_CAT.get($('#mgSpellPick').value) || {};
+    const info = spellCostInfo(cat, Number($('#mgSpellForce').value) || 1);
+    $('#mgSpellPreview').textContent = info
+      ? `${info.label} drain — ${money(info.nuyen)} — Avail ${info.avail} — Sorcery TN ${info.tn}`
+      : 'No standard drain data for this spell — price it manually with the GM.';
+  };
+  $('#mgSpellPick').addEventListener('change', updatePreview);
+  $('#mgSpellForce').addEventListener('input', updatePreview);
+  updatePreview();
+  const buyBtn = $('#mgSpellBuy');
+  buyBtn.onclick = async () => {
+    const name = $('#mgSpellPick').value, force = Math.max(1, Number($('#mgSpellForce').value) || 1);
+    const cat = SPELL_CAT.get(name) || {};
+    const info = spellCostInfo(cat, force);
+    if (!info) { showAlert($('#modalAlert'), 'This spell has no standard drain data — price it manually.', true); return; }
+    // Disable for the duration of the request -- without this, two rapid clicks both read the same
+    // pre-patch CHAR.nuyen before either PATCH resolves, learning the spell twice while nuyen is
+    // only deducted once. Mirrors gear-picker.js's own Buy button, which guards for this same reason.
+    buyBtn.disabled = true;
+    try {
+      CHAR.spells = CHAR.spells || [];
+      CHAR.spells.push({ name, cat: cat.cat || '', force });
+      const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
+      await patchChar({ spells: CHAR.spells, nuyen: nextNuyen });
+      renderMagic(); renderHeader(); renderManageMagic();
+      showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}`, false, true);
+    } finally {
+      buyBtn.disabled = false;
+    }
+  };
+  wireBuyShortcut();
+}
+
+// ---- shared commit/cancel ----
+async function commitModal(){
+  if (currentModalMode === 'identity'){
+    await patchChar({
+      archetype: $('#mgArchetype').value.trim(),
+      race: $('#mgRace').value.trim(),
+      gender: $('#mgSex').value.trim(),
+      age: Number($('#mgAge').value) || 0,
+      lifestyle_level: Number($('#mgLifestyle').value),
+    });
+    renderIdentity(); renderHeader();
+  } else if (currentModalMode === 'attrs'){
+    // draft[key] is the new KARMA-BASE rating (natural base + metatype). Back the metatype bonus
+    // back out before writing chargen_state.base (which stores the pure pre-racial base), and write
+    // the recomputed aggregate (karma-base + aug) into the top-level field everything else on the
+    // sheet reads directly. Mutate CHAR.chargen_state in place *before* patching (like patchGear()
+    // does for CHAR.gear) -- CharacterRead never echoes chargen_state back in the PATCH response,
+    // so without this the local copy would go stale and a second raise in the same session would
+    // start from the pre-raise base.
+    const fields = {};
+    CHAR.chargen_state = CHAR.chargen_state || {};
+    const newBase = { ...(CHAR.chargen_state.base || {}) };
+    Object.values(ATTR_KEYS).forEach(key => {
+      newBase[key] = Math.max(1, draft[key] - metatypeMod(key));
+      fields[key] = draft[key] + augAttr(key);
+    });
+    CHAR.chargen_state.base = newBase;
+    fields.good_karma = Math.max(0, draft.good_karma);
+    fields.chargen_state = CHAR.chargen_state;
+    await patchChar(fields);
+    renderAttributes(); renderIdentity();
+  } else if (currentModalMode === 'skills'){
+    await patchChar({ skills: draft.skills, good_karma: Math.max(0, draft.good_karma) });
+    renderSkills(); renderIdentity();
+  } else {
+    closeModal(); return;
+  }
+  showAlert($('#alert'), 'Changes committed.', false, true);
+  closeModal();
+}
+function cancelModal(){ closeModal(); }
+
+// ================================================================== wire-up
+function wireStatic(){
+  $('#manageIdentityBtn').onclick = openManageIdentity;
+  $('#manageAttrsBtn').onclick = openManageAttrs;
+  $('#manageSkillsBtn').onclick = openManageSkills;
+  $('#manageArmorBtn').onclick = openManageArmor;
+  $('#manageWeaponsBtn').onclick = openManageWeapons;
+  $('#manageGearBtn').onclick = openManageGear;
+  $('#manageMagicBtn').onclick = openManageMagic;
+  $('#manageCyberBtn').onclick = openManageCyber;
+  $('#modalCommitBtn').onclick = commitModal;
+  $('#modalCancelBtn').onclick = cancelModal;
+
+  $$('#dmgHealToggle .seg-btn').forEach(b => b.onclick = () => setDmgMode(b.dataset.mode));
+
+  const kpApply = () => {
+    let v = parseInt($('#karmaPoolInput').value, 10);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.min(50, Math.max(0, v));
+    $('#karmaPoolInput').value = v;
+    if (v !== CHAR.karma_pool) patchChar({ karma_pool: v });
+  };
+  const gkApply = () => {
+    let v = parseInt($('#goodKarmaInput').value, 10);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.min(50, Math.max(0, v));
+    $('#goodKarmaInput').value = v;
+    if (v !== CHAR.good_karma) patchChar({ good_karma: v });
+  };
+  $('#karmaPoolInput').addEventListener('change', kpApply);
+  $('#goodKarmaInput').addEventListener('change', gkApply);
+  if (!CAN_EDIT) { $('#karmaPoolInput').disabled = true; $('#goodKarmaInput').disabled = true; }
+
+  let notesTimer = null;
+  $('#charNotes').addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(() => patchChar({ notes: $('#charNotes').value }), 800);
+  });
+
+  wireNuyenEdit();
+  wireVehicle();
+  wirePortrait();
+  wireBuyShortcut();   // static "+ Buy Vehicle" buttons on the main sheet (modal ones rewire on each render)
+
+  $('#exportBtn').onclick = async () => {
+    const res = await apiFetch(`/characters/${CHAR.id}/sheet.pdf`);
+    if (!res.ok) { showAlert($('#alert'), `PDF export failed (status ${res.status})`, true); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${CHAR.name || 'character'}_SR2.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+}
+
+boot();
+</script>
+</body>
+</html>

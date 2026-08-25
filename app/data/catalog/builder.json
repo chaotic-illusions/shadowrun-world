@@ -232,7 +232,7 @@
     },
     {
       "n": "Weapon Focus (Small)",
-      "who": "both",
+      "who": "adept",
       "rated": true,
       "nuyenBase": 100000,
       "nuyenPer": 90000,
@@ -242,7 +242,7 @@
     },
     {
       "n": "Weapon Focus (Large)",
-      "who": "both",
+      "who": "adept",
       "rated": true,
       "nuyenBase": 200000,
       "nuyenPer": 90000,

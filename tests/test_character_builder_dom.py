@@ -85,7 +85,11 @@ def _route(route):
         route.fulfill(json={"enabled": enabled,
                             "core": {"code": "SR2", "name": "Shadowrun, Second Edition"},
                             "official": official,
-                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled}})
+                            # includes: real /catalog/books responses always carry this (schema
+                            # default []) -- manage-sourcebooks.html does an unconditional
+                            # fan.includes.join(...), which throws against a stub missing it.
+                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled,
+                                    "includes": ["BSW", "RG"]}})
     elif "/catalog/skill-specs" in url:
         if route.request.method == "PUT":
             specs = (route.request.post_data_json or {}).get("specs", {})
@@ -188,40 +192,45 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
         dec.click()
         page.wait_for_timeout(60)
 
-    # Asset Manifest: the Matrix tab holds the deckware Programs picker; buy a program, then a bioware item.
+    # Asset Manifest: weapons/armor/cyber/bio/gear/matrix/vehicles now buy through the shared
+    # gear-picker.js component (#cbxGearPicker) -- same one play-sheet.html's Buy Gear modal uses.
+    # The deckware Programs picker isn't a catalog item, so it still renders as its own panel below.
     page.locator('.wstep-dot[data-step="5"]').click()
     page.wait_for_timeout(60)
-    page.locator('[data-shoptab="matrix"]').click()
-    page.wait_for_timeout(60)
+    page.wait_for_selector("#cbxGearPicker .gc-grid", timeout=15000)
+
     # Expand a program row (Sleaze) and add it to the loadout, then confirm the loadout row appears.
     page.locator('[data-proginspect="sleaze"]').click()
     page.wait_for_timeout(60)
     page.locator('[data-progadd="sleaze"]').click()
     page.wait_for_timeout(60)
     assert page.locator("[data-progdel]").count() >= 1
-    page.locator('[data-shoptab="bio"]').click()
+
+    picker = page.locator("#cbxGearPicker")
+    picker.locator('[data-cat="bioware"]').click()
     page.wait_for_timeout(60)
-    bio_inspect = page.locator("[data-inspect]").first
-    if bio_inspect.count():
-        bio_inspect.click()  # expand the summary, revealing the Add button
+    bio_row = picker.locator("#gcList [data-pick]").first
+    if bio_row.count():
+        bio_row.click()
         page.wait_for_timeout(60)
-        buy = page.locator("[data-buy]").first
+        buy = picker.locator("#gcBuy")
         if buy.count():
             buy.click()
             page.wait_for_timeout(60)
 
-    # Cyberware: buy an item, confirm the grade selector, switch to Alpha (SSC is enabled in the stub).
-    page.locator('[data-shoptab="cyber"]').click()
+    # Cyberware: buy an item, then confirm the owned line's grade selector (Loadout column) still
+    # lets you switch it to Alpha post-purchase (SSC is enabled in the stub).
+    picker.locator('[data-cat="cyberware"]').click()
     page.wait_for_timeout(60)
-    cyber_inspect = page.locator("[data-inspect]").first
-    if cyber_inspect.count():
-        cyber_inspect.click()
+    cyber_row = picker.locator("#gcList [data-pick]").first
+    if cyber_row.count():
+        cyber_row.click()
         page.wait_for_timeout(60)
-        cyber_buy = page.locator("[data-buy]").first
+        cyber_buy = picker.locator("#gcBuy")
         if cyber_buy.count():
             cyber_buy.click()
             page.wait_for_timeout(60)
-            grade_sel = page.locator("[data-cybergrade]").first
+            grade_sel = page.locator(".cbx-owned-wrap [data-cybergrade]").first
             assert grade_sel.count() == 1
             grade_sel.select_option("Alpha")
             page.wait_for_timeout(60)
@@ -410,6 +419,10 @@ def test_admin_control_nav_group_gates_downtime_and_sourcebooks(_browser, _front
 
     group = pg.locator(".nav-group--admin")
     assert group.count() == 1
+    # .nav-group-menu is display:none except on :hover/:focus-within/.open (style.css) -- open it
+    # first, otherwise every link is invisible regardless of the gm-only gate and the "should be
+    # visible" assertion below can never actually catch a regression.
+    group.hover()
     assert group.locator('a[href="manage-tokens.html"]').is_visible()
     assert not group.locator('a[href="manage-downtime.html"]').is_visible()
     assert not group.locator('a[href="manage-sourcebooks.html"]').is_visible()

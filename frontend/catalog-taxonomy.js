@@ -1,8 +1,9 @@
 /* Shared SR2 catalog taxonomy -- how catalog items are bucketed into display groups
    (weapon class, armor class, cyberware location, vehicle piloting skill). Loaded by BOTH the
-   Gear Catalog (gear.html) and the character builder's Asset Manifest step (character-builder.html)
-   so the two browsers always group the same item the same way. Keep this the single source of truth;
-   do not re-declare these names in the page scripts. */
+   gear picker (gear-picker.js, mounted in play-sheet.html's Buy Gear modal) and the character
+   builder's Asset Manifest step (character-builder.html) so the two browsers always group the same
+   item the same way. Keep this the single source of truth; do not re-declare these names in the
+   page scripts. */
 "use strict";
 
 // Title-case a lowercase catalog category ("firearm" -> "Firearm") for a group header.

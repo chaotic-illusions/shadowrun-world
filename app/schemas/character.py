@@ -32,6 +32,7 @@ class CharacterBase(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: bool = False
+    portrait_url: Optional[str] = Field(default=None, max_length=500)
     is_active: bool = True
     notes: Optional[str] = None
     owner_token: Optional[str] = Field(default=None, max_length=64)
@@ -62,6 +63,9 @@ class CharacterBase(BaseModel):
     nuyen: int = Field(default=0, ge=0)
     karma_pool: int = Field(default=1, ge=0)
     good_karma: int = Field(default=0, ge=0)
+    physical_damage: int = Field(default=0, ge=0, le=10)
+    stun_damage: int = Field(default=0, ge=0, le=10)
+    physical_overflow: int = Field(default=0, ge=0)
     lifestyle_level: Optional[int] = Field(default=None, ge=0, le=5)
     lifestyle_permanent: bool = False
     is_draft: bool = False
@@ -120,6 +124,7 @@ class CharacterUpdate(BaseModel):
     description: Optional[str] = None
     background: Optional[str] = None
     show_background: Optional[bool] = None
+    portrait_url: Optional[str] = Field(default=None, max_length=500)
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     owner_token: Optional[str] = Field(default=None, max_length=64)
@@ -150,6 +155,9 @@ class CharacterUpdate(BaseModel):
     nuyen: Optional[int] = Field(default=None, ge=0)
     karma_pool: Optional[int] = Field(default=None, ge=0)
     good_karma: Optional[int] = Field(default=None, ge=0)
+    physical_damage: Optional[int] = Field(default=None, ge=0, le=10)
+    stun_damage: Optional[int] = Field(default=None, ge=0, le=10)
+    physical_overflow: Optional[int] = Field(default=None, ge=0)
     lifestyle_level: Optional[int] = Field(default=None, ge=0, le=5)
     lifestyle_permanent: Optional[bool] = None
     is_draft: Optional[bool] = None
@@ -158,12 +166,25 @@ class CharacterUpdate(BaseModel):
     spells: Optional[list] = None
     adept_powers: Optional[list] = None
     gear: Optional[dict] = None
+    # Play-sheet karma-raise commits merge chargen_state.base (true pre-augmentation attribute
+    # ratings) client-side and PATCH the whole blob back -- see play-sheet.html's commitModal().
+    chargen_state: Optional[dict] = None
     organization_id: Optional[int] = None
 
     @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
     @classmethod
     def _cap_json_fields(cls, v, info):
         return _cap_json_bytes(v, info.field_name)
+
+    @field_validator("chargen_state")
+    @classmethod
+    def _limit_chargen_state(cls, v):
+        if v is None:
+            return v
+        size = len(json.dumps(v, separators=(",", ":"), default=str).encode("utf-8"))
+        if size > _MAX_CHARGEN_STATE_BYTES:
+            raise ValueError(f"chargen_state is too large ({size} bytes; limit {_MAX_CHARGEN_STATE_BYTES})")
+        return v
 
 
 class CharacterRead(CharacterBase):
