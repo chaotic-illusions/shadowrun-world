@@ -85,7 +85,11 @@ def _route(route):
         route.fulfill(json={"enabled": enabled,
                             "core": {"code": "SR2", "name": "Shadowrun, Second Edition"},
                             "official": official,
-                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled}})
+                            # includes: real /catalog/books responses always carry this (schema
+                            # default []) -- manage-sourcebooks.html does an unconditional
+                            # fan.includes.join(...), which throws against a stub missing it.
+                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled,
+                                    "includes": ["BSW", "RG"]}})
     elif "/catalog/skill-specs" in url:
         if route.request.method == "PUT":
             specs = (route.request.post_data_json or {}).get("specs", {})
@@ -415,6 +419,10 @@ def test_admin_control_nav_group_gates_downtime_and_sourcebooks(_browser, _front
 
     group = pg.locator(".nav-group--admin")
     assert group.count() == 1
+    # .nav-group-menu is display:none except on :hover/:focus-within/.open (style.css) -- open it
+    # first, otherwise every link is invisible regardless of the gm-only gate and the "should be
+    # visible" assertion below can never actually catch a regression.
+    group.hover()
     assert group.locator('a[href="manage-tokens.html"]').is_visible()
     assert not group.locator('a[href="manage-downtime.html"]').is_visible()
     assert not group.locator('a[href="manage-sourcebooks.html"]').is_visible()
