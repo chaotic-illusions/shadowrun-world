@@ -1,4 +1,5 @@
 import io
+import math
 import os
 import re
 import uuid
@@ -24,21 +25,108 @@ from app.services.campaign import current_tick
 
 router = APIRouter()
 
-_PLAYER_WRITABLE_FIELDS = {
+# Identity-only fields: safe for a bare POST /characters/ (a brand-new character with no chargen
+# history yet, nothing to spend points on). Career/gameplay fields are deliberately excluded here --
+# see _PLAYER_WRITABLE_FIELDS below -- a plain create must never be able to hand a fresh PC max
+# nuyen/essence/attributes/Delta-grade gear the way an existing character's post-chargen PATCH can.
+_PLAYER_IDENTITY_FIELDS = {
     "name", "archetype", "title", "race", "nationality", "gender",
     "age", "description", "background", "notes", "is_active",
+}
+
+_PLAYER_WRITABLE_FIELDS = _PLAYER_IDENTITY_FIELDS | {
     # Career fields: post-chargen play-sheet edits (karma spend, purchases, condition
     # tracking). Trust-the-player, same philosophy as the chargen dossier commit --
-    # the GM reviews the sheet rather than the server enforcing a points budget.
+    # the GM reviews the sheet rather than the server enforcing a points budget. PATCH-only:
+    # a character must already exist (created via /characters/ or committed via /characters/dossier)
+    # before any of these become writable -- see _character_create_data, which uses
+    # _PLAYER_IDENTITY_FIELDS instead of this full set.
     "nuyen", "karma_pool", "good_karma", "skills", "gear", "spells",
     "body", "quickness", "strength", "charisma", "intelligence", "willpower",
-    "essence", "magic_rating", "lifestyle_level", "lifestyle_permanent",
+    "essence", "body_index", "magic_rating", "lifestyle_level", "lifestyle_permanent",
     "physical_damage", "stun_damage", "physical_overflow",
     # Play-sheet karma-raise commits patch chargen_state.base (the true pre-augmentation
     # attribute ratings) alongside the recomputed aggregate above -- see play-sheet.html's
     # commitModal() 'attrs' branch.
     "chargen_state",
 }
+
+
+# Essence/Body Index are the two post-chargen limits that are hard-enforced rather than
+# trust-the-player (unlike nuyen, see _PLAYER_WRITABLE_FIELDS above) -- this mirrors just enough of
+# frontend/shared.js's cyberBaseEss/gradedCyberEssence and play-sheet.html's ownedBioIndex to
+# recompute both totals from a submitted gear blob, without a client round-trip. Grade multipliers
+# must stay in sync with play-sheet.html's ESS_GRADE_MULT if a new grade is ever added there.
+_ESS_GRADE_MULT = {"Standard": 1.0, "Alpha": 0.8}
+_STARTING_ESSENCE = 6.0
+
+
+def _clamped_rating(g: dict) -> int:
+    lo = int(g.get("minRating") or 1)
+    hi = max(lo, int(g.get("maxRating") or lo))
+    return max(lo, min(int(g.get("rating") or lo), hi))
+
+
+def _rated_ess_lookup(g: dict) -> float:
+    lo = int(g.get("minRating") or 1)
+    r = _clamped_rating(g)
+    ess_tbl = g.get("essTbl")
+    idx = r - lo
+    if isinstance(ess_tbl, list) and 0 <= idx < len(ess_tbl) and ess_tbl[idx] is not None:
+        return float(ess_tbl[idx] or 0)
+    return float(g.get("essUnit") or 0) * r
+
+
+def _grade_essence_cost(base_ess: float, mult: float) -> float:
+    if base_ess <= 0:
+        return 0.0
+    v = math.ceil(base_ess * mult * 100 - 1e-9) / 100
+    return max(0.05, v)
+
+
+def _essence_used(gear: dict) -> float:
+    total = 0.0
+    for g in (gear or {}).get("cyber") or []:
+        base = float(g.get("baseEss") or 0) if not g.get("rated") else _rated_ess_lookup(g)
+        base += sum(float(o.get("ess") or 0) for o in (g.get("options") or []))
+        if g.get("noGrade"):
+            total += base
+        else:
+            total += _grade_essence_cost(base, _ESS_GRADE_MULT.get(g.get("grade") or "Standard", 1.0))
+    return total
+
+
+def _body_index_used(gear: dict) -> float:
+    total = 0.0
+    for g in (gear or {}).get("bio") or []:
+        total += float(g.get("ess") or 0) if not g.get("rated") else _rated_ess_lookup(g)
+    return total
+
+
+def _validate_hard_gear_caps(char: Character, submitted: dict) -> None:
+    """Reject a PATCH whose (post-update) gear would push Essence or Body Index past its cap --
+    closes the gap where a direct PATCH with a hand-picked gear+essence pair could bypass the
+    client-side purchase-flow check entirely.
+    """
+    gear = submitted.get("gear", char.gear) or {}
+    ess_used = _essence_used(gear)
+    if ess_used > _STARTING_ESSENCE + 1e-6:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Gear implies {ess_used:.2f} Essence used, exceeding the {_STARTING_ESSENCE:.0f} available.",
+        )
+    # Body Index is capped at the karma-base (pre-augmentation) Body rating, which only survives in
+    # chargen_state.base -- a record still missing that snapshot skips this half of the check rather
+    # than cap against the wrong (augmented) number.
+    chargen_state = submitted.get("chargen_state", char.chargen_state) or {}
+    base_body = (chargen_state.get("base") or {}).get("body")
+    if base_body is not None:
+        body_used = _body_index_used(gear)
+        if body_used > float(base_body) + 1e-6:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Gear implies {body_used:.2f} Body Index used, exceeding Body {base_body}.",
+            )
 
 
 def _serialize_character(char: Character, ctx: dict) -> dict:
@@ -85,7 +173,7 @@ def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
         data.pop("owner_token", None)
         return data
 
-    data = body.model_dump(include=_PLAYER_WRITABLE_FIELDS)
+    data = body.model_dump(include=_PLAYER_IDENTITY_FIELDS)
     data["is_pc"] = True
     data["owner_token"] = hash_token(ctx["user_token"])
     return data
@@ -527,6 +615,8 @@ async def update_character(
         forbidden = set(submitted.keys()) - _PLAYER_WRITABLE_FIELDS
         if forbidden:
             raise HTTPException(status_code=403, detail=f"Players cannot modify: {', '.join(sorted(forbidden))}")
+        if "gear" in submitted or "chargen_state" in submitted:
+            _validate_hard_gear_caps(char, submitted)
 
     await apply_update(db, char, body, exclude={"owner_token"})
     return _serialize_character(char, ctx)
@@ -576,19 +666,33 @@ async def delete_character(
 
 
 @router.get("/{character_id}/contacts", response_model=list[ContactRead])
-async def get_character_contacts(character_id: int, db: AsyncSession = Depends(get_db)):
+async def get_character_contacts(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
     result = await db.execute(
         select(Character).options(selectinload(Character.contacts)).where(Character.id == character_id)
     )
     char = result.scalars().first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
+    # Hidden drafts must not leak (existence or content) to anyone but the owner/admin -- same gate
+    # as get_character.
+    if char.is_draft and not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
     return char.contacts
 
 
 @router.get("/{character_id}/reputation", response_model=ReputationRead | None)
-async def get_character_reputation(character_id: int, db: AsyncSession = Depends(get_db)):
-    await get_or_404(db, Character, character_id)
+async def get_character_reputation(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    char = await get_or_404(db, Character, character_id)
+    if char.is_draft and not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
     result = await db.execute(select(Reputation).where(Reputation.character_id == character_id))
     return result.scalars().first()
 

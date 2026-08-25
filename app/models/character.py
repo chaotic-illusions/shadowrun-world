@@ -126,6 +126,13 @@ class Character(Base):
         default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
+    # Optimistic-lock counter (declared as version_id_col below), same pattern as MatrixRun. SQLAlchemy
+    # adds `WHERE version = :old` to every UPDATE and raises StaleDataError (caught globally in
+    # app/main.py -> 409) if a concurrent writer already bumped it -- prevents two overlapping PATCHes
+    # (e.g. two browser tabs buying gear) from silently clobbering each other's whole-object `gear`/
+    # `chargen_state` JSON replacement.
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     organization: Mapped[Optional["Organization"]] = relationship(
         "Organization", foreign_keys=[organization_id]
     )
@@ -162,3 +169,5 @@ class Character(Base):
     adventure_logs: Mapped[list["AdventureLog"]] = relationship(
         "AdventureLog", secondary=log_characters, back_populates="participants"
     )
+
+    __mapper_args__ = {"version_id_col": version}

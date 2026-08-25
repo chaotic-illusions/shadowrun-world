@@ -1,10 +1,26 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 
-FORMER_HEAD = "d8b3f1a4c609"
-CURRENT_HEAD = "e4a1c7d90b52"
+# Derived from the actual migration graph rather than hardcoded -- a hardcoded revision ID here
+# went stale (and both tests failed) every time a new migration landed without this file being
+# updated to match. CURRENT_HEAD is whatever `alembic heads` reports right now; FORMER_HEAD is its
+# immediate parent, so "upgrade from FORMER_HEAD to head" always exercises exactly the most recent
+# migration step, whatever that happens to be.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_ALEMBIC_CFG = Config(str(_REPO_ROOT / "alembic.ini"))
+# alembic.ini's script_location is a bare relative path ("alembic"), resolved against the process's
+# cwd rather than the ini file's own directory -- pin it absolute so this works regardless of where
+# pytest is invoked from.
+_ALEMBIC_CFG.set_main_option("script_location", str(_REPO_ROOT / "alembic"))
+_SCRIPTS = ScriptDirectory.from_config(_ALEMBIC_CFG)
+CURRENT_HEAD = _SCRIPTS.get_current_head()
+FORMER_HEAD = _SCRIPTS.get_revision(CURRENT_HEAD).down_revision
 
 
 def _alembic(database_path, *arguments):

@@ -1614,6 +1614,15 @@ function wire() {
       onPurchase: chargenBuyGear,
       gradeTable: GRADES,
       enabledBooks,
+      // Foci are handled entirely by fociSectionHTML()'s dedicated step (Magic Rating cap, Adept-only
+      // weapon-focus gating, bonding karma tracked in state.foci) -- a bare picker purchase would
+      // write into state.gear.foci instead, which the commit payload discards in favor of state.foci.
+      excludeCategories: ["foci"],
+      data: {
+        weapons: CAT.weapons, armor: CAT.armor, cyberware: CAT.cyberware,
+        bioware: CAT.bioware, gear: CAT.gear, vehicles: CAT.vehicles,
+      },
+      vehicleClasses: VEHICLE_CLASSES,
     });
   }
   root.querySelectorAll("[data-inspect]").forEach(el => el.onclick = () => toggleShopInspect(root, el.dataset.inspect));
