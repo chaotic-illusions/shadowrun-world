@@ -11,6 +11,9 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(200), index=True)
     # megacorp, gang, government, fixer_network, cult, syndicate, other
     org_type: Mapped[str | None] = mapped_column(String(100), default=None)
+    # When set ("Gang" or "Tribe"), runners can be affiliated with this org and linking one spawns a
+    # contact of this type. None = not a gang/tribe, so the runner-affiliation link is unavailable.
+    affiliation_contact_type: Mapped[str | None] = mapped_column(String(20), default=None)
     # 1=street level, 5=AAA megacorp / major power
     tier: Mapped[int] = mapped_column(Integer, default=1)
     description: Mapped[str | None] = mapped_column(Text, default=None)

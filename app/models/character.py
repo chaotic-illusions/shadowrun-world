@@ -121,6 +121,10 @@ class Character(Base):
 
     organization_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
+    # When organization_id is null, distinguishes a deliberately unaffiliated NPC ("Independent",
+    # is_independent=True) from one whose ties simply aren't known ("Unknown", the default).
+    is_independent: Mapped[bool] = mapped_column(default=False)
+
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     # SHA-256 hash of the owning player's token
