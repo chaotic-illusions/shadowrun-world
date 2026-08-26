@@ -2074,7 +2074,11 @@ async function loadAll() {
     contactStore = contacts;
     // Only count contacts linked to ACTIVE PCs for categorization (inactive PCs hidden, data preserved)
     const activePcIds = new Set(pcs.filter(c => c.is_active).map(c => c.id));
-    const activeContacts = contacts.filter(c => activePcIds.has(c.owner_id));
+    // Gang/Tribe affiliation markers (npc_id null, contact_type Gang/Tribe) are faction ties for the
+    // 2x rep weighting, not people -- they get no contact card (shown under Faction Reputation instead).
+    const activeContacts = contacts.filter(c =>
+      activePcIds.has(c.owner_id) && !(c.npc_id == null && (c.contact_type === 'Gang' || c.contact_type === 'Tribe'))
+    );
     const mergedContacts = mergeContacts(activeContacts);
     // Build lookup for non-NPC contacts (contacts without a character record)
     nonNpcContactStore = {};
