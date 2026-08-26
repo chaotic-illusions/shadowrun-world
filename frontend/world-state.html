@@ -201,6 +201,23 @@
         <div class="field"><label class="flex-between"><span>Hostile Organizations</span><span class="dim-label-sm">REVEAL</span></label><div class="chk-list" id="oeEnemyList"></div></div>
       </div>
       <hr class="rule my-14">
+      <div class="section-head mb-12">Gang / Tribe Contact</div>
+      <div class="field mb-8">
+        <label>Affiliation Type</label>
+        <input type="hidden" id="oe-affiliation_contact_type" value="">
+        <div class="flex-row-8" id="oe-aff-seg" style="margin-top:6px">
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="" onclick="setOeAffType('')">NONE</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="Gang" onclick="setOeAffType('Gang')">GANG</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="Tribe" onclick="setOeAffType('Tribe')">TRIBE</button>
+        </div>
+        <div class="dim-label" style="margin-top:4px">Sets whether runners can take this organization as a Gang or Tribe contact. NONE = not available as a runner contact. GANG / TRIBE = runners can be linked to it (below) as that contact type.</div>
+      </div>
+      <div id="oeAffiliatedSection" style="display:none">
+        <div class="section-head mb-12">Affiliated Runners</div>
+        <div class="dim-label mb-8">Linking a runner adds a Gang/Tribe contact and a faction-standing tie (rep changes count 2x for them).</div>
+        <div id="oeAffiliatedRunners"></div>
+      </div>
+      <hr class="rule my-14">
       <div class="section-head mb-12">RTG/LTG Network Directory</div>
       <div class="mb-16">
         <div class="sub-head">Telecom Numbers</div>
@@ -422,7 +439,7 @@
         <div class="grid2 mb-14">
           <div class="field"><label>Nationality</label><input type="text" id="ce-nationality" placeholder="UCAS, Salish..."></div>
           <div class="field"><label>Affiliation</label>
-            <select id="ce-org_id"><option value="">-- Independent / Unknown --</option></select>
+            <select id="ce-org_id"><option value="independent">-- Independent --</option><option value="">-- Unknown --</option></select>
             <span class="ce-sel-val" id="ce-org_id-val"></span>
           </div>
         </div>

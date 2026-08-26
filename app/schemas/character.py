@@ -77,6 +77,9 @@ class CharacterBase(BaseModel):
     adept_powers: list = []
     gear: dict = {}
     organization_id: Optional[int] = None
+    # True = deliberately unaffiliated ("Independent"); False = ties unknown ("Unknown"). Only
+    # meaningful when organization_id is null.
+    is_independent: bool = False
 
     @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
     @classmethod
@@ -174,6 +177,7 @@ class CharacterUpdate(BaseModel):
     # ratings) client-side and PATCH the whole blob back -- see play-sheet.html's commitModal().
     chargen_state: Optional[dict] = None
     organization_id: Optional[int] = None
+    is_independent: Optional[bool] = None
 
     @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
     @classmethod

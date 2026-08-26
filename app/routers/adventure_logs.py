@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.dependencies import get_db
 from app.models.adventure_log import AdventureLog, AdventureRunCounter
 from app.models.character import Character
+from app.models.contact import Contact
 from app.models.location import Location
 from app.models.organization import Organization
 from app.models.reputation import Reputation, OrgStanding
@@ -382,6 +383,17 @@ async def apply_world_changes(
                 if not ch.org_id:
                     errors.append("org_id required for org_standing change")
                     continue
+                # Affiliation weighting: a runner who belongs to this org (an org-linked contact with
+                # no NPC record -- the gang/tribe/org itself) feels standing swings at 2x. npc_id NULL
+                # keeps person-contacts who merely work for the org from triggering it.
+                affiliated = await db.scalar(
+                    select(func.count()).select_from(Contact).where(
+                        Contact.owner_id == ch.character_id,
+                        Contact.organization_id == ch.org_id,
+                        Contact.npc_id.is_(None),
+                    )
+                )
+                delta = ch.delta * 2 if affiliated else ch.delta
                 result = await db.execute(
                     select(OrgStanding).where(
                         OrgStanding.character_id == ch.character_id,
@@ -390,18 +402,19 @@ async def apply_world_changes(
                 )
                 standing = result.scalars().first()
                 if standing:
-                    standing.standing = max(-10, min(10, (standing.standing or 0) + ch.delta))
+                    standing.standing = max(-10, min(10, (standing.standing or 0) + delta))
                 else:
                     standing = OrgStanding(
                         character_id=ch.character_id,
                         organization_id=ch.org_id,
-                        standing=max(-10, min(10, ch.delta)),
+                        standing=max(-10, min(10, delta)),
                         notes=ch.reason,
                     )
                     db.add(standing)
                 standing.standings_updated_at = date.today()
                 standing.standings_stamped_tick = tick
-                applied.append({"desc": f"{ch.character_name or ch.character_id} <-> {ch.org_name or ch.org_id}: standing {ch.delta:+}", "reason": ch.reason})
+                suffix = " (x2 affiliated)" if affiliated else ""
+                applied.append({"desc": f"{ch.character_name or ch.character_id} <-> {ch.org_name or ch.org_id}: standing {delta:+}{suffix}", "reason": ch.reason})
 
             else:
                 errors.append(f"Unknown change type: {ch.type}")

@@ -263,7 +263,7 @@ async function parseNarrative() {
     });
     if (!res.ok) await apiThrow(res);
     parsedData = await res.json();
-    renderParsedResults(parsedData);
+    await renderParsedResults(parsedData);
     document.getElementById('parseResults').style.display = '';
   } catch(e) {
     showAlert(document.getElementById('applyAlert'), `>> PARSE FAILED // ${e.message}`, true);
@@ -286,7 +286,7 @@ function changeTypeMeta(type) {
   return CHANGE_TYPES[type] || { cls: '', label: 'unknown change' };
 }
 
-function renderParsedResults(data) {
+async function renderParsedResults(data) {
   document.getElementById('pr-title').textContent    = data.title    || '--';
   document.getElementById('pr-outcome').textContent  = (data.outcome || '--').replace(/_/g,' ').toUpperCase();
   document.getElementById('pr-objective').textContent= data.objective || '--';
@@ -299,13 +299,23 @@ function renderParsedResults(data) {
     list.innerHTML = '<div style="color:var(--text-dim);font-size:.8rem;padding:10px">No world-state changes proposed.</div>';
     return;
   }
+  // 2x affiliation hint: a runner with a gang/tribe contact (npc_id null) for the org gets rep
+  // changes doubled. The authoritative doubling is server-side (apply-changes); this only previews it.
+  const affSet = new Set();
+  try {
+    const cr = await apiFetch(`${API}/contacts/`);
+    if (cr.ok) (await cr.json()).forEach(c => { if (c.npc_id == null && c.organization_id) affSet.add(`${c.owner_id}:${c.organization_id}`); });
+  } catch (e) { /* preview hint only */ }
   list.innerHTML = changes.map((c, i) => {
     const meta = changeTypeMeta(c.type);
-    const deltaClass = c.delta >= 0 ? 'change-delta-pos' : 'change-delta-neg';
-    const deltaStr   = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;
+    const affiliated = c.type === 'org_standing' && c.org_id && affSet.has(`${c.character_id}:${c.org_id}`);
+    const eff = affiliated ? c.delta * 2 : c.delta;
+    const deltaClass = eff >= 0 ? 'change-delta-pos' : 'change-delta-neg';
+    const deltaStr   = eff >= 0 ? `+${eff}` : `${eff}`;
     let label = '';
     if (c.type === 'org_standing') label = `${esc(c.org_name || 'org')} standing ${deltaStr}`;
     else label = `${meta.label} ${deltaStr}`;
+    const x2 = affiliated ? ` <span style="font-size:.58rem;color:var(--amber);border:1px solid #3a2a00;padding:1px 5px">x2 affiliated</span>` : '';
     return `
       <div class="change-item">
         <label>
@@ -313,7 +323,7 @@ function renderParsedResults(data) {
           <div>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:3px">
               <span class="change-type ${meta.cls}">${esc(meta.label)}</span>
-              <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span></span>
+              <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span>${x2}</span>
             </div>
             <div class="change-reason">${esc(c.reason || '')}</div>
           </div>

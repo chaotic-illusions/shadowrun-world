@@ -994,6 +994,10 @@ function armorSlot(cat){
   return cat.cat === 'helmet' ? 'Helmet' : cat.cat === 'shield' ? 'Shield' : 'Body';
 }
 const ARMOR_SLOTS = ['Body', 'Helmet', 'Shield'];
+// Catalog entry for an owned armor LINE. A gel-packed line keeps line.n as the base catalog name, but
+// legacy pre-metadata lines were renamed "<base> (Gel-Packs)" and stashed the original in baseName --
+// resolve through baseName so both variants still find their base Ballistic/Impact/Conceal/slot.
+function armorCat(a){ return ARMOR_CAT.get(a.baseName || a.n) || {}; }
 // Keeps at most one equipped item per slot, favoring the most recently added/toggled (last in
 // array order) when a conflict is found -- used after a purchase auto-equips a new piece.
 function enforceArmorSlotExclusivity(){
@@ -1001,7 +1005,7 @@ function enforceArmorSlotExclusivity(){
   const bySlot = {};
   armor.forEach(a => {
     if (a.equipped === false) return;
-    const slot = armorSlot(ARMOR_CAT.get(a.n)||{});
+    const slot = armorSlot(armorCat(a));
     (bySlot[slot] = bySlot[slot] || []).push(a);
   });
   Object.values(bySlot).forEach(items => { items.slice(0, -1).forEach(a => a.equipped = false); });
@@ -1034,7 +1038,7 @@ function armorTotals(){
   const Q = CHAR.quickness || 0;
   let bestB = 0, bestI = 0, addB = 0, addI = 0, cpPenalty = 0;
   armor.filter(a => a.equipped !== false).forEach(a => {
-    const cat = ARMOR_CAT.get(a.n) || {};
+    const cat = armorCat(a);
     const b = Number(cat.ballistic) || 0, i = Number(cat.impact) || 0;
     if (armorSlot(cat) !== 'Body') { addB += b; addI += i; }
     else { if (b > bestB) bestB = b; if (i > bestI) bestI = i; }
@@ -1050,10 +1054,13 @@ function renderArmor(){
     // Flat list on the main sheet -- no slot sub-headings/dividers, that grouping only lives in
     // Manage Armor where equip-slot exclusivity actually needs explaining.
     $('#armorList').innerHTML = armor.map(a => {
-      const cat = ARMOR_CAT.get(a.n) || {};
+      const cat = armorCat(a);
       const equipped = a.equipped !== false; // default true for legacy rows with no flag
-      return `<div class="ps-stat-row"><span class="k">${esc(a.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</span>
-        <span class="v">${cat.ballistic ?? '-'}/${cat.impact ?? '-'} &middot; Conceal ${cat.conceal ?? '-'}</span></div>`;
+      const gel = !!a.mod;
+      const name = (a.baseName || a.n) + (gel ? ' (Gel Packs)' : '');
+      const conceal = cat.conceal == null ? '-' : (gel ? Math.floor(cat.conceal / 2) : cat.conceal);
+      return `<div class="ps-stat-row"><span class="k">${esc(name)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</span>
+        <span class="v">${cat.ballistic ?? '-'}/${cat.impact ?? '-'} &middot; Conceal ${conceal}</span></div>`;
     }).join('');
   }
   const { ballistic, impact } = armorTotals();
@@ -1247,7 +1254,7 @@ function armorConcealBonus(){
   let flat = 0, pct = 0, minRating = 0;
   ((CHAR.gear && CHAR.gear.armor) || []).forEach(a => {
     if (a.equipped === false) return;
-    const cat = ARMOR_CAT.get(a.n) || {};
+    const cat = armorCat(a);
     if (cat.conceal_scope !== 'beneath') return;
     if (cat.conceal_bonus) flat += Number(cat.conceal_bonus) || 0;
     if (cat.conceal_bonus_pct) { pct += Number(cat.conceal_bonus_pct) || 0; minRating = Math.max(minRating, Number(cat.conceal_min_rating) || 0); }
@@ -1841,46 +1848,19 @@ function wireBuyShortcut(){
   $$('[data-buy-shortcut]').forEach(b => b.onclick = () => openManageBuyGear(b.dataset.buyShortcut));
   $$('[data-close-modal]').forEach(b => b.onclick = () => closeModal());
 }
-// Attach-only catalog items (Smartgun System, Gel-Pack Armor) fold into an owned line instead of
-// being browsable in Buy Gear -- this is the control that triggers that fold, shown per-row on
-// whichever owned Armor/Weapon lines don't already carry a mod (g.mod). See ATTACH_RULES/attachGearMod.
-function attachCandidates(bucket){ return Object.keys(ATTACH_RULES).filter(n => ATTACH_RULES[n].bucket === bucket); }
-function attachRowHTML(g, i, bucket){
-  if (g.mod) return '';
-  const names = attachCandidates(bucket);
-  if (!names.length) return '';
-  return `<select class="cbx-mini" style="width:auto" data-attach-item="${i}">${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>
-    <button class="btn btn-amber btn-sm" data-attach-go="${i}">Attach</button>`;
-}
-function wireAttachRow(catMap, onDone){
-  $$('[data-attach-go]').forEach(b => b.onclick = async () => {
-    const i = Number(b.dataset.attachGo);
-    const sel = document.querySelector(`[data-attach-item="${i}"]`);
-    const item = sel && catMap.get(sel.value);
-    if (!item) return;
-    b.disabled = true; b.textContent = '...';
-    try {
-      await attachGearMod({ item, hostIndex: i });
-      onDone();
-    } catch (e) {
-      showAlert($('#modalAlert'), `>> ATTACH FAILED // ${e.message}`, true, true);
-      b.disabled = false; b.textContent = 'Attach';
-    }
-  });
-}
 function renderManageArmor(){
   const armor = (CHAR.gear && CHAR.gear.armor) || [];
   const groups = { Body: [], Helmet: [], Shield: [] };
-  armor.forEach(a => groups[armorSlot(ARMOR_CAT.get(a.n)||{})].push(a));
+  armor.forEach(a => groups[armorSlot(armorCat(a))].push(a));
   $('#modalBody').innerHTML = ARMOR_SLOTS.map(slot => {
       const items = groups[slot];
       if (!items.length) return '';
       const rows = items.map(a => {
         const i = armor.indexOf(a);
         const equipped = a.equipped !== false;
-        return `<div class="ps-stat-row"><span class="k">${esc(a.n)}</span>
+        const name = (a.baseName || a.n) + (a.mod ? ' (Gel Packs)' : '');
+        return `<div class="ps-stat-row"><span class="k">${esc(name)}</span>
           <span class="flex-row-8">
-            ${attachRowHTML(a, i, 'armor')}
             <button class="btn btn-sm ${equipped?'btn-green':'btn-ghost'}" data-equip="${i}" data-slot="${esc(slot)}">${equipped?'Equipped':'Equip'}</button>
             <button class="row-x" data-remove-armor="${i}" title="Remove">&#10005;</button>
           </span></div>`;
@@ -1892,7 +1872,7 @@ function renderManageArmor(){
     const armor = CHAR.gear.armor;
     const wasEquipped = armor[idx].equipped !== false;
     armor.forEach(a => {
-      if (armorSlot(ARMOR_CAT.get(a.n)||{}) === slot) a.equipped = false;
+      if (armorSlot(armorCat(a)) === slot) a.equipped = false;
     });
     armor[idx].equipped = !wasEquipped;
     // Equipping/unequipping a "beneath"-scope coat (Lined Coat, Secure Long Coat) changes the
@@ -1903,7 +1883,6 @@ function renderManageArmor(){
     CHAR.gear.armor.splice(Number(b.dataset.removeArmor), 1);
     patchGear().then(() => { renderArmor(); renderManageArmor(); renderWeapons(); });
   });
-  wireAttachRow(ARMOR_CAT, () => { renderArmor(); renderManageArmor(); renderWeapons(); });
   wireBuyShortcut();
 }
 
@@ -2445,44 +2424,24 @@ function setModHost(modId, hostId){
   return patchGear().then(() => { renderWeapons(); renderGear(); });
 }
 
-// ---- Attach-to-host purchases (Smartgun System, Gel-Pack Armor) ----
-// These fold into an already-owned weapon/armor line (name + cost change in place) instead of
-// becoming their own gear line -- same mechanic character-builder.html's chargen shop already uses.
-const ATTACH_RULES = {
-  'Gel-Pack Armor (Mil-Spec Gel Packs)': { bucket: 'armor', mult: 5, label: 'Gel-Packs', sub: gelPackTransform },
-};
-function gelAvail(avail){
-  const m = /^\s*(\d+)\s*\/\s*(\d+)\s*(.*)$/.exec(String(avail || ''));
-  return m ? `${Number(m[1]) * 2}/${Number(m[2]) * 4} ${m[3]}`.trim() : (avail || '');
+// ---- Armor gel-packs (purchase-time modification) ----
+// Mil-Spec Gel Packs are bought as a toggle on the armor's Buy Gear inspector (gear-picker.js's
+// itemAddon hook), not as a standalone catalog line. Offered only on worn (Body-slot) armor -- not
+// helmets/shields, and never on the gel-pack catalog row itself. The mod is stored as metadata on the
+// line (line.mod), keeping line.n as the base catalog name so ARMOR_CAT still resolves its base stats;
+// renderArmor/renderManageArmor layer the gel-pack effects (Hardened, halved Conceal) on top.
+function armorGelPackAddon(item, cat){
+  if (cat !== 'armor' || !item || item.attachToArmor) return null;
+  if (armorSlot(item) !== 'Body' || item.cost == null) return null;
+  return { id: 'gel-pack', label: 'Gel Packs', note: 'x5 Cost, Hardened, 1/2 Conceal', costMult: 5 };
 }
-function gelPackTransform(armorName){
-  const a = ARMOR_CAT.get(armorName);
-  if (!a) return '';
-  const parts = [`${a.ballistic != null ? a.ballistic : 0}/${a.impact != null ? a.impact : 0} Hardened`];
-  if (a.conceal != null) parts.push(`Conceal ${Math.floor(a.conceal / 2)}`);
-  if (a.avail) parts.push(`Avail ${gelAvail(a.avail)}`);
-  if (a.index != null) parts.push(`SI ${Math.round(a.index * 2 * 100) / 100}`);
-  return parts.join(', ');
-}
-async function attachGearMod({ item, hostIndex }){
-  const rule = ATTACH_RULES[item.n];
-  if (!rule) throw new Error('No attach rule for ' + item.n);
-  const gear = CHAR.gear = CHAR.gear || {};
-  const list = gear[rule.bucket] || [];
-  const host = list[hostIndex];
-  if (!host) throw new Error('Pick a host item first');
-  const baseName = host.baseName || host.n;
-  const base = gearLineCost(host);
-  const sub = rule.sub ? rule.sub(baseName) : undefined;
-  host.baseName = baseName;
-  host.n = baseName + ' (' + rule.label + ')';
-  host.cost = rule.mult != null ? base * rule.mult : base + (rule.add != null ? rule.add : (parseNum(item.cost) || 0));
-  host.mod = item.n;
-  host.modLabel = rule.label;
-  if (sub != null) host.sub = sub;
-  delete host.rated; delete host.rating; delete host.maxRating; delete host.costUnit; delete host.costTbl; delete host.rateLabels;
-  await patchChar({ gear });
-  renderAll();
+function applyArmorGelPack(line){
+  line.cost = gearLineCost(line) * 5;   // x5 the host's price
+  line.mod = 'gel-pack';
+  line.modLabel = 'Gel Packs';
+  delete line.baseName;   // metadata model keeps line.n as the base catalog name (no rename)
+  delete line.rated; delete line.rating; delete line.maxRating;
+  delete line.costUnit; delete line.costTbl; delete line.rateLabels;
 }
 
 function openManageBuyGear(initialCat){
@@ -2497,6 +2456,7 @@ function openManageBuyGear(initialCat){
   if (CHAR.delta_grade_approved) gradeBooks.add('Delta Approval');
   initGearPicker($('#modalBody'), {
     onPurchase: purchaseGear, initialCat, gradeTable: ESS_GRADE_MULT, enabledBooks: gradeBooks, maxQty: pickerMaxQty,
+    itemAddon: armorGelPackAddon,
     data: {
       weapons: [...WEAPON_CAT.values()], armor: [...ARMOR_CAT.values()], cyberware: [...CYBER_CAT.values()],
       bioware: [...BIO_CAT.values()], gear: [...GEAR_CAT.values()], vehicles: [...VEHICLE_CAT.values()],
@@ -2625,6 +2585,9 @@ async function purchaseGear(entries){
       const line = makeGearLine(item, catalogName, grade);
       if (bucket === 'weapons') line.id = newId();   // needed as a MOD-assignment hostId target
       if (rating) line.rating = rating;
+      // Purchase-time armor modification (gear-picker.js itemAddon toggle): fold Mil-Spec Gel Packs
+      // into this worn-armor line -- x5 cost, Hardened, halved Conceal (see applyArmorGelPack).
+      if (bucket === 'armor' && entry.addon === 'gel-pack') applyArmorGelPack(line);
       // Unlike nuyen (deliberately not gated post-chargen), Essence and Body Index are hard limits.
       const resourceBlock = essenceOrBioIndexBlocked(bucket, line);
       if (resourceBlock) { skipped.push(resourceBlock); continue; }

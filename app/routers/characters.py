@@ -197,6 +197,7 @@ def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
 
     data = body.model_dump(include=_PLAYER_IDENTITY_FIELDS)
     data["is_pc"] = True
+    data["is_independent"] = True  # runners default to Independent (no org) unless a GM sets otherwise
     data["owner_token"] = hash_token(ctx["user_token"])
     return data
 
@@ -213,6 +214,7 @@ def _dossier_create_data(body: CharacterCreate, ctx: dict) -> dict:
     data = body.model_dump(exclude={"contacts"})
     data.pop("owner_token", None)
     data["is_pc"] = True
+    data["is_independent"] = True  # runners default to Independent (no org) unless a GM sets otherwise
     # Claim the new PC to the committing token (an admin's token counts) so the builder owns it
     # immediately -- no manual world-state claim needed. Matches claim_character's token semantics.
     if ctx.get("user_token"):
@@ -227,21 +229,31 @@ def _dossier_create_data(body: CharacterCreate, ctx: dict) -> dict:
 _KEEP_CHARGEN_POI_ON_DELETE = True
 
 
+# Contact types that name an individual (a specific archetype) and so are promoted to an NPC
+# "person of interest" in the Known Persons registry. Gangs/Tribes name a group, not a person,
+# so they stay contacts on the runner but never spawn an NPC dossier.
+_POI_PROMOTED_CONTACT_TYPES = {None, "", "Contact", "Buddy", "Follower"}
+
+
 async def _create_dossier_contacts(db: AsyncSession, char: Character, contacts) -> None:
-    """Create the runner's chargen contacts as Contact rows, each linked (npc_id) to a freshly
-    created NPC "person of interest" so it appears in the Known Persons registry.
+    """Create the runner's chargen contacts as Contact rows. Individual contacts (Contact/Buddy/
+    Follower) are each linked (npc_id) to a freshly created NPC "person of interest" so they appear
+    in the Known Persons registry; Gang/Tribe contacts stay unlinked (npc_id=None) group contacts.
 
     TESTING vs SHIP: see _KEEP_CHARGEN_POI_ON_DELETE and delete_character. The POI are currently
     removed with the PC (easy cleanup while testing) and will persist independently on ship.
     """
     for c in contacts:
-        poi = Character(name=c.name, is_pc=False, archetype=c.profession, connection=c.connection)
-        db.add(poi)
-        await db.flush()  # assign poi.id for the npc link
+        ctype = getattr(c, "contact_type", None)
+        npc_id = None
+        if ctype in _POI_PROMOTED_CONTACT_TYPES:
+            poi = Character(name=c.name, is_pc=False, archetype=c.profession, connection=c.connection)
+            db.add(poi)
+            await db.flush()  # assign poi.id for the npc link
+            npc_id = poi.id
         db.add(Contact(
-            owner_id=char.id, npc_id=poi.id, name=c.name, profession=c.profession,
-            contact_type=getattr(c, "contact_type", None),
-            connection=c.connection, loyalty=c.loyalty,
+            owner_id=char.id, npc_id=npc_id, name=c.name, profession=c.profession,
+            contact_type=ctype, connection=c.connection, loyalty=c.loyalty,
         ))
 
 

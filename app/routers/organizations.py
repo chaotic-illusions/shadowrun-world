@@ -7,7 +7,8 @@ from app.models.organization import Organization
 from app.models.character import Character
 from app.models.contact import Contact
 from app.models.location import Location
-from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary, LtgSecurityUpdate
+from app.models.reputation import OrgStanding
+from app.schemas.organization import OrganizationCreate, OrganizationUpdate, OrganizationRead, OrganizationSummary, LtgSecurityUpdate, AffiliateRunnerRequest
 from app.services.host_visibility import sync_org_reveals_to_hosts, sync_org_security_to_hosts
 from app.auth.dependencies import get_admin_token, get_any_token
 
@@ -177,4 +178,66 @@ async def delete_organization(
     await db.execute(sql_update(Contact).where(Contact.organization_id == org_id).values(organization_id=None))
     await db.execute(sql_update(Location).where(Location.controlling_org_id == org_id).values(controlling_org_id=None))
     await db.delete(org)
+    await db.commit()
+
+
+@router.post("/{org_id}/affiliate", status_code=201)
+async def affiliate_runner(
+    org_id: int,
+    body: AffiliateRunnerRequest,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_admin_token),
+):
+    """Affiliate a runner with a gang/tribe org, atomically (single commit): ensure a gang/tribe
+    contact (npc_id NULL -- the org itself; promote a matching loose/chargen contact instead of
+    duplicating) and a standing tie, WITHOUT resetting any standing the runner already accumulated.
+    """
+    org = await get_or_404(db, Organization, org_id)
+    if not org.affiliation_contact_type:
+        raise HTTPException(status_code=400, detail="Organization is not a gang/tribe")
+    char = await get_or_404(db, Character, body.character_id)
+    aff_type = org.affiliation_contact_type
+    loose = (await db.execute(
+        select(Contact).where(Contact.owner_id == char.id, Contact.npc_id.is_(None))
+    )).scalars().all()
+    org_name_lc = (org.name or "").lower()
+    match = next(
+        (c for c in loose if c.organization_id == org_id or (c.name or "").lower() == org_name_lc),
+        None,
+    )
+    if match:
+        match.organization_id = org_id
+        match.contact_type = aff_type
+    else:
+        db.add(Contact(owner_id=char.id, organization_id=org_id, name=org.name, contact_type=aff_type))
+    standing = (await db.execute(
+        select(OrgStanding).where(
+            OrgStanding.character_id == char.id, OrgStanding.organization_id == org_id
+        )
+    )).scalars().first()
+    if not standing:  # never reset an accumulated standing to 0
+        db.add(OrgStanding(character_id=char.id, organization_id=org_id, standing=0))
+    await db.commit()
+    return {"ok": True, "org_id": org_id, "character_id": char.id}
+
+
+@router.delete("/{org_id}/affiliate/{character_id}", status_code=204)
+async def unaffiliate_runner(
+    org_id: int,
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_admin_token),
+):
+    """Remove a runner's gang/tribe affiliation: delete the org-linked contact(s) (npc_id NULL). The
+    OrgStanding (accumulated reputation) is deliberately KEPT -- losing membership doesn't erase rep.
+    """
+    contacts = (await db.execute(
+        select(Contact).where(
+            Contact.owner_id == character_id,
+            Contact.organization_id == org_id,
+            Contact.npc_id.is_(None),
+        )
+    )).scalars().all()
+    for c in contacts:
+        await db.delete(c)
     await db.commit()

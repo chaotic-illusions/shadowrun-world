@@ -202,3 +202,52 @@ def test_chargen_contacts_become_poi_and_persist_after_pc_delete(tmp_path):
                 assert await db.scalar(select(func.count()).select_from(Contact).where(Contact.owner_id == pid)) == 0
 
     asyncio.run(scenario())
+
+
+def test_chargen_pc_defaults_to_independent(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "indep.db") as sessions:
+            admin = {"is_admin": True, "user_token": "admin"}
+            async with sessions() as db:
+                res = await create_character_dossier(DossierCommit(name="Runner"), db=db, ctx=admin)
+                # Runners default to Independent affiliation (not Unknown) at creation.
+                assert res["is_independent"] is True
+
+    asyncio.run(scenario())
+
+
+def test_chargen_gang_tribe_contacts_stay_unlinked(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "gang.db") as sessions:
+            admin = {"is_admin": True, "user_token": "admin"}
+            body = DossierCommit(
+                name="Runner",
+                contacts=[
+                    {"name": "Fixer Joe", "profession": "Fixer", "contact_type": "Contact", "loyalty": 2},
+                    {"name": "Ancients", "profession": None, "contact_type": "Gang", "loyalty": 1},
+                    {"name": "Sinsearach", "profession": None, "contact_type": "Tribe", "loyalty": 1},
+                ],
+            )
+            async with sessions() as db:
+                res = await create_character_dossier(body, db=db, ctx=admin)
+                pid = res["id"]
+
+            async with sessions() as db:
+                contacts = (await db.execute(
+                    select(Contact).where(Contact.owner_id == pid).order_by(Contact.name)
+                )).scalars().all()
+                by_name = {c.name: c for c in contacts}
+                # All three are contacts on the runner...
+                assert set(by_name) == {"Ancients", "Fixer Joe", "Sinsearach"}
+                # ...but only the individual (Contact) becomes a Known-Persons NPC dossier.
+                assert by_name["Fixer Joe"].npc_id is not None
+                assert by_name["Ancients"].npc_id is None
+                assert by_name["Sinsearach"].npc_id is None
+                # No NPC row was spawned for the gang or the tribe.
+                npc_names = set((await db.execute(
+                    select(Character.name).where(Character.is_pc == False)  # noqa: E712
+                )).scalars().all())
+                assert "Ancients" not in npc_names and "Sinsearach" not in npc_names
+                assert "Fixer Joe" in npc_names
+
+    asyncio.run(scenario())
