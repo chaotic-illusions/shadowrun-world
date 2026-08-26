@@ -7,7 +7,7 @@ import uuid
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import select, update as sql_update, func
+from sqlalchemy import select, update as sql_update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -151,9 +151,17 @@ def _assert_gear_grades_allowed(char: Character, submitted: dict) -> None:
             )
 
 
+def _is_privileged_view(ctx: dict) -> bool:
+    """True only for a real admin NOT previewing runner view -- the full-data audience.
+
+    Players and admins previewing runner view (X-Runner-View) get the redacted payload.
+    """
+    return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
+
+
 def _serialize_character(char: Character, ctx: dict) -> dict:
     data = CharacterRead.model_validate(char, from_attributes=True).model_dump()
-    if ctx.get("is_admin") and not ctx.get("view_as_player"):
+    if _is_privileged_view(ctx):
         return data
     data["notes"] = None
     if not data.get("show_background"):
@@ -391,6 +399,10 @@ async def list_characters(
     q = select(Character).options(selectinload(Character.organization))
     # Chargen drafts are hidden everywhere until the wizard finalizes them.
     q = q.where(Character.is_draft == False)  # noqa: E712 -- SQL boolean comparison
+    if not _is_privileged_view(ctx):
+        # Inactive NPCs are GM-concealed (e.g. a kidnapped contact); never ship them to players.
+        # Inactive PCs stay visible -- players see greyed-out teammates on world-state.
+        q = q.where(or_(Character.is_pc == True, Character.is_active == True))  # noqa: E712
     if is_pc is not None:
         q = q.where(Character.is_pc == is_pc)
     if is_active is not None:
@@ -525,6 +537,9 @@ async def get_character(
     char = await _load_character(db, character_id)
     # Hidden drafts must not leak (existence or content) to anyone but the owner/admin.
     if char.is_draft and not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
+    # Inactive NPCs are GM-concealed -- hide existence from players (404, not 403).
+    if not char.is_pc and char.is_active is False and not _is_privileged_view(ctx):
         raise HTTPException(status_code=404, detail="Character not found")
     return _serialize_character(char, ctx)
 

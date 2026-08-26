@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_or_404, apply_update
+from app.models.character import Character
 from app.models.contact import Contact
 from app.schemas.contact import ContactCreate, ContactUpdate, ContactRead
 from app.auth.dependencies import get_admin_token, get_any_token
@@ -32,7 +33,25 @@ async def list_contacts(
     if organization_id is not None:
         q = q.where(Contact.organization_id == organization_id)
     result = await db.execute(q.order_by(Contact.name))
-    return [_serialize_contact(contact, ctx) for contact in result.scalars().all()]
+    contacts = result.scalars().all()
+    if not (ctx.get("is_admin") and not ctx.get("view_as_player")):
+        # Inactive contacts -- and contacts whose linked NPC is inactive (kidnapped/unavailable) --
+        # are GM-concealed; never ship them to players. Admin (non-preview) sees the full roster.
+        inactive_npc_ids = set(
+            (
+                await db.execute(
+                    select(Character.id).where(
+                        Character.is_pc == False,  # noqa: E712
+                        Character.is_active == False,  # noqa: E712
+                    )
+                )
+            ).scalars().all()
+        )
+        contacts = [
+            c for c in contacts
+            if c.is_active and (c.npc_id is None or c.npc_id not in inactive_npc_ids)
+        ]
+    return [_serialize_contact(contact, ctx) for contact in contacts]
 
 
 @router.post("/", response_model=ContactRead, status_code=201)

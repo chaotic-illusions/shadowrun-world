@@ -238,7 +238,7 @@ function mergeContacts(contacts) {
   const byNpc  = {};  // npc_id (int) -> merged
   const byName = {};  // name (lowercase) -> merged
   contacts.forEach(c => {
-    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection };
+    const ownerEntry = { contact_id: c.id, owner_id: c.owner_id, loyalty: c.loyalty, connection: c.connection, is_active: c.is_active };
     if (c.npc_id) {
       if (!byNpc[c.npc_id]) byNpc[c.npc_id] = { ...c, owners: [] };
       byNpc[c.npc_id].owners.push(ownerEntry);
@@ -561,6 +561,18 @@ async function toggleCharActive(charId, isActive) {
   loadAll();
 }
 
+// Non-NPC contacts have no character record, so toggle is_active on each owner's contact row.
+async function toggleContactActive(contactIds, isActive) {
+  await Promise.all((contactIds || []).map(id =>
+    apiFetch(`${API}/contacts/${id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({is_active: !isActive})
+    })
+  ));
+  loadAll();
+}
+
 let _myCharIds = new Set();
 
 function getMyCharIds() {
@@ -615,6 +627,13 @@ function buildContactCard(merged, charMap, orgMap) {
   const cardKey = `cc-${merged.npc_id || merged.name.replace(/\W+/g, '-')}`;
 
   const raceProf = [race, prof].filter(Boolean).join(' | ');
+  // A contact person's availability: linked NPC's is_active, else active if ANY owner row is active.
+  // Inactive contacts are hidden from runners (filtered in loadAll); admins get a toggle + overlay.
+  const isActive = npc ? (npc.is_active !== false) : (merged.owners || []).some(o => o.is_active !== false);
+  const toggleBtn = isAdminMode()
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();${merged.npc_id ? `toggleCharActive(${merged.npc_id},${isActive})` : `toggleContactActive(${contactIds},${isActive})`}" data-tip="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '* active' : 'o activate'}</button>`
+    : '';
+  const overlay = !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   // Prefer the linked NPC's own affiliation (authoritative + can be Independent); non-NPC contacts
   // (gangs/tribes without a character record) fall back to their contact org, else "Unknown".
   const affOrg = npc ? (npc.organization_id ? orgMap[npc.organization_id] : null) : org;
@@ -645,6 +664,8 @@ function buildContactCard(merged, charMap, orgMap) {
 
   return `
     <div class="contact-card cc-clickable" ${clickHandler}>
+      ${toggleBtn}
+      ${overlay}
       <div class="cc-head">
         <div class="cc-name">${esc(merged.name)}</div>
       </div>
@@ -769,11 +790,12 @@ function buildCharCard(char, orgMap = {}) {
   const isMine = char.is_pc && _myCharIds.has(char.id);
   const isUnclaimed = char.is_pc && !char.is_claimed;
 
-  const canToggle = char.is_pc && (isAdminMode() || isMine);
+  // NPCs get an admin-only active toggle; inactive NPCs are hidden from runners (filtered in loadAll).
+  const canToggle = char.is_pc ? (isAdminMode() || isMine) : isAdminMode();
   const toggleBtn = canToggle
     ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleCharActive(${char.id},${isActive})" data-tip="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '* active' : 'o activate'}</button>`
     : '';
-  const overlay = char.is_pc && !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
+  const overlay = !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   const claimBtn = char.is_pc && !isAdminMode() && isUnclaimed
     ? `<button class="btn btn-green ws-card-action" onclick="event.stopPropagation();claimChar(${char.id})">Claim</button>`
     : '';
@@ -2080,12 +2102,22 @@ async function loadAll() {
       activePcIds.has(c.owner_id) && !(c.npc_id == null && (c.contact_type === 'Gang' || c.contact_type === 'Tribe'))
     );
     const mergedContacts = mergeContacts(activeContacts);
+    // A contact person is "inactive" when their linked NPC record (or, for non-NPC contacts, the
+    // contact record itself) is flagged inactive -- e.g. kidnapped/unavailable, services offline.
+    const inactiveNpcIds = new Set(chars.filter(c => !c.is_pc && c.is_active === false).map(c => c.id));
+    const contactPersonActive = m => m.npc_id
+      ? !inactiveNpcIds.has(m.npc_id)
+      : (m.owners || []).some(o => o.is_active !== false);
+    // Admins see all contacts; runners only see the active ones.
+    const visibleContacts = mergedContacts.filter(m => isAdminMode() || contactPersonActive(m));
     // Build lookup for non-NPC contacts (contacts without a character record)
     nonNpcContactStore = {};
     mergedContacts.forEach(m => { if (!m.npc_id) nonNpcContactStore[m.id] = m; });
-    // NPCs who are NOT listed as an active contact's npc_id go in the Known Persons roster
+    // NPCs who are NOT listed as an active contact's npc_id go in the Known Persons roster.
+    // Admins see all POIs; runners only see the ones the GM has flagged active.
     const contactNpcIds = new Set(activeContacts.map(c => c.npc_id).filter(Boolean));
-    const npcs         = chars.filter(c => !c.is_pc && !contactNpcIds.has(c.id));
+    const npcs         = chars.filter(c => !c.is_pc && !contactNpcIds.has(c.id)
+      && (isAdminMode() || c.is_active !== false));
 
     document.getElementById('sc-orgs').textContent     = orgs.length;
     document.getElementById('sc-locs').textContent     = locs.length;
@@ -2098,8 +2130,8 @@ async function loadAll() {
     charMapStore = charMap;
     locStore     = Object.fromEntries(locs.map(l => [l.id, l]));
 
-    // Active contact count: only merged contacts where NPC is active AND at least one owner row is active
-    const activeContactCount = mergedContacts.length;
+    // "Active Contacts" stat: count only contacts whose person is currently active.
+    const activeContactCount = mergedContacts.filter(contactPersonActive).length;
     document.getElementById('sc-contacts').textContent = activeContactCount;
 
     let html = '';
@@ -2112,9 +2144,9 @@ async function loadAll() {
         'manage-characters.html');
 
     // -- 2. Contacts (expanded) --------------------------------
-    if (mergedContacts.length)
+    if (visibleContacts.length)
       html += section('contacts', 'Contacts',
-        `<div class="contact-grid">${mergedContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
+        `<div class="contact-grid">${visibleContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
     // -- 2.5 Faction Reputation --------------------------------
