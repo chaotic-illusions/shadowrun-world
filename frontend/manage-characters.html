@@ -821,9 +821,10 @@ function applyFilter() {
     (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q) || (c.organization_name||'').toLowerCase().includes(q)) &&
     (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc))
   );
-  // Sort: PCs first, then NPCs; alphabetical within each group
+  // Sort: PCs first, then active NPCs, then inactive NPCs; alphabetical within each group
   filtered.sort((a, b) => {
     if (a.is_pc !== b.is_pc) return a.is_pc ? -1 : 1;
+    if (!a.is_pc && (a.is_active !== false) !== (b.is_active !== false)) return (a.is_active !== false) ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
   renderTable(filtered);
