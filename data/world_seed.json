@@ -2057,6 +2057,7 @@
         {
             "name": "Halloweeners",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 2,
             "description": "One of the most notorious and feared gangs in the Seattle Barrens -- not for their organization or numbers, but for their absolute unpredictability and love of fire. The Halloweeners wear orange and black, favor grotesque Halloween masks and face paint, and treat arson as both a tactical tool and a form of entertainment. Active primarily in the Redmond Barrens and Puyallup district.",
             "headquarters": "Redmond Barrens, Seattle",
@@ -2083,6 +2084,7 @@
         {
             "name": "Crimson Crush",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 3,
             "description": "The largest predominantly-ork gang in the Redmond Barrens and one of the most organized street gangs in Seattle. The Crimson Crush controls significant territory in Redmond through a combination of size, discipline, and genuine community investment -- they provide protection to ork and troll families in their territory in a way that Lone Star never has. More structured than most gangs, with defined ranks and a functioning internal economy.",
             "headquarters": "Redmond Barrens, Seattle",
@@ -2110,6 +2112,7 @@
         {
             "name": "Ancients",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 3,
             "description": "An exclusively elf go-gang with chapters across the UCAS, making them one of the few street gangs that operates at anything approaching a regional scale. The Ancients wear green and silver, ride high-performance motorcycles, and maintain a level of discipline and organization that blurs the line between street gang and criminal organization. They do courier work, smuggling, and contract muscle for organized crime groups willing to pay their rates.",
             "headquarters": "Seattle chapter: Puyallup / Auburn corridor",
@@ -2134,6 +2137,7 @@
         {
             "name": "Spikes",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 2,
             "description": "A predominantly-troll gang operating in the Redmond Barrens and adjacent areas. The Spikes are smaller than the Crimson Crush but individually more physically dangerous -- a troll gang in a straight fight is a different problem than most gangs. They are brutal, territorial, and not particularly organized beyond a core leadership. They control several blocks in northern Redmond through pure physical intimidation.",
             "headquarters": "Northern Redmond Barrens, Seattle",
@@ -2156,6 +2160,7 @@
         {
             "name": "405 Hellhounds",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 2,
             "description": "A vehicle and go-gang controlling sections of the Interstate 405 corridor south of Seattle and into the Renton sprawl. The Hellhounds make their money through highway robbery, cargo theft from commercial vehicles, and extortion of businesses that rely on I-405 traffic. They are fast, mobile, and operate in mixed terrain -- equally comfortable on the highway and in the urban fringe.",
             "headquarters": "Renton / I-405 corridor, Seattle",
@@ -2204,6 +2209,7 @@
         {
             "name": "Rusted Stilettos",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 2,
             "description": "A mixed-metahuman gang operating in the Redmond Barrens, notable for their use of discarded and jury-rigged cyberware -- limbs, eyes, and reflex boosters stripped from corpsec casualties, medical waste, and shadowrunner gear fenced into the Barrens. The Stilettos are not large, but individual members punch significantly above their tier due to their patchwork augmentations.",
             "headquarters": "Central Redmond Barrens, Seattle",
@@ -2224,6 +2230,7 @@
         {
             "name": "The Cutters",
             "org_type": "gang",
+            "affiliation_contact_type": "Gang",
             "tier": 2,
             "description": "Mid-level gang controlling parts of the Redmond Barrens. Run protection rackets and serve as mid-level distributors for BTL chips, some of which flow through Stuffer Shack supply lines.",
             "headquarters": "Redmond Barrens, Seattle",

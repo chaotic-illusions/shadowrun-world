@@ -704,6 +704,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--fs-md);
   color: var(--text-dim);
   line-height: 1.5;
+  white-space: pre-line;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
@@ -1077,6 +1078,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   font-size: var(--fs-md);
   color: var(--text-dim);
   line-height: 1.5;
+  white-space: pre-line;
 }
 .cc-clickable        { cursor: pointer; }
 .cc-clickable:hover  { border-color: #2a2a3a; }
@@ -1196,7 +1198,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 /* NPC dossier modal sections */
 .npc-modal-section      { margin-bottom: 14px; }
 .npc-modal-sec-lbl      { font-size: var(--lbl-fs); letter-spacing: var(--lbl-ls); color: var(--cyan); text-transform: uppercase; margin-bottom: 5px; }
-.npc-modal-text         { font-size: var(--fs-lg); color: var(--text); line-height: 1.5; }
+.npc-modal-text         { font-size: var(--fs-lg); color: var(--text); line-height: 1.5; white-space: pre-line; }
 .npc-modal-gm           { margin-top: 18px; border-top: 1px solid #1a1a1a; padding-top: 14px; }
 .npc-modal-gm-banner    { font-size: var(--fs-xxs); letter-spacing: 3px; color: #aa2a2a; text-align: center; margin-bottom: 14px; }
 .npc-attr-grid          { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1606,7 +1608,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .ws-allies-hd   { color: var(--green-dim); font-size: var(--fs-sm); letter-spacing: .08em; margin-bottom: 6px; }
 .ws-enemies-hd  { color: var(--red);       font-size: var(--fs-sm); letter-spacing: .08em; opacity: .7; margin-bottom: 6px; }
 .ws-sec-hd      { font-size: var(--lbl-fs); letter-spacing: .1em; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
-.ws-dossier-desc { color: var(--text); font-size: var(--fs-md); line-height: 1.55; margin: 8px 0 14px; }
+.ws-dossier-desc { color: var(--text); font-size: var(--fs-md); line-height: 1.55; margin: 8px 0 14px; white-space: pre-line; }
 .ws-rule-tight  { margin: 4px 0 8px; }
 .ws-tier-row    { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .ws-tier-badge  { color: #6699cc; font-size: var(--fs-xs); letter-spacing: 1px; padding: 2px 7px; border: 1px solid #1a2a44; }

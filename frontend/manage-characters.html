@@ -270,7 +270,8 @@
       <div class="field mb-14">
         <label>Organization</label>
         <select id="f-organization_id">
-          <option value="">-- Independent / Unknown --</option>
+          <option value="independent">-- Independent --</option>
+          <option value="">-- Unknown --</option>
         </select>
       </div>
 
@@ -420,12 +421,11 @@ function onNpcArchetypeChange() {
 const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
 const PC_SKILL_KEYS = ['computer', 'software', 'matrix', 'computer_br'];
 
-// Build "Title, OrgName" cell; falls back to "Independent" for no/unknown org
+// Build "Title, OrgName" cell; Independent/Unknown fallback per the stored affiliation flag
 function titleOrgCell(c) {
   const title = (c.title || '').trim();
   const orgName = allOrgs.find(o => o.id === c.organization_id)?.name || '';
-  const isUnknown = !orgName || /unknown|independent/i.test(orgName);
-  const org = isUnknown ? 'Independent' : orgName;
+  const org = orgName || (c.is_independent ? 'Independent' : 'Unknown');
   if (!title && !org) return '--';
   if (!title) return org;
   return `${title}, ${org}`;
@@ -871,7 +871,7 @@ function openModal(id) {
   document.getElementById('f-nationality').value   = ch?.nationality || '';
   document.getElementById('f-is_pc').checked       = isPC;
   document.getElementById('f-is_active').checked   = ch?.is_active !== false;
-  document.getElementById('f-organization_id').value = ch?.organization_id ?? '';
+  document.getElementById('f-organization_id').value = ch?.organization_id ? String(ch.organization_id) : (ch?.is_independent ? 'independent' : '');
   document.getElementById('f-description').value   = ch?.description || '';
   document.getElementById('f-background').value    = ch?.background || '';
   document.getElementById('f-notes').value         = ch?.notes || '';
@@ -981,7 +981,8 @@ async function saveChar() {
         nationality:     document.getElementById('f-nationality').value.trim() || null,
         is_pc:           isPC,
         is_active:       document.getElementById('f-is_active').checked,
-        organization_id: orgVal ? parseInt(orgVal) : null,
+        organization_id: (orgVal && orgVal !== 'independent') ? parseInt(orgVal) : null,
+        is_independent:  orgVal === 'independent',
         description:     document.getElementById('f-description').value.trim() || null,
         background:      document.getElementById('f-background').value.trim() || null,
         notes:           document.getElementById('f-notes').value.trim() || null,
@@ -1205,7 +1206,7 @@ async function loadChars() {
     _myCharIds = new Set(mineData.ids || []);
 
     const sel = document.getElementById('f-organization_id');
-    sel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
+    sel.innerHTML = '<option value="independent">-- Independent --</option><option value="">-- Unknown --</option>' +
       allOrgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
 
     applyFilter();

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update as sql_update
 from sqlalchemy.orm.exc import StaleDataError
 from app.db.base import Base
 from app.db.session import engine, async_session
@@ -136,6 +136,24 @@ async def _ensure_contact_type_column():
     """
     if await _ensure_sqlite_column("contacts", "contact_type", "VARCHAR(20)"):
         print("[startup] Added contacts.contact_type column")
+
+
+async def _ensure_character_is_independent_column():
+    """Startup safety migration for characters.is_independent on SQLite deployments. create_all won't
+    add columns to an existing characters table; add it in place when an older DB predates it.
+    Idempotent. Defaults 0 so existing NPCs read as "Unknown" (unchanged from prior behavior).
+    """
+    if await _ensure_sqlite_column("characters", "is_independent", "BOOLEAN NOT NULL DEFAULT 0"):
+        print("[startup] Added characters.is_independent column")
+
+
+async def _ensure_org_affiliation_contact_type_column():
+    """Startup safety migration for organizations.affiliation_contact_type on SQLite deployments.
+    create_all won't add columns to an existing organizations table; add it in place when an older DB
+    predates it. Idempotent. Defaults NULL so existing orgs are non-linkable until designated.
+    """
+    if await _ensure_sqlite_column("organizations", "affiliation_contact_type", "VARCHAR(20)"):
+        print("[startup] Added organizations.affiliation_contact_type column")
 
 
 async def _ensure_character_math_spu_columns():
@@ -385,6 +403,35 @@ async def _ensure_campaign_state():
     async with async_session() as db:
         await get_campaign_state(db)
 
+
+async def _ensure_campaign_pc_affiliation_backfilled_column():
+    """Startup safety migration for campaign_state.pc_affiliation_backfilled on SQLite. Must exist
+    before get_campaign_state() emits every mapped column. Idempotent.
+    """
+    if await _ensure_sqlite_column(
+        "campaign_state", "pc_affiliation_backfilled", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added campaign_state.pc_affiliation_backfilled column")
+
+
+async def _backfill_pc_affiliation_once():
+    """One-time: set is_independent=True for every existing PC (runners default to "Independent"),
+    guarded by campaign_state.pc_affiliation_backfilled so a deliberate later "Unknown" is never
+    re-flipped on restart. NPCs (default Unknown) are untouched. is_independent only matters when a
+    character has no org, so setting it on org-affiliated PCs is harmless.
+    """
+    async with async_session() as db:
+        state = await get_campaign_state(db)
+        if state.pc_affiliation_backfilled:
+            return
+        result = await db.execute(
+            sql_update(Character).where(Character.is_pc == True).values(is_independent=True)  # noqa: E712
+        )
+        state.pc_affiliation_backfilled = True
+        await db.commit()
+        if result.rowcount:
+            print(f"[startup] Backfilled {result.rowcount} PC(s) to Independent affiliation")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -403,6 +450,8 @@ async def lifespan(app: FastAPI):
         await _ensure_character_portrait_column()
         await _ensure_character_version_column()
         await _ensure_contact_type_column()
+        await _ensure_character_is_independent_column()
+        await _ensure_org_affiliation_contact_type_column()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()
@@ -412,7 +461,9 @@ async def lifespan(app: FastAPI):
         await _migrate_plaintext_owner_tokens()
         await _ensure_adventure_run_number_schema()
         await _ensure_campaign_state_enabled_books_column()
+        await _ensure_campaign_pc_affiliation_backfilled_column()
         await _ensure_campaign_state()
+        await _backfill_pc_affiliation_once()
         yield
     finally:
         await engine.dispose()

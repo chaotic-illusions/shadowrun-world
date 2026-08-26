@@ -200,6 +200,25 @@
         </div>
       </div>
 
+      <!-- -- RUNNER AFFILIATION -- -->
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// Gang / Tribe Contact</div>
+      <div class="field mb-8">
+        <label>Affiliation Type</label>
+        <input type="hidden" id="affiliation_contact_type" value="">
+        <div class="flex-row-8" id="aff-seg" style="margin-top:6px">
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="" onclick="setAffType('')">NONE</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="Gang" onclick="setAffType('Gang')">GANG</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-affval="Tribe" onclick="setAffType('Tribe')">TRIBE</button>
+        </div>
+        <div class="dim-label" style="margin-top:4px">Sets whether runners can take this organization as a Gang or Tribe contact. NONE = not available as a runner contact. GANG / TRIBE = runners can be linked to it (below) as that contact type.</div>
+      </div>
+      <div id="orgAffiliatedSection" style="display:none">
+        <div class="section-head mb-12">// Affiliated Runners</div>
+        <div class="dim-label mb-8">Linking a runner adds a Gang/Tribe contact and a faction-standing tie (rep changes count 2x for them).</div>
+        <div id="orgAffiliatedRunners"></div>
+      </div>
+
       <!-- -- LTG NETWORK -- -->
       <hr class="rule my-14">
       <div class="section-head mb-12">// RTG/LTG Network Directory</div>
@@ -513,6 +532,7 @@ function resetForm() {
   document.getElementById('headquarters').value = '';
   document.getElementById('description').value = '';
   document.getElementById('notes').value = '';
+  _affSetUI('');
   document.getElementById('is_active').checked = true;
   updateStatus();
   setTier(1);
@@ -525,6 +545,7 @@ function resetForm() {
   document.getElementById('alert').className = 'alert';
   document.getElementById('modalBadge').innerHTML = '';
   renderOrgChecks(allOrgs);
+  renderOrgAffiliations(null);
 }
 
 async function loadOrgForEdit(id, requestId) {
@@ -557,6 +578,7 @@ function populateForm(org) {
   document.getElementById('headquarters').value = org.headquarters || '';
   document.getElementById('description').value = org.description || '';
   document.getElementById('notes').value = org.notes || '';
+  _affSetUI(org.affiliation_contact_type);
   document.getElementById('is_active').checked = org.is_active !== false;
   updateStatus();
   setTier(org.tier || 1);
@@ -585,6 +607,94 @@ function populateForm(org) {
   document.getElementById('deleteBtn').style.display = '';
   document.getElementById('alert').className = 'alert';
   updateModalBadge(org.org_type, org.tier || 1, org.is_active !== false);
+  renderOrgAffiliations(org.id);
+}
+
+// -- Affiliated Runners (gang/tribe only) ----------------------
+// NONE/GANG/TRIBE segmented buttons back a hidden #affiliation_contact_type input (readers use
+// .value). Active = btn-green, inactive = btn-ghost.
+function _affSetUI(val) {
+  const v = val || '';
+  document.getElementById('affiliation_contact_type').value = v;
+  document.querySelectorAll('#aff-seg .btn').forEach(b => {
+    const on = b.dataset.affval === v;
+    b.classList.toggle('btn-green', on);
+    b.classList.toggle('btn-ghost', !on);
+  });
+}
+function setAffType(val) { _affSetUI(val); renderOrgAffiliations(editingId); }
+
+// Only orgs flagged Gang/Tribe (affiliation_contact_type) can have runners affiliated. Linking spawns
+// a contact of that type (npc_id NULL -- the gang/tribe itself; promotes a matching chargen contact
+// instead of duplicating) plus a neutral faction-standing tie -- that npc_id-NULL contact is what the
+// backend 2x rep-weighting keys off. Admin-only.
+async function renderOrgAffiliations(orgId) {
+  const wrap = document.getElementById('orgAffiliatedRunners');
+  const section = document.getElementById('orgAffiliatedSection');
+  if (!wrap) return;
+  const affType = document.getElementById('affiliation_contact_type').value || null;
+  if (section) section.style.display = (orgId && affType && isAdminMode()) ? '' : 'none';
+  if (!orgId || !affType || !isAdminMode()) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = '<div class="dim-label">Loading...</div>';
+  let pcs = [], standings = [], contacts = [];
+  try {
+    const [pcRes, stRes, ctRes] = await Promise.all([
+      apiFetch(`${API}/characters/?is_pc=true&is_active=true`),
+      apiFetch(`${API}/reputation/standings?organization_id=${orgId}`),
+      apiFetch(`${API}/contacts/?organization_id=${orgId}`),
+    ]);
+    if (pcRes.ok) pcs = await pcRes.json();
+    if (stRes.ok) standings = await stRes.json();
+    if (ctRes.ok) contacts = await ctRes.json();
+  } catch (e) { /* leave empty on failure */ }
+  const pcById = {}; pcs.forEach(p => { pcById[p.id] = p; });
+  const byChar = {}; standings.forEach(s => { byChar[s.character_id] = s; });
+  const affByChar = {};
+  contacts.forEach(c => { if (c.npc_id == null && pcById[c.owner_id]) affByChar[c.owner_id] = c; });
+  const linked = pcs.filter(p => affByChar[p.id]);
+  const available = pcs.filter(p => !affByChar[p.id]);
+  const rows = linked.map(p => {
+    const s = byChar[p.id];
+    const val = s ? s.standing : 0;
+    return `<div class="promote-row">
+      <span class="promote-runner">${esc(p.name)}</span>
+      <span class="promote-meta">(${val > 0 ? '+' : ''}${val})</span>
+      <button type="button" class="promote-remove" onclick="unlinkOrgRunner(${p.id},${orgId})" data-tip="Remove affiliation">x</button>
+    </div>`;
+  }).join('');
+  const addForm = available.length ? `
+    <div class="promote-add-form" id="orgAffAddForm" style="display:none">
+      <select id="orgAffPcSel" class="promote-select">
+        ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+      </select>
+      <button type="button" class="btn btn-green btn-sm" onclick="linkOrgRunner(${orgId})">Link</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('orgAffAddForm').style.display='none'">Cancel</button>
+    </div>
+    <button type="button" class="btn btn-amber btn-sm mt-6" onclick="const f=document.getElementById('orgAffAddForm');f.style.display=f.style.display==='none'?'':'none'">+ Link Runner</button>
+  ` : (linked.length ? '<div class="promote-all-linked">All active runners already affiliated.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
+  wrap.innerHTML = (rows || '<div class="dim-label">No runners affiliated.</div>') + addForm;
+}
+
+async function linkOrgRunner(orgId) {
+  const sel = document.getElementById('orgAffPcSel');
+  if (!sel) return;
+  const charId = parseInt(sel.value);
+  if (!charId) return;
+  // Atomic server-side (organizations.affiliate_runner): creates/promotes the gang/tribe contact +
+  // ensures a standing tie without resetting an accumulated standing.
+  const r = await apiFetch(`${API}/organizations/${orgId}/affiliate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ character_id: charId }),
+  });
+  if (!r.ok) { showAlert(document.getElementById('alert'), '>> LINK FAILED', true); return; }
+  renderOrgAffiliations(orgId);
+}
+
+async function unlinkOrgRunner(charId, orgId) {
+  if (!await showConfirm("Remove this runner's affiliation? Their contact is removed, but their accumulated standing is kept.", 'Remove')) return;
+  const r = await apiFetch(`${API}/organizations/${orgId}/affiliate/${charId}`, { method: 'DELETE' });
+  if (!r.ok && r.status !== 204) { showAlert(document.getElementById('alert'), '>> REMOVE FAILED', true); return; }
+  renderOrgAffiliations(orgId);
 }
 
 // -- Table rendering -------------------------------------------
@@ -726,6 +836,7 @@ async function submitForm() {
   const payload = {
     name,
     org_type:     orgTypeVal,
+    affiliation_contact_type: document.getElementById('affiliation_contact_type').value || null,
     tier:         tierVal,
     headquarters: document.getElementById('headquarters').value.trim() || null,
     description:  document.getElementById('description').value.trim() || null,

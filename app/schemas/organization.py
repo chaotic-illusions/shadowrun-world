@@ -1,10 +1,13 @@
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrganizationBase(BaseModel):
     name: str = Field(max_length=200)
     org_type: Optional[str] = Field(default=None, max_length=100)
+    # "Gang" or "Tribe" -> runners can be affiliated with this org (linking spawns a contact of this
+    # type). None -> not a gang/tribe, so the runner-affiliation link is hidden.
+    affiliation_contact_type: Optional[Literal["Gang", "Tribe"]] = None
     tier: int = Field(default=1, ge=1, le=6)
     description: Optional[str] = None
     headquarters: Optional[str] = Field(default=None, max_length=200)
@@ -32,6 +35,7 @@ class OrganizationUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, max_length=200)
     org_type: Optional[str] = Field(default=None, max_length=100)
+    affiliation_contact_type: Optional[Literal["Gang", "Tribe"]] = None
     tier: Optional[int] = Field(default=None, ge=1, le=6)
     description: Optional[str] = None
     headquarters: Optional[str] = Field(default=None, max_length=200)
@@ -58,10 +62,16 @@ class LtgSecurityUpdate(BaseModel):
     san_access_rating: str
 
 
+class AffiliateRunnerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    character_id: int
+
+
 class OrganizationSummary(BaseModel):
     id: int
     name: str
     org_type: Optional[str] = None
+    affiliation_contact_type: Optional[str] = None
     tier: int
     is_active: bool
     model_config = ConfigDict(from_attributes=True)

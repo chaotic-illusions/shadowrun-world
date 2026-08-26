@@ -28,3 +28,6 @@ class CampaignState(Base):
     # always on and never listed here). "FAN" enables the non-canon fan books.
     # Default: every official book on, fan content off.
     enabled_books: Mapped[list] = mapped_column(JSON, nullable=False, default=_default_enabled_books)
+    # One-time marker: existing PCs were backfilled to is_independent=True (runners default to
+    # "Independent" affiliation). Prevents a startup backfill from re-flipping a deliberate "Unknown".
+    pc_affiliation_backfilled: Mapped[bool] = mapped_column(default=False, nullable=False)

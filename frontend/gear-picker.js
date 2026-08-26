@@ -29,6 +29,8 @@ const initGearPicker = (function () {
   let selRating = 1;             // chosen rating for a rated selected item
   let selOpts = [];              // chosen add-on option names for the selected item
   let selGrade = "Standard";     // chosen cyberware grade for the selected item
+  let selAddon = false;          // whether the host-offered purchase-time modification is toggled on
+  let itemAddon = null;          // opts.itemAddon(item, cat) -> {id,label,note,costMult} | null
   let VEHICLE_CLASSES = {};      // name -> {skill, conc}; GM overlay for vehicle piloting groups
   // Host page supplies these (play-sheet.html) so this shared component doesn't hardcode a
   // grade table or sourcebook-gating policy -- see gradedCyberEssence/gradedCyberCost in shared.js.
@@ -160,6 +162,7 @@ const initGearPicker = (function () {
       selRating = 1;
       selOpts = [];
       selGrade = "Standard";
+      selAddon = false;
       renderList(); renderInspector();
     });
   }
@@ -200,9 +203,14 @@ const initGearPicker = (function () {
     const essLabel = selected.cat === "bioware" ? "Body Index" : "Essence";
     const gradeable = isGradeable(it, selected.cat);
     const gMult = gradeable ? (gradeTable[selGrade] || gradeTable.Standard) : null;
+    // Optional host-offered purchase-time modification (e.g. armor gel-packs): a single toggle that
+    // scales the price by addon.costMult and is folded into the bought line by the host's onPurchase.
+    const addon = itemAddon ? itemAddon(it, selected.cat) : null;
+    if (!addon) selAddon = false;
+    const costFactor = (addon && selAddon && addon.costMult) ? addon.costMult : 1;
     if (it.rated) {
       const baseCost = unitCost(it, selRating);
-      meta.push(`<span><b>Cost</b> ${money(gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost)}</span>`);
+      meta.push(`<span><b>Cost</b> ${money((gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost) * costFactor)}</span>`);
       if (Array.isArray(it.essTbl) && it.essTbl[selRating - 1] != null) {
         const baseEss = Number(it.essTbl[selRating - 1]);
         meta.push(`<span><b>${essLabel}</b> ${esc(String(gradeable ? gradeEssenceCost(baseEss, gMult.ess) : baseEss))}</span>`);
@@ -210,7 +218,7 @@ const initGearPicker = (function () {
     } else {
       if (it.cost != null) {
         const baseCost = unitCost(it, selRating, selOpts);
-        meta.push(`<span><b>Cost</b> ${money(gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost)}</span>`);
+        meta.push(`<span><b>Cost</b> ${money((gradeable ? gradeNuyenCost(baseCost, gMult.nuyen) : baseCost) * costFactor)}</span>`);
       }
       if (it.ess != null) {
         const optEss = Array.isArray(it.options) ? it.options.reduce((a, o) => a + (selOpts.includes(o.n) ? (Number(o.ess) || 0) : 0), 0) : 0;
@@ -240,6 +248,12 @@ const initGearPicker = (function () {
             <span class="gc-opt__b"><span class="gc-opt__n">${esc(o.n)} <span class="gc-opt__c">${bits.join(DOT)}</span></span>
             ${o.desc ? `<span class="gc-opt__d">${esc(o.desc)}</span>` : ""}</span></label>`;
         }).join("")}</div></div>` : "";
+    const addonBlk = addon
+      ? `<div class="gc-blk"><h5>Modification</h5><div class="gc-opts">
+          <label class="gc-opt"><input type="checkbox" class="chk-reveal" id="gcAddon"${selAddon ? " checked" : ""}>
+            <span class="gc-opt__b"><span class="gc-opt__n">${esc(addon.label)}${addon.note ? ` <span class="gc-opt__c">${esc(addon.note)}</span>` : ""}</span>
+            ${addon.desc ? `<span class="gc-opt__d">${esc(addon.desc)}</span>` : ""}</span></label>
+        </div></div>` : "";
     // Full data dump so nothing needed for the sheet is hidden.
     const rawRows = Object.keys(it).filter(k => !HIDE_KEYS.has(k) && !["cost", "ess", "avail", "index", "legal", "src", "pg"].includes(k))
       .map(k => `<tr><td>${esc(k)}</td><td>${fmtVal(it[k])}</td></tr>`).join("");
@@ -272,7 +286,7 @@ const initGearPicker = (function () {
       ${sl ? `<div class="gc-stat">${sl}</div>` : ""}
       <div class="gc-meta">${meta.join("")}</div>
       ${it.desc ? `<div class="gc-desc">${esc(it.desc)}</div>` : ""}
-      ${effect}${optionsBlk}${notes}
+      ${effect}${optionsBlk}${addonBlk}${notes}
       <div class="gc-add">
         <span class="gc-add__f"><b>Grade</b> ${gradeCtrl}</span>
         <span class="gc-add__f"><b>Rating</b> ${ratingCtrl}</span>
@@ -291,6 +305,8 @@ const initGearPicker = (function () {
       else selOpts = selOpts.filter(x => x !== nm);
       renderInspector();
     });
+    const addonCb = qs("#gcAddon");
+    if (addonCb) addonCb.onchange = () => { selAddon = addonCb.checked; renderInspector(); };
     const buyBtn = qs("#gcBuy");
     if (buyBtn && onPurchase) buyBtn.onclick = async () => {
       const qtyEl = qs("#gcQty");
@@ -306,7 +322,7 @@ const initGearPicker = (function () {
         // the modal instead of the page-level #alert, which sits behind the modal overlay and was
         // going unseen. Anything else (undefined, for a clean success or a host like chargen's that
         // never blocks) shows the normal "Purchased!" confirmation.
-        const result = await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, item: it }]);
+        const result = await onPurchase([{ cat: selected.cat, n: it.n, rating, qty, opts, grade, addon: (addon && selAddon) ? addon.id : null, item: it }]);
         const msg = qs("#gcBuyMsg");
         if (msg) {
           const blocked = typeof result === "string" && result;
@@ -363,7 +379,10 @@ const initGearPicker = (function () {
 
   // rootEl: container to mount into (its innerHTML is fully owned/replaced by this module).
   // opts.onPurchase(entries): async callback invoked with a single-item array
-  // [{cat,n,rating,qty,opts,grade,item}] the moment "Buy" is clicked -- there's no cart/checkout step.
+  // [{cat,n,rating,qty,opts,grade,addon,item}] the moment "Buy" is clicked -- there's no cart/checkout
+  // step. opts.itemAddon(item, cat): optional host hook returning {id,label,note,costMult} to offer a
+  // single purchase-time modification toggle (e.g. armor gel-packs) on that item, or null for none --
+  // when toggled on, the displayed cost is scaled by costMult and addon=id is passed through onPurchase.
   // opts.gradeTable: {GradeName: {ess,nuyen,book}} -- omit to hide grade choice entirely (bioware-only
   // hosts, or a host that doesn't want grade selection). opts.enabledBooks: Set of sourcebook keys,
   // used only to grey out a book-gated grade (e.g. Alpha needs SSC), same as every other catalog item.
@@ -382,6 +401,7 @@ const initGearPicker = (function () {
     onPurchase = (opts && opts.onPurchase) || null;
     gradeTable = (opts && opts.gradeTable) || null;
     pickerEnabledBooks = (opts && opts.enabledBooks) || new Set();
+    itemAddon = (opts && opts.itemAddon) || null;
     maxQtyFn = (opts && opts.maxQty) || null;
     excludedCats = new Set((opts && opts.excludeCategories) || []);
     presetData = (opts && opts.data) || null;

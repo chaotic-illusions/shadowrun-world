@@ -1281,7 +1281,7 @@ function stepResources() {
     const rig = (k === "vehicles")
       ? `<button type="button" class="tab ${g.rigger?'is-active':''}" data-rigger="${i}" title="Rigger adaptation: (Body x 2500) + 2800">${g.rigger?"Rigger \u2713":"+ Rigger"}</button>${g.rigger?`<span class="cbx-line__f" style="color:var(--cyan)">+${money(riggerGearCost(vehicleBodyOf(g)))}</span>`:""}`
       : "";
-    const nameHtml = (isTool && g.kind) ? `${esc(g.kind)} ${esc(g.n)}` : `${esc(g.n)} <em>${esc(g.sub||"")}</em>`;
+    const nameHtml = (isTool && g.kind) ? `${esc(g.kind)} ${esc(g.n)}` : `${esc(g.n)}${g.mod ? ` (${esc(g.modLabel || 'Gel Packs')})` : ''} <em>${esc(g.sub||"")}</em>`;
     const kindInput = isTool
       ? `<input type="text" class="cbx-mini" style="width:150px" data-gearkind="${k}:${i}" value="${esc(g.kind||"")}" placeholder="kind, e.g. Programming">`
       : "";
@@ -1495,8 +1495,23 @@ function findCatalogItem(name) {
 // wire(). Unlike play-sheet's purchaseGear there's no ownership/family/prereq gating here (chargen
 // never had one) and nuyen/Essence/Body Index stay advisory while drafting -- budgetViolations()
 // is what blocks the final Submit, same as before this backport.
+// Purchase-time armor mod (gear-picker.js itemAddon hook): offer Mil-Spec Gel Packs on worn
+// (non-helmet/shield) armor only, folded into the line as metadata -- mirrors play-sheet's
+// armorGelPackAddon/applyArmorGelPack so the sheet resolves base stats + shows "(Gel Packs)".
+function chargenArmorGelPackAddon(item, cat){
+  if (cat !== 'armor' || !item || item.attachToArmor) return null;
+  if (item.cat === 'helmet' || item.cat === 'shield' || item.cost == null) return null;
+  return { id: 'gel-pack', label: 'Gel Packs', note: 'x5 Cost, Hardened, 1/2 Conceal', costMult: 5 };
+}
+function chargenApplyGelPack(line){
+  line.cost = gearLineCost(line) * 5;
+  line.mod = 'gel-pack';
+  line.modLabel = 'Gel Packs';
+  delete line.baseName; delete line.rated; delete line.rating; delete line.maxRating;
+  delete line.costUnit; delete line.costTbl; delete line.rateLabels;
+}
 async function chargenBuyGear(entries) {
-  entries.forEach(({ cat, item, rating, qty, opts, grade }) => {
+  entries.forEach(({ cat, item, rating, qty, opts, grade, addon }) => {
     const catalogName = GEAR_LINE_CATALOG[cat] || cat;
     const bucket = GEAR_BUCKET[cat] || cat;
     state.gear[bucket] = state.gear[bucket] || [];
@@ -1506,6 +1521,7 @@ async function chargenBuyGear(entries) {
       if (opts && opts.length && Array.isArray(item.options)) {
         line.options = item.options.filter(o => opts.includes(o.n)).map(o => ({ n: o.n, cost: Number(o.cost) || 0, ess: Number(o.ess) || 0 }));
       }
+      if (bucket === 'armor' && addon === 'gel-pack') chargenApplyGelPack(line);
       state.gear[bucket].push(line);
     }
   });
@@ -1620,6 +1636,7 @@ function wire() {
       onPurchase: chargenBuyGear,
       gradeTable: GRADES,
       enabledBooks,
+      itemAddon: chargenArmorGelPackAddon,
       // Foci are handled entirely by fociSectionHTML()'s dedicated step (Magic Rating cap, Adept-only
       // weapon-focus gating, bonding karma tracked in state.foci) -- a bare picker purchase would
       // write into state.gear.foci instead, which the commit payload discards in favor of state.foci.

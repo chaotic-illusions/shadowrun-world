@@ -267,7 +267,7 @@ function openNpcModal(charId) {
   document.getElementById('npcModalBadge').innerHTML =
     raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
 
-  const orgLine = `<div class="cc-org" style="margin-bottom:${char.nationality ? '4px' : '12px'}"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const orgLine = `<div class="cc-org" style="margin-bottom:${char.nationality ? '4px' : '12px'}"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${esc(affiliationLabel(org, char.is_independent))}</div>`;
   const nationalityLine = char.nationality
     ? `<div class="cc-org mb-12"><span class="cc-org-lbl">Nationality</span><span class="cc-org-sep"> // </span><span style="color:var(--text)">${esc(char.nationality)}</span></div>`
     : '';
@@ -506,7 +506,7 @@ function openNonNpcContactModal(contactId) {
   document.getElementById('npcModalBadge').innerHTML =
     raceProf ? `<span class="badge-race-prof">${esc(raceProf)}</span>` : '';
 
-  const orgLine = `<div class="cc-org mb-12"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`;
+  const orgLine = `<div class="cc-org mb-12"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${esc(affiliationLabel(org, merged.is_independent))}</div>`;
 
   const ownerRows = (merged.owners || []).map(o => {
     const ownerChar = charMapStore[o.owner_id];
@@ -595,6 +595,13 @@ async function patchConnection(cardKey, currentVal, contactIds) {
   loadAll();
 }
 
+// Affiliation label for an NPC/PC: the org name, or the deliberate/unknown distinction when the
+// character has no org (is_independent True -> "Independent", else "Unknown"). PCs default to True
+// (Independent) at the data level; NPCs default False (Unknown). Returns a RAW string; callers esc().
+function affiliationLabel(orgObj, isIndependent) {
+  return orgObj ? orgObj.name : (isIndependent ? 'Independent' : 'Unknown');
+}
+
 function buildContactCard(merged, charMap, orgMap) {
   const org    = merged.organization_id ? orgMap[merged.organization_id] : null;
   const npc    = merged.npc_id ? charMap[merged.npc_id] : null;
@@ -608,7 +615,10 @@ function buildContactCard(merged, charMap, orgMap) {
   const cardKey = `cc-${merged.npc_id || merged.name.replace(/\W+/g, '-')}`;
 
   const raceProf = [race, prof].filter(Boolean).join(' | ');
-  const orgDisplay = org ? esc(org.name) : '[Unknown]';
+  // Prefer the linked NPC's own affiliation (authoritative + can be Independent); non-NPC contacts
+  // (gangs/tribes without a character record) fall back to their contact org, else "Unknown".
+  const affOrg = npc ? (npc.organization_id ? orgMap[npc.organization_id] : null) : org;
+  const orgDisplay = esc(affiliationLabel(affOrg, npc ? npc.is_independent : false));
 
   const clickHandler = merged.npc_id
     ? `onclick="openNpcModal(${merged.npc_id})" data-tip="View dossier"`
@@ -653,8 +663,18 @@ function buildContactCard(merged, charMap, orgMap) {
           ${skills.map(s => `<div class="cc-skill">&#8250; ${esc(s)}</div>`).join('')}
         </div>` : ''}
       ${profileText ? `
-        <div class="cc-profile-text">${esc(profileText)}</div>` : ''}
+        <div class="cc-profile-text desc-clamp-3" id="cc-desc-${cardKey}">${esc(profileText)}</div>
+        ${profileText.length > 100 ? `<div><button class="oc-expand-btn" id="cc-xbtn-${cardKey}" onclick="event.stopPropagation();toggleContactDesc('${cardKey}')">[ expand ]</button></div>` : ''}` : ''}
     </div>`;
+}
+
+const expandedContacts = {};
+function toggleContactDesc(key) {
+  expandedContacts[key] = !expandedContacts[key];
+  const el  = document.getElementById(`cc-desc-${key}`);
+  const btn = document.getElementById(`cc-xbtn-${key}`);
+  if (el)  el.classList.toggle('expanded', expandedContacts[key]);
+  if (btn) btn.textContent = expandedContacts[key] ? '[ collapse ]' : '[ expand ]';
 }
 
 const expandedLocs = {};
@@ -720,6 +740,11 @@ function reapplyExpanded() {
     const el = document.getElementById(`pc-desc-${id}`); if (el) el.classList.add('expanded');
     const btn = document.getElementById(`pc-xbtn-${id}`); if (btn) btn.textContent = '[ collapse ]';
   }
+  for (const [key, v] of Object.entries(expandedContacts)) {
+    if (!v) continue;
+    const el = document.getElementById(`cc-desc-${key}`); if (el) el.classList.add('expanded');
+    const btn = document.getElementById(`cc-xbtn-${key}`); if (btn) btn.textContent = '[ collapse ]';
+  }
 }
 
 function buildCharCard(char, orgMap = {}) {
@@ -771,7 +796,7 @@ function buildCharCard(char, orgMap = {}) {
       ${char.is_pc
         ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" data-tip="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}</span></div>`
         : (raceProf ? `<div><span class="cc-race-prof">${esc(raceProf)}</span></div>` : '')}
-      ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${org ? esc(org.name) : '[Unknown]'}</div>`; })() : ''}
+      ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${esc(affiliationLabel(org, char.is_independent))}</div>`; })() : ''}
       <div class="ch-meta">
         ${char.nationality ? `<div class="ws-nationality">${esc(char.nationality)}</div>` : ''}
         ${char.description
@@ -1269,6 +1294,100 @@ function oeRenderRelations(currentOrgId) {
   });
 }
 
+// -- Org <-> Runner affiliation (gang/tribe only) --------------
+// NONE/GANG/TRIBE segmented buttons back a hidden #oe-affiliation_contact_type input (so every reader
+// still uses .value). Active = btn-green, inactive = btn-ghost.
+function _oeAffSetUI(val) {
+  const v = val || '';
+  document.getElementById('oe-affiliation_contact_type').value = v;
+  document.querySelectorAll('#oe-aff-seg .btn').forEach(b => {
+    const on = b.dataset.affval === v;
+    b.classList.toggle('btn-green', on);
+    b.classList.toggle('btn-ghost', !on);
+  });
+}
+function setOeAffType(val) { _oeAffSetUI(val); renderOrgAffiliations(oeEditingId); }
+
+// Only orgs flagged Gang/Tribe (affiliation_contact_type) can have runners affiliated. Linking a
+// runner spawns a contact of that type (npc_id NULL -- the gang/tribe itself, promoting a matching
+// chargen contact instead of duplicating) plus a neutral faction-standing tie; that npc_id-NULL
+// contact is what the backend 2x rep-weighting keys off. Admin-only.
+async function renderOrgAffiliations(orgId) {
+  const wrap = document.getElementById('oeAffiliatedRunners');
+  if (!wrap) return;
+  const affType = (document.getElementById('oe-affiliation_contact_type') || {}).value || null;
+  const section = document.getElementById('oeAffiliatedSection');
+  if (section) section.style.display = (orgId && affType && isAdminMode()) ? '' : 'none';
+  if (!orgId || !affType || !isAdminMode()) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = '<div class="dim-label">Loading...</div>';
+  let pcs = [], standings = [], contacts = [];
+  try {
+    const [pcRes, stRes, ctRes] = await Promise.all([
+      apiFetch(`${API}/characters/?is_pc=true&is_active=true`),
+      apiFetch(`${API}/reputation/standings?organization_id=${orgId}`),
+      apiFetch(`${API}/contacts/?organization_id=${orgId}`),
+    ]);
+    if (pcRes.ok) pcs = await pcRes.json();
+    if (stRes.ok) standings = await stRes.json();
+    if (ctRes.ok) contacts = await ctRes.json();
+  } catch (e) { /* leave empty on failure */ }
+  const pcById = {}; pcs.forEach(p => { pcById[p.id] = p; });
+  const standingByChar = {}; standings.forEach(s => { standingByChar[s.character_id] = s; });
+  // Affiliation = a gang/tribe contact (npc_id null) owned by an active PC.
+  const affByChar = {};
+  contacts.forEach(c => { if (c.npc_id == null && pcById[c.owner_id]) affByChar[c.owner_id] = c; });
+  const linked = pcs.filter(p => affByChar[p.id]);
+  const available = pcs.filter(p => !affByChar[p.id]);
+
+  const rows = linked.map(p => {
+    const s = standingByChar[p.id];
+    const val = s ? s.standing : 0;
+    return `<div class="promote-row">
+      <span class="promote-runner">${esc(p.name)}</span>
+      <span class="promote-meta">(${val > 0 ? '+' : ''}${val})</span>
+      <button class="promote-remove" onclick="unlinkOrgRunner(${p.id},${orgId})" data-tip="Remove affiliation">x</button>
+    </div>`;
+  }).join('');
+
+  const addForm = available.length ? `
+    <div class="promote-add-form" id="orgAffAddForm" style="display:none">
+      <select id="orgAffPcSel" class="promote-select">
+        ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+      </select>
+      <button class="btn btn-green btn-sm" onclick="linkOrgRunner(${orgId})">Link</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('orgAffAddForm').style.display='none'">Cancel</button>
+    </div>
+    <button class="btn btn-amber btn-sm mt-6" onclick="const f=document.getElementById('orgAffAddForm');f.style.display=f.style.display==='none'?'':'none'">+ Link Runner</button>
+  ` : (linked.length ? '<div class="promote-all-linked">All active runners already affiliated.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
+
+  wrap.innerHTML = (rows || '<div class="dim-label">No runners affiliated.</div>') + addForm;
+}
+
+async function linkOrgRunner(orgId) {
+  const sel = document.getElementById('orgAffPcSel');
+  if (!sel) return;
+  const charId = parseInt(sel.value);
+  if (!charId) return;
+  // Atomic server-side: creates/promotes the gang/tribe contact + ensures a standing tie without
+  // resetting an accumulated standing (see organizations.affiliate_runner).
+  const r = await apiFetch(`${API}/organizations/${orgId}/affiliate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ character_id: charId }),
+  });
+  if (!r.ok) { showAlert('Failed to affiliate runner with organization.'); return; }
+  renderOrgAffiliations(orgId);
+  loadAll();
+}
+
+function unlinkOrgRunner(charId, orgId) {
+  showConfirm("Remove this runner's affiliation? Their gang/tribe contact is removed, but their accumulated standing is kept.", async () => {
+    const r = await apiFetch(`${API}/organizations/${orgId}/affiliate/${charId}`, { method: 'DELETE' });
+    if (!r.ok && r.status !== 204) { showAlert('Failed to remove affiliation.'); return; }
+    renderOrgAffiliations(orgId);
+    loadAll();
+  });
+}
+
 function renderOrgDossierView(org) {
   const allyIds  = (org.revealed_ally_ids  || []);
   const enemyIds = (org.revealed_enemy_ids || []);
@@ -1433,6 +1552,7 @@ function openOrgEditModal(orgId) {
   document.getElementById('oe-headquarters').value = org.headquarters || '';
   document.getElementById('oe-description').value = org.description || '';
   document.getElementById('oe-notes').value = org.notes || '';
+  _oeAffSetUI(org.affiliation_contact_type);
   const isActiveCb = document.getElementById('oe-is_active');
   isActiveCb.checked = org.is_active !== false;
   const lbl = document.getElementById('oeStatusLbl');
@@ -1443,6 +1563,7 @@ function openOrgEditModal(orgId) {
   oeLeaderCount = 0;
   (org.leadership || []).forEach(l => oeAddLeader(l));
   oeRenderRelations(orgId);
+  renderOrgAffiliations(orgId);
   document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="5" class="empty-msg">No telecom numbers</td></tr>';
   document.getElementById('oeHostBody').innerHTML    = '<tr id="oeEmptyHost"><td colspan="8" class="empty-msg">No matrix hosts</td></tr>';
   oeTelecomCount = 0; oeHostCount = 0;
@@ -1490,6 +1611,7 @@ async function saveOrgEdit() {
     headquarters: document.getElementById('oe-headquarters').value.trim() || null,
     description:  document.getElementById('oe-description').value.trim() || null,
     notes:        document.getElementById('oe-notes').value.trim() || null,
+    affiliation_contact_type: document.getElementById('oe-affiliation_contact_type').value || null,
     is_active:    document.getElementById('oe-is_active').checked,
     leadership:   oeGetLeadership(),
     ally_ids:            oeGetChecked('oeAllyList'),
@@ -1739,7 +1861,10 @@ function openCharEditModal(charId) {
   document.getElementById('ce-contact_skills').value   = (char.contact_skills || []).join('\n');
 
   const orgSel = document.getElementById('ce-org_id');
-  orgSel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
+  const ceAffVal = char.organization_id ? String(char.organization_id) : (char.is_independent ? 'independent' : '');
+  orgSel.innerHTML =
+    `<option value="independent"${ceAffVal === 'independent' ? ' selected' : ''}>-- Independent --</option>` +
+    `<option value=""${ceAffVal === '' ? ' selected' : ''}>-- Unknown --</option>` +
     Object.values(orgStore).map(o =>
       `<option value="${o.id}"${o.id === char.organization_id ? ' selected' : ''}>${esc(o.name)}</option>`
     ).join('');
@@ -1756,7 +1881,7 @@ function openCharEditModal(charId) {
     if (char.gender)      metaItems.push(['Gender', char.gender]);
     if (char.age)         metaItems.push(['Age', char.age]);
     if (char.nationality) metaItems.push(['Nationality', char.nationality]);
-    metaItems.push(['Affiliation', org ? org.name : '[Independent]']);
+    metaItems.push(['Affiliation', affiliationLabel(org, char.is_independent)]);
 
     const sep = `<span class="cc-org-sep" style="margin-bottom:2px">//</span>`;
     const metaHtml = metaItems.map(([lbl, val], i) =>
@@ -1877,7 +2002,8 @@ async function saveCharEdit() {
     nationality:     document.getElementById('ce-nationality').value.trim() || null,
     is_pc:           isPC,
     is_active:       document.getElementById('ce-is_active').checked,
-    organization_id: orgVal ? parseInt(orgVal) : null,
+    organization_id: (orgVal && orgVal !== 'independent') ? parseInt(orgVal) : null,
+    is_independent:  orgVal === 'independent',
     description:     document.getElementById('ce-description').value.trim() || null,
     background:      document.getElementById('ce-background').value.trim() || null,
     notes:           document.getElementById('ce-notes').value.trim() || null,

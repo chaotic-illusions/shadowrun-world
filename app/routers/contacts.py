@@ -24,6 +24,8 @@ async def list_contacts(
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
+    # Contacts are a shared world roster: every authenticated user sees the whole active-runner
+    # contact network (GM notes are still redacted from non-admins in _serialize_contact).
     q = select(Contact)
     if owner_id is not None:
         q = q.where(Contact.owner_id == owner_id)
