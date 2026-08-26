@@ -217,6 +217,7 @@
         <div class="section-head mb-12">// Affiliated Runners</div>
         <div class="dim-label mb-8">Linking a runner adds a Gang/Tribe contact and a faction-standing tie (rep changes count 2x for them).</div>
         <div id="orgAffiliatedRunners"></div>
+        <div class="gc-buy-msg" id="orgAffMsg" style="margin-top:6px"></div>
       </div>
 
       <!-- -- LTG NETWORK -- -->
@@ -622,7 +623,36 @@ function _affSetUI(val) {
     b.classList.toggle('btn-ghost', !on);
   });
 }
-function setAffType(val) { _affSetUI(val); renderOrgAffiliations(editingId); }
+function setAffType(val) { _affSetUI(val); persistAffType(val); }
+
+// Persist the Gang/Tribe flag immediately for an existing org so the affiliate endpoint sees it
+// without a full save/close/reopen cycle. New orgs have no row yet -- saved on first Submit.
+async function persistAffType(val) {
+  let err = null;
+  if (editingId) {
+    try {
+      const res = await apiFetch(`${API}/organizations/${editingId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliation_contact_type: val || null }),
+      });
+      if (!res.ok) await apiThrow(res);
+    } catch (e) { err = e; }
+  }
+  await renderOrgAffiliations(editingId);
+  if (err) flashOrgAffMsg(`Save failed // ${err.message}`, true);
+}
+
+// Inline confirmation shown next to the Link/Cancel buttons; fades after a few seconds (reuses the
+// same .gc-buy-msg animation the gear "Purchased!" toast uses).
+function flashOrgAffMsg(text, isErr) {
+  const el = document.getElementById('orgAffMsg');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('is-show', 'is-err');
+  void el.offsetWidth;  // restart the fade animation on a repeat message
+  el.classList.add('is-show');
+  if (isErr) el.classList.add('is-err');
+}
 
 // Only orgs flagged Gang/Tribe (affiliation_contact_type) can have runners affiliated. Linking spawns
 // a contact of that type (npc_id NULL -- the gang/tribe itself; promotes a matching chargen contact
@@ -668,7 +698,7 @@ async function renderOrgAffiliations(orgId) {
         ${available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
       </select>
       <button type="button" class="btn btn-green btn-sm" onclick="linkOrgRunner(${orgId})">Link</button>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('orgAffAddForm').style.display='none'">Cancel</button>
+      <button type="button" class="btn btn-red btn-sm" onclick="document.getElementById('orgAffAddForm').style.display='none'">Cancel</button>
     </div>
     <button type="button" class="btn btn-amber btn-sm mt-6" onclick="const f=document.getElementById('orgAffAddForm');f.style.display=f.style.display==='none'?'':'none'">+ Link Runner</button>
   ` : (linked.length ? '<div class="promote-all-linked">All active runners already affiliated.</div>' : '<div class="promote-all-linked">No active PC runners found.</div>');
@@ -686,8 +716,17 @@ async function linkOrgRunner(orgId) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ character_id: charId }),
   });
-  if (!r.ok) { showAlert(document.getElementById('alert'), '>> LINK FAILED', true); return; }
-  renderOrgAffiliations(orgId);
+  if (!r.ok) {
+    let detail = '';
+    try { detail = (await r.json()).detail || ''; } catch (e) { /* non-JSON body */ }
+    const hint = r.status === 400
+      ? ' -- set Affiliation Type to GANG/TRIBE first'
+      : '';
+    flashOrgAffMsg(`Link failed${detail ? ' // ' + detail : ''}${hint}`, true);
+    return;
+  }
+  await renderOrgAffiliations(orgId);
+  flashOrgAffMsg('Runner linked.', false);
 }
 
 async function unlinkOrgRunner(charId, orgId) {
