@@ -1008,6 +1008,18 @@ function astralPoolFormula(intelligence, willpower, charisma) {
 function spellPoolFormula(intelligence, willpower, magicRating, bonus) {
   return Math.floor(((Number(intelligence)||0) + (Number(willpower)||0) + (Number(magicRating)||0)) / 3) + (Number(bonus) || 0);
 }
+// Matrix Reaction/Initiative (VR2 "Response Increase"/"Initiative" rules, docs/vr2_rules.md
+// L1273-1301/L1917-1926) -- ported from deck-workshop.html's inspector readout so play-sheet.html
+// can show the same numbers for a jacked-in decker. Reality Filter adds an Initiative die but NOT
+// Reaction (matches vr2_rules.md's Response Increase writeup); Tortoise decks ignore Response
+// Increase's Reaction bonus entirely and cap Initiative at a flat 1D6.
+function matrixReactionInitFormula(quickness, intelligence, deckType, respIncrease, realityFilter) {
+  const ri = Number(respIncrease) || 0;
+  const baseReaction = Math.ceil(((Number(quickness)||0) + (Number(intelligence)||0)) / 2);
+  if (deckType === 'tortoise') return { matrixReaction: Math.max(1, Math.floor(baseReaction / 2)), initiativeDice: 1 };
+  const effectiveRI = ri + (realityFilter ? 1 : 0);
+  return { matrixReaction: baseReaction + ri * 2, initiativeDice: Math.max(1, 1 + effectiveRI + (deckType === 'hot' ? 1 : -1)) };
+}
 
 
 // -- Security rating helpers (SR2 "Color-N" format) ---------------------------

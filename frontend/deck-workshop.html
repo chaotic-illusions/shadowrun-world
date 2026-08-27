@@ -2828,17 +2828,10 @@ function calcDeck() {
   const programmerIntel = Math.max(0, selectedProgrammerSkillSet?.intelligence ?? getSelectedProgrammerSkillSet()?.intelligence ?? 0);
   const programmerQuickness = Math.max(0, selectedProgrammerSkillSet?.quickness ?? getSelectedProgrammerSkillSet()?.quickness ?? 0);
   const programmerMathSpu = Math.max(0, selectedProgrammerSkillSet?.mathSpu ?? getSelectedProgrammerSkillSet()?.mathSpu ?? 0);
-  const baseReaction = Math.ceil((programmerQuickness + programmerIntel) / 2);   // Matrix Reaction, round up (vr2)
-  // Initiative varies by ASIST deck type (vr2 L1913-1923): hot +1D6, cool -1D6, tortoise = half
-  // Reaction (min 1) and a single die with no RI/RF bonus. Reality Filter adds an init die, not Reaction.
-  let matrixReaction, initiativeDice;
-  if (deckType === 'tortoise') {
-    matrixReaction = Math.max(1, Math.floor(baseReaction / 2));
-    initiativeDice = 1;
-  } else {
-    matrixReaction = baseReaction + (ri * 2);
-    initiativeDice = Math.max(1, 1 + effectiveRI + (deckType === 'hot' ? 1 : -1));
-  }
+  // matrixReactionInitFormula lives in shared.js so play-sheet.html's jacked-in readout can't
+  // drift from this one (vr2 L1273-1301/L1917-1926: RI +2 Reaction/+1D6 Init per point, Reality
+  // Filter +1D6 Init only, Tortoise halves Reaction and caps Initiative at 1D6).
+  const { matrixReaction, initiativeDice } = matrixReactionInitFormula(programmerQuickness, programmerIntel, deckType, ri, hasRf);
   const loadedSleazeRating = getLoadedSleazeRating();
   const detectionFactor = Math.ceil((masking + loadedSleazeRating) / 2);
   const hackingPool = computeHackingPool(programmerIntel, mpcp, programmerMathSpu);

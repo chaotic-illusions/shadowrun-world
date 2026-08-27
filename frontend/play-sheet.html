@@ -8,6 +8,7 @@
   <script src="shared.js"></script>
   <script src="catalog-taxonomy.js"></script>
   <script src="gear-picker.js"></script>
+  <script src="matrix-programs.js"></script>
   <style>
     /* ---- layout: identity/armor row, attributes/condition row, weapons full width, then a
        skills/vehicle column and an armor-detail/gear/cyberware/contacts/notes column ---- */
@@ -569,6 +570,7 @@ let SPELL_CAT = new Map();
 let GEAR_CAT = new Map();   // /catalog/gear -- used to look up full cyberdeck stats (MPCP, etc.)
 let enabledBooks = new Set();   // /catalog/books -- only used to gate Alpha grade in the gear picker
 let DECK_WORKSHOP_DECKS = [];   // deck_builder_state.stores.sr2_decks_v1 -- see Deck Workshop
+let DECK_WORKSHOP_PROGRAMS = []; // deck_builder_state.stores.sr2_compiled_programs_v1 -- owned/finished software (Software tab)
 let RULES = null;         // /catalog/rules bundle -- used for metatype attribute mods
 let CAN_EDIT = false;
 let dmgMode = 'damage';
@@ -641,7 +643,9 @@ async function loadCharacter(id){
   // Deck Workshop (frontend/deck-workshop.html) keeps its own richer deck records (status, persona,
   // build origin) in deck_builder_state.stores.sr2_decks_v1, separate from gear.matrix -- merge both
   // sources for display since either can hold a deck the player never cross-visited the other page for.
-  DECK_WORKSHOP_DECKS = (deckStateRes.ok ? ((await deckStateRes.json()).state || {}) : {}).stores?.sr2_decks_v1 || [];
+  const deckStores = (deckStateRes.ok ? ((await deckStateRes.json()).state || {}) : {}).stores || {};
+  DECK_WORKSHOP_DECKS = deckStores.sr2_decks_v1 || [];
+  DECK_WORKSHOP_PROGRAMS = deckStores.sr2_compiled_programs_v1 || [];
   CONTACTS = contactsRes.ok ? await contactsRes.json() : [];
   const mine = mineRes.ok ? await mineRes.json() : { ids: [] };
   CAN_EDIT = CHAR.is_pc && (isAdminMode() || (mine.ids||[]).includes(CHAR.id));
@@ -1166,22 +1170,67 @@ function renderMatrix(){
     n: d.deckName || d.name || 'Deck',
     mpcp: d.mpcp,
     tag: d.status ? `<span class="contact-tag" style="margin-left:6px;">${esc(d.status)}</span>` : '',
+    persona: (d.pBod != null) ? [d.pBod, d.pEvasion, d.pMasking, d.pSensor] : null,
+    // Matrix Reaction/Initiative (shared.js matrixReactionInitFormula) need the deck's own build
+    // spec -- only present on workshop-store decks, not bare gear.matrix lines.
+    matrix: d.deckType ? matrixReactionInitFormula(CHAR.quickness, CHAR.intelligence, d.deckType, d.respIncrease, d.realityFilter) : null,
   }));
   gearDecks.forEach(g => {
     if (workshopNames.has(g.n)) return;   // already represented via the workshop store
     const cat = GEAR_CAT.get(g.n) || {};
     const mpcpRow = (cat.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === 'mpcp');
-    rows.push({ n: g.n, mpcp: g.mpcp ?? (mpcpRow ? mpcpRow[1] : null), tag: '' });
+    rows.push({ n: g.n, mpcp: g.mpcp ?? (mpcpRow ? mpcpRow[1] : null), tag: '', persona: null, matrix: null });
   });
 
-  $('#matrixPanel').style.display = rows.length ? '' : 'none';
-  if (!rows.length) return;
-  $('#matrixList').innerHTML = rows.map(r => {
+  const deckRowsHtml = rows.map(r => {
     const mpcp = Number(r.mpcp) || 0;
-    const bems = mpcp ? deckBems(mpcp) : null;
+    // Prefer the deck's own as-built persona ratings; only fall back to the generic BEMS-by-MPCP
+    // table (deckBems) for a bare gear.matrix line that never got a full spec in Deck Workshop.
+    const bems = r.persona || (mpcp ? deckBems(mpcp) : null);
     const bemsStr = bems ? ` &middot; Bod ${bems[0]}/Eva ${bems[1]}/Mask ${bems[2]}/Sen ${bems[3]}` : '';
-    return `<div class="ps-stat-row"><span class="k">${esc(r.n)}${r.tag}</span><span class="v">MPCP ${r.mpcp ?? '—'}${bemsStr}</span></div>`;
+    const head = `<div class="armor-slot-head">${esc(r.n)}${r.tag}</div><div class="ps-stat-row"><span class="k">MPCP</span><span class="v">${r.mpcp ?? '—'}${bemsStr}</span></div>`;
+    const matrixRow = r.matrix
+      ? `<div class="ps-stat-row"><span class="k">Matrix Reaction</span><span class="v">${r.matrix.matrixReaction}</span></div>
+         <div class="ps-stat-row"><span class="k">Matrix Initiative</span><span class="v">${r.matrix.initiativeDice}D6 + ${r.matrix.matrixReaction}</span></div>`
+      : '';
+    return `<div class="armor-slot-group">${head}${matrixRow}</div>`;
   }).join('');
+
+  $('#matrixPanel').style.display = (rows.length || (DECK_WORKSHOP_PROGRAMS||[]).length) ? '' : 'none';
+  $('#matrixList').innerHTML = deckRowsHtml + renderOwnedProgramsHtml();
+}
+// Attack's damage level (attackDamage 2-5) reads as a letter suffix on its rating, matching how
+// Deck Workshop's own loadout planner labels it (lpProgName/_DMG_LETTER).
+const _PROGRAM_DMG_LETTER = { 2:'L', 3:'M', 4:'S', 5:'D' };
+const PROGRAM_CAT_ORDER = ['Operational', 'Offensive', 'Defensive', 'Special'];
+// Finished/owned software only (Deck Workshop's Software tab -- deck_builder_state.stores.
+// sr2_compiled_programs_v1), not in-progress compile jobs or pending fixer orders (those aren't
+// runnable yet). Collapsed to one entry per unique program at its highest owned rating (e.g. a
+// Sleaze-4 and a Sleaze-6 both on file show only Sleaze-6), grouped the same way Deck Workshop's
+// loadout planner categorizes utilities (LP_CAT in deck-workshop.html, via matrix-programs.js).
+function renderOwnedProgramsHtml(){
+  const best = new Map();
+  (DECK_WORKSHOP_PROGRAMS || []).forEach(p => {
+    const key = p.programTypeKey || (window.MatrixPrograms ? MatrixPrograms.keyOf(p.utilName) : p.utilName);
+    if (!key) return;
+    const rating = Number(p.baseRating) || 0;
+    const cur = best.get(key);
+    if (!cur || rating > (Number(cur.baseRating) || 0)) best.set(key, p);
+  });
+  if (!best.size) return '';
+  const groups = {};
+  best.forEach((p, key) => {
+    const def = window.MatrixPrograms ? MatrixPrograms.get(key) : null;
+    const cat = (def && def.category) || 'Operational';
+    const letter = (p.utilName === 'Attack' && _PROGRAM_DMG_LETTER[p.attackDamage]) || '';
+    (groups[cat] = groups[cat] || []).push({ n: (def && def.display) || p.utilName, r: p.baseRating, letter });
+  });
+  const catsHtml = PROGRAM_CAT_ORDER.filter(cat => groups[cat] && groups[cat].length).map(cat => {
+    const progRows = groups[cat].sort((a,b) => a.n.localeCompare(b.n)).map(p =>
+      `<div class="ps-stat-row"><span class="k">${esc(p.n)}</span><span class="v">R${p.r}${p.letter}</span></div>`).join('');
+    return `<div class="armor-slot-head" style="font-size:.66rem;padding-top:6px;">${esc(cat)}</div>${progRows}`;
+  }).join('');
+  return `<div class="armor-slot-group"><div class="armor-slot-head">Programs</div>${catsHtml}</div>`;
 }
 
 // ---------------------------------------------------------------- weapons
