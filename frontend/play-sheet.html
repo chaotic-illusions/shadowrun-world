@@ -47,6 +47,7 @@
     .fg-4{grid-template-columns:repeat(4,1fr);}
     @media(max-width:640px){.fg-6,.fg-5,.fg-4,.fg-3{grid-template-columns:repeat(2,1fr);}}
     @media(max-width:480px){.fg-6,.fg-5,.fg-4{grid-template-columns:repeat(2,1fr);}}
+    @media(max-width:480px){.ps-prog-grid{grid-template-columns:1fr;}}
     .ps-field{display:flex;flex-direction:column;gap:3px;min-width:0;}
     .ps-field .field-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .ps-ro{background:transparent;border:none;padding:2px 0;color:var(--cyan);font-size:.82rem;}
@@ -68,6 +69,13 @@
     .armor-slot-group:first-child .armor-slot-head{padding-top:2px;}
     .armor-slot-head + .ps-stat-row{border-top:none;}
     .armor-slot-group .ps-stat-row{padding-left:20px;}
+    /* Owned-programs card grid (Cyberdeck panel) -- fixed 2x2 layout, one card per category
+       (Operational/Offensive/Defensive/Special), each a wrapped row of "Program-Rating" chips. */
+    .ps-prog-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 10px;}
+    .ps-prog-card{border:1px solid var(--border-dark);padding:6px 8px;}
+    .ps-prog-card__head{font-size:.66rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+    .ps-prog-chips{display:flex;flex-wrap:wrap;gap:4px;}
+    .ps-prog-chip{color:var(--text-bright);}
     /* Mods modal rows are short (a name + one benefit line) -- the shared .edit-modal's ~1060px
        max-width leaves it swimming in whitespace, so narrow it to roughly half. */
     .mode-weaponmods .edit-modal{max-width:530px;}
@@ -793,6 +801,16 @@ function primaryDeckMpcp(){
   });
   return mpcps.length ? Math.max(...mpcps) : 0;
 }
+// The Deck Workshop store record (not a bare gear.matrix line) for the deck with the highest MPCP
+// -- same "best deck wins" pick primaryDeckMpcp() makes for Hacking Pool, so Matrix Reaction/
+// Initiative below key off the same deck. Only workshop-store decks carry deckType/respIncrease/
+// realityFilter, so a gear-only deck (never opened in Deck Workshop) can't drive this -- same
+// gap deckBems() already has for persona ratings.
+function primaryDeck(){
+  const workshopDecks = DECK_WORKSHOP_DECKS || [];
+  if (!workshopDecks.length) return null;
+  return workshopDecks.reduce((a, b) => (Number(b.mpcp)||0) > (Number(a.mpcp)||0) ? b : a);
+}
 function reactionInit(){
   const Q = CHAR.quickness||0, INT = CHAR.intelligence||0, W = CHAR.willpower||0;
   const vcr = vcrLevel();
@@ -801,7 +819,9 @@ function reactionInit(){
   // Base (Q+I+W)/2, plus the Combat Sense adept power and any cyberware Combat Pool bonus (Tactical
   // Computer), minus a Heavy/Military armor encumbrance penalty.
   const combatPool = Math.max(0, combatPoolFormula(Q, INT, W, powerLevel('Combat Sense') + poolBonus('combat')) - armorTotals().cpPenalty);
-  return { reactionPhys, reactionRig, combatPool, vcr };
+  const deck = primaryDeck();
+  const matrix = (deck && deck.deckType) ? matrixReactionInitFormula(Q, INT, deck.deckType, deck.respIncrease, deck.realityFilter) : null;
+  return { reactionPhys, reactionRig, combatPool, vcr, matrix };
 }
 function vcrLevel(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -917,9 +937,21 @@ function renderAttributes(){
   $('#atCH').textContent = CHAR.charisma; $('#atINT').textContent = CHAR.intelligence; $('#atW').textContent = CHAR.willpower;
   $('#dvEssence').textContent = Number(CHAR.essence||0).toFixed(2);
   $('#dvMagic').textContent = CHAR.magic_rating > 0 ? CHAR.magic_rating : '—';
-  const { reactionPhys, reactionRig, combatPool, vcr } = reactionInit();
-  $('#dvReaction').textContent = vcr ? `${reactionPhys} / ${reactionRig}` : `${reactionPhys}`;
-  $('#dvInit').textContent = vcr ? `1D6 / ${1+vcr}D6` : '1D6';
+  const { reactionPhys, reactionRig, combatPool, vcr, matrix } = reactionInit();
+  // Physical, then Rigged (Vehicle Control Rig) if owned, then Matrix (jacked into the primary
+  // deck) if owned -- same slash-separated convention as a rigger's Phys/Rig split, extended with
+  // a third segment when both a VCR and a deck are in play. A tooltip spells out which is which
+  // since three unlabeled numbers separated by slashes gets ambiguous fast.
+  const modeLabels = ['Physical'];
+  const reactionParts = [reactionPhys];
+  const initParts = ['1D6'];
+  if (vcr) { modeLabels.push('Rigged'); reactionParts.push(reactionRig); initParts.push(`${1+vcr}D6`); }
+  if (matrix) { modeLabels.push('Matrix'); reactionParts.push(matrix.matrixReaction); initParts.push(`${matrix.initiativeDice}D6`); }
+  const modeTitle = modeLabels.length > 1 ? modeLabels.join(' / ') : '';
+  $('#dvReaction').textContent = reactionParts.join(' / ');
+  $('#dvReaction').title = modeTitle;
+  $('#dvInit').textContent = initParts.join(' / ');
+  $('#dvInit').title = modeTitle;
   const pools = [['Combat', combatPool]];
   if (vcr) pools.push(['Control', reactionRig]);
   // Formulas live in shared.js (combatPoolFormula/hackingPoolFormula/astralPoolFormula/
@@ -1171,43 +1203,39 @@ function renderMatrix(){
     mpcp: d.mpcp,
     tag: d.status ? `<span class="contact-tag" style="margin-left:6px;">${esc(d.status)}</span>` : '',
     persona: (d.pBod != null) ? [d.pBod, d.pEvasion, d.pMasking, d.pSensor] : null,
-    // Matrix Reaction/Initiative (shared.js matrixReactionInitFormula) need the deck's own build
-    // spec -- only present on workshop-store decks, not bare gear.matrix lines.
-    matrix: d.deckType ? matrixReactionInitFormula(CHAR.quickness, CHAR.intelligence, d.deckType, d.respIncrease, d.realityFilter) : null,
   }));
   gearDecks.forEach(g => {
     if (workshopNames.has(g.n)) return;   // already represented via the workshop store
     const cat = GEAR_CAT.get(g.n) || {};
     const mpcpRow = (cat.stats || []).find(s => Array.isArray(s) && String(s[0]).toLowerCase() === 'mpcp');
-    rows.push({ n: g.n, mpcp: g.mpcp ?? (mpcpRow ? mpcpRow[1] : null), tag: '', persona: null, matrix: null });
+    rows.push({ n: g.n, mpcp: g.mpcp ?? (mpcpRow ? mpcpRow[1] : null), tag: '', persona: null });
   });
 
+  // MPCP/persona only -- Matrix Reaction/Initiative moved to the Attributes panel (dvReaction/
+  // dvInit), alongside physical and rigged, since that's where a rigger's own Phys/Rig split
+  // already lives (see renderAttributes/reactionInit).
   const deckRowsHtml = rows.map(r => {
     const mpcp = Number(r.mpcp) || 0;
     // Prefer the deck's own as-built persona ratings; only fall back to the generic BEMS-by-MPCP
     // table (deckBems) for a bare gear.matrix line that never got a full spec in Deck Workshop.
     const bems = r.persona || (mpcp ? deckBems(mpcp) : null);
     const bemsStr = bems ? ` &middot; Bod ${bems[0]}/Eva ${bems[1]}/Mask ${bems[2]}/Sen ${bems[3]}` : '';
-    const head = `<div class="armor-slot-head">${esc(r.n)}${r.tag}</div><div class="ps-stat-row"><span class="k">MPCP</span><span class="v">${r.mpcp ?? '—'}${bemsStr}</span></div>`;
-    const matrixRow = r.matrix
-      ? `<div class="ps-stat-row"><span class="k">Matrix Reaction</span><span class="v">${r.matrix.matrixReaction}</span></div>
-         <div class="ps-stat-row"><span class="k">Matrix Initiative</span><span class="v">${r.matrix.initiativeDice}D6 + ${r.matrix.matrixReaction}</span></div>`
-      : '';
-    return `<div class="armor-slot-group">${head}${matrixRow}</div>`;
+    return `<div class="armor-slot-group"><div class="armor-slot-head">${esc(r.n)}${r.tag}</div><div class="ps-stat-row"><span class="k">MPCP</span><span class="v">${r.mpcp ?? '—'}${bemsStr}</span></div></div>`;
   }).join('');
 
   $('#matrixPanel').style.display = (rows.length || (DECK_WORKSHOP_PROGRAMS||[]).length) ? '' : 'none';
   $('#matrixList').innerHTML = deckRowsHtml + renderOwnedProgramsHtml();
 }
 // Attack's damage level (attackDamage 2-5) reads as a letter suffix on its rating, matching how
-// Deck Workshop's own loadout planner labels it (lpProgName/_DMG_LETTER).
+// Deck Workshop's own loadout planner labels it (lpProgName/_DMG_LETTER) -- e.g. "Attack-6S".
 const _PROGRAM_DMG_LETTER = { 2:'L', 3:'M', 4:'S', 5:'D' };
 const PROGRAM_CAT_ORDER = ['Operational', 'Offensive', 'Defensive', 'Special'];
 // Finished/owned software only (Deck Workshop's Software tab -- deck_builder_state.stores.
 // sr2_compiled_programs_v1), not in-progress compile jobs or pending fixer orders (those aren't
 // runnable yet). Collapsed to one entry per unique program at its highest owned rating (e.g. a
-// Sleaze-4 and a Sleaze-6 both on file show only Sleaze-6), grouped the same way Deck Workshop's
-// loadout planner categorizes utilities (LP_CAT in deck-workshop.html, via matrix-programs.js).
+// Sleaze-4 and a Sleaze-6 both on file show only Sleaze-6), laid out as a fixed 2x2 grid of
+// category cards (Operational/Offensive/Defensive/Special) matching Deck Workshop's own
+// categorization (LP_CAT in deck-workshop.html, via matrix-programs.js).
 function renderOwnedProgramsHtml(){
   const best = new Map();
   (DECK_WORKSHOP_PROGRAMS || []).forEach(p => {
@@ -1218,19 +1246,19 @@ function renderOwnedProgramsHtml(){
     if (!cur || rating > (Number(cur.baseRating) || 0)) best.set(key, p);
   });
   if (!best.size) return '';
-  const groups = {};
+  const groups = { Operational: [], Offensive: [], Defensive: [], Special: [] };
   best.forEach((p, key) => {
     const def = window.MatrixPrograms ? MatrixPrograms.get(key) : null;
-    const cat = (def && def.category) || 'Operational';
+    const cat = (def && groups[def.category]) ? def.category : 'Operational';
     const letter = (p.utilName === 'Attack' && _PROGRAM_DMG_LETTER[p.attackDamage]) || '';
-    (groups[cat] = groups[cat] || []).push({ n: (def && def.display) || p.utilName, r: p.baseRating, letter });
+    groups[cat].push(`${(def && def.display) || p.utilName}-${p.baseRating}${letter}`);
   });
-  const catsHtml = PROGRAM_CAT_ORDER.filter(cat => groups[cat] && groups[cat].length).map(cat => {
-    const progRows = groups[cat].sort((a,b) => a.n.localeCompare(b.n)).map(p =>
-      `<div class="ps-stat-row"><span class="k">${esc(p.n)}</span><span class="v">R${p.r}${p.letter}</span></div>`).join('');
-    return `<div class="armor-slot-head" style="font-size:.66rem;padding-top:6px;">${esc(cat)}</div>${progRows}`;
+  const cardsHtml = PROGRAM_CAT_ORDER.map(cat => {
+    const chips = groups[cat].sort((a,b) => a.localeCompare(b))
+      .map(label => `<span class="contact-tag ps-prog-chip">${esc(label)}</span>`).join('');
+    return `<div class="ps-prog-card"><div class="ps-prog-card__head">${esc(cat)}</div><div class="ps-prog-chips">${chips || '<span class="empty-state">None</span>'}</div></div>`;
   }).join('');
-  return `<div class="armor-slot-group"><div class="armor-slot-head">Programs</div>${catsHtml}</div>`;
+  return `<div class="armor-slot-head">Programs</div><div class="ps-prog-grid">${cardsHtml}</div>`;
 }
 
 // ---------------------------------------------------------------- weapons
