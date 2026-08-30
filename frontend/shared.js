@@ -681,6 +681,53 @@ function showPrompt(message, defaultVal = '', opts = {}) {
   });
 }
 
+/**
+ * Show a read-only reference popup -- a rules-lookup card (spell/power/etc. mechanics) rather than
+ * a data-entry dialog, so unlike showConfirm/showPrompt it has no Promise/result: just open, and the
+ * player closes it themselves (X, backdrop click, or Escape). Its own self-contained overlay, wider
+ * and taller than the confirm/prompt ones since reference text runs longer, with internal scrolling
+ * so a long spell/power entry never grows past the viewport.
+ * bodyHtml is trusted, pre-escaped markup the caller builds (mirrors gear-picker.js's inspector
+ * pattern of esc()-ing every dynamic field before assembling the block) -- never pass raw user input.
+ */
+function showInfoModal(title, bodyHtml) {
+  let overlay = document.getElementById('_sharedInfoOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = '_sharedInfoOverlay';
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '700';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-card);border:1px solid #1a2a1a;border-top:2px solid var(--cyan);
+                  padding:28px 32px;width:100%;max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px">
+          <div id="_sharedInfoTitle" style="font-size:.75rem;letter-spacing:2px;color:var(--cyan)"></div>
+          <button id="_sharedInfoClose" class="row-x" title="Close">&#10005;</button>
+        </div>
+        <div id="_sharedInfoBody" style="font-size:.8rem;color:var(--text-bright);line-height:1.6;overflow-y:auto"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('_sharedInfoTitle').textContent = title;
+  document.getElementById('_sharedInfoBody').innerHTML = bodyHtml;
+  const closeBtn = document.getElementById('_sharedInfoClose');
+  pausePoll();
+  overlay.style.display = 'flex';
+  function cleanup() {
+    resumePoll();
+    overlay.style.display = 'none';
+    closeBtn.removeEventListener('click', onClose);
+    overlay.removeEventListener('click', onBackdrop);
+    document.removeEventListener('keydown', onKey);
+  }
+  function onClose()     { cleanup(); }
+  function onBackdrop(e) { if (e.target === overlay) cleanup(); }
+  function onKey(e)      { if (e.key === 'Escape') cleanup(); }
+  closeBtn.addEventListener('click', onClose);
+  overlay.addEventListener('click', onBackdrop);
+  document.addEventListener('keydown', onKey);
+}
+
 
 // -- API fetch wrapper --------------------------------------------------------
 
@@ -909,6 +956,356 @@ function makeGearLine(item, catalogName, grade) {
   if (catalogName === 'vehicles') { line.body = vehicleStatBody(item); line.rigger = false; }
   return line;
 }
+
+// ---- Ownership/prerequisite battery -- shared by play-sheet.html's post-chargen purchaseGear()
+// and character-builder.html's chargen chargenBuyGear(), so both hosts enforce identical rules
+// instead of chargen silently drifting from (or lacking) what play-sheet already checks. Every
+// function here takes `gear` as an explicit argument (never a global CHAR/state), so either host
+// can call it against its own gear object.
+// Cybergun implants need a cyberarm to sit in -- SR2 allows at most one per arm (2 total),
+// and never more than the number of arm-slot Cyber Limbs actually owned.
+const CYBERGUN_NAMES = new Set(['Cybergun: Hold-Out Pistol','Cybergun: Light Pistol','Cybergun: Machine Pistol','Cybergun: SMG','Cybergun: Heavy Pistol','Cybergun: Shotgun']);
+function ownedCybergunCount(gear){ return ((gear.cyber)||[]).filter(g => CYBERGUN_NAMES.has(g.n)).length; }
+
+// ---- Ownership rules from the SR2 gear-quantity audit ----
+// Armor, Cyberware, and Bioware are singular installs by default (one body slot each) -- buying a
+// second copy of the identical catalog item is blocked. Weapons, Gear, Foci, Vehicles, and Matrix
+// have no default cap. The tables below carry the named exceptions from that audit.
+const SINGULAR_CATEGORIES = new Set(['armor','cyberware','bioware']);
+// name -> hard count cap for items allowed multiples with a flat limit. Infinity = the cap/dedup is
+// handled by bespoke logic elsewhere in purchaseGear (skillsofts, Reflex Recorder, Cybergun).
+const OWNERSHIP_CAP = {
+  'Ear Modification': 8,
+  'Fingertip Compartment': 3,
+  'Retractable Spur': 2,
+  'Spur': 2,
+  'Datasoft': Infinity,
+  'Activesoft (General)': Infinity, 'Activesoft (Concentration)': Infinity, 'Activesoft (Specialization)': Infinity,
+  'Knowsoft (General)': Infinity, 'Knowsoft (Concentration)': Infinity, 'Knowsoft (Specialization)': Infinity,
+  'Linguasoft': Infinity,
+  'Reflex Recorder (Concentration)': Infinity, 'Reflex Recorder (General)': Infinity,
+  'Cybergun: Hold-Out Pistol': Infinity, 'Cybergun: Light Pistol': Infinity, 'Cybergun: Machine Pistol': Infinity,
+  'Cybergun: SMG': Infinity, 'Cybergun: Heavy Pistol': Infinity, 'Cybergun: Shotgun': Infinity,
+};
+// Simple Replacement Limb and Cyber Limb occupy the same 4 limb slots (2 arms + 2 legs) and are
+// mutually exclusive per slot -- capped as a combined group. Each purchase is tagged with a specific
+// slot (Left/Right Arm/Leg -- play-sheet.html's assignLimbSlot prompts for it, character-builder.html
+// auto-assigns the first free one) so arm-only/leg-only prerequisites elsewhere can tell which is
+// which. Only a full Cyber Limb has "internal modification slots" per its own catalog text -- a
+// Simple Replacement Limb explicitly has none -- so arm/leg-specific PREREQ checks below only ever
+// count Cyber Limb, while the combined 4-slot cap counts both (they still occupy the same body slot).
+const LIMB_GROUP = new Set(['Simple Replacement Limb','Cyber Limb']);
+const LIMB_SLOTS = ['Left Arm','Right Arm','Left Leg','Right Leg'];
+function ownedLimbSlots(gear, onlyName){
+  return ((gear.cyber)||[]).filter(g => LIMB_GROUP.has(g.n) && (!onlyName || g.n === onlyName)).map(g => g.slot).filter(Boolean);
+}
+function ownedLimbGroupCount(gear){ return ownedLimbSlots(gear).length; }
+function ownedCyberLimbSlotCount(gear, kind){ return ownedLimbSlots(gear, 'Cyber Limb').filter(s => s.endsWith(kind)).length; }
+function ownedMagLimbSystemCount(gear){ return ((gear.cyber)||[]).filter(g => g.n === 'Magnetic Cyberlimb System').length; }
+
+// ---- Cyberware/bioware "families": same body slot spread across separate catalog rows per
+// level/rating-band (e.g. Boosted Reflexes Level 1/2/3). Buying a higher-ranked member of a family
+// you already own replaces the old line in place; buying an equal-or-lower one is blocked. See
+// familyReplaceOrBlock(). Order is ascending capability, not alphabetical.
+const FAMILY_GROUPS = {
+  cryptoCircuit: { bucket:'cyber', order: ['Crypto Circuit HD Level 1-4','Crypto Circuit HD Level 5-7','Crypto Circuit HD Level 8-9','Crypto Circuit HD Level 10'] },
+  scrambleBreaker: { bucket:'cyber', order: ['Scramble Breaker HD Level 1-4','Scramble Breaker HD Level 5-7','Scramble Breaker HD Level 8'] },
+  skillwirePlus: { bucket:'cyber', order: ['Skillwire Plus (R1-3)','Skillwire Plus (R4-6)','Skillwire Plus (R7-9)'] },
+  damageCompensator: { bucket:'bio', order: ['Damage Compensator (R1-2)','Damage Compensator (R3-5)','Damage Compensator (R6-9)'] },
+};
+const FAMILY_BY_NAME = new Map();
+Object.entries(FAMILY_GROUPS).forEach(([key, fam]) => fam.order.forEach((name, idx) => FAMILY_BY_NAME.set(name, { key, idx, bucket: fam.bucket })));
+function hasFamily(gear, key){
+  const fam = FAMILY_GROUPS[key];
+  return (gear[fam.bucket]||[]).some(g => { const f = FAMILY_BY_NAME.get(g.n); return f && f.key === key; });
+}
+// Mutates gear (removes the outclassed line) only when the purchase is allowed to proceed as an
+// upgrade. Returns a skip-reason string if blocked, else null.
+function familyReplaceOrBlock(item, gear){
+  const fam = FAMILY_BY_NAME.get(item.n);
+  if (!fam) return null;
+  const list = gear[fam.bucket] || [];
+  const owned = list.find(g => { const f = FAMILY_BY_NAME.get(g.n); return f && f.key === fam.key; });
+  if (!owned) return null;
+  if (fam.idx <= FAMILY_BY_NAME.get(owned.n).idx) return `${item.n} (already own ${owned.n})`;
+  gear[fam.bucket] = list.filter(g => g !== owned);
+  return null;
+}
+
+// ---- Base-item prerequisites and mutual exclusions, from the CSV's explicit "Requires X" /
+// "Blocks Y" / "incompatible with" notes only -- nothing inferred beyond what was written, except two
+// points confirmed directly with the user: Dermal Sheath L3 vs. Dermal Plating is bidirectional, and
+// Activesoft/Knowsoft's Softlink(+Skillwires) requirement is enforced even though the CSV review
+// itself didn't flag it (the catalog's own item text states it). Hydraulic Jack's cyberleg
+// requirement was found the same way (catalog text: "Must be installed in a cyberleg").
+function hasItem(gear, name){ return ((gear.cyber)||[]).some(g => g.n === name) || ((gear.bio)||[]).some(g => g.n === name); }
+// Cyberdecks live in gear.matrix (bucket "matrix", catalog cat:"deck"), not gear.cyber/gear.bio, so
+// hasItem() (scoped to cyber/bio only) can't see them -- a dedicated matrix-scanning check instead.
+function ownsCyberdeck(gear){ return ((gear.matrix)||[]).some(g => g.sub === 'Cyberdeck'); }
+const EYE_ITEMS = ['Rangefinder','Video Link','Optical Magnification','Electronic Magnification','Retinal Clock','Protective Covers','Eye Datajack','Optical Scanning Datajack','Optical Scanning Datajack Emitter','Eye Light System','BrightLight Addition','Eye Dart','Eye Gun','Laser Tracker','Tool Laser','Laser Designator'];
+const PREREQ = {
+  ...Object.fromEntries(EYE_ITEMS.map(n => [n, g => hasItem(g,'Cyber Eye Replacement')])),
+  'Tracking Mount': g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'External Mount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Smartlink': g => hasItem(g,'Display Link'),
+  'Reflex Trigger': g => hasItem(g,'Wired Reflexes'),
+  'Improved Hand Razors': g => hasItem(g,'Hand Razors') || hasItem(g,'Retractable Hand Razors'),
+  'BrightLight One-Shot Flash-pak': g => hasItem(g,'BrightLight Addition'),
+  'Video Link Internal Transmitter': g => hasItem(g,'Video Link'),
+  'Video Link External Transmitter': g => hasItem(g,'Video Link'),
+  'Video Link External Recorder': g => hasItem(g,'Video Link'),
+  'Hearing Amplification': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Spatial Recognizer': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Balance Augmenter': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
+  'Sense Link Internal Transmitter': g => hasItem(g,'Sense Link'),
+  'Sense Link Receiver': g => hasItem(g,'Sense Link'),
+  'Sense Link External Transmitter': g => hasItem(g,'Sense Link'),
+  'Sense Link External Recorder': g => hasItem(g,'Sense Link'),
+  'Dermal Plating': g => hasItem(g,'Cybertorso'),
+  'Dermal Sheath': g => hasItem(g,'Cybertorso'),
+  'Body Plating: Soft Armor (per level)': g => hasItem(g,'Cybertorso'),
+  'Body Plating: Hard Armor (per level)': g => hasItem(g,'Cybertorso'),
+  'Cyberarm Gyromount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Hand Blade (Retractable)': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Shock Hand': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Cyberarm Taser': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'CyberSquirt': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Cyber Limb — Built-In Smartlink': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
+  'Foot Anchor': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Hydraulic Jack': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Orientation System': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Cyber Limb — Built-In Device': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
+  'Reaction Enhancer': g => hasItem(g,'Wired Reflexes'),
+  'Activesoft (General)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Activesoft (Concentration)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Activesoft (Specialization)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
+  'Knowsoft (General)': g => hasItem(g,'Softlink'),
+  'Knowsoft (Concentration)': g => hasItem(g,'Softlink'),
+  'Knowsoft (Specialization)': g => hasItem(g,'Softlink'),
+  'Linguasoft': g => hasItem(g,'Softlink'),
+};
+const EXCLUDES = {
+  'Boosted Reflexes': g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes'),
+  'Vehicle Control Rig': g => hasItem(g,'Boosted Reflexes'),
+  'Wired Reflexes': g => hasItem(g,'Boosted Reflexes'),
+  'Reaction Enhancer': g => hasItem(g,'Move-by-Wire System'),
+  'Dermal Plating': g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3),
+  'Trauma Damper': g => hasItem(g,'Pain Editor'),
+  'Pain Editor': g => hasItem(g,'Trauma Damper'),
+};
+// Shared duplicate-purchase check for "same item, different configuration is fine" cases (skillsoft
+// chip, reflex recorder, Kit/Shop/Facility type, focus target, Power Focus rating) -- true if
+// gear[bucket] already owns `name` with every [field, value, mode] tuple matching: 'ci' compares
+// strings case-insensitively, 'num' compares numerically, anything else is a strict ===.
+function dupeCheck(gear, bucket, name, checks){
+  return (gear[bucket] || []).some(g => g.n === name && checks.every(([field, value, mode]) => {
+    if (mode === 'ci') return String(g[field] || '').toLowerCase() === String(value || '').toLowerCase();
+    if (mode === 'num') return Number(g[field]) === Number(value);
+    return g[field] === value;
+  }));
+}
+function hasItemAtRating(gear, name, minR){
+  return ((gear.cyber)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR) ||
+         ((gear.bio)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR);
+}
+function hasOrthoskinAtRating(gear, minR){ return hasItemAtRating(gear, 'Orthoskin', minR); }
+// Orthoskin and Dermal Sheath only become incompatible with Dermal Plating at Rating 3 specifically
+// (their own catalog text) -- not a plain EXCLUDES entry since the trigger is rating-conditional, not
+// "owned at all". Checked both on a fresh purchase (ownershipBlocked) and an in-place upgrade
+// (play-sheet.html's upgradeExistingSingular), same as every other rating change now that both go
+// through re-buying.
+// A rank-specific mutual exclusion: raising `itemName` to `targetRating` (>= minRating) is blocked
+// if `excludesName` is already owned (any rating). Mirrors EXCLUDES' opposite-direction check
+// (Dermal Plating -> hasItemAtRating(Dermal Sheath/Orthoskin, 3)) for the other two items in this
+// three-way exclusion.
+function ratingExclusionBlocked(itemName, targetRating, minRating, excludesName, gear){
+  return targetRating >= minRating && hasItem(gear, excludesName) ? `${itemName} R${minRating} (incompatible with ${excludesName})` : null;
+}
+function orthoskinRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Orthoskin', targetRating, 3, 'Dermal Plating', gear); }
+function dermalSheathRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Dermal Sheath', targetRating, 3, 'Dermal Plating', gear); }
+// Combines the default-singular/quantity-cap rules with the prerequisite/exclusion tables above.
+// PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
+// family member AND excludes the VCR family) -- only the *default-singular quantity cap* is skipped
+// for family members, since familyReplaceOrBlock (called separately) governs their ownership count.
+function ownershipBlocked(cat, item, gear, rating){
+  if (item.n === 'Orthoskin') {
+    const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
+    if (orthoBlock) return orthoBlock;
+  }
+  if (item.n === 'Dermal Sheath') {
+    const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
+    if (sheathBlock) return sheathBlock;
+  }
+  // Cyberdeck Component (Hitcher Jacks, Vidscreen Display, ...) needs an owned Cyberdeck to plug
+  // into -- matched by `sub`, not by name, so any future catalog addition is covered automatically
+  // (same bespoke-check style as the Cybergun-needs-a-cyberarm rule below, rather than a PREREQ
+  // entry, since PREREQ's hasItem() can't see gear.matrix at all).
+  if (item.sub === 'Cyberdeck Component' && !ownsCyberdeck(gear)) return `${item.n} (needs an owned Cyberdeck)`;
+  const prereq = PREREQ[item.n];
+  if (prereq && !prereq(gear)) return `${item.n} (prerequisite not met)`;
+  const excl = EXCLUDES[item.n];
+  if (excl && excl(gear)) return `${item.n} (blocked by an incompatible item already installed)`;
+  if (FAMILY_BY_NAME.has(item.n)) return null;
+  if (LIMB_GROUP.has(item.n)) {
+    return ownedLimbGroupCount(gear) >= 4 ? `${item.n} (max 4 limbs)` : null;
+  }
+  if (item.n === 'Magnetic Cyberlimb System') {
+    const limbs = ownedLimbGroupCount(gear);
+    if (limbs === 0) return `${item.n} (needs a Cyber Limb or Simple Replacement Limb)`;
+    const cap = Math.min(4, limbs);
+    return ownedMagLimbSystemCount(gear) >= cap ? `${item.n} (max ${cap} for your limbs)` : null;
+  }
+  if (!SINGULAR_CATEGORIES.has(cat)) return null;
+  const cap = OWNERSHIP_CAP[item.n];
+  if (cap === Infinity) return null;   // dedup/cap handled by bespoke logic below
+  const bucket = GEAR_BUCKET[cat] || cat;
+  const owned = gear[bucket] || [];
+  if (cap === undefined) return owned.some(g => g.n === item.n) ? `${item.n} (already owned)` : null;
+  return owned.filter(g => g.n === item.n).length >= cap ? `${item.n} (max ${cap})` : null;
+}
+
+// SR2 spell shorthand decoded to plain English -- shared by play-sheet.html's spell/power info
+// popup (openSpellInfo) and character-builder.html's chargen spell browser (spellStatChips), so a
+// player sees "Mana"/"Line of Sight"/"Sustained" in both places rather than a bare "M"/"LOS"/"S"
+// only someone who already knows the rules can decode.
+const SPELL_TYPE_LABEL = { M: 'Mana', P: 'Physical' };
+const SPELL_RANGE_LABEL = { T: 'Touch', LOS: 'Line of Sight', Self: 'Self' };
+const SPELL_DURATION_LABEL = { I: 'Instant', S: 'Sustained', P: 'Permanent' };
+// Spell-learning nuyen cost by drain category (not karma). Availability = Force/acquisition time.
+// Required test (Sorcery, TN = Force x2) is reference-only -- the app never rolls it. Shared by
+// play-sheet.html's Manage Magic (Learn a Spell pricing) and the spell info popup's Drain line.
+const SPELL_DRAIN_TABLE = {
+  L: { label: 'Light',    nuyenPerForce: 50,   hours: 24 },
+  M: { label: 'Moderate', nuyenPerForce: 100,  hours: 48 },
+  S: { label: 'Serious',  nuyenPerForce: 500,  hours: 72 },
+  D: { label: 'Deadly',   nuyenPerForce: 1000, days: 7 },
+};
+function spellDrainCode(spell){
+  const m = /([LMSD])\s*$/.exec((spell && spell.drn) || '');
+  return m ? m[1] : null;
+}
+function spellCostInfo(spell, force){
+  const tier = SPELL_DRAIN_TABLE[spellDrainCode(spell)];
+  if (!tier) return null;
+  const f = Math.max(1, Number(force) || 1);
+  const time = tier.days ? `${tier.days} day${tier.days === 1 ? '' : 's'}` : `${tier.hours} hours`;
+  return { label: tier.label, force: f, nuyen: tier.nuyenPerForce * f, avail: `${f}/${time}`, tn: f * 2 };
+}
+// ---- Spell/power reference popup body-builders (showInfoModal) -- shared by play-sheet.html's
+// openSpellInfo/openPowerInfo (owned = a CHAR.spells/.adept_powers line) and character-builder.html's
+// chargenOpenSpellInfo/chargenOpenPowerInfo (owned = a state.spells/.powers line, same {name,force}/
+// {name,lvl} shape) so the actual HTML only needs to exist once. `sp`/`pw` is the raw catalog item
+// (desc/effect/target/etc. already in plain English -- this just surfaces it instead of leaving it
+// locked in JSON only an admin token could read); `owned` is optional (omit to preview an
+// unowned/not-yet-bought item, e.g. before buying a spell post-chargen).
+function statRow(label, value){ return value ? `<div class="ps-stat-row"><span class="k">${esc(label)}</span><span class="v">${value}</span></div>` : ''; }
+function spellInfoBody(sp, owned){
+  if (!sp) return '<p class="empty-state">No catalog data for this spell.</p>';
+  const info = owned ? spellCostInfo(sp, owned.force) : null;
+  const effectList = (sp.effect || []).map(e => `<li>${esc(String(e))}</li>`).join('');
+  return [
+    owned ? statRow('Force (cast)', esc(String(owned.force ?? '—'))) : '',
+    statRow('Category', esc(sp.cat || '—')),
+    statRow('Type', esc(SPELL_TYPE_LABEL[sp.typ] || sp.typ || '—')),
+    statRow('Range', esc(SPELL_RANGE_LABEL[sp.rng] || sp.rng || '—')),
+    statRow('Duration', esc(SPELL_DURATION_LABEL[sp.dur] || sp.dur || '—')),
+    statRow('Target', esc(sp.target || '—')),
+    statRow('Area', esc(sp.area || '—')),
+    statRow('Damage', sp.dmg ? esc(sp.dmg) : ''),
+    statRow('Drain', `${esc(sp.drn || '—')}${info ? ` — <b>${esc(info.label)}</b> (Sorcery TN ${info.tn})` : (spellDrainCode(sp) ? ` — <b>${esc(SPELL_DRAIN_TABLE[spellDrainCode(sp)].label)}</b>` : '')}`),
+    sp.desc ? `<p class="dim-meta mt-6">${esc(sp.desc)}</p>` : '',
+    effectList ? `<ul class="mt-6" style="padding-left:18px">${effectList}</ul>` : '',
+    `<p class="dim-meta mt-6">${esc(sp.src || '')}${sp.pg ? ` p.${esc(String(sp.pg))}` : ''}</p>`,
+  ].join('');
+}
+function powerInfoBody(pw, owned){
+  if (!pw) return '<p class="empty-state">No catalog data for this power.</p>';
+  const effectList = (pw.effect || []).map(e => `<li>${esc(String(e))}</li>`).join('');
+  return [
+    owned && pw.rated ? statRow('Level', esc(String(owned.lvl ?? 1))) : '',
+    statRow('Cost', pw.pp ? esc(String(pw.pp)) + ' PP' : ''),
+    statRow('Activation', esc(pw.act || '—')),
+    pw.tiers ? statRow('Tiers', esc(pw.tiers)) : '',
+    pw.desc ? `<p class="dim-meta mt-6">${esc(pw.desc)}</p>` : '',
+    effectList ? `<ul class="mt-6" style="padding-left:18px">${effectList}</ul>` : '',
+    `<p class="dim-meta mt-6">${esc(pw.src || '')}${pw.pg ? ` p.${esc(String(pw.pg))}` : ''}</p>`,
+  ].join('');
+}
+
+// ---- Situational bonuses too narrow/one-off to model as a first-class field -- CSV said to note
+// them on the character instead. Shared by play-sheet.html's appendCharNote (writes CHAR.notes) and
+// character-builder.html's chargenAppendNote (writes state.notes) -- each host supplies its own
+// dedup/append wrapper since they write to different places, but the lookup table of what to say is
+// identical either way.
+const SITUATIONAL_NOTES = {
+  'Olfactory Booster': g => `Olfactory Booster R${g.rating||1}: +1 die to smell Perception per level, +1 die to taste per 3 levels.`,
+  'Hydraulic Jack': g => `Hydraulic Jack R${g.rating||1}: leaping distance/height x${g.rating||1}; falling-damage Power -${g.rating||1}.`,
+  'Damage Compensator (R1-2)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  'Damage Compensator (R3-5)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  'Damage Compensator (R6-9)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  // Just a note, not a mechanical piece of code -- both the actual damage-shifting effect and the
+  // Damage-Compensator-threshold gate would need condition-monitor logic that doesn't exist yet.
+  'Trauma Damper': () => `Trauma Damper: shifts one box of Physical damage to Stun instead, but only once an owned Damage Compensator's threshold has been exceeded (no effect without one). +2 TN to others' attempts to cause you pain. Incompatible with a Pain Editor.`,
+  // Cyberware that's meant to grant a Weapons-table entry -- not auto-added there, just noted with
+  // what it grants so it can be tracked by hand.
+  'Hand Blade (Retractable)': () => `Hand Blade (Retractable): melee weapon, Reach 0, Damage (STR+3)L. Retracts into the limb when not in use.`,
+  'Shock Hand': () => `Shock Hand: melee weapon, Reach 0, Damage 8S. Recharges between uses -- one strike per recharge.`,
+  'Cyberarm Taser': () => `Cyberarm Taser: ranged weapon, Damage 8S. 10 charges before reload.`,
+  'CyberSquirt': () => `CyberSquirt: ranged chemical injector, 10 shots of a chosen chemical/biological agent. Rigid armor reduces effect.`,
+  'Cyberarm Gyromount': () => `Cyberarm Gyromount: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+  'Toxin Extractor': g => `Toxin Extractor R${g.rating||1}: reduces blood-toxin attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Pathogenic Defense': g => `Pathogenic Defense R${g.rating||1}: +${g.rating||1} die resisting disease/allergens; reduces microbiological attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Nephritic Screen': () => `Nephritic Screen: +1 Body resisting toxins/pathogens; reduces blood-vectored toxin attack Power by 1.`,
+  'Extended Volume': g => `Extended Volume R${g.rating||1}: +${[0,45,90,135][g.rating||1]||45}s breath-hold${(g.rating||1)>=3 ? ' (small stamina penalty at R3)' : ''}.`,
+  // Activated/temporary, not a permanent mod -- applying it as an always-on attribute bonus would be
+  // wrong (it only applies for 10-15 turns, then costs Stun Drain and fatigue).
+  'Adrenal Pump': g => `Adrenal Pump R${g.rating||1}: on activation, ${g.rating===2?'+2 Quickness/+2 Strength/+1 Willpower/+4 Reaction':'+1 Quickness/+1 Strength/+1 Willpower/+2 Reaction'} for 10-15 turns, then Stun Drain and fatigue.`,
+  // Knowledge/Language skills aren't tracked as a structured list on this sheet yet, so this bonus
+  // has nowhere to attach -- noted instead of silently dropped.
+  'Mnemonic Enhancer': g => `Mnemonic Enhancer R${g.rating||1}: +${Math.floor((g.rating||1)/2)} die to Knowledge/Language tests; -${g.rating||1} TN to recall tests.`,
+  // Ballistic/Impact are wired into the Armor total (bioArmorBonus). The Body bonus described here is
+  // specifically "for damage resistance tests," not a real Body attribute increase (unlike Cybertorso/
+  // Cyberskull's flat +1 Body, which is a genuine structural replacement) -- noted rather than modeled
+  // as a global attribute change that would also skew Encumbrance/karma costs.
+  'Dermal Sheath': g => `Dermal Sheath R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
+  'Dermal Plating': g => `Dermal Plating R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
+  'Bone Lacing': g => `Bone Lacing R${g.rating||1} (${['Plastic','Aluminum','Titanium'][(g.rating||1)-1]||'Plastic'}): Unarmed Blow does (STR+${g.rating||1})M.`,
+  'Orthoskin': g => (g.rating||1) >= 3 ? `Orthoskin R3: +TN to tactile Perception.` : '',
+  // Weapon-granting cyberware not auto-added to the Weapons table (same treatment as Hand Blade/Shock
+  // Hand/Cyberarm Taser/CyberSquirt above) -- noted with what it grants instead.
+  'Hand Razors': () => `Hand Razors: Unarmed melee weapon, cyber-claws.`,
+  'Retractable Hand Razors': () => `Retractable Hand Razors: Unarmed melee weapon, cyber-claws (concealable, retracts when not in use).`,
+  'Improved Hand Razors': () => `Improved Hand Razors: Unarmed melee weapon, Damage (STR+2).`,
+  'Spur': () => `Spur: melee weapon, Damage (STR+2), always extended.`,
+  'Retractable Spur': () => `Retractable Spur: melee weapon, Damage (STR+2), retracts when not in use.`,
+  'Oral Dart': () => `Oral Dart: ranged narcoject/toxin injector, 3 rounds, reload 1 min/dart, ammo x3 cost.`,
+  'Oral Gun': () => `Oral Gun: ranged weapon, 4 rounds, reload 1 min/round, ammo x3 cost.`,
+  'Oral Spur': () => `Oral Spur: melee weapon (tongue-mounted), extends/retracts as a free action.`,
+  'Oral Whip': () => `Oral Whip: ranged melee weapon, Range 1m, Damage 6M.`,
+  'Eye Dart': () => `Eye Dart: ranged narcoject/toxin injector, 1 round, reloads in 10 Combat Turns, ammo x3 cost.`,
+  'Eye Gun': () => `Eye Gun: ranged weapon, 1 round (-1 damage, -1 recoil mod), reloads in 10 Combat Turns.`,
+  'Tool Laser': () => `Tool Laser: Damage Code 4L beyond 1m; can't pierce Barrier Rating > 8.`,
+  'Toxin Exhaler': () => `Toxin Exhaler: ranged toxin injector (Quickness Test to hit, +1 TN per half-meter, range capped at half unaugmented Body in meters).`,
+  // Implanted lethal/self-destruct devices -- severe, non-obvious effects worth flagging clearly.
+  'Kink Bomb': () => `Kink Bomb (Illegal): kills the wearer outright on detonation; can cause permanent neurological damage if it fails to kill.`,
+  'Microbomb': () => `Microbomb: kills wearer and destroys identifying tissue, Power 8 Damage Level M blast.`,
+  'Area Bomb': () => `Area Bomb: Power 10 Damage Level M blast beyond the wearer, -1 Power per meter of distance.`,
+  'Cortex Bomb (Illegal)': () => `Cortex Bomb (Illegal): lethal explosive in a 1m radius, remote/signal/condition-triggered.`,
+  // Resistance-test bonuses that have nowhere to attach (no toxin/pathogen/gas-attack mechanic on this
+  // sheet) -- same treatment as Toxin Extractor/Pathogenic Defense/Nephritic Screen above.
+  'Air Filtration': g => `Air Filtration R${g.rating||1}: opposes inhaled toxins with Rating ${g.rating||1}.`,
+  'Blood Filtration': g => `Blood Filtration R${g.rating||1}: opposes blood-borne toxins with Rating ${g.rating||1}.`,
+  'Ingested Toxin Filtration': g => `Ingested Toxin Filtration R${g.rating||1}: opposes ingested toxins with Rating ${g.rating||1}.`,
+  'Tracheal Filter': g => `Tracheal Filter R${g.rating||1}: reduces gas/airborne attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Platelet Factory': () => `Platelet Factory: forces a clot against embolism/serious blood loss once daily; +1 TN to Body Tests per use (cumulative thrombosis risk).`,
+  'Symbiotes': g => `Symbiotes R${g.rating||1}: heals in ${[90,70,50][(g.rating||1)-1]||90}% normal time${(g.rating||1)>=2 ? `; +${(g.rating||1)===2?50:100}% food intake` : ''}.`,
+  'Suprathyroid Gland': () => `Suprathyroid Gland: requires roughly triple normal food/drink intake; tendency toward hyperactivity.`,
+  // The -2 TN bonus has nowhere to attach (no attack-TN mechanic on this sheet); the Display Link
+  // prerequisite is enforced separately in PREREQ.
+  'Smartlink': () => `Smartlink: -2 TN on smartgun-equipped weapons.`,
+  'External Mount': () => `External Mount: weapon mount, triple ammo cost for the external feed.`,
+  'Articulate Arm': () => `Articulate Arm: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+};
 
 // Current nuyen cost of an owned gear line (rated weapons/armor/gear use their rating's costTbl slot).
 // Rating is clamped into [1, maxRating] before indexing costTbl -- defends against a corrupted or
