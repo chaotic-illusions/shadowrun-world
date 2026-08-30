@@ -970,6 +970,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .oc-cult          { border-left-color: #66aa44 !important; }
 .oc-fixer_network { border-left-color: var(--green) !important; }
 .oc-other         { border-left-color: var(--gold) !important; }
+/* Room for the admin-only active-toggle button so it doesn't overlap the tier badge in
+   the top-right corner (both sit in that same corner otherwise -- see .card-active-btn). */
+.org-card--has-toggle .oc-head { margin-top: 14px; }
 .org-card:hover           { border-color: #1f1f1f; border-left-color: inherit; }
 .oc-megacorp:hover        { border-color: var(--amber); }
 .oc-government:hover      { border-color: #5566aa; }
