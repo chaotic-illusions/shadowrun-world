@@ -15,6 +15,11 @@ from app.auth.dependencies import get_admin_token, get_any_token
 router = APIRouter()
 
 
+def _is_privileged_view(ctx: dict) -> bool:
+    """True only for a real admin NOT previewing runner view -- the full-data audience."""
+    return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
+
+
 def _serialize_org(org: Organization, auth: dict) -> dict:
     """Serialize an org for a GET response, redacting decker-only secrets for non-admins.
 
@@ -27,7 +32,7 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
     admin in admin view always gets the full data.
     """
     data = OrganizationRead.model_validate(org, from_attributes=True).model_dump()
-    if auth.get("is_admin") and not auth.get("view_as_player"):
+    if _is_privileged_view(auth):
         return data
     data["notes"] = None
     data["ally_ids"] = list(data.get("revealed_ally_ids") or [])
@@ -79,6 +84,9 @@ async def list_organizations(
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Organization)
+    if not _is_privileged_view(auth):
+        # Undiscovered/dissolved orgs are GM-concealed; never ship them to players.
+        q = q.where(Organization.is_active == True)  # noqa: E712
     if org_type:
         q = q.where(Organization.org_type == org_type)
     if is_active is not None:
@@ -107,6 +115,9 @@ async def get_organization(
     db: AsyncSession = Depends(get_db),
 ):
     org = await get_or_404(db, Organization, org_id)
+    # Undiscovered orgs are GM-concealed -- hide existence from players (404, not 403).
+    if org.is_active is False and not _is_privileged_view(auth):
+        raise HTTPException(status_code=404, detail="Organization not found")
     return _serialize_org(org, auth)
 
 

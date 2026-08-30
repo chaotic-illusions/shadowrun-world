@@ -9,6 +9,7 @@ class LocationBase(BaseModel):
     district: Optional[str] = Field(default=None, max_length=100)
     description: Optional[str] = None
     security_level: Optional[str] = Field(default=None, max_length=50)
+    is_active: bool = True
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
 
@@ -26,6 +27,7 @@ class LocationUpdate(BaseModel):
     district: Optional[str] = Field(default=None, max_length=100)
     description: Optional[str] = None
     security_level: Optional[str] = Field(default=None, max_length=50)
+    is_active: Optional[bool] = None
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
 
@@ -41,4 +43,5 @@ class LocationSummary(BaseModel):
     location_type: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
+    is_active: bool
     model_config = ConfigDict(from_attributes=True)

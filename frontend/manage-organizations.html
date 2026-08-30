@@ -740,6 +740,13 @@ async function unlinkOrgRunner(charId, orgId) {
 let allOrgsForTable = [];
 let _lastOrgsHtml = null;
 
+async function toggleOrgRow(id, isActive) {
+  await apiFetch(`${API}/organizations/${id}`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({is_active: isActive}),
+  });
+  await loadOrgs();
+}
+
 function applyFilter() {
   const search     = document.getElementById('filterInput').value.toLowerCase();
   const typeFilter = document.getElementById('filterType').value;
@@ -777,7 +784,7 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '--')}</td>
             <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span class="text-dim">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '--')}</td>
-            ${adminMode ? `<td><span style="font-size:0.7rem;letter-spacing:1.5px;color:${o.is_active?'var(--green)':'var(--text-dim)'}">${o.is_active?'ACTIVE':'INACTIVE'}</span></td>` : ''}
+            ${adminMode ? `<td><label class="mh-reveal" data-tip="${o.is_active ? 'Mark inactive' : 'Mark active'}"><input type="checkbox" class="chk-reveal" ${o.is_active ? 'checked' : ''} onchange="toggleOrgRow(${o.id}, this.checked)"></label></td>` : ''}
             <td class="td-act">
               ${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${o.id})">Edit</button>` : ''}
             </td>

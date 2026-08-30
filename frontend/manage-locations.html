@@ -36,6 +36,13 @@
       <select id="filterType" onchange="applyFilter()" style="width:160px">
         <option value="">All Types</option>
       </select>
+      <span id="filterStatusWrap">
+        <select id="filterStatus" onchange="applyFilter()" style="width:120px">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </span>
     </div>
     <button class="btn btn-green gm-only mob-hide" onclick="openModal()">+ New Location</button>
   </div>
@@ -217,6 +224,7 @@ function renderTable(data) {
   if (!data.length) {
     newHtml = '<div class="loading">No locations found</div>';
   } else {
+  const adminMode = isAdminMode();
   newHtml = `
     <table class="manage-table">
       <thead>
@@ -226,6 +234,7 @@ function renderTable(data) {
           <th>City / District</th>
           <th>Security</th>
           <th>Controlling Org</th>
+          ${adminMode ? '<th>Active</th>' : ''}
           <th class="td-act"></th>
         </tr>
       </thead>
@@ -237,7 +246,8 @@ function renderTable(data) {
             <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '--'}</td>
             <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'--')}</td>
             <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'--')}</td>
-            <td class="td-act">${isAdminMode() ? `<button class="btn btn-amber btn-sm" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
+            ${adminMode ? `<td><label class="mh-reveal" data-tip="${l.is_active ? 'Mark undiscovered/inactive' : 'Mark discovered/active'}"><input type="checkbox" class="chk-reveal" ${l.is_active ? 'checked' : ''} onchange="toggleLocRow(${l.id}, this.checked)"></label></td>` : ''}
+            <td class="td-act">${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -250,11 +260,21 @@ function renderTable(data) {
 function applyFilter() {
   const q = document.getElementById('filterInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
+  const statusFilter = document.getElementById('filterStatus').value;
   const filtered = allLocs.filter(l =>
     (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q) || (l.district||'').toLowerCase().includes(q)) &&
-    (!t || l.location_type === t)
+    (!t || l.location_type === t) &&
+    !(statusFilter === 'active'   && !l.is_active) &&
+    !(statusFilter === 'inactive' &&  l.is_active)
   );
   renderTable(filtered);
+}
+
+async function toggleLocRow(id, isActive) {
+  await apiFetch(`${API}/locations/${id}`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({is_active: isActive}),
+  });
+  await loadAll();
 }
 
 // -- Modal -----------------------------------------------------
@@ -381,7 +401,15 @@ async function loadAll() {
   }
 }
 
-bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });
+bootstrapAuth().then(u => {
+  if (!u) return;
+  if (!isAdminMode()) {
+    document.getElementById('filterStatus').value = 'active';
+    document.getElementById('filterStatusWrap').style.display = 'none';
+  }
+  loadAll();
+  startPolling(loadAll);
+});
 </script>
 <script src="ambiance.js"></script>
 <script>

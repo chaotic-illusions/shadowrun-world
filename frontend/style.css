@@ -1025,6 +1025,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-left: 3px solid var(--cyan);
   padding: 13px 15px;
   transition: border-color .2s;
+  position: relative;
 }
 .loc-card:hover { border-color: var(--cyan); }
 .lc-name { font-family: var(--font-display); font-size: var(--fs-xl); color: var(--cyan); text-shadow: var(--glow-cyan); margin-bottom: 3px; }

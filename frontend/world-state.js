@@ -177,14 +177,30 @@ function ratingClass(r) {
 }
 
 // -- Card Builders ---------------------------------------------
+async function toggleOrgActive(orgId, isActive) {
+  await apiFetch(`${API}/organizations/${orgId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({is_active: !isActive})
+  });
+  loadAll();
+}
+
 function buildOrgCard(org, orgMap) {
   const allyIds  = isAdminMode() ? (org.ally_ids  || []) : (org.revealed_ally_ids  || []);
   const enemyIds = isAdminMode() ? (org.enemy_ids || []) : (org.revealed_enemy_ids || []);
   const allies  = allyIds.map(id => orgMap[id]?.name).filter(Boolean);
   const enemies = enemyIds.map(id => orgMap[id]?.name).filter(Boolean);
   const longDesc = org.description && org.description.length > 160;
+  const isActive = org.is_active !== false;
+  const toggleBtn = isAdminMode()
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleOrgActive(${org.id},${isActive})" data-tip="${isActive ? 'Mark inactive' : 'Mark active'}">${isActive ? '* active' : 'o activate'}</button>`
+    : '';
+  const overlay = !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   return `
     <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" class="clickable" data-tip="Click to edit">
+      ${toggleBtn}
+      ${overlay}
       <div class="oc-head">
         <div class="oc-name">${esc(org.name)}</div>
         <div class="oc-tier">TIER ${org.tier} // ${tierLabel(org.tier)}</div>
@@ -707,11 +723,27 @@ function toggleLocDesc(id) {
   if (btn) btn.textContent = expandedLocs[id] ? '[ collapse ]' : '[ expand ]';
 }
 
+async function toggleLocActive(locId, isActive) {
+  await apiFetch(`${API}/locations/${locId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({is_active: !isActive})
+  });
+  loadAll();
+}
+
 function buildLocCard(loc, orgMap) {
   const ctrl = loc.controlling_org_id ? orgMap[loc.controlling_org_id]?.name : null;
   const longDesc = loc.description && loc.description.length > 100;
+  const isActive = loc.is_active !== false;
+  const toggleBtn = isAdminMode()
+    ? `<button class="card-active-btn ${isActive ? '' : 'card-inactive-btn'}" onclick="event.stopPropagation();toggleLocActive(${loc.id},${isActive})" data-tip="${isActive ? 'Mark undiscovered' : 'Mark discovered'}">${isActive ? '* active' : 'o activate'}</button>`
+    : '';
+  const overlay = !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   return `
     <div class="loc-card" onclick="openLocEditModal(${loc.id})" class="clickable" data-tip="View location">
+      ${toggleBtn}
+      ${overlay}
       <div class="lc-name">${esc(loc.name)}</div>
       <div class="lc-type">${esc(loc.location_type || 'unknown')}</div>
       ${ctrl ? `<div class="lc-ctrl">${esc(ctrl)}</div>` : ''}
@@ -2160,7 +2192,9 @@ async function loadAll() {
         'manage-characters.html');
 
     // -- 4. Organizations (collapsed) -------------------------
-    const activeOrgs = orgs.filter(o => o.is_active);
+    // Admins see all orgs (inactive ones get the toggle + overlay on their card);
+    // players only ever receive active orgs from the API, but filter defensively too.
+    const activeOrgs = orgs.filter(o => isAdminMode() || o.is_active);
     const byGroup = {};
     activeOrgs.forEach(o => {
       const g = TYPE_GROUP[o.org_type] || 'other';
