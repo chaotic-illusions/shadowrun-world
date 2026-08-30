@@ -251,6 +251,12 @@ body {
 .text-cyan   { color: var(--cyan); }
 .text-green  { color: var(--green); }
 .text-amber  { color: var(--amber); }
+
+/* Clickable name that opens a read-only reference popup (showInfoModal) -- spell/power rows on
+   play-sheet.html so far. Underline only on hover so a table of these doesn't read as a wall of
+   links. */
+.info-link { color: var(--cyan); text-decoration: none; cursor: pointer; }
+.info-link:hover { text-decoration: underline; }
 .text-red    { color: var(--red); }
 .text-blue   { color: var(--blue); }
 .text-purple { color: var(--purple); }
