@@ -28,14 +28,14 @@ from app.services.host_visibility import sync_host_security_to_org
 
 # -- helpers ---------------------------------------------------------------
 
-def _org_obj(ltgs, org_id=1):
+def _org_obj(ltgs, org_id=1, is_active=True, name="Ares Macrotechnology"):
     """A minimal object exposing every OrganizationRead field for model_validate."""
     return SimpleNamespace(
-        id=org_id, name="Ares Macrotechnology", org_type="megacorp", tier=5,
+        id=org_id, name=name, org_type="megacorp", tier=5,
         description=None, headquarters=None, leadership=[],
         ltgs=ltgs, ally_ids=[], enemy_ids=[],
         revealed_ally_ids=[], revealed_enemy_ids=[],
-        is_active=True, notes=None,
+        is_active=is_active, notes=None,
     )
 
 
@@ -229,6 +229,56 @@ def test_ltg_catalog_admin_runner_view_hides_unrevealed_rating():
     ])
     entries = asyncio.run(ltg_catalog(auth=_ADMIN_PREVIEW, db=_FakeDB([org])))
     assert entries[0]["san_access_rating"] == ""
+
+
+# -- ltg_catalog org concealment (is_active) and unlisted-entry redaction -
+# A GM-concealed org (is_active=False) must never leak its name/address via the catalog, and
+# an unlisted/black-disposition entry must be redacted the same way organizations._serialize_org
+# already redacts it on the org-card payload.
+
+def test_ltg_catalog_hides_inactive_org_from_player():
+    org = _org_obj([
+        {"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+         "san_access_rating": "Orange-4", "visibility": "listed"},
+    ], is_active=False, name="Shigeda-gumi")
+    entries = asyncio.run(ltg_catalog(auth=_PLAYER, db=_FakeDB([org])))
+    assert entries == []
+
+
+def test_ltg_catalog_admin_sees_inactive_org():
+    org = _org_obj([
+        {"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+         "san_access_rating": "Orange-4", "visibility": "listed"},
+    ], is_active=False, name="Shigeda-gumi")
+    entries = asyncio.run(ltg_catalog(auth=_ADMIN, db=_FakeDB([org])))
+    assert entries[0]["org_name"] == "Shigeda-gumi"
+
+
+def test_ltg_catalog_hides_unlisted_entry_from_player():
+    org = _org_obj([
+        {"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+         "san_access_rating": "Red-9", "visibility": "unlisted"},
+    ])
+    entries = asyncio.run(ltg_catalog(auth=_PLAYER, db=_FakeDB([org])))
+    assert entries == []
+
+
+def test_ltg_catalog_shows_revealed_unlisted_entry_to_player():
+    org = _org_obj([
+        {"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+         "san_access_rating": "Red-9", "visibility": "unlisted", "revealed": True},
+    ])
+    entries = asyncio.run(ltg_catalog(auth=_PLAYER, db=_FakeDB([org])))
+    assert len(entries) == 1
+
+
+def test_ltg_catalog_admin_sees_unlisted_entry():
+    org = _org_obj([
+        {"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+         "san_access_rating": "Red-9", "visibility": "unlisted"},
+    ])
+    entries = asyncio.run(ltg_catalog(auth=_ADMIN, db=_FakeDB([org])))
+    assert len(entries) == 1
 
 
 # -- list_hosts endpoint redaction ----------------------------------------

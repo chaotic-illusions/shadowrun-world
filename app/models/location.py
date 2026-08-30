@@ -17,6 +17,7 @@ class Location(Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     # open, guarded, secure, ultraviolet
     security_level: Mapped[str | None] = mapped_column(String(50), default=None)
+    is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     controlling_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)

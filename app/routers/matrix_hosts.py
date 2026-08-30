@@ -113,8 +113,14 @@ async def ltg_catalog(
 
     entries = []
     for org in orgs:
+        if not show_secrets and not org.is_active:
+            # GM-concealed org -- never leak its name/address to players.
+            continue
         for ltg in (org.ltgs or []):
             if ltg.get("type") != "matrix_host":
+                continue
+            if not show_secrets and ltg.get("visibility", "listed") != "listed" and not ltg.get("revealed"):
+                # Mirrors organizations._serialize_org's unlisted/black-entry redaction.
                 continue
             rtg = ltg.get("rtg", "")
             ltg_code = ltg.get("ltg", "")
