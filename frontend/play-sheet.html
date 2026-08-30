@@ -271,12 +271,22 @@
   <div id="alert" class="alert"></div>
 
   <div id="pickerWrap" style="display:none;">
-    <p class="dim-meta mb-16">Pick a runner to open:</p>
+    <p class="dim-meta mb-16" id="pickerLabel">Pick a runner to open:</p>
+    <!-- Admin-only roster controls: search + ownership counts. Hidden for the normal
+         player picker (mine-only, rarely more than a couple cards). -->
+    <div id="pickerAdminBar" style="display:none;margin-bottom:12px;">
+      <input type="text" id="pickerFilter" placeholder="Filter by name, archetype, or organization..." style="width:320px;max-width:100%" oninput="applyPickerFilter()">
+      <div id="pickerSummary" class="dim-meta" style="margin-top:8px;font-size:.68rem;letter-spacing:1px;"></div>
+    </div>
     <div id="pickerList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
   </div>
 
   <div id="emptyWrap" class="empty-state" style="display:none;">
-    No runners found for your token. Build one under <a href="character-builder.html">Characters &rsaquo; New Runner</a>.
+    <span id="emptyWrapText">No runners found for your token. Build one under <a href="character-builder.html">Characters &rsaquo; New Runner</a>.</span>
+  </div>
+
+  <div id="rosterBackWrap" style="display:none;margin-bottom:14px;">
+    <a href="play-sheet.html" style="font-size:.68rem;letter-spacing:1px">&laquo; All Runners</a>
   </div>
 
   <div id="sheetWrap" style="display:none;">
@@ -595,6 +605,9 @@ function $$(s, r=document){ return Array.from(r.querySelectorAll(s)); }
 // money() lives in shared.js now.
 
 // ---------------------------------------------------------------- boot / character resolution
+let ROSTER_ALL = [];   // admin roster: every PC (see renderAdminPicker)
+let ROSTER_MINE = new Set();
+
 async function boot(){
   await bootstrapAuth();
   const params = new URLSearchParams(location.search);
@@ -605,6 +618,27 @@ async function boot(){
     if (!mineRes.ok) throw new Error('Could not load your characters');
     const mine = await mineRes.json();
     const ids = mine.ids || [];
+
+    // Admin (not previewing runner view): browse every PC instead of just the token's own,
+    // with ownership called out -- a GM usually owns none of the roster and still needs to
+    // review everyone's sheet. isAdminMode() (not isAdmin()) so the runner-view toggle still
+    // previews the normal player experience below.
+    if (isAdminMode()) {
+      const allRes = await apiFetch('/characters/?is_pc=true');
+      if (!allRes.ok) throw new Error('Could not load the character roster');
+      ROSTER_ALL = await allRes.json();
+      ROSTER_MINE = new Set(ids);
+      if (!ROSTER_ALL.length) {
+        // Distinct from the player empty-state below -- an admin reviewing an empty
+        // roster isn't the one missing a runner, so don't tell them to build one.
+        $('#emptyWrapText').textContent = 'No player characters exist in the world yet.';
+        $('#emptyWrap').style.display = '';
+        return;
+      }
+      renderAdminPicker();
+      return;
+    }
+
     if (ids.length === 0) { $('#emptyWrap').style.display = ''; return; }
     if (ids.length === 1) { await loadCharacter(ids[0]); return; }
     const allRes = await apiFetch('/characters/?is_pc=true&is_active=true');
@@ -621,6 +655,56 @@ async function boot(){
   } catch (e) {
     showAlert($('#alert'), e.message, true);
   }
+}
+
+function ownershipBadge(c) {
+  if (ROSTER_MINE.has(c.id)) return '<span class="ch-badge badge-mine">Mine</span>';
+  if (c.is_claimed) return '<span class="ch-badge badge-otherclaim">Claimed &mdash; Other</span>';
+  return '<span class="ch-badge badge-unclaimed">Unclaimed</span>';
+}
+
+function renderAdminPicker() {
+  $('#pickerWrap').style.display = '';
+  $('#pickerLabel').textContent = 'All runners (admin review) -- pick one to open:';
+  $('#pickerAdminBar').style.display = '';
+  applyPickerFilter();
+}
+
+function applyPickerFilter() {
+  const q = ($('#pickerFilter')?.value || '').toLowerCase();
+  const rows = ROSTER_ALL.filter(c =>
+    !q || c.name.toLowerCase().includes(q) ||
+    (c.archetype || '').toLowerCase().includes(q) ||
+    (c.organization_name || '').toLowerCase().includes(q)
+  );
+  rows.sort((a, b) => {
+    const rank = c => ROSTER_MINE.has(c.id) ? 0 : (c.is_claimed ? 2 : 1);
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Counts reflect what's actually listed below (rows), not the full unfiltered roster --
+  // otherwise the tally silently stops matching the cards the moment a search is typed.
+  const mineCount = rows.filter(c => ROSTER_MINE.has(c.id)).length;
+  const unclaimedCount = rows.filter(c => !c.is_claimed).length;
+  const otherCount = rows.length - mineCount - unclaimedCount;
+  const totalLabel = rows.length === ROSTER_ALL.length
+    ? `${rows.length} runner${rows.length === 1 ? '' : 's'}`
+    : `${rows.length} of ${ROSTER_ALL.length} runners`;
+  $('#pickerSummary').innerHTML =
+    `${totalLabel} &mdash; ` +
+    `<span style="color:var(--green)">Mine: ${mineCount}</span> &middot; ` +
+    `<span style="color:var(--amber)">Unclaimed: ${unclaimedCount}</span> &middot; ` +
+    `<span style="color:var(--red)">Claimed by Other: ${otherCount}</span>`;
+
+  $('#pickerList').innerHTML = rows.map(c => `
+    <div class="picker-card" data-id="${c.id}">
+      <div style="color:var(--text-bright);font-size:.9rem;">${esc(c.name)}</div>
+      <div class="dim-meta">${esc(c.archetype||'Runner')}${c.race?' &middot; '+esc(c.race):''}</div>
+      <div style="margin-top:8px">${ownershipBadge(c)}${c.is_active === false ? ' <span class="ch-badge badge-inactive">Inactive</span>' : ''}</div>
+    </div>`).join('');
+  $$('.picker-card').forEach(el => el.onclick = () => { location.search = '?id=' + el.dataset.id; });
 }
 
 async function loadCharacter(id){
@@ -657,6 +741,9 @@ async function loadCharacter(id){
   CONTACTS = contactsRes.ok ? await contactsRes.json() : [];
   const mine = mineRes.ok ? await mineRes.json() : { ids: [] };
   CAN_EDIT = CHAR.is_pc && (isAdminMode() || (mine.ids||[]).includes(CHAR.id));
+  // Admin arrived via ?id= (usually from the all-runners picker on this same page) -- give them
+  // a way back to the roster instead of stranding them on one sheet.
+  $('#rosterBackWrap').style.display = isAdminMode() ? '' : 'none';
 
   if (skillsRes.ok) {
     const sk = await skillsRes.json();
