@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +11,14 @@ from app.auth.dependencies import get_admin_token, get_any_token
 router = APIRouter()
 
 
+def _is_privileged_view(ctx: dict) -> bool:
+    """True only for a real admin NOT previewing runner view -- the full-data audience."""
+    return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
+
+
 def _serialize_location(location: Location, ctx: dict) -> dict:
     data = LocationRead.model_validate(location, from_attributes=True).model_dump()
-    if not (ctx.get("is_admin") and not ctx.get("view_as_player")):
+    if not _is_privileged_view(ctx):
         data["notes"] = None
     return data
 
@@ -23,16 +28,22 @@ async def list_locations(
     city: str | None = Query(None),
     location_type: str | None = Query(None),
     controlling_org_id: int | None = Query(None),
+    is_active: bool | None = Query(None),
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Location)
+    if not _is_privileged_view(ctx):
+        # Undiscovered/retired locations are GM-concealed; never ship them to players.
+        q = q.where(Location.is_active == True)  # noqa: E712
     if city:
         q = q.where(Location.city.ilike(f"%{city}%"))
     if location_type:
         q = q.where(Location.location_type == location_type)
     if controlling_org_id is not None:
         q = q.where(Location.controlling_org_id == controlling_org_id)
+    if is_active is not None:
+        q = q.where(Location.is_active == is_active)
     result = await db.execute(q.order_by(Location.name))
     return [_serialize_location(location, ctx) for location in result.scalars().all()]
 
@@ -56,7 +67,11 @@ async def get_location(
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    return _serialize_location(await get_or_404(db, Location, location_id), ctx)
+    loc = await get_or_404(db, Location, location_id)
+    # Undiscovered locations are GM-concealed -- hide existence from players (404, not 403).
+    if loc.is_active is False and not _is_privileged_view(ctx):
+        raise HTTPException(status_code=404, detail="Location not found")
+    return _serialize_location(loc, ctx)
 
 
 @router.patch("/{location_id}", response_model=LocationRead)

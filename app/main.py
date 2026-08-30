@@ -156,6 +156,16 @@ async def _ensure_org_affiliation_contact_type_column():
         print("[startup] Added organizations.affiliation_contact_type column")
 
 
+async def _ensure_location_is_active_column():
+    """Startup safety migration for locations.is_active on SQLite deployments. create_all won't
+    add columns to an existing locations table; add it in place when an older DB predates it.
+    Idempotent. Defaults 1 (active) so existing locations stay visible to players -- unchanged
+    from prior behavior, which had no concept of hiding a location at all.
+    """
+    if await _ensure_sqlite_column("locations", "is_active", "BOOLEAN NOT NULL DEFAULT 1"):
+        print("[startup] Added locations.is_active column")
+
+
 async def _ensure_character_math_spu_columns():
     """Startup safety migration for the Math SPU cyberware columns on SQLite deployments.
 
@@ -452,6 +462,7 @@ async def lifespan(app: FastAPI):
         await _ensure_contact_type_column()
         await _ensure_character_is_independent_column()
         await _ensure_org_affiliation_contact_type_column()
+        await _ensure_location_is_active_column()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()
