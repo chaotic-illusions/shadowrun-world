@@ -616,11 +616,16 @@ function fociRatingSum() { return state.foci.reduce((t,x) => t + (Number(x.ratin
 // e.g. a Full Mage's spells or a non-Weapon Focus ride along onto a submitted Adept (fociSectionHTML's
 // shop-list filter only stops *adding* a mismatched item going forward, it doesn't retroactively
 // re-validate what's already in state.foci). Computes what would become invalid under `next` without
-// mutating anything -- the click handler below confirms, then actually clears.
+// mutating anything -- callers confirm (or, for the render-time auto-reset in stepMagic(), just note
+// it happened) and then actually clear via clearStaleMagicSelections(). `next == null` (loose --
+// covers both null and undefined) is treated the same as "Mundane" for foci: stepMagic()'s own
+// auto-reset can drop state.magicType to null when the current Magic priority no longer allows the
+// prior pick at all, and awakened() already treats null the same as Mundane (not awakened), so any
+// owned focus -- weapon or not -- is equally invalid in that state.
 function staleForMagicType(next){
   const nextAdeptFoci = next === "Adept";
   const staleFoci = state.foci.filter(x => {
-    if (next === "Mundane") return true;
+    if (next === "Mundane" || next == null) return true;
     const f = focusDef(x.type);
     return (f && f.who === "adept") !== nextAdeptFoci;
   });
@@ -629,6 +634,16 @@ function staleForMagicType(next){
     stalePowers: next === "Adept" ? [] : state.powers,
     staleFoci,
   };
+}
+// Actually applies staleForMagicType(next)'s verdict to state.spells/.powers/.foci. Returns how many
+// selections were dropped, so a caller that can't pop a confirm() (mid-render, not a discrete click)
+// can still tell the player something happened instead of failing silently.
+function clearStaleMagicSelections(next){
+  const { staleSpells, stalePowers, staleFoci } = staleForMagicType(next);
+  if (staleSpells.length) state.spells = [];
+  if (stalePowers.length) state.powers = [];
+  if (staleFoci.length) state.foci = state.foci.filter(x => !staleFoci.includes(x));
+  return staleSpells.length + stalePowers.length + staleFoci.length;
 }
 // ---- cyberware grades --------------------------------------------------------
 // cyberBaseEss/cyberBaseCost/clampedRating live in shared.js now (identical logic, shared with
@@ -670,7 +685,14 @@ function gradeNote(grade) {
 function essence() { return Math.max(0, 6 - state.gear.cyber.reduce((s,g) => s + effCyberEss(g), 0)); }
 function bodyIndex() { return state.gear.bio.reduce((s,g) => s + bioBaseEss(g), 0); }
 function awakened() { return state.magicType && state.magicType !== "Mundane"; }
-function magicRating() { return awakened() ? Math.floor(essence()) : 0; }
+// round2() before flooring -- essence() sums fractional Essence costs (0.25, 0.1, 0.5, ...) in
+// binary floating point, so a total that should land exactly on an integer can compute a hair below
+// it (e.g. 2.9999999999999996 instead of 3.00) and Math.floor() would then read one point lower than
+// intended. SR2 Essence costs never carry more than 2 decimal places, so rounding first cleans up
+// that drift without masking a real fractional value. Same class of bug play-sheet.html's
+// recomputedMagicRating() guards against post-chargen -- fixed here too since this is the live
+// chargen-time source both share the pattern from.
+function magicRating() { return awakened() ? Math.floor(round2(essence())) : 0; }
 function ppBudget() { return state.magicType === "Adept" ? magicRating() : 0; }
 function ppSpent() { return state.powers.reduce((s,p) => s + (Number(p.ppEach)||0) * (p.rated ? (p.lvl||1) : 1), 0); }
 function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
@@ -917,15 +939,24 @@ function fociSectionHTML() {
 
 function stepMagic() {
   const opts = magicOptions();
-  // If the priority leaves Mundane as the only choice, pick it automatically -- no dead click.
+  // If the priority leaves Mundane as the only choice, pick it automatically -- no dead click. Either
+  // branch can drop the player's current magicType out from under already-chosen spells/powers/foci
+  // (a Magic priority change reachable via Prev/Next, not just a pill click) -- clearStaleMagicSelections
+  // closes the same gap here that the data-magictype click handler below closes for a direct pick.
+  // A confirm() dialog isn't appropriate mid-render (this isn't a discrete click), so this clears
+  // immediately and surfaces a passive notice instead.
+  let autoCleared = 0;
   if (opts.length === 1) {
-    if (state.magicType !== opts[0]) { state.magicType = opts[0]; save(); }
+    if (state.magicType !== opts[0]) { autoCleared = clearStaleMagicSelections(opts[0]); state.magicType = opts[0]; save(); }
   } else if (state.magicType && !opts.includes(state.magicType)) {
-    state.magicType = null; save();  // a prior pick the current priority no longer allows
+    autoCleared = clearStaleMagicSelections(null); state.magicType = null; save();  // a prior pick the current priority no longer allows
   }
   const pills = opts.map(o =>
     `<button type="button" class="cbx-pill ${state.magicType===o?"is-chosen":""}" data-magictype="${esc(o)}">${esc(o)}</button>`).join("");
-  let body = `<p class="cbx-p">Arcane priority ${state.prio.magic||"--"} on a ${esc(isMeta()?state.metatype:"Human")} subject permits:
+  const clearedNote = autoCleared
+    ? `<p class="cbx-note is-warn">Magic priority changed -- ${autoCleared} no-longer-valid spell/power/focus selection${autoCleared === 1 ? "" : "s"} ${autoCleared === 1 ? "was" : "were"} cleared.</p>`
+    : "";
+  let body = `${clearedNote}<p class="cbx-p">Arcane priority ${state.prio.magic||"--"} on a ${esc(isMeta()?state.metatype:"Human")} subject permits:
     <strong>${esc(opts.join(" / "))}</strong>. <span class="cbx-cite">(SR2 p.45)</span></p>
     <div class="cbx-pillrow">${pills}</div>`;
   if (state.magicType === "Full Mage") {
@@ -1203,15 +1234,18 @@ function chipHTML(label, val) {
 // page's own CAT.spells/CAT.adept_powers (catalog) and state.spells/state.powers (owned) instead of
 // SPELL_CAT/POWER_CAT and CHAR. Lets a player re-check what a spell/power they picked earlier
 // actually does without collapsing the (possibly long-scrolled-past) browse-list row it came from.
+// showInfoModal's title renders via .textContent -- pass the raw name, not esc()'d, same as every
+// showPrompt() caller on this page already does (esc() here would double-escape, e.g. showing a
+// literal "&#39;" instead of an apostrophe for any name that has one).
 function chargenOpenSpellInfo(name){
   const sp = (CAT.spells || []).find(x => x.n === name);
   const owned = (state.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${esc(name)}`, spellInfoBody(sp, owned));
+  showInfoModal(`// SPELL — ${name}`, spellInfoBody(sp, owned));
 }
 function chargenOpenPowerInfo(name){
   const pw = (CAT.adept_powers || []).find(x => x.n === name);
   const owned = (state.powers || []).find(p => p.name === name);
-  showInfoModal(`// POWER — ${esc(name)}`, powerInfoBody(pw, owned));
+  showInfoModal(`// POWER — ${name}`, powerInfoBody(pw, owned));
 }
 // Inspector rows for the magic step (spells / adept powers): same expand-then-add pattern.
 // Type/Range/Duration decoded via shared.js's SPELL_TYPE_LABEL/etc. (SR2's M/P, T/LOS/Self, I/S/P
@@ -1681,10 +1715,8 @@ function wire() {
       const ok = await showConfirm(`Switching to ${next} removes ${parts.join(", ")} that would no longer be valid. Continue?`, "Switch", "btn-amber");
       if (!ok) return;
     }
+    clearStaleMagicSelections(next);
     state.magicType = next;
-    if (staleSpells.length) state.spells = [];
-    if (stalePowers.length) state.powers = [];
-    if (staleFoci.length) state.foci = state.foci.filter(x => !staleFoci.includes(x));
     save(); render();
   });
   root.querySelectorAll("[data-tradition]").forEach(el => el.onclick = () => { state.tradition = el.dataset.tradition; if (state.tradition !== "Shamanic") state.totem = null; save(); render(); });
