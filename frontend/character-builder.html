@@ -413,6 +413,12 @@ function freshState() {
     contacts: [{ name:"", archetype:"", type:"Contact" }, { name:"", archetype:"", type:"Contact" }],
     languages: [],
     identity: { handle:"", name:"", sex:"", age:"", archetype:"", archetypeCustom:"", nationality:"", lifestyle:"Street", lifestylePermanent:false, desc:"" },
+    // Auto-generated mechanical notes for gear that grants an effect this sheet doesn't model as a
+    // first-class field (e.g. a weapon-granting cyberware's damage code) -- see SITUATIONAL_NOTES
+    // (shared.js) / chargenAppendNote below. Not a player-editable field in chargen itself; it just
+    // arrives pre-populated on play-sheet.html's own Notes textarea (#charNotes) after Submit, the
+    // same text a post-chargen purchase of the same item would have appended there directly.
+    notes: "",
   };
 }
 
@@ -604,6 +610,26 @@ function fociNuyen() { return awakened() ? state.foci.reduce((t,x) => t + focusN
 function fociFp() { return awakened() ? state.foci.reduce((t,x) => t + focusKarma(focusDef(x.type), x.rating), 0) : 0; }
 // Chargen focus caps (later-edition house rule): count <= Magic Rating; total rating <= Magic x5.
 function fociRatingSum() { return state.foci.reduce((t,x) => t + (Number(x.rating)||1), 0); }
+// Magic Type pills (Full Mage/Adept/Mundane) can offer more than one option at once at a good enough
+// Magic priority (magicOptions()), so a player really can click between them mid-chargen -- nothing
+// used to clear the now-inapplicable state.spells/.powers/.foci when they did, silently letting
+// e.g. a Full Mage's spells or a non-Weapon Focus ride along onto a submitted Adept (fociSectionHTML's
+// shop-list filter only stops *adding* a mismatched item going forward, it doesn't retroactively
+// re-validate what's already in state.foci). Computes what would become invalid under `next` without
+// mutating anything -- the click handler below confirms, then actually clears.
+function staleForMagicType(next){
+  const nextAdeptFoci = next === "Adept";
+  const staleFoci = state.foci.filter(x => {
+    if (next === "Mundane") return true;
+    const f = focusDef(x.type);
+    return (f && f.who === "adept") !== nextAdeptFoci;
+  });
+  return {
+    staleSpells: next === "Full Mage" ? [] : state.spells,
+    stalePowers: next === "Adept" ? [] : state.powers,
+    staleFoci,
+  };
+}
 // ---- cyberware grades --------------------------------------------------------
 // cyberBaseEss/cyberBaseCost/clampedRating live in shared.js now (identical logic, shared with
 // play-sheet.html's post-chargen Essence tracking). cyberRating/effCyberEss/effCyberCost stay
@@ -904,7 +930,7 @@ function stepMagic() {
     <div class="cbx-pillrow">${pills}</div>`;
   if (state.magicType === "Full Mage") {
     body += totemBlockHTML();
-    const chosenSpells = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(s.name)} <em>${esc(s.cat||"")}</em></span>
+    const chosenSpells = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenspellinfo="${esc(s.name)}">${esc(s.name)}</a> <em>${esc(s.cat||"")}</em></span>
       <span class="cbx-line__f">Force <input type="number" min="1" max="6" class="cbx-mini" data-spellforce="${i}" value="${s.force}"></span>
       <button type="button" class="cbx-x" data-delspell="${i}">&#10005;</button></div>`).join("");
     const SPELL_CAT_ORDER = ["combat","detection","health","illusion","manipulation"];
@@ -922,7 +948,7 @@ function stepMagic() {
     body += fociSectionHTML();
   } else if (state.magicType === "Adept") {
     body += `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend.</p>`;
-    const chosen = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n">${esc(p.name)}</span>
+    const chosen = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenpowerinfo="${esc(p.name)}">${esc(p.name)}</a></span>
       ${p.rated ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button>
         <span class="cbx-attr__base">${p.lvl||1}</span><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>` : ""}
       <span class="cbx-line__f">${round2((Number(p.ppEach)||0)*(p.rated?(p.lvl||1):1))} PP</span>
@@ -1172,9 +1198,28 @@ function matchesFilter(it) { const q = (shopFilter||"").toLowerCase(); return !q
 function chipHTML(label, val) {
   return (val === undefined || val === null || val === "") ? "" : `<span class="cbx-stat"><b>${esc(label)}</b> ${esc(String(val))}</span>`;
 }
+// Spell/power reference popup for an already-selected item -- mirrors play-sheet.html's
+// openSpellInfo/openPowerInfo (same shared.js spellInfoBody/powerInfoBody), reading from this
+// page's own CAT.spells/CAT.adept_powers (catalog) and state.spells/state.powers (owned) instead of
+// SPELL_CAT/POWER_CAT and CHAR. Lets a player re-check what a spell/power they picked earlier
+// actually does without collapsing the (possibly long-scrolled-past) browse-list row it came from.
+function chargenOpenSpellInfo(name){
+  const sp = (CAT.spells || []).find(x => x.n === name);
+  const owned = (state.spells || []).find(s => s.name === name);
+  showInfoModal(`// SPELL — ${esc(name)}`, spellInfoBody(sp, owned));
+}
+function chargenOpenPowerInfo(name){
+  const pw = (CAT.adept_powers || []).find(x => x.n === name);
+  const owned = (state.powers || []).find(p => p.name === name);
+  showInfoModal(`// POWER — ${esc(name)}`, powerInfoBody(pw, owned));
+}
 // Inspector rows for the magic step (spells / adept powers): same expand-then-add pattern.
+// Type/Range/Duration decoded via shared.js's SPELL_TYPE_LABEL/etc. (SR2's M/P, T/LOS/Self, I/S/P
+// shorthand) -- same decode play-sheet.html's spell info popup uses, so a new player sees "Mana" /
+// "Line of Sight" / "Sustained" here too instead of bare letters only a rules-expert would know.
 function spellStatChips(s) {
-  return [chipHTML("Type", s.typ), chipHTML("Range", s.rng), chipHTML("Duration", s.dur),
+  return [chipHTML("Type", SPELL_TYPE_LABEL[s.typ] || s.typ), chipHTML("Range", SPELL_RANGE_LABEL[s.rng] || s.rng),
+    chipHTML("Duration", SPELL_DURATION_LABEL[s.dur] || s.dur),
     chipHTML("Drain", s.drn), chipHTML("Target", s.target), chipHTML("Damage", s.dmg), chipHTML("Area", s.area)]
     .filter(Boolean).join("");
 }
@@ -1220,6 +1265,17 @@ function cyberLineHTML(g, i) {
   const skillInput = g.soft
     ? `<input type="text" class="cbx-mini" style="width:170px" data-cyberskill="${i}" value="${esc(g.skill||"")}" placeholder="${esc(SOFT_HINT[g.soft] || "skill / language")}">`
     : "";
+  // Cyber Limb / Simple Replacement Limb: which of the 4 body slots it occupies. chargenBuyGear
+  // auto-assigns the first free slot at purchase time -- this lets the player change it afterward,
+  // same buy-then-edit-inline convention as the skill/kind inputs elsewhere on this step.
+  const slotCtrl = LIMB_GROUP.has(g.n)
+    ? (() => {
+        const taken = new Set(ownedLimbSlots(state.gear));
+        const opts2 = LIMB_SLOTS.filter(s => s === g.slot || !taken.has(s))
+          .map(s => `<option value="${esc(s)}" ${s === g.slot ? "selected" : ""}>${esc(s)}</option>`).join("");
+        return `<select class="cbx-mini" style="width:auto" data-cyberslot="${i}" title="Slot">${opts2}</select>`;
+      })()
+    : "";
   const priceCells = g.noGrade
     ? `<span class="cbx-line__f" style="color:var(--cyan)">${money(cyberBaseCost(g))}</span>`
     : `<span class="cbx-line__f">Ess ${cyberBaseEss(g).toFixed(2)}</span>
@@ -1228,6 +1284,7 @@ function cyberLineHTML(g, i) {
   const optNote = (g.options && g.options.length) ? ` <span class="cbx-line__opt">+ ${esc(g.options.map(o => o.n).join(", "))}</span>` : "";
   return `<div class="cbx-line"><span class="cbx-line__n">${esc(g.n)} <em>${esc(g.sub||"")}</em>${optNote}</span>
     ${skillInput}
+    ${slotCtrl}
     ${ratingCtrl}
     ${g.noGrade ? "" : `<select class="cbx-mini" style="width:auto" data-cybergrade="${i}">${opts}</select>`}
     ${priceCells}
@@ -1285,6 +1342,12 @@ function stepResources() {
     const kindInput = isTool
       ? `<input type="text" class="cbx-mini" style="width:150px" data-gearkind="${k}:${i}" value="${esc(g.kind||"")}" placeholder="kind, e.g. Programming">`
       : "";
+    // Reflex Recorder (bioware) records one skill -- bioware carries no .soft flag the way
+    // skillsoft cyberware does, so it's matched by name instead (mirrors play-sheet's
+    // assignReflexRecorderSkill).
+    const bioSkillInput = (k === "bio" && /^Reflex Recorder/.test(g.n))
+      ? `<input type="text" class="cbx-mini" style="width:170px" data-bioskill="${i}" value="${esc(g.skill||"")}" placeholder="skill">`
+      : "";
     const bLo = Number(g.minRating) || 1, bHi = Math.max(bLo, bioMaxRating(g));
     const bioRate = (k === "bio" && g.rated)
       ? `<select class="cbx-mini" style="width:auto" data-biorating="${i}" title="Rating">` +
@@ -1300,6 +1363,7 @@ function stepResources() {
       : "";
     return `<div class="cbx-line"><span class="cbx-line__n">${nameHtml}</span>
       ${kindInput}
+      ${bioSkillInput}
       ${bioRate}
       ${gearRate}
       ${rig}
@@ -1492,9 +1556,10 @@ function findCatalogItem(name) {
 // makeGearLine()/vehicleStatBody() live in shared.js now.
 
 // onPurchase callback for the shared gear picker (gear-picker.js), mounted into #cbxGearPicker by
-// wire(). Unlike play-sheet's purchaseGear there's no ownership/family/prereq gating here (chargen
-// never had one) and nuyen/Essence/Body Index stay advisory while drafting -- budgetViolations()
-// is what blocks the final Submit, same as before this backport.
+// wire(). Runs the same ownership/prerequisite/family/limb/cybergun battery play-sheet's
+// purchaseGear() does (shared.js's ownershipBlocked/familyReplaceOrBlock/CYBERGUN_NAMES/etc.) --
+// chargen used to have none of this at all. Essence/Body Index still stay advisory while drafting
+// (unchanged) -- budgetViolations() is what blocks the final Submit either way.
 // Purchase-time armor mod (gear-picker.js itemAddon hook): offer Mil-Spec Gel Packs on worn
 // (non-helmet/shield) armor only, folded into the line as metadata -- mirrors play-sheet's
 // armorGelPackAddon/applyArmorGelPack so the sheet resolves base stats + shows "(Gel Packs)".
@@ -1510,22 +1575,73 @@ function chargenApplyGelPack(line){
   delete line.baseName; delete line.rated; delete line.rating; delete line.maxRating;
   delete line.costUnit; delete line.costTbl; delete line.rateLabels;
 }
+// Mirrors play-sheet.html's appendCharNote (SITUATIONAL_NOTES lives in shared.js, shared by both),
+// writing into state.notes instead of CHAR.notes -- arrives pre-populated on play-sheet's own Notes
+// textarea (#charNotes) after Submit, same text a post-chargen purchase of the same item would have
+// appended there directly.
+function chargenAppendNote(text){
+  const cur = state.notes || '';
+  if (cur.split('\n').includes(text)) return;
+  state.notes = cur ? cur + '\n' + text : text;
+}
+// Mirrors play-sheet.html's pickerMaxQty, reading state.gear instead of CHAR.gear -- caps the
+// picker's Qty field the same way post-chargen does, so a cap-1 item can't have an obviously-wrong
+// quantity typed into it here either.
+function chargenPickerMaxQty(item, cat){
+  if (!SINGULAR_CATEGORIES.has(cat)) return Infinity;
+  const cap = OWNERSHIP_CAP[item.n];
+  if (cap === Infinity) return Infinity;
+  const bucket = GEAR_BUCKET[cat] || cat;
+  const owned = (state.gear && state.gear[bucket]) || [];
+  const ownedCount = owned.filter(g => g.n === item.n).length;
+  return Math.max(0, (cap === undefined ? 1 : cap) - ownedCount);
+}
 async function chargenBuyGear(entries) {
+  const skipped = [];
   entries.forEach(({ cat, item, rating, qty, opts, grade, addon }) => {
     const catalogName = GEAR_LINE_CATALOG[cat] || cat;
     const bucket = GEAR_BUCKET[cat] || cat;
     state.gear[bucket] = state.gear[bucket] || [];
     for (let i = 0; i < qty; i++) {
+      const blockReason = ownershipBlocked(cat, item, state.gear, rating);
+      if (blockReason) { skipped.push(blockReason); continue; }
+      const famBlock = familyReplaceOrBlock(item, state.gear);
+      if (famBlock) { skipped.push(famBlock); continue; }
+      if (CYBERGUN_NAMES.has(item.n)) {
+        const armCount = ownedCyberLimbSlotCount(state.gear, 'Arm');
+        const cap = Math.min(2, armCount);
+        if (armCount === 0) { skipped.push(`${item.n} (needs a cyberarm)`); continue; }
+        if (ownedCybergunCount(state.gear) >= cap) { skipped.push(`${item.n} (max ${cap} cyberguns for your cyberarms)`); continue; }
+      }
+      if (item.n === 'Cyber Limb — Increased Strength' && ownedCyberLimbSlotCount(state.gear, 'Arm') === 0) {
+        skipped.push(`${item.n} (needs a cyberarm)`); continue;
+      }
+      if (item.n === 'Cyber Limb — Increased Quickness' && ownedCyberLimbSlotCount(state.gear, 'Leg') === 0) {
+        skipped.push(`${item.n} (needs a cyberleg)`); continue;
+      }
       const line = makeGearLine(item, catalogName, grade);
       if (rating) line.rating = rating;
       if (opts && opts.length && Array.isArray(item.options)) {
         line.options = item.options.filter(o => opts.includes(o.n)).map(o => ({ n: o.n, cost: Number(o.cost) || 0, ess: Number(o.ess) || 0 }));
       }
       if (bucket === 'armor' && addon === 'gel-pack') chargenApplyGelPack(line);
+      // Cyber Limb / Simple Replacement Limb: no interactive prompt (chargen's existing convention
+      // is buy-then-edit-inline, same as kind/skill below) -- auto-assign the first free slot; the
+      // 4-slot cap ownershipBlocked() already checked above guarantees one exists. Editable afterward
+      // via the Loadout list's slot dropdown (cyberLineHTML).
+      if (LIMB_GROUP.has(item.n)) {
+        const taken = new Set(ownedLimbSlots(state.gear));
+        line.slot = LIMB_SLOTS.find(s => !taken.has(s));
+      }
+      if (SITUATIONAL_NOTES[item.n]) {
+        const noteText = SITUATIONAL_NOTES[item.n](line);
+        if (noteText) chargenAppendNote(noteText);
+      }
       state.gear[bucket].push(line);
     }
   });
   save(); render();
+  return skipped.length ? `Skipped: ${skipped.join('; ')}` : undefined;
 }
 
 /* ---------- wiring ---------- */
@@ -1553,7 +1669,24 @@ function wire() {
       state.base[a] = clamp(state.base[a]+d, 1, max); save(); render();
     });
   });
-  root.querySelectorAll("[data-magictype]").forEach(el => el.onclick = () => { state.magicType = el.dataset.magictype; save(); render(); });
+  root.querySelectorAll("[data-magictype]").forEach(el => el.onclick = async () => {
+    const next = el.dataset.magictype;
+    if (next === state.magicType) return;
+    const { staleSpells, stalePowers, staleFoci } = staleForMagicType(next);
+    if (staleSpells.length || stalePowers.length || staleFoci.length) {
+      const parts = [];
+      if (staleSpells.length) parts.push(`${staleSpells.length} spell${staleSpells.length === 1 ? "" : "s"}`);
+      if (stalePowers.length) parts.push(`${stalePowers.length} power${stalePowers.length === 1 ? "" : "s"}`);
+      if (staleFoci.length) parts.push(`${staleFoci.length} ${staleFoci.length === 1 ? "focus" : "foci"}`);
+      const ok = await showConfirm(`Switching to ${next} removes ${parts.join(", ")} that would no longer be valid. Continue?`, "Switch", "btn-amber");
+      if (!ok) return;
+    }
+    state.magicType = next;
+    if (staleSpells.length) state.spells = [];
+    if (stalePowers.length) state.powers = [];
+    if (staleFoci.length) state.foci = state.foci.filter(x => !staleFoci.includes(x));
+    save(); render();
+  });
   root.querySelectorAll("[data-tradition]").forEach(el => el.onclick = () => { state.tradition = el.dataset.tradition; if (state.tradition !== "Shamanic") state.totem = null; save(); render(); });
   root.querySelectorAll("[data-totem]").forEach(el => el.onclick = () => { state.totem = el.dataset.totem; save(); render(); });
   root.querySelectorAll("[data-addspell]").forEach(el => el.onclick = () => {
@@ -1561,6 +1694,8 @@ function wire() {
     state.spells.push({ name:s.n, cat:s.cat||"", force:3 }); save(); render();
   });
   root.querySelectorAll("[data-delspell]").forEach(el => el.onclick = () => { state.spells.splice(Number(el.dataset.delspell),1); save(); render(); });
+  root.querySelectorAll("[data-chargenspellinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenSpellInfo(el.dataset.chargenspellinfo); });
+  root.querySelectorAll("[data-chargenpowerinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenPowerInfo(el.dataset.chargenpowerinfo); });
   root.querySelectorAll("[data-spellforce]").forEach(el => el.oninput = () => { state.spells[Number(el.dataset.spellforce)].force = clamp(Number(el.value)||1,1,6); save(); renderBudget(); });
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
@@ -1637,6 +1772,7 @@ function wire() {
       gradeTable: GRADES,
       enabledBooks,
       itemAddon: chargenArmorGelPackAddon,
+      maxQty: chargenPickerMaxQty,
       // Foci are handled entirely by fociSectionHTML()'s dedicated step (Magic Rating cap, Adept-only
       // weapon-focus gating, bonding karma tracked in state.foci) -- a bare picker purchase would
       // write into state.gear.foci instead, which the commit payload discards in favor of state.foci.
@@ -1667,8 +1803,14 @@ function wire() {
   root.querySelectorAll("[data-cyberskill]").forEach(el => el.oninput = () => {
     state.gear.cyber[Number(el.dataset.cyberskill)].skill = el.value; save();
   });
+  root.querySelectorAll("[data-cyberslot]").forEach(el => el.onchange = () => {
+    state.gear.cyber[Number(el.dataset.cyberslot)].slot = el.value; save(); render();
+  });
   root.querySelectorAll("[data-biorating]").forEach(el => el.onchange = () => {
     state.gear.bio[Number(el.dataset.biorating)].rating = Number(el.value) || 1; save(); render();
+  });
+  root.querySelectorAll("[data-bioskill]").forEach(el => el.oninput = () => {
+    state.gear.bio[Number(el.dataset.bioskill)].skill = el.value; save();
   });
   root.querySelectorAll("[data-gearrating]").forEach(el => el.onchange = () => {
     const [k,idx] = el.dataset.gearrating.split(":"); state.gear[k][Number(idx)].rating = Number(el.value)||1; save(); render();
@@ -1745,6 +1887,7 @@ function commitPayload() {
     nationality: id.nationality || null,
     age: Number.isFinite(ageNum) ? ageNum : null,
     description: id.desc || null,
+    notes: state.notes || null,
     body: finalAttr("body"), quickness: finalAttr("quickness"), strength: finalAttr("strength"),
     charisma: finalAttr("charisma"), intelligence: finalAttr("intelligence"), willpower: finalAttr("willpower"),
     essence: round2(essence()), body_index: round2(bodyIndex()),
