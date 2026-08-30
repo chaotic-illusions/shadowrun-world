@@ -198,7 +198,7 @@ function buildOrgCard(org, orgMap) {
     : '';
   const overlay = !isActive ? `<div class="card-inactive-overlay"><div class="card-inactive-lbl">Inactive</div></div>` : '';
   return `
-    <div class="org-card ${orgClass(org.org_type)}" onclick="openOrgEditModal(${org.id})" class="clickable" data-tip="Click to edit">
+    <div class="org-card ${orgClass(org.org_type)} ${isAdminMode() ? 'org-card--has-toggle' : ''}" onclick="openOrgEditModal(${org.id})" class="clickable" data-tip="Click to edit">
       ${toggleBtn}
       ${overlay}
       <div class="oc-head">
