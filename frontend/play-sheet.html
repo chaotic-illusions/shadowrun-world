@@ -1013,8 +1013,14 @@ function magicRatingBase(){
 // (where Magic lost to Essence is effectively permanent), removing cyberware here raises Magic
 // Rating back up too -- capped at the chargen ceiling. Matches how chargen's own live essence()/
 // magicRating() already treats the whole shopping phase as fully reversible.
+// Round to 2dp before flooring -- essenceRemaining() sums a chain of fractional Essence costs
+// (0.25, 0.1, 0.5, ...) in binary floating point, so a total that should land exactly on an integer
+// (e.g. 3.00) can compute as 2.9999999999999996 and Math.floor() would then read it one point lower
+// than intended. SR2 Essence costs never carry more than 2 decimal places, so rounding to 2dp first
+// cleans up that drift without masking a real fractional value (same rounding patchChar's own
+// essence/body_index patches already apply -- see the two Math.round(x*100)/100 call sites below).
 function recomputedMagicRating(){
-  return awakened() ? Math.min(magicRatingBase(), Math.floor(essenceRemaining())) : (CHAR.magic_rating || 0);
+  return awakened() ? Math.min(magicRatingBase(), Math.floor(Math.round(essenceRemaining() * 100) / 100)) : (CHAR.magic_rating || 0);
 }
 // Bioware costs Body Index, not Essence -- no grade multiplier (bioware has no grade concept),
 // reading the .ess field bioware lines use instead of cyberware's .baseEss.
@@ -1696,13 +1702,18 @@ function renderSkills(){
 // name has no way to know what the spell actually does without cracking a rulebook. Surfaces
 // spells.json/adept_powers.json's desc/effect/target/etc. (already plain English) via
 // showInfoModal() (shared.js) instead of leaving it locked in raw JSON only an admin token could read.
+// showInfoModal's title renders via .textContent (see shared.js), same as showConfirm/showPrompt --
+// pass the raw name, not esc()'d, matching how every existing showPrompt() caller on this page
+// already does it (e.g. assignLimbSlot's "Which slot is this ${line.n} in?"). esc() would double-
+// escape here, showing literal "&#39;" etc. for any name containing an apostrophe/ampersand/angle
+// bracket instead of the actual character.
 function openSpellInfo(name){
   const owned = (CHAR.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${esc(name)}`, spellInfoBody(SPELL_CAT.get(name), owned));
+  showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), owned));
 }
 function openPowerInfo(name){
   const owned = (CHAR.adept_powers || []).find(p => p.name === name);
-  showInfoModal(`// POWER — ${esc(name)}`, powerInfoBody(POWER_CAT.get(name), owned));
+  showInfoModal(`// POWER — ${name}`, powerInfoBody(POWER_CAT.get(name), owned));
 }
 function renderMagic(){
   const awakened = CHAR.magic_type && CHAR.magic_type !== 'Mundane';
@@ -2404,7 +2415,7 @@ function maybeShowMagicCyberWarning(cat){
   try { hidden = localStorage.getItem(magicCyberWarnKey()) === '1'; } catch (e) {}
   if (hidden) return;
   const adeptNote = CHAR.magic_type === 'Adept'
-    ? ' As an Adept, a lower rating could put your already-spent Power Points over budget -- there’s no post-chargen UI to adjust powers, so that’s a GM call.'
+    ? ' As an Adept, a lower rating could put your already-spent Power Points over budget -- there\'s no post-chargen UI to adjust powers, so that\'s a GM call.'
     : '';
   el.innerHTML = `<span>// MAGIC WARNING -- Essence lost to cyberware reduces Magic Rating (and Spell Pool / Astral Pool`
     + `${CHAR.magic_type === 'Adept' ? ' / Power Points' : ''}) 1:1 per whole point lost. Ceiling ${magicRatingBase()}, `
@@ -2723,7 +2734,7 @@ function renderManageMagic(){
     e.preventDefault();
     const name = $('#mgSpellPick').value;
     const force = Math.max(1, Number($('#mgSpellForce').value) || 1);
-    showInfoModal(`// SPELL — ${esc(name)}`, spellInfoBody(SPELL_CAT.get(name), { force }));
+    showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), { force }));
   };
   const buyBtn = $('#mgSpellBuy');
   buyBtn.onclick = async () => {
