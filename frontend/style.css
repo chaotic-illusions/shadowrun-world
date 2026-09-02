@@ -424,7 +424,15 @@ nav a:hover, nav a.active {
 .nav-group:hover .nav-group-menu,
 .nav-group:focus-within .nav-group-menu,
 .nav-group.open .nav-group-menu { display: flex; }
-.nav-group-menu a { display: block; }
+/* nowrap: an item long enough to wrap makes the menu taller, and an absolutely-positioned menu
+   still counts toward the page's scroll area -- so a two-line item hands the whole page a
+   scrollbar. Keep every item on one line and let the menu grow sideways instead. */
+.nav-group-menu a { display: block; white-space: nowrap; }
+/* TOOLS is the last group in the nav, hard against the right edge, so a left-anchored menu wider
+   than its toggle overflows the viewport and produces a horizontal scrollbar. Anchor this one to
+   its right edge so it opens inward no matter how wide its widest item gets. The mid-nav groups
+   (MATRIX, CHARACTERS) keep the left anchor -- they have room either way. */
+.nav-group--tools .nav-group-menu { left: auto; right: 0; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 
