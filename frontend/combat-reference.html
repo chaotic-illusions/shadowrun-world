@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Combat Reference | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <style>
+    /* One screen, two columns, no scrollbar. Everything here is sized down from the app's
+       normal tokens on purpose -- this page is a wall chart, not a reading page, and it has to
+       fit a laptop viewport (and one sheet of paper) without scrolling. */
+    .cr-wrap { max-width: 1180px; }
+    .cr-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+    .cr-head .cr-title { font-family:var(--font-display); font-size:var(--fs-xl); color:var(--green);
+                         letter-spacing:2px; text-transform:uppercase; }
+    .cr-head .cr-sub { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; }
+
+    /* stretch, not start: the two panels hold different row counts, and a short left panel next
+       to a tall right one reads as a mistake. Both boxes run to the taller one's height. */
+    .cr-grid { display:grid; grid-template-columns:1.55fr 1fr; gap:14px; align-items:stretch; }
+    .cr-panel { border:1px solid #1a2a1a; background:#0d0d0d; padding:8px 10px 10px; }
+    .cr-panel > h3 { margin:0 0 6px; color:var(--amber); letter-spacing:1.5px;
+                     font-size:var(--fs-xs); text-transform:uppercase; }
+
+    .cr-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-sm); table-layout:fixed; }
+    .cr-tbl th { text-align:left; padding:2px 5px; font-size:var(--fs-xxs); letter-spacing:.5px;
+                 font-weight:normal; color:var(--text-dim); text-transform:uppercase;
+                 border-bottom:1px solid #1a2a1a; }
+    .cr-tbl td { padding:2px 5px; border-bottom:1px solid #0d0d0d; white-space:nowrap;
+                 overflow:hidden; text-overflow:ellipsis; }
+    /* Merged armor rows can list three names -- let those wrap instead of truncating, so a
+       printout doesn't silently hide one of them. */
+    .cr-tbl td.wrap { white-space:normal; line-height:1.25; }
+    .cr-tbl tr:hover td { background:rgba(0,255,65,.03); }
+    .cr-tbl .dmg  { color:var(--green); }
+    .cr-tbl .rng  { color:var(--cyan); text-align:center; }
+    .cr-tbl .mode { color:var(--text-dim); font-size:var(--fs-xxs); }
+    .cr-tbl .num  { text-align:center; color:var(--green); }
+    .cr-tbl .grp td { color:var(--amber); font-size:var(--fs-xxs); letter-spacing:1.5px;
+                      text-transform:uppercase; padding-top:7px; border-bottom:1px solid #1a2a1a; }
+    .cr-tbl .grp td span { color:var(--text-dim); letter-spacing:0; text-transform:none; }
+    .cr-tn { color:var(--straw); }
+    .cr-melee { color:var(--text-dim); text-align:center; font-size:var(--fs-xxs); }
+
+    .cr-foot { color:var(--text-dim); font-size:var(--fs-xxs); line-height:1.6; margin:7px 0 0; }
+    .cr-foot b { color:var(--text); font-weight:normal; }
+
+    @media (max-width: 900px) { .cr-grid { grid-template-columns:1fr; } }
+
+    /* Print: one sheet, ink-friendly, no chrome. */
+    @media print {
+      @page { margin: 10mm; }
+      header, nav, .cr-sub { display:none !important; }
+      body { background:#fff !important; color:#000 !important; }
+      main { padding:0 !important; margin:0 !important; max-width:none !important; }
+      .cr-panel { border-color:#999; background:#fff !important; page-break-inside:avoid; }
+      .cr-head .cr-title, .cr-panel > h3, .cr-tbl .grp td { color:#000 !important; }
+      .cr-tbl td, .cr-tbl th { border-color:#ccc !important; }
+      .cr-tbl .dmg, .cr-tbl .rng, .cr-tbl .num, .cr-tn { color:#000 !important; }
+      .cr-foot, .cr-tbl .mode, .cr-melee { color:#444 !important; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+  </nav>
+</header>
+
+<main class="cr-wrap">
+  <div class="cr-head">
+    <span class="cr-title">Combat Reference</span>
+    <span class="cr-sub" id="crSub">Weapon classes &amp; armor &mdash; from your enabled sourcebooks</span>
+  </div>
+
+  <div class="cr-grid">
+    <!-- Weapons -->
+    <div class="cr-panel">
+      <h3>Weapon Classes &mdash; typical damage &amp; ranges (metres)</h3>
+      <table class="cr-tbl" id="classTbl">
+        <colgroup>
+          <col style="width:26%"><col style="width:15%"><col style="width:17%">
+          <col style="width:10.5%"><col style="width:10.5%"><col style="width:10.5%"><col style="width:10.5%">
+        </colgroup>
+        <thead><tr>
+          <th>Class</th><th>Damage</th><th>Mode</th>
+          <th class="rng">Short <span class="cr-tn">4</span></th>
+          <th class="rng">Med <span class="cr-tn">5</span></th>
+          <th class="rng">Long <span class="cr-tn">6</span></th>
+          <th class="rng">Extr <span class="cr-tn">8</span></th>
+        </tr></thead>
+        <tbody><tr><td colspan="7" class="empty-state">Loading catalog…</td></tr></tbody>
+      </table>
+      <p class="cr-foot" id="weaponFoot"></p>
+    </div>
+
+    <!-- Armor -->
+    <div class="cr-panel">
+      <h3>Armor &mdash; Ballistic / Impact</h3>
+      <table class="cr-tbl" id="armorTbl">
+        <colgroup><col style="width:64%"><col style="width:18%"><col style="width:18%"></colgroup>
+        <thead><tr><th>Armor</th><th class="num">Ball</th><th class="num">Imp</th></tr></thead>
+        <tbody><tr><td colspan="3" class="empty-state">Loading catalog…</td></tr></tbody>
+      </table>
+      <p class="cr-foot">
+        <b>Layering:</b> best body piece only &mdash; helmets, shields, forearm guards and subdermal
+        cyber/bio add on top.<br>
+        <b>Encumbrance:</b> Ballistic above the wearer's Quickness costs Combat Pool.
+      </p>
+    </div>
+  </div>
+</main>
+
+<script>
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let WEAPONS = [];
+let ARMOR = [];
+
+// Display groups for the class table. Several catalog sub-types are the same class under two
+// spellings ('SMG'/'Submachine Gun', 'Hold-Out'/'Hold-Out Pistol'), merged here so there's one row
+// per thing you'd name at the table. Order is how a GM thinks (small guns up to big ones, then
+// melee, then thrown), not alphabetical.
+//
+// `cat` matters as much as `sub`: the catalog reuses sub-type names across categories (there is a
+// 'Hold-Out' under heavy doing 5D Stun, a 'Shotgun' under heavy, a 'Heavy Pistol' under exotic),
+// and letting those into a class skews the typical damage. A row only pulls from its own category.
+//
+// `mult` marks the Strength-scaled classes. Those print as multipliers rather than metres, so the
+// sheet stays true for any character instead of being frozen at whoever's Strength was on screen.
+const CLASS_GROUPS = [
+  { hdr: 'Firearms' },
+  { label: 'Hold-Out',         cat: 'firearm', subs: ['Hold-Out', 'Hold-Out Pistol'] },
+  { label: 'Light Pistol',     cat: 'firearm', subs: ['Light Pistol'] },
+  { label: 'Machine Pistol',   cat: 'firearm', subs: ['Machine Pistol'] },
+  { label: 'Heavy Pistol',     cat: 'firearm', subs: ['Heavy Pistol'] },
+  { label: 'SMG',              cat: 'firearm', subs: ['SMG', 'Submachine Gun'] },
+  { label: 'Shotgun',          cat: 'firearm', subs: ['Shotgun'] },
+  { label: 'Sport Rifle',      cat: 'firearm', subs: ['Sport Rifle'] },
+  { label: 'Assault Rifle',    cat: 'firearm', subs: ['Assault Rifle', 'Carbine'] },
+  { label: 'Sniper Rifle',     cat: 'firearm', subs: ['Sniper Rifle'] },
+  { label: 'Taser',            cat: 'firearm', subs: ['Taser'] },
+  { hdr: 'Heavy weapons' },
+  { label: 'Light MG',         cat: 'heavy', subs: ['Light Machine Gun'] },
+  { label: 'Medium MG',        cat: 'heavy', subs: ['Medium Machine Gun'] },
+  { label: 'Heavy MG',         cat: 'heavy', subs: ['Heavy Machine Gun'] },
+  { label: 'Assault Cannon',   cat: 'heavy', subs: ['Assault Cannon'] },
+  { label: 'Grenade Launcher', cat: 'heavy', subs: ['Grenade Launcher'] },
+  { label: 'Missile Launcher', cat: 'heavy', subs: ['Missile Launcher'] },
+  { hdr: 'Melee', note: 'no range bands — Reach applies' },
+  { label: 'Blade',            cat: 'melee', subs: ['Blade'] },
+  { label: 'Club',             cat: 'melee', subs: ['Club'] },
+  { label: 'Staff',            cat: 'melee', subs: ['Staff'] },
+  { label: 'Pole Arm',         cat: 'melee', subs: ['Pole Arm'] },
+  { label: 'Whip',             cat: 'melee', subs: ['Whip'] },
+  { label: 'Stun Baton',       cat: 'melee', subs: ['Stun Baton', 'Stun Glove'] },
+  { hdr: 'Thrown & projectile', note: 'ranges are × Strength' },
+  { label: 'Bow',              cat: 'projectile', subs: ['Bow'],            mult: STR_RANGE_MULT.Bow },
+  { label: 'Crossbow, medium', cat: 'projectile', subs: ['Crossbow'],       mult: CROSSBOW_MULT.medium },
+  { label: 'Throwing Knife',   cat: 'projectile', subs: ['Throwing Knife'], mult: STR_RANGE_MULT['Throwing Knife'] },
+  { label: 'Grenade, thrown',  cat: 'explosive',  subs: ['Grenade'],        mult: STR_RANGE_MULT.Grenade },
+];
+
+const LEVEL_RANK = { L: 0, M: 1, S: 2, D: 3 };
+
+// Damage codes in weapons.json are free text -- most are real codes ('9M', '(STR+2)M', '8S Stun'),
+// but a handful are prose pointing elsewhere ('see above', 'Variable', 'grenade', 'Per Missile').
+// Only parseable codes decide the typical; the prose ones are skipped rather than polluting a
+// column meant to answer "what's the usual number".
+function parseDmg(code) {
+  const m = String(code || '').match(/^(\(?STR[^)]*\)?|\d+)\s*([LMSD])\b/i);
+  if (!m) return null;
+  const raw = m[1];
+  const strMod = /STR/i.test(raw) ? Number((raw.match(/[+\-]\s*(\d+)/) || [])[1] || 0) : null;
+  return {
+    power: strMod !== null ? strMod : Number(raw),
+    level: m[2].toUpperCase(),
+    code: String(code).trim(),
+  };
+}
+
+/** The most common damage code across a set of weapons -- the "general case" for that class. */
+function typicalDamage(items) {
+  const parsed = items.map(w => parseDmg(w.dmg)).filter(Boolean);
+  if (!parsed.length) return null;
+  const freq = new Map();
+  parsed.forEach(d => freq.set(d.code, (freq.get(d.code) || 0) + 1));
+  let typical = null, best = -1;
+  freq.forEach((n, code) => { if (n > best) { best = n; typical = code; } });
+  return typical;
+}
+
+/** The single most common firing mode in a class (two only when they're genuinely split). */
+function typicalModes(items) {
+  const freq = new Map();
+  items.forEach(w => { if (w.mode) freq.set(w.mode, (freq.get(w.mode) || 0) + 1); });
+  const ranked = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return '';
+  // A clear favourite stands alone; a near-tie shows both so the row isn't misleading.
+  return ranked[1] && ranked[1][1] >= ranked[0][1] * 0.6
+    ? `${ranked[0][0]} · ${ranked[1][0]}`
+    : ranked[0][0];
+}
+
+function renderClassTable() {
+  const rows = [];
+  let shown = 0;
+
+  CLASS_GROUPS.forEach(g => {
+    if (g.hdr) {
+      rows.push(`<tr class="grp"><td colspan="7">${esc(g.hdr)}${
+        g.note ? ` <span>${esc(g.note)}</span>` : ''}</td></tr>`);
+      return;
+    }
+    const items = WEAPONS.filter(w => w.cat === g.cat && g.subs.includes(w.sub));
+    if (!items.length) return;   // class has no weapons in the enabled books
+    shown++;
+
+    const dmg = typicalDamage(items);
+    let rangeCells;
+    if (g.mult) {
+      // Strength-scaled: show the multiplier itself, so the row is right for every character.
+      rangeCells = g.mult.map(m => `<td class="rng">&times;${m}</td>`).join('');
+    } else {
+      const sample = items[0];
+      const bands = weaponRangeBands(sample, sample, 0);
+      // weaponRangeBands' no-data placeholder collapses to ['-','','',''] once displayBands()
+      // strips the implied floors, which reads as a broken row -- melee gets one honest cell.
+      rangeCells = bands[1]
+        ? bands.map(b => `<td class="rng">${esc(b)}</td>`).join('')
+        : `<td colspan="4" class="cr-melee">&mdash;</td>`;
+    }
+
+    rows.push(
+      `<tr>
+        <td title="${esc(g.label)}">${esc(g.label)}</td>
+        <td class="dmg">${dmg ? esc(dmg) : '<span class="text-dim">varies</span>'}</td>
+        <td class="mode" title="${esc(typicalModes(items))}">${esc(typicalModes(items)) || '—'}</td>
+        ${rangeCells}
+      </tr>`
+    );
+  });
+
+  $('classTbl').querySelector('tbody').innerHTML =
+    rows.join('') || '<tr><td colspan="7" class="empty-state">No weapons in the enabled books.</td></tr>';
+  $('weaponFoot').innerHTML =
+    `<b>Crossbow:</b> light &times;2/&times;8/&times;20/&times;40 &middot; heavy &times;5/&times;15/&times;40/&times;60. ` +
+    `<b>Damage</b> is the most common code in each class &mdash; individual weapons vary; the Dossier lists a runner's own.`;
+  $('crSub').textContent =
+    `Weapon classes & armor — ${shown} classes from ${WEAPONS.length} weapons in your enabled sourcebooks`;
+}
+
+function renderArmor() {
+  // 'Forearm Guards' carries the string "None" in its ballistic field, so coerce before comparing
+  // -- Number('None') is NaN and would drop the row from an unguarded > 0 filter.
+  const num = v => Number(v) || 0;
+  const worn = ARMOR.filter(a => num(a.ballistic) > 0 || num(a.impact) > 0);
+  const GROUPS = [
+    { key: 'worn',     label: 'Worn' },
+    { key: 'helmet',   label: 'Helmets' },
+    { key: 'shield',   label: 'Shields' },
+    { key: 'military', label: 'Military & security' },
+  ];
+
+  const rows = [];
+  GROUPS.forEach(grp => {
+    const items = worn.filter(a => a.cat === grp.key);
+    if (!items.length) return;
+
+    // Different books sell the same protection under different names -- Armor Jacket, Secure
+    // Jacket and Camo-Spec Jacket are all 5/3. On a wall chart you scan for the rating, so
+    // identical ratings collapse to one row listing every name that provides it; nothing is
+    // dropped, and the table loses about a third of its height.
+    const byRating = new Map();
+    items.forEach(a => {
+      const key = `${num(a.ballistic)}/${num(a.impact)}`;
+      if (!byRating.has(key)) byRating.set(key, { b: num(a.ballistic), i: num(a.impact), names: [] });
+      byRating.get(key).names.push(a.n);
+    });
+
+    const tiers = [...byRating.values()].sort((x, y) => y.b - x.b || y.i - x.i);
+    rows.push(`<tr class="grp"><td colspan="3">${esc(grp.label)}</td></tr>`);
+    tiers.forEach(t => {
+      const names = t.names.join(' · ');
+      rows.push(
+        `<tr>
+          <td class="wrap" title="${esc(names)}">${esc(names)}</td>
+          <td class="num">${t.b}</td>
+          <td class="num">${t.i}</td>
+        </tr>`
+      );
+    });
+  });
+
+  $('armorTbl').querySelector('tbody').innerHTML =
+    rows.join('') || '<tr><td colspan="3" class="empty-state">No armor in the enabled books.</td></tr>';
+}
+
+async function loadCatalogs() {
+  const [weaponsRes, armorRes] = await Promise.all([
+    apiFetch('/catalog/weapons'),
+    apiFetch('/catalog/armor'),
+  ]);
+  if (weaponsRes.ok) WEAPONS = (await weaponsRes.json()).items || [];
+  if (armorRes.ok) ARMOR = (await armorRes.json()).items || [];
+  renderClassTable();
+  renderArmor();
+}
+
+bootstrapAuth().then(ctx => { if (ctx) loadCatalogs(); });
+</script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
+</body>
+</html>
