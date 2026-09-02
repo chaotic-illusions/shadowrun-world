@@ -235,18 +235,22 @@ function _buildCharactersNavGroup() {
   anchor.remove();
 }
 
-// -- ADMIN CONTROL nav group ---------------------------------------------------
-// Folds Downtime, Sourcebooks and Tokens into one "ADMIN CONTROL" dropdown. Unlike MATRIX/
-// CHARACTERS, none of these have a guaranteed pre-existing flat link on every page (Downtime
-// used to be injected by _injectAuthLabel(), Sourcebooks is brand new), so every child is built
-// fresh from childDefs rather than relying on one always being present to fold in. The group
-// itself is visible to everyone -- Tokens is where a player renames their own token -- while
-// Downtime and Sourcebooks are individually gm-only.
-function _buildAdminNavGroup() {
+// -- TOOLS nav group -----------------------------------------------------------
+// Folds Combat Reference, Downtime, Sourcebooks, Archetypes and Tokens into one "TOOLS" dropdown.
+// Named TOOLS rather than the old "ADMIN CONTROL" because the group is not all admin: Tokens is
+// where a player renames their own token, and Combat Reference is a lookup table both sides read.
+// The GM-only children carry their own gm-only class instead.
+//
+// Unlike MATRIX/CHARACTERS, none of these have a guaranteed pre-existing flat link on every page
+// (Downtime used to be injected by _injectAuthLabel(), Sourcebooks and Combat Reference are
+// newer), so every child is built fresh from childDefs rather than relying on one always being
+// present to fold in.
+function _buildToolsNavGroup() {
   const nav = document.querySelector('header nav');
-  if (!nav || nav.querySelector('.nav-group--admin')) return;
+  if (!nav || nav.querySelector('.nav-group--tools')) return;
 
   const childDefs = [
+    { href: 'combat-reference.html',   label: 'Combat Reference' },
     { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
     { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },
     { href: 'manage-archetypes.html',  label: 'Archetypes',  gmOnly: true },
@@ -254,16 +258,16 @@ function _buildAdminNavGroup() {
   ];
 
   const here = window.location.pathname;
-  const onAdminPage = childDefs.some(d => here.endsWith(d.href));
+  const onToolsPage = childDefs.some(d => here.endsWith(d.href));
 
   const group = document.createElement('div');
-  group.className = 'nav-group nav-group--admin' + (onAdminPage ? ' active' : '');
+  group.className = 'nav-group nav-group--tools' + (onToolsPage ? ' active' : '');
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'nav-group-toggle';
   toggle.setAttribute('aria-haspopup', 'true');
   toggle.setAttribute('aria-expanded', 'false');
-  toggle.innerHTML = 'ADMIN CONTROL <span class="nav-caret">&#9662;</span>';
+  toggle.innerHTML = 'TOOLS <span class="nav-caret">&#9662;</span>';
   const menu = document.createElement('div');
   menu.className = 'nav-group-menu';
   childDefs.forEach(d => {
@@ -290,9 +294,9 @@ function _buildAdminNavGroup() {
     }
   });
 
-  // Drop any pre-existing flat links for these three pages (some older static navs still have
-  // them), inserting the group where the first one sat so position stays stable; otherwise
-  // append to the end of the nav, matching where Downtime/Tokens used to land.
+  // Drop any pre-existing flat links for these pages (some older static navs still have them),
+  // inserting the group where the first one sat so position stays stable; otherwise append to
+  // the end of the nav, matching where Downtime/Tokens used to land.
   const flats = childDefs
     .map(d => nav.querySelector(`a[href="${d.href}"]`))
     .filter(Boolean);
@@ -346,7 +350,7 @@ async function bootstrapAuth() {
     _buildDossierNavLink();
     _buildMatrixNavGroup();
     _buildCharactersNavGroup();
-    _buildAdminNavGroup();
+    _buildToolsNavGroup();
     _applyMatrixRunNavGate();
 
     return _authCtx;
@@ -370,7 +374,7 @@ function _injectAuthLabel() {
     if (charsLink) nav.insertBefore(b, charsLink.nextSibling);
     else nav.appendChild(b);
   }
-  // Downtime, Sourcebooks and Tokens are added by _buildAdminNavGroup() instead of here.
+  // Downtime, Sourcebooks and Tokens are added by _buildToolsNavGroup() instead of here.
 
   // Bottom-right fixed label
   const label = document.createElement('div');
@@ -1416,6 +1420,79 @@ function matrixReactionInitFormula(quickness, intelligence, deckType, respIncrea
   if (deckType === 'tortoise') return { matrixReaction: Math.max(1, Math.floor(baseReaction / 2)), initiativeDice: 1 };
   const effectiveRI = ri + (realityFilter ? 1 : 0);
   return { matrixReaction: baseReaction + ri * 2, initiativeDice: Math.max(1, 1 + effectiveRI + (deckType === 'hot' ? 1 : -1)) };
+}
+
+// -- SR2 weapon ranges ----------------------------------------------------------
+// Range bands (metres) by weapon sub-type. Not in weapons.json, so they're looked up by class.
+// Originally ported into play-sheet.html from tools/fill_sr2_sheet.py's RANGE_TABLE (still used
+// for the PDF export); moved here when combat-reference.html needed the same bands, so the two
+// pages can't drift -- same reasoning as the pool formulas above. Strength-based weapons
+// (bows/thrown/crossbows) are computed from a strength passed in by the caller.
+// Band target numbers are Short 4 / Medium 5 / Long 6 / Extreme 8.
+const RANGE_TABLE = {
+  'Hold-Out': ['0-5','6-15','16-30','31-50'], 'Hold-Out Pistol': ['0-5','6-15','16-30','31-50'],
+  'Light Pistol': ['0-5','6-15','16-30','31-50'], 'Machine Pistol': ['0-5','6-15','16-30','31-50'],
+  'Heavy Pistol': ['0-5','6-20','21-40','41-60'],
+  'SMG': ['0-10','11-40','41-80','81-150'], 'Submachine Gun': ['0-10','11-40','41-80','81-150'],
+  'Shotgun': ['0-10','11-20','21-50','51-100'],
+  'Taser': ['0-5','6-10','11-12','13-15'],
+  'Sport Rifle': ['0-30','31-60','61-150','151-300'],
+  'Sniper Rifle': ['0-40','41-80','81-200','201-400'],
+  'Assault Rifle': ['0-15','16-40','41-100','101-250'], 'Carbine': ['0-15','16-40','41-100','101-250'],
+  'Light Machine Gun': ['0-20','21-40','41-80','81-150'],
+  'Medium Machine Gun': ['0-40','41-150','151-300','301-500'],
+  'Heavy Machine Gun': ['0-40','41-150','151-400','401-800'],
+  'Assault Cannon': ['0-50','51-150','151-450','451-1300'],
+  'Grenade Launcher': ['5-50','51-100','101-150','151-300'],
+  'Missile Launcher': ['20-70','71-150','151-450','451-1500'],
+  'Anti-Tank Guided Missile': ['20-350','351-750','751-1500','1501-5000'],
+  'Mortar': ['150-300','301-1000','1001-4000','4001-6000'],
+  'Laser Weapon': ['0-40','41-80','81-200','201-400'],
+  'Vehicle Laser': ['0-50','51-150','151-450','451-1300'],
+  'Light Anti-Armor Weapon': ['20-70','71-150','151-450','451-1500'],
+  'Medium Anti-Armor Weapon': ['20-70','71-150','151-450','451-1500'],
+  'Minigun': ['0-20','21-40','41-80','81-150'],
+  'Sentry Gun': ['0-20','21-40','41-80','81-150'],
+  'Surface-to-Air Missile': ['20-70','71-150','151-450','451-5000'],
+  'Dart Pistol': ['0-5','6-15','16-30','31-50'], 'Dart Rifle': ['0-10','11-20','21-50','51-100'],
+};
+const NAME_RANGE = { 'Ballista Multi-Role Missile Launcher': ['20-100','101-500','501-2500','2501-5000'] };
+const STR_RANGE_MULT = { Bow:[1,10,30,60], 'Throwing Knife':[1,2,3,5], Shuriken:[1,2,5,7], Grenade:[3,5,10,20], Thrown:[3,5,10,20] };
+const CROSSBOW_MULT = { light:[2,8,20,40], medium:[3,12,30,50], heavy:[5,15,40,60] };
+
+/** Strength-scaled bands, e.g. a Bow's [1,10,30,60] multipliers against Strength. */
+function strRangeBands(mults, strength){
+  const bands = []; let lo = 0;
+  mults.forEach(m => { const hi = Math.max(0, Math.round((strength||0)*m)); bands.push(`${lo}-${hi}`); lo = hi + 1; });
+  return bands;
+}
+
+// Condense "lo-hi" bands to a single "up to" number -- each band's floor is implied by the
+// previous band's ceiling, so only Short keeps its own floor, and only when it's non-zero
+// (indirect-fire weapons like grenade/missile launchers have a genuine minimum range). Matches
+// tools/fill_sr2_sheet.py's _display_bands(), used for the same tables on the PDF export.
+function displayBands(bands){
+  return bands.map((band, i) => {
+    const [lo, hi] = String(band).split('-');
+    if (hi == null) return band;   // already a bare "-" placeholder
+    return (i === 0 && lo !== '0') ? `${lo}-${hi}` : hi;
+  });
+}
+
+/** Display bands for one weapon. `cat` is its weapons.json catalog row; `strength` only
+ *  matters for the strength-scaled classes (bows, crossbows, thrown). */
+function weaponRangeBands(w, cat, strength){
+  let bands = NAME_RANGE[w.n] || RANGE_TABLE[cat.sub];
+  if (!bands) {
+    let mults = STR_RANGE_MULT[cat.sub];
+    if (cat.sub === 'Crossbow') {
+      const lname = (w.n || '').toLowerCase();
+      const key = lname.includes('light') ? 'light' : lname.includes('heavy') ? 'heavy' : 'medium';
+      mults = CROSSBOW_MULT[key];
+    }
+    if (mults) bands = strRangeBands(mults, strength);
+  }
+  return displayBands(bands || ['-','-','-','-']);
 }
 
 

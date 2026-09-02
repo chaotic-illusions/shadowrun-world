@@ -396,9 +396,9 @@ def test_sourcebooks_page_toggles_books(_browser, _frontend_port):
     ctx.close()
 
 
-def test_admin_control_nav_group_gates_downtime_and_sourcebooks(_browser, _frontend_port):
-    """The Admin Control dropdown is visible to everyone; Downtime/Sourcebooks inside it are
-    gm-only, Tokens is not."""
+def test_tools_nav_group_gates_downtime_and_sourcebooks(_browser, _frontend_port):
+    """The Tools dropdown is visible to everyone; Downtime/Sourcebooks inside it are gm-only,
+    while Tokens and Combat Reference are not."""
     ctx = _browser.new_context()
     ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_user_token','tok');")
     pg = ctx.new_page()
@@ -414,18 +414,19 @@ def test_admin_control_nav_group_gates_downtime_and_sourcebooks(_browser, _front
 
     pg.route("**/*", _player_route)
     pg.goto(f"http://127.0.0.1:{_frontend_port}/manage-sourcebooks.html")
-    pg.wait_for_selector(".nav-group--admin", timeout=15000)
+    pg.wait_for_selector(".nav-group--tools", timeout=15000)
     pg.wait_for_selector("#sbNotGm", state="visible", timeout=15000)  # confirms bootstrapAuth finished
 
-    group = pg.locator(".nav-group--admin")
+    group = pg.locator(".nav-group--tools")
     assert group.count() == 1
     # .nav-group-menu is display:none except on :hover/:focus-within/.open (style.css) -- open it
     # first, otherwise every link is invisible regardless of the gm-only gate and the "should be
     # visible" assertion below can never actually catch a regression.
     group.hover()
     assert group.locator('a[href="manage-tokens.html"]').is_visible()
+    assert group.locator('a[href="combat-reference.html"]').is_visible()
     assert not group.locator('a[href="manage-downtime.html"]').is_visible()
     assert not group.locator('a[href="manage-sourcebooks.html"]').is_visible()
-    assert errors == [], f"JS errors on Admin Control nav gate check: {errors}"
+    assert errors == [], f"JS errors on Tools nav gate check: {errors}"
     ctx.close()
 
