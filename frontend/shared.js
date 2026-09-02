@@ -236,7 +236,9 @@ function _buildCharactersNavGroup() {
 }
 
 // -- TOOLS nav group -----------------------------------------------------------
-// Folds Combat Reference, Downtime, Sourcebooks, Archetypes and Tokens into one "TOOLS" dropdown.
+// Folds Combat (the combat reference), Downtime, Sourcebooks, Archetypes and Tokens into one
+// "TOOLS" dropdown. Every label is one word on purpose: a two-word item wraps at the menu's
+// min-width, and a taller menu drags a scrollbar onto the page (see .nav-group-menu in style.css).
 // Named TOOLS rather than the old "ADMIN CONTROL" because the group is not all admin: Tokens is
 // where a player renames their own token, and Combat Reference is a lookup table both sides read.
 // The GM-only children carry their own gm-only class instead.
@@ -250,7 +252,7 @@ function _buildToolsNavGroup() {
   if (!nav || nav.querySelector('.nav-group--tools')) return;
 
   const childDefs = [
-    { href: 'combat-reference.html',   label: 'Combat Reference' },
+    { href: 'combat-reference.html',   label: 'Combat' },
     { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
     { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },
     { href: 'manage-archetypes.html',  label: 'Archetypes',  gmOnly: true },
