@@ -36,6 +36,9 @@
       <select id="filterType" onchange="applyFilter()" style="width:160px">
         <option value="">All Types</option>
       </select>
+      <select id="filterAdventure" onchange="applyFilter()" style="width:210px" data-tip="Filter by the published adventure a location came from">
+        <option value="">All Adventures</option>
+      </select>
       <span id="filterStatusWrap">
         <select id="filterStatus" onchange="applyFilter()" style="width:120px">
           <option value="">All Status</option>
@@ -180,6 +183,11 @@
         <label>GM Notes</label>
         <textarea id="f-notes" rows="2" placeholder="Hidden details, plot hooks..."></textarea>
       </div>
+      <div class="field mt-14">
+        <label>Source Adventure</label>
+        <input type="text" id="f-source_adventure" list="adventureList" maxlength="100" placeholder="Published adventure this location came from (blank = home-grown)">
+        <datalist id="adventureList"></datalist>
+      </div>
     </div>
     <div class="edit-modal-foot">
       <button class="btn btn-green flex-1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
@@ -234,6 +242,7 @@ function renderTable(data) {
           <th>City / District</th>
           <th>Security</th>
           <th>Controlling Org</th>
+          <th>Source</th>
           ${adminMode ? '<th>Active</th>' : ''}
           <th class="td-act"></th>
         </tr>
@@ -246,6 +255,7 @@ function renderTable(data) {
             <td class="text-dim">${[l.city, l.district].filter(Boolean).map(esc).join(' / ') || '--'}</td>
             <td style="color:var(--amber);font-size:.75rem">${esc(l.security_level||'--')}</td>
             <td class="dim-meta">${esc(orgMap[l.controlling_org_id]||'--')}</td>
+            <td class="dim-meta">${esc(l.source_adventure||'--')}</td>
             ${adminMode ? `<td><label class="mh-reveal" data-tip="${l.is_active ? 'Mark undiscovered/inactive' : 'Mark discovered/active'}"><input type="checkbox" class="chk-reveal" ${l.is_active ? 'checked' : ''} onchange="toggleLocRow(${l.id}, this.checked)"></label></td>` : ''}
             <td class="td-act">${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${l.id})">Edit</button>` : ''}</td>
           </tr>`).join('')}
@@ -261,9 +271,12 @@ function applyFilter() {
   const q = document.getElementById('filterInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
   const statusFilter = document.getElementById('filterStatus').value;
+  buildAdventureFilter('filterAdventure', allLocs);
+  const adv = document.getElementById('filterAdventure').value;
   const filtered = allLocs.filter(l =>
     (!q || l.name.toLowerCase().includes(q) || (l.description||'').toLowerCase().includes(q) || (l.district||'').toLowerCase().includes(q)) &&
     (!t || l.location_type === t) &&
+    adventureFilterMatch(adv, l) &&
     !(statusFilter === 'active'   && !l.is_active) &&
     !(statusFilter === 'inactive' &&  l.is_active)
   );
@@ -292,6 +305,8 @@ function openModal(id) {
   document.getElementById('f-controlling_org_id').value = loc?.controlling_org_id || '';
   document.getElementById('f-description').value        = loc?.description || '';
   document.getElementById('f-notes').value              = loc?.notes || '';
+  document.getElementById('f-source_adventure').value   = loc?.source_adventure || '';
+  fillAdventureDatalist();
 
   const locTypeVal = loc?.location_type || '';
   if (!locTypeVal || PREDEFINED_LOC_TYPES.includes(locTypeVal)) {
@@ -341,6 +356,7 @@ async function saveLoc() {
     controlling_org_id: orgId,
     description:        document.getElementById('f-description').value.trim() || null,
     notes:              document.getElementById('f-notes').value.trim() || null,
+    source_adventure:   document.getElementById('f-source_adventure').value.trim() || null,
   };
 
   try {

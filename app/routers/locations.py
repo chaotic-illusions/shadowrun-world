@@ -29,6 +29,7 @@ async def list_locations(
     location_type: str | None = Query(None),
     controlling_org_id: int | None = Query(None),
     is_active: bool | None = Query(None),
+    source_adventure: str | None = Query(None, description="Filter by published-adventure source"),
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
@@ -44,6 +45,8 @@ async def list_locations(
         q = q.where(Location.controlling_org_id == controlling_org_id)
     if is_active is not None:
         q = q.where(Location.is_active == is_active)
+    if source_adventure:
+        q = q.where(Location.source_adventure == source_adventure)
     result = await db.execute(q.order_by(Location.name))
     return [_serialize_location(location, ctx) for location in result.scalars().all()]
 

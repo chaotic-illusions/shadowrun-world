@@ -506,6 +506,59 @@ function money(n) {
 /** HTML-escape a string for safe insertion into HTML text and quoted HTML attributes.
  *  Never interpolate data into inline JavaScript handlers; HTML entities are decoded before
  *  those handlers are compiled. Use data attributes and addEventListener instead. */
+// -- Published-adventure provenance ---------------------------------------------------------
+// Campaign order of the published adventures (docs/Adventures/SR_Adventures.xlsx). Sorts the
+// "by adventure" filter on the manage pages; values not listed here sort after, alphabetically.
+const ADVENTURE_ORDER = [
+  'Silver Angel', 'Food Fight', 'DNA/DOA', 'Mercurial', 'Dreamchipper', 'Queen Euphoria',
+  'Bottled Demon', 'Peacekeeper', 'Harlequin', 'Dragon Hunt', 'Eye of the Eagle', 'Total Eclipse',
+  'Imago', 'Elven Fire', 'Ivy & Chrome', 'One Stage Before', 'Eye Witness', 'Dark Angel',
+  'A Killing Glare', 'Celtic Double-Cross', 'Paradise Lost', 'Divided Assets', 'Double Exposure',
+  "Harlequin's Back", 'Missing Blood', 'Super Tuesday!', 'Shadows of the Underworld',
+  'Predator and Prey', 'Missions', 'Mob War!', 'Blood in the Boardroom',
+  'Renraku Arcology: Shutdown', 'First Run', 'Corporate Punishment', 'Brainscan',
+  'Survival of the Fittest', 'Wake of the Comet', 'System Failure',
+  'SRM 00-01 Mission Briefing', 'SRM 00-02 Demolition Run', 'SRM 00-03 FORCEd Recon',
+  "SRM 00-04 A Fork in Fate's Path", 'SRM 00-05 A Dark and Stormy Night',
+  'SRM 01-01 Double Cross', 'SRM 01-02 Strings Attached', 'SRM 01-03 Harvest Time',
+  'SRM 01-04 The Gambler', 'SRM 01-05 A Walk in the Park', 'SRM 01-06 Lost and Found',
+  'SRM 01-07 Keys to the Asylum', 'SRM 01-08 Duplicity', 'SRM 01-09 For Whom the Bell Tolls',
+];
+const ADVENTURE_FILTER_NONE = '__none__';
+function adventureSortKey(name) {
+  const i = ADVENTURE_ORDER.indexOf(name);
+  return i < 0 ? 1000 : i;
+}
+// Rebuild a <select> of the distinct source_adventure values present in `items`, in campaign
+// order, keeping the current selection. Idempotent: a no-op when the option set is unchanged.
+function buildAdventureFilter(selectId, items) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const names = [...new Set(items.map(i => i.source_adventure).filter(Boolean))]
+    .sort((a, b) => adventureSortKey(a) - adventureSortKey(b) || a.localeCompare(b));
+  const sig = names.join('\u0001');
+  if (sel.dataset.sig === sig) return;
+  sel.dataset.sig = sig;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Adventures</option>'
+    + `<option value="${ADVENTURE_FILTER_NONE}">World (no adventure)</option>`
+    + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value = cur;
+  if (sel.value !== cur) sel.value = '';
+  fillAdventureDatalist();
+}
+function adventureFilterMatch(val, item) {
+  if (!val) return true;
+  if (val === ADVENTURE_FILTER_NONE) return !item.source_adventure;
+  return item.source_adventure === val;
+}
+// Populate the <datalist id="adventureList"> used by the modal Source Adventure inputs.
+function fillAdventureDatalist() {
+  const dl = document.getElementById('adventureList');
+  if (!dl || dl.children.length) return;
+  dl.innerHTML = ADVENTURE_ORDER.map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;')

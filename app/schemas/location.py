@@ -12,6 +12,7 @@ class LocationBase(BaseModel):
     is_active: bool = True
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
 
 
 class LocationCreate(LocationBase):
@@ -30,6 +31,7 @@ class LocationUpdate(BaseModel):
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
 
 
 class LocationRead(LocationBase):

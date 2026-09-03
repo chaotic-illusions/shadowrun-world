@@ -24,6 +24,7 @@ class OrganizationBase(BaseModel):
     revealed_enemy_ids: list[int] = []
     is_active: bool = True
     notes: Optional[str] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
 
 
 class OrganizationCreate(OrganizationBase):
@@ -47,6 +48,7 @@ class OrganizationUpdate(BaseModel):
     revealed_enemy_ids: Optional[list[int]] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
 
 
 class OrganizationRead(OrganizationBase):

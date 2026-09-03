@@ -34,6 +34,8 @@ class Organization(Base):
 
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
+    # Published adventure this org was lifted from; None for home-grown world entities.
+    source_adventure: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
 
     locations: Mapped[list["Location"]] = relationship("Location", back_populates="controlling_org")
     contacts: Mapped[list["Contact"]] = relationship("Contact", back_populates="organization")
