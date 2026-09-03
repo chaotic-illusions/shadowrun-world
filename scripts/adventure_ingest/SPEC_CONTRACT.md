@@ -35,6 +35,14 @@ ORG_UPDATES value keys: `notes_append`, `description_append`, `leadership_add` (
 LOC_UPDATES value keys: `notes_append`, `description_append`, `set`. Do not relink `controlling_org`.
 NPC_UPDATES value keys: `notes_append`, `background_append`, `description_append`, `contact_skills_add`, `set`. Do not relink `organization`.
 
+## Depth checklist (the campaign owner compares every spec against the early ones)
+- NPC `description`: looks, dress, manner, speech, and a quote where the book gives one (typically 250-400 chars).
+- NPC `background`: present for everyone the book gives any history to.
+- NPC `notes`: opens with the short stat summary (attributes line, key skills, cyberware, gear, spells, Threat/Force), then plot role, tactics, aftermath (typically 400-600 chars).
+- Location `description`: the full paragraph the book gives -- layout, atmosphere, staff, security (typically 500-800 chars); `notes` carry map references, security stats, plot use.
+- Org `description` + `notes`: what it is, who runs it, stat blocks of its typical members, its role and aftermath.
+- Generosity: named single-scene people and places still get short, real rows; only nameless archetypes go to NOT_BUILT.
+
 ## Rules
 - Be generous: any named person with a role and a place gets an NPC row; named bars/hotels/shops/facilities get location rows; gangs/corps/cults/agencies/tribes/nations get org rows. Pure name-drops go in NOT_BUILT.
 - Earlier books are canon. Contradictions with existing rows go into notes_append as a flagged discrepancy, never a rewrite.
