@@ -35,8 +35,26 @@ def ocr_page(pdf, pno):
     txt = p.get_text()
     if len(txt.strip()) < 200:
         try:
-            pix = p.get_pixmap(dpi=200)
-            txt = pytesseract.image_to_string(Image.open(io.BytesIO(pix.tobytes("png"))), timeout=90)
+            img = None
+            # Prefer the raw embedded scan: MuPDF mis-renders some grayscale JPEG scans (e.g. the
+            # Mercurial copies) into stripes, while PIL decodes the same bytes cleanly.
+            imgs = sorted(p.get_images(), key=lambda im: im[2] * im[3], reverse=True)
+            if imgs and imgs[0][2] >= 600:
+                try:
+                    raw = d.extract_image(imgs[0][0])
+                    img = Image.open(io.BytesIO(raw["image"]))
+                    img.load()
+                except Exception:  # noqa: BLE001 -- fall back to rendering
+                    img = None
+            if img is None:
+                pix = p.get_pixmap(dpi=200)
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+            txt = pytesseract.image_to_string(img, timeout=90)
+            if len(txt.strip()) < 100 and imgs:  # raw image unreadable? try the render too
+                pix = p.get_pixmap(dpi=200)
+                alt = pytesseract.image_to_string(Image.open(io.BytesIO(pix.tobytes("png"))), timeout=90)
+                if len(alt.strip()) > len(txt.strip()):
+                    txt = alt
         except Exception as e:  # noqa: BLE001 -- one bad page must not sink the file
             txt = f"[OCR FAILED: {e!r}]"
     return pno, txt
