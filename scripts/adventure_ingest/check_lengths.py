@@ -23,6 +23,12 @@ def main() -> None:
                 if isinstance(val, str) and len(val) > limit:
                     bad += 1
                     print(f"{kind} {row['name']!r}: {field} is {len(val)} chars (max {limit})")
+            if kind == "npc" and "race" in row and not isinstance(row["race"], str):
+                bad += 1
+                print(f"npc {row['name']!r}: race must be a string (omit the key for the default)")
+            if kind == "org" and row.get("affiliation_contact_type") not in (None, "Gang", "Tribe"):
+                bad += 1
+                print(f"org {row['name']!r}: affiliation_contact_type must be Gang or Tribe or omitted")
     for kind, updates in (("org", spec.ORG_UPDATES), ("location", spec.LOC_UPDATES), ("npc", spec.NPC_UPDATES)):
         for name, upd in updates.items():
             for field, val in (upd.get("set") or {}).items():

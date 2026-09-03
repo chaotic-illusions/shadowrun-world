@@ -101,7 +101,6 @@ ORGS = [
     {
         "name": "Whole Earth Adventists",
         "org_type": "cult",
-        "affiliation_contact_type": "Cult",
         "tier": 1,
         "headquarters": "Mobile cell, New York City",
         "summary": "Violent fringe of the Church of the Whole Earth convinced Dunkelzahn's presidency is a holy mandate worth killing for",
@@ -136,7 +135,6 @@ ORGS = [
     {
         "name": "October 25th Alliance",
         "org_type": "policlub",
-        "affiliation_contact_type": "Resistance movement",
         "tier": 2,
         "headquarters": "People's University, Oakland/Berkeley sprawl",
         "summary": "One of the two largest anti-occupation metahuman-rights groups in Japanese-occupied San Francisco's Oakland/Berkeley underground",
@@ -169,7 +167,6 @@ ORGS = [
     {
         "name": "Human Nation",
         "org_type": "policlub",
-        "affiliation_contact_type": "Anti-metahuman fraternity",
         "tier": 3,
         "summary": "National anti-metahuman fraternity of powerful individuals backing Kenneth Brackhaven and paying gangs to manufacture street violence",
         "description": (
@@ -187,7 +184,6 @@ ORGS = [
     {
         "name": "Flaming Sword",
         "org_type": "paramilitary",
-        "affiliation_contact_type": "Militia",
         "tier": 2,
         "summary": "The Human Nation's paramilitary wing -- started as rich dilettantes playing soldier, now led and trained by hired military professionals",
         "description": (
@@ -204,7 +200,6 @@ ORGS = [
     {
         "name": "New Weathermen",
         "org_type": "policlub",
-        "affiliation_contact_type": "Metahuman-rights militants",
         "tier": 1,
         "headquarters": "Redmond, Seattle",
         "summary": "Violent metahuman-rights activists who target racist groups and leaders in terrorist attacks -- and who have been watching Burt Aronson for some time",
@@ -242,7 +237,6 @@ ORGS = [
     {
         "name": "The Secret Hive",
         "org_type": "cult",
-        "affiliation_contact_type": "Insect-spirit infiltration network",
         "tier": 3,
         "summary": "Insect-spirit remnant of the shattered Universal Brotherhood, infiltrating governments and corporations through 'good merge' hosts indistinguishable from ordinary people",
         "description": (
@@ -261,7 +255,6 @@ ORGS = [
     {
         "name": "Empowerment Coalition",
         "org_type": "spirit cabal",
-        "affiliation_contact_type": "Mantis spirit cabal",
         "tier": 2,
         "summary": "A cabal of powerful mantis spirits, smuggled out of the Chicago Containment Zone, dedicated to stopping the Secret Hive -- not out of altruism, but rivalry",
         "description": (
