@@ -13,9 +13,18 @@ Spec module contract (all optional except ADVENTURE):
   LOCATIONS   list  -- LocationCreate dicts + optional keys: summary, controlling_org (org name)
   NPCS        list  -- CharacterCreate dicts + optional keys: role, organization (org name)
   ORG_UPDATES dict  -- {org name: {description_append, notes_append, leadership_add: [...],
-                                   allies_add: [names], enemies_add: [names]}}
-  LOC_UPDATES dict  -- {location name: {description_append, notes_append}}
-  NPC_UPDATES dict  -- {character name: {description_append, background_append, notes_append}}
+                                   allies_add: [names], enemies_add: [names], set: {field: value}}}
+  LOC_UPDATES dict  -- {location name: {description_append, notes_append, controlling_org: name,
+                                        set: {field: value}}}
+  NPC_UPDATES dict  -- {character name: {description_append, background_append, notes_append,
+                                         contact_skills_add: [...], organization: name,
+                                         set: {field: value}}}
+                       `set` overwrites fields verbatim (use for corrections such as a wrong name;
+                       never for lore text -- that is what the *_append keys are for). A `set` that
+                       renames a row keys the update by the OLD name.
+  TAG_EXISTING dict -- {"orgs": [names], "locations": [names], "npcs": [names]}: rows that predate
+                       the ingest tooling but belong to this adventure; they get source_adventure
+                       stamped when it is still empty.
   MATRIX_HOSTS str  -- markdown: systems worth building later (NOT built by this loader)
   NOT_BUILT   str   -- markdown: flavor names deliberately skipped
   PLAY_NOTES  str   -- markdown: GM hooks / how it plays
@@ -122,7 +131,24 @@ class Loader:
         self._update_orgs()
         self._update_locations()
         self._update_npcs()
+        self._tag_existing()
         return self.report
+
+    def _tag_existing(self):
+        tags = getattr(self.spec, "TAG_EXISTING", {}) or {}
+        for key, rows, path, kind in (
+            ("orgs", self.orgs, "/organizations/", "org"),
+            ("locations", self.locs, "/locations/", "location"),
+            ("npcs", self.chars, "/characters/", "npc"),
+        ):
+            for name in tags.get(key, []):
+                row = rows.get(name.lower())
+                if not row:
+                    self.report["warnings"].append(f"TAG_EXISTING {kind} not found: {name}")
+                    continue
+                if row.get("source_adventure"):
+                    continue
+                self._do(f"{kind}-tag", "PATCH", f"{path}{row['id']}", {"source_adventure": self.adv}, name)
 
     def _create_orgs(self):
         for o in getattr(self.spec, "ORGS", []):
@@ -204,8 +230,11 @@ class Loader:
                 merged = sorted(set(row.get(field) or []) | set(ids))
                 if merged != sorted(row.get(field) or []):
                     patch[field] = merged
+            patch.update({k: v for k, v in (upd.get("set") or {}).items() if row.get(k) != v})
             if patch:
                 self._do("org-update", "PATCH", f"/organizations/{row['id']}", patch, name)
+                if "name" in patch:
+                    self.orgs[patch["name"].lower()] = {**row, **patch}
             else:
                 self.report["skipped"].append(f"org already updated: {name}")
 
@@ -220,8 +249,15 @@ class Loader:
                 new = _append(row.get(field), self.adv, upd.get(f"{field}_append", ""))
                 if new is not None:
                     patch[field] = new
+            if upd.get("controlling_org"):
+                oid = self._org_id(upd["controlling_org"])
+                if oid and row.get("controlling_org_id") != oid:
+                    patch["controlling_org_id"] = oid
+            patch.update({k: v for k, v in (upd.get("set") or {}).items() if row.get(k) != v})
             if patch:
                 self._do("location-update", "PATCH", f"/locations/{row['id']}", patch, name)
+                if "name" in patch:
+                    self.locs[patch["name"].lower()] = {**row, **patch}
             else:
                 self.report["skipped"].append(f"location already updated: {name}")
 
@@ -236,8 +272,19 @@ class Loader:
                 new = _append(row.get(field), self.adv, upd.get(f"{field}_append", ""))
                 if new is not None:
                     patch[field] = new
+            adds = [s for s in (upd.get("contact_skills_add") or []) if s not in (row.get("contact_skills") or [])]
+            if adds:
+                patch["contact_skills"] = list(row.get("contact_skills") or []) + adds
+            if "organization" in upd:
+                oid = self._org_id(upd["organization"]) if upd["organization"] else None
+                if row.get("organization_id") != oid:
+                    patch["organization_id"] = oid
+                    patch["is_independent"] = oid is None and upd["organization"] is None
+            patch.update({k: v for k, v in (upd.get("set") or {}).items() if row.get(k) != v})
             if patch:
                 self._do("npc-update", "PATCH", f"/characters/{row['id']}", patch, name)
+                if "name" in patch:
+                    self.chars[patch["name"].lower()] = {**row, **patch}
             else:
                 self.report["skipped"].append(f"npc already updated: {name}")
 
@@ -298,10 +345,19 @@ def render_doc(spec) -> str:
     nupd = getattr(spec, "NPC_UPDATES", {})
     if lupd or nupd:
         lines += ["## Existing locations / NPCs updated", ""]
-        for name in lupd:
-            lines.append(f"- location: **{name}**")
-        for name in nupd:
-            lines.append(f"- NPC: **{name}**")
+        for name, u in lupd.items():
+            extra = f" (corrected: {', '.join(u['set'])})" if u.get("set") else ""
+            lines.append(f"- location: **{name}**{extra}")
+        for name, u in nupd.items():
+            extra = f" (corrected: {', '.join(u['set'])})" if u.get("set") else ""
+            lines.append(f"- NPC: **{name}**{extra}")
+        lines.append("")
+    tags = getattr(spec, "TAG_EXISTING", {}) or {}
+    if any(tags.values()):
+        lines += ["## Pre-existing rows tagged to this adventure", ""]
+        for key in ("orgs", "locations", "npcs"):
+            if tags.get(key):
+                lines.append(f"- {key}: " + ", ".join(tags[key]))
         lines.append("")
     if getattr(spec, "MATRIX_HOSTS", ""):
         lines += ["## Matrix systems -- to build in the Matrix designer (NOT built yet)", "", spec.MATRIX_HOSTS.strip(), ""]
