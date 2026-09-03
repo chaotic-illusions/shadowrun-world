@@ -166,6 +166,15 @@ async def _ensure_location_is_active_column():
         print("[startup] Added locations.is_active column")
 
 
+async def _ensure_source_adventure_columns():
+    """Startup safety migration for the published-adventure provenance column on the three
+    world-entity tables. create_all won't add columns to existing tables. Idempotent.
+    """
+    for table in ("characters", "locations", "organizations"):
+        if await _ensure_sqlite_column(table, "source_adventure", "VARCHAR(100)"):
+            print(f"[startup] Added {table}.source_adventure column")
+
+
 async def _ensure_character_math_spu_columns():
     """Startup safety migration for the Math SPU cyberware columns on SQLite deployments.
 
@@ -463,6 +472,7 @@ async def lifespan(app: FastAPI):
         await _ensure_character_is_independent_column()
         await _ensure_org_affiliation_contact_type_column()
         await _ensure_location_is_active_column()
+        await _ensure_source_adventure_columns()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()

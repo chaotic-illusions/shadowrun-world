@@ -127,6 +127,9 @@ class Character(Base):
 
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
+    # Published adventure this NPC was lifted from (e.g. "Silver Angel"); None for PCs and
+    # home-grown world entities. Drives the by-adventure filter on the manage pages.
+    source_adventure: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
     # SHA-256 hash of the owning player's token
     owner_token: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
 
