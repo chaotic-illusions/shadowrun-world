@@ -393,6 +393,7 @@ async def update_deck_builder_state(
 async def list_characters(
     is_pc: bool | None = Query(None, description="Filter by PC (true) or NPC (false)"),
     is_active: bool | None = Query(None),
+    source_adventure: str | None = Query(None, description="Filter by published-adventure source"),
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
@@ -407,6 +408,8 @@ async def list_characters(
         q = q.where(Character.is_pc == is_pc)
     if is_active is not None:
         q = q.where(Character.is_active == is_active)
+    if source_adventure:
+        q = q.where(Character.source_adventure == source_adventure)
     result = await db.execute(q.order_by(Character.name))
     return [_serialize_character(char, ctx) for char in result.scalars().all()]
 

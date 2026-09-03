@@ -54,6 +54,9 @@
       <select id="filterType" onchange="applyFilter()" style="width:180px">
         <option value="">All Types</option>
       </select>
+      <select id="filterAdventure" onchange="applyFilter()" style="width:210px" data-tip="Filter by the published adventure an org came from">
+        <option value="">All Adventures</option>
+      </select>
       <span id="filterStatusWrap">
         <select id="filterStatus" onchange="applyFilter()" style="width:120px">
           <option value="">All Status</option>
@@ -166,6 +169,11 @@
       <div class="field mb-14">
         <label>Field Notes (GM Only)</label>
         <textarea id="notes" rows="3" placeholder="Hidden agendas, secret connections, plot hooks..."></textarea>
+      </div>
+      <div class="field mb-14">
+        <label>Source Adventure</label>
+        <input type="text" id="source_adventure" list="adventureList" maxlength="100" placeholder="Published adventure this org came from (blank = home-grown)">
+        <datalist id="adventureList"></datalist>
       </div>
 
       <div class="mob-hide">
@@ -533,6 +541,8 @@ function resetForm() {
   document.getElementById('headquarters').value = '';
   document.getElementById('description').value = '';
   document.getElementById('notes').value = '';
+  document.getElementById('source_adventure').value = '';
+  fillAdventureDatalist();
   _affSetUI('');
   document.getElementById('is_active').checked = true;
   updateStatus();
@@ -579,6 +589,8 @@ function populateForm(org) {
   document.getElementById('headquarters').value = org.headquarters || '';
   document.getElementById('description').value = org.description || '';
   document.getElementById('notes').value = org.notes || '';
+  document.getElementById('source_adventure').value = org.source_adventure || '';
+  fillAdventureDatalist();
   _affSetUI(org.affiliation_contact_type);
   document.getElementById('is_active').checked = org.is_active !== false;
   updateStatus();
@@ -751,8 +763,11 @@ function applyFilter() {
   const search     = document.getElementById('filterInput').value.toLowerCase();
   const typeFilter = document.getElementById('filterType').value;
   const statusFilter = document.getElementById('filterStatus').value;
+  buildAdventureFilter('filterAdventure', allOrgsForTable);
+  const adv = document.getElementById('filterAdventure').value;
   const filtered = allOrgsForTable.filter(o => {
     if (typeFilter && o.org_type !== typeFilter) return false;
+    if (!adventureFilterMatch(adv, o)) return false;
     if (statusFilter === 'active'   && !o.is_active) return false;
     if (statusFilter === 'inactive' &&  o.is_active) return false;
     if (search && !o.name.toLowerCase().includes(search) && !(o.headquarters||'').toLowerCase().includes(search)) return false;
@@ -773,6 +788,7 @@ function applyFilter() {
           <th>Type</th>
           <th>Tier</th>
           <th>Headquarters</th>
+          <th>Source</th>
           ${adminMode ? '<th>Status</th>' : ''}
           <th></th>
         </tr>
@@ -784,6 +800,7 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '--')}</td>
             <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span class="text-dim">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '--')}</td>
+            <td class="dim-meta">${esc(o.source_adventure || '--')}</td>
             ${adminMode ? `<td><label class="mh-reveal" data-tip="${o.is_active ? 'Mark inactive' : 'Mark active'}"><input type="checkbox" class="chk-reveal" ${o.is_active ? 'checked' : ''} onchange="toggleOrgRow(${o.id}, this.checked)"></label></td>` : ''}
             <td class="td-act">
               ${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${o.id})">Edit</button>` : ''}
@@ -887,6 +904,7 @@ async function submitForm() {
     headquarters: document.getElementById('headquarters').value.trim() || null,
     description:  document.getElementById('description').value.trim() || null,
     notes:        document.getElementById('notes').value.trim() || null,
+    source_adventure: document.getElementById('source_adventure').value.trim() || null,
     is_active:    document.getElementById('is_active').checked,
     leadership:   getLeadership(),
     ally_ids:          getChecked('allyList'),

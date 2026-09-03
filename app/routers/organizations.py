@@ -80,6 +80,7 @@ def _preserve_san_revealed(old_ltgs, new_ltgs):
 async def list_organizations(
     org_type: str | None = Query(None),
     is_active: bool | None = Query(None),
+    source_adventure: str | None = Query(None, description="Filter by published-adventure source"),
     auth: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
@@ -91,6 +92,8 @@ async def list_organizations(
         q = q.where(Organization.org_type == org_type)
     if is_active is not None:
         q = q.where(Organization.is_active == is_active)
+    if source_adventure:
+        q = q.where(Organization.source_adventure == source_adventure)
     result = await db.execute(q.order_by(Organization.tier.desc(), Organization.name))
     return [_serialize_org(o, auth) for o in result.scalars().all()]
 

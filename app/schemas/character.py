@@ -35,6 +35,7 @@ class CharacterBase(BaseModel):
     portrait_url: Optional[str] = Field(default=None, max_length=500)
     is_active: bool = True
     notes: Optional[str] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
     owner_token: Optional[str] = Field(default=None, max_length=64)
     contact_skills: list[str] = []
     connection: int = Field(default=1, ge=1, le=6)
@@ -132,6 +133,7 @@ class CharacterUpdate(BaseModel):
     portrait_url: Optional[str] = Field(default=None, max_length=500)
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+    source_adventure: Optional[str] = Field(default=None, max_length=100)
     owner_token: Optional[str] = Field(default=None, max_length=64)
     contact_skills: Optional[list[str]] = None
     connection: Optional[int] = Field(default=None, ge=1, le=6)

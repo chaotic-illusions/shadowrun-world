@@ -60,11 +60,11 @@ def test_inactive_npc_hidden_from_players_and_preview_but_visible_to_admin(tmp_p
                 await db.commit()
 
             async with sessions() as db:
-                admin = _names(await list_characters(None, None, _ADMIN, db))
+                admin = _names(await list_characters(None, None, None, _ADMIN, db))
             async with sessions() as db:
-                player = _names(await list_characters(None, None, _PLAYER, db))
+                player = _names(await list_characters(None, None, None, _PLAYER, db))
             async with sessions() as db:
-                preview = _names(await list_characters(None, None, _ADMIN_PREVIEW, db))
+                preview = _names(await list_characters(None, None, None, _ADMIN_PREVIEW, db))
             return admin, player, preview
 
     admin, player, preview = asyncio.run(scenario())
@@ -143,11 +143,11 @@ def test_inactive_location_hidden_from_players_and_preview_but_visible_to_admin(
                 await db.commit()
 
             async with sessions() as db:
-                admin = _names(await list_locations(None, None, None, None, _ADMIN, db))
+                admin = _names(await list_locations(None, None, None, None, None, _ADMIN, db))
             async with sessions() as db:
-                player = _names(await list_locations(None, None, None, None, _PLAYER, db))
+                player = _names(await list_locations(None, None, None, None, None, _PLAYER, db))
             async with sessions() as db:
-                preview = _names(await list_locations(None, None, None, None, _ADMIN_PREVIEW, db))
+                preview = _names(await list_locations(None, None, None, None, None, _ADMIN_PREVIEW, db))
             return admin, player, preview
 
     admin, player, preview = asyncio.run(scenario())
@@ -191,11 +191,11 @@ def test_inactive_org_hidden_from_players_and_preview_but_visible_to_admin(tmp_p
                 await db.commit()
 
             async with sessions() as db:
-                admin = _names(await list_organizations(None, None, _ADMIN, db))
+                admin = _names(await list_organizations(None, None, None, _ADMIN, db))
             async with sessions() as db:
-                player = _names(await list_organizations(None, None, _PLAYER, db))
+                player = _names(await list_organizations(None, None, None, _PLAYER, db))
             async with sessions() as db:
-                preview = _names(await list_organizations(None, None, _ADMIN_PREVIEW, db))
+                preview = _names(await list_organizations(None, None, None, _ADMIN_PREVIEW, db))
             return admin, player, preview
 
     admin, player, preview = asyncio.run(scenario())

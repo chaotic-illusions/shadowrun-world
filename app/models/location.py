@@ -19,6 +19,8 @@ class Location(Base):
     security_level: Mapped[str | None] = mapped_column(String(50), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
+    # Published adventure this location was lifted from; None for home-grown world entities.
+    source_adventure: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
 
     controlling_org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id"), default=None)
 
