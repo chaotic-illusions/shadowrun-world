@@ -57,3 +57,7 @@ docs/SR_Mercurial.pdf
 docs/*_SR2_Sheet.pdf
 docs/Mod_Sample_*.pdf
 docs/*_report.csv
+
+# Published adventure PDFs and their OCR text (multi-GB, copyrighted; regenerate text with the OCR
+# pipeline in scripts/adventure_ingest). The prep summaries in docs/adventure-prep/ stay tracked.
+docs/Adventures/
