@@ -28,6 +28,14 @@ htmlcov/
 # Runtime data backups (timestamped state dumps)
 data/backups/
 
+# Copy of the production database, shared through git for offline edits. Only the DB and its
+# README are committed; the raw copies, WAL files and the admin token stay local.
+data/prod-snapshot/**
+!data/prod-snapshot/**/
+!data/prod-snapshot/*/shadowrun_prod.db
+!data/prod-snapshot/*/README.md
+ADMIN_TOKEN.md
+
 # Per-action engine trace logs (SR_TRACE developer observability)
 data/traces/
 
