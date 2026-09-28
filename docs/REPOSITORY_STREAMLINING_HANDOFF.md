@@ -4,9 +4,9 @@
 
 Prepare this repository for public release without losing the private sourcebook,
 OCR, research, and adventure-preparation material used to build the world data.
-Keep the application, migrations, portable seed, audited production snapshot, and
-maintained tests public. Move source-derived working material into one local,
-ignored archive and remove it from Git history before republishing.
+The private archive is temporarily committed to the private GitHub repository so
+trusted machines can synchronize it. The repository MUST remain private until the
+archive and all former source paths have been removed from Git history.
 
 Do this work in a separate clone only after the current data-completion changes
 have been committed. The present worktree contains a large, related rollout and
@@ -30,8 +30,13 @@ must not be cleaned piecemeal or reset.
 
 ## Public Release State
 
-- The 26 sourcebook PDFs, totaling 1,258,762,258 bytes, now live under the
-  ignored local `reference-private/` archive. Their public-tree paths are deleted.
+- The 26 sourcebook PDFs, totaling 1,258,762,258 bytes, now live under
+  `reference-private/`. Their former public-tree paths are deleted.
+- `reference-private/` contains 588 files totaling approximately 1.212 GiB. No
+  individual file exceeds GitHub's 100 MB per-file limit.
+- The archive is ignored for normal local additions but force-added to Git for
+  temporary synchronization through the private remote. Once tracked, `.gitignore`
+  does not prevent updates to existing archive files from being committed.
 - Git's packed object store is approximately 1.18 GiB. Deleting working-tree
   files alone will not reduce that history.
 - The public tree contains 48 maintained test modules and passes 1,851 tests with
@@ -62,7 +67,7 @@ IDs are part of the database contract.
 
 ## Private Archive
 
-The ignored local working copy now contains:
+The temporarily tracked private archive contains:
 
 ```text
 reference-private/
@@ -87,8 +92,9 @@ reference-private/
     source-path-map.csv
 ```
 
-The archive contains 733 files. It is excluded by `.gitignore`, `.dockerignore`,
-pytest collection, and repository-wide text-hygiene scans.
+The archive contains 586 checksummed payload files plus `source-path-map.csv`
+and `checksums.sha256`. It is excluded from Docker builds, pytest collection, and
+repository-wide text-hygiene scans.
 
 Primary move candidates:
 
@@ -103,8 +109,23 @@ Primary move candidates:
 - Completed one-time ingest scripts -> `reference-private/ingest/one-time-tools/`
 - `npc_dossiers_full.txt` -> `reference-private/generated/`
 
-The `/reference-private/` exclusion is active in `.gitignore` and `.dockerignore`;
-Docker does not read `.gitignore`.
+The `/reference-private/` exclusion remains active in `.gitignore` to prevent
+accidental additions after the archive is purged. `.dockerignore` prevents the
+temporarily tracked archive from entering application images.
+
+After cloning on another trusted machine, verify the payload before removing any
+other copy:
+
+```powershell
+$root = (Resolve-Path reference-private).Path
+$bad = @()
+foreach ($line in Get-Content reference-private/manifests/checksums.sha256) {
+  if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { $bad += $line; continue }
+  $actual = (Get-FileHash -LiteralPath (Join-Path $root $Matches[2]) -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $Matches[1]) { $bad += $Matches[2] }
+}
+if ($bad.Count) { $bad; throw 'archive verification failed' }
+```
 
 ## Test Classification
 
@@ -132,16 +153,28 @@ generated sourcebook ledgers. Check references with `rg` before removal. Keep th
 main `README.md`, `AGENTS.md`, active architecture notes, Matrix operating guides,
 and this handoff until the public rewrite is complete.
 
-## Safe Execution Order
+## Mandatory Steps Before Public Release
 
-1. Commit and push the completed public-tree and data changes.
-2. Clone that branch to the other local machine requested by the project owner.
-3. Create a disposable mirror clone for history rewriting.
-4. Use `git filter-repo`, not `filter-branch`, to remove private paths from every
-   historical commit.
-5. Re-run secret scanning and validation against the rewritten clone.
-6. Publish to a new empty remote first. Force-push the old public remote only
-    after review and explicit approval.
+1. Keep the existing GitHub repository private.
+2. Clone or pull the private repository on the second trusted machine.
+3. Verify `reference-private/manifests/checksums.sha256` on that machine.
+4. Copy `reference-private/` outside every repository clone or create another
+  verified offline backup. Git history must not be the only remaining copy.
+5. In the working repository, remove `reference-private/` from the index while
+  retaining the ignored local files: `git rm -r --cached reference-private`.
+6. Commit that removal, but do not assume the files are gone from history.
+7. Create a disposable `--mirror` clone for the destructive history rewrite.
+8. Use `git filter-repo`, not `filter-branch`, to remove `reference-private/` and
+  every former private path from every branch and tag.
+9. Expire reflogs and garbage-collect the rewritten mirror, then inspect the
+  largest remaining objects and all historical paths.
+10. Run a secret scan and the complete validation checklist below from a fresh
+   non-mirror clone of the rewritten repository.
+11. Publish to a new empty public remote first. Prefer a new remote over reusing
+   the private one because old pull-request refs, forks, release assets, caches,
+   and GitHub retention may survive a force-push.
+12. Make the new remote public only after a fresh anonymous-style clone confirms
+   that no private path or blob is reachable.
 
 Adding `.gitignore` rules does not untrack files and does not erase Git history.
 `git rm --cached` removes files only from the current index. History rewriting is
@@ -154,18 +187,20 @@ known private paths and add any older aliases discovered by `git log --all --nam
 
 ```powershell
 git filter-repo --invert-paths `
+  --path reference-private `
   --path docs/Sourcebooks `
   --path npc_dossiers_full.txt `
-  --path docs/sourcebook-ingest/books `
-  --path docs/sourcebook-ingest/extraction `
-  --path docs/sourcebook-ingest/research `
+  --path docs/sourcebook-ingest `
   --path docs/adventure-analysis `
   --path docs/adventure-prep `
-  --path scripts/adventure_ingest/specs
+  --path scripts/adventure_ingest/specs `
+  --path scripts/ocr_sourcebooks.py `
+  --path scripts/audit_world_data.py
 ```
 
-If sourcebook-only tests and one-time tools are removed from the public tree, add
-their exact historical paths to the rewrite command. Do not remove the active seed,
+Add the exact historical paths of sourcebook-only tests, one-time ingest tools,
+and sourcebook workflow instructions from
+`reference-private/manifests/source-path-map.csv`. Do not remove the active seed,
 production snapshot, migrations, or runtime application code.
 
 After rewriting, inspect the largest remaining objects and verify that no PDF or
@@ -175,6 +210,7 @@ private path remains:
 git rev-list --objects --all
 git log --all -- docs/Sourcebooks
 git ls-files '*.pdf'
+git ls-files reference-private
 git count-objects -vH
 ```
 
@@ -202,8 +238,10 @@ Also verify:
 - Production counts and hashes match the values recorded above.
 - `docker build` does not include `reference-private/`, databases from
   `data/backups/`, `.git/`, `.venv/`, or other local artifacts.
-- `git ls-files` shows no private reference paths.
-- `git rev-list --objects --all` shows no removed PDF or archive path.
+- `git ls-files reference-private` returns no output.
+- `git rev-list --objects --all` contains no `reference-private`, removed PDF,
+  sourcebook-ingest, adventure-prep, or archived-test path.
+- No blob from `checksums.sha256` can be found by hash in rewritten history.
 - A secret scan reports no tokens, credentials, or private source extracts.
 - A fresh clone of the rewritten public remote can run the application and tests
   without access to `reference-private/`.
@@ -219,6 +257,7 @@ Stop and ask the project owner before:
 - Archiving a generic loader/runtime test rather than a sourcebook-specific test.
 - Removing the fillable character sheet without a licensing decision.
 
-The public-history rewrite is destructive for commit identities and downstream
-clones. Preserve the private pre-rewrite repository and checksum manifests until
-the new public remote has been cloned and validated independently.
+The public-history rewrite changes commit identities and invalidates downstream
+clones. Preserve the private pre-rewrite repository and verified external archive
+until the new public remote has been cloned and validated independently. Never
+change the current private remote's visibility before that process is complete.

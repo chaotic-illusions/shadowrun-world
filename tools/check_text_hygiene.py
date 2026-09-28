@@ -88,6 +88,8 @@ def get_staged_files(root: Path) -> list[Path]:
         if not line:
             continue
         p = root / line
+        if set(Path(line).parts).intersection(EXCLUDED_DIRS):
+            continue
         if p.is_file() and p.suffix.lower() in TEXT_EXTENSIONS:
             files.append(p)
     return files
