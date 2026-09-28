@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB = ROOT / "data" / "prod-snapshot" / "2026-09-15" / "shadowrun_prod.db"
+DEFAULT_DB = ROOT / "data" / "shadowrun_prod.db"
 
 _FALSE_POSITIVE_RE = re.compile(
     r"(?i)(?:torture-resistance test|Resistance testimony|Honda-GM)"

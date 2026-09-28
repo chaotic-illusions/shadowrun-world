@@ -6,7 +6,7 @@ Reads data/world_seed.json and populates the API in dependency order.
 Usage:
     python seed.py [--url http://localhost:8000] [--file data/world_seed.json] [--admin-token <token>]
     python seed.py --upsert-rtgs-only [--url http://localhost:8000] [--file data/world_seed.json] [--admin-token <token>]
-    python seed.py --export-db data/prod-snapshot/2026-09-15/shadowrun_prod.db [--file data/world_seed.json]
+    python seed.py --export-db data/shadowrun_prod.db [--file data/world_seed.json]
 """
 
 import argparse
