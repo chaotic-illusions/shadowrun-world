@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -31,6 +32,7 @@ from app.auth.dependencies import get_admin_token, get_any_token
 # -- Narrative parsing schemas ---------------------------------
 class NarrativeParseRequest(BaseModel):
     narrative: str
+    participant_ids: list[int] = []
 
 
 class ChangeItem(BaseModel):
@@ -274,6 +276,97 @@ async def create_log(
     return await _get_or_404(db, log.id)
 
 
+def _named_in(text: str, name: str | None) -> bool:
+    """Whole-word, case-insensitive match of an entity name in the run summary."""
+    if not name or len(name) < 4:
+        return False
+    return re.search(rf"(?<!\w){re.escape(name.casefold())}(?!\w)", text) is not None
+
+
+async def _parse_world_context(db: AsyncSession, narrative: str, participant_ids: list[int]) -> dict:
+    """What the parser may see: the runners, plus the entities that are active or named.
+
+    Only these IDs can come back in a proposal, so the model has nothing else to guess from.
+    """
+    if not participant_ids:
+        raise HTTPException(status_code=422, detail="Select the runners on this run before parsing")
+    runners = (await db.execute(
+        select(Character).where(Character.id.in_(participant_ids), Character.is_pc == True)  # noqa: E712
+    )).scalars().all()
+    if len(runners) != len(set(participant_ids)):
+        raise HTTPException(status_code=422, detail="Every selected participant must be a player character")
+    runner_ids = [c.id for c in runners]
+    text = narrative.casefold()
+
+    reps = {r.character_id: r for r in (await db.execute(
+        select(Reputation).where(Reputation.character_id.in_(runner_ids))
+    )).scalars().all()}
+    standings = (await db.execute(
+        select(OrgStanding).where(OrgStanding.character_id.in_(runner_ids))
+    )).scalars().all()
+    contacts = (await db.execute(
+        select(Contact).where(Contact.owner_id.in_(runner_ids))
+    )).scalars().all()
+    affiliations = [
+        {"character_id": c.owner_id, "org_id": c.organization_id}
+        for c in contacts if c.npc_id is None and c.organization_id
+    ]
+
+    all_orgs = (await db.execute(select(Organization))).scalars().all()
+    wanted_orgs = {s.organization_id for s in standings} | {a["org_id"] for a in affiliations}
+    orgs = [o for o in all_orgs if o.is_active or o.id in wanted_orgs or _named_in(text, o.name)]
+    org_names = {o.id: o.name for o in all_orgs}
+
+    locations = [
+        loc for loc in (await db.execute(select(Location))).scalars().all()
+        if loc.is_active or _named_in(text, loc.name)
+    ]
+    npcs = [
+        c for c in (await db.execute(
+            select(Character).where(Character.is_pc == False, Character.is_draft == False)  # noqa: E712
+        )).scalars().all()
+        if _named_in(text, c.name)
+    ]
+
+    def rep_of(cid: int) -> dict:
+        r = reps.get(cid)
+        return {
+            "street_cred": r.street_cred if r else 0, "notoriety": r.notoriety if r else 0,
+            "public_awareness": r.public_awareness if r else 0, "heat": r.heat if r else 0,
+        }
+
+    return {
+        "campaign": {"current_tick": await current_tick(db)},
+        "participants": [
+            {
+                "id": c.id, "name": c.name, **rep_of(c.id),
+                "standings": [
+                    {"org_id": s.organization_id, "org_name": org_names.get(s.organization_id),
+                     "standing": s.standing}
+                    for s in standings if s.character_id == c.id
+                ],
+            }
+            for c in runners
+        ],
+        "affiliations": affiliations,
+        "organizations": [
+            {"id": o.id, "name": o.name, "org_type": o.org_type, "tier": o.tier,
+             "ally_ids": o.ally_ids or [], "enemy_ids": o.enemy_ids or []}
+            for o in orgs
+        ],
+        "locations": [
+            {"id": loc.id, "name": loc.name, "location_type": loc.location_type,
+             "city": loc.city, "district": loc.district}
+            for loc in locations
+        ],
+        "people": (
+            [{"name": c.name, "title": c.title, "organization_id": c.organization_id} for c in npcs]
+            + [{"name": c.name, "contact_of": c.owner_id, "profession": c.profession,
+                "organization_id": c.organization_id} for c in contacts if c.npc_id is not None]
+        ),
+    }
+
+
 @router.post("/parse-narrative")
 async def parse_run_narrative(
     body: NarrativeParseRequest,
@@ -284,31 +377,12 @@ async def parse_run_narrative(
     from app.services.secrets import get_api_key
     if not get_api_key():
         raise HTTPException(status_code=503, detail="Anthropic API key is not configured")
+    if not body.narrative.strip():
+        raise HTTPException(status_code=422, detail="Run summary is empty")
 
     from app.services.narrative_parser import parse_narrative
 
-    chars_result = await db.execute(
-        select(Character).where(Character.is_active == True)  # noqa: E712
-    )
-    orgs_result = await db.execute(
-        select(Organization).where(Organization.is_active == True)  # noqa: E712
-    )
-    reps_result = await db.execute(select(Reputation))
-    standings_result = await db.execute(select(OrgStanding))
-
-    chars = chars_result.scalars().all()
-    orgs = orgs_result.scalars().all()
-    reps = reps_result.scalars().all()
-    standings = standings_result.scalars().all()
-
-    world_context = {
-        "characters": [{"id": c.id, "name": c.name, "is_pc": c.is_pc} for c in chars],
-        "organizations": [{"id": o.id, "name": o.name, "org_type": o.org_type} for o in orgs],
-        "reputation": [{"character_id": r.character_id, "street_cred": r.street_cred,
-                         "notoriety": r.notoriety, "public_awareness": r.public_awareness} for r in reps],
-        "standings": [{"character_id": s.character_id, "org_id": s.organization_id,
-                        "standing": s.standing} for s in standings],
-    }
+    world_context = await _parse_world_context(db, body.narrative, body.participant_ids)
 
     try:
         result = await parse_narrative(body.narrative, world_context)
@@ -317,7 +391,8 @@ async def parse_run_narrative(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Narrative parsing failed: {e}")
 
-    # Faction ripple
+    # Faction ripple reaches allies and enemies even when they were not in the parse context.
+    orgs = (await db.execute(select(Organization))).scalars().all()
     org_map = {
         o.id: {"name": o.name, "ally_ids": o.ally_ids or [], "enemy_ids": o.enemy_ids or []}
         for o in orgs
