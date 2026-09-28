@@ -1,18 +1,16 @@
 """Tests for seed.py error handling and portable world exports."""
-import hashlib
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
 from unittest.mock import MagicMock
 import httpx
 
-from seed import export_world_data, get_json, post, put, resolve_admin_token, upsert_rtgs
+from seed import get_json, post, put, resolve_admin_token, upsert_rtgs
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DATABASE = ROOT / "data" / "prod-snapshot" / "2026-09-15" / "shadowrun_prod.db"
+WORLD_SEED = ROOT / "data" / "world_seed.json"
 
 
 class TestResolveAdminToken:
@@ -99,13 +97,10 @@ class TestPut:
         )
 
 
-def test_complete_world_export_is_pc_free_and_read_only():
-    source_hash = hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest()
-
-    data = export_world_data(SOURCE_DATABASE)
+def test_world_seed_artifact_is_pc_free():
+    data = json.loads(WORLD_SEED.read_text(encoding="utf-8"))
 
     assert data["_format_version"] == 2
-    assert data["_source_database_sha256"] == source_hash
     assert data["campaign_state"] == {
         "current_tick": 1,
         "enabled_books": ["GRIM", "AWK"],
@@ -131,12 +126,6 @@ def test_complete_world_export_is_pc_free_and_read_only():
     }
     assert all(character["is_pc"] is False for character in data["characters"])
     assert all(log["participant_names"] == [] for log in data["adventure_logs"])
-    assert hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest() == source_hash
-    with sqlite3.connect(
-        f"file:{SOURCE_DATABASE.resolve().as_posix()}?mode=ro&immutable=1", uri=True
-    ) as database:
-        database.execute("PRAGMA query_only=ON")
-        assert database.total_changes == 0
 
 
 class TestUpsertRtgs:

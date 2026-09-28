@@ -16,12 +16,13 @@ must not be cleaned piecemeal or reset.
 
 - Production snapshot:
   `data/prod-snapshot/2026-09-15/shadowrun_prod.db`
-- Production SHA-256 after the copyable-text audit:
-  `0bbaa01dc98cbcb877818c0d3d68ea1d68f2ad51bb52864f2fe72c65880679e9`
+- Production SHA-256 after the copyable-text audit and the 2026-09-27 merge of
+  player edits made on the live server since 2026-09-15 (deployed to the server):
+  `093eb9fed2d2a611235dbf5a06ae9b8244bdb89b10f2d9294f8fd413150c33ee`
 - Portable seed SHA-256:
   `52de4ef8413149d9e63c521564240f2d0a00bfcf2f09fe1803fcf9e2ca259208`
-- World counts: 821 organizations, 1,183 locations, 872 characters including
-  10 PCs, 67 RTGs, 7 Matrix hosts, 11 PC-owned contacts, and 1 adventure log.
+- World counts: 821 organizations, 1,183 locations, 874 characters including
+  10 PCs, 67 RTGs, 7 Matrix hosts, 13 PC-owned contacts, and 1 adventure log.
 - The portable seed contains 862 NPCs and excludes PCs and PC-associated state.
 - `scripts/audit_copyable_world_text.py` reports zero findings on production.
 - SQLite integrity is `ok`; `PRAGMA foreign_key_check` returns zero rows.
