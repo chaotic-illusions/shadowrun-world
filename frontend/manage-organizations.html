@@ -186,10 +186,10 @@
       <div class="lead-wrap">
         <table class="lead-table" id="leadTable">
           <thead>
-            <tr><th>Name</th><th>Title / Role</th><th>Notes</th><th></th></tr>
+            <tr><th>Name</th><th>Title / Role</th><th>Notes (GM Only)</th><th>Visibility</th><th>Reveal</th><th></th></tr>
           </thead>
           <tbody id="leadBody">
-            <tr id="emptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>
+            <tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>
           </tbody>
         </table>
       </div>
@@ -385,11 +385,16 @@ function addLeader(data) {
   const tr = document.createElement('tr');
   tr.id = id;
   tr._leaderData = {...(data || {})};
+  // Leaders without a visibility key predate the flag and are listed.
+  const visibility = data?.visibility || 'listed';
+  const visibilityOptions = VIS_OPTS.replace(`value="${visibility}"`, `value="${visibility}" selected`);
   tr.innerHTML = `
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title" value="${esc(data?.title||'')}"></td>
-    <td><input type="text" placeholder="Known info..." data-field="notes" value="${esc(data?.notes||'')}"></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',4)">x</button></td>`;
+    <td><input type="text" placeholder="GM-only details..." data-field="notes" value="${esc(data?.notes||'')}"></td>
+    <td><select data-field="visibility">${visibilityOptions}</select></td>
+    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',6)">x</button></td>`;
   tbody.appendChild(tr);
 }
 
@@ -549,7 +554,7 @@ function getLeadership() {
   return Array.from(document.querySelectorAll('#leadBody tr:not(#emptyLead)')).map(row => {
     const leader = {...(row._leaderData || {})};
     row.querySelectorAll('[data-field]').forEach(el => {
-      leader[el.dataset.field] = el.value?.trim() || null;
+      leader[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
     });
     return leader;
   }).filter(leader => leader.name || leader.title);
@@ -629,7 +634,7 @@ function resetForm() {
   document.getElementById('is_active').checked = true;
   updateStatus();
   setTier(1);
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>';
   document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
@@ -679,7 +684,7 @@ function populateForm(org) {
   updateStatus();
   setTier(org.tier || 1);
 
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>';
   leaderCount = 0;
   (org.leadership || []).forEach(l => addLeader(l));
 

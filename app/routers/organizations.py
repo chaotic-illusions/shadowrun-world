@@ -37,11 +37,7 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
     data["notes"] = None
     data["ally_ids"] = list(data.get("revealed_ally_ids") or [])
     data["enemy_ids"] = list(data.get("revealed_enemy_ids") or [])
-    data["leadership"] = [
-        {key: value for key, value in entry.items() if key != "notes"}
-        for entry in (data.get("leadership") or [])
-        if isinstance(entry, dict)
-    ]
+    data["leadership"] = _player_leadership(data.get("leadership"))
     divisions = []
     for entry in (data.get("divisions") or []):
         if not isinstance(entry, dict):
@@ -51,16 +47,27 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
         division = {key: value for key, value in entry.items() if key != "notes"}
         division["ally_ids"] = list(division.get("revealed_ally_ids") or [])
         division["enemy_ids"] = list(division.get("revealed_enemy_ids") or [])
-        division["leadership"] = [
-            {key: value for key, value in leader.items() if key != "notes"}
-            for leader in (division.get("leadership") or [])
-            if isinstance(leader, dict)
-        ]
+        division["leadership"] = _player_leadership(division.get("leadership"))
         division["ltgs"] = _redact_ltg_entries(division.get("ltgs") or [])
         divisions.append(division)
     data["divisions"] = divisions
     data["ltgs"] = _redact_ltg_entries(data.get("ltgs") or [])
     return data
+
+
+def _player_leadership(entries: list[dict] | None) -> list[dict]:
+    """Leaders players may see, without GM notes.
+
+    A leader is shown when it is listed (the default for entries without a ``visibility`` key) or
+    has been revealed. Future leaders and later-adventure NPCs are stored unlisted until the GM
+    reveals them.
+    """
+    return [
+        {key: value for key, value in entry.items() if key != "notes"}
+        for entry in (entries or [])
+        if isinstance(entry, dict)
+        and (entry.get("visibility", "listed") == "listed" or entry.get("revealed"))
+    ]
 
 
 def _redact_ltg_entries(entries: list[dict]) -> list[dict]:
