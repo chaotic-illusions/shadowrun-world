@@ -28,13 +28,12 @@ htmlcov/
 # Runtime data backups (timestamped state dumps)
 data/backups/
 
-# Copy of the production database, shared through git for offline edits. Only the DB and its
-# README are committed; the raw copies, WAL files and the admin token stay local.
-data/prod-snapshot/**
-!data/prod-snapshot/**/
-!data/prod-snapshot/*/shadowrun_prod.db
-!data/prod-snapshot/*/README.md
+# Local copies of the production database. Never committed.
+data/prod-snapshot/
 ADMIN_TOKEN.md
+
+# Local note on where the private reference archive lives.
+LOCAL_REFERENCE.md
 
 # Per-action engine trace logs (SR_TRACE developer observability)
 data/traces/
@@ -90,6 +89,9 @@ scripts/adventure_ingest/SPEC_CONTRACT.md
 scripts/ocr_sourcebooks.py
 scripts/audit_world_data.py
 .github/instructions/sourcebook-ingest.instructions.md
+docs/vr2_rules.md
+docs/reference-data/
+docs/entity-dedup/
 tests/test_*_spec.py
 tests/test_*_loader_rehearsal.py
 tests/test_*_fastapi_rehearsal.py
