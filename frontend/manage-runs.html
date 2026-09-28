@@ -82,6 +82,7 @@
           <span style="font-size:.62rem;color:var(--text-dim);letter-spacing:1px;font-weight:normal;margin-left:8px">Check the changes you want to apply</span>
         </div>
         <div id="changesList"></div>
+        <div id="parseQuestions" style="display:none;margin-top:12px"></div>
 
         <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
           <button class="btn btn-green flex-1" onclick="applyAndLog()">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
@@ -259,7 +260,7 @@ async function parseNarrative() {
     const res = await apiFetch(`${API}/runs/parse-narrative`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ narrative }),
+      body: JSON.stringify({ narrative, participant_ids: getChecked('run-participants') }),
     });
     if (!res.ok) await apiThrow(res);
     parsedData = await res.json();
@@ -292,6 +293,13 @@ async function renderParsedResults(data) {
   document.getElementById('pr-objective').textContent= data.objective || '--';
   document.getElementById('pr-employer').textContent = data.employer  || '--';
   document.getElementById('pr-result').textContent   = data.result    || '--';
+
+  // Open questions and changes the server rejected: the GM's call, not applied automatically.
+  const qBox = document.getElementById('parseQuestions');
+  const qs = data.questions || [], dropped = data.dropped || [];
+  qBox.innerHTML = (qs.length ? `<div class="section-head mb-8">Needs Your Call</div>${qs.map(q => `<div class="change-reason">&#8250; ${esc(q)}</div>`).join('')}` : '')
+    + (dropped.length ? `<div class="section-head mb-8" style="margin-top:12px">Rejected Proposals</div>${dropped.map(d => `<div class="change-reason text-dim">&#8250; ${esc(d)}</div>`).join('')}` : '');
+  qBox.style.display = (qs.length || dropped.length) ? '' : 'none';
 
   const changes = data.proposed_changes || [];
   const list = document.getElementById('changesList');
@@ -326,6 +334,7 @@ async function renderParsedResults(data) {
               <span class="change-desc"><strong>${esc(c.character_name || '?')}</strong> -- <span class="${deltaClass}">${label}</span>${x2}</span>
             </div>
             <div class="change-reason">${esc(c.reason || '')}</div>
+            ${c.evidence ? `<div class="change-reason text-dim">&ldquo;${esc(c.evidence)}&rdquo;${c.evidence_found === false ? ' <span style="color:var(--amber)">[quote not found in summary]</span>' : ''}</div>` : ''}
           </div>
         </label>
       </div>`;
@@ -390,8 +399,8 @@ async function applyAndLog() {
     changes_applied:  changesApplied,
     changes_excluded: changesExcluded,
     participant_ids:  getChecked('run-participants'),
-    location_ids:     [],
-    org_ids:          [],
+    location_ids:     parsedData.location_ids || [],
+    org_ids:          parsedData.org_ids || [],
   };
 
   try {
