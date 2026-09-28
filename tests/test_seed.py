@@ -1,9 +1,18 @@
-"""Tests for seed.py error handling."""
+"""Tests for seed.py error handling and portable world exports."""
+import hashlib
+import json
+import sqlite3
+from pathlib import Path
+
 import pytest
 from unittest.mock import MagicMock
 import httpx
 
-from seed import get_json, post, resolve_admin_token, upsert_rtgs
+from seed import export_world_data, get_json, post, put, resolve_admin_token, upsert_rtgs
+
+
+ROOT = Path(__file__).resolve().parent.parent
+SOURCE_DATABASE = ROOT / "data" / "prod-snapshot" / "2026-09-15" / "shadowrun_prod.db"
 
 
 class TestResolveAdminToken:
@@ -70,6 +79,64 @@ class TestGetJson:
 
         assert result == response_data
         mock_client.get.assert_called_once_with("/rtgs/", params=None)
+
+
+class TestPut:
+    def test_successful_put(self):
+        response_data = {"enabled": ["GRIM", "AWK"]}
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.content = b"{}"
+        mock_resp.json.return_value = response_data
+        mock_resp.raise_for_status.return_value = None
+        mock_client.put.return_value = mock_resp
+
+        result = put(mock_client, "/catalog/books", response_data)
+
+        assert result == response_data
+        mock_client.put.assert_called_once_with(
+            "/catalog/books", json=response_data
+        )
+
+
+def test_complete_world_export_is_pc_free_and_read_only():
+    source_hash = hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest()
+
+    data = export_world_data(SOURCE_DATABASE)
+
+    assert data["_format_version"] == 2
+    assert data["_source_database_sha256"] == source_hash
+    assert data["campaign_state"] == {
+        "current_tick": 1,
+        "enabled_books": ["GRIM", "AWK"],
+    }
+    assert {
+        "rtgs": len(data["rtgs"]),
+        "organizations": len(data["organizations"]),
+        "locations": len(data["locations"]),
+        "characters": len(data["characters"]),
+        "contacts": len(data["contacts"]),
+        "org_standings": len(data["org_standings"]),
+        "matrix_hosts": len(data["matrix_hosts"]),
+        "adventure_logs": len(data["adventure_logs"]),
+    } == {
+        "rtgs": 67,
+        "organizations": 821,
+        "locations": 1183,
+        "characters": 862,
+        "contacts": 0,
+        "org_standings": 0,
+        "matrix_hosts": 7,
+        "adventure_logs": 1,
+    }
+    assert all(character["is_pc"] is False for character in data["characters"])
+    assert all(log["participant_names"] == [] for log in data["adventure_logs"])
+    assert hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest() == source_hash
+    with sqlite3.connect(
+        f"file:{SOURCE_DATABASE.resolve().as_posix()}?mode=ro&immutable=1", uri=True
+    ) as database:
+        database.execute("PRAGMA query_only=ON")
+        assert database.total_changes == 0
 
 
 class TestUpsertRtgs:

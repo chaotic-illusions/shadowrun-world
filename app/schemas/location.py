@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -9,6 +9,7 @@ class LocationBase(BaseModel):
     district: Optional[str] = Field(default=None, max_length=100)
     description: Optional[str] = None
     security_level: Optional[str] = Field(default=None, max_length=50)
+    catalog_scope: Literal["core", "reference", "adventure"] = "reference"
     is_active: bool = True
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
@@ -28,6 +29,7 @@ class LocationUpdate(BaseModel):
     district: Optional[str] = Field(default=None, max_length=100)
     description: Optional[str] = None
     security_level: Optional[str] = Field(default=None, max_length=50)
+    catalog_scope: Optional[Literal["core", "reference", "adventure"]] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     controlling_org_id: Optional[int] = None
@@ -45,5 +47,6 @@ class LocationSummary(BaseModel):
     location_type: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
+    catalog_scope: Literal["core", "reference", "adventure"]
     is_active: bool
     model_config = ConfigDict(from_attributes=True)

@@ -156,6 +156,12 @@ async def _ensure_org_affiliation_contact_type_column():
         print("[startup] Added organizations.affiliation_contact_type column")
 
 
+async def _ensure_org_divisions_column():
+    """Add the embedded division registry to legacy SQLite organization tables."""
+    if await _ensure_sqlite_column("organizations", "divisions", "JSON NOT NULL DEFAULT '[]'"):
+        print("[startup] Added organizations.divisions column")
+
+
 async def _ensure_location_is_active_column():
     """Startup safety migration for locations.is_active on SQLite deployments. create_all won't
     add columns to an existing locations table; add it in place when an older DB predates it.
@@ -173,6 +179,15 @@ async def _ensure_source_adventure_columns():
     for table in ("characters", "locations", "organizations"):
         if await _ensure_sqlite_column(table, "source_adventure", "VARCHAR(100)"):
             print(f"[startup] Added {table}.source_adventure column")
+
+
+async def _ensure_catalog_scope_columns():
+    """Add backward-safe world catalog scopes before full ORM reads."""
+    for table in ("characters", "locations", "organizations"):
+        if await _ensure_sqlite_column(
+            table, "catalog_scope", "VARCHAR(20) NOT NULL DEFAULT 'reference'"
+        ):
+            print(f"[startup] Added {table}.catalog_scope column")
 
 
 async def _ensure_character_math_spu_columns():
@@ -471,8 +486,10 @@ async def lifespan(app: FastAPI):
         await _ensure_contact_type_column()
         await _ensure_character_is_independent_column()
         await _ensure_org_affiliation_contact_type_column()
+        await _ensure_org_divisions_column()
         await _ensure_location_is_active_column()
         await _ensure_source_adventure_columns()
+        await _ensure_catalog_scope_columns()
         await _ensure_matrix_run_version_column()
         await _ensure_matrix_run_owner_token_hash_column()
         await _ensure_matrix_run_aar_acknowledged_column()

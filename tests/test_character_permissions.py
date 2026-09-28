@@ -55,6 +55,7 @@ def test_player_create_forces_pc_and_ignores_gm_only_fields():
     )
 
     assert data["is_pc"] is True
+    assert data["catalog_scope"] == "core"
     assert data["owner_token"] == hash_token("runner-token")
     assert data["notes"] == "player note"
     assert "organization_id" not in data
@@ -76,6 +77,7 @@ def test_admin_create_preserves_gm_fields_but_not_submitted_owner_token():
     data = _character_create_data(body, {"is_admin": True, "user_token": None})
 
     assert data["is_pc"] is False
+    assert data["catalog_scope"] == "reference"
     assert data["organization_id"] == 42
     assert "owner_token" not in data
 
@@ -258,6 +260,7 @@ def test_dossier_player_gets_full_sheet_and_ownership():
     data = _dossier_create_data(body, {"is_admin": False, "user_token": "runner-token"})
 
     assert data["is_pc"] is True
+    assert data["catalog_scope"] == "core"
     assert data["owner_token"] == hash_token("runner-token")
     assert data["strength"] == 6
     assert data["essence"] == 3.5

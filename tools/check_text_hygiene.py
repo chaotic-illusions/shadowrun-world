@@ -41,6 +41,7 @@ EXCLUDED_DIRS = {
     "chat-session-resources",
     "workspaceStorage",
     "__pycache__",
+    "reference-private",
 }
 
 # Lone Latin-1 lead bytes that signal UTF-8 mis-decoded as cp1252 ("mojibake"). This is a

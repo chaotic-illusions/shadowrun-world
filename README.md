@@ -77,11 +77,33 @@ The seed script populates a fresh database from `data/world_seed.json`:
 python seed.py [--url http://localhost:8000] [--file data/world_seed.json]
 ```
 
+Regenerate the portable seed from a trusted SQLite snapshot with:
+
+```bash
+python seed.py --export-db data/prod-snapshot/2026-09-15/shadowrun_prod.db --file data/world_seed.json
+```
+
+The exported seed contains the complete in-universe world state but deliberately excludes player
+characters, PC-owned contacts, PC reputation and organization-standing rows, authentication data,
+and transient Matrix runs. Relationships are stored by stable names and remapped to fresh IDs.
+
+Audit production descriptions, backgrounds, field notes, and nested organization
+prose for ingest shorthand, source citations, raw rule blocks, and editorial
+instructions with:
+
+```bash
+python scripts/audit_copyable_world_text.py
+```
+
+The audit excludes player-authored PC data and PC-associated records.
+
 Pass an existing admin credential with `--admin-token`, or set
 `BOOTSTRAP_ADMIN_KEY` before the first admin token is created. Docker Compose sets
 it to `shadowrunner` by default; direct local Python runs do not provide a default.
 
-Seed order: RTGs -> Organizations (+ ally/enemy links) -> Locations -> Characters (+ reputation records) -> Contacts -> Org Standings -> Adventure Logs.
+Seed order: RTGs -> Organizations -> Locations -> NPCs (+ any NPC reputation records) -> organization
+relationships/divisions -> Matrix hosts -> non-PC contacts -> non-PC org standings -> Adventure Logs
+-> campaign settings.
 
 **`reseed.sh`** (Linux) and **`reseed.bat`** (Windows) provide a menu to either restart the container or do a full wipe-and-reseed. The Linux script runs `seed.py` inside the container so no host Python dependencies are needed.
 

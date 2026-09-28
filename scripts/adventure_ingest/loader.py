@@ -12,8 +12,9 @@ Spec module contract (all optional except ADVENTURE):
   ORGS        list  -- OrganizationCreate dicts + optional keys: summary, allies, enemies (org names)
   LOCATIONS   list  -- LocationCreate dicts + optional keys: summary, controlling_org (org name)
   NPCS        list  -- CharacterCreate dicts + optional keys: role, organization (org name)
-  ORG_UPDATES dict  -- {org name: {description_append, notes_append, leadership_add: [...],
-                                   allies_add: [names], enemies_add: [names], set: {field: value}}}
+    ORG_UPDATES dict  -- {org name: {description_append, notes_append, leadership_add: [...],
+                                                                     divisions_add: [...], allies_add: [names], enemies_add: [names],
+                                                                     set: {field: value}}}
   LOC_UPDATES dict  -- {location name: {description_append, notes_append, controlling_org: name,
                                         set: {field: value}}}
   NPC_UPDATES dict  -- {character name: {description_append, background_append, notes_append,
@@ -42,6 +43,7 @@ import urllib.request
 _STRIP_ORG = {"summary", "allies", "enemies"}
 _STRIP_LOC = {"summary", "controlling_org"}
 _STRIP_NPC = {"role", "organization"}
+_STRIP_DIVISION = _STRIP_ORG | {"org_type", "affiliation_contact_type", "is_active"}
 
 
 class Api:
@@ -80,10 +82,43 @@ def _append(existing: str | None, adv: str, text: str) -> str | None:
     """Return the new field value, or None when the marker is already present (no-op)."""
     if not text:
         return None
+    if existing and text.strip() in existing:
+        return None
     if existing and _marker(adv) in existing:
         return None
     block = f"{_marker(adv)}\n{text.strip()}"
     return f"{existing.rstrip()}\n\n{block}" if existing and existing.strip() else block
+
+
+def _unique_json(items: list) -> list:
+    result = []
+    seen = set()
+    for item in items:
+        key = json.dumps(item, ensure_ascii=True, sort_keys=True)
+        if key not in seen:
+            result.append(item)
+            seen.add(key)
+    return result
+
+
+def _merge_division(existing: dict, addition: dict, adventure: str) -> dict:
+    merged = dict(existing)
+    for field in ("description", "notes"):
+        value = _append(merged.get(field), adventure, addition.get(field, ""))
+        if value is not None:
+            merged[field] = value
+    for field in (
+        "leadership", "ltgs", "ally_ids", "enemy_ids",
+        "revealed_ally_ids", "revealed_enemy_ids",
+    ):
+        existing_items = list(merged.get(field) or [])
+        added_items = list(addition.get(field) or [])
+        if field in merged or existing_items or added_items:
+            merged[field] = _unique_json(existing_items + added_items)
+    for field in ("name", "kind", "tier", "headquarters", "source_adventure", "visibility", "revealed"):
+        if merged.get(field) is None and addition.get(field) is not None:
+            merged[field] = addition[field]
+    return merged
 
 
 class Loader:
@@ -109,6 +144,21 @@ class Loader:
             self.report["warnings"].append(f"org not found: {name}")
             return None
         return o["id"]
+
+    def _division_body(self, raw: dict, parent_id: int | None = None) -> dict:
+        division = {key: value for key, value in raw.items() if key not in _STRIP_DIVISION}
+        division.setdefault("source_adventure", self.adv)
+        division.setdefault("visibility", "unlisted")
+        division.setdefault("revealed", False)
+        division["ally_ids"] = [
+            org_id for org_id in (self._org_id(name) for name in raw.get("allies", []))
+            if org_id and org_id != parent_id
+        ]
+        division["enemy_ids"] = [
+            org_id for org_id in (self._org_id(name) for name in raw.get("enemies", []))
+            if org_id and org_id != parent_id
+        ]
+        return division
 
     def _do(self, kind: str, verb: str, path: str, body: dict, name: str):
         if self.dry:
@@ -155,7 +205,13 @@ class Loader:
             if o["name"].lower() in self.orgs:
                 self.report["skipped"].append(f"org exists: {o['name']}")
                 continue
+            if o.get("catalog_scope", "adventure") == "adventure":
+                self.report["skipped"].append(f"org archived: {o['name']}")
+                continue
             body = {k: v for k, v in o.items() if k not in _STRIP_ORG}
+            if body.get("divisions"):
+                body["divisions"] = [self._division_body(entry) for entry in body["divisions"]]
+            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body["source_adventure"] = self.adv
             self._do("org", "POST", "/organizations/", body, o["name"])
@@ -179,9 +235,12 @@ class Loader:
             if l["name"].lower() in self.locs:
                 self.report["skipped"].append(f"location exists: {l['name']}")
                 continue
+            if l.get("catalog_scope", "adventure") == "adventure":
+                self.report["skipped"].append(f"location archived: {l['name']}")
+                continue
             body = {k: v for k, v in l.items() if k not in _STRIP_LOC}
             body["controlling_org_id"] = self._org_id(l.get("controlling_org"))
-            body.setdefault("city", "Seattle")
+            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body["source_adventure"] = self.adv
             row = self._do("location", "POST", "/locations/", body, l["name"])
@@ -193,11 +252,15 @@ class Loader:
             if c["name"].lower() in self.chars:
                 self.report["skipped"].append(f"npc exists: {c['name']}")
                 continue
+            if c.get("catalog_scope", "adventure") == "adventure":
+                self.report["skipped"].append(f"npc archived: {c['name']}")
+                continue
             body = {k: v for k, v in c.items() if k not in _STRIP_NPC}
             org = c.get("organization")
             body["organization_id"] = self._org_id(org)
             body.setdefault("is_independent", body["organization_id"] is None and org is None)
             body["is_pc"] = False
+            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body.setdefault("race", "Human")
             body.setdefault("connection", 1)
@@ -225,6 +288,30 @@ class Loader:
                     patch["leadership"] = list(row.get("leadership") or []) + [
                         {"name": e["name"], "title": e.get("title"), "notes": e.get("notes")} for e in fresh
                     ]
+            division_adds = upd.get("divisions_add") or []
+            if division_adds:
+                divisions = [dict(entry) for entry in (row.get("divisions") or [])]
+                by_id = {
+                    entry.get("id"): index
+                    for index, entry in enumerate(divisions)
+                    if entry.get("id")
+                }
+                changed = False
+                for raw in division_adds:
+                    addition = self._division_body(raw, row["id"])
+                    division_id = addition.get("id")
+                    if division_id in by_id:
+                        index = by_id[division_id]
+                        merged = _merge_division(divisions[index], addition, self.adv)
+                        if merged != divisions[index]:
+                            divisions[index] = merged
+                            changed = True
+                    else:
+                        divisions.append(addition)
+                        by_id[division_id] = len(divisions) - 1
+                        changed = True
+                if changed:
+                    patch["divisions"] = divisions
             for key, field in (("allies_add", "ally_ids"), ("enemies_add", "enemy_ids")):
                 ids = [i for i in (self._org_id(n) for n in upd.get(key, [])) if i]
                 merged = sorted(set(row.get(field) or []) | set(ids))
@@ -335,6 +422,8 @@ def render_doc(spec) -> str:
                 bits.append("GM notes")
             if u.get("leadership_add"):
                 bits.append("leadership: " + ", ".join(e["name"] for e in u["leadership_add"]))
+            if u.get("divisions_add"):
+                bits.append("divisions: " + ", ".join(e["name"] for e in u["divisions_add"]))
             if u.get("allies_add"):
                 bits.append("allies: " + ", ".join(u["allies_add"]))
             if u.get("enemies_add"):

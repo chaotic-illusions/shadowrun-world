@@ -1092,7 +1092,7 @@ const TYPE_GROUP = {
   'government':            'government',
   'nation-state':          'government',
   'security contractor':   'government',
-  'corporation':           'government',
+  'corporation':           'megacorp',
   'syndicate':             'syndicate',
   'crime syndicate':       'syndicate',
   'gang':                  'gang',
@@ -1103,7 +1103,7 @@ const TYPE_GROUP = {
 };
 const ORG_ORDER  = ['megacorp','government','syndicate','gang','fixer_network','cult','other'];
 const ORG_LABELS = {
-  megacorp:   'Megacorporate Presence',
+  megacorp:   'Corporations & Megacorporations',
   government: 'Law Enforcement & Government',
   syndicate:  'Organized Crime -- Syndicates',
   gang:       'Street Gangs',
@@ -1129,6 +1129,7 @@ const OE_VIS_OPTS = `<option value="listed">Listed</option><option value="unlist
 let oeRTGs = [];
 let oeTelecomCount = 0;
 let oeHostCount = 0;
+let oeDivisionCount = 0;
 
 // Load RTGs once at startup (they rarely change)
 (async function() {
@@ -1279,6 +1280,7 @@ function oeAddLeader(data) {
   const id = `oe_lead_${oeLeaderCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
+  tr._leaderData = {...(data || {})};
   tr.innerHTML = `
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun..." data-field="title" value="${esc(data?.title||'')}"></td>
@@ -1300,10 +1302,68 @@ function oeRemoveLeader(id) {
 
 function oeGetLeadership() {
   return Array.from(document.querySelectorAll('#oeLeadBody tr:not(#oeEmptyLead)')).map(row => {
-    const obj = {};
-    row.querySelectorAll('[data-field]').forEach(el => { obj[el.dataset.field] = el.value.trim() || null; });
-    return obj;
-  }).filter(r => r.name || r.title);
+    const leader = {...(row._leaderData || {})};
+    row.querySelectorAll('[data-field]').forEach(el => {
+      leader[el.dataset.field] = el.value.trim() || null;
+    });
+    return leader;
+  }).filter(leader => leader.name || leader.title);
+}
+
+const OE_DIVISION_KIND_OPTS = `
+  <option value="division">Division</option>
+  <option value="subsidiary">Subsidiary</option>
+  <option value="department">Department</option>
+  <option value="unit">Unit</option>
+  <option value="branch">Branch</option>`;
+
+function oeNewDivisionId() {
+  return globalThis.crypto.randomUUID();
+}
+
+function oeAddDivision(data) {
+  const tbody = document.getElementById('oeDivisionBody');
+  document.getElementById('oeEmptyDivision')?.remove();
+  oeDivisionCount++;
+  const rowId = `oe_division_${oeDivisionCount}`;
+  const row = document.createElement('tr');
+  row.id = rowId;
+  row._divisionData = {...(data || {})};
+  const kind = data?.kind || 'division';
+  const visibility = data?.visibility || 'unlisted';
+  const kindOptions = OE_DIVISION_KIND_OPTS.replace(`value="${kind}"`, `value="${kind}" selected`);
+  const visibilityOptions = OE_VIS_OPTS.replace(`value="${visibility}"`, `value="${visibility}" selected`);
+  row.innerHTML = `
+    <td><input type="hidden" data-field="id" value="${esc(data?.id||oeNewDivisionId())}"><input type="text" data-field="name" placeholder="Division name..." value="${esc(data?.name||'')}"></td>
+    <td><select class="division-kind-select" data-field="kind">${kindOptions}</select></td>
+    <td><input type="text" data-field="headquarters" placeholder="Location..." value="${esc(data?.headquarters||'')}"></td>
+    <td><textarea data-field="description" rows="2" placeholder="Player-safe description...">${esc(data?.description||'')}</textarea></td>
+    <td><textarea data-field="notes" rows="2" placeholder="GM-only details...">${esc(data?.notes||'')}</textarea></td>
+    <td><input type="text" data-field="source_adventure" placeholder="Source..." value="${esc(data?.source_adventure||'')}"></td>
+    <td><select data-field="visibility">${visibilityOptions}</select></td>
+    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td style="white-space:nowrap"><button type="button" class="btn btn-ghost" title="Move up" onclick="oeMoveDivision('${rowId}',-1)">&#9650;</button><button type="button" class="btn btn-ghost" title="Move down" onclick="oeMoveDivision('${rowId}',1)">&#9660;</button></td>
+    <td><button type="button" class="btn btn-red" onclick="oeRemoveRow('${rowId}','oeDivisionBody','oeEmptyDivision',10)">x</button></td>`;
+  tbody.appendChild(row);
+}
+
+function oeMoveDivision(rowId, direction) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling || sibling.id === 'oeEmptyDivision') return;
+  if (direction < 0) row.parentNode.insertBefore(row, sibling);
+  else row.parentNode.insertBefore(sibling, row);
+}
+
+function oeGetDivisions() {
+  return Array.from(document.querySelectorAll('#oeDivisionBody tr:not(#oeEmptyDivision)')).map(row => {
+    const division = {...(row._divisionData || {})};
+    row.querySelectorAll('[data-field]').forEach(el => {
+      division[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
+    });
+    return division;
+  }).filter(division => division.name);
 }
 
 function oeGetChecked(listId) {
@@ -1463,6 +1523,23 @@ function renderOrgDossierView(org) {
       ).join('')}</div>`
     : `<div class="ws-empty">None on record</div>`;
 
+  const divisions = org.divisions || [];
+  const divisionHtml = divisions.length
+    ? divisions.map(division => {
+        const leaders = (division.leadership || []).map(leader =>
+          `<div class="dossier-field"><span class="df-label">${esc(leader.name||'')}</span><span class="df-val">${esc(leader.title||'')}</span></div>`
+        ).join('');
+        return `
+        <div class="npc-skill">
+          <span style="color:var(--text-bright)">&#8250; ${esc(division.name)}</span>
+          <span class="ws-dim-tier">[${esc((division.kind||'division').toUpperCase())}]</span>
+          ${division.headquarters ? `<div class="text-dim">${esc(division.headquarters)}</div>` : ''}
+          ${division.description ? `<div class="text-dim">${esc(division.description)}</div>` : ''}
+          ${leaders}
+        </div>`;
+      }).join('')
+    : `<div class="ws-empty">None on record</div>`;
+
   // Relationships
   const makeRelList = orgs => orgs.length
     ? orgs.map(o => `<div class="npc-skill">&#8250; <span style="color:var(--text-bright)">${esc(o.name)}</span> <span class="ws-dim-tier">[T${o.tier}]</span></div>`).join('')
@@ -1519,6 +1596,10 @@ function renderOrgDossierView(org) {
       <hr class="rule my-12">
       <div class="section-head mb-8">// Command Structure</div>
       <div class="mb-14">${leadHtml}</div>
+
+      <hr class="rule my-12">
+      <div class="section-head mb-8">// Divisions &amp; Sub-Organizations</div>
+      <div class="mb-14">${divisionHtml}</div>
 
       <hr class="rule my-12">
       <div class="section-head mb-8">// Political Relationships</div>
@@ -1616,6 +1697,9 @@ function openOrgEditModal(orgId) {
   document.getElementById('oeLeadBody').innerHTML = '<tr id="oeEmptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
   oeLeaderCount = 0;
   (org.leadership || []).forEach(l => oeAddLeader(l));
+  document.getElementById('oeDivisionBody').innerHTML = '<tr id="oeEmptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
+  oeDivisionCount = 0;
+  (org.divisions || []).forEach(division => oeAddDivision(division));
   oeRenderRelations(orgId);
   renderOrgAffiliations(orgId);
   document.getElementById('oeTelecomBody').innerHTML = '<tr id="oeEmptyTelecom"><td colspan="5" class="empty-msg">No telecom numbers</td></tr>';
@@ -1668,6 +1752,7 @@ async function saveOrgEdit() {
     affiliation_contact_type: document.getElementById('oe-affiliation_contact_type').value || null,
     is_active:    document.getElementById('oe-is_active').checked,
     leadership:   oeGetLeadership(),
+    divisions:    oeGetDivisions(),
     ally_ids:            oeGetChecked('oeAllyList'),
     enemy_ids:           oeGetChecked('oeEnemyList'),
     revealed_ally_ids:   oeGetRevealed('oeAllyList'),

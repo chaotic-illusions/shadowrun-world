@@ -201,11 +201,14 @@ def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
     if ctx["is_admin"]:
         data = body.model_dump()
         data.pop("owner_token", None)
+        if data.get("is_pc"):
+            data["catalog_scope"] = "core"
         return data
 
     data = body.model_dump(include=_PLAYER_IDENTITY_FIELDS)
     data["is_pc"] = True
     data["is_independent"] = True  # runners default to Independent (no org) unless a GM sets otherwise
+    data["catalog_scope"] = "core"
     data["owner_token"] = hash_token(ctx["user_token"])
     return data
 
@@ -223,6 +226,7 @@ def _dossier_create_data(body: CharacterCreate, ctx: dict) -> dict:
     data.pop("owner_token", None)
     data["is_pc"] = True
     data["is_independent"] = True  # runners default to Independent (no org) unless a GM sets otherwise
+    data["catalog_scope"] = "core"
     # Claim the new PC to the committing token (an admin's token counts) so the builder owns it
     # immediately -- no manual world-state claim needed. Matches claim_character's token semantics.
     if ctx.get("user_token"):
