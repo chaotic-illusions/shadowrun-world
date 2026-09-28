@@ -80,7 +80,7 @@ python seed.py [--url http://localhost:8000] [--file data/world_seed.json]
 Regenerate the portable seed from a trusted SQLite snapshot with:
 
 ```bash
-python seed.py --export-db data/prod-snapshot/2026-09-15/shadowrun_prod.db --file data/world_seed.json
+python seed.py --export-db data/shadowrun_prod.db --file data/world_seed.json
 ```
 
 The exported seed contains the complete in-universe world state but deliberately excludes player

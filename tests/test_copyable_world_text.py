@@ -9,7 +9,7 @@ from scripts.clean_copyable_world_text import build_changes, clean_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PRODUCTION_DB = ROOT / "data" / "prod-snapshot" / "2026-09-15" / "shadowrun_prod.db"
+PRODUCTION_DB = ROOT / "data" / "shadowrun_prod.db"
 
 # The production database is a local-only file, never committed.
 needs_production_db = pytest.mark.skipif(

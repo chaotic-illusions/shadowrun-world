@@ -15,7 +15,7 @@ must not be cleaned piecemeal or reset.
 ## Current Verified State
 
 - Production snapshot:
-  `data/prod-snapshot/2026-09-15/shadowrun_prod.db`
+  `data/shadowrun_prod.db`
 - Production SHA-256 after the copyable-text audit and the 2026-09-27 merge of
   player edits made on the live server since 2026-09-15 (deployed to the server):
   `093eb9fed2d2a611235dbf5a06ae9b8244bdb89b10f2d9294f8fd413150c33ee`
