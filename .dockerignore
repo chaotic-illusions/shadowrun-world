@@ -30,6 +30,8 @@ localdev.ps1
 chat-session-resources/
 workspaceStorage/
 *.log
+reference-private/
+npc_dossiers_full.txt
 
 # Docs: keep docs/ai_parser_reference.md (read at runtime by narrative_parser) and the small
 # design .md files; drop the heavy reference scrapes, generated PDFs, and review CSVs.
@@ -38,6 +40,11 @@ docs/*.pdf
 !docs/SR2_Official_Sheet_Fillable.pdf
 docs/*.csv
 docs/reference-data/
+docs/Sourcebooks/
+docs/sourcebook-ingest/
+docs/adventure-analysis/
+docs/adventure-prep/
+scripts/adventure_ingest/specs/
 
 # Dev-only trees. fill_sr2_sheet.py IS imported at runtime (the /sheet.pdf endpoint), so keep it.
 tools/*

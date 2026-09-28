@@ -125,6 +125,7 @@ class Character(Base):
     # is_independent=True) from one whose ties simply aren't known ("Unknown", the default).
     is_independent: Mapped[bool] = mapped_column(default=False)
 
+    catalog_scope: Mapped[str] = mapped_column(String(20), default="reference", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     # Published adventure this NPC was lifted from (e.g. "Silver Angel"); None for PCs and

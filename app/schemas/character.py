@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 import json
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -33,6 +33,7 @@ class CharacterBase(BaseModel):
     background: Optional[str] = None
     show_background: bool = False
     portrait_url: Optional[str] = Field(default=None, max_length=500)
+    catalog_scope: Literal["core", "reference", "adventure"] = "reference"
     is_active: bool = True
     notes: Optional[str] = None
     source_adventure: Optional[str] = Field(default=None, max_length=100)
@@ -131,6 +132,7 @@ class CharacterUpdate(BaseModel):
     background: Optional[str] = None
     show_background: Optional[bool] = None
     portrait_url: Optional[str] = Field(default=None, max_length=500)
+    catalog_scope: Optional[Literal["core", "reference", "adventure"]] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
     source_adventure: Optional[str] = Field(default=None, max_length=100)
@@ -222,5 +224,6 @@ class CharacterSummary(BaseModel):
     is_pc: bool
     archetype: Optional[str] = None
     race: str
+    catalog_scope: Literal["core", "reference", "adventure"]
     is_active: bool
     model_config = ConfigDict(from_attributes=True)

@@ -42,8 +42,30 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
         for entry in (data.get("leadership") or [])
         if isinstance(entry, dict)
     ]
+    divisions = []
+    for entry in (data.get("divisions") or []):
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("visibility", "unlisted") != "listed" and not entry.get("revealed"):
+            continue
+        division = {key: value for key, value in entry.items() if key != "notes"}
+        division["ally_ids"] = list(division.get("revealed_ally_ids") or [])
+        division["enemy_ids"] = list(division.get("revealed_enemy_ids") or [])
+        division["leadership"] = [
+            {key: value for key, value in leader.items() if key != "notes"}
+            for leader in (division.get("leadership") or [])
+            if isinstance(leader, dict)
+        ]
+        division["ltgs"] = _redact_ltg_entries(division.get("ltgs") or [])
+        divisions.append(division)
+    data["divisions"] = divisions
+    data["ltgs"] = _redact_ltg_entries(data.get("ltgs") or [])
+    return data
+
+
+def _redact_ltg_entries(entries: list[dict]) -> list[dict]:
     rebuilt = []
-    for entry in (data.get("ltgs") or []):
+    for entry in entries:
         e = dict(entry)
         if e.get("visibility", "listed") != "listed" and not e.get("revealed"):
             continue
@@ -51,8 +73,7 @@ def _serialize_org(org: Organization, auth: dict) -> dict:
         if e.get("type") == "matrix_host" and not e.get("san_revealed"):
             e.pop("san_access_rating", None)
         rebuilt.append(e)
-    data["ltgs"] = rebuilt
-    return data
+    return rebuilt
 
 
 def _preserve_san_revealed(old_ltgs, new_ltgs):

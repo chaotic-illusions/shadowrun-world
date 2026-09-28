@@ -22,6 +22,10 @@ class Organization(Base):
     # List of {name, title, character_id (nullable), notes} dicts
     leadership: Mapped[list] = mapped_column(JSON, default=list)
 
+    # Ordered list of embedded divisions/subsidiaries; hidden entries and notes are redacted by
+    # the organization serializer for non-admin responses.
+    divisions: Mapped[list] = mapped_column(JSON, default=list)
+
     # List of {type, visibility, ...} dicts
     ltgs: Mapped[list] = mapped_column(JSON, default=list)
 
@@ -32,6 +36,7 @@ class Organization(Base):
     revealed_ally_ids: Mapped[list] = mapped_column(JSON, default=list)
     revealed_enemy_ids: Mapped[list] = mapped_column(JSON, default=list)
 
+    catalog_scope: Mapped[str] = mapped_column(String(20), default="reference", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     # Published adventure this org was lifted from; None for home-grown world entities.

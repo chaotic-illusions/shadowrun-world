@@ -28,11 +28,11 @@ from app.services.host_visibility import sync_host_security_to_org
 
 # -- helpers ---------------------------------------------------------------
 
-def _org_obj(ltgs, org_id=1, is_active=True, name="Ares Macrotechnology"):
+def _org_obj(ltgs, org_id=1, is_active=True, name="Ares Macrotechnology", divisions=None):
     """A minimal object exposing every OrganizationRead field for model_validate."""
     return SimpleNamespace(
         id=org_id, name=name, org_type="megacorp", tier=5,
-        description=None, headquarters=None, leadership=[],
+        description=None, headquarters=None, leadership=[], divisions=divisions or [],
         ltgs=ltgs, ally_ids=[], enemy_ids=[],
         revealed_ally_ids=[], revealed_enemy_ids=[],
         is_active=is_active, notes=None,
@@ -122,6 +122,70 @@ def test_admin_runner_view_preview_redacts():
     ])
     data = _serialize_org(org, _ADMIN_PREVIEW)
     assert "san_access_rating" not in data["ltgs"][0]
+
+
+def test_non_admin_sees_only_visible_divisions_without_notes():
+    org = _org_obj([], divisions=[
+        {"id": "11111111-1111-4111-8111-111111111111", "name": "Public Division",
+         "kind": "division", "visibility": "listed", "revealed": False,
+         "notes": "GM-only"},
+        {"id": "22222222-2222-4222-8222-222222222222", "name": "Hidden Division",
+         "kind": "division", "visibility": "black", "revealed": False,
+         "notes": "GM-only"},
+        {"id": "33333333-3333-4333-8333-333333333333", "name": "Discovered Unit",
+         "kind": "unit", "visibility": "black", "revealed": True,
+         "notes": "GM-only"},
+    ])
+
+    data = _serialize_org(org, _PLAYER)
+
+    assert [entry["name"] for entry in data["divisions"]] == [
+        "Public Division", "Discovered Unit"
+    ]
+    assert all("notes" not in entry for entry in data["divisions"])
+
+
+def test_admin_sees_all_divisions_and_notes():
+    org = _org_obj([], divisions=[
+        {"id": "11111111-1111-4111-8111-111111111111", "name": "Hidden Division",
+         "kind": "division", "visibility": "black", "revealed": False,
+         "notes": "GM-only"},
+    ])
+
+    data = _serialize_org(org, _ADMIN)
+
+    assert data["divisions"][0]["notes"] == "GM-only"
+
+
+def test_admin_preview_uses_player_division_redaction():
+    org = _org_obj([], divisions=[
+        {"id": "11111111-1111-4111-8111-111111111111", "name": "Hidden Division",
+         "kind": "division", "visibility": "unlisted", "revealed": False,
+         "notes": "GM-only"},
+    ])
+
+    assert _serialize_org(org, _ADMIN_PREVIEW)["divisions"] == []
+
+
+def test_visible_division_redacts_nested_gm_data():
+    org = _org_obj([], divisions=[
+        {"id": "11111111-1111-4111-8111-111111111111", "name": "Visible Division",
+         "kind": "division", "visibility": "listed", "revealed": False,
+         "notes": "GM-only", "ally_ids": [2, 3], "enemy_ids": [4],
+         "revealed_ally_ids": [2], "revealed_enemy_ids": [],
+         "leadership": [{"name": "Director", "title": "Director", "notes": "Secret"}],
+         "ltgs": [{"type": "matrix_host", "rtg": "RTG-SEA", "ltg": "1234",
+                   "san_access_rating": "Red-9", "visibility": "listed", "notes": "Secret"}]},
+    ])
+
+    division = _serialize_org(org, _PLAYER)["divisions"][0]
+
+    assert "notes" not in division
+    assert division["ally_ids"] == [2]
+    assert division["enemy_ids"] == []
+    assert "notes" not in division["leadership"][0]
+    assert "notes" not in division["ltgs"][0]
+    assert "san_access_rating" not in division["ltgs"][0]
 
 
 def test_redaction_leaves_telecom_entries_untouched():

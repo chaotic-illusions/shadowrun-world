@@ -1538,6 +1538,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 /* Selects default to the taller base padding (9px); match them to the table's
    inputs so number spinners and selects line up at the same height. */
 .lead-table td select { padding: 6px 22px 6px 8px; font-size: var(--fs-md); background-position: right 7px center; }
+.lead-table .division-kind-select { min-width: 118px; }
 
 /* ---------------------------------------------------------------------------
    SECTION 18 -- HEAT / REP / FACTION standing colors

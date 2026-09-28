@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +41,18 @@ def test_empty_database_upgrades_to_head(tmp_path):
     _alembic(database, "upgrade", "head")
     current = _alembic(database, "current")
     assert f"{CURRENT_HEAD} (head)" in current.stdout
+
+    with sqlite3.connect(database) as db:
+        organization_columns = {
+            row[1]: row for row in db.execute("PRAGMA table_info(organizations)")
+        }
+        location_columns = {row[1]: row for row in db.execute("PRAGMA table_info(locations)")}
+        character_columns = {row[1]: row for row in db.execute("PRAGMA table_info(characters)")}
+    assert organization_columns["divisions"][3] == 1
+    assert organization_columns["divisions"][4] == "'[]'"
+    for columns in (organization_columns, location_columns, character_columns):
+        assert columns["catalog_scope"][3] == 1
+        assert columns["catalog_scope"][4] == "'reference'"
 
 
 def test_former_head_database_upgrades_without_replaying_baseline(tmp_path):

@@ -17,6 +17,7 @@ class Location(Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     # open, guarded, secure, ultraviolet
     security_level: Mapped[str | None] = mapped_column(String(50), default=None)
+    catalog_scope: Mapped[str] = mapped_column(String(20), default="reference", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     # Published adventure this location was lifted from; None for home-grown world entities.

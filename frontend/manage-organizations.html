@@ -194,6 +194,23 @@
         </table>
       </div>
 
+      <!-- -- DIVISIONS -- -->
+      <hr class="rule my-14">
+      <div class="section-head mb-12">// Divisions &amp; Sub-Organizations</div>
+      <div class="mb-8">
+        <button type="button" class="btn btn-amber" onclick="addDivision()">+ Add Division</button>
+      </div>
+      <div class="lead-wrap">
+        <table class="lead-table" id="divisionTable">
+          <thead>
+            <tr><th>Name</th><th>Kind</th><th>Headquarters</th><th>Public Intel</th><th>GM Notes</th><th>Source</th><th>Visibility</th><th>Reveal</th><th>Order</th><th></th></tr>
+          </thead>
+          <tbody id="divisionBody">
+            <tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <!-- -- POLITICAL RELATIONSHIPS -- -->
       <hr class="rule my-14">
       <div class="section-head mb-12">// Political Relationships</div>
@@ -273,6 +290,7 @@
 const API = '';
 let tierVal = 1;
 let leaderCount = 0;
+let divisionCount = 0;
 let telecomCount = 0;
 let hostCount = 0;
 let allOrgs = [];
@@ -366,12 +384,60 @@ function addLeader(data) {
   const id = `lead_${leaderCount}`;
   const tr = document.createElement('tr');
   tr.id = id;
+  tr._leaderData = {...(data || {})};
   tr.innerHTML = `
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title" value="${esc(data?.title||'')}"></td>
     <td><input type="text" placeholder="Known info..." data-field="notes" value="${esc(data?.notes||'')}"></td>
     <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',4)">x</button></td>`;
   tbody.appendChild(tr);
+}
+
+// -- Divisions -------------------------------------------------
+const DIVISION_KIND_OPTS = `
+  <option value="division">Division</option>
+  <option value="subsidiary">Subsidiary</option>
+  <option value="department">Department</option>
+  <option value="unit">Unit</option>
+  <option value="branch">Branch</option>`;
+
+function newDivisionId() {
+  return globalThis.crypto.randomUUID();
+}
+
+function addDivision(data) {
+  const tbody = document.getElementById('divisionBody');
+  document.getElementById('emptyDivision')?.remove();
+  divisionCount++;
+  const rowId = `division_${divisionCount}`;
+  const tr = document.createElement('tr');
+  tr.id = rowId;
+  tr._divisionData = {...(data || {})};
+  const kind = data?.kind || 'division';
+  const visibility = data?.visibility || 'unlisted';
+  const kindOptions = DIVISION_KIND_OPTS.replace(`value="${kind}"`, `value="${kind}" selected`);
+  const visibilityOptions = VIS_OPTS.replace(`value="${visibility}"`, `value="${visibility}" selected`);
+  tr.innerHTML = `
+    <td><input type="hidden" data-field="id" value="${esc(data?.id||newDivisionId())}"><input type="text" data-field="name" placeholder="Division name..." value="${esc(data?.name||'')}"></td>
+    <td><select class="division-kind-select" data-field="kind">${kindOptions}</select></td>
+    <td><input type="text" data-field="headquarters" placeholder="Location..." value="${esc(data?.headquarters||'')}"></td>
+    <td><textarea data-field="description" rows="2" placeholder="Player-safe description...">${esc(data?.description||'')}</textarea></td>
+    <td><textarea data-field="notes" rows="2" placeholder="GM-only details...">${esc(data?.notes||'')}</textarea></td>
+    <td><input type="text" data-field="source_adventure" placeholder="Source..." value="${esc(data?.source_adventure||'')}"></td>
+    <td><select data-field="visibility">${visibilityOptions}</select></td>
+    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td style="white-space:nowrap"><button type="button" class="btn btn-ghost" title="Move up" onclick="moveDivision('${rowId}',-1)">&#9650;</button><button type="button" class="btn btn-ghost" title="Move down" onclick="moveDivision('${rowId}',1)">&#9660;</button></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${rowId}','divisionBody','emptyDivision',10)">x</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function moveDivision(rowId, direction) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling || sibling.id === 'emptyDivision') return;
+  if (direction < 0) row.parentNode.insertBefore(row, sibling);
+  else row.parentNode.insertBefore(sibling, row);
 }
 
 // -- Input formatters ------------------------------------------
@@ -480,7 +546,23 @@ function getTableData(tbodyId, emptyId, fields) {
 }
 
 function getLeadership() {
-  return getTableData('leadBody', 'emptyLead', ['name','title','notes']).filter(r => r.name || r.title);
+  return Array.from(document.querySelectorAll('#leadBody tr:not(#emptyLead)')).map(row => {
+    const leader = {...(row._leaderData || {})};
+    row.querySelectorAll('[data-field]').forEach(el => {
+      leader[el.dataset.field] = el.value?.trim() || null;
+    });
+    return leader;
+  }).filter(leader => leader.name || leader.title);
+}
+
+function getDivisions() {
+  return Array.from(document.querySelectorAll('#divisionBody tr:not(#emptyDivision)')).map(row => {
+    const division = {...(row._divisionData || {})};
+    row.querySelectorAll('[data-field]').forEach(el => {
+      division[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
+    });
+    return division;
+  }).filter(division => division.name);
 }
 
 function getLTGs() {
@@ -548,9 +630,10 @@ function resetForm() {
   updateStatus();
   setTier(1);
   document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
+  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
-  leaderCount = telecomCount = hostCount = 0;
+  leaderCount = divisionCount = telecomCount = hostCount = 0;
   document.getElementById('submitBtn').textContent = '>> Submit to Database';
   document.getElementById('deleteBtn').style.display = 'none';
   document.getElementById('alert').className = 'alert';
@@ -599,6 +682,10 @@ function populateForm(org) {
   document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="4" class="empty-msg">No executives defined</td></tr>';
   leaderCount = 0;
   (org.leadership || []).forEach(l => addLeader(l));
+
+  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
+  divisionCount = 0;
+  (org.divisions || []).forEach(division => addDivision(division));
 
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
@@ -907,6 +994,7 @@ async function submitForm() {
     source_adventure: document.getElementById('source_adventure').value.trim() || null,
     is_active:    document.getElementById('is_active').checked,
     leadership:   getLeadership(),
+    divisions:    getDivisions(),
     ally_ids:          getChecked('allyList'),
     enemy_ids:         getChecked('enemyList'),
     revealed_ally_ids:  getRevealed('allyList'),

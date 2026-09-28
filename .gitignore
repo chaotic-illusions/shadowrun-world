@@ -56,6 +56,9 @@ data/uploads/
 # Local dev scripts
 localdev.ps1
 
+# Private sourcebook/OCR/research archive retained only on local machines.
+reference-private/
+
 #Printed Materials
 .VR2
 docs/SR_Mercurial.pdf
@@ -66,6 +69,31 @@ docs/*_SR2_Sheet.pdf
 docs/Mod_Sample_*.pdf
 docs/*_report.csv
 
-# Published adventure PDFs and their OCR text (multi-GB, copyrighted; regenerate text with the OCR
-# pipeline in scripts/adventure_ingest). The prep summaries in docs/adventure-prep/ stay tracked.
+# Published adventure PDFs and their OCR text are copyrighted private references.
 docs/Adventures/
+
+# Generated sourcebook OCR is also copyrighted and locally reproducible. Keep the compact extraction
+# reports and research ledgers under docs/sourcebook-ingest/ tracked.
+docs/Sourcebooks/text/
+
+# Sourcebook-derived material archived under reference-private/ for public releases.
+docs/Sourcebooks/
+docs/sourcebook-ingest/
+docs/adventure-analysis/
+docs/adventure-prep/
+npc_dossiers_full.txt
+scripts/adventure_ingest/specs/
+scripts/adventure_ingest/run.py
+scripts/adventure_ingest/check_lengths.py
+scripts/adventure_ingest/spec_stats.py
+scripts/adventure_ingest/SPEC_CONTRACT.md
+scripts/ocr_sourcebooks.py
+scripts/audit_world_data.py
+.github/instructions/sourcebook-ingest.instructions.md
+tests/test_*_spec.py
+tests/test_*_loader_rehearsal.py
+tests/test_*_fastapi_rehearsal.py
+tests/test_adventure_scope_removal.py
+tests/test_catalog_scope_backfill.py
+tests/test_sourcebook_additions_ledger.py
+tests/test_world_data_audit.py
