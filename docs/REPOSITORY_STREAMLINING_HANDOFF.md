@@ -55,13 +55,15 @@ Keep these in the public repository:
 - `alembic/` and every applied migration
 - `seed.py`
 - `data/world_seed.json`
-- `data/prod-snapshot/2026-09-15/shadowrun_prod.db`
 - `scripts/audit_copyable_world_text.py`
 - `scripts/clean_copyable_world_text.py`
 - `scripts/copyable_text_rewrites_*.py`
 - Runtime and application tests, including `tests/test_copyable_world_text.py`
 - Deployment files, dependency manifests, and active operational documentation
 - `tools/check_text_hygiene.py`
+
+No database file is committed. The production snapshot is a local-only file, and
+`LOCAL_REFERENCE.md` (ignored) records where it and the private archive live.
 
 Do not remove an Alembic migration because it looks historical. Applied migration
 IDs are part of the database contract.
