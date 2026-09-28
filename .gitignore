@@ -61,6 +61,3 @@ docs/*_SR2_Sheet.pdf
 docs/Mod_Sample_*.pdf
 docs/*_report.csv
 
-# TEMPORARY: remove these two once the local folders are deleted.
-data/prod-snapshot/
-docs/Adventures/
