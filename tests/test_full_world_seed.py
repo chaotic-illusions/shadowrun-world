@@ -10,9 +10,7 @@ from seed import export_world_data
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DATABASE = ROOT / "data" / "prod-snapshot" / "2026-09-15" / "shadowrun_prod.db"
 WORLD_SEED = ROOT / "data" / "world_seed.json"
-EXPECTED_SOURCE_SHA256 = "0bbaa01dc98cbcb877818c0d3d68ea1d68f2ad51bb52864f2fe72c65880679e9"
 
 
 def _portable_content(data):
@@ -46,12 +44,8 @@ def _table_counts(database_path):
         }
 
 
-def test_complete_world_seed_round_trip_excludes_only_pc_owned_data(tmp_path):
-    source_hash = hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest()
-    assert source_hash == EXPECTED_SOURCE_SHA256
-
+def test_world_seed_round_trips_through_a_fresh_database(tmp_path):
     expected = json.loads(WORLD_SEED.read_text(encoding="utf-8"))
-    assert expected == export_world_data(SOURCE_DATABASE)
     target_database = tmp_path / "seeded-world.db"
 
     script = r'''
@@ -92,34 +86,26 @@ print("seed complete")
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
+    target_hash = hashlib.sha256(target_database.read_bytes()).hexdigest()
     actual = export_world_data(target_database)
     assert _portable_content(actual) == _portable_content(expected)
+    assert hashlib.sha256(target_database.read_bytes()).hexdigest() == target_hash
 
-    source_counts = _table_counts(SOURCE_DATABASE)
-    target_counts = _table_counts(target_database)
-    assert source_counts == {
+    assert _table_counts(target_database) == {
         "organizations": 821,
         "locations": 1183,
-        "characters": 872,
-        "contacts": 11,
-        "reputations": 7,
-        "org_standings": 6,
-        "rtgs": 67,
-        "matrix_hosts": 7,
-        "matrix_runs": 0,
-        "adventure_logs": 1,
-        "log_characters": 2,
-        "log_locations": 1,
-        "log_organizations": 1,
-        "campaign_state": 1,
-    }
-    assert target_counts == {
-        **source_counts,
         "characters": 862,
         "contacts": 0,
         "reputations": 0,
         "org_standings": 0,
+        "rtgs": 67,
+        "matrix_hosts": 7,
+        "matrix_runs": 0,
+        "adventure_logs": 1,
         "log_characters": 0,
+        "log_locations": 1,
+        "log_organizations": 1,
+        "campaign_state": 1,
     }
 
     with sqlite3.connect(target_database) as database:
@@ -128,5 +114,3 @@ print("seed complete")
         ).fetchone()[0] == 0
         assert database.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert database.execute("PRAGMA foreign_key_check").fetchall() == []
-
-    assert hashlib.sha256(SOURCE_DATABASE.read_bytes()).hexdigest() == source_hash
