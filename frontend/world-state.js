@@ -2006,9 +2006,10 @@ function openCharEditModal(charId) {
   orgSel.innerHTML =
     `<option value="independent"${ceAffVal === 'independent' ? ' selected' : ''}>-- Independent --</option>` +
     `<option value=""${ceAffVal === '' ? ' selected' : ''}>-- Unknown --</option>` +
-    Object.values(orgStore).map(o =>
+    sortByName(Object.values(orgStore)).map(o =>
       `<option value="${o.id}"${o.id === char.organization_id ? ' selected' : ''}>${esc(o.name)}</option>`
     ).join('');
+  attachSelectSearch(orgSel, 'Search organizations...', 2);
 
   if (char.is_pc) {
     // -- DOSSIER MODE (PC) -------------------------------------
