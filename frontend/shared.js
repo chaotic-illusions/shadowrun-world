@@ -595,6 +595,18 @@ function attachSelectSearch(sel, placeholder, keepLeading = 0) {
   sel._searchOpts = [...sel.options];
   sel._searchKeep = keepLeading;
 }
+// Select `value` in a fixed-choice <select>. A stored value that isn't one of the choices (an NPC race
+// such as "Dragon" or "Free Spirit") is added as an extra option for this record, so it displays and
+// saves unchanged instead of falling back to a default. Options added for a previous record are removed.
+function selectKeepingValue(sel, value) {
+  sel.querySelectorAll('option[data-kept]').forEach(o => o.remove());
+  if (value && ![...sel.options].some(o => o.value === value)) {
+    const opt = new Option(value, value);
+    opt.dataset.kept = '1';
+    sel.add(opt);
+  }
+  sel.value = value;
+}
 // Restore the full option list and clear the filter box (for a select that is reused without refilling).
 function clearSelectSearch(sel) {
   const box = sel?.previousElementSibling;

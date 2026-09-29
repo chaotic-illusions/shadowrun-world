@@ -888,7 +888,7 @@ function openModal(id) {
     }
     sel.value = archVal;
   }
-  document.getElementById('f-race').value          = ch?.race || 'Human';
+  selectKeepingValue(document.getElementById('f-race'), ch?.race || 'Human');
   document.getElementById('f-gender').value        = ch?.gender || '';
   document.getElementById('f-age').value           = ch?.age ?? '';
   document.getElementById('f-nationality').value   = ch?.nationality || '';
