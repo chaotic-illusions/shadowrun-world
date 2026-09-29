@@ -12,7 +12,10 @@ def test_manage_organizations_round_trips_divisions():
     assert "function getDivisions()" in source
     assert "(org.divisions || []).forEach" in source
     assert "divisions:    getDivisions()" in source
-    assert "row._divisionData" in source
+    # Fields the editor doesn't show are merged back from the row by the shared reader.
+    assert ".map(readDivisionRow)" in source
+    shared = (ROOT / "frontend" / "shared.js").read_text(encoding="utf-8")
+    assert "{...(row._divisionData || {})}" in shared
 
 
 def test_world_state_round_trips_and_renders_divisions():
