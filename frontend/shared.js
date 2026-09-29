@@ -575,15 +575,23 @@ function attachSelectSearch(sel, placeholder, keepLeading = 0) {
     box.className = 'sel-search';
     box.autocomplete = 'off';
     sel.before(box);
+    // A closed dropdown hides the filtered options, so while a query is typed the select opens
+    // as a list box showing the matches; picking one collapses it back to a dropdown.
     box.addEventListener('input', () => {
       const q = box.value.trim().toLowerCase(), cur = sel.value;
       sel.replaceChildren(...sel._searchOpts.filter((o, i) =>
         !q || i < sel._searchKeep || o.value === cur || o.text.toLowerCase().includes(q)));
       sel.value = cur;
+      sel.size = q ? Math.min(8, Math.max(2, sel.options.length)) : 0;
     });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' && sel.size > 1) { e.preventDefault(); sel.focus(); }
+    });
+    sel.addEventListener('change', () => { if (box.value) clearSelectSearch(sel); });
   }
   box.placeholder = placeholder || 'Search...';
   box.value = '';
+  sel.size = 0;
   sel._searchOpts = [...sel.options];
   sel._searchKeep = keepLeading;
 }
@@ -591,8 +599,24 @@ function attachSelectSearch(sel, placeholder, keepLeading = 0) {
 function clearSelectSearch(sel) {
   const box = sel?.previousElementSibling;
   if (!sel?._searchOpts || !box?.classList.contains('sel-search')) return;
+  const cur = sel.value;
   box.value = '';
   sel.replaceChildren(...sel._searchOpts);
+  sel.value = cur;
+  sel.size = 0;
+}
+
+// Org leaders and divisions are hidden or shown by the Reveal checkbox alone (the listed/unlisted/black
+// visibility is for telecoms and matrix hosts). The API shows an entry that is listed or revealed, and
+// older entries may still be listed, so the checkbox starts from that rule and a save writes
+// visibility "unlisted" plus the checkbox, leaving Reveal as the only switch.
+function isRevealedEntry(entry, defaultVisibility) {
+  return (entry?.visibility || defaultVisibility) === 'listed' || !!entry?.revealed;
+}
+function setRevealedEntry(entry, revealed) {
+  entry.visibility = 'unlisted';
+  entry.revealed = revealed;
+  return entry;
 }
 
 function esc(s) {

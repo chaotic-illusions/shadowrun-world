@@ -186,10 +186,10 @@
       <div class="lead-wrap">
         <table class="lead-table" id="leadTable">
           <thead>
-            <tr><th>Name</th><th>Title / Role</th><th>Notes (GM Only)</th><th>Visibility</th><th>Reveal</th><th></th></tr>
+            <tr><th>Name</th><th>Title / Role</th><th>Notes (GM Only)</th><th class="text-center">Reveal</th><th></th></tr>
           </thead>
           <tbody id="leadBody">
-            <tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>
+            <tr id="emptyLead"><td colspan="5" class="empty-msg">No executives defined</td></tr>
           </tbody>
         </table>
       </div>
@@ -203,10 +203,10 @@
       <div class="lead-wrap">
         <table class="lead-table" id="divisionTable">
           <thead>
-            <tr><th>Name</th><th>Kind</th><th>Headquarters</th><th>Public Intel</th><th>GM Notes</th><th>Source</th><th>Visibility</th><th>Reveal</th><th>Order</th><th></th></tr>
+            <tr><th>Name</th><th>Kind</th><th>Headquarters</th><th class="text-center">Reveal</th><th></th></tr>
           </thead>
           <tbody id="divisionBody">
-            <tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>
+            <tr id="emptyDivision"><td colspan="5" class="empty-msg">No divisions defined</td></tr>
           </tbody>
         </table>
       </div>
@@ -385,16 +385,14 @@ function addLeader(data) {
   const tr = document.createElement('tr');
   tr.id = id;
   tr._leaderData = {...(data || {})};
-  // Leaders without a visibility key predate the flag and are listed.
-  const visibility = data?.visibility || 'listed';
-  const visibilityOptions = VIS_OPTS.replace(`value="${visibility}"`, `value="${visibility}" selected`);
+  // A new executive starts revealed; leaders without a visibility key predate the flag and are listed.
+  const revealed = data ? isRevealedEntry(data, 'listed') : true;
   tr.innerHTML = `
     <td><input type="text" placeholder="Name..." data-field="name" value="${esc(data?.name||'')}"></td>
     <td><input type="text" placeholder="CEO, Oyabun, Warlord..." data-field="title" value="${esc(data?.title||'')}"></td>
     <td><input type="text" placeholder="GM-only details..." data-field="notes" value="${esc(data?.notes||'')}"></td>
-    <td><select data-field="visibility">${visibilityOptions}</select></td>
-    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',6)">x</button></td>`;
+    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeRow('${id}','leadBody','emptyLead',5)">x</button></td>`;
   tbody.appendChild(tr);
 }
 
@@ -410,6 +408,7 @@ function newDivisionId() {
   return globalThis.crypto.randomUUID();
 }
 
+// Each division takes two rows: name / kind / HQ / reveal, then Public Intel and GM Notes side by side.
 function addDivision(data) {
   const tbody = document.getElementById('divisionBody');
   document.getElementById('emptyDivision')?.remove();
@@ -417,32 +416,37 @@ function addDivision(data) {
   const rowId = `division_${divisionCount}`;
   const tr = document.createElement('tr');
   tr.id = rowId;
+  tr.className = 'division-row';
   tr._divisionData = {...(data || {})};
   const kind = data?.kind || 'division';
-  const visibility = data?.visibility || 'unlisted';
   const kindOptions = DIVISION_KIND_OPTS.replace(`value="${kind}"`, `value="${kind}" selected`);
-  const visibilityOptions = VIS_OPTS.replace(`value="${visibility}"`, `value="${visibility}" selected`);
   tr.innerHTML = `
     <td><input type="hidden" data-field="id" value="${esc(data?.id||newDivisionId())}"><input type="text" data-field="name" placeholder="Division name..." value="${esc(data?.name||'')}"></td>
     <td><select class="division-kind-select" data-field="kind">${kindOptions}</select></td>
     <td><input type="text" data-field="headquarters" placeholder="Location..." value="${esc(data?.headquarters||'')}"></td>
-    <td><textarea data-field="description" rows="2" placeholder="Player-safe description...">${esc(data?.description||'')}</textarea></td>
-    <td><textarea data-field="notes" rows="2" placeholder="GM-only details...">${esc(data?.notes||'')}</textarea></td>
-    <td><input type="text" data-field="source_adventure" placeholder="Source..." value="${esc(data?.source_adventure||'')}"></td>
-    <td><select data-field="visibility">${visibilityOptions}</select></td>
-    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${data?.revealed ? 'checked' : ''} data-tip="Reveal to players"></td>
-    <td style="white-space:nowrap"><button type="button" class="btn btn-ghost" title="Move up" onclick="moveDivision('${rowId}',-1)">&#9650;</button><button type="button" class="btn btn-ghost" title="Move down" onclick="moveDivision('${rowId}',1)">&#9660;</button></td>
-    <td><button type="button" class="btn btn-red" onclick="removeRow('${rowId}','divisionBody','emptyDivision',10)">x</button></td>`;
-  tbody.appendChild(tr);
+    <td class="text-center"><input type="checkbox" class="chk-reveal" data-field="revealed" ${isRevealedEntry(data, 'unlisted') ? 'checked' : ''} data-tip="Reveal to players"></td>
+    <td><button type="button" class="btn btn-red" onclick="removeDivision('${rowId}')">x</button></td>`;
+  const intel = document.createElement('tr');
+  intel.className = 'division-intel';
+  intel.innerHTML = `
+    <td colspan="5"><div class="division-intel-grid">
+      <label>Public Intel<textarea data-field="description" rows="4" placeholder="Player-safe description...">${esc(data?.description||'')}</textarea></label>
+      <label>GM Notes<textarea data-field="notes" rows="4" placeholder="GM-only details...">${esc(data?.notes||'')}</textarea></label>
+    </div></td>`;
+  tr._intel = intel;
+  tbody.append(tr, intel);
 }
 
-function moveDivision(rowId, direction) {
-  const row = document.getElementById(rowId);
-  if (!row) return;
-  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
-  if (!sibling || sibling.id === 'emptyDivision') return;
-  if (direction < 0) row.parentNode.insertBefore(row, sibling);
-  else row.parentNode.insertBefore(sibling, row);
+function removeDivision(rowId) {
+  document.getElementById(rowId)?._intel.remove();
+  removeRow(rowId, 'divisionBody', 'emptyDivision', 5);
+}
+
+// Revealed divisions first, then alphabetical.
+function sortDivisions(divisions) {
+  return [...divisions].sort((a, b) =>
+    isRevealedEntry(b, 'unlisted') - isRevealedEntry(a, 'unlisted')
+    || String(a.name || '').localeCompare(String(b.name || '')));
 }
 
 // -- Input formatters ------------------------------------------
@@ -556,18 +560,18 @@ function getLeadership() {
     row.querySelectorAll('[data-field]').forEach(el => {
       leader[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
     });
-    return leader;
+    return setRevealedEntry(leader, leader.revealed);
   }).filter(leader => leader.name || leader.title);
 }
 
 function getDivisions() {
-  return Array.from(document.querySelectorAll('#divisionBody tr:not(#emptyDivision)')).map(row => {
+  return sortDivisions(Array.from(document.querySelectorAll('#divisionBody tr.division-row')).map(row => {
     const division = {...(row._divisionData || {})};
-    row.querySelectorAll('[data-field]').forEach(el => {
+    [row, row._intel].forEach(part => part.querySelectorAll('[data-field]').forEach(el => {
       division[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
-    });
-    return division;
-  }).filter(division => division.name);
+    }));
+    return setRevealedEntry(division, division.revealed);
+  }).filter(division => division.name));
 }
 
 function getLTGs() {
@@ -634,8 +638,8 @@ function resetForm() {
   document.getElementById('is_active').checked = true;
   updateStatus();
   setTier(1);
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>';
-  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="5" class="empty-msg">No executives defined</td></tr>';
+  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="5" class="empty-msg">No divisions defined</td></tr>';
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
   leaderCount = divisionCount = telecomCount = hostCount = 0;
@@ -684,13 +688,13 @@ function populateForm(org) {
   updateStatus();
   setTier(org.tier || 1);
 
-  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="6" class="empty-msg">No executives defined</td></tr>';
+  document.getElementById('leadBody').innerHTML = '<tr id="emptyLead"><td colspan="5" class="empty-msg">No executives defined</td></tr>';
   leaderCount = 0;
   (org.leadership || []).forEach(l => addLeader(l));
 
-  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="10" class="empty-msg">No divisions defined</td></tr>';
+  document.getElementById('divisionBody').innerHTML = '<tr id="emptyDivision"><td colspan="5" class="empty-msg">No divisions defined</td></tr>';
   divisionCount = 0;
-  (org.divisions || []).forEach(division => addDivision(division));
+  sortDivisions(org.divisions || []).forEach(division => addDivision(division));
 
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
@@ -880,7 +884,6 @@ function applyFilter() {
           <th>Type</th>
           <th>Tier</th>
           <th>Headquarters</th>
-          <th>Source</th>
           ${adminMode ? '<th>Status</th>' : ''}
           <th></th>
         </tr>
@@ -892,7 +895,6 @@ function applyFilter() {
             <td style="color:var(--text-dim);font-size:0.75rem;letter-spacing:1px;text-transform:uppercase">${esc(o.org_type || '--')}</td>
             <td style="color:var(--amber);font-size:0.75rem">T${o.tier} <span class="text-dim">//</span> ${esc(TIER_NAMES[o.tier]||'')}</td>
             <td style="color:var(--text-dim);font-size:0.75rem">${esc(o.headquarters || '--')}</td>
-            <td class="dim-meta">${esc(o.source_adventure || '--')}</td>
             ${adminMode ? `<td><label class="mh-reveal" data-tip="${o.is_active ? 'Mark inactive' : 'Mark active'}"><input type="checkbox" class="chk-reveal" ${o.is_active ? 'checked' : ''} onchange="toggleOrgRow(${o.id}, this.checked)"></label></td>` : ''}
             <td class="td-act">
               ${adminMode ? `<button class="btn btn-amber btn-sm" onclick="openModal(${o.id})">Edit</button>` : ''}
