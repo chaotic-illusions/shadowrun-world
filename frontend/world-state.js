@@ -1492,12 +1492,10 @@ function renderOrgDossierView(org) {
     : `<span class="text-dim">&#9675; INACTIVE</span>`;
 
   // Leadership -- two-column grid: name | title (aligned, close together)
-  // Hidden leaders only reach admins (the API strips them for players); mark them for the GM.
   const leads = (org.leadership || []);
-  const leadHidden = l => !isRevealedEntry(l, 'listed');
   const leadHtml = leads.length
     ? `<div class="dossier-cmd-grid">${leads.map(l =>
-        `<span style="color:var(--text-bright);font-size:.75rem">&#8250; ${esc(l.name)}</span><span class="dossier-cmd-title">${esc(l.title||'')}${leadHidden(l) ? ' <span class="text-dim">[hidden]</span>' : ''}</span>`
+        `<span style="color:var(--text-bright);font-size:.75rem">&#8250; ${esc(l.name)}</span><span class="dossier-cmd-title">${esc(l.title||'')}</span>`
       ).join('')}</div>`
     : `<div class="ws-empty">None on record</div>`;
 
