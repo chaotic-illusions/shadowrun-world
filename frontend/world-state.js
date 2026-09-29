@@ -1509,7 +1509,6 @@ function renderOrgDossierView(org) {
         <div class="npc-skill">
           <span style="color:var(--text-bright)">&#8250; ${esc(division.name)}</span>
           <span class="ws-dim-tier">[${esc((division.kind||'division').toUpperCase())}]</span>
-          ${division.headquarters ? `<div class="text-dim">${esc(division.headquarters)}</div>` : ''}
           ${division.description ? `<div class="text-dim">${esc(division.description)}</div>` : ''}
           ${leaders}
         </div>`;
