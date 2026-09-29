@@ -43,7 +43,7 @@ import urllib.request
 _STRIP_ORG = {"summary", "allies", "enemies"}
 _STRIP_LOC = {"summary", "controlling_org"}
 _STRIP_NPC = {"role", "organization"}
-_STRIP_DIVISION = _STRIP_ORG | {"org_type", "affiliation_contact_type", "is_active"}
+_STRIP_DIVISION = _STRIP_ORG | {"org_type", "affiliation_contact_type", "is_active", "headquarters"}
 
 
 class Api:
@@ -115,7 +115,7 @@ def _merge_division(existing: dict, addition: dict, adventure: str) -> dict:
         added_items = list(addition.get(field) or [])
         if field in merged or existing_items or added_items:
             merged[field] = _unique_json(existing_items + added_items)
-    for field in ("name", "kind", "tier", "headquarters", "source_adventure", "visibility", "revealed"):
+    for field in ("name", "kind", "tier", "source_adventure", "visibility", "revealed"):
         if merged.get(field) is None and addition.get(field) is not None:
             merged[field] = addition[field]
     return merged

@@ -13,7 +13,6 @@ class OrganizationDivision(BaseModel):
     tier: int = Field(default=1, ge=1, le=6)
     description: Optional[str] = None
     notes: Optional[str] = None
-    headquarters: Optional[str] = Field(default=None, max_length=200)
     source_adventure: Optional[str] = Field(default=None, max_length=100)
     leadership: list[dict[str, Any]] = Field(default_factory=list)
     ltgs: list[dict[str, Any]] = Field(default_factory=list)
