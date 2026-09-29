@@ -1,7 +1,7 @@
 {
   "_format_version": 2,
   "_comment": "Portable PC-free world seed generated from the verified production snapshot.",
-  "_source_database_sha256": "6de6b9671e70596c8149ebd7ca3e49628148e0291d662fd9aff809409c560137",
+  "_source_database_sha256": "af21bf28512a8b0a104b5ed908106b39e8e3650ee8c1c0c1f7dad345dfb1b736",
   "_excluded": [
     "player characters",
     "PC-owned contacts",
@@ -776,7 +776,9 @@
             {
               "name": "Carmel Vega",
               "title": "Managing Director",
-              "notes": "[2056]"
+              "notes": "[2056]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -1134,37 +1136,51 @@
             {
               "name": "Diego Chavez",
               "title": "Chief Operating Officer",
-              "notes": "[2056] Commands acquisitions and receives reports from ACS."
+              "notes": "[2056] Commands acquisitions and receives reports from ACS.",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Carmencita Rico",
               "title": "Chief Financial Officer",
-              "notes": "[2052] Circa 2052-2056."
+              "notes": "[2052] Circa 2052-2056.",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Tsurunaga Shinoyama",
               "title": "Chief Information Officer",
-              "notes": "[2055] Circa 2055-2056."
+              "notes": "[2055] Circa 2055-2056.",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Jose Escobedo",
               "title": "Senior Executive Vice President",
-              "notes": "[2056]"
+              "notes": "[2056]",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Juan LaTorre",
               "title": "Senior Executive Vice President",
-              "notes": "[2056]"
+              "notes": "[2056]",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Peter Morales",
               "title": "Senior Executive Vice President",
-              "notes": "[2056]"
+              "notes": "[2056]",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Carmelita Rocha",
               "title": "Senior Executive Vice President",
-              "notes": "[2056]"
+              "notes": "[2056]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -1253,7 +1269,9 @@
             {
               "name": "General Paolo Batiste",
               "title": "Intelligence Chief",
-              "notes": "[2056] Until 2056. Reportedly recalled and dead; no successor is named."
+              "notes": "[2056] Until 2056. Reportedly recalled and dead; no successor is named.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -1403,7 +1421,9 @@
             {
               "name": "Hector Ramirez",
               "title": "Senior Executive",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -1952,7 +1972,9 @@
             {
               "name": "Karen King",
               "title": "Vice President",
-              "notes": "2054 Leadership."
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -1976,7 +1998,9 @@
             {
               "name": "Walter Dorek",
               "title": "President/CEO",
-              "notes": "[2054]"
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2036,7 +2060,9 @@
             {
               "name": "Kyle Morton",
               "title": "President",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2060,7 +2086,9 @@
             {
               "name": "David Werks",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2084,7 +2112,9 @@
             {
               "name": "Dolph Hensen",
               "title": "Head",
-              "notes": "[2057] Also serves on the State Water Board."
+              "notes": "[2057] Also serves on the State Water Board.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2108,7 +2138,9 @@
             {
               "name": "Elton Manning",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2132,7 +2164,9 @@
             {
               "name": "Lisa Carleson",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2290,7 +2324,7 @@
             {
               "name": "Charles Nakatomi",
               "title": "President",
-              "notes": "Led Aztechnology's United Kingdom division."
+              "notes": "Led Fuchi's United Kingdom division."
             }
           ],
           "ltgs": [],
@@ -2332,7 +2366,9 @@
             {
               "name": "San-yo Ohara",
               "title": "Executive Vice President",
-              "notes": "2054 Leadership; aligned with the Yamana faction."
+              "notes": "[2054] Aligned with the Yamana faction.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2356,7 +2392,9 @@
             {
               "name": "Noriko Sakai",
               "title": "Executive Vice President",
-              "notes": "2054 Leadership; Shikei Nakatomi's daughter-in-law."
+              "notes": "[2054] Shikei Nakatomi's daughter-in-law.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2380,7 +2418,9 @@
             {
               "name": "Jacques LeMer",
               "title": "Executive Vice President",
-              "notes": "2054 Leadership; aligned with Richard Villiers."
+              "notes": "[2054] Aligned with Richard Villiers.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2404,7 +2444,9 @@
             {
               "name": "Samantha Villiers",
               "title": "Regional Executive",
-              "notes": "2054 Role."
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2428,7 +2470,9 @@
             {
               "name": "Miles Lanier",
               "title": "Director",
-              "notes": "2054 Role."
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2524,12 +2568,16 @@
             {
               "name": "Siko Katara",
               "title": "President",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Tashaki Nogoma",
               "title": "Head of R&D",
-              "notes": "[2057] Matrix-security specialist."
+              "notes": "[2057] Matrix-security specialist.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2553,7 +2601,9 @@
             {
               "name": "Tashaki Nogoma",
               "title": "Director",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2746,7 +2796,7 @@
             {
               "name": "Frank Butcher",
               "title": "President",
-              "notes": "Led Aztechnology's United Kingdom division."
+              "notes": "Led Renraku's United Kingdom division."
             }
           ],
           "ltgs": [],
@@ -2770,7 +2820,9 @@
             {
               "name": "Patrick O'Connor",
               "title": "Division President",
-              "notes": "[2054]"
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2812,7 +2864,9 @@
             {
               "name": "Karl Stadt",
               "title": "Division Manager",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2854,7 +2908,9 @@
             {
               "name": "Yoshio Shizumi",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2878,7 +2934,9 @@
             {
               "name": "Surin Supachai",
               "title": "Division Manager",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2902,7 +2960,9 @@
             {
               "name": "Lucy Don",
               "title": "Division Manager",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -2926,7 +2986,9 @@
             {
               "name": "Noriko Sakai",
               "title": "President",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3176,7 +3238,9 @@
             {
               "name": "Ichiro Kiyomoto",
               "title": "Director",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3200,7 +3264,9 @@
             {
               "name": "Mariko Kiyonobu",
               "title": "President",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3242,7 +3308,9 @@
             {
               "name": "James Elders",
               "title": "Chief Executive Officer",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3266,7 +3334,9 @@
             {
               "name": "Kim Su Yun",
               "title": "Chief Executive Officer",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3290,7 +3360,9 @@
             {
               "name": "San-yo Ohara",
               "title": "Chief Executive Officer",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3314,7 +3386,9 @@
             {
               "name": "Erika Thyssen",
               "title": "President",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3338,7 +3412,9 @@
             {
               "name": "Nigel Coltrane",
               "title": "Chief Executive Officer",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3416,7 +3492,9 @@
             {
               "name": "Rolf Bremen",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3530,7 +3608,9 @@
             {
               "name": "Heinrich Gruenwald",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3554,7 +3634,9 @@
             {
               "name": "Saied Bey",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3578,7 +3660,9 @@
             {
               "name": "Marlene Carstairs",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3669,7 +3753,9 @@
             {
               "name": "Nell Miyamoto",
               "title": "Field Team Leader",
-              "notes": "Technically in command; keeps her word when the runners hand the scrolls over."
+              "notes": "Technically in command; keeps her word when the runners hand the scrolls over.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3716,7 +3802,9 @@
             {
               "name": "Blake Turner",
               "title": "Editor-in-Chief",
-              "notes": "Leads the Guide to Real Life public edition in 2053."
+              "notes": "[2053] Leads the Guide to Real Life public edition.",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3821,7 +3909,9 @@
             {
               "name": "Yoko Nakano",
               "title": "President",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3845,7 +3935,9 @@
             {
               "name": "Pik \"James\" Sako",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -3869,7 +3961,9 @@
             {
               "name": "Lance Ihara",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4160,12 +4254,16 @@
             {
               "name": "Jacques Barnard",
               "title": "Executive Vice President",
-              "notes": "2054 Leadership."
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             },
             {
               "name": "Mary Luce",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4189,7 +4287,9 @@
             {
               "name": "Hideo Yoshida",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4213,7 +4313,9 @@
             {
               "name": "Machikune Mibu",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4237,7 +4339,9 @@
             {
               "name": "Michelle Forlani",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4261,7 +4365,9 @@
             {
               "name": "Ramon Dizon",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4285,7 +4391,9 @@
             {
               "name": "Rajiv Desai",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4309,7 +4417,9 @@
             {
               "name": "Sean Rooker",
               "title": "Division Head",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4333,7 +4443,9 @@
             {
               "name": "Nadine Cross-Walters",
               "title": "Director",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4357,7 +4469,9 @@
             {
               "name": "Juanita Grant",
               "title": "Executive",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4381,7 +4495,9 @@
             {
               "name": "Fyodor Uvarovka",
               "title": "Chief Executive Officer",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4441,7 +4557,9 @@
             {
               "name": "Dr. Su-yi Kim",
               "title": "Director",
-              "notes": "[2061]"
+              "notes": "[2061]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4529,7 +4647,9 @@
             {
               "name": "Martin Roark",
               "title": "President/CEO",
-              "notes": "[2054]"
+              "notes": "[2054]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
@@ -4571,7 +4691,9 @@
             {
               "name": "Armin Guzman",
               "title": "Head",
-              "notes": "[2057]"
+              "notes": "[2057]",
+              "visibility": "unlisted",
+              "revealed": false
             }
           ],
           "ltgs": [],
