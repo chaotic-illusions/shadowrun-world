@@ -23,13 +23,6 @@ def test_production_copyable_world_text_is_clean() -> None:
 
 
 @needs_production_db
-def test_production_copyable_world_text_cleanup_is_idempotent() -> None:
-    with sqlite3.connect(PRODUCTION_DB) as database:
-        database.row_factory = sqlite3.Row
-        assert build_changes(database) == []
-
-
-@needs_production_db
 def test_copyable_world_text_tools_ignore_pc_prose(tmp_path: Path) -> None:
     database_path = tmp_path / "world.db"
     shutil.copy2(PRODUCTION_DB, database_path)

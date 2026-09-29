@@ -124,9 +124,25 @@ def export_world_data(database_path):
 
         org_names_by_id = dict(database.execute("SELECT id, name FROM organizations"))
         location_names_by_id = dict(database.execute("SELECT id, name FROM locations"))
-        npc_names_by_id = dict(database.execute(
-            "SELECT id, name FROM characters WHERE is_pc = 0"
-        ))
+        # NPCs made during play as a PC's contact (no source book, not core catalog) are
+        # campaign data, not world data, and stay out of the seed with their PC.
+        campaign_npc_ids = {
+            npc_id for (npc_id,) in database.execute(
+                "SELECT contacts.npc_id FROM contacts "
+                "JOIN characters owner ON owner.id = contacts.owner_id "
+                "JOIN characters npc ON npc.id = contacts.npc_id "
+                "WHERE owner.is_pc = 1 AND npc.is_pc = 0 "
+                "AND npc.source_adventure IS NULL "
+                "AND COALESCE(npc.catalog_scope, '') != 'core'"
+            )
+        }
+        npc_names_by_id = {
+            character_id: name
+            for character_id, name in database.execute(
+                "SELECT id, name FROM characters WHERE is_pc = 0"
+            )
+            if character_id not in campaign_npc_ids
+        }
         host_names_by_id = dict(database.execute("SELECT id, name FROM matrix_hosts"))
 
         rtgs = [
@@ -178,6 +194,8 @@ def export_world_data(database_path):
         for row in database.execute(
             "SELECT * FROM characters WHERE is_pc = 0 ORDER BY id"
         ):
+            if row["id"] in campaign_npc_ids:
+                continue
             payload = _schema_payload(
                 row,
                 CharacterCreate,
@@ -200,6 +218,8 @@ def export_world_data(database_path):
             "JOIN characters owner ON owner.id = contacts.owner_id "
             "WHERE owner.is_pc = 0 ORDER BY contacts.id"
         ):
+            if row["owner_id"] not in npc_names_by_id:
+                continue
             payload = dict(row)
             for field in ("id", "owner_id", "npc_id", "organization_id", "location_id"):
                 payload.pop(field, None)
@@ -215,6 +235,8 @@ def export_world_data(database_path):
             "JOIN characters ON characters.id = org_standings.character_id "
             "WHERE characters.is_pc = 0 ORDER BY org_standings.id"
         ):
+            if row["character_id"] not in npc_names_by_id:
+                continue
             org_standings.append({
                 "character_name": npc_names_by_id[row["character_id"]],
                 "org_name": org_names_by_id[row["organization_id"]],
@@ -298,6 +320,7 @@ def export_world_data(database_path):
         "_excluded": [
             "player characters",
             "PC-owned contacts",
+            "NPCs created during play as a PC's contact",
             "PC reputations",
             "PC organization standings",
             "PC adventure-log participant links",

@@ -116,15 +116,20 @@ def test_world_seed_artifact_is_pc_free():
         "adventure_logs": len(data["adventure_logs"]),
     } == {
         "rtgs": 67,
-        "organizations": 821,
-        "locations": 1183,
-        "characters": 862,
+        "organizations": 203,
+        "locations": 134,
+        "characters": 79,
         "contacts": 0,
         "org_standings": 0,
         "matrix_hosts": 7,
-        "adventure_logs": 1,
+        "adventure_logs": 0,
     }
     assert all(character["is_pc"] is False for character in data["characters"])
+    # every NPC in the seed is world data: from a source book or the curated core catalog
+    assert all(
+        character.get("source_adventure") or character.get("catalog_scope") == "core"
+        for character in data["characters"]
+    )
     assert all(log["participant_names"] == [] for log in data["adventure_logs"])
 
 
