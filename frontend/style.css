@@ -1276,6 +1276,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   padding-left: 8px;
 }
 .sel-search { margin-bottom: 6px; }
+.sel-search + select[size]:not([size="0"]) { background-image: none; }
+.sel-search + select option:checked { background: #1a3a1a; color: var(--text-bright); }
 #charEditBody.ce-view-mode .sel-search { display: none; }
 .ce-sel-val {
   display: none;
@@ -1541,6 +1543,11 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
    inputs so number spinners and selects line up at the same height. */
 .lead-table td select { padding: 6px 22px 6px 8px; font-size: var(--fs-md); background-position: right 7px center; }
 .lead-table .division-kind-select { min-width: 118px; }
+/* A division is two rows: its fields, then Public Intel and GM Notes at half width each. */
+.lead-table .division-row td   { border-bottom: none; }
+.division-intel-grid           { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 6px; }
+.division-intel-grid label     { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
+.division-intel-grid textarea  { min-height: 0; font-size: var(--fs-md); padding: 6px 8px; text-transform: none; letter-spacing: normal; }
 
 /* ---------------------------------------------------------------------------
    SECTION 18 -- HEAT / REP / FACTION standing colors
