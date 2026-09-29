@@ -332,7 +332,7 @@
         <label>Notes (For GM Use; hidden from players)</label>
         <textarea id="f-notes" rows="2" placeholder="Current situation, loose ends..."></textarea>
       </div>
-      <div class="field gm-only">
+      <div class="field gm-only" id="f-source_adventure-wrap">
         <label>Source Adventure</label>
         <input type="text" id="f-source_adventure" list="adventureList" maxlength="100" placeholder="Published adventure this NPC came from (blank = home-grown)">
         <datalist id="adventureList"></datalist>
@@ -493,6 +493,7 @@ function updatePCLabel() {
   document.getElementById('f-archetype').style.display       = isPC ? 'none' : '';
   document.getElementById('f-archetype-pc-custom-wrap').style.display = 'none';
   document.getElementById('f-title-wrap').style.display     = isPC ? 'none' : '';
+  document.getElementById('f-source_adventure-wrap').style.display = isPC ? 'none' : '';   // PCs never come from a published adventure
   // Reputation section: admin-only, PC-only; visible for new PCs too
   document.getElementById('repSection').style.display = (isPC && isAdminMode()) ? '' : 'none';
   syncSkillsSectionUI();
@@ -885,6 +886,7 @@ function openModal(id) {
   document.getElementById('f-nationality').value   = ch?.nationality || '';
   document.getElementById('f-is_pc').checked       = isPC;
   document.getElementById('f-is_active').checked   = ch?.is_active !== false;
+  clearSelectSearch(document.getElementById('f-organization_id'));
   document.getElementById('f-organization_id').value = ch?.organization_id ? String(ch.organization_id) : (ch?.is_independent ? 'independent' : '');
   document.getElementById('f-description').value   = ch?.description || '';
   document.getElementById('f-background').value    = ch?.background || '';
@@ -1002,7 +1004,7 @@ async function saveChar() {
         description:     document.getElementById('f-description').value.trim() || null,
         background:      document.getElementById('f-background').value.trim() || null,
         notes:           document.getElementById('f-notes').value.trim() || null,
-        source_adventure: document.getElementById('f-source_adventure').value.trim() || null,
+        source_adventure: isPC ? null : (document.getElementById('f-source_adventure').value.trim() || null),
         contact_skills:  isPC ? [] : skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
         connection:      isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
         computer_skill_enabled: isPC ? !!document.getElementById('f-computer_skill_enabled').checked : false,
@@ -1224,7 +1226,8 @@ async function loadChars() {
 
     const sel = document.getElementById('f-organization_id');
     sel.innerHTML = '<option value="independent">-- Independent --</option><option value="">-- Unknown --</option>' +
-      allOrgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+      sortByName(allOrgs).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+    attachSelectSearch(sel, 'Search organizations...', 2);
 
     applyFilter();
   } catch(e) {

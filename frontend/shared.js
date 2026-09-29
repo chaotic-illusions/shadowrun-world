@@ -559,6 +559,42 @@ function fillAdventureDatalist() {
   dl.innerHTML = ADVENTURE_ORDER.map(n => `<option value="${esc(n)}"></option>`).join('');
 }
 
+// Copy of `items` sorted by .name, case-insensitive.
+function sortByName(items) {
+  return items.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+}
+// Put a filter box above a long <select> (e.g. the org picker). Call right after (re)filling the
+// options: it snapshots them, and typing narrows the list by text. The first `keepLeading`
+// options (sentinels like Independent/Unknown) and the current selection always stay listed.
+function attachSelectSearch(sel, placeholder, keepLeading = 0) {
+  if (!sel) return;
+  let box = sel.previousElementSibling;
+  if (!box || !box.classList.contains('sel-search')) {
+    box = document.createElement('input');
+    box.type = 'text';
+    box.className = 'sel-search';
+    box.autocomplete = 'off';
+    sel.before(box);
+    box.addEventListener('input', () => {
+      const q = box.value.trim().toLowerCase(), cur = sel.value;
+      sel.replaceChildren(...sel._searchOpts.filter((o, i) =>
+        !q || i < sel._searchKeep || o.value === cur || o.text.toLowerCase().includes(q)));
+      sel.value = cur;
+    });
+  }
+  box.placeholder = placeholder || 'Search...';
+  box.value = '';
+  sel._searchOpts = [...sel.options];
+  sel._searchKeep = keepLeading;
+}
+// Restore the full option list and clear the filter box (for a select that is reused without refilling).
+function clearSelectSearch(sel) {
+  const box = sel?.previousElementSibling;
+  if (!sel?._searchOpts || !box?.classList.contains('sel-search')) return;
+  box.value = '';
+  sel.replaceChildren(...sel._searchOpts);
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;')

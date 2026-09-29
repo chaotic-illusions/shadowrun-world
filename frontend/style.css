@@ -1275,6 +1275,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   cursor: text;
   padding-left: 8px;
 }
+.sel-search { margin-bottom: 6px; }
+#charEditBody.ce-view-mode .sel-search { display: none; }
 .ce-sel-val {
   display: none;
   font-size: var(--fs-md);
