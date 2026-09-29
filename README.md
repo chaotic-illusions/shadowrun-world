@@ -4,92 +4,135 @@ A FastAPI + SQLite campaign management tool for **Shadowrun 2nd Edition** GMs. T
 
 ---
 
-## Setup
+## Getting Started
+
+These steps take you from a fresh clone to a running world with the published 2050 Seattle
+setting loaded, ready for your own campaign.
 
 ### Requirements
-- Python 3.11+
-- Docker (recommended for deployment)
 
-### Environment Variables
+- Git
+- Docker with Docker Compose (recommended), or Python 3.11+ to run without Docker
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/chaotic-illusions/shadowrun-world.git
+cd shadowrun-world
+```
+
+### 2. Configure
+
+Configuration comes from environment variables. With Docker Compose, the easiest way to set them
+is a `.env` file next to `docker-compose.yml` (it is git-ignored, so your secrets stay local):
+
+```bash
+# .env
+BOOTSTRAP_ADMIN_KEY=choose-a-first-login-password
+ANTHROPIC_API_KEY=sk-ant-...        # optional, only for the AI run-narrative parser
+```
 
 | Variable | Default | Description |
 |---|---|---|
-| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` in Docker Compose | Initial admin password; also used by `seed.py` when `--admin-token` is omitted |
-| `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key for AI narrative parsing |
-| `CLAUDE_MODEL` | `claude-sonnet-4-6` | Claude model for the narrative parser |
-| `CORS_ORIGINS` | `*` | Comma-separated allowed origins for CORS |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./data/shadowrun.db` | SQLAlchemy async database URL |
+| `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` in Docker Compose; none when run directly | First-login admin password. `seed.py` also uses it when `--admin-token` is omitted. It stops working once the first real admin token exists. |
+| `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key for AI narrative parsing. Everything else works without it. |
+| `CLAUDE_MODEL` | `claude-opus-5` | Claude model for the narrative parser. Docker Compose does not pass this through; add it to `docker-compose.yml` to change it there. |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins for CORS. |
+| `TRUST_PROXY_HEADERS` | *(off)* | Set to `1` only behind a reverse proxy that overwrites `X-Forwarded-For` (used by the login rate limiter). |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./data/shadowrun.db` | SQLAlchemy async database URL. |
 
-### Docker (recommended)
-
-```bash
-docker compose up --build
-```
-
-The container runs uvicorn on port 8000, serves the frontend at `/ui/`, and stores the SQLite DB in `./data/`. Frontend files are mounted as a volume for live editing.
-
-For a fresh Compose install, the initial admin password is `shadowrunner`. Set
-`BOOTSTRAP_ADMIN_KEY` before `docker compose up` to override it. The bootstrap
-password stops working after the first real admin token is created.
-
-### Encoding Guardrails (Prevent Mojibake)
-
-This repo enforces text hygiene to prevent mojibake and encoding drift.
-
-One-time setup per clone:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/install-hooks.ps1
-```
-
-What this does:
-
-- Configures git hooks path to `.githooks`
-- Enables a pre-commit check that blocks commits if staged text files contain:
-	- UTF-8 BOM
-	- Invalid UTF-8
-	- Mojibake markers (`\u00e2`, `\u00c3`, `\u00c2`, replacement char)
-	- Any non-ASCII characters (strict policy)
-
-Manual check (any time):
-
-```powershell
-python tools/check_text_hygiene.py --root .
-```
-
-VS Code workspace settings are also configured to reduce encoding issues:
-
-- `files.encoding = utf8`
-- `files.autoGuessEncoding = false`
-
-### Local Development
+### 3. Start the server
 
 ```bash
+docker compose up --build -d
+```
+
+The container serves the API and the web UI on port 8000, bound to `127.0.0.1` only. The database
+lives in `./data/shadowrun.db` on the host, so it survives rebuilds; the tables are created on
+first start. To reach it from other machines, put a reverse proxy (Apache, nginx) in front of it.
+
+### 4. Load the world seed
+
+A new database is empty. `data/world_seed.json` holds the starting world: the Seattle setting as
+of 2050, with organizations, locations, NPCs, Regional Telecommunication Grids, and Matrix hosts,
+plus their GM notes and hidden future developments. It contains no player characters.
+
+Load it into the running container **before you log in for the first time**:
+
+```bash
+docker compose exec shadowrun-world python3 seed.py
+```
+
+The seed script authenticates with `BOOTSTRAP_ADMIN_KEY`. If you have already logged in (which
+creates your real admin token and retires the bootstrap password), pass that token instead:
+
+```bash
+docker compose exec shadowrun-world python3 seed.py --admin-token YOUR_ADMIN_TOKEN
+```
+
+Only seed an empty database. Seeding adds records; it does not merge with a world you have
+already been playing in.
+
+**`reseed.sh`** (Linux) and **`reseed.bat`** (Windows) wrap this in a menu: option 1 rebuilds and
+restarts the container, and option 2 **deletes the database** and reseeds from scratch.
+
+### 5. Log in and set up access
+
+1. Open http://localhost:8000 and log in with your `BOOTSTRAP_ADMIN_KEY` (`shadowrunner` if you
+   did not set one).
+2. The app replaces that password with a newly generated admin token and shows it once. Save it:
+   it is your GM login from now on.
+3. Create player tokens on the **Manage Tokens** page and hand them out. Players then build or
+   claim their characters.
+
+### Running without Docker
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+export BOOTSTRAP_ADMIN_KEY=choose-a-first-login-password   # Windows PowerShell: $env:BOOTSTRAP_ADMIN_KEY="..."
+uvicorn app.main:app --port 8000
 ```
 
-### Seeding the Database
-
-The seed script populates a fresh database from `data/world_seed.json`:
+Then, in a second terminal with the same `BOOTSTRAP_ADMIN_KEY` set, load the seed:
 
 ```bash
-python seed.py [--url http://localhost:8000] [--file data/world_seed.json]
+python seed.py --url http://localhost:8000
 ```
 
-Regenerate the portable seed from a trusted SQLite snapshot with:
+Without Docker there is no default bootstrap password, so set `BOOTSTRAP_ADMIN_KEY` before the
+first start or you will not be able to log in.
+
+### Updating
 
 ```bash
-python seed.py --export-db data/shadowrun_prod.db --file data/world_seed.json
+git pull
+docker compose up --build -d
 ```
 
-The exported seed contains the complete in-universe world state but deliberately excludes player
+Your world lives in `./data/shadowrun.db` and is kept across updates. Schema changes are applied
+automatically at startup. Do not reseed a world you are playing in; that wipes it. To back up,
+stop the container and copy `data/shadowrun.db`.
+
+### Maintaining the seed
+
+Regenerate the portable seed from a trusted SQLite database with:
+
+```bash
+python seed.py --export-db data/your_world.db --file data/world_seed.json
+```
+
+The export contains the complete in-universe world state but deliberately excludes player
 characters, PC-owned contacts, PC reputation and organization-standing rows, authentication data,
 and transient Matrix runs. Relationships are stored by stable names and remapped to fresh IDs.
 
-Audit production descriptions, backgrounds, field notes, and nested organization
-prose for ingest shorthand, source citations, raw rule blocks, and editorial
-instructions with:
+Seed order: RTGs -> Organizations -> Locations -> NPCs (+ any NPC reputation records) -> organization
+relationships/divisions -> Matrix hosts -> non-PC contacts -> non-PC org standings -> Adventure Logs
+-> campaign settings.
+
+Audit descriptions, backgrounds, field notes, and nested organization prose for ingest shorthand,
+source citations, raw rule blocks, and editorial instructions with:
 
 ```bash
 python scripts/audit_copyable_world_text.py
@@ -97,15 +140,23 @@ python scripts/audit_copyable_world_text.py
 
 The audit excludes player-authored PC data and PC-associated records.
 
-Pass an existing admin credential with `--admin-token`, or set
-`BOOTSTRAP_ADMIN_KEY` before the first admin token is created. Docker Compose sets
-it to `shadowrunner` by default; direct local Python runs do not provide a default.
+### Contributing: encoding guardrails
 
-Seed order: RTGs -> Organizations -> Locations -> NPCs (+ any NPC reputation records) -> organization
-relationships/divisions -> Matrix hosts -> non-PC contacts -> non-PC org standings -> Adventure Logs
--> campaign settings.
+This repo enforces text hygiene to prevent mojibake and encoding drift. One-time setup per clone:
 
-**`reseed.sh`** (Linux) and **`reseed.bat`** (Windows) provide a menu to either restart the container or do a full wipe-and-reseed. The Linux script runs `seed.py` inside the container so no host Python dependencies are needed.
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/install-hooks.ps1
+```
+
+This points git's hooks path at `.githooks` and enables a pre-commit check that blocks commits if
+staged text files contain a UTF-8 BOM, invalid UTF-8, mojibake markers (`\u00e2`, `\u00c3`,
+`\u00c2`, replacement char), or any non-ASCII characters (strict policy). Run it manually with:
+
+```powershell
+python tools/check_text_hygiene.py --root .
+```
+
+VS Code workspace settings also set `files.encoding = utf8` and `files.autoGuessEncoding = false`.
 
 ---
 
