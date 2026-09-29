@@ -1543,11 +1543,17 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
    inputs so number spinners and selects line up at the same height. */
 .lead-table td select { padding: 6px 22px 6px 8px; font-size: var(--fs-md); background-position: right 7px center; }
 .lead-table .division-kind-select { min-width: 118px; }
-/* A division is two rows: its fields, then Public Intel and GM Notes at half width each. */
-.lead-table .division-row td   { border-bottom: none; }
-.division-intel-grid           { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 6px; }
-.division-intel-grid label     { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
-.division-intel-grid textarea  { min-height: 0; font-size: var(--fs-md); padding: 6px 8px; text-transform: none; letter-spacing: normal; }
+/* A division is one labeled block: Name / Kind / Reveal / remove, then Public Intel and GM Notes
+   at half width each. */
+.division-block                { padding: 4px 0 8px; }
+.division-grid                 { display: grid; gap: 8px; }
+.division-head                 { grid-template-columns: 1fr 180px auto auto; align-items: end; margin-bottom: 6px; }
+.division-intel                { grid-template-columns: 1fr 1fr; }
+.division-grid label           { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xxs); letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
+.division-grid .division-reveal { align-items: center; padding-bottom: 6px; }
+.division-grid input[type=text], .division-grid select, .division-grid textarea { padding: 6px 8px; font-size: var(--fs-md); text-transform: none; letter-spacing: normal; }
+.division-grid select          { padding-right: 22px; background-position: right 7px center; }
+.division-grid textarea        { min-height: 0; }
 
 /* ---------------------------------------------------------------------------
    SECTION 18 -- HEAT / REP / FACTION standing colors

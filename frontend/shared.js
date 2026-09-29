@@ -619,6 +619,38 @@ function setRevealedEntry(entry, revealed) {
   return entry;
 }
 
+// One org-editor division as a labeled block: Name / Kind / Reveal / remove, then Public Intel and
+// GM Notes side by side. Fields the editor doesn't show (source, headquarters, leaders, relations)
+// ride along in tr._divisionData and are merged back by readDivisionRow().
+function divisionRowHtml(data, id, kindOptions, removeCall) {
+  const kind = data?.kind || 'division';
+  return `<td><div class="division-block">
+    <div class="division-grid division-head">
+      <label>Name<input type="hidden" data-field="id" value="${esc(id)}"><input type="text" data-field="name" placeholder="Division name..." value="${esc(data?.name||'')}"></label>
+      <label>Kind<select class="division-kind-select" data-field="kind">${kindOptions.replace(`value="${kind}"`, `value="${kind}" selected`)}</select></label>
+      <label class="division-reveal">Reveal<input type="checkbox" class="chk-reveal" data-field="revealed" ${isRevealedEntry(data, 'unlisted') ? 'checked' : ''} data-tip="Reveal to players"></label>
+      <button type="button" class="btn btn-red" onclick="${removeCall}">x</button>
+    </div>
+    <div class="division-grid division-intel">
+      <label>Public Intel<textarea data-field="description" rows="3" placeholder="Player-safe description...">${esc(data?.description||'')}</textarea></label>
+      <label>GM Notes<textarea data-field="notes" rows="3" placeholder="GM-only details...">${esc(data?.notes||'')}</textarea></label>
+    </div>
+  </div></td>`;
+}
+function readDivisionRow(row) {
+  const division = {...(row._divisionData || {})};
+  row.querySelectorAll('[data-field]').forEach(el => {
+    division[el.dataset.field] = el.type === 'checkbox' ? el.checked : (el.value?.trim() || null);
+  });
+  return setRevealedEntry(division, division.revealed);
+}
+// Revealed divisions first, then alphabetical.
+function sortDivisions(divisions) {
+  return [...divisions].sort((a, b) =>
+    isRevealedEntry(b, 'unlisted') - isRevealedEntry(a, 'unlisted')
+    || String(a.name || '').localeCompare(String(b.name || '')));
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;')
