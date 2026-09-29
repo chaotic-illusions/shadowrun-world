@@ -1962,7 +1962,7 @@ function openCharEditModal(charId) {
 
   // Populate common fields
   document.getElementById('ce-name').value             = char.name             || '';
-  document.getElementById('ce-race').value             = char.race || 'Human';
+  selectKeepingValue(document.getElementById('ce-race'), char.race || 'Human');
   document.getElementById('ce-gender').value           = char.gender            || '';
   document.getElementById('ce-age').value              = char.age               || '';
   document.getElementById('ce-nationality').value      = char.nationality        || '';
