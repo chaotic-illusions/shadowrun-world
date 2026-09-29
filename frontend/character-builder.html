@@ -962,7 +962,9 @@ function stepMagic() {
   if (state.magicType === "Full Mage") {
     body += totemBlockHTML();
     const chosenSpells = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenspellinfo="${esc(s.name)}">${esc(s.name)}</a> <em>${esc(s.cat||"")}</em></span>
-      <span class="cbx-line__f">Force <input type="number" min="1" max="6" class="cbx-mini" data-spellforce="${i}" value="${s.force}"></span>
+      <span class="cbx-line__f">Force</span>
+      <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-spellforce="${i}" data-d="-1" ${s.force<=1?"disabled":""}>-</button>
+        <span class="cbx-attr__base">${s.force}</span><button type="button" class="cbx-step-btn" data-spellforce="${i}" data-d="1" ${s.force>=6?"disabled":""}>+</button></span>
       <button type="button" class="cbx-x" data-delspell="${i}">&#10005;</button></div>`).join("");
     const SPELL_CAT_ORDER = ["combat","detection","health","illusion","manipulation"];
     const spellGroups = {};
@@ -1728,7 +1730,13 @@ function wire() {
   root.querySelectorAll("[data-delspell]").forEach(el => el.onclick = () => { state.spells.splice(Number(el.dataset.delspell),1); save(); render(); });
   root.querySelectorAll("[data-chargenspellinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenSpellInfo(el.dataset.chargenspellinfo); });
   root.querySelectorAll("[data-chargenpowerinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenPowerInfo(el.dataset.chargenpowerinfo); });
-  root.querySelectorAll("[data-spellforce]").forEach(el => el.oninput = () => { state.spells[Number(el.dataset.spellforce)].force = clamp(Number(el.value)||1,1,6); save(); renderBudget(); });
+  root.querySelectorAll("[data-spellforce]").forEach(el => {
+    const i = Number(el.dataset.spellforce), d = Number(el.dataset.d);
+    bindStepper(el, () => {
+      const sp = state.spells[i]; if (!sp) return;
+      sp.force = clamp((sp.force||1)+d,1,6); save(); render();
+    });
+  });
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
     const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||"")) || /per\s+level/i.test(String(p.pp||""));

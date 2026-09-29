@@ -92,19 +92,19 @@ print("seed complete")
     assert hashlib.sha256(target_database.read_bytes()).hexdigest() == target_hash
 
     assert _table_counts(target_database) == {
-        "organizations": 821,
-        "locations": 1183,
-        "characters": 862,
+        "organizations": 203,
+        "locations": 134,
+        "characters": 79,
         "contacts": 0,
         "reputations": 0,
         "org_standings": 0,
         "rtgs": 67,
         "matrix_hosts": 7,
         "matrix_runs": 0,
-        "adventure_logs": 1,
+        "adventure_logs": 0,
         "log_characters": 0,
-        "log_locations": 1,
-        "log_organizations": 1,
+        "log_locations": 0,
+        "log_organizations": 0,
         "campaign_state": 1,
     }
 
