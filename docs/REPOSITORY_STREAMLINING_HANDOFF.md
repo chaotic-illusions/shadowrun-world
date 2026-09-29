@@ -56,8 +56,6 @@ Keep these in the public repository:
 - `seed.py`
 - `data/world_seed.json`
 - `scripts/audit_copyable_world_text.py`
-- `scripts/clean_copyable_world_text.py`
-- `scripts/copyable_text_rewrites_*.py`
 - Runtime and application tests, including `tests/test_copyable_world_text.py`
 - Deployment files, dependency manifests, and active operational documentation
 - `tools/check_text_hygiene.py`
