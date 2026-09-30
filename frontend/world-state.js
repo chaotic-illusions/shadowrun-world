@@ -458,7 +458,7 @@ async function addContactLink() {
       organization_id: char.organization_id || null,
     })
   });
-  if (!res.ok) { showAlert('Failed to create contact link.'); return; }
+  if (!res.ok) { wsAlert('Failed to create contact link.'); return; }
   const contactsRes = await apiFetch(`${API}/contacts/`);
   contactStore = await contactsRes.json();
   document.getElementById('promoteSectionWrap').outerHTML = renderPromoteSection(npcModalCharId);
@@ -495,7 +495,7 @@ async function setContactLoyalty(contactId, loyalty) {
 }
 
 async function removeContactLink(contactId) {
-  showConfirm('Remove this contact link?', async () => {
+  wsConfirm('Remove this contact link?', async () => {
     await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
     const contactsRes = await apiFetch(`${API}/contacts/`);
     contactStore = await contactsRes.json();
@@ -559,7 +559,7 @@ function openNonNpcContactModal(contactId) {
 }
 
 function removeNonNpcLink(contactId) {
-  showConfirm('Remove this contact link?', async () => {
+  wsConfirm('Remove this contact link?', async () => {
     await apiFetch(`${API}/contacts/${contactId}`, { method: 'DELETE' });
     const contactsRes = await apiFetch(`${API}/contacts/`);
     contactStore = await contactsRes.json();
@@ -594,33 +594,6 @@ let _myCharIds = new Set();
 function getMyCharIds() {
   if (isAdminMode()) return new Set();
   return _myCharIds;
-}
-
-async function patchNpcConnection(charId, currentVal) {
-  const raw = await showPrompt('Connection rating (1-6):', currentVal, { inputType: 'number', min: 1, max: 6 });
-  if (raw == null) return;
-  const n = parseInt(raw, 10);
-  if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
-  await apiFetch(`${API}/characters/${charId}`, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({connection: n})
-  });
-  loadAll();
-}
-
-async function patchConnection(cardKey, currentVal, contactIds) {
-  const raw = await showPrompt('Connection rating (1-6):', currentVal, { inputType: 'number', min: 1, max: 6 });
-  if (raw == null) return;
-  const n = parseInt(raw, 10);
-  if (isNaN(n) || n < 1 || n > 6) { showAlert('Rating must be between 1 and 6'); return; }
-  await Promise.all(contactIds.map(cid =>
-    apiFetch(`${API}/contacts/${cid}`, {
-      method: 'PATCH',
-      body: JSON.stringify({connection: n})
-    })
-  ));
-  loadAll();
 }
 
 // Affiliation label for an NPC/PC: the org name, or the deliberate/unknown distinction when the
@@ -672,11 +645,6 @@ function buildContactCard(merged, charMap, orgMap) {
         </div>
       </div>`;
   });
-
-  // Connection edit: NPC-linked patches the character; non-NPC patches the contact record
-  const connEditBtn = npc
-    ? `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchNpcConnection(${npc.id},${connVal})">[edit]</button>`
-    : `<button class="cc-conn-edit-btn" onclick="event.stopPropagation();patchConnection('${cardKey}',${connVal},${contactIds})">[edit]</button>`;
 
   return `
     <div class="contact-card cc-clickable" ${clickHandler}>
@@ -1064,11 +1032,11 @@ async function saveStandingEditor() {
   }
   await loadAll();
   closeStandingEditor();
-  if (errors) showAlert(`${errors} standing(s) failed to save -- check console.`);
+  if (errors) wsAlert(`${errors} standing(s) failed to save -- check console.`);
 }
 
 async function resetPcData() {
-  showConfirm(
+  wsConfirm(
     'Reset ALL PC heat, reputation scores, and org standings to baseline? This cannot be undone.',
     async () => {
       try {
@@ -1078,7 +1046,7 @@ async function resetPcData() {
         if (!res.ok) await apiThrow(res);
         await loadAll();
       } catch(e) {
-        showAlert(`Reset failed: ${e.message}`);
+        wsAlert(`Reset failed: ${e.message}`);
       }
     },
     'Reset All PC Data'
@@ -1464,15 +1432,15 @@ async function linkOrgRunner(orgId) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ character_id: charId }),
   });
-  if (!r.ok) { showAlert('Failed to affiliate runner with organization.'); return; }
+  if (!r.ok) { wsAlert('Failed to affiliate runner with organization.'); return; }
   renderOrgAffiliations(orgId);
   loadAll();
 }
 
 function unlinkOrgRunner(charId, orgId) {
-  showConfirm("Remove this runner's affiliation? Their gang/tribe contact is removed, but their accumulated standing is kept.", async () => {
+  wsConfirm("Remove this runner's affiliation? Their gang/tribe contact is removed, but their accumulated standing is kept.", async () => {
     const r = await apiFetch(`${API}/organizations/${orgId}/affiliate/${charId}`, { method: 'DELETE' });
-    if (!r.ok && r.status !== 204) { showAlert('Failed to remove affiliation.'); return; }
+    if (!r.ok && r.status !== 204) { wsAlert('Failed to remove affiliation.'); return; }
     renderOrgAffiliations(orgId);
     loadAll();
   });
@@ -2140,7 +2108,11 @@ async function saveCharEdit() {
 }
 
 // -- Main data load --------------------------------------------
+// Every loadAll gets a sequence number; a response that finishes after a newer load started (a poll
+// in flight while a save calls loadAll) is dropped so it can't put pre-save data back in the stores.
+let _loadAllSeq = 0;
 async function loadAll() {
+  const seq = ++_loadAllSeq;
   try {
     const [orgsRes, locsRes, charsRes, contactsRes, statsRes, mineRes] = await Promise.all([
       apiFetch(`${API}/organizations/`),
@@ -2158,6 +2130,7 @@ async function loadAll() {
       statsRes.ok ? statsRes.json() : Promise.resolve(null),
       mineRes.ok ? mineRes.json() : Promise.resolve({ids: []}),
     ]);
+    if (seq !== _loadAllSeq) return;
     _myCharIds = new Set(mineData.ids || []);
 
     // -- Wire party stats --------------------------------------
@@ -2300,12 +2273,12 @@ async function claimChar(charId) {
     }
     await loadAll();
   } catch(e) {
-    showAlert(`Claim failed: ${e.message}`);
+    wsAlert(`Claim failed: ${e.message}`);
   }
 }
 
 async function releaseChar(charId) {
-  showConfirm('Release this character? You will lose ownership but all data is preserved.', async () => {
+  wsConfirm('Release this character? You will lose ownership but all data is preserved.', async () => {
     try {
       const res = await apiFetch(`${API}/characters/${charId}/unclaim`, {
         method: 'POST',
@@ -2316,13 +2289,14 @@ async function releaseChar(charId) {
       }
       await loadAll();
     } catch(e) {
-      showAlert(`Release failed: ${e.message}`);
+      wsAlert(`Release failed: ${e.message}`);
     }
   }, 'Release');
 }
 
-// -- Styled dialog utilities (replace native confirm/alert/prompt) --------
-function showConfirm(message, onOk, confirmLabel = 'Confirm') {
+// -- Styled dialog utilities (replace native confirm/alert) -------------------
+// Named ws* so they don't shadow shared.js's showConfirm/showAlert, which have different signatures.
+function wsConfirm(message, onOk, confirmLabel = 'Confirm') {
   pausePoll();
   document.getElementById('srConfirmMsg').textContent = message;
   document.getElementById('srConfirmOkBtn').textContent = '>> ' + confirmLabel;
@@ -2343,34 +2317,10 @@ function closeAlert() {
   document.getElementById('srAlertOverlay').classList.remove('open');
 }
 
-function showAlert(message) {
+function wsAlert(message) {
   pausePoll();
   document.getElementById('srAlertMsg').textContent = message;
   document.getElementById('srAlertOverlay').classList.add('open');
-}
-
-function showPrompt(message, defaultVal, onOk) {
-  pausePoll();
-  const overlay = document.getElementById('srPromptOverlay');
-  // Use classList.add/remove('open') -- ltg-overlay CSS controls visibility via opacity/pointer-events
-  const input   = document.getElementById('srPromptInput');
-  document.getElementById('srPromptMsg').textContent = message;
-  input.value = defaultVal ?? '';
-  overlay.classList.add('open');
-  setTimeout(() => { input.focus(); input.select(); }, 50);
-  document.getElementById('srPromptOkBtn').onclick = () => {
-    resumePoll();
-    overlay.classList.remove('open');
-    if (onOk) onOk(input.value);
-  };
-  document.getElementById('srPromptCancelBtn').onclick = () => {
-    resumePoll();
-    overlay.classList.remove('open');
-  };
-  input.onkeydown = (e) => {
-    if (e.key === 'Enter')  document.getElementById('srPromptOkBtn').click();
-    if (e.key === 'Escape') document.getElementById('srPromptCancelBtn').click();
-  };
 }
 
 bootstrapAuth().then(u => { if (u) { loadAll(); startPolling(loadAll); } });

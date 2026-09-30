@@ -1,41 +1,48 @@
-import shutil
-import sqlite3
+"""The copyable-world-text auditor, on synthetic input only.
+
+Auditing the real world data is a manual step against a local DB copy:
+``python scripts/audit_copyable_world_text.py --db <db>``. Tests never read production data.
+"""
 from pathlib import Path
 
-import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from scripts.audit_copyable_world_text import audit_database
+from app.db.base import Base
+from app.models.character import Character
+from scripts.audit_copyable_world_text import _scan_text, audit_database
 
-
-ROOT = Path(__file__).resolve().parents[1]
-PRODUCTION_DB = ROOT / "data" / "shadowrun_prod.db"
-
-# The production database is a local-only file, never committed.
-needs_production_db = pytest.mark.skipif(
-    not PRODUCTION_DB.exists(), reason="local production database not present"
-)
+FLAGGED = "NEEDS HUMAN TOUCH: keep this player-authored text."
 
 
-@needs_production_db
-def test_production_copyable_world_text_is_clean() -> None:
-    assert audit_database(PRODUCTION_DB) == []
+def test_auditor_rejects_known_malformed_prose() -> None:
+    malformed = (
+        "By 2054,.",
+        "published records does not establish it.",
+        "Harlech Castle is a alternate name.",
+        "The U.S. Of A. remains unchanged.",
+        "One sentence.By 2056, another begins.",
+        "These hidden facts is not publicly known.",
+    )
+
+    for text in malformed:
+        findings = list(_scan_text("test", 1, "test", "notes", text))
+        assert any("malformed_prose" in finding.patterns for finding in findings), text
 
 
-@needs_production_db
 def test_copyable_world_text_audit_ignores_pc_prose(tmp_path: Path) -> None:
     database_path = tmp_path / "world.db"
-    shutil.copy2(PRODUCTION_DB, database_path)
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add_all([
+            Character(id=1, name="Runner", is_pc=True, notes=FLAGGED),
+            Character(id=2, name="Fixer", is_pc=False, notes=FLAGGED),
+        ])
+        db.commit()
+    engine.dispose()
 
-    with sqlite3.connect(database_path) as database:
-        database.row_factory = sqlite3.Row
-        pc_id = database.execute(
-            "SELECT id FROM characters WHERE is_pc = 1 ORDER BY id LIMIT 1"
-        ).fetchone()["id"]
-        database.execute(
-            "UPDATE characters SET notes = ? WHERE id = ?",
-            ("NEEDS HUMAN TOUCH: keep this player-authored text.", pc_id),
-        )
-        database.commit()
+    findings = audit_database(database_path)
 
-    assert audit_database(database_path) == []
-
+    assert findings, "the NPC's flagged note should be reported"
+    assert {(f.kind, f.row_id) for f in findings} == {("character", 2)}

@@ -5,15 +5,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_or_404, apply_update
 from app.models.character import Character
+from app.models.organization import Organization
 from app.models.reputation import Reputation, OrgStanding
 from app.schemas.reputation import (
     ReputationCreate, ReputationUpdate, ReputationRead,
     OrgStandingCreate, OrgStandingUpdate, OrgStandingRead,
 )
 from app.services.campaign import current_tick
-from app.auth.dependencies import get_admin_token
+from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
+
+
+def _is_privileged_view(ctx: dict) -> bool:
+    """True only for a real admin NOT previewing runner view -- the full-data audience."""
+    return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
+
+
+def _inactive_npc_ids_query():
+    return select(Character.id).where(
+        Character.is_pc == False,  # noqa: E712
+        Character.is_active == False,  # noqa: E712
+    )
 
 
 # --- Reputation (Street Cred / Notoriety / Public Awareness) ---
@@ -21,13 +34,22 @@ router = APIRouter()
 @router.get("/", response_model=list[ReputationRead])
 async def list_reputations(
     character_id: int | None = Query(None),
+    ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Reputation)
     if character_id is not None:
         q = q.where(Reputation.character_id == character_id)
+    privileged = _is_privileged_view(ctx)
+    if not privileged:
+        # Inactive NPCs are GM-concealed.
+        q = q.where(Reputation.character_id.not_in(_inactive_npc_ids_query()))
     result = await db.execute(q)
-    return result.scalars().all()
+    rows = [ReputationRead.model_validate(r).model_dump() for r in result.scalars().all()]
+    if not privileged:
+        for row in rows:
+            row["notes"] = None
+    return rows
 
 
 @router.post("/", response_model=ReputationRead, status_code=201)
@@ -89,6 +111,7 @@ async def delete_reputation(
 async def list_org_standings(
     character_id: int | None = Query(None),
     organization_id: int | None = Query(None),
+    ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(OrgStanding)
@@ -96,8 +119,19 @@ async def list_org_standings(
         q = q.where(OrgStanding.character_id == character_id)
     if organization_id is not None:
         q = q.where(OrgStanding.organization_id == organization_id)
+    privileged = _is_privileged_view(ctx)
+    if not privileged:
+        # Standings toward inactive orgs, or held by inactive NPCs, would reveal GM-concealed rows.
+        q = q.where(
+            OrgStanding.organization_id.in_(select(Organization.id).where(Organization.is_active == True)),  # noqa: E712
+            OrgStanding.character_id.not_in(_inactive_npc_ids_query()),
+        )
     result = await db.execute(q)
-    return result.scalars().all()
+    rows = [OrgStandingRead.model_validate(r).model_dump() for r in result.scalars().all()]
+    if not privileged:
+        for row in rows:
+            row["notes"] = None
+    return rows
 
 
 @router.post("/standings", response_model=OrgStandingRead, status_code=201)

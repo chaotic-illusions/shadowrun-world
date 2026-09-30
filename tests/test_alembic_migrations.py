@@ -65,3 +65,43 @@ def test_former_head_database_upgrades_without_replaying_baseline(tmp_path):
 
     current = _alembic(database, "current")
     assert f"{CURRENT_HEAD} (head)" in current.stdout
+
+
+def test_migrated_schema_matches_models(tmp_path):
+    """After upgrade head the DB has exactly the models' tables, columns and nullability -- no
+    orphan tables (e.g. a dropped model's) and no drift a later autogenerate would pick up."""
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+    from sqlalchemy import create_engine
+
+    import app.models  # noqa: F401 -- registers every model on Base.metadata
+    from app.db.base import Base
+
+    database = tmp_path / "compare.db"
+    _alembic(database, "upgrade", "head")
+    engine = create_engine(f"sqlite:///{database.as_posix()}")
+    try:
+        with engine.connect() as connection:
+            diff = compare_metadata(MigrationContext.configure(connection), Base.metadata)
+    finally:
+        engine.dispose()
+    assert diff == []
+
+
+def test_matrix_runs_with_null_columns_upgrade_to_not_null(tmp_path):
+    database = tmp_path / "nulls.db"
+    _alembic(database, "upgrade", FORMER_HEAD)
+    with sqlite3.connect(database) as db:
+        db.execute(
+            "INSERT INTO matrix_runs (id, status, version, aar_acknowledged) VALUES (1, 'active', 0, 0)"
+        )
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as db:
+        row = db.execute(
+            "SELECT decker_json, state_json, created_at IS NOT NULL, updated_at IS NOT NULL "
+            "FROM matrix_runs WHERE id = 1"
+        ).fetchone()
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert row == ("{}", "{}", 1, 1)
+    assert "house_rules" not in tables
+

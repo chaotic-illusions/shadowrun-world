@@ -127,8 +127,15 @@ async def _allocate_run_number(db: AsyncSession) -> int:
 
 
 @router.get("/party-stats")
-async def party_stats(db: AsyncSession = Depends(get_db)):
-    """Return party-wide heat and team reputation (active PCs only)."""
+async def party_stats(
+    auth: dict = Depends(get_any_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return party-wide heat and team reputation (active PCs only).
+
+    Players don't get standings toward inactive (GM-concealed) orgs.
+    """
+    privileged = bool(auth.get("is_admin")) and not auth.get("view_as_player")
     tick = await current_tick(db)
 
     all_pcs_result = await db.execute(
@@ -190,7 +197,9 @@ async def party_stats(db: AsyncSession = Depends(get_db)):
         orgs_result = await db.execute(
             select(Organization).where(Organization.id.in_(org_ids_needed))
         )
-        org_name_map = {o.id: o.name for o in orgs_result.scalars().all()}
+        org_name_map = {o.id: o.name for o in orgs_result.scalars().all() if privileged or o.is_active}
+        if not privileged:
+            all_standings = [s for s in all_standings if s.organization_id in org_name_map]
 
     standings_by_char: dict[int, list] = {}
     for s in all_standings:
@@ -417,7 +426,20 @@ async def apply_world_changes(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_admin_token),
 ):
-    """Apply a reviewed set of world-state changes (reputation, org standings)."""
+    """Apply a reviewed set of world-state changes (reputation, org standings).
+
+    Character and org ids are checked up front: a bad id is a 422 with nothing applied, instead of
+    a FK failure at commit after some changes were already reported as applied.
+    """
+    char_ids = {ch.character_id for ch in body.changes if ch.character_id is not None}
+    org_ids = {ch.org_id for ch in body.changes if ch.type == "org_standing" and ch.org_id}
+    found_chars = set((await db.execute(select(Character.id).where(Character.id.in_(char_ids)))).scalars())
+    found_orgs = set((await db.execute(select(Organization.id).where(Organization.id.in_(org_ids)))).scalars())
+    problems = [f"character {i} not found" for i in sorted(char_ids - found_chars)]
+    problems += [f"organization {i} not found" for i in sorted(org_ids - found_orgs)]
+    if problems:
+        raise HTTPException(status_code=422, detail="; ".join(problems) + " -- nothing applied")
+
     applied = []
     errors = []
     # Stamp decay at the current campaign clock; logging a run no longer advances
@@ -512,6 +534,10 @@ async def get_log(
         data["gm_notes"] = None
         data["changes_applied"] = []
         data["changes_excluded"] = []
+        # Inactive orgs, locations and NPCs are GM-concealed; don't name them through a run log.
+        data["orgs_involved"] = [o for o in data["orgs_involved"] if o["is_active"]]
+        data["locations_involved"] = [loc for loc in data["locations_involved"] if loc["is_active"]]
+        data["participants"] = [p for p in data["participants"] if p["is_pc"] or p["is_active"]]
     return data
 
 

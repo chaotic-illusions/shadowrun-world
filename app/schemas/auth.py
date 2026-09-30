@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VerifyRequest(BaseModel):
@@ -17,11 +17,13 @@ class VerifyResponse(BaseModel):
 
 
 class UserTokenLabelUpdate(BaseModel):
-    label: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+    label: Optional[str] = Field(default=None, max_length=200)
 
 
 class UserTokenCreate(BaseModel):
-    label: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+    label: Optional[str] = Field(default=None, max_length=200)
     is_admin: bool = False
 
 

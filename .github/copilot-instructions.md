@@ -50,7 +50,7 @@ decay_sim.py       -- standalone CLI tool; imports from app.services.heat_calcul
 | `DATABASE_URL` | `sqlite+aiosqlite:///./data/shadowrun.db` | sync prefix auto-replaced |
 | `BOOTSTRAP_ADMIN_KEY` | `shadowrunner` in Docker Compose | bootstrap only; ignored once admin tokens exist |
 | `ANTHROPIC_API_KEY` | -- | optional; 503 returned if missing when parsing |
-| `CLAUDE_MODEL` | `claude-sonnet-4-6` | model string passed to Anthropic client |
+| `CLAUDE_MODEL` | `claude-opus-5` | model string passed to Anthropic client (`narrative_parser.DEFAULT_MODEL`) |
 | `CORS_ORIGINS` | `*` | comma-separated; open for local dev |
 
 ## API Key Resolution (secrets.py)

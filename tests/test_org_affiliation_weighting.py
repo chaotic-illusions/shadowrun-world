@@ -6,6 +6,8 @@ tests/test_character_lifestyle_flow.py -- no HTTP layer.
 import asyncio
 from contextlib import asynccontextmanager
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -81,3 +83,27 @@ def test_org_standing_delta_doubles_only_for_affiliated_runner(tmp_path):
             assert (await _standing(sessions, pc_id, corp_id)).standing == 3  # not doubled
 
     asyncio.run(scenario())
+
+
+def test_bad_ids_are_rejected_before_anything_applies(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "bad.db") as sessions:
+            async with sessions() as db:
+                pc = Character(name="Runner", is_pc=True)
+                corp = Organization(name="Ares", org_type="megacorp")
+                db.add_all([pc, corp])
+                await db.commit()
+                pc_id, corp_id = pc.id, corp.id
+            body = ApplyChangesRequest(changes=[
+                {"type": "org_standing", "character_id": pc_id, "delta": 2, "org_id": corp_id},
+                {"type": "org_standing", "character_id": pc_id, "delta": 1, "org_id": 999},
+            ])
+            async with sessions() as db:
+                with pytest.raises(HTTPException) as exc:
+                    await apply_world_changes(body, db=db, _="admin")
+            assert exc.value.status_code == 422
+            assert "organization 999" in exc.value.detail
+            assert await _standing(sessions, pc_id, corp_id) is None  # the valid change wasn't applied
+
+    asyncio.run(scenario())
+

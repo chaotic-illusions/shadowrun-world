@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,11 +11,38 @@ from app.auth.dependencies import get_admin_token, get_any_token
 router = APIRouter()
 
 
-def _serialize_contact(contact: Contact, ctx: dict) -> dict:
+def _is_privileged_view(ctx: dict) -> bool:
+    """True only for a real admin NOT previewing runner view -- the full-data audience."""
+    return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
+
+
+def serialize_contact(contact: Contact, ctx: dict) -> dict:
     data = ContactRead.model_validate(contact, from_attributes=True).model_dump()
-    if not (ctx.get("is_admin") and not ctx.get("view_as_player")):
+    if not _is_privileged_view(ctx):
         data["notes"] = None
     return data
+
+
+async def visible_contacts(db: AsyncSession, contacts, ctx: dict) -> list[Contact]:
+    """Drop GM-concealed contacts for non-privileged callers: inactive contacts, and contacts whose
+    linked NPC is inactive (kidnapped/unavailable). Admin (non-preview) sees the full roster."""
+    contacts = list(contacts)
+    if _is_privileged_view(ctx):
+        return contacts
+    inactive_npc_ids = set(
+        (
+            await db.execute(
+                select(Character.id).where(
+                    Character.is_pc == False,  # noqa: E712
+                    Character.is_active == False,  # noqa: E712
+                )
+            )
+        ).scalars().all()
+    )
+    return [
+        c for c in contacts
+        if c.is_active and (c.npc_id is None or c.npc_id not in inactive_npc_ids)
+    ]
 
 
 @router.get("/", response_model=list[ContactRead])
@@ -26,32 +53,15 @@ async def list_contacts(
     db: AsyncSession = Depends(get_db),
 ):
     # Contacts are a shared world roster: every authenticated user sees the whole active-runner
-    # contact network (GM notes are still redacted from non-admins in _serialize_contact).
+    # contact network (GM notes are still redacted from non-admins in serialize_contact).
     q = select(Contact)
     if owner_id is not None:
         q = q.where(Contact.owner_id == owner_id)
     if organization_id is not None:
         q = q.where(Contact.organization_id == organization_id)
     result = await db.execute(q.order_by(Contact.name))
-    contacts = result.scalars().all()
-    if not (ctx.get("is_admin") and not ctx.get("view_as_player")):
-        # Inactive contacts -- and contacts whose linked NPC is inactive (kidnapped/unavailable) --
-        # are GM-concealed; never ship them to players. Admin (non-preview) sees the full roster.
-        inactive_npc_ids = set(
-            (
-                await db.execute(
-                    select(Character.id).where(
-                        Character.is_pc == False,  # noqa: E712
-                        Character.is_active == False,  # noqa: E712
-                    )
-                )
-            ).scalars().all()
-        )
-        contacts = [
-            c for c in contacts
-            if c.is_active and (c.npc_id is None or c.npc_id not in inactive_npc_ids)
-        ]
-    return [_serialize_contact(contact, ctx) for contact in contacts]
+    contacts = await visible_contacts(db, result.scalars().all(), ctx)
+    return [serialize_contact(contact, ctx) for contact in contacts]
 
 
 @router.post("/", response_model=ContactRead, status_code=201)
@@ -73,7 +83,10 @@ async def get_contact(
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    return _serialize_contact(await get_or_404(db, Contact, contact_id), ctx)
+    contact = await get_or_404(db, Contact, contact_id)
+    if not await visible_contacts(db, [contact], ctx):
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return serialize_contact(contact, ctx)
 
 
 @router.patch("/{contact_id}", response_model=ContactRead)

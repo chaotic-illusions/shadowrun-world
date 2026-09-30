@@ -801,7 +801,7 @@ function renderTable(data) {
           // full chargen sheet (priorities are only ever set by the builder).
           const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
           const convertBtn = (canEdit && !builtInChargen)
-            ? `<a class="btn" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
+            ? `<a class="btn btn-cyan" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
             : '';
           if (isAdminMode()) {
             editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
@@ -1217,7 +1217,11 @@ async function removeContactLinkFromForm(contactId) {
 }
 
 // -- Load data -------------------------------------------------
+// A load that finishes after a newer one started (a poll in flight while a save reloads) is dropped,
+// so it can't overwrite fresher data.
+let _loadCharsSeq = 0;
 async function loadChars() {
+  const seq = ++_loadCharsSeq;
   try {
     const [charsRes, orgsRes, contactsRes, mineRes] = await Promise.all([
       apiFetch(`${API}/characters/`),
@@ -1226,21 +1230,29 @@ async function loadChars() {
       apiFetch(`${API}/characters/mine`),
     ]);
     if (!charsRes.ok) await apiThrow(charsRes);
-    allChars    = await charsRes.json();
-    allOrgs     = orgsRes.ok ? await orgsRes.json() : [];
-    allContacts = contactsRes.ok ? await contactsRes.json() : [];
-    const mineData = mineRes.ok ? await mineRes.json() : {ids: []};
+    const [chars, orgs, contacts, mineData] = await Promise.all([
+      charsRes.json(),
+      orgsRes.ok ? orgsRes.json() : [],
+      contactsRes.ok ? contactsRes.json() : [],
+      mineRes.ok ? mineRes.json() : {ids: []},
+    ]);
+    if (seq !== _loadCharsSeq) return;
+    allChars = chars; allOrgs = orgs; allContacts = contacts;
     _myCharIds = new Set(mineData.ids || []);
 
-    const sel = document.getElementById('f-organization_id');
-    sel.innerHTML = '<option value="independent">-- Independent --</option><option value="">-- Unknown --</option>' +
-      sortByName(allOrgs).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
-    attachSelectSearch(sel, 'Search organizations...', 2);
+    // Rebuilding the org picker while the edit modal is open would drop the character's selection
+    // (it falls back to Independent, and saving would write that), so leave it until the modal closes.
+    if (!document.getElementById('editOverlay').classList.contains('open')) {
+      const sel = document.getElementById('f-organization_id');
+      sel.innerHTML = '<option value="independent">-- Independent --</option><option value="">-- Unknown --</option>' +
+        sortByName(allOrgs).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+      attachSelectSearch(sel, 'Search organizations...', 2);
+    }
 
     applyFilter();
   } catch(e) {
     document.getElementById('tableWrap').innerHTML =
-      `<div class="alert alert-err show">>> CONNECTION FAILED // ${e.message}</div>`;
+      `<div class="alert alert-err show">>> CONNECTION FAILED // ${esc(e.message)}</div>`;
   }
 }
 

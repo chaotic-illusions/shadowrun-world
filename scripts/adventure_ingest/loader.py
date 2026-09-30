@@ -30,7 +30,10 @@ Spec module contract (all optional except ADVENTURE):
   NOT_BUILT   str   -- markdown: flavor names deliberately skipped
   PLAY_NOTES  str   -- markdown: GM hooks / how it plays
 
-Every created row gets is_active=False and source_adventure=ADVENTURE. Re-running is safe:
+Only spec rows given catalog_scope "core" or "reference" are created (a row left at the default
+"adventure" scope is archived and skipped); each created row gets is_active=False (unless the spec
+sets it) and source_adventure=ADVENTURE. leadership_add leaders start unlisted unless the entry sets
+revealed: true. Re-running is safe:
 rows are matched by name (case-insensitive) and appends are skipped when the
 "-- <ADVENTURE> --" marker is already present in the target field.
 """
@@ -211,7 +214,6 @@ class Loader:
             body = {k: v for k, v in o.items() if k not in _STRIP_ORG}
             if body.get("divisions"):
                 body["divisions"] = [self._division_body(entry) for entry in body["divisions"]]
-            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body["source_adventure"] = self.adv
             self._do("org", "POST", "/organizations/", body, o["name"])
@@ -240,7 +242,6 @@ class Loader:
                 continue
             body = {k: v for k, v in l.items() if k not in _STRIP_LOC}
             body["controlling_org_id"] = self._org_id(l.get("controlling_org"))
-            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body["source_adventure"] = self.adv
             row = self._do("location", "POST", "/locations/", body, l["name"])
@@ -260,7 +261,6 @@ class Loader:
             body["organization_id"] = self._org_id(org)
             body.setdefault("is_independent", body["organization_id"] is None and org is None)
             body["is_pc"] = False
-            body.setdefault("catalog_scope", "adventure")
             body.setdefault("is_active", False)
             body.setdefault("race", "Human")
             body.setdefault("connection", 1)
@@ -285,8 +285,13 @@ class Loader:
                 have = {(e.get("name") or "").lower() for e in (row.get("leadership") or [])}
                 fresh = [e for e in adds if e["name"].lower() not in have]
                 if fresh:
+                    # Leaders are hidden until the GM reveals them (a leader without a visibility key
+                    # counts as listed), so an ingested leader starts unlisted unless the spec
+                    # explicitly marks it revealed.
                     patch["leadership"] = list(row.get("leadership") or []) + [
-                        {"name": e["name"], "title": e.get("title"), "notes": e.get("notes")} for e in fresh
+                        {"name": e["name"], "title": e.get("title"), "notes": e.get("notes"),
+                         "visibility": "unlisted", "revealed": bool(e.get("revealed"))}
+                        for e in fresh
                     ]
             division_adds = upd.get("divisions_add") or []
             if division_adds:
@@ -384,8 +389,8 @@ def render_doc(spec) -> str:
                  f"in-game {getattr(spec, 'YEAR', '?')}.")
     lines.append("")
     lines.append(f"Everything below is loaded into the campaign DB flagged `is_active: false` and "
-                 f"`source_adventure: \"{adv}\"` by `python scripts/adventure_ingest/run.py "
-                 f"{getattr(spec, 'SLUG', '<slug>')}`; flip entries active as the party meets them. "
+                 f"`source_adventure: \"{adv}\"` by the adventure-ingest loader "
+                 f"(`scripts/adventure_ingest/loader.py`); flip entries active as the party meets them. "
                  f"Use the **Adventure** filter on the manage pages to see just this set.")
     lines.append("")
     if getattr(spec, "SYNOPSIS", ""):

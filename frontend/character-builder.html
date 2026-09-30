@@ -826,11 +826,13 @@ function stepPriorities() {
         return `<button type="button" class="cbx-prio ${chosen?"is-chosen":""} ${takenElsewhere?"is-taken":""}"
           data-cat="${cat}" data-letter="${L}"><span class="cbx-prio__l">${L}</span><span class="cbx-prio__v">${esc(String(val))}</span></button>`;
       }).join("")}</div></div>`).join("");
+  // In admin view the list holds every player's drafts, so each option names its owner.
   const resumeOpts = (MY_DRAFTS || []).filter(d => String(d.id) !== String(state.draftId)).map(d =>
-    `<option value="${d.id}">${esc(d.name || "Unnamed draft")} (id ${d.id})</option>`).join("");
+    `<option value="${esc(String(d.id))}">${esc(d.name || "Unnamed draft")} (id ${esc(String(d.id))})${
+      TOKENS.length ? " -- " + esc(draftOwnerName(d)) : ""}</option>`).join("");
   const resumeUI = (!state.draftId && !state.convertId && resumeOpts)
     ? `<div class="cbx-resume">Resume an in-progress dossier:
-        <select id="cbxResumePick"><option value="">-- your saved drafts --</option>${resumeOpts}</select></div>`
+        <select id="cbxResumePick"><option value="">-- ${TOKENS.length ? "all players'" : "your"} saved drafts --</option>${resumeOpts}</select></div>`
     : "";
   return `
     ${resumeUI}
@@ -2175,6 +2177,12 @@ function landingCardHTML(d) {
     ${TOKENS.length ? landingOwnerHTML(d) : ""}
   </div>`;
 }
+// GM-only: the owning token's label for a draft (TOKENS is only loaded in admin view).
+function draftOwnerName(d) {
+  const t = TOKENS.find(t => d.owner_token_id != null && Number(t.id) === Number(d.owner_token_id));
+  if (t) return t.label || "token #" + t.id;
+  return d.is_claimed ? "other owner" : "no owner";
+}
 // GM-only owner picker under a draft card: shows whose draft it is and hands it to another token.
 function landingOwnerHTML(d) {
   const cur = d.owner_token_id == null ? "" : String(d.owner_token_id);
@@ -2188,16 +2196,22 @@ function landingOwnerHTML(d) {
   return `<label class="cbx-landcard__owner${!d.is_claimed ? " is-orphan" : ""}">Owner
     <select data-assign-draft="${esc(String(d.id))}">${opts}</select></label>`;
 }
+// Reloads are sequence-numbered so two quick reassignments can't land out of order.
+let _assignSeq = 0;
 async function assignDraftOwner(id, value) {
   if (value === "__other") return;
+  const seq = ++_assignSeq;
   try {
     const r = await apiFetch(`/characters/${encodeURIComponent(id)}/assign-owner`, {
       method: "POST", body: JSON.stringify({ token_id: value ? Number(value) : null }) });
     if (!r.ok) await apiThrow(r);
+    setModeBanner("");
   } catch (e) {
     setModeBanner(`Could not reassign draft ${esc(String(id))}: ${esc(e.message || String(e))}`);
   }
-  MY_DRAFTS = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : MY_DRAFTS).catch(() => MY_DRAFTS);
+  const drafts = await apiFetch("/characters/drafts").then(r => r.ok ? r.json() : null).catch(() => null);
+  if (seq !== _assignSeq) return;
+  if (drafts) MY_DRAFTS = drafts;
   showLanding();
 }
 function showLanding() {
@@ -2290,6 +2304,9 @@ bootstrapAuth().then(async (u) => {
           }
           if (convertId) {
             state.convertId = Number(id); state.draftId = null;
+            // The committed notes may have moved on since the saved wizard state (play-sheet edits);
+            // start from them so converting doesn't wipe the player's notes.
+            if (c.notes) state.notes = c.notes;
             setModeBanner(`Converting <strong>${esc(c.name || "character")}</strong> (id ${esc(String(id))}) &mdash; committing overwrites this record.`);
           } else {
             state.draftId = id; state.convertId = null;

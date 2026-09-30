@@ -85,7 +85,7 @@
         <div id="parseQuestions" style="display:none;margin-top:12px"></div>
 
         <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-          <button class="btn btn-green flex-1" onclick="applyAndLog()">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
+          <button class="btn btn-green flex-1" onclick="guardedSubmit(applyAndLog)">&gt;&gt; Apply Selected Changes &amp; Create Run Log</button>
           <button class="btn btn-ghost" onclick="cancelParse()">Discard</button>
         </div>
         <div id="applyAlert" class="alert" style="margin-top:10px"></div>
@@ -184,7 +184,7 @@
         </div>
       </div>
 
-      <button class="btn btn-green btn-submit" onclick="submitManual()">&gt;&gt; Create Run Log</button>
+      <button class="btn btn-green btn-submit" onclick="guardedSubmit(submitManual)">&gt;&gt; Create Run Log</button>
       <div id="manualAlert" class="alert" style="margin-top:10px"></div>
     </div>
   </div>
@@ -347,6 +347,14 @@ function cancelParse() {
   document.getElementById('parseResults').style.display = 'none';
   document.getElementById('aiNarrative').value = '';
   document.getElementById('applyAlert').className = 'alert';
+}
+
+// One run submission at a time: a double-click would apply the world changes twice.
+let _runSubmitting = false;
+async function guardedSubmit(fn) {
+  if (_runSubmitting) return;
+  _runSubmitting = true;
+  try { await fn(); } finally { _runSubmitting = false; }
 }
 
 async function applyAndLog() {

@@ -18,7 +18,9 @@ from app.models.auth import UserToken
 from app.models.character import Character
 from app.models.matrix_run import MatrixRun
 from app.routers.auth import revoke_token
-from app.routers.characters import assign_character_owner, claim_character, my_draft_characters
+from app.routers.characters import (
+    assign_character_owner, claim_character, my_draft_characters, unclaim_character,
+)
 from app.schemas.character import CharacterOwnerAssign
 
 
@@ -77,6 +79,9 @@ def test_revoke_without_transfer_still_unclaims(tmp_path):
             async with sessions() as db:
                 chars = (await db.execute(select(Character))).scalars().all()
                 assert all(c.owner_token is None for c in chars)
+                # Runs are unowned too -- none stay keyed to the dead hash.
+                assert (await db.get(MatrixRun, 20)).owner_token_hash is None
+                assert await db.get(UserToken, 1) is None
 
     asyncio.run(scenario())
 
@@ -161,5 +166,27 @@ def test_orphaned_draft_cannot_be_claimed_by_a_player(tmp_path):
                 await claim_character(12, db=db, ctx={"is_admin": False, "user_token": NEW})
             async with sessions() as db:
                 assert (await db.get(Character, 12)).owner_token == hash_token(NEW)
+
+    asyncio.run(scenario())
+
+
+def test_drafts_cannot_be_unclaimed(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "t.db") as sessions:
+            await _seed(sessions)
+            async with sessions() as db:
+                with pytest.raises(HTTPException) as exc:
+                    await unclaim_character(10, db=db, ctx={"is_admin": False, "user_token": NEW})
+                assert exc.value.status_code == 404  # not the owner: existence stays private
+            async with sessions() as db:
+                with pytest.raises(HTTPException) as exc:
+                    await unclaim_character(10, db=db, ctx={"is_admin": False, "user_token": OLD})
+                assert exc.value.status_code == 400  # owner: refused, so the draft isn't lost
+            async with sessions() as db:
+                assert (await db.get(Character, 10)).owner_token == hash_token(OLD)
+                # A committed PC can still be unclaimed by its owner.
+                await unclaim_character(11, db=db, ctx={"is_admin": False, "user_token": OLD})
+            async with sessions() as db:
+                assert (await db.get(Character, 11)).owner_token is None
 
     asyncio.run(scenario())

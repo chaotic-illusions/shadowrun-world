@@ -217,6 +217,7 @@ class CharacterRead(CharacterBase):
 
 class CharacterOwnerAssign(BaseModel):
     """GM reassignment of a PC to a player token (null unowns it)."""
+    model_config = ConfigDict(extra='forbid')
     token_id: Optional[int] = None
 
 

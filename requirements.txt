@@ -1,5 +1,5 @@
 # Pinned for reproducible Docker builds. Bump deliberately.
-# anthropic / aiofiles / pytest-asyncio were not in the local venv at review time, so
+# anthropic / aiofiles were not in the local venv at review time, so
 # they are bounded (block surprise majors) rather than pinned to an exact version.
 fastapi==0.135.2
 uvicorn[standard]==0.42.0
@@ -14,6 +14,4 @@ keyring==25.7.0
 pypdf>=4,<6
 pillow==12.3.0
 alembic==1.18.4
-pytest==9.0.3
-pytest-asyncio>=1.0.0,<2.0.0
 httpx==0.28.1
