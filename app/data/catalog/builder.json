@@ -434,7 +434,8 @@
         "quickness": -1,
         "strength": 4,
         "charisma": -2,
-        "intelligence": -2
+        "intelligence": -2,
+        "willpower": -1
       },
       "max": {
         "body": 11,
@@ -514,6 +515,7 @@
       "conc": [
         "Pistols",
         "Rifles",
+        "Shotguns",
         "Submachine Guns",
         "Light Machine Guns",
         "Grenade Launchers",
