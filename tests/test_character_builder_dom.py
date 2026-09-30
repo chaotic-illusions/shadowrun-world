@@ -361,11 +361,56 @@ def test_builder_skills_grouping_required_conc_and_na_spec(_browser, _frontend_p
     fire_none = pg.eval_on_selector('[data-conc="1"]', "el => Array.from(el.options).some(o => o.value === '')")
     assert fire_none is True
     assert pg.locator('[data-spec="1"]').count() == 0   # no spec dropdown until a concentration is picked
+    # Shotguns (house-added; SR2 p.70 omits it) expands to the catalog's shotguns.
+    pg.select_option('[data-conc="1"]', "Shotguns")
+    pg.wait_for_timeout(80)
+    shotgun_specs = pg.eval_on_selector('[data-spec="1"]', "el => Array.from(el.options).map(o => o.value)")
+    assert "Defiance T-250" in shotgun_specs
     pg.select_option('[data-conc="1"]', "Pistols")
     pg.wait_for_timeout(80)
     assert pg.locator('[data-spec="1"]').count() == 1   # weapon specialization dropdown now present
 
+    # The general skill can't drop below 1: a Concentration lifts rating 1 -> 2, a Specialization
+    # -> 3, and the minus stepper can't go back under that floor.
+    rating = lambda: pg.locator('[data-skill="1"][data-d="-1"] + .cbx-attr__base').inner_text()
+    assert rating() == "2"
+    assert pg.locator('[data-skill="1"][data-d="-1"]').is_disabled()
+    first_spec = pg.eval_on_selector('[data-spec="1"]', "el => (Array.from(el.options).find(o => o.value) || {}).value")
+    pg.select_option('[data-spec="1"]', first_spec)
+    pg.wait_for_timeout(80)
+    assert rating() == "3"
+    assert pg.locator('[data-skill="1"][data-d="-1"]').is_disabled()
+    assert "Firearms <strong>1</strong>" in pg.inner_html("#cbx-slabel-1")
+
     assert errors == [], f"JS errors on skills step: {errors}"
+    ctx.close()
+
+
+def test_builder_racial_penalty_sets_attribute_floor(_browser, _frontend_port):
+    """SR2 p.45: final attribute can't be below 1, so a Troll's -2 Charisma needs a base of 3."""
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
+    pg.wait_for_selector("#cbxNewRunner", timeout=15000)
+    pg.locator("#cbxNewRunner").click()
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+
+    pg.locator('[data-cat="race"][data-letter="A"]').click()
+    pg.locator('.wstep-dot[data-step="1"]').click()
+    pg.locator('[data-mt="Troll"]').click()
+    pg.locator('.wstep-dot[data-step="2"]').click()
+    pg.wait_for_timeout(80)
+
+    base = lambda a: pg.locator(f'[data-attr="{a}"][data-d="-1"] + .cbx-attr__base').inner_text()
+    for attr, want in (("charisma", "3"), ("intelligence", "3"), ("quickness", "2"),
+                       ("willpower", "2"), ("body", "1")):
+        assert base(attr) == want, attr
+    assert pg.locator('[data-attr="charisma"][data-d="-1"]').is_disabled()
+    assert errors == [], f"JS errors on attributes step: {errors}"
     ctx.close()
 
 

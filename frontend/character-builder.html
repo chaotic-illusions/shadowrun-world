@@ -472,6 +472,10 @@ const round2 = (n) => Math.round((Number(n)||0) * 100) / 100;
 function isMeta() { return state.prio.race === "A"; }
 function metatype() { return META[isMeta() ? state.metatype : "Human"] || META.Human; }
 function naturalAttr(a) { return state.base[a] + ((metatype().mods||{})[a] || 0); }
+// SR2 p.45: the final (post-racial) rating can't be below 1, so a -2 mod needs a base of 3.
+// Those points are spent normally.
+function attrMinBase(a) { return Math.max(1, 1 - ((metatype().mods||{})[a] || 0)); }
+function enforceAttrMins() { ATTRS.forEach(a => { state.base[a] = Math.max(state.base[a], attrMinBase(a)); }); }
 // Augmentation bonuses from installed cyberware + bioware: fixed `mods`, per-rating `modsPer`, and
 // a per-level `modsTbl` (e.g. Encephalon's non-linear +Int) resolved from the catalog if not copied.
 function augAttr(a) {
@@ -875,7 +879,7 @@ function stepAttributes() {
     const fin = finalAttr(a);
     return `<div class="cbx-attr">
       <label>${ALABEL[a]}</label>
-      <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-attr="${a}" data-d="-1">-</button>
+      <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-attr="${a}" data-d="-1" ${state.base[a]<=attrMinBase(a)?"disabled":""}>-</button>
         <span class="cbx-attr__base">${state.base[a]}</span>
         <button type="button" class="cbx-step-btn" data-attr="${a}" data-d="1" ${atCap||state.base[a]>=max?"disabled":""}>+</button></span>
       <span class="cbx-attr__mod">${mod>0?"+":""}${mod||0}</span>
@@ -1026,6 +1030,14 @@ function skillTiers(s) {
   ];
   return [{ label: s.name, rating: lo(base) }];
 }
+// The general skill can't drop below 1 after the narrowing penalty, so a Concentration needs a
+// rating of 2 and a Specialization 3 (points spent normally). Etiquette has no general rating.
+function skillMinRating(s) {
+  if (REQUIRED_CONC.has(s.name)) return 1;
+  if ((s.conc || "").trim() && (s.spec || "").trim()) return 3;
+  return (s.conc || "").trim() ? 2 : 1;
+}
+function enforceSkillMin(s) { s.rating = Math.max(Number(s.rating) || 0, skillMinRating(s)); }
 // Inline label for a selected skill: name + each narrowing tier with its effective rating,
 // e.g. "Firearms 3 &middot; Pistols 5 &middot; Ares Predator 7". Post-chargen these upgrade independently.
 function skillLabelHTML(s) {
@@ -1069,6 +1081,8 @@ const CONC_WEAPON_SUBS = {
   // Firearms
   "Pistols": ["Hold-Out", "Hold-Out Pistol", "Light Pistol", "Heavy Pistol", "Machine Pistol", "Dart Pistol"],
   "Rifles": ["Rifle", "Sport Rifle", "Sniper Rifle", "Assault Rifle", "Carbine", "Dart Rifle"],
+  // Not in the SR2 p.70 list (a book oversight); added as a GM-approved concentration per p.70.
+  "Shotguns": ["Shotgun"],
   "Submachine Guns": ["SMG", "Submachine Gun"],
   "Light Machine Guns": ["Light Machine Gun"],
   "Grenade Launchers": ["Grenade Launcher"],
@@ -1183,7 +1197,7 @@ function chosenSkillHTML(s, i) {
     <span class="cbx-skillrow__label" id="cbx-slabel-${i}">${skillLabelHTML(s)}</span>
     ${narrowSelectHTML("conc", i, s.conc, concOpts, required)}
     ${specControlHTML(s, i)}
-    <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="-1">-</button>
+    <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="-1" ${s.rating<=skillMinRating(s)?"disabled":""}>-</button>
       <span class="cbx-attr__base">${s.rating}</span><button type="button" class="cbx-step-btn" data-skill="${i}" data-d="1" ${(skillSpent() >= skillBudget() || s.rating >= CHARGEN_SKILL_MAX)?"disabled":""}>+</button></span>
     <button type="button" class="cbx-x" data-delskill="${i}">&#10005;</button>
   </div>`;
@@ -1699,16 +1713,16 @@ function wire() {
   if (resumePick) resumePick.onchange = () => { if (resumePick.value) window.location.href = `character-builder.html?resume=${encodeURIComponent(resumePick.value)}`; };
   root.querySelectorAll("[data-cat]").forEach(el => el.onclick = () => {
     const cat = el.dataset.cat, L = el.dataset.letter;
-    state.prio[cat] = state.prio[cat] === L ? "" : L; save(); render();
+    state.prio[cat] = state.prio[cat] === L ? "" : L; enforceAttrMins(); save(); render();
   });
-  root.querySelectorAll("[data-kit]").forEach(el => el.onclick = () => { applyKit(KITS[el.dataset.kit]); save(); render(); });
-  root.querySelectorAll("[data-mt]").forEach(el => el.onclick = () => { state.metatype = el.dataset.mt; save(); render(); });
+  root.querySelectorAll("[data-kit]").forEach(el => el.onclick = () => { applyKit(KITS[el.dataset.kit]); enforceAttrMins(); save(); render(); });
+  root.querySelectorAll("[data-mt]").forEach(el => el.onclick = () => { state.metatype = el.dataset.mt; enforceAttrMins(); save(); render(); });
   root.querySelectorAll("[data-attr]").forEach(el => {
     const a = el.dataset.attr, d = Number(el.dataset.d);
     bindStepper(el, () => {
       const max = (metatype().max||{})[a] || 9;
       if (d > 0 && attrSpent() >= attrBudget()) return;   // no attribute points left to spend
-      state.base[a] = clamp(state.base[a]+d, 1, max); save(); render();
+      state.base[a] = clamp(state.base[a]+d, attrMinBase(a), max); save(); render();
     });
   });
   root.querySelectorAll("[data-magictype]").forEach(el => el.onclick = async () => {
@@ -1786,19 +1800,25 @@ function wire() {
     bindStepper(el, () => {
       const s = state.skills[i]; if (!s) return;
       if (d > 0 && skillSpent() >= skillBudget()) return;   // no skill points left to spend
-      s.rating = clamp(s.rating+d,1,CHARGEN_SKILL_MAX); save(); render();
+      s.rating = clamp(s.rating+d,skillMinRating(s),CHARGEN_SKILL_MAX); save(); render();
     });
   });
   root.querySelectorAll("[data-conc]").forEach(el => el.onchange = () => {
     const i = Number(el.dataset.conc); state.skills[i].conc = el.value;
     if (!el.value) state.skills[i].spec = "";  // a specialization needs a concentration
-    save(); render();
+    enforceSkillMin(state.skills[i]); save(); render();
   });
   root.querySelectorAll("[data-spec]").forEach(el => el.onchange = () => {
-    const i = Number(el.dataset.spec); state.skills[i].spec = el.value; save(); render();
+    const i = Number(el.dataset.spec); state.skills[i].spec = el.value; enforceSkillMin(state.skills[i]); save(); render();
   });
   root.querySelectorAll("[data-specinput]").forEach(el => el.oninput = () => {
     const i = Number(el.dataset.specinput); state.skills[i].spec = el.value; updateSkillLabel(i); save();
+  });
+  // Free-text spec: apply the rating floor on commit (blur/Enter), not per keystroke, so focus isn't lost.
+  root.querySelectorAll("[data-specinput]").forEach(el => el.onchange = () => {
+    const s = state.skills[Number(el.dataset.specinput)];
+    const before = s.rating; enforceSkillMin(s);
+    if (s.rating !== before) { save(); render(); }
   });
   root.querySelectorAll("[data-langname]").forEach(el => el.oninput = () => { state.languages[Number(el.dataset.langname)].name = el.value; save(); });
   root.querySelectorAll("[data-langrate]").forEach(el => {
@@ -2008,7 +2028,7 @@ function hydrateStateFromCharacter(c) {
   state.totem = c.totem || null;
   // Stored attributes are final (base + racial mods); back the mods out to editable base.
   const mods = (metatype().mods) || {};
-  ATTRS.forEach(a => { state.base[a] = Math.max(1, (Number(c[a]) || 1) - (mods[a] || 0)); });
+  ATTRS.forEach(a => { state.base[a] = Math.max(attrMinBase(a), (Number(c[a]) || 1) - (mods[a] || 0)); });
   const g = c.gear || {};
   state.gear = {
     weapons: g.weapons || [], armor: g.armor || [], cyber: g.cyber || [],
@@ -2071,6 +2091,15 @@ async function commitDossier() {
   if (needConc.length) {
     status.className = "cbx-note is-warn";
     status.textContent = "Choose a concentration for: " + needConc.join(", ") + ".";
+    return;
+  }
+  // Older drafts can predate the rating floors the steppers now enforce.
+  const lowAttrs = ATTRS.filter(a => naturalAttr(a) < 1).map(a => `${ALABEL[a]} (base ${attrMinBase(a)}+)`);
+  const lowSkills = state.skills.filter(s => s.rating < skillMinRating(s)).map(s => `${s.name} (rating ${skillMinRating(s)}+)`);
+  if (lowAttrs.length || lowSkills.length) {
+    status.className = "cbx-note is-warn";
+    status.textContent = "Ratings can't drop below 1 after racial mods or concentration/specialization -- raise: "
+      + [...lowAttrs, ...lowSkills].join(", ") + ".";
     return;
   }
   const converting = !!state.convertId;
