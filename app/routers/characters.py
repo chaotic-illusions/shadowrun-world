@@ -340,15 +340,16 @@ async def my_draft_characters(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    """Return the caller's in-progress chargen drafts (admins see all drafts).
+    """Return the caller's in-progress chargen drafts (admins in admin view see all drafts).
 
     Drafts are hidden from the normal character list; this is how the builder and the
-    Characters page surface a runner's unfinished dossiers so they can be resumed.
+    Characters page surface a runner's unfinished dossiers so they can be resumed. An admin
+    previewing runner view gets only their own, exactly as a player would.
     """
     q = select(Character).options(selectinload(Character.organization)).where(
         Character.is_draft == True  # noqa: E712 -- SQL boolean comparison
     )
-    if not ctx["is_admin"]:
+    if not _is_privileged_view(ctx):
         q = q.where(Character.owner_token == hash_token(ctx["user_token"]))
     result = await db.execute(q.order_by(Character.updated_at.desc()))
     chars = result.scalars().all()

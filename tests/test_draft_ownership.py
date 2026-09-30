@@ -120,6 +120,26 @@ def test_assign_owner_hands_draft_to_token_and_can_unown(tmp_path):
     asyncio.run(scenario())
 
 
+def test_admin_in_runner_view_sees_only_own_drafts(tmp_path):
+    async def scenario():
+        async with _database(tmp_path / "t.db") as sessions:
+            async with sessions() as db:
+                db.add_all([
+                    Character(name="GM Draft", is_pc=True, is_draft=True, owner_token=hash_token("gm")),
+                    Character(name="Player Draft", is_pc=True, is_draft=True, owner_token=hash_token(NEW)),
+                ])
+                await db.commit()
+            async with sessions() as db:
+                runner = await my_draft_characters(
+                    db=db, ctx={"is_admin": True, "user_token": "gm", "view_as_player": True})
+                assert [d["name"] for d in runner] == ["GM Draft"]
+                assert runner[0]["owner_token_id"] is None
+                admin = await my_draft_characters(db=db, ctx={"is_admin": True, "user_token": "gm"})
+                assert {d["name"] for d in admin} == {"GM Draft", "Player Draft"}
+
+    asyncio.run(scenario())
+
+
 def test_orphaned_draft_cannot_be_claimed_by_a_player(tmp_path):
     async def scenario():
         async with _database(tmp_path / "t.db") as sessions:
