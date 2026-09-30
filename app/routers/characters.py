@@ -12,10 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_or_404, apply_update
+from app.models.auth import UserToken
 from app.models.character import Character
 from app.models.contact import Contact
 from app.models.reputation import Reputation
-from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead
+from app.schemas.character import (
+    CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead,
+    CharacterOwnerAssign,
+)
 from app.schemas.contact import ContactRead
 from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
@@ -347,7 +351,14 @@ async def my_draft_characters(
     if not ctx["is_admin"]:
         q = q.where(Character.owner_token == hash_token(ctx["user_token"]))
     result = await db.execute(q.order_by(Character.updated_at.desc()))
-    return [_serialize_character(char, ctx) for char in result.scalars().all()]
+    chars = result.scalars().all()
+    drafts = [_serialize_character(char, ctx) for char in chars]
+    if _is_privileged_view(ctx):
+        # Tell the GM which token owns each draft so orphans can be spotted and reassigned.
+        token_ids = dict((await db.execute(select(UserToken.token_hash, UserToken.id))).all())
+        for draft, char in zip(drafts, chars):
+            draft["owner_token_id"] = token_ids.get(char.owner_token)
+    return drafts
 
 
 @router.get("/{character_id}/chargen-state", response_model=ChargenStateRead)
@@ -763,7 +774,11 @@ async def claim_character(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    """Player or admin claims a PC by writing their token hash onto it."""
+    """Player or admin claims a PC by writing their token hash onto it.
+
+    An unfinished chargen draft can't be claimed (even an unowned one) -- it stays private to
+    its owner, and a GM moves it with assign-owner instead.
+    """
     claim_hash = hash_token(ctx["user_token"])
 
     result = await db.execute(
@@ -772,11 +787,14 @@ async def claim_character(
             Character.id == character_id,
             Character.is_pc.is_(True),
             (Character.owner_token.is_(None)) | (Character.owner_token == claim_hash),
+            (Character.is_draft.is_(False)) | (Character.owner_token == claim_hash),
         )
         .values(owner_token=claim_hash)
     )
     if result.rowcount != 1:
         char = await _load_character(db, character_id)
+        if char.is_draft:
+            raise HTTPException(status_code=404, detail="Character not found")
         if not char.is_pc:
             raise HTTPException(status_code=400, detail="Only PC characters can be claimed")
         raise HTTPException(status_code=409, detail="Character is already claimed by another player")
@@ -800,3 +818,29 @@ async def unclaim_character(
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     return _serialize_character(char, ctx)
+
+
+@router.post("/{character_id}/assign-owner", response_model=CharacterRead)
+async def assign_character_owner(
+    character_id: int,
+    body: CharacterOwnerAssign,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_admin_token),
+):
+    """GM hands a PC (typically an orphaned chargen draft) to a player token, or unowns it
+    when ``token_id`` is null."""
+    char = await _load_character(db, character_id)
+    if not char.is_pc:
+        raise HTTPException(status_code=400, detail="Only PC characters can be assigned")
+    if body.token_id is None:
+        char.owner_token = None
+    else:
+        ut = (await db.execute(select(UserToken).where(UserToken.id == body.token_id))).scalars().first()
+        if not ut:
+            raise HTTPException(status_code=404, detail="Token not found")
+        char.owner_token = ut.token_hash
+    await db.commit()
+    await db.refresh(char, attribute_names=["organization"])
+    data = _serialize_character(char, {"is_admin": True})
+    data["owner_token_id"] = body.token_id
+    return data

@@ -90,6 +90,27 @@
     </div>
   </div>
 
+  <!-- -- Delete modal -------------------------------------------------------- -->
+  <div id="deleteModal" class="modal-overlay">
+    <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--red);padding:28px 32px;width:100%;max-width:420px">
+      <div style="font-size:.85rem;letter-spacing:2px;color:var(--red);margin-bottom:6px">&gt;&gt; DELETE TOKEN</div>
+      <div style="font-size:.65rem;color:var(--text-dim);margin-bottom:16px" id="deleteModalWho"></div>
+      <div class="field mb-16">
+        <label>Characters &amp; Drafts</label>
+        <select id="deleteTransfer" onchange="syncDeleteNewLabel()"></select>
+      </div>
+      <div class="field mb-16" id="deleteNewLabelWrap" style="display:none">
+        <label>New Token Label</label>
+        <input type="text" id="deleteNewLabel" placeholder="e.g. Sam's token">
+      </div>
+      <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:16px">Transfer keeps the player's runners, in-progress drafts and matrix runs on their new token.</div>
+      <div class="flex-row-8">
+        <button class="btn btn-red flex-1" onclick="submitDelete()">&gt;&gt; Delete</button>
+        <button class="btn" onclick="closeDeleteModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -269,16 +290,76 @@ async function regenerateToken(id) {
 
 // -- Delete --------------------------------------------------------------------
 
-async function deleteToken(id) {
-    if (!await showConfirm('Delete this token? The player will lose access and their characters will be unclaimed.', 'Confirm')) return;
+let _deleteId = null;
+
+function deleteToken(id) {
+  _deleteId = id;
+  const tok = _tokensById.get(Number(id));
+  document.getElementById('deleteModalWho').textContent =
+    `${tok && tok.label ? tok.label : 'This token'} will stop working immediately.`;
+  const others = [..._tokensById.values()].filter(t => Number(t.id) !== Number(id));
+  document.getElementById('deleteTransfer').innerHTML =
+    '<option value="">Unclaim them (no owner)</option>' +
+    '<option value="new">Create a new token and transfer to it</option>' +
+    others.map(t => `<option value="${Number(t.id)}">Transfer to ${esc(t.label || 'token #' + t.id)}${t.is_admin ? ' (admin)' : ''}</option>`).join('');
+  document.getElementById('deleteNewLabel').value = (tok && tok.label) || '';
+  syncDeleteNewLabel();
+  pausePoll();
+  document.getElementById('deleteModal').style.display = 'flex';
+}
+
+function syncDeleteNewLabel() {
+  const isNew = document.getElementById('deleteTransfer').value === 'new';
+  document.getElementById('deleteNewLabelWrap').style.display = isNew ? '' : 'none';
+}
+
+function closeDeleteModal() {
+  resumePoll();
+  document.getElementById('deleteModal').style.display = 'none';
+  _deleteId = null;
+}
+
+async function submitDelete() {
+  let transfer = document.getElementById('deleteTransfer').value;
+  let created = null;
   try {
-    const res = await apiFetch(`/auth/tokens/${id}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) throw new Error(res.statusText);
-    showAlert(document.getElementById('alert'), '>> DELETED // Token removed and characters unclaimed.', false);
+    if (transfer === 'new') {
+      // Mint the replacement (same admin/player kind as the one being deleted), then move to it.
+      const old = _tokensById.get(Number(_deleteId));
+      const res = await apiFetch('/auth/tokens', {
+        method: 'POST',
+        body: JSON.stringify({
+          label: document.getElementById('deleteNewLabel').value.trim() || null,
+          is_admin: !!(old && old.is_admin),
+        }),
+      });
+      if (!res.ok) await apiThrow(res);
+      created = await res.json();
+      transfer = String(created.id);
+    }
+    const qs = transfer ? `?transfer_to=${encodeURIComponent(transfer)}` : '';
+    const res = await apiFetch(`/auth/tokens/${_deleteId}${qs}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) await apiThrow(res);
+    closeDeleteModal();
+    _tokensById.clear();
+    showAlert(document.getElementById('alert'),
+      transfer ? '>> DELETED // Token removed; characters transferred.' : '>> DELETED // Token removed and characters unclaimed.', false);
+    if (created) showGeneratedToken('>> REPLACEMENT TOKEN GENERATED', created.token);
     await loadTokens();
   } catch(e) {
+    closeDeleteModal();
     showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+    // The new token exists even if the delete failed -- show it once so it isn't lost.
+    if (created) showGeneratedToken('>> TOKEN GENERATED (OLD TOKEN NOT DELETED)', created.token);
+    await loadTokens();
   }
+}
+
+function showGeneratedToken(title, token) {
+  pausePoll();
+  document.getElementById('resultModalTitle').textContent = title;
+  document.getElementById('generatedToken').textContent = token;
+  document.getElementById('resultModal').style.display = 'flex';
 }
 
 // -- Player view ---------------------------------------------------------------
