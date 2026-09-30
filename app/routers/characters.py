@@ -15,11 +15,13 @@ from app.dependencies import get_db, get_or_404, apply_update
 from app.models.auth import UserToken
 from app.models.character import Character
 from app.models.contact import Contact
+from app.models.organization import Organization
 from app.models.reputation import Reputation
 from app.schemas.character import (
     CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead,
     CharacterOwnerAssign,
 )
+from app.routers.contacts import serialize_contact, visible_contacts
 from app.schemas.contact import ContactRead
 from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
@@ -53,6 +55,14 @@ _PLAYER_WRITABLE_FIELDS = _PLAYER_IDENTITY_FIELDS | {
     # attribute ratings) alongside the recomputed aggregate above -- see play-sheet.html's
     # commitModal() 'attrs' branch.
     "chargen_state",
+}
+
+# Fields on the chargen dossier schema that only a GM may set: cyber-grade approvals, affiliation,
+# reveal flags and provenance. A player's dossier commit never writes them -- a new PC gets the
+# column default and an existing one keeps its stored value.
+_DOSSIER_GM_FIELDS = {
+    "beta_grade_approved", "delta_grade_approved", "organization_id", "is_independent",
+    "portrait_url", "show_background", "source_adventure", "catalog_scope", "contact_skills",
 }
 
 
@@ -163,13 +173,27 @@ def _is_privileged_view(ctx: dict) -> bool:
     return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
 
 
+def _owns(char: Character, ctx: dict) -> bool:
+    """True when the caller's token owns this character (admins included -- no admin bypass)."""
+    return bool(char.owner_token and ctx.get("user_token")
+                and char.owner_token == hash_token(ctx["user_token"]))
+
+
 def _serialize_character(char: Character, ctx: dict) -> dict:
     data = CharacterRead.model_validate(char, from_attributes=True).model_dump()
     if _is_privileged_view(ctx):
         return data
-    data["notes"] = None
+    # A PC's notes belong to its player: the owner sees them. NPC notes and other players' PC
+    # notes are GM-only.
+    if not (char.is_pc and _owns(char, ctx)):
+        data["notes"] = None
     if not data.get("show_background"):
         data["background"] = None
+    # An inactive org is GM-concealed: don't name it through a member's affiliation.
+    if char.organization is not None and char.organization.is_active is False:
+        data["organization_id"] = None
+        data["organization_name"] = None
+        data["is_independent"] = False
     return data
 
 
@@ -217,16 +241,30 @@ def _character_create_data(body: CharacterCreate, ctx: dict) -> dict:
     return data
 
 
+def _strip_gm_dossier_fields(data: dict, ctx: dict) -> dict:
+    if not ctx["is_admin"]:
+        for key in _DOSSIER_GM_FIELDS:
+            data.pop(key, None)
+    return data
+
+
+async def _assert_org_exists(db: AsyncSession, data: dict) -> None:
+    """A dangling organization_id would fail the FK on commit (500); reject it up front."""
+    org_id = data.get("organization_id")
+    if org_id is not None and await db.get(Organization, org_id) is None:
+        raise HTTPException(status_code=422, detail=f"Organization {org_id} not found")
+
+
 def _dossier_create_data(body: CharacterCreate, ctx: dict) -> dict:
-    """Chargen commit accepts the FULL sheet from either an admin or a player.
+    """Chargen commit accepts the full sheet from either an admin or a player.
 
     Unlike the lightweight create path, a player building their own dossier may set
-    every gameplay field (attributes, essence, skills, gear, ...). The result is a
-    PC owned by the committing token (an admin's token counts). Chargen is a
-    trust-the-player tool -- the GM reviews finished sheets rather than the server
-    enforcing a points budget.
+    every gameplay field (attributes, essence, skills, gear, ...) -- but not the GM-owned
+    fields in _DOSSIER_GM_FIELDS, which keep their defaults. The result is a PC owned by
+    the committing token (an admin's token counts). Chargen is a trust-the-player tool --
+    the GM reviews finished sheets rather than the server enforcing a points budget.
     """
-    data = body.model_dump(exclude={"contacts"})
+    data = _strip_gm_dossier_fields(body.model_dump(exclude={"contacts"}), ctx)
     data.pop("owner_token", None)
     data["is_pc"] = True
     data["is_independent"] = True  # runners default to Independent (no org) unless a GM sets otherwise
@@ -309,15 +347,22 @@ def _assert_chargen_grades_allowed(gear: dict | None, is_admin: bool) -> None:
             )
 
 
-def _apply_dossier(char: Character, body: CharacterCreate, ctx: dict, *, keep_draft: bool) -> None:
-    """Write a full chargen sheet onto an existing owned character row.
+async def _apply_dossier(
+    db: AsyncSession, char: Character, body: CharacterCreate, ctx: dict, *, keep_draft: bool,
+) -> None:
+    """Write a chargen sheet onto an existing owned character row.
 
-    Shared by the draft-update and finalize paths. Ownership is never reassigned here;
-    ``keep_draft`` controls whether the row stays a draft (mid-build) or becomes real.
+    Shared by the draft-update, finalize and convert paths. Only the fields the builder sent
+    are written, so anything it doesn't carry (portrait, GM approvals, affiliation, ...) keeps
+    its stored value; a player can't write _DOSSIER_GM_FIELDS at all. Ownership is never
+    reassigned here; ``keep_draft`` controls whether the row stays a draft or becomes real.
     """
     _assert_chargen_grades_allowed(body.gear, ctx["is_admin"])
-    data = _dossier_create_data(body, ctx)
-    data.pop("owner_token", None)  # never reassign ownership on an existing row
+    data = _strip_gm_dossier_fields(
+        body.model_dump(exclude={"contacts", "owner_token"}, exclude_unset=True), ctx)
+    await _assert_org_exists(db, data)
+    data["is_pc"] = True
+    data["catalog_scope"] = "core"
     data["is_draft"] = keep_draft
     for key, value in data.items():
         setattr(char, key, value)
@@ -454,7 +499,9 @@ async def create_character_dossier(
     Claimed to the committing token (user or admin) so the builder owns it right away.
     """
     _assert_chargen_grades_allowed(body.gear, ctx["is_admin"])
-    char = Character(**_dossier_create_data(body, ctx))
+    data = _dossier_create_data(body, ctx)
+    await _assert_org_exists(db, data)
+    char = Character(**data)
     if not char.is_draft:
         await _stamp_lifestyle_start(db, char)
     db.add(char)
@@ -483,7 +530,7 @@ async def update_character_draft(
         raise HTTPException(status_code=404, detail="Character not found")
     if not char.is_draft:
         raise HTTPException(status_code=400, detail="Only a draft character can be updated as a draft")
-    _apply_dossier(char, body, ctx, keep_draft=True)
+    await _apply_dossier(db, char, body, ctx, keep_draft=True)
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     return _serialize_character(char, ctx)
@@ -507,7 +554,7 @@ async def finalize_character_dossier(
         raise HTTPException(status_code=404, detail="Character not found")
     if not char.is_draft:
         raise HTTPException(status_code=400, detail="Only a draft character can be finalized")
-    _apply_dossier(char, body, ctx, keep_draft=False)
+    await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     if body.contacts:
         await _create_dossier_contacts(db, char, body.contacts)
@@ -534,7 +581,7 @@ async def convert_character_dossier(
         raise HTTPException(status_code=404, detail="Character not found")
     if char.is_draft:
         raise HTTPException(status_code=400, detail="Use finalize-dossier for a draft character")
-    _apply_dossier(char, body, ctx, keep_draft=False)
+    await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     if body.contacts:
         existing = await db.scalar(
@@ -656,10 +703,34 @@ async def upload_character_portrait(
     async with aiofiles.open(path, "wb") as f:
         await f.write(data)
 
+    old_url = char.portrait_url
     char.portrait_url = f"/uploads/portraits/{filename}"
     await db.commit()
     await db.refresh(char)
+    await _remove_replaced_portrait(db, old_url)
     return _serialize_character(char, ctx)
+
+
+# Only files this endpoint wrote (uuid4 hex names) are ever deleted -- portrait_url is otherwise
+# free text a GM can set, so it must never be turned into an arbitrary filesystem path.
+_UPLOADED_PORTRAIT_RE = re.compile(r"^/uploads/portraits/([0-9a-f]{32}\.(?:png|jpg|webp))$")
+
+
+async def _remove_replaced_portrait(db: AsyncSession, old_url: str | None) -> None:
+    """Delete a replaced portrait file so repeated uploads don't fill the disk, unless another
+    character still points at it."""
+    match = _UPLOADED_PORTRAIT_RE.match(old_url or "")
+    if not match:
+        return
+    still_used = await db.scalar(
+        select(func.count()).select_from(Character).where(Character.portrait_url == old_url)
+    )
+    if still_used:
+        return
+    try:
+        os.remove(os.path.join("data", "uploads", "portraits", match.group(1)))
+    except FileNotFoundError:
+        pass
 
 
 @router.patch("/{character_id}", response_model=CharacterRead)
@@ -751,7 +822,11 @@ async def get_character_contacts(
     # as get_character.
     if char.is_draft and not _is_owner_or_admin(char, ctx):
         raise HTTPException(status_code=404, detail="Character not found")
-    return char.contacts
+    # Inactive NPCs are GM-concealed -- hide existence from players (404, not 403).
+    if not char.is_pc and char.is_active is False and not _is_privileged_view(ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
+    # Same concealment and GM-note redaction as GET /contacts/.
+    return [serialize_contact(c, ctx) for c in await visible_contacts(db, char.contacts, ctx)]
 
 
 @router.get("/{character_id}/reputation", response_model=ReputationRead | None)
@@ -763,8 +838,16 @@ async def get_character_reputation(
     char = await get_or_404(db, Character, character_id)
     if char.is_draft and not _is_owner_or_admin(char, ctx):
         raise HTTPException(status_code=404, detail="Character not found")
+    if not char.is_pc and char.is_active is False and not _is_privileged_view(ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
     result = await db.execute(select(Reputation).where(Reputation.character_id == character_id))
-    return result.scalars().first()
+    rep = result.scalars().first()
+    if rep is None:
+        return None
+    data = ReputationRead.model_validate(rep).model_dump()
+    if not _is_privileged_view(ctx):
+        data["notes"] = None
+    return data
 
 
 # -- Claim / unclaim -----------------------------------------------------------
@@ -810,8 +893,16 @@ async def unclaim_character(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    """Admin or the owning player can unclaim a character."""
+    """Admin or the owning player can unclaim a committed character.
+
+    A chargen draft can't be unclaimed: an unowned draft can't be claimed back (see
+    claim_character), so the player would lose it. A GM moves drafts with assign-owner.
+    """
     char = await _load_character(db, character_id)
+    if char.is_draft:
+        if not _is_owner_or_admin(char, ctx):
+            raise HTTPException(status_code=404, detail="Character not found")
+        raise HTTPException(status_code=400, detail="A draft can't be unclaimed; a GM can reassign it")
     if not _is_owner_or_admin(char, ctx):
         raise HTTPException(status_code=403, detail="Only the owning player or an admin can unclaim")
 

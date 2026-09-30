@@ -23,9 +23,14 @@ function isMobileViewport() {
 }
 // True when the admin is actively in admin view (not switched to runner view). On mobile there's
 // no runner-view toggle -- an admin always runs at the highest privilege available there.
+// The mobile check is taken once per page load: resizing/rotating mid-session must not flip a
+// runner-view page (holding the redacted player payload) into an editable admin page, where a
+// save would write the redacted data back over the GM's.
+let _mobileAtLoad = null;
 function isAdminMode() {
   if (!isAdmin()) return false;
-  if (isMobileViewport()) return true;
+  if (_mobileAtLoad === null) _mobileAtLoad = isMobileViewport();
+  if (_mobileAtLoad) return true;
   return (sessionStorage.getItem('sr_view') || 'admin') === 'admin';
 }
 function userToken()  { return localStorage.getItem(LS_USER)  || null; }
@@ -336,6 +341,9 @@ async function bootstrapAuth() {
     }
 
     _authCtx = await res.json();
+    // A stored admin token the server no longer accepts (revoked/regenerated) would count as a
+    // failed admin guess on every request and trip the auth backoff -- drop it.
+    if (at && !_authCtx.is_admin) localStorage.removeItem(LS_ADMIN);
     _injectAuthLabel();
 
     if (_authCtx.is_default_password) {
@@ -587,7 +595,13 @@ function attachSelectSearch(sel, placeholder, keepLeading = 0) {
     box.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' && sel.size > 1) { e.preventDefault(); sel.focus(); }
     });
-    sel.addEventListener('change', () => { if (box.value) clearSelectSearch(sel); });
+    // Collapse on a pick, not on every change: arrowing through the list fires `change` on each
+    // step, so collapsing there would stop a keyboard user at the first match. A mouse click,
+    // Enter, or leaving the list (except back to the search box) ends the pick.
+    const endPick = () => { if (box.value) clearSelectSearch(sel); };
+    sel.addEventListener('click', () => { if (sel.size > 1) endPick(); });
+    sel.addEventListener('keydown', e => { if (e.key === 'Enter' && sel.size > 1) { e.preventDefault(); endPick(); } });
+    sel.addEventListener('blur', e => { if (e.relatedTarget !== box) endPick(); });
   }
   box.placeholder = placeholder || 'Search...';
   box.value = '';
@@ -632,7 +646,7 @@ function setRevealedEntry(entry, revealed) {
 }
 
 // One org-editor division as a labeled block: Name / Kind / Reveal / remove, then Public Intel and
-// GM Notes side by side. Fields the editor doesn't show (source, headquarters, leaders, relations)
+// GM Notes side by side. Fields the editor doesn't show (source, leaders, relations)
 // ride along in tr._divisionData and are merged back by readDivisionRow().
 function divisionRowHtml(data, id, kindOptions, removeCall) {
   const kind = data?.kind || 'division';

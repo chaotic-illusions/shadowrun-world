@@ -51,7 +51,7 @@
       <div style="font-size:.85rem;letter-spacing:2px;margin-bottom:16px" id="tokenModalTitle">&gt;&gt; CREATE TOKEN</div>
       <div class="field mb-16">
         <label>Label (optional)</label>
-        <input type="text" id="tokenLabel" placeholder="e.g. Sam's token">
+        <input type="text" id="tokenLabel" maxlength="200" placeholder="e.g. Sam's token">
       </div>
       <div class="flex-row-8">
         <button class="btn flex-1" id="tokenModalSubmitBtn" onclick="submitNewToken()">&gt;&gt; Generate</button>
@@ -80,7 +80,7 @@
       <div style="font-size:.85rem;letter-spacing:2px;color:var(--green);margin-bottom:16px">&gt;&gt; RENAME TOKEN</div>
       <div class="field mb-16">
         <label>New Label</label>
-        <input type="text" id="renameInput" placeholder="e.g. Sam's token"
+        <input type="text" id="renameInput" maxlength="200" placeholder="e.g. Sam's token"
           onkeydown="if(event.key==='Enter') submitRename()">
       </div>
       <div class="flex-row-8">
@@ -101,11 +101,11 @@
       </div>
       <div class="field mb-16" id="deleteNewLabelWrap" style="display:none">
         <label>New Token Label</label>
-        <input type="text" id="deleteNewLabel" placeholder="e.g. Sam's token">
+        <input type="text" id="deleteNewLabel" maxlength="200" placeholder="e.g. Sam's token">
       </div>
       <div style="font-size:.6rem;color:var(--text-dim);margin-bottom:16px">Transfer keeps the player's runners, in-progress drafts and matrix runs on their new token.</div>
       <div class="flex-row-8">
-        <button class="btn btn-green flex-1" onclick="submitDelete()">&gt;&gt; Proceed</button>
+        <button class="btn btn-green flex-1" id="deleteProceedBtn" onclick="submitDelete()">&gt;&gt; Proceed</button>
         <button class="btn btn-red" onclick="closeDeleteModal()">Cancel</button>
       </div>
     </div>
@@ -167,6 +167,8 @@ async function loadTokens() {
     const res = await apiFetch('/auth/tokens');
     if (!res.ok) await apiThrow(res);
     const all = await res.json();
+    // Rebuild the id map from this response so tokens deleted elsewhere drop out of the pickers.
+    _tokensById.clear();
     renderTokenTable(all.filter(t => t.is_admin),  'adminTokenWrap',  'var(--amber)');
     renderTokenTable(all.filter(t => !t.is_admin), 'playerTokenWrap', 'var(--green)');
   } catch(e) {
@@ -319,13 +321,21 @@ function closeDeleteModal() {
   _deleteId = null;
 }
 
+let _deleting = false;
 async function submitDelete() {
+  // One submission at a time: a double-click would mint two replacement tokens, and the id must be
+  // read before any await because closeDeleteModal() clears _deleteId.
+  const deleteId = _deleteId;
+  if (_deleting || deleteId == null) return;
+  _deleting = true;
+  const proceedBtn = document.getElementById('deleteProceedBtn');
+  proceedBtn.disabled = true;
   let transfer = document.getElementById('deleteTransfer').value;
   let created = null;
   try {
     if (transfer === 'new') {
       // Mint the replacement (same admin/player kind as the one being deleted), then move to it.
-      const old = _tokensById.get(Number(_deleteId));
+      const old = _tokensById.get(Number(deleteId));
       const res = await apiFetch('/auth/tokens', {
         method: 'POST',
         body: JSON.stringify({
@@ -338,10 +348,9 @@ async function submitDelete() {
       transfer = String(created.id);
     }
     const qs = transfer ? `?transfer_to=${encodeURIComponent(transfer)}` : '';
-    const res = await apiFetch(`/auth/tokens/${_deleteId}${qs}`, { method: 'DELETE' });
+    const res = await apiFetch(`/auth/tokens/${encodeURIComponent(deleteId)}${qs}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await apiThrow(res);
     closeDeleteModal();
-    _tokensById.clear();
     showAlert(document.getElementById('alert'),
       transfer ? '>> DELETED // Token removed; characters transferred.' : '>> DELETED // Token removed and characters unclaimed.', false);
     if (created) showGeneratedToken('>> REPLACEMENT TOKEN GENERATED', created.token);
@@ -352,6 +361,9 @@ async function submitDelete() {
     // The new token exists even if the delete failed -- show it once so it isn't lost.
     if (created) showGeneratedToken('>> TOKEN GENERATED (OLD TOKEN NOT DELETED)', created.token);
     await loadTokens();
+  } finally {
+    _deleting = false;
+    proceedBtn.disabled = false;
   }
 }
 
@@ -375,7 +387,7 @@ function renderPlayerView(ctx) {
       <div style="font-family:var(--font);font-size:.8rem;letter-spacing:1px;color:var(--green);word-break:break-all;margin-bottom:16px">${esc(ctx.user_token)}</div>
       <div style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim);margin-bottom:6px">LABEL</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="playerRenameInput" value="${esc(ctx.token_label || '')}"
+        <input type="text" id="playerRenameInput" maxlength="200" value="${esc(ctx.token_label || '')}"
           placeholder="e.g. Sam's token" class="flex-1"
           onkeydown="if(event.key==='Enter') submitPlayerRename()">
         <button class="btn btn-green" onclick="submitPlayerRename()">&gt;&gt; Save</button>

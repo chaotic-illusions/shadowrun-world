@@ -132,8 +132,9 @@ unbeatable** (a flat d6 maxes at 6) and the test silently always yields 0 succes
 - **`.dockerignore` exists -- keep it current.** The Dockerfile does `COPY . .` and Docker
   does NOT read `.gitignore`, so anything sensitive/bloaty (the `data/*.db`, `.git/`,
   `.venv/`) must be listed in `.dockerignore` or it gets baked into the image.
-- `requirements.txt` is pinned -- bump deliberately (the `anthropic`/`aiofiles`/
-  `pytest-asyncio` lines are bounded ranges, not exact). For a real (exposed) deployment
+- `requirements.txt` is pinned -- bump deliberately (the `anthropic`/`aiofiles` lines are
+  bounded ranges, not exact). Test-only packages live in `requirements-dev.txt`, which is
+  not installed in the Docker image. For a real (exposed) deployment
   also: run the container as non-root (`USER` -- not yet done), and revisit `CORS_ORIGINS`
   (`*` is safe with header auth) before going past the default `127.0.0.1` binding. Docker
   Compose defaults `BOOTSTRAP_ADMIN_KEY` to `shadowrunner` so fresh installs are accessible;

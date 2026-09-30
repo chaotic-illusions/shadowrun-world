@@ -43,21 +43,23 @@ exit /b 0
 
 :RESEED
 echo.
-echo [1/4] Stopping container...
+echo [1/5] Stopping container...
 docker compose -f "%PROJECT_DIR%docker-compose.yml" down
 if errorlevel 1 ( echo ERROR: docker compose down failed & pause & exit /b 1 )
 
 echo.
-echo [2/4] Deleting database...
+echo [2/5] Deleting database...
 if exist "%DB_PATH%" (
     del /f "%DB_PATH%"
+    if exist "%DB_PATH%-wal" del /f "%DB_PATH%-wal"
+    if exist "%DB_PATH%-shm" del /f "%DB_PATH%-shm"
     echo Deleted %DB_PATH%
 ) else (
     echo No existing database found, skipping.
 )
 
 echo.
-echo [3/4] Rebuilding and starting container...
+echo [3/5] Rebuilding and starting container...
 docker compose -f "%PROJECT_DIR%docker-compose.yml" up --build -d
 if errorlevel 1 ( echo ERROR: docker compose up failed & pause & exit /b 1 )
 
@@ -72,8 +74,8 @@ if errorlevel 1 goto WAIT_RESEED
 
 echo.
 echo [4/5] Reseeding database...
-cd /d "%PROJECT_DIR%"
-python seed.py
+rem Seed inside the container: it has the dependencies and Compose's BOOTSTRAP_ADMIN_KEY.
+docker compose -f "%PROJECT_DIR%docker-compose.yml" exec shadowrun-world python3 seed.py
 if errorlevel 1 ( echo ERROR: seed.py failed & pause & exit /b 1 )
 
 echo.

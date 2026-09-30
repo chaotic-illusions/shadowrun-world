@@ -8,13 +8,18 @@ class _RecordingApi:
 
     def __init__(self):
         self.posts = []
+        self.patches = []
 
     def post(self, path, body):
         self.posts.append((path, body))
         return {"id": len(self.posts), **body}
 
+    def patch(self, path, body):
+        self.patches.append((path, body))
+        return body
 
-def test_create_payloads_default_to_adventure_scope_and_preserve_explicit_scope():
+
+def test_create_skips_default_adventure_scope_rows_and_keeps_explicit_scope():
     api = _RecordingApi()
     spec = SimpleNamespace(
         ADVENTURE="Example",
@@ -43,6 +48,26 @@ def test_create_payloads_default_to_adventure_scope_and_preserve_explicit_scope(
         "location archived: Default Location",
         "npc archived: Default NPC",
     ]
+
+
+def test_leadership_add_starts_hidden_unless_spec_reveals():
+    from app.routers.organizations import _player_leadership
+
+    api = _RecordingApi()
+    spec = SimpleNamespace(ADVENTURE="Example", ORG_UPDATES={"Corp": {"leadership_add": [
+        {"name": "Future CEO", "title": "CEO"},
+        {"name": "Known VP", "title": "VP", "revealed": True},
+    ]}})
+    loader = Loader(api, spec)
+    loader.orgs = {"corp": {"id": 7, "name": "Corp", "leadership": [{"name": "Old Boss"}]}}
+    loader._update_orgs()
+
+    (path, body), = api.patches
+    assert path == "/organizations/7"
+    added = {e["name"]: e for e in body["leadership"]}
+    assert added["Future CEO"]["visibility"] == "unlisted" and added["Future CEO"]["revealed"] is False
+    assert added["Known VP"]["revealed"] is True
+    assert [e["name"] for e in _player_leadership(body["leadership"])] == ["Old Boss", "Known VP"]
 
 
 def test_append_skips_legacy_text_already_present():

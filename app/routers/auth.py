@@ -37,7 +37,11 @@ async def verify(body: VerifyRequest, request: Request, db: AsyncSession = Depen
     if is_admin:
         record_success(request, None)
     else:
-        record_success(request, None)
+        # A valid user token must not reset admin-guess backoff; a wrong admin token sent with
+        # it still counts as a failed admin guess.
+        if body.admin_token:
+            record_failure(request, "admin")
+        record_success(request, "user")
     used_token = body.admin_token if is_admin else body.user_token
     token_record = await get_token_record(db, used_token) if used_token else None
 
@@ -156,7 +160,7 @@ async def revoke_token(
     _: str = Depends(get_admin_token),
 ):
     """Revoke a token. With ``transfer_to``, its characters (drafts included) and matrix runs
-    move to that token so the player keeps them; otherwise its characters are unclaimed."""
+    move to that token so the player keeps them; otherwise they are unowned (GM-only)."""
     result = await db.execute(select(UserToken).where(UserToken.id == token_id))
     ut = result.scalars().first()
     if not ut:
@@ -175,12 +179,13 @@ async def revoke_token(
         if not target:
             raise HTTPException(status_code=404, detail="Transfer target token not found")
         new_hash = target.token_hash
-        run_result = await db.execute(
-            select(MatrixRun).where(MatrixRun.owner_token_hash == ut.token_hash)
-        )
-        for run in run_result.scalars().all():
-            run.owner_token_hash = new_hash
-    # Re-point (or unclaim) any characters owned by this token's hash before deleting it
+    # Re-point (or unown) this token's matrix runs and characters before deleting it, so nothing is
+    # left keyed to a hash no token can present.
+    run_result = await db.execute(
+        select(MatrixRun).where(MatrixRun.owner_token_hash == ut.token_hash)
+    )
+    for run in run_result.scalars().all():
+        run.owner_token_hash = new_hash
     char_result = await db.execute(
         select(Character).where(Character.owner_token == ut.token_hash)
     )

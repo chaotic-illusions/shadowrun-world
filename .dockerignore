@@ -25,7 +25,14 @@ data/
 *.db-wal
 *.db-shm
 
+# Secrets: Compose passes these in as environment variables; never bake them into an image layer.
+.env
+.env.*
+
 # Dev-only / editor / session artifacts
+.claude/
+.vscode/
+LOCAL_REFERENCE.md
 localdev.ps1
 chat-session-resources/
 workspaceStorage/

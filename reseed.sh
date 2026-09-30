@@ -35,7 +35,7 @@ do_reseed() {
   echo ""
   echo "[2/5] Deleting database..."
   if [ -f "$DB_PATH" ]; then
-    rm -f "$DB_PATH"
+    rm -f "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm"
     echo "Deleted $DB_PATH"
   else
     echo "No existing database found, skipping."

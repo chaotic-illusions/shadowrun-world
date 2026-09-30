@@ -37,7 +37,11 @@ async def get_any_token(
         return {"is_admin": True, "is_user": True, "user_token": x_admin_token,
                 "view_as_player": view_as_player}
     if x_user_token and await verify_user_token(db, x_user_token):
-        record_success(request, None)
+        # A valid user token only clears the user scope: it must not reset admin-guess backoff,
+        # and a wrong admin token sent alongside it still counts as a failed admin guess.
+        if x_admin_token:
+            record_failure(request, "admin")
+        record_success(request, "user")
         return {"is_admin": False, "is_user": True, "user_token": x_user_token,
                 "view_as_player": view_as_player}
     if x_admin_token:

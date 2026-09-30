@@ -1,6 +1,10 @@
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+from alembic.config import Config as AlembicConfig
+from alembic.script import ScriptDirectory
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -13,6 +17,7 @@ from app.db.session import engine, async_session
 from app.auth.core import hash_token
 from app.data.catalog import OFFICIAL_BOOKS
 from app.models.character import Character
+from app.models.organization import Organization
 import app.models  # noqa: F401 -- registers all ORM models with Base.metadata
 
 from app.routers import (
@@ -466,6 +471,55 @@ async def _backfill_pc_affiliation_once():
         if result.rowcount:
             print(f"[startup] Backfilled {result.rowcount} PC(s) to Independent affiliation")
 
+async def _strip_division_headquarters():
+    """Divisions no longer have a ``headquarters`` field, and the division schema forbids unknown
+    keys -- a stored division still carrying it would fail every organization read. Remove it in
+    place (rebuild + reassign the JSON). Idempotent.
+    """
+    async with async_session() as db:
+        rows = (await db.execute(select(Organization.id, Organization.divisions))).all()
+        fixed = 0
+        for org_id, divisions in rows:
+            if not any(isinstance(d, dict) and "headquarters" in d for d in (divisions or [])):
+                continue
+            cleaned = [
+                {k: v for k, v in d.items() if k != "headquarters"} if isinstance(d, dict) else d
+                for d in divisions
+            ]
+            await db.execute(sql_update(Organization).where(Organization.id == org_id).values(divisions=cleaned))
+            fixed += 1
+        if fixed:
+            await db.commit()
+            print(f"[startup] Removed division headquarters from {fixed} organization(s)")
+
+
+def _alembic_head() -> str:
+    cfg = AlembicConfig()
+    cfg.set_main_option("script_location", str(Path(__file__).resolve().parent.parent / "alembic"))
+    return ScriptDirectory.from_config(cfg).get_current_head()
+
+
+async def _stamp_unversioned_db():
+    """A DB built by create_all + the guards above has no alembic_version row, so a later
+    ``alembic upgrade head`` would replay the baseline and fail on "table already exists". Record
+    it at the current head (the guards have just brought it there). A DB that already carries a
+    revision is left alone.
+    """
+    async with engine.begin() as conn:
+        rows = await conn.exec_driver_sql(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'"
+        )
+        if rows.fetchall():
+            return
+        head = _alembic_head()
+        await conn.exec_driver_sql(
+            "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, "
+            "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+        )
+        await conn.exec_driver_sql("INSERT INTO alembic_version (version_num) VALUES (?)", (head,))
+    print(f"[startup] Stamped database at alembic revision {head}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -502,6 +556,8 @@ async def lifespan(app: FastAPI):
         await _ensure_campaign_pc_affiliation_backfilled_column()
         await _ensure_campaign_state()
         await _backfill_pc_affiliation_once()
+        await _strip_division_headquarters()
+        await _stamp_unversioned_db()
         yield
     finally:
         await engine.dispose()

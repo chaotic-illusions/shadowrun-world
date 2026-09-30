@@ -12,7 +12,7 @@ setting loaded, ready for your own campaign.
 ### Requirements
 
 - Git
-- Docker with Docker Compose (recommended), or Python 3.11+ to run without Docker
+- Docker with Docker Compose (recommended), or Python 3.12+ to run without Docker (the version the Docker image uses)
 
 ### 1. Clone the repository
 
@@ -177,7 +177,7 @@ Characters can be claimed by player tokens. Regenerating a token automatically r
 
 ## Date Display
 
-All dates are stored as real-world calendar dates. The frontend shifts the displayed year by `YEAR_OFFSET = 24` (defined in `manage-runs.html` and `world-state.html`) so runs appear set in the 2050s Sixth World. The DB is never touched -- `srDate()` is display-only.
+All dates are stored as real-world calendar dates. The frontend shifts the displayed year by `YEAR_OFFSET = 24` (defined in `manage-runs.html`, `world-state.js`, `deck-workshop.html`, and `matrix-designer.html`) so runs appear set in the 2050s Sixth World. The DB is never touched -- `srDate()` is display-only.
 
 ---
 
@@ -398,7 +398,7 @@ Shows per-tick (per-day) evolution of heat, PA, and standing values with tier la
 |---|---|
 | Backend | FastAPI, SQLAlchemy (async), Pydantic v2 |
 | Database | SQLite via aiosqlite |
-| AI Parser | Anthropic Claude (Sonnet) |
+| AI Parser | Anthropic Claude (Opus 5 by default; set `CLAUDE_MODEL`) |
 | Frontend | Vanilla HTML/JS/CSS -- no framework |
 | Deployment | Docker + reverse proxy (Apache/nginx) |
 | Auth | SHA-256 hashed tokens, rate-limited |

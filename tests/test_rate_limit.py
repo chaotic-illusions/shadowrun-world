@@ -205,3 +205,25 @@ class TestCallRateThrottle:
         _calls[key] = [t - CALL_WINDOW - 1 for t in _calls[key]]
         _throttle(req)  # window cleared -> allowed again
         assert len(_calls[key]) == 1
+
+
+def test_valid_user_token_does_not_reset_admin_guess_backoff(monkeypatch):
+    """A bad X-Admin-Token sent with a good X-User-Token is still a failed admin guess, and the
+    user-token success must not clear the admin scope (else guesses would never back off)."""
+    import app.auth.dependencies as deps
+
+    async def verify_admin(db, token):
+        return False
+
+    async def verify_user(db, token):
+        return True
+
+    monkeypatch.setattr(deps, "verify_admin_token", verify_admin)
+    monkeypatch.setattr(deps, "verify_user_token", verify_user)
+    req = _mock_request("10.9.9.9")
+    for _ in range(3):
+        ctx = asyncio.run(deps.get_any_token(
+            req, x_admin_token="guess", x_user_token="player", x_runner_view=None, db=None, _rl=None))
+        assert ctx["is_admin"] is False
+    assert _attempts[("10.9.9.9", "admin")][0] == 3
+
