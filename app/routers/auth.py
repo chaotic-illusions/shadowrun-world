@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,9 +151,12 @@ async def regenerate_token(
 @router.delete("/tokens/{token_id}", status_code=204)
 async def revoke_token(
     token_id: int,
+    transfer_to: int | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_admin_token),
 ):
+    """Revoke a token. With ``transfer_to``, its characters (drafts included) and matrix runs
+    move to that token so the player keeps them; otherwise its characters are unclaimed."""
     result = await db.execute(select(UserToken).where(UserToken.id == token_id))
     ut = result.scalars().first()
     if not ut:
@@ -164,11 +167,24 @@ async def revoke_token(
         )
         if len(result.scalars().all()) <= 1:
             raise HTTPException(status_code=409, detail="Cannot revoke the final admin token")
-    # Unclaim any characters owned by this token's hash before deleting it
+    new_hash = None
+    if transfer_to is not None:
+        if transfer_to == token_id:
+            raise HTTPException(status_code=400, detail="Cannot transfer to the token being revoked")
+        target = (await db.execute(select(UserToken).where(UserToken.id == transfer_to))).scalars().first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Transfer target token not found")
+        new_hash = target.token_hash
+        run_result = await db.execute(
+            select(MatrixRun).where(MatrixRun.owner_token_hash == ut.token_hash)
+        )
+        for run in run_result.scalars().all():
+            run.owner_token_hash = new_hash
+    # Re-point (or unclaim) any characters owned by this token's hash before deleting it
     char_result = await db.execute(
         select(Character).where(Character.owner_token == ut.token_hash)
     )
     for char in char_result.scalars().all():
-        char.owner_token = None
+        char.owner_token = new_hash
     await db.delete(ut)
     await db.commit()
