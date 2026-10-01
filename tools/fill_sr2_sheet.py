@@ -293,7 +293,8 @@ def load_contacts(char_id, db_path=DB):
     con.close()
     out = []
     for r in rows:
-        ctype = r["contact_type"] or ("Buddy" if (r["loyalty"] or 0) >= 3 else "Contact")
+        loyalty = r["loyalty"] or 0  # untyped contacts: same tie as app.routers.contacts.contact_type_for_loyalty
+        ctype = r["contact_type"] or ("Follower" if loyalty >= 6 else "Buddy" if loyalty >= 3 else "Contact")
         out.append((r["name"], r["profession"] or "", ctype))
     return out
 

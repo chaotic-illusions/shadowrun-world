@@ -21,7 +21,7 @@ from app.schemas.character import (
     CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead,
     CharacterOwnerAssign,
 )
-from app.routers.contacts import serialize_contact, visible_contacts
+from app.routers.contacts import contact_type_for_loyalty, serialize_contact, visible_contacts
 from app.schemas.contact import ContactRead
 from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStateUpdate
 from app.schemas.reputation import ReputationRead
@@ -179,7 +179,33 @@ def _owns(char: Character, ctx: dict) -> bool:
                 and char.owner_token == hash_token(ctx["user_token"]))
 
 
-def _serialize_character(char: Character, ctx: dict) -> dict:
+async def _caller_pc_ids(db: AsyncSession, ctx: dict) -> set[int]:
+    """IDs of the PCs the caller's token owns (empty for a token that owns none)."""
+    if not ctx.get("user_token"):
+        return set()
+    rows = await db.execute(select(Character.id).where(Character.owner_token == hash_token(ctx["user_token"])))
+    return {row[0] for row in rows.all()}
+
+
+async def _owns_contact_npc(db: AsyncSession, char: Character, ctx: dict) -> bool:
+    """True when ``char`` is a chargen-made contact NPC of a runner the caller owns -- that player
+    may edit the contact's profile (_PLAYER_CONTACT_FIELDS) and sees its background."""
+    if char.is_pc or not char.origin_pc_id:
+        return False
+    return char.origin_pc_id in await _caller_pc_ids(db, ctx)
+
+
+# What a player may change on a contact NPC they own: its profile and affiliation. Connection,
+# runner links, activity, source adventure, stats and GM notes stay admin-only.
+_PLAYER_CONTACT_FIELDS = {
+    "name", "title", "archetype", "race", "nationality", "gender", "age",
+    "description", "background", "contact_skills", "organization_id", "is_independent",
+}
+
+
+def _serialize_character(char: Character, ctx: dict, contact_owner: bool = False) -> dict:
+    """``contact_owner``: the caller owns this contact NPC (_owns_contact_npc), so they see the
+    background they write. Its GM notes stay hidden either way."""
     data = CharacterRead.model_validate(char, from_attributes=True).model_dump()
     if _is_privileged_view(ctx):
         return data
@@ -187,7 +213,7 @@ def _serialize_character(char: Character, ctx: dict) -> dict:
     # notes are GM-only.
     if not (char.is_pc and _owns(char, ctx)):
         data["notes"] = None
-    if not data.get("show_background"):
+    if not data.get("show_background") and not contact_owner:
         data["background"] = None
     # An inactive org is GM-concealed: don't name it through a member's affiliation.
     if char.organization is not None and char.organization.is_active is False:
@@ -301,7 +327,8 @@ async def _create_dossier_contacts(db: AsyncSession, char: Character, contacts) 
         ctype = getattr(c, "contact_type", None)
         npc_id = None
         if ctype in _POI_PROMOTED_CONTACT_TYPES:
-            poi = Character(name=c.name, is_pc=False, archetype=c.profession, connection=c.connection)
+            poi = Character(name=c.name, is_pc=False, archetype=c.profession, connection=c.connection,
+                            origin_pc_id=char.id)
             db.add(poi)
             await db.flush()  # assign poi.id for the npc link
             npc_id = poi.id
@@ -372,12 +399,16 @@ async def my_character_ids(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    """Return IDs of characters owned by the caller's token."""
-    caller_hash = hash_token(ctx["user_token"])
-    result = await db.execute(
-        select(Character.id).where(Character.owner_token == caller_hash)
-    )
-    return {"ids": [row[0] for row in result.all()]}
+    """Return IDs of characters owned by the caller's token (``ids``), plus the contact NPCs their
+    runners' chargen made (``contact_ids``), which the caller may also edit."""
+    ids = await _caller_pc_ids(db, ctx)
+    contact_ids = []
+    if ids:
+        rows = await db.execute(
+            select(Character.id).where(Character.is_pc == False, Character.origin_pc_id.in_(ids))  # noqa: E712
+        )
+        contact_ids = sorted(row[0] for row in rows.all())
+    return {"ids": sorted(ids), "contact_ids": contact_ids}
 
 
 @router.get("/drafts", response_model=list[CharacterRead])
@@ -472,7 +503,9 @@ async def list_characters(
     if source_adventure:
         q = q.where(Character.source_adventure == source_adventure)
     result = await db.execute(q.order_by(Character.name))
-    return [_serialize_character(char, ctx) for char in result.scalars().all()]
+    my_pcs = set() if _is_privileged_view(ctx) else await _caller_pc_ids(db, ctx)
+    return [_serialize_character(char, ctx, contact_owner=bool(not char.is_pc and char.origin_pc_id in my_pcs))
+            for char in result.scalars().all()]
 
 
 @router.post("/", response_model=CharacterRead, status_code=201)
@@ -607,7 +640,7 @@ async def get_character(
     # Inactive NPCs are GM-concealed -- hide existence from players (404, not 403).
     if not char.is_pc and char.is_active is False and not _is_privileged_view(ctx):
         raise HTTPException(status_code=404, detail="Character not found")
-    return _serialize_character(char, ctx)
+    return _serialize_character(char, ctx, contact_owner=await _owns_contact_npc(db, char, ctx))
 
 
 @router.get("/{character_id}/sheet.pdf")
@@ -632,7 +665,7 @@ async def character_sheet_pdf(
         select(Contact).where(Contact.owner_id == char.id, Contact.is_active == True)  # noqa: E712
     )).scalars().all()
     contacts = [
-        (c.name, c.profession or "", c.contact_type or ("Buddy" if (c.loyalty or 0) >= 3 else "Contact"))
+        (c.name, c.profession or "", c.contact_type or contact_type_for_loyalty(c.loyalty or 1))
         for c in rows
     ]
     try:
@@ -742,14 +775,31 @@ async def update_character(
 ):
     char = await _load_character(db, character_id)
     is_admin = ctx["is_admin"]
+    contact_owner = False
     if not _is_owner_or_admin(char, ctx):
         # A hidden draft the caller doesn't own returns 404 so its existence stays private.
         if char.is_draft:
             raise HTTPException(status_code=404, detail="Character not found")
-        raise HTTPException(status_code=403, detail="Admin or character owner required")
+        contact_owner = await _owns_contact_npc(db, char, ctx)
+        # A GM-concealed (inactive) contact stays hidden from its owner too, same as on GET.
+        if contact_owner and char.is_active is False:
+            raise HTTPException(status_code=404, detail="Character not found")
+        if not contact_owner:
+            raise HTTPException(status_code=403, detail="Admin or character owner required")
 
+    if contact_owner:
+        submitted = body.model_dump(exclude_unset=True)
+        forbidden = set(submitted.keys()) - _PLAYER_CONTACT_FIELDS
+        if forbidden:
+            raise HTTPException(status_code=403, detail=f"Players cannot modify: {', '.join(sorted(forbidden))}")
+        # Only an org the player can see: a GM-concealed (inactive) one reads as not found.
+        org_id = submitted.get("organization_id")
+        if org_id is not None:
+            org = await db.get(Organization, org_id)
+            if org is None or org.is_active is False:
+                raise HTTPException(status_code=422, detail=f"Organization {org_id} not found")
     # Non-admins may only update a limited set of fields on their own PC
-    if not is_admin:
+    elif not is_admin:
         submitted = body.model_dump(exclude_unset=True)
         forbidden = set(submitted.keys()) - _PLAYER_WRITABLE_FIELDS
         if forbidden:
@@ -759,8 +809,20 @@ async def update_character(
         if "gear" in submitted:
             _assert_gear_grades_allowed(char, submitted)
 
-    await apply_update(db, char, body, exclude={"owner_token"})
-    return _serialize_character(char, ctx)
+    await apply_update(db, char, body, exclude={"owner_token"}, commit=False)
+    # A contact row copies its NPC's name and archetype (as profession) when the link is made --
+    # carry a rename/re-archetype through so runners' contact lists don't go stale.
+    changed = body.model_dump(exclude_unset=True)
+    if not char.is_pc and ({"name", "archetype"} & changed.keys()):
+        values = {}
+        if "name" in changed:
+            values["name"] = char.name
+        if "archetype" in changed:
+            values["profession"] = char.archetype
+        await db.execute(sql_update(Contact).where(Contact.npc_id == char.id).values(**values))
+    await db.commit()
+    await db.refresh(char)
+    return _serialize_character(char, ctx, contact_owner=contact_owner)
 
 
 @router.delete("/{character_id}", status_code=204)

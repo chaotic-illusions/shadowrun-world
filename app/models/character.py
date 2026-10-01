@@ -133,6 +133,11 @@ class Character(Base):
     source_adventure: Mapped[str | None] = mapped_column(String(100), default=None, index=True)
     # SHA-256 hash of the owning player's token
     owner_token: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+    # NPCs only: the runner whose character creation made this contact. Whoever owns that runner
+    # may edit the contact's profile (see characters._owns_contact_npc) -- tied to the PC rather
+    # than a token so the right follows a claim/unclaim. Plain integer, no FK: a deleted runner
+    # just leaves the contact admin-only.
+    origin_pc_id: Mapped[int | None] = mapped_column(Integer, default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(

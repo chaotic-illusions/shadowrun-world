@@ -120,3 +120,27 @@ def test_fan_content_toggle_stripped_from_enabled_books(tmp_path):
     with sqlite3.connect(database) as db:
         books = db.execute("SELECT enabled_books FROM campaign_state WHERE id = 1").fetchone()[0]
     assert json.loads(books) == ["SSC", "RIG2"]
+
+
+def test_origin_pc_id_backfills_runner_contacts(tmp_path):
+    database = tmp_path / "origin.db"
+    _alembic(database, "upgrade", "a3f6c1e8d924")
+    with sqlite3.connect(database) as db:
+        cols = "name, is_pc, race, show_background, contact_skills, connection, is_active, created_at, updated_at"
+        vals = "'Human', 0, '[]', 1, 1, '2026-10-01', '2026-10-01'"
+        db.execute(f"INSERT INTO characters (id, {cols}) VALUES (1, 'Leadbelly', 1, {vals})")
+        for npc_id, name in ((10, "Chopper"), (11, "Patch"), (12, "Johnson")):
+            db.execute(f"INSERT INTO characters (id, {cols}) VALUES (?, ?, 0, {vals})", (npc_id, name))
+        contact_cols = "owner_id, npc_id, name, contact_type, loyalty, connection, is_active"
+        db.execute(f"INSERT INTO contacts ({contact_cols}) VALUES (1, 10, 'Chopper', 'Contact', 1, 1, 1)")
+        db.execute(f"INSERT INTO contacts ({contact_cols}) VALUES (1, 11, 'Patch', NULL, 3, 1, 1)")
+        db.execute(f"INSERT INTO contacts ({contact_cols}) VALUES (1, 12, 'Johnson', 'Gang', 1, 1, 1)")
+        db.execute(f"INSERT INTO contacts ({contact_cols}) VALUES (1, NULL, 'Crew', 'Follower', 1, 1, 1)")
+    _alembic(database, "upgrade", "a7d2e5c9b130")
+    with sqlite3.connect(database) as db:
+        origins = dict(db.execute("SELECT id, origin_pc_id FROM characters WHERE is_pc = 0").fetchall())
+        types = dict(db.execute("SELECT name, contact_type || ':' || loyalty FROM contacts").fetchall())
+    # Individual contacts (chargen-typed or hand-linked) belong to the runner; a Gang tie doesn't.
+    assert origins == {10: 1, 11: 1, 12: None}
+    # The hand-linked one takes its type from Loyalty; Followers move to Loyalty 6.
+    assert types == {"Chopper": "Contact:1", "Patch": "Buddy:3", "Johnson": "Gang:1", "Crew": "Follower:6"}

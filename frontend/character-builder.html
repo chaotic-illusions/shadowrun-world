@@ -1992,7 +1992,10 @@ function commitPayload() {
         profession: (t === "Gang" || t === "Tribe") ? null : (c.archetype || null),
         contact_type: t,
         connection: 1,
-        loyalty: t === "Buddy" ? 3 : 1,
+        // Contact type sets Loyalty: Contact 1, Buddy 3, Follower 6 (SR2 p.43-44 ranks them
+        // contact < buddy < followers, who'll die for the runner). Gang/Tribe are an org tie,
+        // not an individual, and stay at the default.
+        loyalty: ({ Buddy: 3, Follower: 6 })[t] || 1,
       };
     }),
     // Verbatim wizard state so a saved/resumed draft restores every typed input losslessly
@@ -2067,7 +2070,7 @@ async function hydrateContacts(id) {
     const list = await r.json();
     state.contacts = (Array.isArray(list) ? list : []).map(ct => ({
       name: ct.name || "", archetype: ct.profession || "",
-      type: ct.contact_type || ((Number(ct.loyalty) >= 3) ? "Buddy" : "Contact"),
+      type: ct.contact_type || contactTypeForLoyalty(ct.loyalty),
     }));
   } catch (_) { /* leave contacts empty on failure */ }
 }
