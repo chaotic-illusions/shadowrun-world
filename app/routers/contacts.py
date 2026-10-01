@@ -11,6 +11,17 @@ from app.auth.dependencies import get_admin_token, get_any_token
 router = APIRouter()
 
 
+# An individual contact's type and Loyalty are tied: Contact 1, Buddy 3, Follower 6 (chargen gives
+# exactly those). Setting Loyalty therefore sets the type -- 6 Follower, 3-5 Buddy, 1-2 Contact --
+# so the GM's loyalty dots and the runner's dossier tag can't disagree. Gang/Tribe contacts are an
+# organization tie, not a person, and keep their type whatever the Loyalty.
+_ORG_TIE_TYPES = {"Gang", "Tribe"}
+
+
+def contact_type_for_loyalty(loyalty: int) -> str:
+    return "Follower" if loyalty >= 6 else "Buddy" if loyalty >= 3 else "Contact"
+
+
 def _is_privileged_view(ctx: dict) -> bool:
     """True only for a real admin NOT previewing runner view -- the full-data audience."""
     return bool(ctx.get("is_admin")) and not ctx.get("view_as_player")
@@ -70,7 +81,10 @@ async def create_contact(
     db: AsyncSession = Depends(get_db),
     _: str = Depends(get_admin_token),
 ):
-    contact = Contact(**body.model_dump())
+    data = body.model_dump()
+    if not data.get("contact_type"):
+        data["contact_type"] = contact_type_for_loyalty(data["loyalty"])
+    contact = Contact(**data)
     db.add(contact)
     await db.commit()
     await db.refresh(contact)
@@ -97,7 +111,13 @@ async def update_contact(
     _: str = Depends(get_admin_token),
 ):
     contact = await get_or_404(db, Contact, contact_id)
-    await apply_update(db, contact, body)
+    changes = body.model_dump(exclude_unset=True)
+    await apply_update(db, contact, body, commit=False)
+    # A Loyalty change re-derives the type unless the same request set the type itself.
+    if "loyalty" in changes and "contact_type" not in changes and contact.contact_type not in _ORG_TIE_TYPES:
+        contact.contact_type = contact_type_for_loyalty(contact.loyalty)
+    await db.commit()
+    await db.refresh(contact)
     return contact
 
 

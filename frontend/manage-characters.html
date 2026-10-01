@@ -275,6 +275,7 @@
       </div>
 
       <!-- Organization -->
+      <div id="affiliationSection">
       <hr class="rule my-14">
       <div class="section-head mb-12">Affiliation</div>
       <div class="field mb-14">
@@ -283,6 +284,7 @@
           <option value="independent">-- Independent --</option>
           <option value="">-- Unknown --</option>
         </select>
+      </div>
       </div>
 
       <!-- NPC Contact Profile -->
@@ -335,7 +337,7 @@
         <label>Background (Can be revealed to players)</label>
         <textarea id="f-background" rows="3" placeholder="History, motivations, secrets..."></textarea>
       </div>
-      <div class="field">
+      <div class="field" id="f-notes-wrap">
         <label>Notes (For GM Use; hidden from players)</label>
         <textarea id="f-notes" rows="2" placeholder="Current situation, loose ends..."></textarea>
       </div>
@@ -486,6 +488,8 @@ function setConnectionValue(value) {
   const picker = document.getElementById('f-connection-picker');
   if (picker) {
     picker.innerHTML = loyaltyPickerDots(n, (val) => `event.preventDefault();setConnectionValue(${val})`, 'connection');
+    // Connection is the GM's call -- shown, not settable, for players editing their contacts.
+    if (!isAdminMode()) picker.querySelectorAll('button').forEach(b => { b.disabled = true; b.removeAttribute('data-tip'); });
   }
   updateConnDesc();
 }
@@ -766,6 +770,13 @@ function updateRepPreview() {
 
 // -- Render table ----------------------------------------------
 let _myCharIds = new Set();
+// Contact NPCs the player's runners made at chargen (/characters/mine contact_ids) -- the player can
+// edit their profile (server enforces which fields; see _PLAYER_CONTACT_FIELDS).
+let _myContactIds = new Set();
+// The Affiliation picker's value when the editor opened (see saveChar's player-contact payload).
+let _loadedOrgVal = '';
+// True while a player (not the GM) has one of their own contacts open in the editor.
+function isPlayerContact(ch) { return !!ch && !ch.is_pc && !isAdminMode() && _myContactIds.has(ch.id); }
 let _lastTableHtml = null;
 
 function getMyCharIds() {
@@ -797,6 +808,7 @@ function renderTable(data) {
         ${data.map(c => {
           let editBtn = '';
           const canEdit = c.is_pc && (isAdminMode() || myIds.has(c.id));
+          const ownContact = !c.is_pc && _myContactIds.has(c.id);
           // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a
           // full chargen sheet (priorities are only ever set by the builder).
           const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
@@ -805,7 +817,7 @@ function renderTable(data) {
             : '';
           if (isAdminMode()) {
             editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
-          } else if (c.is_pc && myIds.has(c.id)) {
+          } else if ((c.is_pc && myIds.has(c.id)) || ownContact) {
             editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
           } else if (c.is_pc) {
             editBtn = `<button class="btn" style="padding:4px 10px;font-size:.65rem;color:#333;border-color:#222;cursor:default" disabled data-tip="Not your character">Edit</button>`;
@@ -835,9 +847,12 @@ function applyFilter() {
   const t = document.getElementById('filterType').value;
   buildAdventureFilter('filterAdventure', allChars);
   const adv = document.getElementById('filterAdventure').value;
-  // Status is an admin filter; players only ever see PCs, so it stays hidden (and unapplied) for them.
+  // Status is an admin filter, hidden (and unapplied) for players -- who only see their own runners
+  // and the contacts those runners made at chargen.
   const status = isAdminMode() ? document.getElementById('filterStatus').value : '';
+  const mine = c => isAdminMode() || _myCharIds.has(c.id) || _myContactIds.has(c.id);
   let filtered = allChars.filter(c =>
+    mine(c) &&
     (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q) || (c.organization_name||'').toLowerCase().includes(q)) &&
     (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc)) &&
     (!status || (status === 'active') === (c.is_active !== false)) &&
@@ -863,7 +878,9 @@ function openModal(id) {
   document.getElementById('modalAlert').className = 'alert';
 
   document.getElementById('f-name').value          = ch?.name || '';
-  document.getElementById('f-title').value         = ch?.title || '';
+  // Chargen-made contacts arrive with an archetype but no Title (which NPCs require) -- start
+  // from the archetype rather than make the player retype it.
+  document.getElementById('f-title').value         = ch?.title || (ch && !ch.is_pc ? ch.archetype || '' : '');
   const archVal = ch?.archetype || '';
   if (isPC) {
     const pcSel = document.getElementById('f-archetype-pc');
@@ -896,6 +913,7 @@ function openModal(id) {
   document.getElementById('f-is_active').checked   = ch?.is_active !== false;
   clearSelectSearch(document.getElementById('f-organization_id'));
   document.getElementById('f-organization_id').value = ch?.organization_id ? String(ch.organization_id) : (ch?.is_independent ? 'independent' : '');
+  _loadedOrgVal = document.getElementById('f-organization_id').value;
   document.getElementById('f-description').value   = ch?.description || '';
   document.getElementById('f-background').value    = ch?.background || '';
   document.getElementById('f-notes').value         = ch?.notes || '';
@@ -923,6 +941,15 @@ function openModal(id) {
   updatePCLabel();
   document.getElementById('typeField').style.display = ch ? '' : 'none';   // no PC/NPC toggle when creating (NPC only); Active reflows left
   document.getElementById('f-is_pc').disabled = !isAdminMode();
+  // A player editing one of their own contacts gets its profile and affiliation -- no Active
+  // toggle or GM notes (the server enforces the same list: _PLAYER_CONTACT_FIELDS).
+  // Connection and runner links go read-only for any non-admin (setConnectionValue /
+  // renderContactLinks). Source Adventure means nothing for a runner-made contact, so it's hidden
+  // for everyone.
+  const playerContact = isPlayerContact(ch);
+  document.getElementById('f-is_active').disabled = playerContact;
+  document.getElementById('f-notes-wrap').style.display = playerContact ? 'none' : '';
+  if (ch?.origin_pc_id) document.getElementById('f-source_adventure-wrap').style.display = 'none';
   syncSkillsSectionUI();
   renderContactLinks();
 
@@ -981,7 +1008,28 @@ async function saveChar() {
     archetypeVal = document.getElementById('f-archetype').value || null;
   }
   const effectiveTitle = isPC ? (archetypeVal || null) : (title || null);
-  const payload = (editingId && !isAdminMode())
+  const editingChar = editingId ? allChars.find(c => c.id === editingId) : null;
+  const payload = isPlayerContact(editingChar)
+    // Player editing a contact their runner made -- its profile only (_PLAYER_CONTACT_FIELDS)
+    ? {
+        name,
+        title:          effectiveTitle,
+        archetype:      archetypeVal,
+        race:           document.getElementById('f-race').value || 'Human',
+        gender:         document.getElementById('f-gender').value.trim() || null,
+        age:            parseInt(document.getElementById('f-age').value) || null,
+        nationality:    document.getElementById('f-nationality').value.trim() || null,
+        description:    document.getElementById('f-description').value.trim() || null,
+        background:     document.getElementById('f-background').value.trim() || null,
+        contact_skills: skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
+        // Affiliation only when the player changed it: a GM-concealed org reads back as "Unknown",
+        // and resending that would wipe the real affiliation.
+        ...(orgVal !== _loadedOrgVal ? {
+          organization_id: (orgVal && orgVal !== 'independent') ? parseInt(orgVal) : null,
+          is_independent:  orgVal === 'independent',
+        } : {}),
+      }
+    : (editingId && !isAdminMode())
     // Player editing their own PC -- only send fields they're allowed to modify
     ? {
         name,
@@ -1144,20 +1192,22 @@ function renderContactLinks() {
   const pcs   = allChars.filter(c => c.is_pc);
   const linkedIds = new Set(links.map(c => c.owner_id));
 
+  // Linking runners and setting Loyalty is the GM's job -- players see the links read-only.
+  const admin = isAdminMode();
   wrap.innerHTML = links.length
     ? links.map(c => {
         const owner = allChars.find(ch => ch.id === c.owner_id);
         return `<div class="promote-row">
           <span class="promote-runner">${owner ? esc(owner.name) : '#' + c.owner_id}</span>
           <span class="promote-meta promote-meta-loyalty">Loyalty ${c.loyalty}</span>
-          <span class="loyalty-dot-picker">${loyaltyPickerDots(c.loyalty || 1, (val) => `event.preventDefault();updateContactLoyaltyFromForm(${c.id},${val})`)}</span>
-          <button class="promote-remove" onclick="removeContactLinkFromForm(${c.id})" data-tip="Remove">x</button>
+          ${admin ? `<span class="loyalty-dot-picker">${loyaltyPickerDots(c.loyalty || 1, (val) => `event.preventDefault();updateContactLoyaltyFromForm(${c.id},${val})`)}</span>
+          <button class="promote-remove" onclick="removeContactLinkFromForm(${c.id})" data-tip="Remove">x</button>` : ''}
         </div>`;
       }).join('')
     : '<div style="font-size:0.68rem;color:#444;letter-spacing:1px">No runner links yet.</div>';
 
   const available = pcs.filter(p => !linkedIds.has(p.id));
-  btn.style.display = available.length ? '' : 'none';
+  btn.style.display = (admin && available.length) ? '' : 'none';
 
   const pcSel = document.getElementById('linkPcSel');
   pcSel.innerHTML = available.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
@@ -1239,6 +1289,7 @@ async function loadChars() {
     if (seq !== _loadCharsSeq) return;
     allChars = chars; allOrgs = orgs; allContacts = contacts;
     _myCharIds = new Set(mineData.ids || []);
+    _myContactIds = new Set(mineData.contact_ids || []);
 
     // Rebuilding the org picker while the edit modal is open would drop the character's selection
     // (it falls back to Independent, and saving would write that), so leave it until the modal closes.
@@ -1258,13 +1309,8 @@ async function loadChars() {
 
 bootstrapAuth().then(u => {
   if (u) {
-    if (!isAdminMode()) {
-      document.getElementById('filterType').value = 'pc';
-      document.getElementById('filterType').disabled = true;
-    } else {
-      document.getElementById('filterType').value = '';
-      document.getElementById('filterStatusWrap').style.display = '';
-    }
+    document.getElementById('filterType').value = '';
+    if (isAdminMode()) document.getElementById('filterStatusWrap').style.display = '';
     if (isAdminMode()) document.getElementById('newNpcBtn').style.display = '';
     loadContactArchetypes();
     loadChars();

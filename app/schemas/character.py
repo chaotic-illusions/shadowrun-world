@@ -210,6 +210,8 @@ class CharacterRead(CharacterBase):
     is_claimed: bool = False
     # Owning UserToken row id; filled only for admins listing drafts (so a GM can see/reassign owners).
     owner_token_id: Optional[int] = None
+    # NPCs only: the runner whose chargen made this contact (read-only; set server-side).
+    origin_pc_id: Optional[int] = None
     # Pydantic V2: Field(exclude=True) prevents owner_token from appearing in API responses
     owner_token: Optional[str] = Field(default=None, exclude=True)
     model_config = ConfigDict(from_attributes=True)

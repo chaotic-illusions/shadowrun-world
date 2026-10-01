@@ -511,6 +511,14 @@ function money(n) {
   return '¥' + (Number(n) || 0).toLocaleString('en-US');
 }
 
+/** An individual contact's type from its Loyalty (6 Follower, 3-5 Buddy, 1-2 Contact) -- for a
+ *  contact row with no stored contact_type. Same tie the API applies on every Loyalty change
+ *  (app/routers/contacts.py contact_type_for_loyalty). */
+function contactTypeForLoyalty(loyalty) {
+  const n = Number(loyalty) || 1;
+  return n >= 6 ? 'Follower' : n >= 3 ? 'Buddy' : 'Contact';
+}
+
 /** HTML-escape a string for safe insertion into HTML text and quoted HTML attributes.
  *  Never interpolate data into inline JavaScript handlers; HTML entities are decoded before
  *  those handlers are compiled. Use data attributes and addEventListener instead. */

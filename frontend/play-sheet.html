@@ -125,14 +125,23 @@
     .seg-btn.is-active[data-mode="heal"]{background:var(--green-dark);color:var(--green);}
 
     .sk-list{border:1px solid var(--border-dark);}
-    .sk-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;border-top:1px solid var(--border-dark);}
+    /* One line per skill: "Biology 5 | Medicine 7 | Surgery 9" -- general rating in white, its
+       Concentration in cyan, the Specialization in periwinkle. Wraps onto a second line only when the
+       panel is too narrow for the whole chain. */
+    .sk-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px;padding:5px 10px;border-top:1px solid var(--border-dark);
+      font-size:.78rem;color:var(--text-bright);}
     .sk-row:first-child{border-top:none;}
-    .sk-row.sub{padding-left:22px;border-left:2px solid var(--cyan);}
-    .sk-row.sub.spec{border-left-color:var(--violet);}
-    .sk-name{font-size:.78rem;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .sk-row.sub .sk-name{color:var(--text);font-size:.74rem;}
-    .sk-rating{color:var(--text-bright);font-variant-numeric:tabular-nums;font-size:.8rem;flex:none;}
-    .sk-row.sub .sk-rating{color:var(--text);}
+    .sk-part{white-space:nowrap;}
+    /* Ratings in straw at every tier, so the number reads apart from its (white/cyan/periwinkle) name. */
+    .sk-rating{font-variant-numeric:tabular-nums;margin-left:4px;color:var(--straw);}
+    .sk-part.conc{color:var(--cyan);}
+    .sk-part.spec{color:#8c9eff;}
+    .sk-sep{color:var(--text-dim);}
+    .sk-note{font-size:.66rem;color:var(--text-dim);}
+    /* Spells table: Physical drain (Force over Magic) in red; focus dice in cyan. */
+    .drain-phys{color:var(--red);font-size:.66rem;letter-spacing:.5px;}
+    .drain-note{color:var(--text-dim);font-size:.66rem;}
+    .spell-focus{color:var(--cyan);}
 
     .armor-row{display:flex;gap:12px;align-items:flex-start;}
     .armor-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;padding-top:6px;
@@ -193,6 +202,9 @@
     .gear-item{font-size:.76rem;color:var(--text-bright);padding:4px 0;border-bottom:1px solid #101c14;break-inside:avoid;}
 
     .contact-tag{font-size:.6rem;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border:1px solid var(--border-dark);flex:none;}
+    /* GM-only Contact/Buddy toggle (renderContacts) -- same look as the static tag, plus a hover cue. */
+    button.contact-tag-toggle{background:none;font-family:inherit;cursor:pointer;}
+    button.contact-tag-toggle:hover{border-color:currentColor;}
     .tag-contact{color:var(--green);border-color:var(--green-dark);}
     .tag-buddy{color:var(--cyan);border-color:#0a3a4a;}
     .tag-gangtribe{color:var(--amber);border-color:#4a3000;}
@@ -495,7 +507,7 @@
             </div>
             <div id="spellsWrap" style="display:none;">
               <div class="dim-label mb-8">Spells</div>
-              <table class="ps-data mb-8" id="spellsTbl"><thead><tr><th>Spell</th><th>Category</th><th>Force</th><th>Drain</th></tr></thead><tbody></tbody></table>
+              <table class="ps-data mb-8" id="spellsTbl"><thead><tr><th>Spell</th><th>Category</th><th>Force</th><th>Drain</th><th>Focus</th></tr></thead><tbody></tbody></table>
             </div>
             <div id="powersWrap" style="display:none;">
               <div class="dim-label mb-8">Adept Powers <span class="ghost-note">(bought at chargen only)</span></div>
@@ -1694,11 +1706,34 @@ function renderGear(){
 const CONTACT_TAG_CLASS = { Contact:'tag-contact', Buddy:'tag-buddy', Gang:'tag-gangtribe', Tribe:'tag-gangtribe', Follower:'tag-follower' };
 function renderContacts(){
   if (!CONTACTS.length) { $('#contactsList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No contacts yet.</p>'; return; }
+  // GM only: a Contact/Buddy tag is a toggle, for fixing the type picked at chargen (there's no
+  // other place to change it). Gang/Tribe/Follower are a different kind of tie and stay fixed.
+  const canToggle = isAdminMode();
   $('#contactsList').innerHTML = CONTACTS.map(c => {
-    const tag = c.contact_type || (c.loyalty >= 3 ? 'Buddy' : 'Contact');
-    return `<div class="ps-stat-row"><span class="k">${esc(c.name)}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>
-      <span class="contact-tag ${CONTACT_TAG_CLASS[tag]||''}">${esc(tag)}</span></div>`;
+    const tag = c.contact_type || contactTypeForLoyalty(c.loyalty);
+    const cls = `contact-tag ${CONTACT_TAG_CLASS[tag]||''}`;
+    const tagHtml = canToggle && (tag === 'Contact' || tag === 'Buddy')
+      ? `<button type="button" class="${cls} contact-tag-toggle" data-contact-toggle="${c.id}" title="Switch to ${tag === 'Buddy' ? 'Contact' : 'Buddy'}">${esc(tag)}</button>`
+      : `<span class="${cls}">${esc(tag)}</span>`;
+    return `<div class="ps-stat-row"><span class="k">${esc(c.name)}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>${tagHtml}</div>`;
   }).join('');
+  $$('[data-contact-toggle]').forEach(b => b.onclick = () => toggleContactType(Number(b.dataset.contactToggle)));
+}
+// The contact type sets its Loyalty, the same values chargen gives each: Contact 1, Buddy 3
+// (Follower 6, which isn't toggled here).
+async function toggleContactType(contactId){
+  const c = CONTACTS.find(x => x.id === contactId);
+  if (!c) return;
+  const toBuddy = (c.contact_type || contactTypeForLoyalty(c.loyalty)) !== 'Buddy';
+  const body = toBuddy ? { contact_type: 'Buddy', loyalty: 3 } : { contact_type: 'Contact', loyalty: 1 };
+  try {
+    const res = await apiFetch(`/contacts/${contactId}`, { method: 'PATCH', body: JSON.stringify(body) });
+    if (!res.ok) await apiThrow(res);
+    Object.assign(c, body);
+    renderContacts();
+  } catch (e) {
+    showAlert($('#alert'), `Could not update contact: ${e.message}`, true);
+  }
 }
 
 // ---------------------------------------------------------------- vehicle
@@ -1806,19 +1841,24 @@ function skillSummary(s){
 function renderSkills(){
   const skills = CHAR.skills || [];
   const rows = [];
+  const part = (cls, name, rating, note = '') =>
+    `<span class="sk-part ${cls}">${esc(name)}<span class="sk-rating">${rating}</span>${note}</span>`;
+  const sep = '<span class="sk-sep">|</span>';
   [...skills].sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(s => {
     const aug = skillAugSources(s.name);
-    const augNote = aug.length ? ` <span style="color:var(--cyan);font-size:.66rem;">+${aug.reduce((a,x)=>a+x.mag,0)} (${aug.map(x=>esc(x.n)).join(', ')})</span>` : '';
-    rows.push(`<div class="sk-row"><span class="sk-name">${esc(s.name)}${augNote}</span><span class="sk-rating">${s.rating||0}</span></div>`);
-    if (s.conc) rows.push(`<div class="sk-row sub conc"><span class="sk-name">${esc(s.conc)}</span><span class="sk-rating">${s.concRating != null ? s.concRating : (s.rating||0)+1}</span></div>`);
-    if (s.spec) rows.push(`<div class="sk-row sub spec"><span class="sk-name">${esc(s.spec)}</span><span class="sk-rating">${s.specRating != null ? s.specRating : (s.rating||0)+2}</span></div>`);
+    const augNote = aug.length ? ` <span class="sk-note">+${aug.reduce((a,x)=>a+x.mag,0)} (${aug.map(x=>esc(x.n)).join(', ')})</span>` : '';
+    let row = part('', s.name, s.rating||0, augNote);
+    if (s.conc) row += sep + part('conc', s.conc, s.concRating != null ? s.concRating : (s.rating||0)+1);
+    if (s.spec) row += sep + part('spec', s.spec, s.specRating != null ? s.specRating : (s.rating||0)+2);
+    rows.push(`<div class="sk-row">${row}</div>`);
   });
   // Skillwire/skillsoft-granted skills never enter CHAR.skills -- they live only as gear.cyber
   // lines with a `soft` type + `skill` name, and can never be raised with karma (only replaced by
   // buying a higher-rated skillsoft), so they're shown read-only with no raise path anywhere.
   const softSkills = ((CHAR.gear && CHAR.gear.cyber) || []).filter(g => g.soft && g.skill);
   softSkills.forEach(g => {
-    rows.push(`<div class="sk-row"><span class="sk-name">${esc(g.skill)} <span style="color:var(--violet);font-size:.66rem;">(Skillwire &middot; ${esc(g.n)})</span></span><span class="sk-rating">${Number(g.rating)||0}</span></div>`);
+    rows.push(`<div class="sk-row">${part('', g.skill, Number(g.rating)||0,
+      ` <span class="sk-note" style="color:var(--violet);">(Skillwire &middot; ${esc(g.n)})</span>`)}</div>`);
   });
   if (!rows.length) { $('#skillList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No skills recorded.</p>'; return; }
   $('#skillList').innerHTML = rows.join('');
@@ -1845,6 +1885,31 @@ function openPowerInfo(name){
   const owned = (CHAR.adept_powers || []).find(p => p.name === name);
   showInfoModal(`// POWER — ${name}`, powerInfoBody(POWER_CAT.get(name), owned));
 }
+// The Drain Resistance Test as the sheet shows it: "4M" = target number 4, Drain Level Moderate.
+// The TN is half the spell's Force (round down) plus the modifier in its Drain code (SR2 p.132,
+// key on p.151), never below 2 (p.88). Catalog codes write the halving as "F/2" or -- transcribed
+// from the book's division sign -- "F+2"; both mean half. Heal/Treat drain at the wound's own level.
+// Drain is Physical rather than Stun when Force exceeds the caster's Magic (p.128). null when the
+// code isn't one of these shapes (e.g. "Special").
+function spellDrainTest(spell, force, magic){
+  const m = /^\[?\(F[\/+]2\)\s*(?:([+-])\s*(\d+))?\]?\s*(\(Wound\))?\s*([LMSD])?$/.exec((spell && spell.drn) || '');
+  if (!m || !(m[3] || m[4])) return null;
+  const f = Math.max(1, Number(force) || 1);
+  const tn = Math.max(2, Math.floor(f / 2) + (m[2] ? Number(m[2]) * (m[1] === '-' ? -1 : 1) : 0));
+  return { tn, level: m[3] ? 'Wound' : m[4], physical: f > (Number(magic) || 0) };
+}
+// Spell foci bonded to this spell -- a Specific Spell Focus for it, or a Spell Category Focus for its
+// category. Each adds its Rating in dice to the Sorcery and Drain Resistance tests for the spell; it
+// doesn't change Force or the drain TN (SR2 p.137). Foci bought on this sheet record the spell or
+// category in `target`; chargen foci carry it as typed free text in `applies`.
+function spellFoci(spellName, category){
+  const norm = s => String(s || '').trim().toLowerCase();
+  return ((CHAR.gear && CHAR.gear.foci) || []).filter(f => {
+    const kind = f.n || f.type, aim = norm(f.target || f.applies);
+    return (kind === 'Specific Spell Focus' && aim === norm(spellName))
+        || (kind === 'Spell Category Focus' && aim && aim === norm(category));
+  });
+}
 function renderMagic(){
   const awakened = CHAR.magic_type && CHAR.magic_type !== 'Mundane';
   $('#magicPanel').style.display = awakened ? '' : 'none';
@@ -1859,9 +1924,17 @@ function renderMagic(){
     const spells = CHAR.spells || [];
     $('#spellsTbl tbody').innerHTML = spells.length ? spells.map(s => {
       const cat = SPELL_CAT.get(s.name) || {};
-      const info = spellCostInfo(cat, s.force);
-      return `<tr><td><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a></td><td>${esc(s.cat || cat.cat || '—')}</td><td>${s.force ?? '—'}</td><td>${info ? esc(info.label) : '—'}</td></tr>`;
-    }).join('') : `<tr><td colspan="4" class="empty-state">No spells known.</td></tr>`;
+      const category = s.cat || cat.cat;
+      const drain = spellDrainTest(cat, s.force, CHAR.magic_rating);
+      const drainCell = !drain ? esc(cat.drn || '—')
+        : (drain.level === 'Wound' ? `${drain.tn} <span class="drain-note">at wound level</span>` : `${drain.tn}${drain.level}`)
+          + (drain.physical ? ' <span class="drain-phys">Physical</span>' : '');
+      const foci = spellFoci(s.name, category);
+      const fociCell = foci.length
+        ? `<span class="spell-focus" title="${esc(foci.map(f => `${f.n || f.type} R${Number(f.rating)||1}`).join(', '))}: extra dice for casting and Drain Resistance">+${foci.reduce((t, f) => t + (Number(f.rating)||1), 0)}</span>`
+        : '—';
+      return `<tr><td><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a></td><td>${category ? esc(titleCase(category)) : '—'}</td><td>${s.force ?? '—'}</td><td>${drainCell}</td><td>${fociCell}</td></tr>`;
+    }).join('') : `<tr><td colspan="5" class="empty-state">No spells known.</td></tr>`;
   }
   const powers = CHAR.adept_powers || [];
   $('#powersTbl tbody').innerHTML = powers.length ? powers.map(p =>

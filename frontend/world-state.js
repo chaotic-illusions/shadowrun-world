@@ -1381,7 +1381,7 @@ async function renderOrgAffiliations(orgId) {
   let pcs = [], standings = [], contacts = [];
   try {
     const [pcRes, stRes, ctRes] = await Promise.all([
-      apiFetch(`${API}/characters/?is_pc=true&is_active=true`),
+      apiFetch(`${API}/characters/?is_pc=true`),
       apiFetch(`${API}/reputation/standings?organization_id=${orgId}`),
       apiFetch(`${API}/contacts/?organization_id=${orgId}`),
     ]);
@@ -1391,17 +1391,19 @@ async function renderOrgAffiliations(orgId) {
   } catch (e) { /* leave empty on failure */ }
   const pcById = {}; pcs.forEach(p => { pcById[p.id] = p; });
   const standingByChar = {}; standings.forEach(s => { standingByChar[s.character_id] = s; });
-  // Affiliation = a gang/tribe contact (npc_id null) owned by an active PC.
+  // Affiliation = a gang/tribe contact (npc_id null) owned by a PC. Every affiliated runner is
+  // listed, active or not (an inactive runner's tie and standing still exist); only active
+  // runners are offered for a new link.
   const affByChar = {};
   contacts.forEach(c => { if (c.npc_id == null && pcById[c.owner_id]) affByChar[c.owner_id] = c; });
   const linked = pcs.filter(p => affByChar[p.id]);
-  const available = pcs.filter(p => !affByChar[p.id]);
+  const available = pcs.filter(p => p.is_active !== false && !affByChar[p.id]);
 
   const rows = linked.map(p => {
     const s = standingByChar[p.id];
     const val = s ? s.standing : 0;
     return `<div class="promote-row">
-      <span class="promote-runner">${esc(p.name)}</span>
+      <span class="promote-runner">${esc(p.name)}${p.is_active === false ? ' <span style="color:#555;font-size:0.6rem">(inactive)</span>' : ''}</span>
       <span class="promote-meta">(${val > 0 ? '+' : ''}${val})</span>
       <button class="promote-remove" onclick="unlinkOrgRunner(${p.id},${orgId})" data-tip="Remove affiliation">x</button>
     </div>`;

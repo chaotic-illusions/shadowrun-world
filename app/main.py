@@ -134,6 +134,16 @@ async def _ensure_character_version_column():
         print("[startup] Added characters.version column")
 
 
+async def _ensure_character_origin_pc_id_column():
+    """Startup safety migration for characters.origin_pc_id (the runner whose chargen made a contact
+    NPC) on SQLite deployments. create_all won't add columns to an existing characters table; add
+    it in place when an older DB predates it. Idempotent. The backfill of existing contacts is
+    alembic a7d2e5c9b130's job, not this guard's.
+    """
+    if await _ensure_sqlite_column("characters", "origin_pc_id", "INTEGER"):
+        print("[startup] Added characters.origin_pc_id column")
+
+
 async def _ensure_contact_type_column():
     """Startup safety migration for contacts.contact_type on SQLite deployments. create_all won't
     add columns to an existing contacts table; add it in place when an older DB predates it.
@@ -537,6 +547,7 @@ async def lifespan(app: FastAPI):
         await _ensure_character_condition_monitor_columns()
         await _ensure_character_portrait_column()
         await _ensure_character_version_column()
+        await _ensure_character_origin_pc_id_column()
         await _ensure_contact_type_column()
         await _ensure_character_is_independent_column()
         await _ensure_org_affiliation_contact_type_column()
