@@ -422,9 +422,9 @@ async def _ensure_campaign_state_enabled_books_column():
     campaign_state table. get_campaign_state() emits every mapped column, so this
     must exist before the row is seeded below. Idempotent.
 
-    Default matches app.models.campaign's default: every official book on, fan
-    content off -- so a campaign_state row from before this column existed gets
-    backfilled the same way a brand-new campaign would.
+    Default matches app.models.campaign's default: every official book on -- so a
+    campaign_state row from before this column existed gets backfilled the same way
+    a brand-new campaign would.
     """
     default_books = json.dumps(list(OFFICIAL_BOOKS))
     if await _ensure_sqlite_column(
