@@ -237,6 +237,9 @@ const initGearPicker = (function () {
       ? `<div class="gc-blk"><h5>Notes</h5><ul>${it.notes.map(x => `<li>${esc(String(x))}</li>`).join("")}</ul></div>` : "";
     const effect = Array.isArray(it.effect) && it.effect.length
       ? `<div class="gc-blk"><h5>Effect</h5><ul>${it.effect.map(x => `<li>${esc(String(x))}</li>`).join("")}</ul></div>` : "";
+    const reqNotes = gearRequirementNotes(it);
+    const requires = reqNotes.length
+      ? `<div class="gc-blk"><h5>Requirements</h5><ul>${reqNotes.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
     const optionsBlk = Array.isArray(it.options) && it.options.length
       ? `<div class="gc-blk"><h5>Options</h5><div class="gc-opts">${it.options.map(o => {
           const on = selOpts.includes(o.n);
@@ -286,7 +289,7 @@ const initGearPicker = (function () {
       ${sl ? `<div class="gc-stat">${sl}</div>` : ""}
       <div class="gc-meta">${meta.join("")}</div>
       ${it.desc ? `<div class="gc-desc">${esc(it.desc)}</div>` : ""}
-      ${effect}${optionsBlk}${addonBlk}${notes}
+      ${requires}${effect}${optionsBlk}${addonBlk}${notes}
       <div class="gc-add">
         <span class="gc-add__f"><b>Grade</b> ${gradeCtrl}</span>
         <span class="gc-add__f"><b>Rating</b> ${ratingCtrl}</span>
