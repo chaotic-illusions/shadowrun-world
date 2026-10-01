@@ -1228,56 +1228,77 @@ function hasItem(gear, name){ return ((gear.cyber)||[]).some(g => g.n === name) 
 // hasItem() (scoped to cyber/bio only) can't see them -- a dedicated matrix-scanning check instead.
 function ownsCyberdeck(gear){ return ((gear.matrix)||[]).some(g => g.sub === 'Cyberdeck'); }
 const EYE_ITEMS = ['Rangefinder','Video Link','Optical Magnification','Electronic Magnification','Retinal Clock','Protective Covers','Eye Datajack','Optical Scanning Datajack','Optical Scanning Datajack Emitter','Eye Light System','BrightLight Addition','Eye Dart','Eye Gun','Laser Tracker','Tool Laser','Laser Designator'];
+// Ear enhancements go in either a full cyberear or a modified natural ear (SR2 core: "4,000¥ for
+// replacement, 2,000¥ for modification") -- one or the other, never both required.
+const EAR_ITEMS = ['Damper','High Frequency Hearing','Low Frequency Hearing','Recorder','Select Sound Filter (Rating 1-5)','Hearing Amplification','Spatial Recognizer','Balance Augmenter'];
+const hasEarBase = g => hasItem(g,'Cyber Ear Replacement') || hasItem(g,'Ear Modification');
+const hasDatajack = g => hasItem(g,'Datajack') || hasItem(g,'Induction Datajack') || hasItem(g,'Eye Datajack');
+const hasCyberArm = g => ownedCyberLimbSlotCount(g,'Arm') > 0;
+const hasCyberLeg = g => ownedCyberLimbSlotCount(g,'Leg') > 0;
+// Each entry carries the human-readable `needs` text alongside the check, so the purchase-block
+// message and the shop's item detail (gearRequirementNotes) both name the missing item from the
+// same place the rule is enforced.
+const req = (needs, ok) => ({ needs, ok });
 const PREREQ = {
-  ...Object.fromEntries(EYE_ITEMS.map(n => [n, g => hasItem(g,'Cyber Eye Replacement')])),
-  'Tracking Mount': g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'External Mount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Smartlink': g => hasItem(g,'Display Link'),
-  'Reflex Trigger': g => hasItem(g,'Wired Reflexes'),
-  'Improved Hand Razors': g => hasItem(g,'Hand Razors') || hasItem(g,'Retractable Hand Razors'),
-  'BrightLight One-Shot Flash-pak': g => hasItem(g,'BrightLight Addition'),
-  'Video Link Internal Transmitter': g => hasItem(g,'Video Link'),
-  'Video Link External Transmitter': g => hasItem(g,'Video Link'),
-  'Video Link External Recorder': g => hasItem(g,'Video Link'),
-  'Hearing Amplification': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
-  'Spatial Recognizer': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
-  'Balance Augmenter': g => hasItem(g,'Cyber Ear Replacement') && hasItem(g,'Ear Modification'),
-  'Sense Link Internal Transmitter': g => hasItem(g,'Sense Link'),
-  'Sense Link Receiver': g => hasItem(g,'Sense Link'),
-  'Sense Link External Transmitter': g => hasItem(g,'Sense Link'),
-  'Sense Link External Recorder': g => hasItem(g,'Sense Link'),
-  'Dermal Plating': g => hasItem(g,'Cybertorso'),
-  'Dermal Sheath': g => hasItem(g,'Cybertorso'),
-  'Body Plating: Soft Armor (per level)': g => hasItem(g,'Cybertorso'),
-  'Body Plating: Hard Armor (per level)': g => hasItem(g,'Cybertorso'),
-  'Cyberarm Gyromount': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Hand Blade (Retractable)': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Shock Hand': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Cyberarm Taser': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'CyberSquirt': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Cyber Limb — Built-In Smartlink': g => ownedCyberLimbSlotCount(g,'Arm') > 0,
-  'Foot Anchor': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
-  'Hydraulic Jack': g => ownedCyberLimbSlotCount(g,'Leg') > 0,
-  'Orientation System': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
-  'Cyber Limb — Built-In Device': g => ownedCyberLimbSlotCount(g,'Arm') > 0 || ownedCyberLimbSlotCount(g,'Leg') > 0,
-  'Reaction Enhancer': g => hasItem(g,'Wired Reflexes'),
-  'Activesoft (General)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
-  'Activesoft (Concentration)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
-  'Activesoft (Specialization)': g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus'),
-  'Knowsoft (General)': g => hasItem(g,'Softlink'),
-  'Knowsoft (Concentration)': g => hasItem(g,'Softlink'),
-  'Knowsoft (Specialization)': g => hasItem(g,'Softlink'),
-  'Linguasoft': g => hasItem(g,'Softlink'),
+  ...Object.fromEntries(EYE_ITEMS.map(n => [n, req('a Cyber Eye Replacement', g => hasItem(g,'Cyber Eye Replacement'))])),
+  ...Object.fromEntries(EAR_ITEMS.map(n => [n, req('a Cyber Ear Replacement or an Ear Modification', hasEarBase)])),
+  'Tracking Mount': req('a Cyber Eye Replacement, a Laser Designator and a Cyber Limb arm', g => hasItem(g,'Cyber Eye Replacement') && hasItem(g,'Laser Designator') && hasCyberArm(g)),
+  'External Mount': req('a Cyber Limb arm', hasCyberArm),
+  'Reflex Trigger': req('Wired Reflexes', g => hasItem(g,'Wired Reflexes')),
+  'Improved Hand Razors': req('Hand Razors or Retractable Hand Razors', g => hasItem(g,'Hand Razors') || hasItem(g,'Retractable Hand Razors')),
+  'BrightLight One-Shot Flash-pak': req('a BrightLight Addition', g => hasItem(g,'BrightLight Addition')),
+  'Video Link Internal Transmitter': req('a Video Link', g => hasItem(g,'Video Link')),
+  'Video Link External Transmitter': req('a Video Link', g => hasItem(g,'Video Link')),
+  'Video Link External Recorder': req('a Video Link', g => hasItem(g,'Video Link')),
+  'Sense Link Internal Transmitter': req('a Sense Link', g => hasItem(g,'Sense Link')),
+  'Sense Link Receiver': req('a Sense Link', g => hasItem(g,'Sense Link')),
+  'Sense Link External Transmitter': req('a Sense Link', g => hasItem(g,'Sense Link')),
+  'Sense Link External Recorder': req('a Sense Link', g => hasItem(g,'Sense Link')),
+  'Subvocal Microphone (External)': req('a Datajack', hasDatajack),
+  'Subvocal Microphone (Internal)': req('a Datajack', hasDatajack),
+  'Body Plating: Soft Armor (per level)': req('a Cybertorso', g => hasItem(g,'Cybertorso')),
+  'Body Plating: Hard Armor (per level)': req('a Cybertorso', g => hasItem(g,'Cybertorso')),
+  'Cyberarm Gyromount': req('a Cyber Limb arm', hasCyberArm),
+  'Hand Blade (Retractable)': req('a Cyber Limb arm', hasCyberArm),
+  'Shock Hand': req('a Cyber Limb arm', hasCyberArm),
+  'Cyberarm Taser': req('a Cyber Limb arm', hasCyberArm),
+  'CyberSquirt': req('a Cyber Limb arm', hasCyberArm),
+  'Cyber Limb — Built-In Smartlink': req('a Cyber Limb arm', hasCyberArm),
+  'Foot Anchor': req('a Cyber Limb leg', hasCyberLeg),
+  'Hydraulic Jack': req('a Cyber Limb leg', hasCyberLeg),
+  'Orientation System': req('a Cyber Limb (arm or leg)', g => hasCyberArm(g) || hasCyberLeg(g)),
+  'Cyber Limb — Built-In Device': req('a Cyber Limb (arm or leg)', g => hasCyberArm(g) || hasCyberLeg(g)),
+  'Activesoft (General)': req('a Softlink and Skillwires', g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus')),
+  'Activesoft (Concentration)': req('a Softlink and Skillwires', g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus')),
+  'Activesoft (Specialization)': req('a Softlink and Skillwires', g => hasItem(g,'Softlink') && hasFamily(g,'skillwirePlus')),
+  'Knowsoft (General)': req('a Softlink', g => hasItem(g,'Softlink')),
+  'Knowsoft (Concentration)': req('a Softlink', g => hasItem(g,'Softlink')),
+  'Knowsoft (Specialization)': req('a Softlink', g => hasItem(g,'Softlink')),
+  'Linguasoft': req('a Softlink', g => hasItem(g,'Softlink')),
 };
+// Same shape as PREREQ: `blockedBy` names what the item can't coexist with, `hit` is true when the
+// character already owns it.
+const excl = (blockedBy, hit) => ({ blockedBy, hit });
 const EXCLUDES = {
-  'Boosted Reflexes': g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes'),
-  'Vehicle Control Rig': g => hasItem(g,'Boosted Reflexes'),
-  'Wired Reflexes': g => hasItem(g,'Boosted Reflexes'),
-  'Reaction Enhancer': g => hasItem(g,'Move-by-Wire System'),
-  'Dermal Plating': g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3),
-  'Trauma Damper': g => hasItem(g,'Pain Editor'),
-  'Pain Editor': g => hasItem(g,'Trauma Damper'),
+  'Boosted Reflexes': excl('a Vehicle Control Rig or Wired Reflexes', g => hasItem(g,'Vehicle Control Rig') || hasItem(g,'Wired Reflexes')),
+  'Vehicle Control Rig': excl('Boosted Reflexes', g => hasItem(g,'Boosted Reflexes')),
+  'Wired Reflexes': excl('Boosted Reflexes', g => hasItem(g,'Boosted Reflexes')),
+  'Reaction Enhancer': excl('a Move-by-Wire System', g => hasItem(g,'Move-by-Wire System')),
+  'Dermal Plating': excl('Dermal Sheath R3 or Orthoskin R3', g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3)),
+  'Trauma Damper': excl('a Pain Editor', g => hasItem(g,'Pain Editor')),
+  'Pain Editor': excl('a Trauma Damper', g => hasItem(g,'Trauma Damper')),
+  'Reflex Recorder (Concentration)': excl('Skillwires', g => hasFamily(g,'skillwirePlus')),
+  'Reflex Recorder (General)': excl('Skillwires', g => hasFamily(g,'skillwirePlus')),
 };
+// "Requires X." / "Cannot be installed with Y." lines for the shop's item detail, read straight off
+// the tables above so the description can never drift from what the purchase check enforces.
+function gearRequirementNotes(item){
+  const out = [];
+  if (item.sub === 'Cyberdeck Component') out.push('Requires an owned Cyberdeck.');
+  if (PREREQ[item.n]) out.push(`Requires ${PREREQ[item.n].needs}.`);
+  if (EXCLUDES[item.n]) out.push(`Cannot be installed with ${EXCLUDES[item.n].blockedBy}.`);
+  return out;
+}
 // Shared duplicate-purchase check for "same item, different configuration is fine" cases (skillsoft
 // chip, reflex recorder, Kit/Shop/Facility type, focus target, Power Focus rating) -- true if
 // gear[bucket] already owns `name` with every [field, value, mode] tuple matching: 'ci' compares
@@ -1327,9 +1348,9 @@ function ownershipBlocked(cat, item, gear, rating){
   // entry, since PREREQ's hasItem() can't see gear.matrix at all).
   if (item.sub === 'Cyberdeck Component' && !ownsCyberdeck(gear)) return `${item.n} (needs an owned Cyberdeck)`;
   const prereq = PREREQ[item.n];
-  if (prereq && !prereq(gear)) return `${item.n} (prerequisite not met)`;
-  const excl = EXCLUDES[item.n];
-  if (excl && excl(gear)) return `${item.n} (blocked by an incompatible item already installed)`;
+  if (prereq && !prereq.ok(gear)) return `${item.n} (needs ${prereq.needs})`;
+  const exclusion = EXCLUDES[item.n];
+  if (exclusion && exclusion.hit(gear)) return `${item.n} (cannot be installed with ${exclusion.blockedBy})`;
   if (FAMILY_BY_NAME.has(item.n)) return null;
   if (LIMB_GROUP.has(item.n)) {
     return ownedLimbGroupCount(gear) >= 4 ? `${item.n} (max 4 limbs)` : null;
@@ -1485,8 +1506,7 @@ const SITUATIONAL_NOTES = {
   'Platelet Factory': () => `Platelet Factory: forces a clot against embolism/serious blood loss once daily; +1 TN to Body Tests per use (cumulative thrombosis risk).`,
   'Symbiotes': g => `Symbiotes R${g.rating||1}: heals in ${[90,70,50][(g.rating||1)-1]||90}% normal time${(g.rating||1)>=2 ? `; +${(g.rating||1)===2?50:100}% food intake` : ''}.`,
   'Suprathyroid Gland': () => `Suprathyroid Gland: requires roughly triple normal food/drink intake; tendency toward hyperactivity.`,
-  // The -2 TN bonus has nowhere to attach (no attack-TN mechanic on this sheet); the Display Link
-  // prerequisite is enforced separately in PREREQ.
+  // The -2 TN bonus has nowhere to attach (no attack-TN mechanic on this sheet).
   'Smartlink': () => `Smartlink: -2 TN on smartgun-equipped weapons.`,
   'External Mount': () => `External Mount: weapon mount, triple ammo cost for the external feed.`,
   'Articulate Arm': () => `Articulate Arm: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
