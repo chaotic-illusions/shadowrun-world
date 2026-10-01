@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import subprocess
@@ -89,13 +90,15 @@ def test_migrated_schema_matches_models(tmp_path):
 
 
 def test_matrix_runs_with_null_columns_upgrade_to_not_null(tmp_path):
+    # Pinned to the migration under test (e9b4d2a7c615 tightens matrix_runs), not FORMER_HEAD,
+    # which moves on as later migrations land.
     database = tmp_path / "nulls.db"
-    _alembic(database, "upgrade", FORMER_HEAD)
+    _alembic(database, "upgrade", "d4a7c9e2f160")
     with sqlite3.connect(database) as db:
         db.execute(
             "INSERT INTO matrix_runs (id, status, version, aar_acknowledged) VALUES (1, 'active', 0, 0)"
         )
-    _alembic(database, "upgrade", "head")
+    _alembic(database, "upgrade", "e9b4d2a7c615")
     with sqlite3.connect(database) as db:
         row = db.execute(
             "SELECT decker_json, state_json, created_at IS NOT NULL, updated_at IS NOT NULL "
@@ -105,3 +108,15 @@ def test_matrix_runs_with_null_columns_upgrade_to_not_null(tmp_path):
     assert row == ("{}", "{}", 1, 1)
     assert "house_rules" not in tables
 
+
+
+def test_fan_content_toggle_stripped_from_enabled_books(tmp_path):
+    database = tmp_path / "fan.db"
+    _alembic(database, "upgrade", "e9b4d2a7c615")
+    with sqlite3.connect(database) as db:
+        # The campaign_state singleton row is created by its own migration.
+        db.execute("UPDATE campaign_state SET enabled_books = '[\"SSC\", \"FAN\", \"RIG2\"]' WHERE id = 1")
+    _alembic(database, "upgrade", "a3f6c1e8d924")
+    with sqlite3.connect(database) as db:
+        books = db.execute("SELECT enabled_books FROM campaign_state WHERE id = 1").fetchone()[0]
+    assert json.loads(books) == ["SSC", "RIG2"]

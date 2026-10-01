@@ -9,10 +9,10 @@ from app.schemas.catalog import BookSettingsUpdate
 # Cyberware is intentionally omitted -- it is actively curated, so it is checked with a
 # resilient floor in test_cyberware_and_bioware_split_by_cost_type instead of an exact count.
 EXPECTED_COUNTS = {
-    "weapons": 520,
+    "weapons": 183,
     "armor": 34,
     "bioware": 25,
-    "gear": 111,
+    "gear": 99,
     "spells": 217,
     "adept_powers": 37,
     "vehicles": 169,
@@ -27,7 +27,7 @@ def test_catalog_loads_expected_counts(name, count):
 
 
 def test_every_item_src_is_a_known_book():
-    known = {cat.CORE_BOOK} | set(cat.OFFICIAL_BOOKS) | set(cat.FAN_BOOKS)
+    known = {cat.CORE_BOOK} | set(cat.OFFICIAL_BOOKS)
     # VR2 appears in the raw gear pull (decks/programs) but is intentionally not a
     # character-builder book; it is never enable-able, so it is excluded by filtering.
     known.add("VR2")
@@ -64,11 +64,6 @@ def test_resolve_src_codes_always_includes_core():
     assert cat.resolve_src_codes(["SSC"]) == {"SR2", "SSC"}
 
 
-def test_fan_toggle_expands_to_fan_books():
-    codes = cat.resolve_src_codes(["FAN"])
-    assert codes == {"SR2", "BSW", "RG"}
-
-
 def test_filter_catalog_core_only_excludes_expansions_and_vr2():
     weapons = cat.filter_catalog("weapons", [])
     assert weapons, "core weapons should be present"
@@ -86,22 +81,17 @@ def test_filter_catalog_ssc_adds_only_ssc_items():
     assert {w["src"] for w in with_ssc} == {"SR2", "SSC"}
 
 
-def test_fan_content_only_via_fan_toggle():
-    with_fan = cat.filter_catalog("weapons", ["FAN"])
-    assert any(w["src"] == "BSW" for w in with_fan)
-    # Enabling an official book must not pull in fan content.
-    official = cat.filter_catalog("weapons", ["SSC", "FOF"])
-    assert not any(w["src"] in cat.FAN_BOOKS for w in official)
-
-
 def test_normalize_enabled_orders_and_drops_unknown():
+    # FAN was the retired fan-content toggle; a campaign row still holding it reads as unknown.
     result = cat.normalize_enabled(["FAN", "RIG2", "SSC", "BOGUS", "SSC"])
-    assert result == ["SSC", "RIG2", "FAN"]
+    assert result == ["SSC", "RIG2"]
 
 
 def test_book_settings_update_rejects_unknown_codes():
-    BookSettingsUpdate(enabled=["SSC", "FAN"])  # ok
+    BookSettingsUpdate(enabled=["SSC", "RIG2"])  # ok
     with pytest.raises(ValueError):
         BookSettingsUpdate(enabled=["SR2"])  # SR2 is implicit, not toggleable
     with pytest.raises(ValueError):
         BookSettingsUpdate(enabled=["NOPE"])
+    with pytest.raises(ValueError):
+        BookSettingsUpdate(enabled=["FAN"])  # fan content was removed

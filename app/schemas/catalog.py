@@ -16,17 +16,9 @@ class BookInfo(BaseModel):
     enabled: bool = False
 
 
-class FanBook(BaseModel):
-    code: str
-    name: str
-    enabled: bool = False
-    includes: list[str] = []
-
-
 class BookSettingsRead(BaseModel):
     core: CoreBook
     official: list[BookInfo]
-    fan: FanBook
     enabled: list[str]
 
 

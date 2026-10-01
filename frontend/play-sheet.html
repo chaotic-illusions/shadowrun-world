@@ -163,6 +163,32 @@
       #weaponsTbl td{padding:4px 5px;}
     }
 
+
+    /* Ammunition & Explosives: up to three Name | Qty | Dmg entries per row, stepping down to two,
+       then one, as the panel narrows. Headers and entries are display:contents, so every cell sits
+       in the one shared grid and each Qty/Dmg column lines up down the whole list. The trailing
+       1px cell of each entry is the dark-amber divider between entry columns (rows have no gap,
+       so the cells join into one line); the last entry column's divider is blanked. Children 1-3
+       are the headers, so entry i (1-based) is child i+3 -- in three columns the last-column
+       entries are the 3n children, in two columns the odd ones. The headers past the visible
+       column count hide at the same breakpoints. Text sizing matches table.ps-data. */
+    .ammo-grid{display:grid;column-gap:12px;font-size:.76rem;
+      grid-template-columns:repeat(3,minmax(0,1fr) 84px max-content 1px);}
+    .ammo-hdr,.ammo-item{display:contents;}
+    .ammo-hdr > span{font-size:.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);
+      padding:0 0 6px;border-bottom:1px solid var(--border-dark);}
+    .ammo-item > span{display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #101c14;
+      color:var(--text-bright);font-variant-numeric:tabular-nums;}
+    .ammo-hdr > span:last-child,.ammo-item > .ammo-gap{border-bottom:none;background:#442200;}
+    .ammo-hdr:nth-child(3) > span:last-child,.ammo-item:nth-child(3n) > .ammo-gap{background:none;}
+    .ammo-item > .ammo-dmg{flex-direction:column;align-items:flex-start;justify-content:center;white-space:nowrap;color:var(--cyan);}
+    .ammo-gun{font-size:.64rem;color:var(--text-dim);}
+    @media (max-width:1100px){ .ammo-grid{grid-template-columns:repeat(2,minmax(0,1fr) 84px max-content 1px);} .ammo-hdr:nth-child(3){display:none;}
+      .ammo-item:nth-child(n) > .ammo-gap{background:#442200;}
+      .ammo-hdr:nth-child(2) > span:last-child,.ammo-item:nth-child(odd) > .ammo-gap{background:none;} }
+    @media (max-width:640px){ .ammo-grid{grid-template-columns:minmax(0,1fr) 84px max-content;} .ammo-hdr:nth-child(2){display:none;}
+      .ammo-item > .ammo-gap,.ammo-hdr > span:last-child{display:none;} }
+
     .gear-2col{column-count:2;column-gap:16px;}
     .gear-item{font-size:.76rem;color:var(--text-bright);padding:4px 0;border-bottom:1px solid #101c14;break-inside:avoid;}
 
@@ -439,6 +465,10 @@
           </table>
         </div>
         <p class="ghost-note mt-6">Conceal includes equipped Concealable Holster / coat bonuses (hover a value for the breakdown). Other stats are raw catalog values.</p>
+      </div>
+      <div class="ps-sec" id="ammoSec" hidden>
+        <div class="ps-sec__head"><span class="ps-sec__title sec-amber">Ammunition &amp; Explosives</span></div>
+        <div class="ammo-grid" id="ammoGrid"></div>
       </div>
     </div>
 
@@ -1411,7 +1441,7 @@ function holsterEligible(cat){ return /pistol/i.test(cat.sub||'') || cat.sub ===
 // it HAS a smartlink, not what a smartlink actually does. Where the concept is unambiguous
 // (matches one of the same real accessories WEAPON_MOD_NOTES already documents), decode it to the
 // same benefit text; a gas-vent note without a stated rating, or a note with no recognizable
-// concept (flavor text like "very reliable"), is left to just show as-is rather than guess.
+// concept, is left to just show as-is rather than guess.
 function decodeBuiltInBenefit(note){
   if (/smart\s*(gun|link)/i.test(note)) return WEAPON_MOD_NOTES['Smartgun System, Internal'];
   if (/laser/i.test(note)) return WEAPON_MOD_NOTES['Laser Sight'];
@@ -1420,21 +1450,180 @@ function decodeBuiltInBenefit(note){
   if (gv) { const n = Number(gv[1]); return `${n} pt${n===1?'':'s'} Recoil Comp`; }
   return null;
 }
-// One combined list per weapon: what's built into the gun (catalog notes, read-only) plus whatever
-// mods are actively attached (WEAPON_MOD_NAMES accessories with hostId === w.id, assigned via the
-// MOD button/openManageWeaponMods). Shown together since a player doesn't care which bucket a given
-// bonus came from -- they just want the full picture for that gun.
+// A catalog note that names a built-in accessory (smartlink, scope, bipod, folding stock, recoil
+// comp, ...) -- as opposed to flavor, pricing or rules text ("intimidating profile", "uses heavy-
+// pistol ranges"). "Accepts/Can mount ..." notes describe mounting options, not a fitted accessory.
+const BUILT_IN_ACCESSORY = /smart\s*(gun|link)|smartscope|laser|silencer|suppressor|gas-vent|recoil (comp|pad|reduc)|bipod|tripod|stock|scope|sight|imaging|magnification|grenade launcher|sensors/i;
+function isBuiltInAccessory(note){ return BUILT_IN_ACCESSORY.test(note) && !/^(can mount|accepts|mounts)\b/i.test(note); }
+// One combined list per weapon: the accessories built into the gun (isBuiltInAccessory notes) plus
+// whatever mods are actively attached (WEAPON_MOD_NAMES accessories with hostId === w.id, assigned
+// via the MOD button/openManageWeaponMods). Shown together since a player doesn't care which bucket
+// a given bonus came from -- they just want the full picture for that gun.
 function weaponModEntries(w, cat, weapons){
-  const builtIns = (Array.isArray(cat.notes) ? cat.notes : []).map(note => ({ n: note, benefit: decodeBuiltInBenefit(note) }));
+  const builtIns = (Array.isArray(cat.notes) ? cat.notes : []).filter(isBuiltInAccessory)
+    .map(note => ({ n: note, benefit: decodeBuiltInBenefit(note) }));
   const attached = weapons.filter(g => WEAPON_MOD_NAMES.has(g.n) && g.hostId === w.id)
     .map(g => ({ n: g.n, benefit: WEAPON_MOD_NOTES[g.n] }));
   return [...builtIns, ...attached];
 }
+// ---- damage codes
+// Strength-based catalog codes resolved to numbers: "(STR+2)M Stun" at Strength 5 -> "7M Stun".
+// "(STR Min...)" is a bow's own Strength Minimum (weaponStrengthMin, shared.js -- SR2 p.238);
+// melee and thrown weapons use the wielder's Strength. A code we can't resolve (no rating on the
+// bow, or a form like "(STR÷2)L") shows as printed. Shock weapons' damage is always Stun (SR2
+// p.103), which a taser's catalog code ("10S") doesn't spell out.
+function weaponDamage(w, cat){
+  let dmg = String(cat.dmg || '');
+  if (cat.sub === 'Taser' && /^\d+[LMSD]$/.test(dmg)) dmg += ' Stun';
+  const m = dmg.match(/^\(STR( Min)?\s*(?:([+\-–])\s*(\d+))?\)(.*)$/i);
+  if (!m) return dmg;
+  const str = Number(m[1] ? weaponStrengthMin(w, cat) : CHAR.strength);
+  if (!str) return dmg;
+  const offset = m[3] ? Number(m[3]) * (m[2] === '+' ? 1 : -1) : 0;
+  return `${str + offset}${m[4]}`;
+}
+// SR2 ammunition rules as changes to the firing weapon's Damage Code: Explosive +1 Power, Flechette
+// +1 Damage Level (written "(f)", as the books do), Gel -2 Power and Stun (SR2 p.93); Stun Rounds
+// are the same rule ("Gel (Stun) Rounds") but shotgun-only (p.241); EX Explosive +2 Power (Fields of
+// Fire p.51); APDS and Tracer change armor/to-hit, not damage. Arrows/bolts do the bow's damage.
+// Narcoject Rounds do the toxin's 6D Stun whatever fires them (SR2 p.186); Taser Darts do the
+// taser's damage, which is always Stun (p.103 -- weaponDamage adds it). Ammo with no rule here
+// (grenades, missiles, mortar rounds) shows its own catalog Damage Code.
+// `fits` picks which owned weapons can load it; the default is any firearm with a numeric code
+// except the assault cannon, which only takes its own rounds.
+const AMMO_LEVELS = ['L', 'M', 'S', 'D'];
+const fitsFirearm = c => ['firearm', 'heavy', 'exotic'].includes(c.cat) && !!c.ammo && !/assault cannon|taser/i.test(c.sub||'');
+const fitsBelt = c => fitsFirearm(c) && /belt/i.test(c.ammo);
+const fitsCannon = c => /assault cannon/i.test(c.sub||'');
+const AMMO_RULES = {
+  'Regular Ammo': {}, 'APDS Ammunition': {}, 'Tracer Ammo': {},
+  'Explosive Rounds': { power: 1 }, 'EX Explosive Ammo': { power: 2 },
+  'Flechette Rounds': { level: 1, flechette: true },
+  'Gel Rounds': { power: -2, stun: true },
+  'Stun Rounds': { power: -2, stun: true, fits: c => /shotgun/i.test(c.sub||'') },
+  'Belted Regular Ammo': { fits: fitsBelt }, 'Belted APDS Rounds': { fits: fitsBelt },
+  'Belted Explosive Ammo': { power: 1, fits: fitsBelt },
+  'Belted Flechette Ammo': { level: 1, flechette: true, fits: fitsBelt },
+  'Belted Gel Rounds': { power: -2, stun: true, fits: fitsBelt },
+  'Assault Cannon Ammo': { fits: fitsCannon }, 'Cannon Ammunition (Assault Cannon)': { fits: fitsCannon },
+  'Belt 100 (belted ammo)': { fits: fitsCannon }, 'Belted Assault Cannon Ammo': { fits: fitsCannon },
+  'Arrows': { fits: c => c.sub === 'Bow' }, 'Precision Arrows': { fits: c => c.sub === 'Bow' },
+  'Bolts': { fits: c => c.sub === 'Crossbow' },
+  'Narcoject Round': { fixed: '6D Stun' },
+  'Taser Dart': { fits: c => c.sub === 'Taser' },
+};
+// One {weapon, dmg} per distinct owned weapon that can fire this ammo; null when the ammo has no
+// rule above (its own catalog code -- grenades, mortar rounds, shotgun specialty shells -- is used).
+function ammoDamageByWeapon(ammoName, weapons){
+  const rule = AMMO_RULES[ammoName];
+  if (!rule) return null;
+  if (rule.fixed) return [{ weapon: '', dmg: rule.fixed }];
+  const fits = rule.fits || fitsFirearm;
+  const out = [];
+  weapons.forEach(w => {
+    const cat = WEAPON_CAT.get(w.n) || {};
+    if (!fits(cat) || out.some(o => o.weapon === w.n)) return;
+    const m = weaponDamage(w, cat).match(/^(\d+)([LMSD])(.*)$/);
+    if (!m) return;
+    // A gun whose listed code is already a flechette load (Roomsweeper "9S(f)") gains nothing more.
+    if (rule.flechette && /\(f\)/.test(m[3])) { out.push({ weapon: w.n, dmg: m[0] }); return; }
+    const power = Number(m[1]) + (rule.power || 0);
+    const level = AMMO_LEVELS[Math.min(3, AMMO_LEVELS.indexOf(m[2]) + (rule.level || 0))];
+    out.push({ weapon: w.n, dmg: `${power}${level}${rule.flechette ? '(f)' : ''}${rule.stun ? ' Stun' : m[3]}` });
+  });
+  return out;
+}
+// Ammo and explosives are consumables -- bought by the box or each, nothing to equip or mod -- so
+// they stack into the Ammunition & Explosives table under Weapons instead of each taking a row in
+// the Weapons table. Bucketed by the shop's own taxonomy (catalog-taxonomy.js), so arrows/bolts
+// and rockets/missiles count as ammo there too.
+function isWeaponConsumable(cat){
+  const group = weaponGroupLabel(cat);
+  return group === 'Ammunition' || group === 'Explosives & Grenades';
+}
+// Every WEAPON_MOD_NAMES accessory is a gun/launcher/bow part -- nothing to fit on a melee weapon.
+function weaponModdable(cat){ return cat.cat !== 'melee'; }
+// Rounds (or items) one purchased line holds. SR2 sells firearm ammo by the 10-round box, so a
+// line is 10 rounds unless the catalog says otherwise: a belt's size is its rateLabels entry
+// (100-1000), "Belt 100" is 100, Precision Arrows are sold singly, and missile/mortar rounds plus
+// everything in the explosive cat (grenades, rockets, mines, plastic by the kilo) count one each.
+// Sourcebook ammo with no stated unit follows the core 10-round box.
+function ammoUnitSize(line, cat){
+  if (cat.cat !== 'ammo' && !/arrow|bolt/i.test(cat.sub||'')) return 1;
+  if (Array.isArray(cat.rateLabels)) return Number(cat.rateLabels[(Number(line.rating) || 1) - 1]) || 1;
+  const notes = (Array.isArray(cat.notes) ? cat.notes : []).join(' ');
+  if (/100 rounds/i.test(notes)) return 100;
+  if (/cost is per arrow/i.test(notes) || /missile|mortar/i.test(cat.sub||'')) return 1;
+  return 10;
+}
+// A line's remaining count: `rounds` once it's been spent from (see setConsumableCount), else a
+// full unit -- so a fresh purchase needs no extra field and older characters read correctly.
+function lineRounds(line, cat){ return line.rounds != null ? Number(line.rounds) || 0 : ammoUnitSize(line, cat); }
+// Sum every consumable line (one stored line per box/item bought) into {n, cat, count}.
+function groupConsumables(weapons){
+  const grouped = [];
+  weapons.forEach(w => {
+    const cat = WEAPON_CAT.get(w.n) || {};
+    if (cat.cat === 'accessory' || !isWeaponConsumable(cat)) return;
+    const existing = grouped.find(g => g.n === w.n);
+    if (existing) existing.count += lineRounds(w, cat); else grouped.push({ n: w.n, cat, count: lineRounds(w, cat) });
+  });
+  return grouped;
+}
+// Set a consumable's total (rounds spent or reloaded): its lines collapse into the first one, which
+// carries the new total in `rounds`. At 0 the row stays (showing empty) until removed in Manage.
+// Saves run one at a time in click order, and each applies its change to CHAR.gear only when its
+// turn comes -- patchChar swaps in the server's copy of CHAR.gear after every save, so a change
+// made to the old copy while an earlier save was in flight would otherwise be lost.
+let consumableSaveQueue = Promise.resolve();
+function setConsumableCount(name, total){
+  consumableSaveQueue = consumableSaveQueue.then(() => {
+    const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+    const lines = weapons.filter(w => w.n === name);
+    if (!lines.length) return;
+    lines[0].rounds = total;
+    lines.slice(1).forEach(l => weapons.splice(weapons.indexOf(l), 1));
+    return patchGear();
+  });
+}
+// The ammo's damage as fired from each owned weapon that takes it -- just the code when only one
+// weapon can fire it, one line per weapon (named) when several can, "—" when none is owned.
+function ammoDmgCell(g, weapons){
+  const byWeapon = ammoDamageByWeapon(g.n, weapons);
+  if (!byWeapon) return esc(g.cat.dmg || '—');
+  if (!byWeapon.length) return '—';
+  if (byWeapon.length === 1) return `<span title="${esc(byWeapon[0].weapon)}">${esc(byWeapon[0].dmg)}</span>`;
+  return byWeapon.map(o => `<div>${esc(o.dmg)} <span class="ammo-gun">${esc(o.weapon)}</span></div>`).join('');
+}
+function renderAmmo(weapons){
+  const grouped = groupConsumables(weapons);
+  $('#ammoSec').hidden = !grouped.length;
+  if (!grouped.length) { $('#ammoGrid').innerHTML = ''; return; }
+  // The count uses the site's in-field number stepper (initNumSteppers, which keeps the inline
+  // width) -- hold an arrow to repeat, or type a value.
+  const countCell = g => !CAN_EDIT ? String(g.count)
+    : `<input type="number" min="0" step="1" class="ammo-count" style="width:84px;" value="${g.count}" data-ammo-n="${esc(g.n)}" aria-label="${esc(g.n)} count">`;
+  // Up to three entries side by side (fewer on narrower screens -- see .ammo-grid); one header per
+  // visible column, the extras hidden by the same breakpoints.
+  const header = '<div class="ammo-hdr"><span>Name</span><span>Qty</span><span>Dmg</span><span></span></div>';
+  $('#ammoGrid').innerHTML = header.repeat(3) + grouped.map(g =>
+    `<div class="ammo-item" data-ammo-item="${esc(g.n)}"><span class="ammo-name">${esc(g.n)}</span>
+      <span>${countCell(g)}</span><span class="ammo-dmg">${ammoDmgCell(g, weapons)}</span><span class="ammo-gap"></span></div>`).join('');
+  // Saves in the background without re-rendering -- nothing else on the sheet depends on the count,
+  // and rebuilding the row mid-hold would cut off the stepper's auto-repeat.
+  $$('#ammoGrid .ammo-count').forEach(input => input.onchange = () => {
+    const next = Math.max(0, Math.floor(Number(input.value) || 0));
+    input.value = next;
+    setConsumableCount(input.dataset.ammoN, next);
+  });
+  initNumSteppers($('#ammoGrid'));
+}
 function renderWeapons(){
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
+  renderAmmo(weapons);
   // Every carried weapon shows, equipped or not -- same convention as Armor's (E) badge, rather
   // than hiding unequipped ones. Manage Weapons toggles equip state / removes.
-  const rows = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
+  const rows = weapons.filter(w => { const cat = WEAPON_CAT.get(w.n) || {}; return cat.cat !== 'accessory' && !isWeaponConsumable(cat); });
   if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="12" class="empty-state">No weapons owned.</td></tr>`; return; }
   const coatBonus = armorConcealBonus();
   $('#weaponsTbl tbody').innerHTML = rows.map((w,i) => {
@@ -1460,10 +1649,10 @@ function renderWeapons(){
     const modEntries = weaponModEntries(w, cat, weapons);
     const modsList = modEntries.map(m => m.n).join(', ');
     const modsTitle = modEntries.map(m => m.benefit ? `${m.n} — ${m.benefit}` : m.n).join('\n');
-    return `<tr><td>${esc(w.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</td><td>${esc(cat.sub||'')}</td><td>${esc(cat.mode||'')}</td><td>${esc(cat.dmg||'')}</td>
+    return `<tr><td>${esc(w.n)}${equipped ? '<span class="equip-badge">(E)</span>' : ''}</td><td>${esc(cat.sub||'')}</td><td>${esc(cat.mode||'')}</td><td>${esc(weaponDamage(w, cat))}</td>
       <td>${esc(cat.ammo||'')}</td><td${concealTitle}>${concealCell}</td><td>${esc(short)}</td><td>${esc(med)}</td><td>${esc(long)}</td><td>${esc(extreme)}</td>
       <td><span class="dim-meta" style="font-size:.72rem;white-space:normal;"${modsTitle ? ` title="${esc(modsTitle)}"` : ''}>${modsList ? esc(modsList) : '—'}</span></td>
-      <td style="white-space:nowrap;">${CAN_EDIT ? `<button type="button" class="btn btn-amber btn-sm" data-mod-weapon="${esc(w.id)}">MOD</button>` : ''}</td></tr>`;
+      <td style="white-space:nowrap;">${CAN_EDIT && weaponModdable(cat) ? `<button type="button" class="btn btn-amber btn-sm" data-mod-weapon="${esc(w.id)}">MOD</button>` : ''}</td></tr>`;
   }).join('');
   $$('[data-mod-weapon]').forEach(b => b.onclick = () => openManageWeaponMods(b.dataset.modWeapon));
 }
@@ -2043,7 +2232,7 @@ function openManageWeapons(){
 }
 function renderManageWeapons(){
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
-  const carried = weapons.filter(w => (WEAPON_CAT.get(w.n)||{}).cat !== 'accessory');
+  const carried = weapons.filter(w => { const cat = WEAPON_CAT.get(w.n) || {}; return cat.cat !== 'accessory' && !isWeaponConsumable(cat); });
   const rows = carried.map(w => {
     const i = weapons.indexOf(w);
     const equipped = w.equipped !== false;
@@ -2053,7 +2242,18 @@ function renderManageWeapons(){
         <button class="row-x" data-remove-weapon="${i}" title="Remove">&#10005;</button>
       </span></div>`;
   }).join('') || '<p class="empty-state">No weapons owned.</p>';
-  $('#modalBody').innerHTML = rows + buyShortcutRow('weapons', 'Buy Weapon');
+  // Consumables stack here too, one row per name with its total. Spending happens on the sheet's
+  // count stepper, so ✕ here discards the whole stack.
+  const consumables = groupConsumables(weapons);
+  const ammoRows = consumables.length ? `<div class="armor-slot-head mt-10">Ammunition &amp; Explosives</div>` + consumables.map(g =>
+    `<div class="ps-stat-row"><span class="k">${esc(g.n)} — ${g.count}</span>
+      <button class="row-x" data-remove-consumable="${esc(g.n)}" title="Remove all">&#10005;</button></div>`
+  ).join('') : '';
+  $('#modalBody').innerHTML = rows + ammoRows + buyShortcutRow('weapons', 'Buy Weapon');
+  $$('[data-remove-consumable]').forEach(b => b.onclick = () => {
+    CHAR.gear.weapons = weapons.filter(w => w.n !== b.dataset.removeConsumable);
+    patchGear().then(() => { renderWeapons(); renderManageWeapons(); });
+  });
   $$('[data-equip-weapon]').forEach(b => b.onclick = () => {
     const w = weapons[Number(b.dataset.equipWeapon)];
     w.equipped = w.equipped === false ? true : false;
@@ -2217,7 +2417,6 @@ const WEAPON_MOD_NOTES = {
   'Smart Goggles': 'substitutes for Smartlink cyberware',
   'Ultrasound Sight': 'reveals targets in dark/thermo-countered/invisible',
   'Ultrasound Goggles': 'halves visibility penalties',
-  'Electrothermal Ammo Enhancement': '+50% Power/range, insulated vs electrical attacks',
   'Smartgun System, Internal': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles',
   'Smartgun System, External': 'Smartlink-ready, -2 TN with a Smartlink or Smart Goggles, -2 Conceal',
 };

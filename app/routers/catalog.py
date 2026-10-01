@@ -18,7 +18,6 @@ from app.schemas.catalog import (
     ContactArchetypeCreate,
     CoreBook,
     CyberwareCreate,
-    FanBook,
 )
 from app.services.campaign import get_campaign_state
 
@@ -34,12 +33,6 @@ def _book_settings(enabled: list[str]) -> BookSettingsRead:
             BookInfo(code=code, name=name, enabled=code in enabled_set)
             for code, name in cat.OFFICIAL_BOOKS.items()
         ],
-        fan=FanBook(
-            code=cat.FAN_TOGGLE,
-            name=cat.FAN_TOGGLE_NAME,
-            enabled=cat.FAN_TOGGLE in enabled_set,
-            includes=[f"{code} ({name})" for code, name in cat.FAN_BOOKS.items()],
-        ),
         enabled=normalized,
     )
 

@@ -84,12 +84,7 @@ def _route(route):
         ]
         route.fulfill(json={"enabled": enabled,
                             "core": {"code": "SR2", "name": "Shadowrun, Second Edition"},
-                            "official": official,
-                            # includes: real /catalog/books responses always carry this (schema
-                            # default []) -- manage-sourcebooks.html does an unconditional
-                            # fan.includes.join(...), which throws against a stub missing it.
-                            "fan": {"code": "FAN", "name": "Fan Content", "enabled": "FAN" in enabled,
-                                    "includes": ["BSW", "RG"]}})
+                            "official": official})
     elif "/catalog/skill-specs" in url:
         if route.request.method == "PUT":
             specs = (route.request.post_data_json or {}).get("specs", {})
@@ -268,7 +263,7 @@ def _convert_route(route):
         route.fulfill(json=cat.get_rules())
     elif "/catalog/books" in url:
         route.fulfill(json={"enabled": ["SSC", "CYB"], "core": {"code": "SR2", "name": "SR2"},
-                            "official": [], "fan": {"code": "FAN", "name": "Fan"}})
+                            "official": []})
     elif "/catalog/" in url:
         name = url.split("/catalog/")[1].split("?")[0].strip("/")
         items = cat.get_catalog(name) if name in cat.ITEM_CATALOGS else []

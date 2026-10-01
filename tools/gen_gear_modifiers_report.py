@@ -68,13 +68,8 @@ ROWS = [
     ("weapons.json", "Franchi SPAS-22", "1 Recoil Reduction; +2 recoil mod; Integral Smartlink II", "Recoil Comp 1 (+2 pen); Smartlink -2 TN", "smartlink / recoil_comp / recoil_penalty", "Weapon modifiers"),
     ("weapons.json", "MP Laser", "No recoil penalty; halves Ballistic/Impact armor", "Recoil immune; armor halved", "no_recoil / halve_armor", "Weapon modifiers"),
     ("weapons.json", "Ares MP Laser III", "Ballistic ignored; Impact halved; Power -2 per band > Short", "Full ballistic bypass; power falloff", "armor_bypass / power_falloff", "Weapon modifiers"),
-    ("weapons.json", "Flash-Bang Grenade (BSW)", "+5 to target numbers from the flash", "+5 TN to targets", "flash_tn", "Gear note"),
-    ("weapons.json", "(~35 BSW firearms)", "Integrated smartlink / gas-vent recoil / laser sight", "Same recoil/smartlink/laser gaps as above", "recoil_comp / smartlink / laser_sight", "Weapon modifiers"),
     # ---- gear.json ----
-    ("gear.json", "Sneak Suit", "+4 to all TNs to spot the wearer", "+4 TN to spot (when active)", "perception_penalty_to_spot", "Gear note"),
-    ("gear.json", "Thermographic Camouflage Dye", "mixed thermo/normal viewers get +2 spotting penalty", "+2 TN mixed-vision spotters (+4 thermo)", "perception_penalty_mixed", "Gear note"),
     ("gear.json", "RadTech SmartWheel", "+1 effective Quickness for skating only", "+1 Quickness (skating)", "qck_bonus / scope=skating", "Gear note"),
-    ("gear.json", "StreetMaster PoonGun", "Taser ranges at +1 to all TNs", "+1 TN to all attacks", "tn_penalty", "Weapon modifiers"),
     # ---- cyberware.json ----
     ("cyberware.json", "Smartlink", "reduces TN on smartgun weapons by 2", "-2 TN on smartgun weapons", "smartlink", "Weapon modifiers"),
     ("cyberware.json", "Dermal Plating L1/L2/L3", "+1/2/3 Body for resisting damage", "+N Ballistic & Impact armor", "ballistic_bonus / impact_bonus", "Armor total"),
