@@ -2181,9 +2181,10 @@ async function loadAll() {
     // Build lookup for non-NPC contacts (contacts without a character record)
     nonNpcContactStore = {};
     mergedContacts.forEach(m => { if (!m.npc_id) nonNpcContactStore[m.id] = m; });
-    // NPCs who are NOT listed as an active contact's npc_id go in the Known Persons roster.
+    // NPCs who are NOT listed as any contact's npc_id go in the Known Persons roster. A contact
+    // whose runner is inactive is simply hidden -- it does not fall back to being a POI.
     // Admins see all POIs; runners only see the ones the GM has flagged active.
-    const contactNpcIds = new Set(activeContacts.map(c => c.npc_id).filter(Boolean));
+    const contactNpcIds = new Set(contacts.map(c => c.npc_id).filter(Boolean));
     const npcs         = chars.filter(c => !c.is_pc && !contactNpcIds.has(c.id)
       && (isAdminMode() || c.is_active !== false));
 
@@ -2211,23 +2212,23 @@ async function loadAll() {
         + `<div class="gm-only" style="text-align:left;margin-top:12px"><button class="btn btn-red btn-sm" onclick="resetPcData()">&gt;&gt; RESET ALL PC DATA</button></div>`,
         'manage-characters.html');
 
-    // -- 2. Contacts (expanded) --------------------------------
+    // -- 2. Faction Reputation ---------------------------------
+    html += section('factions', 'Faction Reputation',
+      buildFactionRepSection(activePcs, charRepStore, getMyCharIds()));
+
+    // -- 3. Contacts (expanded) --------------------------------
     if (visibleContacts.length)
       html += section('contacts', 'Contacts',
         `<div class="contact-grid">${visibleContacts.map(c => buildContactCard(c, charMap, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
-    // -- 2.5 Faction Reputation --------------------------------
-    html += section('factions', 'Faction Reputation',
-      buildFactionRepSection(activePcs, charRepStore, getMyCharIds()));
-
-    // -- 3. Persons of Interest (expanded) ---------------------
+    // -- 4. Persons of Interest (expanded) ---------------------
     if (npcs.length)
       html += section('npcs', 'Persons of Interest',
         `<div class="char-grid">${npcs.map(c => buildCharCard(c, orgMap)).join('')}</div>`,
         'manage-characters.html');
 
-    // -- 4. Organizations (collapsed) -------------------------
+    // -- 5. Organizations (collapsed) -------------------------
     // Admins see all orgs (inactive ones get the toggle + overlay on their card);
     // players only ever receive active orgs from the API, but filter defensively too.
     const activeOrgs = orgs.filter(o => isAdminMode() || o.is_active);
@@ -2245,7 +2246,7 @@ async function loadAll() {
         'manage-organizations.html', true);
     });
 
-    // -- 5. Locations (collapsed) ------------------------------
+    // -- 6. Locations (collapsed) ------------------------------
     if (locs.length)
       html += section('locs', 'Known Locations',
         `<div class="loc-grid">${locs.map(l => buildLocCard(l, orgMap)).join('')}</div>`,
