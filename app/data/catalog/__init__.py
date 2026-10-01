@@ -37,16 +37,8 @@ OFFICIAL_BOOKS = {
     "RIG2": "Rigger 2",
 }
 
-# A single "Fan Content" toggle expands to these non-canon fan works (default off).
-FAN_TOGGLE = "FAN"
-FAN_TOGGLE_NAME = "Fan Content"
-FAN_BOOKS = {
-    "BSW": "Blackhand's Street Weapons 2057",
-    "RG": "Running Gear",
-}
-
 # Everything a campaign may switch on (SR2 is implicit and excluded here).
-TOGGLEABLE_CODES = set(OFFICIAL_BOOKS) | {FAN_TOGGLE}
+TOGGLEABLE_CODES = set(OFFICIAL_BOOKS)
 
 
 @lru_cache(maxsize=None)
@@ -223,14 +215,9 @@ def set_archetype_starter_skills(name: str, skills: list[str]) -> dict:
 def resolve_src_codes(enabled: list[str] | None) -> set[str]:
     """Expand a campaign's enabled toggles into the set of allowed ``src`` codes.
 
-    ``SR2`` is always included; ``FAN`` expands to the individual fan-book codes.
+    ``SR2`` is always included.
     """
-    enabled_set = set(enabled or [])
-    codes = {CORE_BOOK}
-    codes |= enabled_set & set(OFFICIAL_BOOKS)
-    if FAN_TOGGLE in enabled_set:
-        codes |= set(FAN_BOOKS)
-    return codes
+    return {CORE_BOOK} | (set(enabled or []) & set(OFFICIAL_BOOKS))
 
 
 def filter_catalog(name: str, enabled: list[str] | None) -> list[dict]:
@@ -240,10 +227,6 @@ def filter_catalog(name: str, enabled: list[str] | None) -> list[dict]:
 
 
 def normalize_enabled(codes: list[str] | None) -> list[str]:
-    """Drop unknown codes and dedupe, returning official books in display order
-    followed by the FAN toggle when present."""
+    """Drop unknown codes and dedupe, returning official books in display order."""
     code_set = set(codes or [])
-    ordered = [code for code in OFFICIAL_BOOKS if code in code_set]
-    if FAN_TOGGLE in code_set:
-        ordered.append(FAN_TOGGLE)
-    return ordered
+    return [code for code in OFFICIAL_BOOKS if code in code_set]

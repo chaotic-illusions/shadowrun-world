@@ -1652,8 +1652,17 @@ function displayBands(bands){
   });
 }
 
-/** Display bands for one weapon. `cat` is its weapons.json catalog row; `strength` only
- *  matters for the strength-scaled classes (bows, crossbows, thrown). */
+/** A bow's or crossbow's Strength Minimum, which sets its range (and a bow's damage) -- SR2 p.238.
+ *  A Standard Bow's is the rating it was bought at; other bows/crossbows print it in their notes
+ *  ("Strength Minimum 5." / "minimum Strength 3"). null when neither gives one. */
+function weaponStrengthMin(w, cat){
+  if (Number(w.rating) && /\bSTR Min\b/i.test(cat.dmg || '')) return Number(w.rating);
+  const m = (Array.isArray(cat.notes) ? cat.notes : []).join(' ').match(/(?:strength minimum|minimum strength)\s*(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
+/** Display bands for one weapon. `cat` is its weapons.json catalog row; `strength` (the
+ *  wielder's) only matters for thrown weapons, and for a bow/crossbow with no Strength Minimum. */
 function weaponRangeBands(w, cat, strength){
   let bands = NAME_RANGE[w.n] || RANGE_TABLE[cat.sub];
   if (!bands) {
@@ -1663,7 +1672,8 @@ function weaponRangeBands(w, cat, strength){
       const key = lname.includes('light') ? 'light' : lname.includes('heavy') ? 'heavy' : 'medium';
       mults = CROSSBOW_MULT[key];
     }
-    if (mults) bands = strRangeBands(mults, strength);
+    const strMin = (cat.sub === 'Bow' || cat.sub === 'Crossbow') ? weaponStrengthMin(w, cat) : null;
+    if (mults) bands = strRangeBands(mults, strMin || strength);
   }
   return displayBands(bands || ['-','-','-','-']);
 }

@@ -5,7 +5,7 @@ from app.db.base import Base
 
 
 def _default_enabled_books() -> list:
-    """All official sourcebooks on, fan content off, for a brand-new campaign."""
+    """All official sourcebooks on, for a brand-new campaign."""
     return list(OFFICIAL_BOOKS)
 
 
@@ -25,8 +25,7 @@ class CampaignState(Base):
     # Absolute campaign clock, in ticks (days). Monotonically increasing.
     current_tick: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Enabled optional sourcebook toggles for the gear/spell catalogs (SR2 core is
-    # always on and never listed here). "FAN" enables the non-canon fan books.
-    # Default: every official book on, fan content off.
+    # always on and never listed here). Default: every official book on.
     enabled_books: Mapped[list] = mapped_column(JSON, nullable=False, default=_default_enabled_books)
     # One-time marker: existing PCs were backfilled to is_independent=True (runners default to
     # "Independent" affiliation). Prevents a startup backfill from re-flipping a deliberate "Unknown".

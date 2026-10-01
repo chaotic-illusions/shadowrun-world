@@ -104,6 +104,15 @@ def _str_bands(mults, strength):
     return tuple(bands)
 
 
+def _strength_min(line, src):
+    """A bow's/crossbow's Strength Minimum: a Standard Bow's purchase rating, else the minimum
+    its notes print ("Strength Minimum 5." / "minimum Strength 3"). None when neither gives one."""
+    if line.get("rating") and "STR Min" in (src.get("dmg") or ""):
+        return int(line["rating"])
+    m = re.search(r"(?:strength minimum|minimum strength)\s*(\d+)", " ".join(src.get("notes") or []), re.I)
+    return int(m.group(1)) if m else None
+
+
 def _display_bands(bands):
     """Condense 'low-high' bands to just the upper bound for the sheet's narrow range columns,
     since each band's floor is implied by the previous band's ceiling. Only Short keeps its
@@ -511,7 +520,10 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
                 blob = (wln["n"] + " " + " ".join(src.get("notes") or [])).lower()
                 mults = (3, 5, 20, 30) if "aerodynamic" in blob else STR_RANGE_MULT["Grenade"]
             if mults:
-                bands = _str_bands(mults, num(c.get("strength")))
+                # A bow/crossbow's own Strength Minimum sets its range (SR2 p.238) -- same rule
+                # as shared.js weaponStrengthMin; thrown weapons use the character's Strength.
+                str_min = _strength_min(wln, src) if sub in ("Bow", "Crossbow") else None
+                bands = _str_bands(mults, str_min or num(c.get("strength")))
         if bands:
             disp = _display_bands(bands)
             put(f"Weapon {slot} Short", disp[0]); put(f"Weapon {slot} Med", disp[1])

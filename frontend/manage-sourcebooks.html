@@ -59,12 +59,6 @@
       <p class="hint">Enable a book to unlock its gear, armor, weapons, bioware/cyberware grades, vehicles, spells and adept powers in the Gear Catalog and character builder.</p>
       <div class="sb-grid" id="sbOfficial"></div>
     </div>
-
-    <div class="sb-box">
-      <h3>Fan Content</h3>
-      <p class="hint" id="sbFanHint"></p>
-      <div class="sb-grid" id="sbFan"></div>
-    </div>
   </div>
 </main>
 
@@ -84,11 +78,6 @@ function render() {
   $('sbCore').innerHTML = `${esc(BOOKS_INFO.core.name)}<span class="code">${esc(BOOKS_INFO.core.code)}</span>`;
   $('sbOfficial').innerHTML = (BOOKS_INFO.official || []).map(b => row(b.code, b.name, b.enabled)).join('')
     || `<p class="hint">No official books configured.</p>`;
-  const fan = BOOKS_INFO.fan;
-  $('sbFanHint').textContent = fan
-    ? `Non-canon fan works (${fan.includes.join(', ')}). Off by default.`
-    : '';
-  $('sbFan').innerHTML = fan ? row(fan.code, `${fan.name} (fan content)`, fan.enabled) : '';
   document.querySelectorAll('#sbMain [data-book]').forEach(cb => cb.onchange = applyBookChange);
 }
 
