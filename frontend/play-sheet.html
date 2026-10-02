@@ -1925,9 +1925,17 @@ function renderMagic(){
   }
   const powers = CHAR.adept_powers || [];
   $('#powersTbl tbody').innerHTML = powers.length ? powers.map(p =>
-    `<tr><td><a href="#" class="info-link" data-powerinfo="${esc(p.name)}">${esc(p.name)}</a></td><td>${p.rated ? (p.lvl||1) : '—'}</td><td>${p.ppEach ?? '—'}</td></tr>`
+    `<tr><td><a href="#" class="info-link" data-powerinfo="${esc(p.name)}">${esc(p.name)}</a>${powerAttrLabel(p)}</td><td>${p.rated ? (p.lvl||1) : '—'}</td><td>${powerCostLabel(p) ?? '—'}</td></tr>`
   ).join('') : `<tr><td colspan="3" class="empty-state">No powers.</td></tr>`;
 }
+// Total PP an owned power cost (shared.js adeptPowerCost), or null when it can't be told -- a
+// tier-priced power committed before the builder recorded its cost on the line.
+function powerCostLabel(p){
+  const cost = adeptPowerCost(p, POWER_CAT.get(p.name) || {}, null);
+  return cost == null ? null : String(Math.round(cost * 100) / 100);
+}
+// " (Strength)" for a power bought per Physical Attribute (Improved Physical Attributes).
+function powerAttrLabel(p){ return p.attr ? ` <span class="dim-meta">(${esc(titleCase(p.attr))})</span>` : ''; }
 // Delegated once (not re-bound per render, since these tbodies redraw on every renderMagic() call) --
 // [data-spellinfo]/[data-powerinfo] links live inside both the main sheet's spellsTbl/powersTbl and
 // Manage Magic's owned-spell/power lists, so this is bound at the document level to catch both.
@@ -2887,7 +2895,7 @@ function renderManageMagic(){
     html += `<p class="dim-meta mb-16">Physical Adepts buy every power at chargen and cannot purchase or raise additional powers afterward.</p>`;
     const powers = CHAR.adept_powers || [];
     html += powers.length ? powers.map(p =>
-      `<div class="ps-stat-row"><span class="k"><a href="#" class="info-link" data-powerinfo="${esc(p.name)}">${esc(p.name)}</a></span><span class="v">${p.rated ? `Lvl ${p.lvl||1}` : ''}${p.ppEach ? ` (${p.ppEach} PP${p.rated?'/lvl':''})` : ''}</span></div>`
+      `<div class="ps-stat-row"><span class="k"><a href="#" class="info-link" data-powerinfo="${esc(p.name)}">${esc(p.name)}</a>${powerAttrLabel(p)}</span><span class="v">${p.rated ? `Lvl ${p.lvl||1}` : ''}${powerCostLabel(p) != null ? ` (${powerCostLabel(p)} PP)` : ''}</span></div>`
     ).join('') : '<p class="empty-state">No powers.</p>';
     $('#modalBody').innerHTML = html + buyShortcutRow('foci', 'Buy Focus');
     wireBuyShortcut();

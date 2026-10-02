@@ -304,6 +304,11 @@
           <textarea id="f-contact_skills" rows="3" placeholder="One service per line:&#10;Equipment Acquisition&#10;Fence -- Stolen Goods"></textarea>
           <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">One service per line. Shown on the contact card.</div>
         </div>
+        <div class="field mb-14 gm-only" id="f-origin_pc_id-wrap">
+          <label>Player-Editable By</label>
+          <select id="f-origin_pc_id"></select>
+          <div style="font-size:0.62rem;color:var(--text-dim);margin-top:3px;letter-spacing:1px">That runner's player can edit this profile and reads its Background even when it isn't revealed.</div>
+        </div>
         <hr class="rule my-14">
         <div class="section-head" style="margin-bottom:10px">Runner Contacts <span style="font-size:0.6rem;color:var(--text-dim);letter-spacing:1px">// LINK TO PCs</span></div>
         <div id="contactLinksWrap" style="margin-bottom:10px"></div>
@@ -920,6 +925,15 @@ function openModal(id) {
   document.getElementById('f-source_adventure').value = ch?.source_adventure || '';
   fillAdventureDatalist();
   document.getElementById('f-contact_skills').value = (ch?.contact_skills || []).join('\n');
+  // The runner whose player may edit this contact (set at chargen; the GM can change or clear it).
+  // A runner missing from the list (an unfinished draft) keeps its option so a save doesn't drop it.
+  const originSel = document.getElementById('f-origin_pc_id');
+  const originId = ch?.origin_pc_id || null;
+  const runners = allChars.filter(c => c.is_pc);
+  originSel.innerHTML = '<option value="">-- GM only --</option>'
+    + runners.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
+    + (originId && !runners.some(p => p.id === originId) ? `<option value="${originId}">Runner #${originId}</option>` : '');
+  originSel.value = originId ? String(originId) : '';
   document.getElementById('f-computer_skill_enabled').checked = !!ch?.computer_skill_enabled;
   document.getElementById('f-computer_skill_rating').value = ch?.computer_skill_rating ?? 0;
   document.getElementById('f-software_skill_enabled').checked = !!ch?.software_skill_enabled;
@@ -1062,7 +1076,9 @@ async function saveChar() {
         notes:           document.getElementById('f-notes').value.trim() || null,
         source_adventure: isPC ? null : (document.getElementById('f-source_adventure').value.trim() || null),
         contact_skills:  isPC ? [] : skillsRaw.split('\n').map(s => s.trim()).filter(Boolean),
-        connection:      isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
+        // Edit only: a new NPC starts GM-only, and the create schema doesn't take the field.
+        ...(editingId ? { origin_pc_id: isPC ? null : (parseInt(document.getElementById('f-origin_pc_id').value) || null) } : {}),
+        connection:     isPC ? 1 : (Math.min(6, Math.max(1, parseInt(document.getElementById('f-connection').value) || 1))),
         computer_skill_enabled: isPC ? !!document.getElementById('f-computer_skill_enabled').checked : false,
         computer_skill_rating: isPC
           ? (document.getElementById('f-computer_skill_enabled').checked

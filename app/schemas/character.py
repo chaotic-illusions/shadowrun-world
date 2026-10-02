@@ -182,6 +182,8 @@ class CharacterUpdate(BaseModel):
     chargen_state: Optional[dict] = None
     organization_id: Optional[int] = None
     is_independent: Optional[bool] = None
+    # GM only (NPCs): the runner whose player may edit this contact; null makes it GM-only again.
+    origin_pc_id: Optional[int] = None
 
     @field_validator("priorities", "skills", "spells", "adept_powers", "gear")
     @classmethod

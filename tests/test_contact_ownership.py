@@ -21,6 +21,7 @@ from app.models.organization import Organization
 from app.routers.contacts import create_contact, update_contact
 from app.routers.characters import (
     _create_dossier_contacts,
+    delete_character,
     get_character,
     list_characters,
     my_character_ids,
@@ -133,6 +134,52 @@ def test_admin_keeps_full_control(tmp_path):
                                         _ctx(None, admin=True))
         assert (result["connection"], result["notes"]) == (4, "new")
     _run(tmp_path, "admin", scenario)
+
+
+def test_gm_revokes_and_grants_contact_ownership(tmp_path):
+    admin = _ctx(None, admin=True)
+
+    async def scenario(db, ids):
+        # Revoked: the former owner can no longer edit it or read its unrevealed background.
+        await update_character(ids.chopper, CharacterUpdate(origin_pc_id=None), db, admin)
+        with pytest.raises(HTTPException) as exc:
+            await update_character(ids.chopper, CharacterUpdate(name="Mine"), db, COLE)
+        assert exc.value.status_code == 403
+        assert (await get_character(ids.chopper, ctx=COLE, db=db))["background"] is None
+        # Granted to another runner: that player now owns it.
+        await update_character(ids.chopper, CharacterUpdate(origin_pc_id=ids.rook), db, admin)
+        assert (await my_character_ids(db=db, ctx=OTHER))["contact_ids"] == [ids.chopper]
+        # Only a runner can be named, and only on an NPC.
+        for target, origin in ((ids.chopper, ids.patch), (ids.chopper, 9999), (ids.leadbelly, ids.rook)):
+            with pytest.raises(HTTPException) as exc:
+                await update_character(target, CharacterUpdate(origin_pc_id=origin), db, admin)
+            assert exc.value.status_code == 422
+    _run(tmp_path, "gm_origin", scenario)
+
+
+def test_players_cannot_set_contact_ownership(tmp_path):
+    async def scenario(db, ids):
+        # Neither on a contact they own nor on their own runner.
+        for target in (ids.chopper, ids.leadbelly):
+            with pytest.raises(HTTPException) as exc:
+                await update_character(target, CharacterUpdate(origin_pc_id=ids.leadbelly), db, COLE)
+            assert exc.value.status_code == 403
+    _run(tmp_path, "player_origin", scenario)
+
+
+def test_deleting_a_runner_returns_its_contacts_to_the_gm(tmp_path):
+    async def scenario(db, ids):
+        await delete_character(ids.leadbelly, db, _ctx(None, admin=True))
+        db.expire_all()
+        assert (await db.get(Character, ids.chopper)).origin_pc_id is None
+    _run(tmp_path, "delete_runner", scenario)
+
+
+@pytest.mark.parametrize("field", ["loyalty", "connection"])
+def test_contact_rating_cannot_be_nulled(field):
+    with pytest.raises(ValueError):
+        ContactUpdate(**{field: None})
+    assert ContactUpdate(name="x").model_dump(exclude_unset=True) == {"name": "x"}
 
 
 def test_mine_lists_contacts_and_reads_show_owner_the_background(tmp_path):

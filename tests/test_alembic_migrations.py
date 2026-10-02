@@ -163,3 +163,34 @@ def test_spells_renamed_to_book_names(tmp_path):
     assert [s["name"] for s in json.loads(spells)] == ["Gecko Crawl", "Heal", "Cause Nuisance Allergy"]
     assert json.loads(spells)[1] == {"name": "Heal", "force": 4}
     assert json.loads(state)["spells"] == [{"name": "Alleviate Nuisance Allergy", "force": 1}]
+
+
+def test_removed_cyberware_is_refunded(tmp_path):
+    database = tmp_path / "cyber.db"
+    _alembic(database, "upgrade", "b4e7a1c93d26")
+    smartlink = {"n": "Smartlink", "grade": "Standard", "baseEss": 0.5, "baseCost": 7000}
+    gear = {"cyber": [smartlink,
+                      {"n": "Display Link", "grade": "Standard", "baseEss": 0.1, "baseCost": 1000},
+                      {"n": "Chipjack", "grade": "Alpha", "baseEss": 0.2, "baseCost": 1000}],
+            "weapons": [{"n": "Ares Predator"}]}
+    state = {"gear": {"cyber": [smartlink, {"n": "Display Link", "grade": "Standard", "baseEss": 0.1}]}}
+    with sqlite3.connect(database) as db:
+        cols = ("name, is_pc, race, show_background, contact_skills, connection, is_active, created_at, updated_at, "
+                "gear, chargen_state, essence, nuyen, is_draft")
+        vals = "'Human', 0, '[]', 1, 1, '2026-10-02', '2026-10-02', ?, ?, ?, ?, ?"
+        for char_id, name, is_draft in ((1, "Hatchetman", 0), (2, "Unfinished", 1)):
+            db.execute(f"INSERT INTO characters (id, {cols}) VALUES (?, ?, 1, {vals})",
+                       (char_id, name, json.dumps(gear), json.dumps(state), 5.24, 500, is_draft))
+        db.execute(f"INSERT INTO characters (id, {cols}) VALUES (3, 'Clean', 1, {vals})",
+                   (json.dumps({"cyber": [smartlink]}), "{}", 5.5, 100, 0))
+    _alembic(database, "upgrade", "c5f8b2d04e37")
+    with sqlite3.connect(database) as db:
+        rows = {r[0]: r[1:] for r in db.execute("SELECT id, gear, chargen_state, essence, nuyen FROM characters")}
+    for char_id in (1, 2):
+        kept = json.loads(rows[char_id][0])
+        assert kept == {"cyber": [smartlink], "weapons": [{"n": "Ares Predator"}]}
+        assert json.loads(rows[char_id][1]) == {"gear": {"cyber": [smartlink]}}
+    # Display Link 0.1 + Alpha Chipjack 0.16 Essence; 1,000 + 3,000 nuyen.
+    assert rows[1][2:] == (5.5, 4500)
+    assert rows[2][2:] == (5.24, 500)     # a draft's totals are recomputed by the builder
+    assert rows[3][2:] == (5.5, 100)      # untouched
