@@ -702,7 +702,39 @@ function awakened() { return state.magicType && state.magicType !== "Mundane"; }
 // chargen-time source both share the pattern from.
 function magicRating() { return awakened() ? Math.floor(round2(essence())) : 0; }
 function ppBudget() { return state.magicType === "Adept" ? magicRating() : 0; }
-function ppSpent() { return state.powers.reduce((s,p) => s + (Number(p.ppEach)||0) * (p.rated ? (p.lvl||1) : 1), 0); }
+// A power whose levels are priced from a table (catalog `ppTbl`: Combat Sense 2/3/4, Increased
+// Reflexes 1/4/6, Killing Hands 0.5/1/2/4 -- SR2 pp.125-126) costs that table entry, not level x
+// the first price.
+function powerCatalog(p) { return ((CAT && CAT.adept_powers) || []).find(x => x.n === p.name) || {}; }
+// Improved Physical Attributes and Increased Reaction (catalog `ppTier`) price each +1 by where the
+// resulting rating falls against the Racial Maximum: up to half, up to the maximum, up to 1.5x it
+// (SR2 pp.125-126). Returns [unimproved rating, Racial Maximum], or null for any other power.
+// Reaction has no printed maximum, so it is derived from the Quickness and Intelligence maximums
+// the same way Reaction itself is.
+const POWER_ATTRS = ["body", "strength", "quickness"];
+function powerTierBase(p) {
+  const c = powerCatalog(p);
+  if (!c.ppTier) return null;
+  const max = metatype().max || {};
+  if (c.attrChoice) { const a = p.attr || POWER_ATTRS[0]; return [naturalAttr(a), max[a] || 6]; }
+  return [Math.floor((naturalAttr("quickness") + naturalAttr("intelligence")) / 2),
+          Math.floor(((max.quickness || 6) + (max.intelligence || 6)) / 2)];
+}
+function powerMaxLevel(p) {
+  const base = powerTierBase(p);
+  return base ? Math.max(1, Math.floor(base[1] * 1.5) - base[0]) : (powerCatalog(p).maxLevel || 6);
+}
+function powerCost(p) {
+  const lvl = p.rated ? (p.lvl||1) : 1;
+  const c = powerCatalog(p), base = powerTierBase(p);
+  if (base) {
+    let cost = 0;
+    for (let r = base[0] + 1; r <= base[0] + lvl; r++) cost += c.ppTier[r <= base[1] / 2 ? 0 : r <= base[1] ? 1 : 2];
+    return cost;
+  }
+  return c.ppTbl ? (c.ppTbl[Math.min(lvl, c.ppTbl.length) - 1] || 0) : (Number(p.ppEach)||0) * lvl;
+}
+function ppSpent() { return state.powers.reduce((s,p) => s + powerCost(p), 0); }
 function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
 function initDice() { return 1 + augAttr("initDice"); }
 function combatPool() { return combatPoolFormula(finalAttr("quickness"), finalAttr("intelligence"), finalAttr("willpower"), poolBonus("combat")); }
@@ -991,13 +1023,16 @@ function stepMagic() {
     body += fociSectionHTML();
   } else if (state.magicType === "Adept") {
     body += `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend.</p>`;
+    const takenAttrs = name => state.powers.filter(x => x.name === name).map(x => x.attr || POWER_ATTRS[0]);
     const chosen = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenpowerinfo="${esc(p.name)}">${esc(p.name)}</a></span>
+      ${powerCatalog(p).attrChoice ? `<select class="cbx-mini" style="width:auto" data-powerattr="${i}" title="Attribute">${POWER_ATTRS.map(a =>
+        `<option value="${a}"${(p.attr||POWER_ATTRS[0])===a?" selected":""}${(p.attr||POWER_ATTRS[0])!==a && takenAttrs(p.name).includes(a)?" disabled":""}>${titleCase(a)}</option>`).join("")}</select>` : ""}
       ${p.rated ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button>
         <span class="cbx-attr__base">${p.lvl||1}</span><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>` : ""}
-      <span class="cbx-line__f">${round2((Number(p.ppEach)||0)*(p.rated?(p.lvl||1):1))} PP</span>
+      <span class="cbx-line__f">${round2(powerCost(p))} PP</span>
       <button type="button" class="cbx-x" data-delpower="${i}">&#10005;</button></div>`).join("");
     const shop = (CAT.adept_powers||[]).filter(matchesFilter).map((p) =>
-      magicInspectRow(p, "power", state.powers.some(x=>x.name===p.n))).join("");
+      magicInspectRow(p, "power", p.attrChoice ? takenAttrs(p.n).length >= POWER_ATTRS.length : state.powers.some(x=>x.name===p.n))).join("");
     body += `<div class="cbx-h4">Adept Powers</div>
       <div>${state.powers.length ? chosen : `<p class="empty-state">No powers yet.</p>`}</div>
       <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search powers..." value="${esc(shopFilter)}">
@@ -1262,7 +1297,7 @@ function chipHTML(label, val) {
 function chargenOpenSpellInfo(name){
   const sp = (CAT.spells || []).find(x => x.n === name);
   const owned = (state.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${name}`, spellInfoBody(sp, owned));
+  showInfoModal(`// SPELL — ${name}`, spellInfoBody(sp, owned, magicRating()));
 }
 function chargenOpenPowerInfo(name){
   const pw = (CAT.adept_powers || []).find(x => x.n === name);
@@ -1275,7 +1310,7 @@ function chargenOpenPowerInfo(name){
 // "Line of Sight" / "Sustained" here too instead of bare letters only a rules-expert would know.
 function spellStatChips(s) {
   return [chipHTML("Type", SPELL_TYPE_LABEL[s.typ] || s.typ), chipHTML("Range", SPELL_RANGE_LABEL[s.rng] || s.rng),
-    chipHTML("Duration", SPELL_DURATION_LABEL[s.dur] || s.dur),
+    chipHTML("Duration", spellDurationLabel(s)),
     chipHTML("Drain", s.drn), chipHTML("Target", s.target), chipHTML("Damage", s.dmg), chipHTML("Area", s.area)]
     .filter(Boolean).join("");
 }
@@ -1760,14 +1795,25 @@ function wire() {
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
     const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||"")) || /per\s+level/i.test(String(p.pp||""));
-    state.powers.push({ name:p.n, ppEach:parseNum(p.pp), rated, lvl:1 }); save(); render();
+    const line = { name:p.n, ppEach:parseNum(p.pp), rated, lvl:1 };
+    // One line per Physical Attribute: start on the first one this power isn't already bought for.
+    if (p.attrChoice) {
+      const taken = state.powers.filter(x => x.name === p.n).map(x => x.attr || POWER_ATTRS[0]);
+      line.attr = POWER_ATTRS.find(a => !taken.includes(a));
+      if (!line.attr) return;
+    }
+    state.powers.push(line); save(); render();
+  });
+  root.querySelectorAll("[data-powerattr]").forEach(el => el.onchange = () => {
+    const p = state.powers[Number(el.dataset.powerattr)]; if (!p) return;
+    p.attr = el.value; p.lvl = clamp(p.lvl||1, 1, powerMaxLevel(p)); save(); render();
   });
   root.querySelectorAll("[data-delpower]").forEach(el => el.onclick = () => { state.powers.splice(Number(el.dataset.delpower),1); save(); render(); });
   root.querySelectorAll("[data-powerlvl]").forEach(el => {
     const i = Number(el.dataset.powerlvl), d = Number(el.dataset.d);
     bindStepper(el, () => {
       const p = state.powers[i]; if (!p) return;
-      p.lvl = clamp((p.lvl||1)+d,1,6); save(); render();
+      p.lvl = clamp((p.lvl||1)+d,1,powerMaxLevel(p)); save(); render();
     });
   });
   root.querySelectorAll("[data-addfocus]").forEach(el => el.onclick = () => {

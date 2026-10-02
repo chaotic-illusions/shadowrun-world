@@ -1865,7 +1865,7 @@ function renderSkills(){
 }
 
 // ---------------------------------------------------------------- magic (spells / adept powers)
-// SPELL_DRAIN_TABLE/spellDrainCode/spellCostInfo (Manage Magic's Learn-a-Spell pricing) and
+// spellCostInfo (Manage Magic's Learn-a-Spell pricing), spellDrainTest (the Drain column below) and
 // spellInfoBody/powerInfoBody/statRow (the reference popup below) all live in shared.js now, shared
 // with character-builder.html's chargen equivalents (chargenOpenSpellInfo/chargenOpenPowerInfo).
 // ---- Spell/power reference popup -- someone reading "Deadly" in a Drain column or a bare spell
@@ -1879,24 +1879,11 @@ function renderSkills(){
 // bracket instead of the actual character.
 function openSpellInfo(name){
   const owned = (CHAR.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), owned));
+  showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), owned, CHAR.magic_rating || 0));
 }
 function openPowerInfo(name){
   const owned = (CHAR.adept_powers || []).find(p => p.name === name);
   showInfoModal(`// POWER — ${name}`, powerInfoBody(POWER_CAT.get(name), owned));
-}
-// The Drain Resistance Test as the sheet shows it: "4M" = target number 4, Drain Level Moderate.
-// The TN is half the spell's Force (round down) plus the modifier in its Drain code (SR2 p.132,
-// key on p.151), never below 2 (p.88). Catalog codes write the halving as "F/2" or -- transcribed
-// from the book's division sign -- "F+2"; both mean half. Heal/Treat drain at the wound's own level.
-// Drain is Physical rather than Stun when Force exceeds the caster's Magic (p.128). null when the
-// code isn't one of these shapes (e.g. "Special").
-function spellDrainTest(spell, force, magic){
-  const m = /^\[?\(F[\/+]2\)\s*(?:([+-])\s*(\d+))?\]?\s*(\(Wound\))?\s*([LMSD])?$/.exec((spell && spell.drn) || '');
-  if (!m || !(m[3] || m[4])) return null;
-  const f = Math.max(1, Number(force) || 1);
-  const tn = Math.max(2, Math.floor(f / 2) + (m[2] ? Number(m[2]) * (m[1] === '-' ? -1 : 1) : 0));
-  return { tn, level: m[3] ? 'Wound' : m[4], physical: f > (Number(magic) || 0) };
 }
 // Spell foci bonded to this spell -- a Specific Spell Focus for it, or a Spell Category Focus for its
 // category. Each adds its Rating in dice to the Sorcery and Drain Resistance tests for the spell; it
@@ -1925,7 +1912,7 @@ function renderMagic(){
     $('#spellsTbl tbody').innerHTML = spells.length ? spells.map(s => {
       const cat = SPELL_CAT.get(s.name) || {};
       const category = s.cat || cat.cat;
-      const drain = spellDrainTest(cat, s.force, CHAR.magic_rating);
+      const drain = spellDrainTest(cat, s.force, CHAR.magic_rating || 0);
       const drainCell = !drain ? esc(cat.drn || '—')
         : (drain.level === 'Wound' ? `${drain.tn} <span class="drain-note">at wound level</span>` : `${drain.tn}${drain.level}`)
           + (drain.physical ? ' <span class="drain-phys">Physical</span>' : '');
@@ -2907,12 +2894,11 @@ function renderManageMagic(){
     return;
   }
   const spells = CHAR.spells || [];
-  html += `<p class="dim-meta mb-16">Spells are learned with nuyen, priced by drain category: Light 50&times;Force, Moderate 100&times;Force,
-    Serious 500&times;Force, Deadly 1000&times;Force. Availability = Force/acquisition time. The required Sorcery test
-    (TN = Force&times;2) is shown for reference &mdash; the app does not roll it.</p>` +
+  html += `<p class="dim-meta mb-16">Learning a spell (SR2 p.132) costs Karma equal to its Force, and a teacher typically charges
+    1,000&yen; &times; Force. It takes Force days, divided by the successes of a Sorcery + Magical Theory test against twice the
+    Force. The test is shown for reference &mdash; the app does not roll it.</p>` +
     (spells.length ? spells.map((s,i) => {
       const cat = SPELL_CAT.get(s.name) || {};
-      const info = spellCostInfo(cat, s.force);
       return `<div class="ps-stat-row"><span class="k"><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a> <span style="color:var(--text-dim);font-size:.66rem;">${esc(s.cat || cat.cat || '')} &middot; Force ${s.force ?? '-'}</span></span>
         <button class="row-x" data-delspell="${i}" title="Remove">&#10005;</button></div>`;
     }).join('') : '<p class="empty-state">No spells known.</p>') +
@@ -2931,11 +2917,9 @@ function renderManageMagic(){
     patchChar({ spells: CHAR.spells }).then(() => { renderMagic(); renderManageMagic(); });
   });
   const updatePreview = () => {
-    const cat = SPELL_CAT.get($('#mgSpellPick').value) || {};
-    const info = spellCostInfo(cat, Number($('#mgSpellForce').value) || 1);
-    $('#mgSpellPreview').textContent = info
-      ? `${info.label} drain — ${money(info.nuyen)} — Avail ${info.avail} — Sorcery TN ${info.tn}`
-      : 'No standard drain data for this spell — price it manually with the GM.';
+    const info = spellCostInfo(Number($('#mgSpellForce').value) || 1);
+    $('#mgSpellPreview').textContent =
+      `${money(info.nuyen)} and ${info.karma} Karma (you have ${CHAR.good_karma || 0}) — ${info.days} day${info.days === 1 ? '' : 's'} ÷ successes — Sorcery + Magical Theory vs TN ${info.tn}`;
   };
   $('#mgSpellPick').addEventListener('change', updatePreview);
   $('#mgSpellForce').addEventListener('input', updatePreview);
@@ -2947,14 +2931,15 @@ function renderManageMagic(){
     e.preventDefault();
     const name = $('#mgSpellPick').value;
     const force = Math.max(1, Number($('#mgSpellForce').value) || 1);
-    showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), { force }));
+    showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), { force }, CHAR.magic_rating || 0));
   };
   const buyBtn = $('#mgSpellBuy');
   buyBtn.onclick = async () => {
     const name = $('#mgSpellPick').value, force = Math.max(1, Number($('#mgSpellForce').value) || 1);
     const cat = SPELL_CAT.get(name) || {};
-    const info = spellCostInfo(cat, force);
-    if (!info) { showAlert($('#modalAlert'), 'This spell has no standard drain data — price it manually.', true); return; }
+    const info = spellCostInfo(force);
+    const karma = CHAR.good_karma || 0;
+    if (karma < info.karma) { showAlert($('#modalAlert'), `Not enough karma — need ${info.karma}, have ${karma}.`, true, true); return; }
     // Disable for the duration of the request -- without this, two rapid clicks both read the same
     // pre-patch CHAR.nuyen before either PATCH resolves, learning the spell twice while nuyen is
     // only deducted once. Mirrors gear-picker.js's own Buy button, which guards for this same reason.
@@ -2963,9 +2948,9 @@ function renderManageMagic(){
       CHAR.spells = CHAR.spells || [];
       CHAR.spells.push({ name, cat: cat.cat || '', force });
       const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
-      await patchChar({ spells: CHAR.spells, nuyen: nextNuyen });
-      renderMagic(); renderHeader(); renderManageMagic();
-      showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}`, false, true);
+      await patchChar({ spells: CHAR.spells, nuyen: nextNuyen, good_karma: karma - info.karma });
+      renderMagic(); renderHeader(); renderIdentity(); renderManageMagic();
+      showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}, ${info.karma} Karma`, false, true);
     } finally {
       buyBtn.disabled = false;
     }
