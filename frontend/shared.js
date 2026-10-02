@@ -1373,29 +1373,37 @@ function ownershipBlocked(cat, item, gear, rating){
 // SR2 spell shorthand decoded to plain English -- shared by play-sheet.html's spell/power info
 // popup (openSpellInfo) and character-builder.html's chargen spell browser (spellStatChips), so a
 // player sees "Mana"/"Line of Sight"/"Sustained" in both places rather than a bare "M"/"LOS"/"S"
-// only someone who already knows the rules can decode.
+// only someone who already knows the rules can decode. Limited and Extended ranges are rolled for
+// (SR2 p.152, Grimoire spell design) -- spellRollLines below says how.
 const SPELL_TYPE_LABEL = { M: 'Mana', P: 'Physical' };
-const SPELL_RANGE_LABEL = { T: 'Touch', LOS: 'Line of Sight', Self: 'Self' };
+const SPELL_RANGE_LABEL = { T: 'Touch', LOS: 'Line of Sight', Self: 'Self', Limited: 'Limited', Extended: 'Extended' };
 const SPELL_DURATION_LABEL = { I: 'Instant', S: 'Sustained', P: 'Permanent' };
-// Spell-learning nuyen cost by drain category (not karma). Availability = Force/acquisition time.
-// Required test (Sorcery, TN = Force x2) is reference-only -- the app never rolls it. Shared by
-// play-sheet.html's Manage Magic (Learn a Spell pricing) and the spell info popup's Drain line.
-const SPELL_DRAIN_TABLE = {
-  L: { label: 'Light',    nuyenPerForce: 50,   hours: 24 },
-  M: { label: 'Moderate', nuyenPerForce: 100,  hours: 48 },
-  S: { label: 'Serious',  nuyenPerForce: 500,  hours: 72 },
-  D: { label: 'Deadly',   nuyenPerForce: 1000, days: 7 },
-};
-function spellDrainCode(spell){
-  const m = /([LMSD])\s*$/.exec((spell && spell.drn) || '');
-  return m ? m[1] : null;
+const SPELL_DRAIN_LEVEL = { L: 'Light', M: 'Moderate', S: 'Serious', D: 'Deadly' };
+// "Permanent (10 turns)": a permanent spell has to be sustained that long before it sticks (SR2 p.151).
+function spellDurationLabel(spell){
+  const label = SPELL_DURATION_LABEL[spell.dur] || spell.dur || '';
+  return spell.turns ? `${label} (${spell.turns} turns)` : label;
 }
-function spellCostInfo(spell, force){
-  const tier = SPELL_DRAIN_TABLE[spellDrainCode(spell)];
-  if (!tier) return null;
+// The Drain Resistance Test for a spell cast at `force`: "4M" = target number 4, Drain Level
+// Moderate. The TN is half the spell's Force (round down) plus the modifier in its Drain code
+// (SR2 p.132, key on p.151), never below 2 (p.88). Heal/Treat drain at the patient's wound level.
+// Drain is Physical rather than Stun when Force exceeds the caster's Magic (p.128); pass `magic`
+// as null when the caster isn't known. Returns null when the code isn't one of these shapes
+// (Redirect). Shared by play-sheet.html's spell table and the spell info popup below.
+function spellDrainTest(spell, force, magic){
+  const m = /^\[?\(F\/2\)\s*(?:([+-])\s*(\d+))?\]?\s*(\(Wound\))?\s*([LMSD])?$/.exec((spell && spell.drn) || '');
+  if (!m || !(m[3] || m[4])) return null;
   const f = Math.max(1, Number(force) || 1);
-  const time = tier.days ? `${tier.days} day${tier.days === 1 ? '' : 's'}` : `${tier.hours} hours`;
-  return { label: tier.label, force: f, nuyen: tier.nuyenPerForce * f, avail: `${f}/${time}`, tn: f * 2 };
+  const tn = Math.max(2, Math.floor(f / 2) + (m[2] ? Number(m[2]) * (m[1] === '-' ? -1 : 1) : 0));
+  return { tn, level: m[3] ? 'Wound' : m[4], physical: magic != null && f > (Number(magic) || 0) };
+}
+// Learning a spell (SR2 p.132): a teacher typically charges 1,000 nuyen x Force, it costs Karma
+// equal to the Force, and takes Force days divided by the successes of a Sorcery + Magical Theory
+// test against twice the Force. The app charges the nuyen and Karma; it never rolls the test.
+// Shared by play-sheet.html's Manage Magic (Learn a Spell).
+function spellCostInfo(force){
+  const f = Math.max(1, Number(force) || 1);
+  return { force: f, nuyen: 1000 * f, karma: f, days: f, tn: f * 2 };
 }
 // ---- Spell/power reference popup body-builders (showInfoModal) -- shared by play-sheet.html's
 // openSpellInfo/openPowerInfo (owned = a CHAR.spells/.adept_powers line) and character-builder.html's
@@ -1403,24 +1411,59 @@ function spellCostInfo(spell, force){
 // {name,lvl} shape) so the actual HTML only needs to exist once. `sp`/`pw` is the raw catalog item
 // (desc/effect/target/etc. already in plain English -- this just surfaces it instead of leaving it
 // locked in JSON only an admin token could read); `owned` is optional (omit to preview an
-// unowned/not-yet-bought item, e.g. before buying a spell post-chargen).
+// unowned/not-yet-bought item, e.g. before buying a spell post-chargen). `magic` is the caster's
+// Magic Rating when the page knows it, so the popup can say whether Drain is Stun or Physical.
 function statRow(label, value){ return value ? `<div class="ps-stat-row"><span class="k">${esc(label)}</span><span class="v">${value}</span></div>` : ''; }
-function spellInfoBody(sp, owned){
+// What to roll, in the order it happens at the table (SR2 pp.129-132). This is the general casting
+// procedure applied to the spell's own Target/Range/Drain lines -- the spell's particular effects
+// stay in its catalog `effect` list.
+function spellRollLines(sp, owned, magic){
+  const force = owned ? Math.max(1, Number(owned.force) || 1) : null;
+  const lines = [];
+  if (sp.rng === 'Limited' || sp.rng === 'Extended') {
+    lines.push(`<b>Range:</b> roll Force dice against Target Number 4. Successes × ${sp.rng === 'Extended' ? '10 × ' : ''}Magic is the range in meters.`);
+  }
+  lines.push(`<b>Cast:</b> roll ${force ? `${force} dice (Force)` : 'Force dice'} plus any Magic Pool dice, at most your Magic Rating of them, against Target ${esc(sp.target || '—')}.`);
+  const resist = /^(.*?)\s*\(R\)$/.exec(sp.target || '');
+  if (resist) {
+    const dice = /^(Body|Willpower|Intelligence|Quickness|Force)$/.test(resist[1]) ? `its ${resist[1]}` : 'the Attribute named in the description';
+    lines.push(`<b>Resisted (R):</b> the target rolls ${dice} against Target Number ${force || 'Force'}. Its successes cancel yours; ties go to the caster.`);
+  }
+  if (sp.cat === 'combat' && /^(Light|Moderate|Serious|Deadly) (Physical|Stun)$/.test(sp.dmg || '')) {
+    lines.push(`<b>Damage:</b> the Damage Level shown is the base. Every 2 net successes raise it one level.`);
+  }
+  if (sp.area === 'Area effect') {
+    lines.push(`<b>Area:</b> the radius is your Magic Rating in meters and everyone in it is affected. Roll once and compare against each target.`);
+  }
+  const drain = force ? spellDrainTest(sp, force, magic) : null;
+  if (drain) {
+    const level = drain.level === 'Wound' ? "the patient's current wound level" : SPELL_DRAIN_LEVEL[drain.level];
+    lines.push(`<b>Drain:</b> roll Willpower plus any Magic Pool dice against Target Number ${drain.tn}. The Drain Level is ${level}; every 2 successes lower it one level.`
+      + (magic != null ? ` It is ${drain.physical ? '<b>Physical</b> damage, because Force exceeds your Magic' : 'Stun damage'}.` : ''));
+  } else {
+    lines.push(`<b>Drain:</b> roll Willpower plus any Magic Pool dice against half the Force (round down, minimum 2) plus the modifier in the Drain Code. Every 2 successes lower the Drain Level by one.`);
+  }
+  return `<ul class="mt-6" style="padding-left:18px">${lines.map(l => `<li>${l}</li>`).join('')}</ul>`;
+}
+function spellInfoBody(sp, owned, magic){
   if (!sp) return '<p class="empty-state">No catalog data for this spell.</p>';
-  const info = owned ? spellCostInfo(sp, owned.force) : null;
+  const drain = owned ? spellDrainTest(sp, owned.force, magic) : null;
+  const drainNow = !drain ? '' : ` — <b>${drain.tn}${drain.level === 'Wound' ? ' at the wound level' : drain.level}</b> at Force ${esc(String(owned.force))}`;
   const effectList = (sp.effect || []).map(e => `<li>${esc(String(e))}</li>`).join('');
   return [
     owned ? statRow('Force (cast)', esc(String(owned.force ?? '—'))) : '',
     statRow('Category', esc(sp.cat || '—')),
     statRow('Type', esc(SPELL_TYPE_LABEL[sp.typ] || sp.typ || '—')),
     statRow('Range', esc(SPELL_RANGE_LABEL[sp.rng] || sp.rng || '—')),
-    statRow('Duration', esc(SPELL_DURATION_LABEL[sp.dur] || sp.dur || '—')),
+    statRow('Duration', esc(spellDurationLabel(sp) || '—')),
     statRow('Target', esc(sp.target || '—')),
     statRow('Area', esc(sp.area || '—')),
     statRow('Damage', sp.dmg ? esc(sp.dmg) : ''),
-    statRow('Drain', `${esc(sp.drn || '—')}${info ? ` — <b>${esc(info.label)}</b> (Sorcery TN ${info.tn})` : (spellDrainCode(sp) ? ` — <b>${esc(SPELL_DRAIN_TABLE[spellDrainCode(sp)].label)}</b>` : '')}`),
+    statRow('Drain', `${esc(sp.drn || '—')}${drainNow}`),
     sp.desc ? `<p class="dim-meta mt-6">${esc(sp.desc)}</p>` : '',
     effectList ? `<ul class="mt-6" style="padding-left:18px">${effectList}</ul>` : '',
+    `<p class="dim-meta mt-6">What to roll</p>`,
+    spellRollLines(sp, owned, magic),
     `<p class="dim-meta mt-6">${esc(sp.src || '')}${sp.pg ? ` p.${esc(String(sp.pg))}` : ''}</p>`,
   ].join('');
 }
@@ -1430,7 +1473,7 @@ function powerInfoBody(pw, owned){
   return [
     owned && pw.rated ? statRow('Level', esc(String(owned.lvl ?? 1))) : '',
     statRow('Cost', pw.pp ? esc(String(pw.pp)) + ' PP' : ''),
-    statRow('Activation', esc(pw.act || '—')),
+    statRow('Activation', pw.act ? esc(pw.act) : ''),
     pw.tiers ? statRow('Tiers', esc(pw.tiers)) : '',
     pw.desc ? `<p class="dim-meta mt-6">${esc(pw.desc)}</p>` : '',
     effectList ? `<ul class="mt-6" style="padding-left:18px">${effectList}</ul>` : '',

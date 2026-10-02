@@ -144,3 +144,22 @@ def test_origin_pc_id_backfills_runner_contacts(tmp_path):
     assert origins == {10: 1, 11: 1, 12: None}
     # The hand-linked one takes its type from Loyalty; Followers move to Loyalty 6.
     assert types == {"Chopper": "Contact:1", "Patch": "Buddy:3", "Johnson": "Gang:1", "Crew": "Follower:6"}
+
+
+def test_spells_renamed_to_book_names(tmp_path):
+    database = tmp_path / "spells.db"
+    _alembic(database, "upgrade", "a7d2e5c9b130")
+    owned = [{"name": "Gecko Grip", "force": 3}, {"name": "Heal", "force": 4}, {"name": "Cause Allergy", "force": 2}]
+    with sqlite3.connect(database) as db:
+        cols = "name, is_pc, race, show_background, contact_skills, connection, is_active, created_at, updated_at"
+        vals = "'Human', 1, '[]', 1, 1, '2026-10-02', '2026-10-02'"
+        db.execute(
+            f"INSERT INTO characters (id, {cols}, spells, chargen_state) VALUES (1, 'Night Shift', 1, {vals}, ?, ?)",
+            (json.dumps(owned), json.dumps({"spells": [{"name": "Alleviate Allergy", "force": 1}]})),
+        )
+    _alembic(database, "upgrade", "b4e7a1c93d26")
+    with sqlite3.connect(database) as db:
+        spells, state = db.execute("SELECT spells, chargen_state FROM characters WHERE id = 1").fetchone()
+    assert [s["name"] for s in json.loads(spells)] == ["Gecko Crawl", "Heal", "Cause Nuisance Allergy"]
+    assert json.loads(spells)[1] == {"name": "Heal", "force": 4}
+    assert json.loads(state)["spells"] == [{"name": "Alleviate Nuisance Allergy", "force": 1}]
