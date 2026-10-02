@@ -702,9 +702,7 @@ function awakened() { return state.magicType && state.magicType !== "Mundane"; }
 // chargen-time source both share the pattern from.
 function magicRating() { return awakened() ? Math.floor(round2(essence())) : 0; }
 function ppBudget() { return state.magicType === "Adept" ? magicRating() : 0; }
-// A power whose levels are priced from a table (catalog `ppTbl`: Combat Sense 2/3/4, Increased
-// Reflexes 1/4/6, Killing Hands 0.5/1/2/4 -- SR2 pp.125-126) costs that table entry, not level x
-// the first price.
+// Power pricing itself (table- and tier-priced powers) is shared.js adeptPowerCost.
 function powerCatalog(p) { return ((CAT && CAT.adept_powers) || []).find(x => x.n === p.name) || {}; }
 // Improved Physical Attributes and Increased Reaction (catalog `ppTier`) price each +1 by where the
 // resulting rating falls against the Racial Maximum: up to half, up to the maximum, up to 1.5x it
@@ -724,16 +722,7 @@ function powerMaxLevel(p) {
   const base = powerTierBase(p);
   return base ? Math.max(1, Math.floor(base[1] * 1.5) - base[0]) : (powerCatalog(p).maxLevel || 6);
 }
-function powerCost(p) {
-  const lvl = p.rated ? (p.lvl||1) : 1;
-  const c = powerCatalog(p), base = powerTierBase(p);
-  if (base) {
-    let cost = 0;
-    for (let r = base[0] + 1; r <= base[0] + lvl; r++) cost += c.ppTier[r <= base[1] / 2 ? 0 : r <= base[1] ? 1 : 2];
-    return cost;
-  }
-  return c.ppTbl ? (c.ppTbl[Math.min(lvl, c.ppTbl.length) - 1] || 0) : (Number(p.ppEach)||0) * lvl;
-}
+function powerCost(p) { return adeptPowerCost(p, powerCatalog(p), powerTierBase(p)) || 0; }
 function ppSpent() { return state.powers.reduce((s,p) => s + powerCost(p), 0); }
 function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
 function initDice() { return 1 + augAttr("initDice"); }
@@ -1626,7 +1615,7 @@ function applyKit(kit) {
   });
   state.powers = (kit.powers||[]).map(n => {
     const d = (CAT.adept_powers||[]).find(x => x.n === n) || {};
-    return { name:n, ppEach:parseNum(d.pp), rated:/\//.test(String(d.pp||"")) || /level/i.test(String(d.tiers||"")), lvl:1 };
+    return { name:n, ppEach:parseNum(d.pp), rated:adeptPowerIsRated(d), lvl:1 };
   });
   state.gear = { weapons:[], armor:[], cyber:[], bio:[], gear:[], vehicles:[], matrix:[] };
   // Kit gear buckets use the reference names (weapons/armor/cyber/other/vehicles); map "other" -> "gear".
@@ -1794,8 +1783,7 @@ function wire() {
   });
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
-    const rated = /\//.test(String(p.pp||"")) || /level/i.test(String(p.tiers||"")) || /per\s+level/i.test(String(p.pp||""));
-    const line = { name:p.n, ppEach:parseNum(p.pp), rated, lvl:1 };
+    const line = { name:p.n, ppEach:parseNum(p.pp), rated:adeptPowerIsRated(p), lvl:1 };
     // One line per Physical Attribute: start on the first one this power isn't already bought for.
     if (p.attrChoice) {
       const taken = state.powers.filter(x => x.name === p.n).map(x => x.attr || POWER_ATTRS[0]);
@@ -2029,7 +2017,9 @@ function commitPayload() {
     priorities: state.prio,
     skills: commitSkills(),
     spells: state.spells,
-    adept_powers: state.powers,
+    // Each line carries its total cost (`pp`): a tier-priced power's depends on the chargen
+    // attributes and Racial Maximum, which the play sheet can't recompute.
+    adept_powers: state.powers.map(p => ({ ...p, pp: round2(powerCost(p)) })),
     gear: { ...state.gear, foci: state.foci, programs: state.programs || [] },
     contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => {
       const t = c.type || "Contact";

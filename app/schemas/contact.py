@@ -47,8 +47,9 @@ class ContactUpdate(BaseModel):
 
     @field_validator("loyalty", "connection", mode="before")
     @classmethod
-    def rating_in_range(cls, v: int | None) -> int | None:
-        if v is not None and not 1 <= v <= 6:
+    def rating_in_range(cls, v: int) -> int:
+        # Omit the field to leave it alone; an explicit null can't be stored (NOT NULL columns).
+        if v is None or not 1 <= v <= 6:
             raise ValueError("Rating must be between 1 and 6")
         return v
 

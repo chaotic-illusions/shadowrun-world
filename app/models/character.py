@@ -135,8 +135,8 @@ class Character(Base):
     owner_token: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
     # NPCs only: the runner whose character creation made this contact. Whoever owns that runner
     # may edit the contact's profile (see characters._owns_contact_npc) -- tied to the PC rather
-    # than a token so the right follows a claim/unclaim. Plain integer, no FK: a deleted runner
-    # just leaves the contact admin-only.
+    # than a token so the right follows a claim/unclaim. Plain integer, no FK: delete_character
+    # clears it, leaving the contact admin-only. The GM can set or clear it (CharacterUpdate).
     origin_pc_id: Mapped[int | None] = mapped_column(Integer, default=None)
 
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))

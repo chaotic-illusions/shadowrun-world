@@ -1476,6 +1476,28 @@ function powerInfoBody(pw, owned){
     `<p class="dim-meta mt-6">${esc(pw.src || '')}${pw.pg ? ` p.${esc(String(pw.pg))}` : ''}</p>`,
   ].join('');
 }
+// Whether a catalog adept power is bought in levels -- the one rule for the builder's shop and its
+// archetype kits. The catalog's own `rated` flag wins; older entries only say so in their price
+// ("0.5 PP per level", "2 / 3 / 4 PP") or tiers text.
+function adeptPowerIsRated(pw){
+  return !!pw.rated || /\//.test(String(pw.pp || '')) || /per\s+level/i.test(String(pw.pp || '')) || /level/i.test(String(pw.tiers || ''));
+}
+// Total Power Point cost of an owned power line (`p`: {name, lvl, rated, ppEach, pp}) against its
+// catalog entry `pw`. A `ppTbl` power costs its level's table entry (Combat Sense 2/3/4), not
+// level x the first price. A `ppTier` power (Improved Physical Attributes, Increased Reaction)
+// prices each +1 by where the resulting rating falls against the Racial Maximum (SR2 pp.125-126):
+// `tierBase` is [unimproved rating, Racial Maximum], which only the builder knows -- without it
+// the cost the builder stored on the line (`pp`) is used, or null when there isn't one.
+function adeptPowerCost(p, pw, tierBase){
+  const lvl = p.rated ? (Number(p.lvl) || 1) : 1;
+  if (pw.ppTier) {
+    if (!tierBase) return p.pp != null ? Number(p.pp) : null;
+    let cost = 0;
+    for (let r = tierBase[0] + 1; r <= tierBase[0] + lvl; r++) cost += pw.ppTier[r <= tierBase[1] / 2 ? 0 : r <= tierBase[1] ? 1 : 2];
+    return cost;
+  }
+  return pw.ppTbl ? (pw.ppTbl[Math.min(lvl, pw.ppTbl.length) - 1] || 0) : (Number(p.ppEach) || 0) * lvl;
+}
 
 // ---- Situational bonuses too narrow/one-off to model as a first-class field -- CSV said to note
 // them on the character instead. Shared by play-sheet.html's appendCharNote (writes CHAR.notes) and

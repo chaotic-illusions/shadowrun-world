@@ -811,6 +811,13 @@ async def update_character(
             _validate_hard_gear_caps(char, submitted)
         if "gear" in submitted:
             _assert_gear_grades_allowed(char, submitted)
+    else:
+        # The GM grants (or, with null, revokes) a player's right to edit a contact NPC.
+        origin_id = body.model_dump(exclude_unset=True).get("origin_pc_id")
+        if origin_id is not None:
+            origin = await db.get(Character, origin_id)
+            if char.is_pc or origin is None or not origin.is_pc:
+                raise HTTPException(status_code=422, detail="origin_pc_id must name a runner, on an NPC")
 
     await apply_update(db, char, body, exclude={"owner_token"}, commit=False)
     # A contact row copies its NPC's name and archetype (as profession) when the link is made --
@@ -860,6 +867,11 @@ async def delete_character(
     # foreign_keys=ON does not block the delete. (Owned contacts, reputation, and standings are
     # removed by the ORM cascade on Character during the awaited flush.)
     await db.execute(sql_update(Contact).where(Contact.npc_id == character_id).values(npc_id=None))
+    # Contact NPCs this runner's player could edit go back to GM-only -- SQLite may hand this id to
+    # the next character created, whose player must not inherit them.
+    await db.execute(
+        sql_update(Character).where(Character.origin_pc_id == character_id).values(origin_pc_id=None)
+    )
     await db.delete(char)
     await db.flush()  # emit the cascade (owned-contact deletes) before removing the POI they referenced
     for pid in poi_ids:
