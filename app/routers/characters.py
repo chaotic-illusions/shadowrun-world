@@ -211,9 +211,12 @@ def _serialize_character(char: Character, ctx: dict, contact_owner: bool = False
         return data
     # A PC's notes belong to its player: the owner sees them. NPC notes and other players' PC
     # notes are GM-only.
-    if not (char.is_pc and _owns(char, ctx)):
+    pc_owner = char.is_pc and _owns(char, ctx)
+    if not pc_owner:
         data["notes"] = None
-    if not data.get("show_background") and not contact_owner:
+    # Same for the background a player writes for their own PC -- hiding it from them made the
+    # edit form reload empty, and the next save wrote that blank back over the stored text.
+    if not data.get("show_background") and not contact_owner and not pc_owner:
         data["background"] = None
     # An inactive org is GM-concealed: don't name it through a member's affiliation.
     if char.organization is not None and char.organization.is_active is False:
