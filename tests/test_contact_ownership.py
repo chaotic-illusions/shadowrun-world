@@ -159,6 +159,33 @@ def test_pc_owner_reads_back_the_background_they_write(tmp_path):
     _run(tmp_path, "pc_background", scenario)
 
 
+def test_everything_a_player_may_write_is_shown_back_to_them(tmp_path):
+    """A field a player can save but not read reloads blank in their form, and the next save
+    writes the blank back. Whatever the write whitelists allow, the owner's read must return
+    exactly as the GM sees it -- this fails if a new redaction or whitelist entry breaks that."""
+    from app.routers.characters import _PLAYER_CONTACT_FIELDS, _PLAYER_WRITABLE_FIELDS
+
+    async def scenario(db, ids):
+        org = Organization(name="Ancients")
+        db.add(org)
+        await db.flush()
+        for cid in (ids.leadbelly, ids.chopper):
+            char = await db.get(Character, cid)
+            char.description, char.background, char.notes = "desc", "bg", "notes"
+            char.title, char.nationality, char.gender, char.age = "title", "UCAS", "M", 40
+        (await db.get(Character, ids.chopper)).organization_id = org.id
+        await db.commit()
+        admin = _ctx(None, admin=True)
+        for cid, fields in ((ids.leadbelly, _PLAYER_WRITABLE_FIELDS), (ids.chopper, _PLAYER_CONTACT_FIELDS)):
+            full = await get_character(cid, ctx=admin, db=db)
+            single = await get_character(cid, ctx=COLE, db=db)
+            listed = {c["id"]: c for c in await list_characters(None, None, None, ctx=COLE, db=db)}[cid]
+            for field in sorted(fields & full.keys()):   # chargen_state has its own endpoint
+                assert single[field] == full[field], field
+                assert listed[field] == full[field], field
+    _run(tmp_path, "round_trip", scenario)
+
+
 def test_chargen_contacts_record_their_runner(tmp_path):
     async def scenario(db, ids):
         runner = await db.get(Character, ids.rook)
