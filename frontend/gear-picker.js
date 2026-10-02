@@ -228,8 +228,12 @@ const initGearPicker = (function () {
     }
     const kv = unitKarma(it, selRating);
     if (kv) meta.push(`<span><b>Bonding</b> <span class="text-amber">${kv} Karma</span></span>`);
-    if (it.avail) meta.push(`<span><b>Avail</b> ${esc(String(it.avail))}</span>`);
-    if (it.index != null) meta.push(`<span><b>Index</b> ${esc(String(it.index))}</span>`);
+    // Some rated items are harder to find at higher levels (Wired Reflexes 3, Move-by-Wire): the
+    // catalog's availTbl / indexTbl hold the per-level values, falling back to the flat ones.
+    const perLevel = (tbl, flat) => (it.rated && Array.isArray(tbl) && tbl[selRating - 1] != null) ? tbl[selRating - 1] : flat;
+    const avail = perLevel(it.availTbl, it.avail), index = perLevel(it.indexTbl, it.index);
+    if (avail) meta.push(`<span><b>Avail</b> ${esc(String(avail))}</span>`);
+    if (index != null) meta.push(`<span><b>Index</b> ${esc(String(index))}</span>`);
     if (it.legal) meta.push(`<span><b>Legal</b> ${esc(String(it.legal))}</span>`);
     if (it.src) meta.push(`<span><b>Source</b> ${esc(String(it.src))}${it.pg ? " p." + esc(String(it.pg)) : ""}</span>`);
 
@@ -258,7 +262,7 @@ const initGearPicker = (function () {
             ${addon.desc ? `<span class="gc-opt__d">${esc(addon.desc)}</span>` : ""}</span></label>
         </div></div>` : "";
     // Full data dump so nothing needed for the sheet is hidden.
-    const rawRows = Object.keys(it).filter(k => !HIDE_KEYS.has(k) && !["cost", "ess", "avail", "index", "legal", "src", "pg"].includes(k))
+    const rawRows = Object.keys(it).filter(k => !HIDE_KEYS.has(k) && !["cost", "ess", "avail", "index", "availTbl", "indexTbl", "legal", "src", "pg"].includes(k))
       .map(k => `<tr><td>${esc(k)}</td><td>${fmtVal(it[k])}</td></tr>`).join("");
     const raw = rawRows ? `<div class="gc-raw"><table>${rawRows}</table></div>` : "";
 
