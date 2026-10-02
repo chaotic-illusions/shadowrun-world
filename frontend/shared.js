@@ -1284,7 +1284,8 @@ const EXCLUDES = {
   'Vehicle Control Rig': excl('Boosted Reflexes', g => hasItem(g,'Boosted Reflexes')),
   'Wired Reflexes': excl('Boosted Reflexes', g => hasItem(g,'Boosted Reflexes')),
   'Reaction Enhancer': excl('a Move-by-Wire System', g => hasItem(g,'Move-by-Wire System')),
-  'Dermal Plating': excl('Dermal Sheath R3 or Orthoskin R3', g => hasItemAtRating(g,'Dermal Sheath',3) || hasOrthoskinAtRating(g,3)),
+  'Dermal Plating': excl('Dermal Sheath R3 or Orthoskin', g => hasItemAtRating(g,'Dermal Sheath',3) || hasItem(g,'Orthoskin')),
+  'Orthoskin': excl('Dermal Plating', g => hasItem(g,'Dermal Plating')),   // any level: "not compatible with dermal armor" (Shadowtech p.17)
   'Trauma Damper': excl('a Pain Editor', g => hasItem(g,'Pain Editor')),
   'Pain Editor': excl('a Trauma Damper', g => hasItem(g,'Trauma Damper')),
   'Reflex Recorder (Concentration)': excl('Skillwires', g => hasFamily(g,'skillwirePlus')),
@@ -1314,30 +1315,25 @@ function hasItemAtRating(gear, name, minR){
   return ((gear.cyber)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR) ||
          ((gear.bio)||[]).some(g => g.n === name && (Number(g.rating)||1) >= minR);
 }
-function hasOrthoskinAtRating(gear, minR){ return hasItemAtRating(gear, 'Orthoskin', minR); }
-// Orthoskin and Dermal Sheath only become incompatible with Dermal Plating at Rating 3 specifically
-// (their own catalog text) -- not a plain EXCLUDES entry since the trigger is rating-conditional, not
-// "owned at all". Checked both on a fresh purchase (ownershipBlocked) and an in-place upgrade
-// (play-sheet.html's upgradeExistingSingular), same as every other rating change now that both go
-// through re-buying.
+// Dermal Sheath only becomes incompatible with Dermal Plating at Rating 3 specifically -- not a plain
+// EXCLUDES entry since the trigger is rating-conditional, not "owned at all". Checked both on a
+// fresh purchase (ownershipBlocked) and an in-place upgrade (play-sheet.html's
+// upgradeExistingSingular), same as every other rating change now that both go through re-buying.
 // A rank-specific mutual exclusion: raising `itemName` to `targetRating` (>= minRating) is blocked
 // if `excludesName` is already owned (any rating). Mirrors EXCLUDES' opposite-direction check
-// (Dermal Plating -> hasItemAtRating(Dermal Sheath/Orthoskin, 3)) for the other two items in this
-// three-way exclusion.
+// (Dermal Plating -> hasItemAtRating(Dermal Sheath, 3)).
 function ratingExclusionBlocked(itemName, targetRating, minRating, excludesName, gear){
   return targetRating >= minRating && hasItem(gear, excludesName) ? `${itemName} R${minRating} (incompatible with ${excludesName})` : null;
 }
-function orthoskinRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Orthoskin', targetRating, 3, 'Dermal Plating', gear); }
+// Orthoskin is incompatible with Dermal Plating at every level (Shadowtech p.17). EXCLUDES covers a
+// fresh purchase; this covers re-rating Orthoskin on a character who already owns both.
+function orthoskinRatingBlocked(targetRating, gear){ return hasItem(gear, 'Dermal Plating') ? 'Orthoskin (incompatible with Dermal Plating)' : null; }
 function dermalSheathRatingBlocked(targetRating, gear){ return ratingExclusionBlocked('Dermal Sheath', targetRating, 3, 'Dermal Plating', gear); }
 // Combines the default-singular/quantity-cap rules with the prerequisite/exclusion tables above.
 // PREREQ/EXCLUDES apply to every item, family members included (e.g. Boosted Reflexes is itself a
 // family member AND excludes the VCR family) -- only the *default-singular quantity cap* is skipped
 // for family members, since familyReplaceOrBlock (called separately) governs their ownership count.
 function ownershipBlocked(cat, item, gear, rating){
-  if (item.n === 'Orthoskin') {
-    const orthoBlock = orthoskinRatingBlocked(rating || 1, gear);
-    if (orthoBlock) return orthoBlock;
-  }
   if (item.n === 'Dermal Sheath') {
     const sheathBlock = dermalSheathRatingBlocked(rating || 1, gear);
     if (sheathBlock) return sheathBlock;
@@ -1489,70 +1485,64 @@ function powerInfoBody(pw, owned){
 const SITUATIONAL_NOTES = {
   'Olfactory Booster': g => `Olfactory Booster R${g.rating||1}: +1 die to smell Perception per level, +1 die to taste per 3 levels.`,
   'Hydraulic Jack': g => `Hydraulic Jack R${g.rating||1}: leaping distance/height x${g.rating||1}; falling-damage Power -${g.rating||1}.`,
-  'Damage Compensator (R1-2)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
-  'Damage Compensator (R3-5)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
-  'Damage Compensator (R6-9)': g => `Damage Compensator R${g.rating}: ignore wound penalties (Physical and Stun) up to that level.`,
+  'Damage Compensator (R1-2)': g => `Damage Compensator R${g.rating}: no wound penalties while damage is at or below ${g.rating} boxes; Physical and Stun are judged separately.`,
+  'Damage Compensator (R3-5)': g => `Damage Compensator R${g.rating}: no wound penalties while damage is at or below ${g.rating} boxes; Physical and Stun are judged separately.`,
+  'Damage Compensator (R6-9)': g => `Damage Compensator R${g.rating}: no wound penalties while damage is at or below ${g.rating} boxes; Physical and Stun are judged separately.`,
   // Just a note, not a mechanical piece of code -- both the actual damage-shifting effect and the
   // Damage-Compensator-threshold gate would need condition-monitor logic that doesn't exist yet.
-  'Trauma Damper': () => `Trauma Damper: shifts one box of Physical damage to Stun instead, but only once an owned Damage Compensator's threshold has been exceeded (no effect without one). +2 TN to others' attempts to cause you pain. Incompatible with a Pain Editor.`,
+  'Trauma Damper': () => `Trauma Damper: shift one box of each Physical wound to Stun, and take one box off each Stun wound. +2 TN to others' attempts to cause you pain, -2 TN to resist pain. Does not work with an active Pain Editor; with a Damage Compensator it works only once the compensator's level is exceeded.`,
   // Cyberware that's meant to grant a Weapons-table entry -- not auto-added there, just noted with
   // what it grants so it can be tracked by hand.
   'Hand Blade (Retractable)': () => `Hand Blade (Retractable): melee weapon, Reach 0, Damage (STR+3)L. Retracts into the limb when not in use.`,
-  'Shock Hand': () => `Shock Hand: melee weapon, Reach 0, Damage 8S. Recharges between uses -- one strike per recharge.`,
-  'Cyberarm Taser': () => `Cyberarm Taser: ranged weapon, Damage 8S. 10 charges before reload.`,
-  'CyberSquirt': () => `CyberSquirt: ranged chemical injector, 10 shots of a chosen chemical/biological agent. Rigid armor reduces effect.`,
-  'Cyberarm Gyromount': () => `Cyberarm Gyromount: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+  'Shock Hand': () => `Shock Hand: melee weapon, Reach 0, Damage 8S. 12 charges, then it must be recharged.`,
+  'Cyberarm Taser': () => `Cyberarm Taser: ranged weapon, Damage 10S, standard taser ranges. Two shots before recharging.`,
+  'CyberSquirt': () => `CyberSquirt: ranged chemical injector, 10 rounds of a chosen chemical/biological agent. Porous armor gives no protection; rigid armor applies half its rating.`,
+  'Cyberarm Gyromount': () => `Cyberarm Gyromount: 3 points of recoil reduction, for any weapon up to a light machine gun.`,
   'Toxin Extractor': g => `Toxin Extractor R${g.rating||1}: reduces blood-toxin attack Power by ${Math.floor((g.rating||1)/2)}.`,
-  'Pathogenic Defense': g => `Pathogenic Defense R${g.rating||1}: +${g.rating||1} die resisting disease/allergens; reduces microbiological attack Power by ${Math.floor((g.rating||1)/2)}.`,
-  'Nephritic Screen': () => `Nephritic Screen: +1 Body resisting toxins/pathogens; reduces blood-vectored toxin attack Power by 1.`,
-  'Extended Volume': g => `Extended Volume R${g.rating||1}: +${[0,45,90,135][g.rating||1]||45}s breath-hold${(g.rating||1)>=3 ? ' (small stamina penalty at R3)' : ''}.`,
+  'Pathogenic Defense': g => `Pathogenic Defense R${g.rating||1}: reduces disease, allergen and microbiological attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Nephritic Screen': () => `Nephritic Screen: +1 Body resisting toxins/pathogens; reduces pathogen and blood-vectored toxin attack Power by 1.`,
+  'Extended Volume': g => `Extended Volume R${g.rating||1}: +${[0,45,90,135][g.rating||1]||45}s breath-hold; ${(g.rating||1)>=3 ? '-2' : '-1'} TN on tests of stamina.`,
   // Activated/temporary, not a permanent mod -- applying it as an always-on attribute bonus would be
   // wrong (it only applies for 10-15 turns, then costs Stun Drain and fatigue).
-  'Adrenal Pump': g => `Adrenal Pump R${g.rating||1}: on activation, ${g.rating===2?'+2 Quickness/+2 Strength/+1 Willpower/+4 Reaction':'+1 Quickness/+1 Strength/+1 Willpower/+2 Reaction'} for 10-15 turns, then Stun Drain and fatigue.`,
+  'Adrenal Pump': g => `Adrenal Pump R${g.rating||1}: while active, +${g.rating||1} Quickness/+${g.rating||1} Strength/+${g.rating||1} Willpower/+${2*(g.rating||1)} Reaction for ${g.rating||1}D6 turns, then resist Deadly Stun at a Power of half the turns it lasted.`,
   // Knowledge/Language skills aren't tracked as a structured list on this sheet yet, so this bonus
   // has nowhere to attach -- noted instead of silently dropped.
-  'Mnemonic Enhancer': g => `Mnemonic Enhancer R${g.rating||1}: +${Math.floor((g.rating||1)/2)} die to Knowledge/Language tests; -${g.rating||1} TN to recall tests.`,
-  // Ballistic/Impact are wired into the Armor total (bioArmorBonus). The Body bonus described here is
-  // specifically "for damage resistance tests," not a real Body attribute increase (unlike Cybertorso/
-  // Cyberskull's flat +1 Body, which is a genuine structural replacement) -- noted rather than modeled
-  // as a global attribute change that would also skew Encumbrance/karma costs.
-  'Dermal Sheath': g => `Dermal Sheath R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
-  'Dermal Plating': g => `Dermal Plating R${g.rating||1}: +${g.rating||1} Body for damage-resistance tests only (armor already counted in the total).`,
-  'Bone Lacing': g => `Bone Lacing R${g.rating||1} (${['Plastic','Aluminum','Titanium'][(g.rating||1)-1]||'Plastic'}): Unarmed Blow does (STR+${g.rating||1})M.`,
-  'Orthoskin': g => (g.rating||1) >= 3 ? `Orthoskin R3: +TN to tactile Perception.` : '',
+  'Mnemonic Enhancer': g => `Mnemonic Enhancer R${g.rating||1}: +${g.rating||1} dice on Intelligence Tests to recall something; +${Math.floor((g.rating||1)/2)} dice to Knowledge/Language tests.`,
+  'Bone Lacing': g => `Bone Lacing R${g.rating||1} (${['Plastic','Aluminum','Titanium'][(g.rating||1)-1]||'Plastic'}): Unarmed Blow does (STR+${g.rating||1})M Stun, or Physical at half Power.`,
+  'Orthoskin': g => `Orthoskin R${g.rating||1}: +${g.rating||1} TN to tactile Perception Tests.`,
   // Weapon-granting cyberware not auto-added to the Weapons table (same treatment as Hand Blade/Shock
   // Hand/Cyberarm Taser/CyberSquirt above) -- noted with what it grants instead.
-  'Hand Razors': () => `Hand Razors: Unarmed melee weapon, cyber-claws.`,
-  'Retractable Hand Razors': () => `Retractable Hand Razors: Unarmed melee weapon, cyber-claws (concealable, retracts when not in use).`,
-  'Improved Hand Razors': () => `Improved Hand Razors: Unarmed melee weapon, Damage (STR+2).`,
-  'Spur': () => `Spur: melee weapon, Damage (STR+2), always extended.`,
-  'Retractable Spur': () => `Retractable Spur: melee weapon, Damage (STR+2), retracts when not in use.`,
-  'Oral Dart': () => `Oral Dart: ranged narcoject/toxin injector, 3 rounds, reload 1 min/dart, ammo x3 cost.`,
+  'Hand Razors': () => `Hand Razors: melee weapon, Reach 0, Damage (STR)L.`,
+  'Retractable Hand Razors': () => `Retractable Hand Razors: melee weapon, Reach 0, Damage (STR)L; retract under synthetic nails.`,
+  'Improved Hand Razors': () => `Improved Hand Razors: melee weapon, Reach 0, Damage (STR+2)L.`,
+  'Spur': () => `Spur: melee weapon, Reach 0, Damage (STR)M.`,
+  'Retractable Spur': () => `Retractable Spur: melee weapon, Reach 0, Damage (STR)M; retracts when not in use.`,
+  'Oral Dart': () => `Oral Dart: Narcoject/toxin rounds at hold-out pistol ranges, 3 darts, reload 1 min/dart, ammo x2 cost.`,
   'Oral Gun': () => `Oral Gun: ranged weapon, 4 rounds, reload 1 min/round, ammo x3 cost.`,
-  'Oral Spur': () => `Oral Spur: melee weapon (tongue-mounted), extends/retracts as a free action.`,
+  'Oral Spur': () => `Oral Spur: treat as a cyberspur; attack with a Special Skill or Quickness.`,
   'Oral Whip': () => `Oral Whip: ranged melee weapon, Range 1m, Damage 6M.`,
-  'Eye Dart': () => `Eye Dart: ranged narcoject/toxin injector, 1 round, reloads in 10 Combat Turns, ammo x3 cost.`,
-  'Eye Gun': () => `Eye Gun: ranged weapon, 1 round (-1 damage, -1 recoil mod), reloads in 10 Combat Turns.`,
-  'Tool Laser': () => `Tool Laser: Damage Code 4L beyond 1m; can't pierce Barrier Rating > 8.`,
-  'Toxin Exhaler': () => `Toxin Exhaler: ranged toxin injector (Quickness Test to hit, +1 TN per half-meter, range capped at half unaugmented Body in meters).`,
+  'Eye Dart': () => `Eye Dart: half-strength Narcoject/toxin round at half hold-out range, 1 shot, reload 10 Combat Turns, ammo x4 cost.`,
+  'Eye Gun': () => `Eye Gun: hold-out pistol at half range, -1 damage, +1 recoil, 1 shot, reload 10 Combat Turns, ammo x5 cost.`,
+  'Tool Laser': () => `Tool Laser: Damage 4L, range 4m; TN 4, +1 per meter beyond the first. Will not cut reflective metal or silvered glass.`,
+  'Toxin Exhaler': () => `Toxin Exhaler: Quickness (4) Test to hit, +1 TN per half-meter, range half unaugmented Body in meters.`,
   // Implanted lethal/self-destruct devices -- severe, non-obvious effects worth flagging clearly.
-  'Kink Bomb': () => `Kink Bomb (Illegal): kills the wearer outright on detonation; can cause permanent neurological damage if it fails to kill.`,
-  'Microbomb': () => `Microbomb: kills wearer and destroys identifying tissue, Power 8 Damage Level M blast.`,
-  'Area Bomb': () => `Area Bomb: Power 10 Damage Level M blast beyond the wearer, -1 Power per meter of distance.`,
-  'Cortex Bomb (Illegal)': () => `Cortex Bomb (Illegal): lethal explosive in a 1m radius, remote/signal/condition-triggered.`,
+  'Kink Bomb': () => `Kink Bomb (Illegal): kills instantly if placed near the cortex; placed by headware memory it destroys that instead.`,
+  'Microbomb': () => `Microbomb: just powerful enough to kill the bearer.`,
+  'Area Bomb': () => `Area Bomb: kills the bearer; blast bought at Power 3-8, Damage Level M-D, -1 Power per meter.`,
+  'Cortex Bomb (Illegal)': () => `Cortex Bomb (Illegal): kills the wearer; 5D explosion, 1m radius. Timer or signal triggered, usually booby-trapped.`,
   // Resistance-test bonuses that have nowhere to attach (no toxin/pathogen/gas-attack mechanic on this
   // sheet) -- same treatment as Toxin Extractor/Pathogenic Defense/Nephritic Screen above.
   'Air Filtration': g => `Air Filtration R${g.rating||1}: opposes inhaled toxins with Rating ${g.rating||1}.`,
   'Blood Filtration': g => `Blood Filtration R${g.rating||1}: opposes blood-borne toxins with Rating ${g.rating||1}.`,
   'Ingested Toxin Filtration': g => `Ingested Toxin Filtration R${g.rating||1}: opposes ingested toxins with Rating ${g.rating||1}.`,
-  'Tracheal Filter': g => `Tracheal Filter R${g.rating||1}: reduces gas/airborne attack Power by ${Math.floor((g.rating||1)/2)}.`,
-  'Platelet Factory': () => `Platelet Factory: forces a clot against embolism/serious blood loss once daily; +1 TN to Body Tests per use (cumulative thrombosis risk).`,
-  'Symbiotes': g => `Symbiotes R${g.rating||1}: heals in ${[90,70,50][(g.rating||1)-1]||90}% normal time${(g.rating||1)>=2 ? `; +${(g.rating||1)===2?50:100}% food intake` : ''}.`,
-  'Suprathyroid Gland': () => `Suprathyroid Gland: requires roughly triple normal food/drink intake; tendency toward hyperactivity.`,
+  'Tracheal Filter': g => `Tracheal Filter R${g.rating||1}: reduces non-microbiological airborne attack Power by ${Math.floor((g.rating||1)/2)}.`,
+  'Platelet Factory': () => `Platelet Factory: take 1 box less from any Physical wound of Moderate or higher. Needs a daily anticoagulant; without it, Body (3) Test every 12 hours (+1 per day missed) or suffer cardiac arrest.`,
+  'Symbiotes': g => `Symbiotes R${g.rating||1}: heals in ${[90,70,50][(g.rating||1)-1]||90}% of normal time; +${[50,70,100][(g.rating||1)-1]||50}% food and drink.`,
+  'Suprathyroid Gland': () => `Suprathyroid Gland: needs twice the normal food and drink; -1 TN for thermographic observers to notice you; tendency toward hyperactivity.`,
   // The -2 TN bonus has nowhere to attach (no attack-TN mechanic on this sheet).
   'Smartlink': () => `Smartlink: -2 TN on smartgun-equipped weapons.`,
-  'External Mount': () => `External Mount: weapon mount, triple ammo cost for the external feed.`,
-  'Articulate Arm': () => `Articulate Arm: 3 points Recoil Compensation for whatever weapon is mounted to it.`,
+  'External Mount': () => `External Mount: takes pistols and SMGs at double the weapon's cost; Complex Action to attach or detach.`,
+  'Articulate Arm': () => `Articulate Arm: 360-degree mount for weapons up to a light machine gun; 3 points of recoil reduction plus laser sight modifiers.`,
 };
 
 // Current nuyen cost of an owned gear line (rated weapons/armor/gear use their rating's costTbl slot).
