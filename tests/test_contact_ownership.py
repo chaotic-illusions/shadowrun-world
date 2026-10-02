@@ -147,6 +147,18 @@ def test_mine_lists_contacts_and_reads_show_owner_the_background(tmp_path):
     _run(tmp_path, "reads", scenario)
 
 
+def test_pc_owner_reads_back_the_background_they_write(tmp_path):
+    async def scenario(db, ids):
+        result = await update_character(ids.leadbelly, CharacterUpdate(background="Ex-Lone Star."), db, COLE)
+        assert result["background"] == "Ex-Lone Star."
+        assert (await get_character(ids.leadbelly, ctx=COLE, db=db))["background"] == "Ex-Lone Star."
+        listed = {c["id"]: c for c in await list_characters(None, None, None, ctx=COLE, db=db)}
+        assert listed[ids.leadbelly]["background"] == "Ex-Lone Star."
+        # Still unrevealed to everyone else until the GM turns show_background on.
+        assert (await get_character(ids.leadbelly, ctx=OTHER, db=db))["background"] is None
+    _run(tmp_path, "pc_background", scenario)
+
+
 def test_chargen_contacts_record_their_runner(tmp_path):
     async def scenario(db, ids):
         runner = await db.get(Character, ids.rook)
