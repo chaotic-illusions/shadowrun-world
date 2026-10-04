@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from app.models.character import Character
 from app.routers.characters import convert_character_dossier, create_character_dossier, finalize_character_dossier
 from app.schemas.character import DossierCommit
+from tests.test_chargen_contacts import STARTING_CONTACTS
 from tests.test_dossier_gm_fields import ADMIN, _database
 
 GOOD = [
@@ -36,8 +37,8 @@ def _create(tmp_path, skills, **extra):
     async def scenario():
         async with _database(tmp_path / "t.db") as sessions:
             async with sessions() as db:
-                return await create_character_dossier(body=DossierCommit(name="Chancer", skills=skills, **extra),
-                                                      db=db, ctx=ADMIN)
+                body = DossierCommit(name="Chancer", skills=skills, contacts=STARTING_CONTACTS, **extra)
+                return await create_character_dossier(body=body, db=db, ctx=ADMIN)
     return asyncio.run(scenario())
 
 
@@ -66,7 +67,8 @@ def test_finalize_and_convert_are_checked(tmp_path, route):
                 await db.commit()
             endpoint = finalize_character_dossier if route == "finalize" else convert_character_dossier
             async with sessions() as db:
-                await endpoint(character_id=5, body=DossierCommit(name="Runner", skills=BAD["general 0"]), db=db, ctx=ADMIN)
+                body = DossierCommit(name="Runner", skills=BAD["general 0"], contacts=STARTING_CONTACTS)
+                await endpoint(character_id=5, body=body, db=db, ctx=ADMIN)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(scenario())
     assert exc.value.status_code == 422

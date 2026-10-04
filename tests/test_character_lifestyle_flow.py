@@ -23,6 +23,7 @@ from app.routers.characters import (
 )
 from app.schemas.character import DossierCommit
 from app.services.lifestyle import settle_all_lifestyles
+from tests.test_chargen_contacts import STARTING_CONTACTS
 
 
 @asynccontextmanager
@@ -94,7 +95,7 @@ def test_convert_dossier_overwrites_in_place_and_stamps_lifestyle(tmp_path):
 
             body = DossierCommit(
                 name="NewSheet", body=5, strength=4, lifestyle_level=2,
-                contacts=[{"name": "Fixer Joe", "loyalty": 3}],
+                contacts=STARTING_CONTACTS,
             )
             async with sessions() as db:
                 res = await convert_character_dossier(cid, body, db=db, ctx={"is_admin": False, "user_token": tok})
@@ -107,7 +108,7 @@ def test_convert_dossier_overwrites_in_place_and_stamps_lifestyle(tmp_path):
                 contacts = await db.scalar(
                     select(func.count()).select_from(Contact).where(Contact.owner_id == cid)
                 )
-                assert contacts == 1
+                assert contacts == 2
 
     asyncio.run(scenario())
 
@@ -121,7 +122,7 @@ def test_convert_dossier_overwrites_in_place_and_stamps_lifestyle(tmp_path):
                 db.add(Contact(owner_id=cid, name="Existing", connection=1, loyalty=1))
                 await db.commit()
 
-            body = DossierCommit(name="HasContacts", contacts=[{"name": "New One", "loyalty": 3}])
+            body = DossierCommit(name="HasContacts", contacts=STARTING_CONTACTS)
             async with sessions() as db:
                 await convert_character_dossier(cid, body, db=db, ctx={"is_admin": True, "user_token": "admin"})
 
@@ -177,7 +178,7 @@ def test_chargen_contacts_become_poi_and_persist_after_pc_delete(tmp_path):
             admin = {"is_admin": True, "user_token": "admin"}
             body = DossierCommit(
                 name="Runner",
-                contacts=[{"name": "Fixer Joe", "profession": "Fixer", "loyalty": 3}],
+                contacts=STARTING_CONTACTS,
             )
             async with sessions() as db:
                 res = await create_character_dossier(body, db=db, ctx=admin)
@@ -185,7 +186,8 @@ def test_chargen_contacts_become_poi_and_persist_after_pc_delete(tmp_path):
 
             async with sessions() as db:
                 # The chargen contact became a linked NPC person of interest.
-                ct = (await db.execute(select(Contact).where(Contact.owner_id == pid))).scalars().first()
+                ct = (await db.execute(
+                    select(Contact).where(Contact.owner_id == pid, Contact.name == "Fixer Joe"))).scalars().first()
                 assert ct is not None and ct.npc_id is not None
                 poi = await db.get(Character, ct.npc_id)
                 assert poi is not None and poi.is_pc is False and poi.name == "Fixer Joe"
@@ -209,7 +211,7 @@ def test_chargen_pc_defaults_to_independent(tmp_path):
         async with _database(tmp_path / "indep.db") as sessions:
             admin = {"is_admin": True, "user_token": "admin"}
             async with sessions() as db:
-                res = await create_character_dossier(DossierCommit(name="Runner"), db=db, ctx=admin)
+                res = await create_character_dossier(DossierCommit(name="Runner", contacts=STARTING_CONTACTS), db=db, ctx=admin)
                 # Runners default to Independent affiliation (not Unknown) at creation.
                 assert res["is_independent"] is True
 
@@ -224,6 +226,7 @@ def test_chargen_gang_tribe_contacts_stay_unlinked(tmp_path):
                 name="Runner",
                 contacts=[
                     {"name": "Fixer Joe", "profession": "Fixer", "contact_type": "Contact", "loyalty": 2},
+                    {"name": "Doc Wagon", "profession": "Street Doc", "contact_type": "Buddy", "loyalty": 3},
                     {"name": "Ancients", "profession": None, "contact_type": "Gang", "loyalty": 1},
                     {"name": "Sinsearach", "profession": None, "contact_type": "Tribe", "loyalty": 1},
                 ],
@@ -237,9 +240,9 @@ def test_chargen_gang_tribe_contacts_stay_unlinked(tmp_path):
                     select(Contact).where(Contact.owner_id == pid).order_by(Contact.name)
                 )).scalars().all()
                 by_name = {c.name: c for c in contacts}
-                # All three are contacts on the runner...
-                assert set(by_name) == {"Ancients", "Fixer Joe", "Sinsearach"}
-                # ...but only the individual (Contact) becomes a Known-Persons NPC dossier.
+                # All four are contacts on the runner...
+                assert set(by_name) == {"Ancients", "Doc Wagon", "Fixer Joe", "Sinsearach"}
+                # ...but only the individuals (Contact/Buddy) become Known-Persons NPC dossiers.
                 assert by_name["Fixer Joe"].npc_id is not None
                 assert by_name["Ancients"].npc_id is None
                 assert by_name["Sinsearach"].npc_id is None

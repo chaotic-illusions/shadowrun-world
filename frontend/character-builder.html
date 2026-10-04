@@ -512,24 +512,47 @@ function vehicleBodyOf(g) {
   return it ? vehicleStatBody(it) : 0;
 }
 function vehicleLineCost(g) { return (Number(g.cost)||0) + (g.rigger ? riggerGearCost(vehicleBodyOf(g)) : 0); }
+// Every runner starts with two free contacts (SR2 p.43); one of them can be upgraded to a Buddy for
+// the Buddy price, and only one Buddy can be taken at creation. More Contacts cost the Contact
+// price each; Gang/Tribe/Follower are fixed-price extras on top, up to five Followers (p.44).
+const MAX_FOLLOWERS = 5;
 function contactUnitCost(c) {
   const t = (c && c.type) || "Contact";
-  if (CONTACT_TYPE_COST[t] != null) return CONTACT_TYPE_COST[t];   // Gang/Tribe/Follower: fixed, never free
+  if (CONTACT_TYPE_COST[t] != null) return CONTACT_TYPE_COST[t];
   const buddy = (CHARGEN && CHARGEN.buddyCost) || 10000;
   const contact = (CHARGEN && CHARGEN.contactCost) || 5000;
   return t === "Buddy" ? buddy : contact;
 }
-// Per-row cost with the free allowance (2) applied to Contact/Buddy entries only.
+// The Buddy always pays its upgrade and fills one of the free slots, so it leaves one fewer free
+// Contact: Contact + Buddy costs 10,000; Contact + Contact + Buddy costs 15,000.
 function contactCosts() {
-  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
-  let used = 0;
+  const hasBuddy = state.contacts.some(c => c.type === "Buddy");
+  let freeLeft = ((CHARGEN && CHARGEN.freeContacts) || 2) - (hasBuddy ? 1 : 0);
   return state.contacts.map(c => {
     const t = (c && c.type) || "Contact";
-    if ((t === "Contact" || t === "Buddy") && used < free) { used++; return 0; }
+    if (t === "Contact" && freeLeft > 0) { freeLeft--; return 0; }
     return contactUnitCost(c);
   });
 }
 function contactsNuyen() { return contactCosts().reduce((s,n) => s + n, 0); }
+// The two starting contacts must be filled in before the dossier is committed: two Contact/Buddy
+// rows that each have a handle and an archetype. Returns what's missing, or "" when it's met.
+function contactProblem() {
+  const free = (CHARGEN && CHARGEN.freeContacts) || 2;
+  if (state.contacts.filter(c => c.type === "Buddy").length > 1) return "Only one Buddy can be taken at character creation.";
+  if (state.contacts.filter(c => c.type === "Follower").length > MAX_FOLLOWERS) return `At most ${MAX_FOLLOWERS} Followers can be taken at character creation.`;
+  const done = state.contacts.filter(c => ["Contact", "Buddy"].includes(c.type || "Contact")
+    && (c.name || "").trim() && (c.archetype || "").trim()).length;
+  if (done < free) return `Pick your ${free} contacts, each with a handle and archetype -- one can be upgraded to a Buddy.`;
+  return "";
+}
+// Typing a handle doesn't re-render (that would drop focus), so update the note in place.
+function refreshContactNote() {
+  const el = document.getElementById("cbxContactNote");
+  if (!el) return;
+  el.textContent = contactProblem();
+  el.hidden = !el.textContent;
+}
 // Lifestyle: monthly upkeep for the chosen tier; buying it outright costs 100 months.
 function lifestyleLevel() { return LIFESTYLE_TIERS.indexOf(state.identity.lifestyle); }
 function lifestyleMonthly() { const lvl = lifestyleLevel(); return lvl >= 0 ? (LIFESTYLE_MONTHLY[lvl] || 0) : 0; }
@@ -1407,7 +1430,12 @@ function stepResources() {
   const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
     const t = c.type || "Contact";
-    const typeSel = `<select class="cbx-mini" style="width:auto" data-ctype="${i}">${CONTACT_TYPES.map(tp => `<option value="${esc(tp)}" ${t===tp?"selected":""}>${esc(tp)}</option>`).join("")}</select>`;
+    const buddyTaken = t !== "Buddy" && state.contacts.some(o => o.type === "Buddy");
+    const followersFull = t !== "Follower" && state.contacts.filter(o => o.type === "Follower").length >= MAX_FOLLOWERS;
+    const blocked = tp => tp === "Buddy" && buddyTaken ? "Only one Buddy at character creation"
+      : tp === "Follower" && followersFull ? `At most ${MAX_FOLLOWERS} Followers` : "";
+    const typeSel = `<select class="cbx-mini" style="width:auto" data-ctype="${i}">${CONTACT_TYPES.map(tp =>
+      `<option value="${esc(tp)}" ${t===tp?"selected":""} ${blocked(tp)?`disabled title="${blocked(tp)}"`:""}>${esc(tp)}</option>`).join("")}</select>`;
     let mid = "";
     if (t === "Follower") {
       const customOpt = (c.archetype && !CONTACT_ARCHETYPE_LIST.includes(c.archetype)) ? `<option value="${esc(c.archetype)}" selected>${esc(c.archetype)}</option>` : "";
@@ -1440,8 +1468,9 @@ function stepResources() {
     <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
       &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
 
-    <div class="cbx-h4">Contacts <span class="cbx-h4__note">-- 2 free, then Contact 5,000&yen; / Buddy 10,000&yen; / Gang or Tribe 50,000&yen; / Follower 200,000&yen;</span></div>
+    <div class="cbx-h4">Contacts <span class="cbx-h4__note">-- 2 free (upgrade one to a Buddy: 10,000&yen;), then Contact 5,000&yen; / Gang or Tribe 50,000&yen; / Follower 200,000&yen; (up to 5)</span></div>
     <div>${state.contacts.length ? contactRows : `<p class="empty-state">No contacts yet.</p>`}</div>
+    <p class="cbx-note is-warn" id="cbxContactNote" ${contactProblem() ? "" : "hidden"}>${esc(contactProblem())}</p>
     <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>`;
 }
 
@@ -1879,7 +1908,7 @@ function wire() {
   });
   const addC = document.getElementById("cbxAddContact");
   if (addC) addC.onclick = () => { state.contacts.push({ name:"", archetype:"", type:"Contact" }); save(); render(); };
-  root.querySelectorAll("[data-cname]").forEach(el => el.oninput = () => { state.contacts[Number(el.dataset.cname)].name = el.value; save(); });
+  root.querySelectorAll("[data-cname]").forEach(el => el.oninput = () => { state.contacts[Number(el.dataset.cname)].name = el.value; save(); refreshContactNote(); });
   root.querySelectorAll("[data-carch]").forEach(el => el.onchange = () => { state.contacts[Number(el.dataset.carch)].archetype = el.value; save(); render(); });
   root.querySelectorAll("[data-ctype]").forEach(el => el.onchange = () => {
     const c = state.contacts[Number(el.dataset.ctype)];
@@ -2088,6 +2117,12 @@ async function commitDossier() {
   if (needConc.length) {
     status.className = "cbx-note is-warn";
     status.textContent = "Choose a concentration for: " + needConc.join(", ") + ".";
+    return;
+  }
+  const contactMsg = contactProblem();
+  if (contactMsg) {
+    status.className = "cbx-note is-warn";
+    status.textContent = contactMsg;
     return;
   }
   // Older drafts can predate the rating floors the steppers now enforce.
