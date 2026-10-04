@@ -19,7 +19,7 @@ class AdventureLog(Base):
 
     objective: Mapped[str] = mapped_column(Text)
     result: Mapped[str] = mapped_column(Text)
-    # success, partial_success, failure, critical_failure, abandoned
+    # success, partial_success, failure, critical_failure, abandoned, incidental
     outcome: Mapped[str | None] = mapped_column(String(50), default=None)
 
     payout: Mapped[str | None] = mapped_column(String(300), default=None)

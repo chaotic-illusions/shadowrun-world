@@ -1782,6 +1782,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .out-failure,
 .out-critical_failure { color: var(--red);      border-color: #330000; }
 .out-abandoned        { color: var(--text-dim); border-color: #222; }
+.out-incidental       { color: var(--cyan);     border-color: #003344; }
 
 .run-detail        { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #1a1a1a; font-size: var(--fs-md); line-height: 1.6; }
 .run-detail.open   { display: block; }

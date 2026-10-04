@@ -114,6 +114,7 @@
           <option value="failure">Failure</option>
           <option value="critical_failure">Critical Failure</option>
           <option value="abandoned">Abandoned</option>
+          <option value="incidental">Incidental</option>
         </select>
       </div>
       <div class="field mb-14">
@@ -814,7 +815,8 @@ async function submitManual() {
 // -- Run list --------------------------------------------------
 function outcomeClass(o) {
   return { success:'out-success', partial_success:'out-partial_success', failure:'out-failure',
-           critical_failure:'out-critical_failure', abandoned:'out-abandoned' }[o] || 'out-abandoned';
+           critical_failure:'out-critical_failure', abandoned:'out-abandoned',
+           incidental:'out-incidental' }[o] || 'out-abandoned';
 }
 
 

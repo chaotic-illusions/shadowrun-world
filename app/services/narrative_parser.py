@@ -30,7 +30,7 @@ _SYSTEM = (
 )
 
 DEFAULT_MODEL = "claude-opus-5"
-OUTCOMES = ["success", "partial_success", "failure", "critical_failure", "abandoned"]
+OUTCOMES = ["success", "partial_success", "failure", "critical_failure", "abandoned", "incidental"]
 CHANGE_TYPES = ["street_cred", "notoriety", "public_awareness", "org_standing", "heat"]
 EXPOSURE_TAGS = [
     "witnesses", "collateral_damage", "public_scene", "media_attention", "casualties", "wetwork",
