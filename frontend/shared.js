@@ -1499,6 +1499,108 @@ function adeptPowerCost(p, pw, tierBase){
   return pw.ppTbl ? (pw.ppTbl[Math.min(lvl, pw.ppTbl.length) - 1] || 0) : (Number(p.ppEach) || 0) * lvl;
 }
 
+// ---- Specialization targets (SR2 p.70): a "(SW)" / "(SV)" entry in the GM skill-spec overlay
+// stands for every specific weapon / vehicle under that concentration. Shared by the builder (whole
+// catalog) and the play sheet (the character's own gear).
+const SKILL_WEAPON_CAT = {
+  "Firearms": "firearm", "Gunnery": "heavy", "Projectile Weapons": "projectile",
+  "Armed Combat": "melee", "Demolitions": "explosive",
+};
+// Maps a combat concentration to the weapon sub-types it covers, so a "(SW)"
+// (Specific Weapon) specialization in the overlay expands to every matching weapon.
+const CONC_WEAPON_SUBS = {
+  // Armed Combat (melee)
+  "Edged Weapons": ["Blade"],
+  "Pole Arms/Staff": ["Pole Arm", "Staff"],
+  "Whips/Flails": ["Whip"],
+  "Clubs": ["Club", "Stun Baton", "Stun Glove"],
+  // Firearms
+  "Pistols": ["Hold-Out", "Hold-Out Pistol", "Light Pistol", "Heavy Pistol", "Machine Pistol", "Dart Pistol"],
+  "Rifles": ["Rifle", "Sport Rifle", "Sniper Rifle", "Assault Rifle", "Carbine", "Dart Rifle"],
+  // Not in the SR2 p.70 list (a book oversight); added as a GM-approved concentration per p.70.
+  "Shotguns": ["Shotgun"],
+  "Submachine Guns": ["SMG", "Submachine Gun"],
+  "Light Machine Guns": ["Light Machine Gun"],
+  "Grenade Launchers": ["Grenade Launcher"],
+  "Tasers": ["Taser"],
+  // Projectile Weapons
+  "Bows": ["Bow"],
+  "Crossbows": ["Crossbow"],
+  // Gunnery (heavy)
+  "Machine Guns": ["Heavy Machine Gun", "Medium Machine Gun", "Light Machine Gun", "Minigun"],
+  "Missile/Rocket Launchers": ["Missile Launcher", "Anti-Tank Guided Missile", "Light Anti-Armor Weapon", "Medium Anti-Armor Weapon", "Surface-to-Air Missile"],
+  "Assault Cannon": ["Assault Cannon"],
+  // Demolitions (explosive)
+  "Commercial Explosives": ["Explosive"],
+  "Plastic Explosives": ["Plastic Explosive"],
+};
+// Expand a "(SW)" marker into every weapon in `weapons` (catalog entries: n/cat/sub) valid for
+// a skill + concentration.
+function weaponsForConc(weapons, skillName, conc) {
+  const cat = SKILL_WEAPON_CAT[skillName] || (skillName === "Throwing Weapons" ? "projectile" : null);
+  if (!cat) return [];
+  let list = weapons.filter(w => w.cat === cat);
+  const subs = CONC_WEAPON_SUBS[conc];
+  if (subs) {
+    const set = new Set(subs.map(x => x.toLowerCase()));
+    list = list.filter(w => set.has((w.sub || "").toLowerCase()));
+  } else {
+    // No explicit mapping -> narrow by the concentration keyword, else keep the whole category.
+    const key = (conc || "").toLowerCase().replace(/weapons?/g, "").replace(/[^a-z]+/g, " ").trim();
+    if (key) {
+      const narrowed = list.filter(w => ((w.sub || "") + " " + (w.n || "")).toLowerCase().includes(key));
+      if (narrowed.length) list = narrowed;
+    }
+  }
+  const seen = new Set();
+  return list.filter(w => w.n && !seen.has(w.n) && seen.add(w.n)).map(w => w.n);
+}
+// Vehicle skill -> which catalogue vehicles a "(SV)" (Specific Vehicle) specialization expands to.
+// Bike/Car reuse the browse-by-type buckets; the rest match on the vehicle sub-type name.
+function vehiclesForConc(vehicles, classes, skillName, conc) {
+  // A vehicle appears under a piloting skill's concentration only when the GM overlay
+  // (vehicle_classes.json) has classified it there. The classification is authoritative --
+  // no name/sub regex guessing -- so (SV) lists exactly the intended vehicles.
+  const list = vehicles.filter(v => {
+    const c = (classes || {})[v.n];
+    return c && c.skill === skillName && c.conc === conc;
+  });
+  const seen = new Set();
+  return list.filter(v => v.n && !seen.has(v.n) && seen.add(v.n)).map(v => v.n);
+}
+
+// ---- Skills after chargen (SR2 p.190) -- a stored skill is
+// { name, attr, group, rating, concs: [{name, rating}], specs: [{name, rating, conc}] }:
+// `rating` is the general skill and a Specialization's `conc` is the Concentration it falls under
+// ("" when it was bought straight off the general skill). Each part improves separately with Good
+// Karma: general skills cost 2x the new rating, Concentrations 1.5x (rounded up), Specializations
+// and Languages 1x. A new Concentration starts one above the general skill; a new Specialization
+// one above its Concentration, or the general skill when the character doesn't have that one.
+// Buying either never lowers the general skill, and a skill can have any number of them -- the
+// one-of-each limit is for starting characters only (p.70).
+function skillKarmaCost(skill, tier, newRating){
+  if (tier === 'conc') return Math.ceil(newRating * 1.5);
+  if (tier === 'spec' || skill.group === 'language') return newRating;
+  return newRating * 2;
+}
+function newConcRating(skill){ return (Number(skill.rating) || 0) + 1; }
+function newSpecRating(skill, conc){
+  const owned = (skill.concs || []).find(c => c.name === conc);
+  return (owned ? Number(owned.rating) || 0 : Number(skill.rating) || 0) + 1;
+}
+// Display order: the general skill, each Concentration followed by its Specializations, then any
+// Specialization whose Concentration the character doesn't have.
+function skillParts(skill){
+  const concs = skill.concs || [], specs = skill.specs || [];
+  const parts = [{ tier: 'general', name: skill.name, rating: Number(skill.rating) || 0 }];
+  concs.forEach(c => {
+    parts.push({ tier: 'conc', name: c.name, rating: c.rating });
+    specs.filter(s => s.conc === c.name).forEach(s => parts.push({ tier: 'spec', name: s.name, rating: s.rating, conc: s.conc }));
+  });
+  specs.filter(s => !concs.some(c => c.name === s.conc)).forEach(s => parts.push({ tier: 'spec', name: s.name, rating: s.rating, conc: s.conc }));
+  return parts;
+}
+
 // ---- Situational bonuses too narrow/one-off to model as a first-class field -- CSV said to note
 // them on the character instead. Shared by play-sheet.html's appendCharNote (writes CHAR.notes) and
 // character-builder.html's chargenAppendNote (writes state.notes) -- each host supplies its own

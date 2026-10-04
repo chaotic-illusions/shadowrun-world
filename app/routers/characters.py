@@ -377,6 +377,35 @@ def _assert_chargen_grades_allowed(gear: dict | None, is_admin: bool) -> None:
             )
 
 
+
+def _assert_chargen_skills(skills: list | None) -> None:
+    """Reject a finished chargen sheet whose skill breaks the SR2 starting-skill rules.
+
+    Skills arrive already split (frontend/shared.js skillParts shape), so the general rating
+    must be at least 1 for every skill -- a Concentration needs 2 Skill Points and a
+    Specialization 3. A starting skill has at most one of each (SR2 pp.45, 70); more can only
+    be bought with Good Karma after chargen.
+    """
+    bad = []
+    for s in skills or []:
+        if not isinstance(s, dict):
+            continue
+        try:
+            rating = int(s.get("rating") or 0)
+        except (TypeError, ValueError):
+            rating = 0
+        if rating < 1 or len(s.get("concs") or []) > 1 or len(s.get("specs") or []) > 1:
+            bad.append(str(s.get("name") or "?"))
+    if bad:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Every skill needs a general rating of at least 1 after its Concentration or "
+                "Specialization (2 Skill Points to concentrate, 3 to specialize), with at most one "
+                "of each at character creation: " + ", ".join(bad)
+            ),
+        )
+
 async def _ensure_pc_reputation(db: AsyncSession, char: Character) -> None:
     """Give a live PC the reputation row the run tools assume exists.
 
@@ -554,6 +583,8 @@ async def create_character_dossier(
     """
     _assert_chargen_grades_allowed(body.gear, ctx["is_admin"])
     data = _dossier_create_data(body, ctx)
+    if not data.get("is_draft"):
+        _assert_chargen_skills(body.skills)
     await _assert_org_exists(db, data)
     char = Character(**data)
     if not char.is_draft:
@@ -610,6 +641,7 @@ async def finalize_character_dossier(
         raise HTTPException(status_code=404, detail="Character not found")
     if not char.is_draft:
         raise HTTPException(status_code=400, detail="Only a draft character can be finalized")
+    _assert_chargen_skills(body.skills)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)
@@ -638,6 +670,7 @@ async def convert_character_dossier(
         raise HTTPException(status_code=404, detail="Character not found")
     if char.is_draft:
         raise HTTPException(status_code=400, detail="Use finalize-dossier for a draft character")
+    _assert_chargen_skills(body.skills)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)

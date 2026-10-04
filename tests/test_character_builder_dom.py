@@ -247,7 +247,12 @@ _CONVERT_CHAR = {
     "body": 3, "quickness": 5, "strength": 2, "charisma": 6, "intelligence": 6, "willpower": 5,
     "essence": 6.0, "body_index": 0.0, "magic_rating": 0, "magic_type": None,
     "priorities": {"race": "A", "magic": "E", "attributes": "B", "skills": "C", "resources": "D"},
-    "skills": [{"name": "Firearms", "attr": "quickness", "group": "active", "rating": 4, "conc": "", "spec": ""}],
+    # Stored split: 3 Skill Points with a Pistols Concentration (general 2, Pistols 4).
+    "skills": [{"name": "Firearms", "attr": "quickness", "group": "active", "rating": 2,
+                "concs": [{"name": "Pistols", "rating": 4}], "specs": []},
+               {"name": "Bike", "attr": "reaction", "group": "vehicle", "rating": 1,
+                "concs": [{"name": "Two-wheeler", "rating": 3}],
+                "specs": [{"name": "Honda Viking", "rating": 5, "conc": "Two-wheeler"}]}],
     "spells": [], "adept_powers": [], "gear": {},
     "lifestyle_level": 2, "lifestyle_permanent": False,
     "gender": "M", "age": 30, "description": "Veteran shadowrunner.",
@@ -293,8 +298,10 @@ def test_builder_convert_hydrates_and_posts_convert_dossier(_browser, _frontend_
     pg = ctx.new_page()
     errors: list[str] = []
     posts: list[str] = []
+    bodies: dict[str, dict] = {}
     pg.on("pageerror", lambda exc: errors.append(str(exc)))
     pg.on("request", lambda r: posts.append(r.url) if r.method == "POST" else None)
+    pg.on("request", lambda r: bodies.__setitem__(r.url, r.post_data_json) if r.method == "POST" else None)
     pg.route("**/*", _convert_route)
 
     pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html?convert=7")
@@ -310,6 +317,9 @@ def test_builder_convert_hydrates_and_posts_convert_dossier(_browser, _frontend_
     pg.wait_for_timeout(200)
 
     assert any("/characters/7/convert-dossier" in u for u in posts), posts
+    # The stored split comes back into the builder as 3 points + Pistols, and is re-split on commit.
+    sent = next(b for u, b in bodies.items() if "convert-dossier" in u)
+    assert sent["skills"] == _CONVERT_CHAR["skills"]
     assert "Converted" in pg.locator("#cbxSubmitStatus").inner_text()
     assert errors == [], f"JS errors during convert: {errors}"
     ctx.close()
@@ -349,6 +359,10 @@ def test_builder_skills_grouping_required_conc_and_na_spec(_browser, _frontend_p
     pg.select_option('[data-conc="0"]', first_conc)
     pg.wait_for_timeout(80)
     assert pg.locator(".cbx-skillrow--needs").count() == 0   # choice made -> no longer red
+    # Etiquette always concentrates, so it takes the Concentration floor of 2 -- never a general 0.
+    assert pg.locator('[data-skill="0"][data-d="-1"] + .cbx-attr__base').inner_text() == "2"
+    assert pg.locator('[data-skill="0"][data-d="-1"]').is_disabled()
+    assert "Etiquette <strong>1</strong>" in pg.inner_html("#cbx-slabel-0")
 
     # Firearms: optional concentration (has "(none)"); specialization is gated behind a concentration.
     pg.locator('[data-addskill="Firearms"]').first.click()

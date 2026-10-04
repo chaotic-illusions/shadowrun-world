@@ -621,6 +621,7 @@ let CHAR = null;          // live character record from the API
 let CONTACTS = [];
 let SKILL_CATALOG = [];   // [{n, attr, group, conc:[...]}]
 let SKILL_SPECS = {};     // {skillName: {concName: [specNames]}}
+let VEHICLE_CLASSES = {}; // GM overlay: vehicle name -> {skill, conc} (narrows a "(SV)" specialization)
 let ARMOR_CAT = new Map();
 let WEAPON_CAT = new Map();
 let VEHICLE_CAT = new Map();
@@ -751,7 +752,7 @@ function applyPickerFilter() {
 }
 
 async function loadCharacter(id){
-  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes, vehiclesRes, cyberRes, bioRes, rulesRes, spellsRes, powersRes, chargenRes, gearCatRes, booksRes, deckStateRes] = await Promise.all([
+  const [charRes, contactsRes, mineRes, skillsRes, armorRes, weaponsRes, vehiclesRes, cyberRes, bioRes, rulesRes, spellsRes, powersRes, chargenRes, gearCatRes, booksRes, deckStateRes, vehicleClassRes] = await Promise.all([
     apiFetch(`/characters/${id}`),
     apiFetch(`/characters/${id}/contacts`),
     apiFetch('/characters/mine'),
@@ -768,6 +769,7 @@ async function loadCharacter(id){
     apiFetch('/catalog/gear'),
     apiFetch('/catalog/books'),
     apiFetch(`/characters/${id}/deck-builder-state`),
+    apiFetch('/catalog/vehicle-classes'),
   ]);
   if (!charRes.ok) { showAlert($('#alert'), 'Character not found or not visible to you.', true); return; }
   CHAR = await charRes.json();
@@ -794,6 +796,7 @@ async function loadCharacter(id){
     SKILL_CATALOG = sk.skills || [];
     SKILL_SPECS = sk.specs || {};
   }
+  if (vehicleClassRes.ok) VEHICLE_CLASSES = (await vehicleClassRes.json()).classes || {};
   if (armorRes.ok) (await armorRes.json()).items.forEach(it => ARMOR_CAT.set(it.n, it));
   if (weaponsRes.ok) (await weaponsRes.json()).items.forEach(it => WEAPON_CAT.set(it.n, it));
   if (vehiclesRes.ok) (await vehiclesRes.json()).items.forEach(it => VEHICLE_CAT.set(it.n, it));
@@ -806,12 +809,6 @@ async function loadCharacter(id){
   enabledBooks = new Set((booksInfo && booksInfo.enabled) || []);
   RULES = rulesRes.ok ? await rulesRes.json() : { metatypes: {} };
 
-  // Chargen (character-builder.html) tags skills with conc/spec names but never computes the
-  // General/Concentration/Specialization rating split -- that's a play-sheet-only mechanic. Backfill
-  // it once here using the exact same math as the interactive add-conc/add-spec handlers below, so a
-  // skill that arrived pre-tagged from chargen (e.g. rating 3, conc "Two-Wheeler") displays correctly
-  // split (2/4) instead of showing the raw unsplit rating next to a guessed concentration number.
-  if (normalizeSkillSplits() && CAN_EDIT) await patchChar({ skills: CHAR.skills });
   let gearChanged = ensureWeaponIds();
   if (migrateLegacyCyberBands()) gearChanged = true;
   if (gearChanged && CAN_EDIT) await patchChar({ gear: CHAR.gear });
@@ -822,26 +819,6 @@ async function loadCharacter(id){
   renderAll();
   wireStatic();
 }
-function normalizeSkillSplits(){
-  let changed = false;
-  (CHAR.skills || []).forEach(s => {
-    if (s.conc && s.concRating == null) {
-      const points = s.rating || 0;
-      s.rating = points - 1;
-      s.concRating = points + 1;
-      changed = true;
-    }
-    if (s.spec && s.specRating == null) {
-      const points = (s.rating || 0) + 1;
-      s.rating = points - 2;
-      s.concRating = points;
-      s.specRating = points + 2;
-      changed = true;
-    }
-  });
-  return changed;
-}
-
 function renderAll(){
   renderHeader();
   renderIdentity();
@@ -1832,12 +1809,6 @@ function wireVehicle(){
 }
 
 // ---------------------------------------------------------------- skills (read-only list; edits via Manage)
-function skillSummary(s){
-  let t = `General ${s.rating||0}`;
-  if (s.conc) t += ` · ${s.conc} ${s.concRating != null ? s.concRating : (s.rating||0)+1}`;
-  if (s.spec) t += ` · ${s.spec} ${s.specRating != null ? s.specRating : (s.rating||0)+2}`;
-  return t;
-}
 function renderSkills(){
   const skills = CHAR.skills || [];
   const rows = [];
@@ -1847,9 +1818,9 @@ function renderSkills(){
   [...skills].sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(s => {
     const aug = skillAugSources(s.name);
     const augNote = aug.length ? ` <span class="sk-note">+${aug.reduce((a,x)=>a+x.mag,0)} (${aug.map(x=>esc(x.n)).join(', ')})</span>` : '';
-    let row = part('', s.name, s.rating||0, augNote);
-    if (s.conc) row += sep + part('conc', s.conc, s.concRating != null ? s.concRating : (s.rating||0)+1);
-    if (s.spec) row += sep + part('spec', s.spec, s.specRating != null ? s.specRating : (s.rating||0)+2);
+    const row = skillParts(s).map(p => p.tier === 'general'
+      ? part('', p.name, p.rating, augNote)
+      : part(p.tier, p.name, p.rating)).join(sep);
     rows.push(`<div class="sk-row">${row}</div>`);
   });
   // Skillwire/skillsoft-granted skills never enter CHAR.skills -- they live only as gear.cyber
@@ -2141,20 +2112,17 @@ function renderManageAttrs(){
   });
 }
 
-// ---- Manage Skills (draft/commit, real SR2 formulas) ----
-function tierRaiseCost(tier, desired){
-  if (tier === 'general') return desired * 2;
-  if (tier === 'conc') return Math.ceil(desired * 1.5);
-  return desired;
-}
-const CONC_MIN_BASE = 2, SPEC_MIN_BASE = 3;
+// ---- Manage Skills (draft/commit; SR2 p.190 Good Karma costs -- shared.js skillKarmaCost) ----
 function skillWeb(name){ return SKILL_CATALOG.find(s => s.n === name); }
-function expandOptions(list, skillName){
+// A GM overlay specialization list for skill + concentration; "(SW)"/"(SV)" become the character's
+// own weapons/vehicles that fall under that concentration (shared.js weaponsForConc/vehiclesForConc).
+function expandOptions(list, skillName, conc){
   if (!Array.isArray(list)) return [];
+  const gear = CHAR.gear || {};
   const out = [];
   list.forEach(opt => {
-    if (opt === '(SW)') ((CHAR.gear&&CHAR.gear.weapons)||[]).forEach(w => out.push(w.n));
-    else if (opt === '(SV)') ((CHAR.gear&&CHAR.gear.vehicles)||[]).forEach(v => out.push(v.n));
+    if (opt === '(SW)') out.push(...weaponsForConc((gear.weapons || []).map(w => WEAPON_CAT.get(w.n)).filter(Boolean), skillName, conc));
+    else if (opt === '(SV)') out.push(...vehiclesForConc(gear.vehicles || [], VEHICLE_CLASSES, skillName, conc));
     else out.push(opt);
   });
   return out;
@@ -2164,74 +2132,82 @@ function openManageSkills(){
   openModal('skills', '// Manage Skills');
   renderManageSkills();
 }
+// Concentrations the skill web offers that this skill doesn't have yet.
+function concChoices(s){
+  const web = skillWeb(s.name);
+  const owned = new Set((s.concs || []).map(c => c.name));
+  return ((web && web.conc) || []).filter(c => !owned.has(c));
+}
+// Specializations from the GM overlay that this skill doesn't have yet, grouped by the
+// Concentration they fall under -- the character needn't have that Concentration (p.190).
+function specChoices(s){
+  const owned = new Set((s.specs || []).map(x => x.name));
+  return Object.entries(SKILL_SPECS[s.name] || {})
+    .map(([conc, list]) => ({ conc, names: [...new Set(expandOptions(list, s.name, conc))].filter(n => !owned.has(n)) }))
+    .filter(g => g.names.length);
+}
+function skillRaiseRow(label, i, tier, idx, cur, cost){
+  return `<div class="ps-stat-row"><span class="k">${label} <span style="color:var(--text-bright);">${cur}</span></span>
+    <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="${tier}" data-raise-idx="${idx}" data-cost="${cost}" ${draft.good_karma>=cost?'':'disabled title="Not enough karma"'}>Raise to ${cur+1} &mdash; ${cost} karma</button></div>`;
+}
 function renderManageSkills(){
   const blocks = draft.skills.map((s,i) => {
     let rows = `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);padding-top:10px;margin-top:10px;">
       <span class="k" style="color:var(--text-bright);">${esc(s.name)}</span></div>`;
-    const gCost = tierRaiseCost('general', (s.rating||0)+1);
-    rows += `<div class="ps-stat-row"><span class="k">General <span style="color:var(--text-bright);">${s.rating||0}</span></span>
-      <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="general" data-cost="${gCost}" ${draft.good_karma>=gCost?'':'disabled title="Not enough karma"'}>Raise to ${(s.rating||0)+1} &mdash; ${gCost} karma</button></div>`;
-
-    if (s.conc){
-      const curConc = s.concRating != null ? s.concRating : (s.rating||0)+1;
-      const cCost = tierRaiseCost('conc', curConc+1);
-      rows += `<div class="ps-stat-row"><span class="k">${esc(s.conc)} (Conc) <span style="color:var(--text-bright);">${curConc}</span></span>
-        <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="conc" data-cost="${cCost}" ${draft.good_karma>=cCost?'':'disabled title="Not enough karma"'}>Raise to ${curConc+1} &mdash; ${cCost} karma</button></div>`;
-    } else if ((s.rating||0) >= CONC_MIN_BASE) {
-      const web = skillWeb(s.name);
-      const opts = web ? web.conc : [];
-      if (opts && opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
-        <select class="raise-action" data-addconc="${i}"><option value="">+ Concentration (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
-    } else {
-      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No concentration</span>
-        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${CONC_MIN_BASE}</span></div>`;
+    const general = Number(s.rating) || 0;
+    rows += skillRaiseRow('General', i, 'general', 0, general, skillKarmaCost(s, 'general', general+1));
+    skillParts(s).slice(1).forEach(p => {
+      const idx = (p.tier === 'conc' ? s.concs : s.specs).findIndex(x => x.name === p.name);
+      const label = `${esc(p.name)} (${p.tier === 'conc' ? 'Conc' : 'Spec'})`;
+      rows += skillRaiseRow(label, i, p.tier, idx, p.rating, skillKarmaCost(s, p.tier, p.rating+1));
+    });
+    const concs = concChoices(s);
+    if (concs.length) {
+      const r = newConcRating(s), cost = skillKarmaCost(s, 'conc', r);
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">New Concentration at ${r} &mdash; ${cost} karma</span>
+        <select class="raise-action" data-addconc="${i}" ${draft.good_karma>=cost?'':'disabled title="Not enough karma"'}><option value="">+ Concentration&hellip;</option>${concs.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div>`;
     }
-
-    if (s.spec){
-      const curSpec = s.specRating != null ? s.specRating : (s.rating||0)+2;
-      const sCost = tierRaiseCost('spec', curSpec+1);
-      rows += `<div class="ps-stat-row"><span class="k">${esc(s.spec)} (Spec) <span style="color:var(--text-bright);">${curSpec}</span></span>
-        <button class="btn btn-amber raise-action" data-raise-skill="${i}" data-raise-tier="spec" data-cost="${sCost}" ${draft.good_karma>=sCost?'':'disabled title="Not enough karma"'}>Raise to ${curSpec+1} &mdash; ${sCost} karma</button></div>`;
-    } else if (s.conc && (s.rating||0) >= SPEC_MIN_BASE) {
-      const web = skillWeb(s.name);
-      const opts = web && SKILL_SPECS[s.name] ? expandOptions(SKILL_SPECS[s.name][s.conc], s.name) : [];
-      if (opts.length) rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
-        <select class="raise-action" data-addspec="${i}"><option value="">+ Specialization (free)&hellip;</option>${opts.map(o=>`<option>${esc(o)}</option>`).join('')}</select></div>`;
-    } else if (s.conc) {
-      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">No specialization</span>
-        <span style="color:var(--text-dim);font-size:.7rem;">Needs General &ge; ${SPEC_MIN_BASE}</span></div>`;
+    const specs = specChoices(s);
+    if (specs.length) {
+      const opt = (conc, n) => {
+        const r = newSpecRating(s, conc), cost = skillKarmaCost(s, 'spec', r);
+        return `<option value="${esc(JSON.stringify([conc, n]))}" ${draft.good_karma>=cost?'':'disabled'}>${esc(n)} at ${r} &mdash; ${cost} karma</option>`;
+      };
+      rows += `<div class="ps-stat-row"><span class="k" style="color:var(--text-dim);">New Specialization</span>
+        <select class="raise-action" data-addspec="${i}"><option value="">+ Specialization&hellip;</option>${specs.map(g =>
+          `<optgroup label="${esc(g.conc)}">${g.names.map(n => opt(g.conc, n)).join('')}</optgroup>`).join('')}</select></div>`;
     }
     return rows;
   }).join('');
 
-  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">General advances at 2&times; desired rating, Concentration at 1.5&times; (rounded up),
-    Specialization at 1&times;. Declaring a new Concentration or Specialization costs no karma &mdash; it just splits the rating.</p>
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Good Karma cost is 2&times; the new rating for a general skill, 1.5&times; (rounded up)
+    for a Concentration, 1&times; for a Specialization or Language. A new Concentration starts one above the general skill, a new
+    Specialization one above its Concentration (or the general skill, without that Concentration). Neither lowers the general skill.</p>
     <div class="ps-stat-row" style="border:none;padding:0 0 4px;"><span class="k">Good Karma after changes</span>
       <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` + blocks;
 
-  $$('[data-raise-skill]').forEach(b => b.onclick = () => {
-    const s = draft.skills[Number(b.dataset.raiseSkill)];
-    const tier = b.dataset.raiseTier, cost = Number(b.dataset.cost);
+  const buy = (cost, apply) => {
     if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
-    if (tier === 'general') s.rating = (s.rating||0) + 1;
-    else if (tier === 'conc') s.concRating = (s.concRating != null ? s.concRating : (s.rating||0)+1) + 1;
-    else s.specRating = (s.specRating != null ? s.specRating : (s.rating||0)+2) + 1;
+    apply();
     draft.good_karma -= cost;
     renderManageSkills();
+  };
+  $$('[data-raise-skill]').forEach(b => b.onclick = () => {
+    const s = draft.skills[Number(b.dataset.raiseSkill)], tier = b.dataset.raiseTier;
+    buy(Number(b.dataset.cost), () => {
+      if (tier === 'general') s.rating = (Number(s.rating) || 0) + 1;
+      else (tier === 'conc' ? s.concs : s.specs)[Number(b.dataset.raiseIdx)].rating += 1;
+    });
   });
   $$('[data-addconc]').forEach(sel => sel.onchange = () => {
     if (!sel.value) return;
-    const s = draft.skills[Number(sel.dataset.addconc)];
-    const points = s.rating||0;
-    s.rating = points - 1; s.conc = sel.value; s.concRating = points + 1;
-    renderManageSkills();
+    const s = draft.skills[Number(sel.dataset.addconc)], r = newConcRating(s);
+    buy(skillKarmaCost(s, 'conc', r), () => { s.concs = [...(s.concs || []), { name: sel.value, rating: r }]; });
   });
   $$('[data-addspec]').forEach(sel => sel.onchange = () => {
     if (!sel.value) return;
-    const s = draft.skills[Number(sel.dataset.addspec)];
-    const points = (s.rating||0) + 1;
-    s.rating = points - 2; s.concRating = points; s.spec = sel.value; s.specRating = points + 2;
-    renderManageSkills();
+    const s = draft.skills[Number(sel.dataset.addspec)], [conc, name] = JSON.parse(sel.value), r = newSpecRating(s, conc);
+    buy(skillKarmaCost(s, 'spec', r), () => { s.specs = [...(s.specs || []), { name, rating: r, conc }]; });
   });
 }
 
@@ -2678,7 +2654,7 @@ async function assignSkillsoftSkill(line, item){
       const concChoice = await showPrompt(`Concentration for ${chosen}? (optional)`, '(none)', { title: '// CONCENTRATION', options: ['(none)', ...web.conc], okLabel: 'Set' });
       if (concChoice && concChoice !== '(none)') {
         line.conc = concChoice;
-        const specOpts = SKILL_SPECS[chosen] ? expandOptions(SKILL_SPECS[chosen][concChoice], chosen) : [];
+        const specOpts = SKILL_SPECS[chosen] ? expandOptions(SKILL_SPECS[chosen][concChoice], chosen, concChoice) : [];
         if (specOpts.length) {
           const specChoice = await showPrompt(`Specialization for ${concChoice}? (optional)`, '(none)', { title: '// SPECIALIZATION', options: ['(none)', ...specOpts], okLabel: 'Set' });
           if (specChoice && specChoice !== '(none)') line.spec = specChoice;
