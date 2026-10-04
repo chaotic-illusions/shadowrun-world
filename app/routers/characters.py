@@ -377,6 +377,22 @@ def _assert_chargen_grades_allowed(gear: dict | None, is_admin: bool) -> None:
             )
 
 
+async def _ensure_pc_reputation(db: AsyncSession, char: Character) -> None:
+    """Give a live PC the reputation row the run tools assume exists.
+
+    Street cred, notoriety, public awareness and heat are only tracked for runners in play,
+    so a draft or an NPC gets nothing. Idempotent, and safe to call on every write path that
+    can turn a row into a live PC. Without it a PC created through the API or the builder had
+    no row at all, and a reviewed run change against them was reported as an error instead of
+    being applied.
+    """
+    if not char.is_pc or char.is_draft:
+        return
+    exists = await db.scalar(select(Reputation.id).where(Reputation.character_id == char.id))
+    if exists is None:
+        db.add(Reputation(character_id=char.id))
+
+
 async def _apply_dossier(
     db: AsyncSession, char: Character, body: CharacterCreate, ctx: dict, *, keep_draft: bool,
 ) -> None:
@@ -519,6 +535,8 @@ async def create_character(
 ):
     char = Character(**_character_create_data(body, ctx))
     db.add(char)
+    await db.flush()
+    await _ensure_pc_reputation(db, char)
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     return _serialize_character(char, ctx)
@@ -541,6 +559,8 @@ async def create_character_dossier(
     if not char.is_draft:
         await _stamp_lifestyle_start(db, char)
     db.add(char)
+    await db.flush()
+    await _ensure_pc_reputation(db, char)
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     if body.contacts and not char.is_draft:
@@ -592,6 +612,7 @@ async def finalize_character_dossier(
         raise HTTPException(status_code=400, detail="Only a draft character can be finalized")
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
+    await _ensure_pc_reputation(db, char)
     if body.contacts:
         await _create_dossier_contacts(db, char, body.contacts)
     await db.commit()
@@ -619,6 +640,7 @@ async def convert_character_dossier(
         raise HTTPException(status_code=400, detail="Use finalize-dossier for a draft character")
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
+    await _ensure_pc_reputation(db, char)
     if body.contacts:
         existing = await db.scalar(
             select(func.count()).select_from(Contact).where(Contact.owner_id == char.id)
@@ -830,6 +852,7 @@ async def update_character(
         if "archetype" in changed:
             values["profession"] = char.archetype
         await db.execute(sql_update(Contact).where(Contact.npc_id == char.id).values(**values))
+    await _ensure_pc_reputation(db, char)
     await db.commit()
     await db.refresh(char)
     return _serialize_character(char, ctx, contact_owner=contact_owner)

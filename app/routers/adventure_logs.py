@@ -420,6 +420,23 @@ async def parse_run_narrative(
     return result
 
 
+async def _reputation_for(db: AsyncSession, character_id: int) -> Reputation:
+    """The character's reputation row, created on demand.
+
+    apply-changes used to report "No reputation record" as an error and move on, so a change
+    the GM had already reviewed and approved silently never landed. The ids are validated
+    before any of this runs, so creating the row here is safe.
+    """
+    rep = (await db.execute(
+        select(Reputation).where(Reputation.character_id == character_id)
+    )).scalars().first()
+    if rep is None:
+        rep = Reputation(character_id=character_id)
+        db.add(rep)
+        await db.flush()
+    return rep
+
+
 @router.post("/apply-changes")
 async def apply_world_changes(
     body: ApplyChangesRequest,
@@ -449,13 +466,7 @@ async def apply_world_changes(
     for ch in body.changes:
         try:
             if ch.type in ("street_cred", "notoriety", "public_awareness"):
-                result = await db.execute(
-                    select(Reputation).where(Reputation.character_id == ch.character_id)
-                )
-                rep = result.scalars().first()
-                if not rep:
-                    errors.append(f"No reputation record for character {ch.character_id}")
-                    continue
+                rep = await _reputation_for(db, ch.character_id)
                 old = getattr(rep, ch.type, 0) or 0
                 setattr(rep, ch.type, max(0, old + ch.delta))
                 if ch.type == "public_awareness":
@@ -464,13 +475,7 @@ async def apply_world_changes(
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
 
             elif ch.type == "heat":
-                result = await db.execute(
-                    select(Reputation).where(Reputation.character_id == ch.character_id)
-                )
-                rep = result.scalars().first()
-                if not rep:
-                    errors.append(f"No reputation record for character {ch.character_id}")
-                    continue
+                rep = await _reputation_for(db, ch.character_id)
                 rep.heat = min(10, max(0, (rep.heat or 0) + ch.delta))
                 rep.heat_updated_at = date.today()
                 rep.heat_stamped_tick = tick
