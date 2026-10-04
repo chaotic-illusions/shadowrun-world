@@ -93,6 +93,7 @@ it leads to.
 | Objective missed, runners got out | `failure` |
 | Objective missed and it went badly: deaths, blown covers, major collateral | `critical_failure` |
 | Run called off before contact, or the team walked away | `abandoned` |
+| No contract and no objective: the runners were caught in someone else's event | `incidental` |
 
 ### `outcome_tags` (exposure)
 
@@ -120,7 +121,8 @@ These drive the run's heat. Tag only what the summary describes.
 These feed the consequence engine. Pick every tag the summary supports and no others.
 
 - **Run shape:** `run_success_clean`, `run_success_exposed`, `run_partial_success`,
-  `run_partial_failure`, `run_failure_quiet`, `run_failure_exposed`, `run_abandoned`.
+  `run_partial_failure`, `run_failure_quiet`, `run_failure_exposed`, `run_abandoned`,
+  `run_incidental` (pair this with the `incidental` outcome).
 - **Organizations** (`offended` = annoyed, `burned` = seriously harmed, `favored` = helped):
   `megacorp_offended`, `megacorp_burned`, `megacorp_favored`, `government_offended`,
   `government_burned`, `government_favored`, `gang_burned`, `gang_favored`, `syndicate_burned`,

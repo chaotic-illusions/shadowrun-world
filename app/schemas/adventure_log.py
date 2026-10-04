@@ -5,7 +5,7 @@ from app.schemas.character import CharacterSummary
 from app.schemas.location import LocationSummary
 from app.schemas.organization import OrganizationSummary
 
-OUTCOME_VALUES = Literal["success", "partial_success", "failure", "critical_failure", "abandoned"]
+OUTCOME_VALUES = Literal["success", "partial_success", "failure", "critical_failure", "abandoned", "incidental"]
 
 
 class AdventureLogBase(BaseModel):

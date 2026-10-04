@@ -69,6 +69,14 @@ SINGLE_TAG_RULES: dict[str, dict[str, Any]] = {
             "The target remains at full readiness; a retry will be significantly harder.",
         ],
     },
+    "run_incidental": {
+        "severity": "low",
+        "suggestions": [
+            "There was no Johnson and no contract, so nobody owes the team anything -- and nobody is covering for them either.",
+            "The runners are witnesses as much as participants; whoever is investigating will want statements.",
+            "Being in the wrong place together is how crews form -- these runners now know each other.",
+        ],
+    },
 
     # --- Faction: Megacorp ---
     "megacorp_offended": {

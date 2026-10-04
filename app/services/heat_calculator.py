@@ -28,6 +28,7 @@ OUTCOME_HEAT: dict[str, int] = {
     "failure":          1,   # failed run = lower profile
     "critical_failure": 3,   # something went very wrong publicly
     "abandoned":        1,
+    "incidental":       1,   # the runners were caught in it, not behind it
 }
 
 TAG_HEAT: dict[str, int] = {
