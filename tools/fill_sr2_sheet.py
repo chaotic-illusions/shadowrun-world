@@ -253,16 +253,15 @@ def _skill_aug_bonus(skill, cyber_list):
     return total
 
 
-def _skill_top_tier(s):
-    """Effective rating of the highest concentration/specialization tier (SR2 skill web)."""
-    base = int(s.get("rating") or 0)
-    conc = (s.get("conc") or "").strip()
-    spec = (s.get("spec") or "").strip()
-    if conc and spec:
-        return base + 2
-    if conc:
-        return base + 1
-    return base
+def _skill_label(s):
+    """Skill name followed by each Concentration and Specialization with its own rating.
+
+    Stored ratings are already split (frontend/shared.js skillParts): ``rating`` is the general
+    skill, and ``concs``/``specs`` carry their effective ratings.
+    """
+    parts = [f"{c['name']} {c['rating']}" for c in s.get("concs") or []]
+    parts += [f"{x['name']} {x['rating']}" for x in s.get("specs") or []]
+    return s.get("name", "") + (f" ({', '.join(parts)})" if parts else "")
 
 
 def load_character(char_id, db_path=DB):
@@ -418,17 +417,11 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
         put(f"Pool Name {idx}", name)
         put(f"Pool Rating {idx}", rating)
 
-    # Skills: name carries the concentration; rating = highest tier + cyber skill bonus (Math SPU).
+    # Skills: name carries the concentrations/specializations with their ratings; the rating column
+    # is the general skill + cyber skill bonus (Math SPU).
     for idx, s in enumerate(sorted(c.get("skills") or [], key=lambda x: x.get("name", ""))[:19], start=1):
-        conc = (s.get("conc") or "").strip()
-        spec = (s.get("spec") or "").strip()
-        name = s.get("name", "")
-        if conc:
-            name += f": {conc}"
-        if spec:
-            name += f": {spec}"
-        put(f"Skill Name {idx}", name)
-        put(f"Skill Rating {idx}", _skill_top_tier(s) + _skill_aug_bonus(s, aug_all))
+        put(f"Skill Name {idx}", _skill_label(s))
+        put(f"Skill Rating {idx}", int(s.get("rating") or 0) + _skill_aug_bonus(s, aug_all))
 
     # Armor ------------------------------------------------------------------
     # Bodyware/bioware armor (Dermal Plating/Sheath, Orthoskin, Bone Lacing) adds to worn armor;

@@ -1055,11 +1055,11 @@ function skillTiers(s) {
   return [{ label: s.name, rating: lo(base) }];
 }
 // The general skill can't drop below 1 after the narrowing penalty, so a Concentration needs a
-// rating of 2 and a Specialization 3 (points spent normally). Etiquette has no general rating.
+// rating of 2 and a Specialization 3 (points spent normally). Etiquette always concentrates, so
+// it needs 2 even before the player has picked which one.
 function skillMinRating(s) {
-  if (REQUIRED_CONC.has(s.name)) return 1;
   if ((s.conc || "").trim() && (s.spec || "").trim()) return 3;
-  return (s.conc || "").trim() ? 2 : 1;
+  return ((s.conc || "").trim() || REQUIRED_CONC.has(s.name)) ? 2 : 1;
 }
 function enforceSkillMin(s) { s.rating = Math.max(Number(s.rating) || 0, skillMinRating(s)); }
 // Inline label for a selected skill: name + each narrowing tier with its effective rating,
@@ -1090,71 +1090,10 @@ function skillDefFor(name) { return (SKILLS || []).find(x => x.n === name) || nu
 
 /* Specialization suggestions: the specific items a skill narrows to (SR2 p.70).
    Combat skills -> the matching weapon catalogue; Sorcery -> spells. */
-const SKILL_WEAPON_CAT = {
-  "Firearms": "firearm", "Gunnery": "heavy", "Projectile Weapons": "projectile",
-  "Armed Combat": "melee", "Demolitions": "explosive",
-};
-// Maps a combat concentration to the weapon sub-types it covers, so a "(SW)"
-// (Specific Weapon) specialization in the overlay expands to every matching weapon.
-const CONC_WEAPON_SUBS = {
-  // Armed Combat (melee)
-  "Edged Weapons": ["Blade"],
-  "Pole Arms/Staff": ["Pole Arm", "Staff"],
-  "Whips/Flails": ["Whip"],
-  "Clubs": ["Club", "Stun Baton", "Stun Glove"],
-  // Firearms
-  "Pistols": ["Hold-Out", "Hold-Out Pistol", "Light Pistol", "Heavy Pistol", "Machine Pistol", "Dart Pistol"],
-  "Rifles": ["Rifle", "Sport Rifle", "Sniper Rifle", "Assault Rifle", "Carbine", "Dart Rifle"],
-  // Not in the SR2 p.70 list (a book oversight); added as a GM-approved concentration per p.70.
-  "Shotguns": ["Shotgun"],
-  "Submachine Guns": ["SMG", "Submachine Gun"],
-  "Light Machine Guns": ["Light Machine Gun"],
-  "Grenade Launchers": ["Grenade Launcher"],
-  "Tasers": ["Taser"],
-  // Projectile Weapons
-  "Bows": ["Bow"],
-  "Crossbows": ["Crossbow"],
-  // Gunnery (heavy)
-  "Machine Guns": ["Heavy Machine Gun", "Medium Machine Gun", "Light Machine Gun", "Minigun"],
-  "Missile/Rocket Launchers": ["Missile Launcher", "Anti-Tank Guided Missile", "Light Anti-Armor Weapon", "Medium Anti-Armor Weapon", "Surface-to-Air Missile"],
-  "Assault Cannon": ["Assault Cannon"],
-  // Demolitions (explosive)
-  "Commercial Explosives": ["Explosive"],
-  "Plastic Explosives": ["Plastic Explosive"],
-};
-// Expand a "(SW)" marker into every specific weapon valid for a skill + concentration.
-function swWeapons(skillName, conc) {
-  const cat = SKILL_WEAPON_CAT[skillName] || (skillName === "Throwing Weapons" ? "projectile" : null);
-  if (!cat) return [];
-  let list = (CAT.weapons || []).filter(w => w.cat === cat);
-  const subs = CONC_WEAPON_SUBS[conc];
-  if (subs) {
-    const set = new Set(subs.map(x => x.toLowerCase()));
-    list = list.filter(w => set.has((w.sub || "").toLowerCase()));
-  } else {
-    // No explicit mapping -> narrow by the concentration keyword, else keep the whole category.
-    const key = (conc || "").toLowerCase().replace(/weapons?/g, "").replace(/[^a-z]+/g, " ").trim();
-    if (key) {
-      const narrowed = list.filter(w => ((w.sub || "") + " " + (w.n || "")).toLowerCase().includes(key));
-      if (narrowed.length) list = narrowed;
-    }
-  }
-  const seen = new Set();
-  return list.filter(w => w.n && !seen.has(w.n) && seen.add(w.n)).map(w => w.n);
-}
-// Vehicle skill -> which catalogue vehicles a "(SV)" (Specific Vehicle) specialization expands to.
-// Bike/Car reuse the browse-by-type buckets; the rest match on the vehicle sub-type name.
-function svVehicles(skillName, conc) {
-  // A vehicle appears under a piloting skill's concentration only when the GM overlay
-  // (vehicle_classes.json) has classified it there. The classification is authoritative --
-  // no name/sub regex guessing -- so (SV) lists exactly the intended vehicles.
-  const list = (CAT.vehicles || []).filter(v => {
-    const c = VEHICLE_CLASSES[v.n];
-    return c && c.skill === skillName && c.conc === conc;
-  });
-  const seen = new Set();
-  return list.filter(v => v.n && !seen.has(v.n) && seen.add(v.n)).map(v => v.n);
-}
+// SKILL_WEAPON_CAT / CONC_WEAPON_SUBS and the (SW)/(SV) matching live in shared.js (the play
+// sheet narrows its owned gear the same way).
+function swWeapons(skillName, conc) { return weaponsForConc(CAT.weapons || [], skillName, conc); }
+function svVehicles(skillName, conc) { return vehiclesForConc(CAT.vehicles || [], VEHICLE_CLASSES, skillName, conc); }
 // Specialization options for a skill given its chosen concentration. When the GM overlay
 // has authored entries for this skill+concentration they are authoritative (a "(SW)" entry
 // expands to specific weapons); otherwise fall back to catalog derivation.
@@ -1825,7 +1764,9 @@ function wire() {
     const d = (SKILLS||[]).find(s => s.n === el.dataset.addskill); if (!d) return;
     // Required-concentration skills (e.g. Etiquette) start with NO concentration so the player
     // is forced to choose one -- the row renders red until they do.
-    state.skills.push({ name:d.n, attr:d.attr, group:d.group, rating:1, conc:"", spec:"" });
+    const s = { name:d.n, attr:d.attr, group:d.group, rating:1, conc:"", spec:"" };
+    enforceSkillMin(s);
+    state.skills.push(s);
     save(); render();
   });
   root.querySelectorAll("[data-delskill]").forEach(el => el.onclick = () => { state.skills.splice(Number(el.dataset.delskill),1); save(); render(); });
@@ -1957,13 +1898,23 @@ function wire() {
 
 /* ---------- commit ---------- */
 // Fold bought languages into the committed skill list (Common/English is assumed known).
+// Skills are stored already split (shared.js skillParts shape): the general rating after the
+// narrowing penalty, and the chargen Concentration/Specialization at their effective ratings.
+function storedSkill(s) {
+  const [general, conc, spec] = skillTiers(s);
+  return {
+    name: s.name, attr: s.attr, group: s.group, rating: general.rating,
+    concs: conc ? [{ name: conc.label, rating: conc.rating }] : [],
+    specs: spec ? [{ name: spec.label, rating: spec.rating, conc: conc.label }] : [],
+  };
+}
 function commitSkills() {
   const langs = [];
   (state.languages || []).forEach(l => {
     const nm = (l.name || "").trim();
-    if (nm) langs.push({ name: nm, attr: "intelligence", group: "language", rating: Number(l.rating) || 1, conc: "", spec: "", free: false });
+    if (nm) langs.push({ name: nm, attr: "intelligence", group: "language", rating: Number(l.rating) || 1, concs: [], specs: [], free: false });
   });
-  return state.skills.concat(langs);
+  return state.skills.map(storedSkill).concat(langs);
 }
 function commitPayload() {
   const id = state.identity;
@@ -2076,10 +2027,17 @@ function hydrateStateFromCharacter(c) {
   state.foci = Array.isArray(g.foci) ? g.foci : [];
   state.programs = Array.isArray(g.programs) ? g.programs : [];
   const allSkills = Array.isArray(c.skills) ? c.skills : [];
-  state.skills = allSkills.filter(s => s.group !== "language").map(s => ({
-    name: s.name, attr: s.attr, group: s.group, rating: Number(s.rating) || 0,
-    conc: s.conc || "", spec: s.spec || "",
-  }));
+  // Stored skills are split; chargen holds the Skill Points with one Concentration/Specialization,
+  // so add the narrowing penalty back onto the general rating.
+  state.skills = allSkills.filter(s => s.group !== "language").map(s => {
+    const conc = (s.concs || [])[0];
+    const spec = conc && (s.specs || []).find(x => x.conc === conc.name);
+    return {
+      name: s.name, attr: s.attr, group: s.group,
+      rating: (Number(s.rating) || 0) + (spec ? 2 : conc ? 1 : 0),
+      conc: conc ? conc.name : "", spec: spec ? spec.name : "",
+    };
+  });
   const langs = allSkills.filter(s => s.group === "language");
   state.languages = langs.map(l => ({ name: l.name || "", rating: Number(l.rating) || 1 }));
   state.spells = Array.isArray(c.spells) ? c.spells : [];

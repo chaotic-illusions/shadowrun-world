@@ -194,3 +194,43 @@ def test_removed_cyberware_is_refunded(tmp_path):
     assert rows[1][2:] == (5.5, 4500)
     assert rows[2][2:] == (5.24, 500)     # a draft's totals are recomputed by the builder
     assert rows[3][2:] == (5.5, 100)      # untouched
+
+
+def test_skills_move_to_concentration_lists(tmp_path):
+    database = tmp_path / "skills.db"
+    _alembic(database, "upgrade", "c5f8b2d04e37")
+    skills = [
+        # Fresh from chargen, never opened on the play sheet: 3 points + Pistols, not yet split.
+        {"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 3, "conc": "Pistols", "spec": ""},
+        # 4 points + Two-wheeler + Honda Viking, not yet split.
+        {"name": "Bike", "rating": 4, "conc": "Two-wheeler", "spec": "Honda Viking"},
+        # Split by the play sheet, then the Concentration raised with karma.
+        {"name": "Sorcery", "rating": 4, "conc": "Spellcasting", "concRating": 7, "spec": "Combat", "specRating": 8},
+        {"name": "Etiquette", "rating": 0, "conc": "Street", "concRating": 2, "spec": "", "specRating": None},
+        {"name": "Stealth", "rating": 2, "conc": "", "spec": ""},
+        {"name": "Spanish", "group": "language", "rating": 2, "conc": "", "spec": "", "free": False},
+    ]
+    state = {"skills": [{"name": "Firearms", "rating": 3, "conc": "Pistols", "spec": ""}]}
+    with sqlite3.connect(database) as db:
+        cols = ("name, is_pc, race, show_background, contact_skills, connection, is_active, created_at, updated_at, "
+                "skills, chargen_state")
+        vals = "'Human', 1, '[]', 1, 1, '2026-10-04', '2026-10-04', ?, ?"
+        db.execute(f"INSERT INTO characters (id, {cols}) VALUES (1, 'Runner', 1, {vals})",
+                   (json.dumps(skills), json.dumps(state)))
+        db.execute(f"INSERT INTO characters (id, {cols}) VALUES (2, 'Contact', 0, {vals})", ("[]", "{}"))
+    _alembic(database, "upgrade", "d8a3f0b6c215")
+    with sqlite3.connect(database) as db:
+        got, got_state = db.execute("SELECT skills, chargen_state FROM characters WHERE id = 1").fetchone()
+        assert db.execute("SELECT skills FROM characters WHERE id = 2").fetchone()[0] == "[]"
+    assert json.loads(got) == [
+        {"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 2,
+         "concs": [{"name": "Pistols", "rating": 4}], "specs": []},
+        {"name": "Bike", "rating": 2, "concs": [{"name": "Two-wheeler", "rating": 4}],
+         "specs": [{"name": "Honda Viking", "rating": 6, "conc": "Two-wheeler"}]},
+        {"name": "Sorcery", "rating": 4, "concs": [{"name": "Spellcasting", "rating": 7}],
+         "specs": [{"name": "Combat", "rating": 8, "conc": "Spellcasting"}]},
+        {"name": "Etiquette", "rating": 0, "concs": [{"name": "Street", "rating": 2}], "specs": []},
+        {"name": "Stealth", "rating": 2, "concs": [], "specs": []},
+        {"name": "Spanish", "group": "language", "rating": 2, "free": False, "concs": [], "specs": []},
+    ]
+    assert json.loads(got_state) == state   # the wizard keeps its own single conc/spec shape
