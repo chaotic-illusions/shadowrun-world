@@ -37,6 +37,10 @@ async def _database(path):
         await engine.dispose()
 
 
+# A finished sheet needs its starting Contact and Buddy (tests/test_chargen_contacts.py, which imports from here).
+_STARTING_CONTACTS = [{"name": "Fixer Joe", "profession": "Fixer"},
+                      {"name": "Doc Wagon", "profession": "Street Doc", "contact_type": "Buddy", "loyalty": 3}]
+
 PLAYER = {"is_admin": False, "is_user": True, "user_token": "runner", "view_as_player": False}
 OTHER = {"is_admin": False, "is_user": True, "user_token": "someone-else", "view_as_player": False}
 ADMIN = {"is_admin": True, "is_user": True, "user_token": "gm", "view_as_player": False}
@@ -65,7 +69,7 @@ def test_player_dossier_cannot_set_gm_fields(tmp_path):
             body = DossierCommit(
                 name="Chancer", beta_grade_approved=True, delta_grade_approved=True,
                 organization_id=2, show_background=True, portrait_url="/x.png",
-                source_adventure="Mercurial", contact_skills=["Etiquette"],
+                source_adventure="Mercurial", contact_skills=["Etiquette"], contacts=_STARTING_CONTACTS,
             )
             async with sessions() as db:
                 out = await create_character_dossier(body=body, db=db, ctx=PLAYER)
@@ -89,7 +93,7 @@ def test_player_convert_keeps_gm_fields_and_unsent_values(tmp_path):
             await _seed(sessions)
             # What the builder sends: sheet fields, no GM fields, no Math SPU columns.
             body = DossierCommit(name="Wraith II", strength=5, notes="Next mods: smartlink",
-                                 delta_grade_approved=False, organization_id=None)
+                                 delta_grade_approved=False, organization_id=None, contacts=_STARTING_CONTACTS)
             async with sessions() as db:
                 await convert_character_dossier(character_id=10, body=body, db=db, ctx=PLAYER)
             async with sessions() as db:

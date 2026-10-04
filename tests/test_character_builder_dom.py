@@ -230,10 +230,40 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
             grade_sel.select_option("Alpha")
             page.wait_for_timeout(60)
 
-    # Finish + commit (stubbed 201).
+    # Finish is blocked until the two starting contacts are picked (SR2 p.43).
     page.locator('.wstep-dot[data-step="6"]').click()
     page.wait_for_timeout(60)
     page.fill('[data-id="handle"]', "Testrunner")
+    page.locator("#cbxSubmit").click()
+    page.wait_for_timeout(150)
+    assert "Pick your 2 contacts" in page.locator("#cbxSubmitStatus").inner_text()
+
+    # Back on Resources: two free Contact rows; the note shows until both have a handle and
+    # archetype. Upgrading one to a Buddy costs 10,000 and a second Buddy can't be picked.
+    page.locator('.wstep-dot[data-step="5"]').click()
+    page.wait_for_timeout(60)
+    assert [page.locator(f'[data-ctype="{i}"]').input_value() for i in (0, 1)] == ["Contact", "Contact"]
+    assert page.locator("#cbxContactNote").is_visible()
+    contact_costs = lambda: page.locator(".cbx-line:has([data-cname]) .cbx-line__f").all_inner_texts()
+    assert contact_costs() == ["", ""]
+    page.select_option('[data-ctype="1"]', "Buddy")
+    page.wait_for_timeout(40)
+    assert contact_costs()[0] == "" and "10,000" in contact_costs()[1]
+    assert page.locator('[data-ctype="0"] option[value="Buddy"]').is_disabled()
+    for i, (handle, arch) in enumerate((("Fixer Joe", "Fixer"), ("Doc Wagon", "Street Doc"))):
+        page.select_option(f'[data-carch="{i}"]', arch)
+        page.wait_for_timeout(40)
+        page.fill(f'[data-cname="{i}"]', handle)
+    assert not page.locator("#cbxContactNote").is_visible()
+    # The Buddy filled one of the free slots, so another Contact costs 5,000.
+    page.locator("#cbxAddContact").click()
+    page.wait_for_timeout(40)
+    assert contact_costs()[0] == "" and "5,000" in contact_costs()[2]
+    page.locator('[data-delcontact="2"]').click()
+    page.wait_for_timeout(40)
+
+    page.locator('.wstep-dot[data-step="6"]').click()
+    page.wait_for_timeout(60)
     page.locator("#cbxSubmit").click()
     page.wait_for_timeout(150)
 
@@ -283,7 +313,8 @@ def _convert_route(route):
                             "organization_name": None,
                             "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"})
     elif "/contacts" in url:
-        route.fulfill(json=[])
+        route.fulfill(json=[{"name": "Fixer Joe", "profession": "Fixer", "contact_type": "Contact", "loyalty": 1},
+                            {"name": "Doc Wagon", "profession": "Street Doc", "contact_type": "Contact", "loyalty": 1}])
     elif re.search(r"/characters/\d+$", path):
         route.fulfill(json=_CONVERT_CHAR)
     elif "/characters" in url:
@@ -316,7 +347,7 @@ def test_builder_convert_hydrates_and_posts_convert_dossier(_browser, _frontend_
     pg.locator("#cbxSubmit").click()
     pg.wait_for_timeout(200)
 
-    assert any("/characters/7/convert-dossier" in u for u in posts), posts
+    assert any("/characters/7/convert-dossier" in u for u in posts), pg.inner_text("#cbxSubmitStatus")
     # The stored split comes back into the builder as 3 points + Pistols, and is re-split on commit.
     sent = next(b for u, b in bodies.items() if "convert-dossier" in u)
     assert sent["skills"] == _CONVERT_CHAR["skills"]
@@ -484,3 +515,36 @@ def test_tools_nav_group_gates_downtime_and_sourcebooks(_browser, _frontend_port
     assert errors == [], f"JS errors on Tools nav gate check: {errors}"
     ctx.close()
 
+
+
+def test_builder_caps_followers_at_five(_browser, _frontend_port):
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html")
+    pg.wait_for_selector("#cbxNewRunner", timeout=15000)
+    pg.locator("#cbxNewRunner").click()
+    pg.wait_for_selector(".cbx-priogrid", timeout=15000)
+    pg.locator('.wstep-dot[data-step="5"]').click()
+    pg.wait_for_timeout(100)
+
+    # Rows 2-7 on top of the two starting contacts; five become Followers (SR2 p.44).
+    for _ in range(6):
+        pg.locator("#cbxAddContact").click()
+        pg.wait_for_timeout(30)
+    for i in range(2, 7):
+        assert not pg.locator(f'[data-ctype="{i}"] option[value="Follower"]').is_disabled()
+        pg.select_option(f'[data-ctype="{i}"]', "Follower")
+        pg.wait_for_timeout(30)
+    assert pg.locator('[data-ctype="7"] option[value="Follower"]').is_disabled()
+    assert not pg.locator('[data-ctype="2"] option[value="Follower"]').is_disabled()  # its own type
+    # Each Follower is a different archetype: one taken is greyed out for the others.
+    pg.select_option('[data-carch="2"]', "Bodyguard")
+    pg.wait_for_timeout(30)
+    assert pg.locator('[data-carch="3"] option[value="Bodyguard"]').is_disabled()
+    assert not pg.locator('[data-carch="2"] option[value="Bodyguard"]').is_disabled()
+    assert errors == [], f"JS errors on the contacts step: {errors}"
+    ctx.close()

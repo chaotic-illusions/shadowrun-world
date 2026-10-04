@@ -406,6 +406,38 @@ def _assert_chargen_skills(skills: list | None) -> None:
             ),
         )
 
+
+_FREE_CHARGEN_CONTACTS = 2
+_MAX_CHARGEN_FOLLOWERS = 5
+
+
+def _assert_chargen_contacts(contacts: list) -> None:
+    """Reject a finished chargen sheet that breaks the starting-contact rules (SR2 pp.43-44).
+
+    Every runner starts with two contacts, each with a name and a profession (the builder's
+    archetype); one of them may be upgraded to a Buddy, and only one Buddy can be taken at
+    creation. More Contacts and Gang/Tribe ties can be bought freely; Followers are capped at
+    five, each from a different archetype.
+    """
+    contacts = contacts or []
+    if sum(c.contact_type == "Buddy" for c in contacts) > 1:
+        raise HTTPException(status_code=422, detail="Only one Buddy can be taken at character creation")
+    followers = [c for c in contacts if c.contact_type == "Follower"]
+    if len(followers) > _MAX_CHARGEN_FOLLOWERS:
+        raise HTTPException(status_code=422,
+                            detail=f"At most {_MAX_CHARGEN_FOLLOWERS} Followers can be taken at character creation")
+    archetypes = [(c.profession or "").strip() for c in followers]
+    if not all(archetypes) or len(set(archetypes)) < len(archetypes):
+        raise HTTPException(status_code=422, detail="Each Follower needs its own archetype -- no two the same")
+    picked = sum((c.contact_type or "Contact") in ("Contact", "Buddy") and bool(c.name.strip())
+                 and bool((c.profession or "").strip()) for c in contacts)
+    if picked < _FREE_CHARGEN_CONTACTS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Pick your {_FREE_CHARGEN_CONTACTS} contacts, each with a name and archetype -- "
+                   "one can be upgraded to a Buddy",
+        )
+
 async def _ensure_pc_reputation(db: AsyncSession, char: Character) -> None:
     """Give a live PC the reputation row the run tools assume exists.
 
@@ -585,6 +617,7 @@ async def create_character_dossier(
     data = _dossier_create_data(body, ctx)
     if not data.get("is_draft"):
         _assert_chargen_skills(body.skills)
+        _assert_chargen_contacts(body.contacts)
     await _assert_org_exists(db, data)
     char = Character(**data)
     if not char.is_draft:
@@ -642,6 +675,7 @@ async def finalize_character_dossier(
     if not char.is_draft:
         raise HTTPException(status_code=400, detail="Only a draft character can be finalized")
     _assert_chargen_skills(body.skills)
+    _assert_chargen_contacts(body.contacts)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)
@@ -671,6 +705,7 @@ async def convert_character_dossier(
     if char.is_draft:
         raise HTTPException(status_code=400, detail="Use finalize-dossier for a draft character")
     _assert_chargen_skills(body.skills)
+    _assert_chargen_contacts(body.contacts)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
     await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)
