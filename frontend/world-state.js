@@ -2110,32 +2110,57 @@ async function saveCharEdit() {
 }
 
 // -- Team Karma (SR2 p.191) -------------------------------------
-// Shown to everyone; only the GM's +/- buttons (gm-only) change it. Clicks queue so each save
-// starts from the previous one's result.
+// Shown to everyone. A GM clicks the number to type a new value (same as nuyen on the play sheet);
+// runners raise it by donating from their own Karma Pool there.
 let _teamKarma = null;
-let _teamKarmaSaving = 0;
-let _teamKarmaQueue = Promise.resolve();
+let _teamKarmaEditing = false;   // while the GM edits or saves, polls don't overwrite the number
 function setTeamKarmaDisplay(value) {
   _teamKarma = value;
   const el = document.getElementById('sc-team-karma');
-  if (el && el.textContent !== String(value)) el.textContent = value;
+  if (!el || el.tagName === 'INPUT') return;
+  if (el.textContent !== String(value)) el.textContent = value;
+  if (isAdminMode() && !el.classList.contains('is-editable')) {
+    el.classList.add('is-editable');
+    el.tabIndex = 0; el.setAttribute('role', 'button'); el.title = 'Click to set';
+    el.onclick = editTeamKarma;
+    el.onkeydown = e => { if (e.key === 'Enter') editTeamKarma(); };
+  }
 }
-function adjustTeamKarma(delta) {
-  if (_teamKarma == null) return;
-  setTeamKarmaDisplay(Math.max(0, _teamKarma + delta));
-  const target = _teamKarma;
-  _teamKarmaSaving++;
-  _teamKarmaQueue = _teamKarmaQueue.then(async () => {
-    try {
-      const res = await apiFetch(`${API}/campaign/team-karma`, { method: 'PUT', body: JSON.stringify({ team_karma: target }) });
-      if (!res.ok) await apiThrow(res);
-    } catch (e) {
-      wsAlert(`Team Karma not saved: ${e.message}`);
-      const res = await apiFetch(`${API}/campaign/team-karma`).catch(() => null);
-      if (res && res.ok) setTeamKarmaDisplay((await res.json()).team_karma);
-    } finally {
-      _teamKarmaSaving--;
+function editTeamKarma() {
+  const el = document.getElementById('sc-team-karma');
+  if (!isAdminMode() || _teamKarma == null || !el || el.tagName === 'INPUT') return;
+  _teamKarmaEditing = true;
+  const input = document.createElement('input');
+  input.type = 'text'; input.inputMode = 'numeric'; input.id = 'sc-team-karma';
+  input.className = 'stat-num team-karma-input'; input.value = _teamKarma;
+  input.setAttribute('aria-label', 'Team Karma');
+  el.replaceWith(input);
+  input.focus(); input.select();
+  let done = false;
+  const commit = async () => {
+    if (done) return;
+    done = true;
+    const v = parseInt(String(input.value).replace(/[^\d]/g, ''), 10);
+    const span = document.createElement('span');
+    span.className = 'stat-num'; span.id = 'sc-team-karma';
+    input.replaceWith(span);
+    let value = _teamKarma;
+    if (!Number.isNaN(v) && v !== _teamKarma) {
+      try {
+        const res = await apiFetch(`${API}/campaign/team-karma`, { method: 'PUT', body: JSON.stringify({ team_karma: v }) });
+        if (!res.ok) await apiThrow(res);
+        value = (await res.json()).team_karma;
+      } catch (e) {
+        wsAlert(`Team Karma not saved: ${e.message}`);
+      }
     }
+    _teamKarmaEditing = false;
+    setTeamKarmaDisplay(value);
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { input.value = _teamKarma; input.blur(); }
   });
 }
 
@@ -2165,8 +2190,7 @@ async function loadAll() {
       teamKarmaRes.ok ? teamKarmaRes.json() : Promise.resolve(null),
     ]);
     if (seq !== _loadAllSeq) return;
-    // A poll landing while a GM's +/- save is still queued would show the pre-click value.
-    if (teamKarma && !_teamKarmaSaving) setTeamKarmaDisplay(teamKarma.team_karma);
+    if (teamKarma && !_teamKarmaEditing) setTeamKarmaDisplay(teamKarma.team_karma);
     _myCharIds = new Set(mineData.ids || []);
 
     // -- Wire party stats --------------------------------------

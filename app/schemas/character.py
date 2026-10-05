@@ -239,3 +239,23 @@ class CharacterSummary(BaseModel):
     catalog_scope: Literal["core", "reference", "adventure"]
     is_active: bool
     model_config = ConfigDict(from_attributes=True)
+
+
+class KarmaAward(BaseModel):
+    """Karma awarded to a character; split between Good Karma and the Karma Pool (SR2 p.190).
+    Negative takes back part of an earlier award (a correction), with its Pool share."""
+    model_config = ConfigDict(extra="forbid")
+    karma: int = Field(ge=-2500, le=2500)
+
+    @field_validator("karma")
+    @classmethod
+    def _nonzero(cls, v: int) -> int:
+        if v == 0:
+            raise ValueError("karma must not be 0")
+        return v
+
+
+class KarmaDonation(BaseModel):
+    """Karma Pool points given permanently to the Team Karma Pool (SR2 p.191)."""
+    model_config = ConfigDict(extra="forbid")
+    points: int = Field(ge=1)

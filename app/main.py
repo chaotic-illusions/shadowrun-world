@@ -255,6 +255,7 @@ async def _ensure_character_sheet_columns():
         ("nuyen", "INTEGER NOT NULL DEFAULT 0"),
         ("karma_pool", "INTEGER NOT NULL DEFAULT 1"),
         ("good_karma", "INTEGER NOT NULL DEFAULT 0"),
+        ("karma_earned", "INTEGER NOT NULL DEFAULT 0"),
         ("lifestyle_level", "INTEGER"),
         ("lifestyle_permanent", "BOOLEAN NOT NULL DEFAULT 0"),
         ("lifestyle_paid_tick", "INTEGER"),
