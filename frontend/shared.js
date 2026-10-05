@@ -1453,7 +1453,7 @@ function spellRange(sp, force, magic){
     ? `${force ? `${force}d6` : 'Force d6'} TN4. ${mg} × ${sp.rng === 'Extended' ? '10 × ' : ''}successes meters`
     : (SPELL_RANGE_LABEL[sp.rng] || sp.rng || '—');
   const area = sp.area === 'Single target' ? 'single target'
-    : sp.area === 'Area effect' ? `${mg}m radius`
+    : sp.area === 'Area effect' ? (magic ? `${magic}m radius` : 'Magic-meter radius')
     : sp.area === 'Self' ? (sp.rng === 'Self' ? '' : 'self')
     : String(sp.area || '').replace(/\bMagic\b/g, mg);
   return area ? `${range} · ${area}` : range;

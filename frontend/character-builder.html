@@ -1256,19 +1256,22 @@ function chargenOpenPowerInfo(name){
   showInfoModal(`// POWER — ${name}`, powerInfoBody(pw, owned));
 }
 // Inspector rows for the magic step (spells / adept powers): same expand-then-add pattern.
-// Type/Range/Duration decoded via shared.js's SPELL_TYPE_LABEL/etc. (SR2's M/P, T/LOS/Self, I/S/P
-// shorthand) -- same decode play-sheet.html's spell info popup uses, so a new player sees "Mana" /
-// "Line of Sight" / "Sustained" here too instead of bare letters only a rules-expert would know.
+// A spell's chips use the same wording as the spell info popup (shared.js spellRange/spellTN/
+// spellResist), in its order after Category/Type (which head the row). The spell isn't taken yet,
+// so Force is unknown: the lines name the stat ("Force d6", "vs TN Force") and Drain is the book code.
+function spellMeta(s) {
+  return [s.cat ? s.cat[0].toUpperCase() + s.cat.slice(1) : "", SPELL_TYPE_LABEL[s.typ] || s.typ || ""].filter(Boolean).join(" · ");
+}
 function spellStatChips(s) {
-  return [chipHTML("Type", SPELL_TYPE_LABEL[s.typ] || s.typ), chipHTML("Range", SPELL_RANGE_LABEL[s.rng] || s.rng),
-    chipHTML("Duration", spellDurationLabel(s)),
-    chipHTML("Drain", s.drn), chipHTML("Target", s.target), chipHTML("Damage", s.dmg), chipHTML("Area", s.area)]
+  return [chipHTML("Range", spellRange(s, null, null)), chipHTML("Duration", spellDurationLabel(s)),
+    chipHTML("TN", spellTN(s)), chipHTML("Resist", spellResist(s, null) || "None"),
+    chipHTML("Damage", s.dmg), chipHTML("Drain", s.drn)]
     .filter(Boolean).join("");
 }
 function magicInspectRow(it, kind, owned) {
   const open = shopInspect === it.n;
   const addAttr = kind === "spell" ? `data-addspell="${esc(it.n)}"` : `data-addpower="${esc(it.n)}"`;
-  const meta = kind === "spell" ? `${it.cat || ""}${it.typ ? " - " + it.typ : ""}` : (it.pp || "");
+  const meta = kind === "spell" ? spellMeta(it) : (it.pp || "");
   const chips = kind === "spell" ? spellStatChips(it)
     : [chipHTML("Cost", it.pp), chipHTML("Activation", it.act), chipHTML("Levels", it.tiers)].filter(Boolean).join("");
   const bullets = it.effect || it.notes || [];
