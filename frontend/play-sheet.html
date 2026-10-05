@@ -1850,7 +1850,7 @@ function renderSkills(){
 // bracket instead of the actual character.
 function openSpellInfo(name){
   const owned = (CHAR.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), owned, CHAR.magic_rating || 0));
+  showInfoModal(spellInfoTitle(name, owned), spellInfoBody(SPELL_CAT.get(name), owned, CHAR.magic_rating || 0));
 }
 function openPowerInfo(name){
   const owned = (CHAR.adept_powers || []).find(p => p.name === name);
@@ -2915,7 +2915,7 @@ function renderManageMagic(){
     e.preventDefault();
     const name = $('#mgSpellPick').value;
     const force = Math.max(1, Number($('#mgSpellForce').value) || 1);
-    showInfoModal(`// SPELL — ${name}`, spellInfoBody(SPELL_CAT.get(name), { force }, CHAR.magic_rating || 0));
+    showInfoModal(spellInfoTitle(name, { force }), spellInfoBody(SPELL_CAT.get(name), { force }, CHAR.magic_rating || 0));
   };
   const buyBtn = $('#mgSpellBuy');
   buyBtn.onclick = async () => {

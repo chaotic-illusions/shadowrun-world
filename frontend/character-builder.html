@@ -1248,7 +1248,7 @@ function chipHTML(label, val) {
 function chargenOpenSpellInfo(name){
   const sp = (CAT.spells || []).find(x => x.n === name);
   const owned = (state.spells || []).find(s => s.name === name);
-  showInfoModal(`// SPELL — ${name}`, spellInfoBody(sp, owned, magicRating()));
+  showInfoModal(spellInfoTitle(name, owned), spellInfoBody(sp, owned, magicRating()));
 }
 function chargenOpenPowerInfo(name){
   const pw = (CAT.adept_powers || []).find(x => x.n === name);

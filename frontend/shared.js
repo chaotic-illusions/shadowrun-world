@@ -1417,13 +1417,12 @@ function spellRollLines(sp, owned, magic){
   const force = owned ? Math.max(1, Number(owned.force) || 1) : null;
   const lines = [];
   if (sp.rng === 'Limited' || sp.rng === 'Extended') {
-    lines.push(`<b>Range:</b> roll Force dice against Target Number 4. Successes × ${sp.rng === 'Extended' ? '10 × ' : ''}Magic is the range in meters.`);
+    lines.push(`<b>Range:</b> roll ${force ? `${force} dice (Force)` : 'Force dice'} against Target Number 4. Successes × ${sp.rng === 'Extended' ? '10 × ' : ''}${magic ? `${magic} (Magic)` : 'Magic'} is the range in meters.`);
   }
-  lines.push(`<b>Cast:</b> roll ${force ? `${force} dice (Force)` : 'Force dice'} plus any Magic Pool dice, at most your Magic Rating of them, against Target ${esc(sp.target || '—')}.`);
-  const resist = /^(.*?)\s*\(R\)$/.exec(sp.target || '');
+  lines.push(`<b>Cast:</b> roll ${force ? `${force} dice (Force)` : 'Force dice'} plus any Magic Pool dice, at most your Magic Rating of them, against ${/^\d/.test(spellTN(sp)) ? 'TN ' : ''}${esc(spellTN(sp))}.`);
+  const resist = spellResist(sp, force);
   if (resist) {
-    const dice = /^(Body|Willpower|Intelligence|Quickness|Force)$/.test(resist[1]) ? `its ${resist[1]}` : 'the Attribute named in the description';
-    lines.push(`<b>Resisted (R):</b> the target rolls ${dice} against Target Number ${force || 'Force'}. Its successes cancel yours; ties go to the caster.`);
+    lines.push(`<b>Resist:</b> ${esc(resist)}. The target's successes cancel yours; ties go to the caster.`);
   }
   if (sp.cat === 'combat' && /^(Light|Moderate|Serious|Deadly) (Physical|Stun)$/.test(sp.dmg || '')) {
     lines.push(`<b>Damage:</b> the Damage Level shown is the base. Every 2 net successes raise it one level.`);
@@ -1441,21 +1440,70 @@ function spellRollLines(sp, owned, magic){
   }
   return `<ul class="mt-6" style="padding-left:18px">${lines.map(l => `<li>${l}</li>`).join('')}</ul>`;
 }
+// ---- Spell stat lines, worked out for the caster where the sheet knows Force/Magic. `force` and
+// `magic` are numbers or null (unknown -- the line then names the stat instead of a value).
+const SPELL_ATTRS = /^(Body|Willpower|Intelligence|Quickness|Reaction|Strength|Charisma)$/;
+// Object Resistance Table (SR2 p.130), compact.
+const OBJECT_RESISTANCE = 'Object Resistance: Natural 3 · Low-tech 5 · High-tech 8 · Processed 10+';
+// "3d6 TN4. 6 × successes meters · single target": a Limited/Extended range is rolled for (Force
+// dice vs TN 4, successes × Magic meters, ×10 more for Extended), then the area it covers.
+function spellRange(sp, force, magic){
+  const mg = magic ? String(magic) : 'Magic';
+  const range = sp.rng === 'Limited' || sp.rng === 'Extended'
+    ? `${force ? `${force}d6` : 'Force d6'} TN4. ${mg} × ${sp.rng === 'Extended' ? '10 × ' : ''}successes meters`
+    : (SPELL_RANGE_LABEL[sp.rng] || sp.rng || '—');
+  const area = sp.area === 'Single target' ? 'single target'
+    : sp.area === 'Area effect' ? `${mg}m radius`
+    : sp.area === 'Self' ? (sp.rng === 'Self' ? '' : 'self')
+    : String(sp.area || '').replace(/\bMagic\b/g, mg);
+  return area ? `${range} · ${area}` : range;
+}
+// The caster's target number: "Target Willpower" when it is the target's Attribute, the barrier's
+// or spirit's Force for the Force (R) spells, the Object Resistance table spelled out.
+function spellTN(sp){
+  const t = String(sp.target || '');
+  const resisted = /\(R\)$/.test(t);
+  const core = t.replace(/\s*\(R\)$/, '');
+  if (SPELL_ATTRS.test(core)) return `${resisted ? 'Target' : "Subject's"} ${core}`;
+  if (core === 'Force' && resisted) return `${String(sp.resist || 'Target').split(/['\s]/)[0]}'s Force`;
+  if (core === 'Object Resistance') return OBJECT_RESISTANCE;
+  return core || '—';
+}
+// The Spell Resistance Test for an (R) spell, or null when it is unresisted: the target rolls the
+// catalog's `resist` (else the Attribute in its target, else Willpower against mana and Body against
+// physical spells, SR2 p.130) against the spell's Force; `resave` says when they may roll again.
+function spellResist(sp, force){
+  const t = String(sp.target || '');
+  if (!/\(R\)$/.test(t)) return null;
+  const core = t.replace(/\s*\(R\)$/, '');
+  const r = sp.resist;
+  const who = r ? (r.startsWith('the ') ? `Target's ${r.slice(4)}` : (/^Barrier|'/.test(r) ? r : `Target ${r}`))
+    : `Target ${SPELL_ATTRS.test(core) ? core : (sp.typ === 'M' ? 'Willpower' : 'Body')}`;
+  return `${who} vs TN ${force || 'Force'}${sp.resave ? `, can save again ${sp.resave}` : ''}`;
+}
+// "4D" at a known Force (Physical when Force exceeds Magic), else the book's Drain Code.
+function spellDrainLabel(sp, force, magic){
+  const drain = force ? spellDrainTest(sp, force, magic) : null;
+  if (!drain) return sp.drn || '—';
+  return `${drain.tn}${drain.level === 'Wound' ? '(Wound Level)' : drain.level}${drain.physical ? ' Physical' : ''}`;
+}
+// Popup title -- the Force the spell is known at goes beside its name.
+function spellInfoTitle(name, owned){
+  return `// SPELL — ${name}${owned && owned.force ? ` · Force ${owned.force}` : ''}`;
+}
 function spellInfoBody(sp, owned, magic){
   if (!sp) return '<p class="empty-state">No catalog data for this spell.</p>';
-  const drain = owned ? spellDrainTest(sp, owned.force, magic) : null;
-  const drainNow = !drain ? '' : ` — <b>${drain.tn}${drain.level === 'Wound' ? ' at the wound level' : drain.level}</b> at Force ${esc(String(owned.force))}`;
+  const force = owned ? Math.max(1, Number(owned.force) || 1) : null;
   const effectList = (sp.effect || []).map(e => `<li>${esc(String(e))}</li>`).join('');
   return [
-    owned ? statRow('Force (cast)', esc(String(owned.force ?? '—'))) : '',
-    statRow('Category', esc(sp.cat || '—')),
+    statRow('Category', esc(sp.cat ? sp.cat[0].toUpperCase() + sp.cat.slice(1) : '—')),
     statRow('Type', esc(SPELL_TYPE_LABEL[sp.typ] || sp.typ || '—')),
-    statRow('Range', esc(SPELL_RANGE_LABEL[sp.rng] || sp.rng || '—')),
+    statRow('Range', esc(spellRange(sp, force, magic))),
     statRow('Duration', esc(spellDurationLabel(sp) || '—')),
-    statRow('Target', esc(sp.target || '—')),
-    statRow('Area', esc(sp.area || '—')),
+    statRow('TN', esc(spellTN(sp))),
+    statRow('Resist', esc(spellResist(sp, force) || 'None')),
     statRow('Damage', sp.dmg ? esc(sp.dmg) : ''),
-    statRow('Drain', `${esc(sp.drn || '—')}${drainNow}`),
+    statRow('Drain', esc(spellDrainLabel(sp, force, magic))),
     sp.desc ? `<p class="dim-meta mt-6">${esc(sp.desc)}</p>` : '',
     effectList ? `<ul class="mt-6" style="padding-left:18px">${effectList}</ul>` : '',
     `<p class="dim-meta mt-6">What to roll</p>`,
