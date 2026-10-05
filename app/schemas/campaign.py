@@ -14,3 +14,9 @@ class AdvanceClockRequest(BaseModel):
 class AdvanceClockResult(BaseModel):
     current_tick: int
     days_advanced: int
+
+
+class TeamKarma(BaseModel):
+    """The team's Karma Pool (SR2 p.191)."""
+    model_config = ConfigDict(extra="forbid")
+    team_karma: int = Field(ge=0, le=999)

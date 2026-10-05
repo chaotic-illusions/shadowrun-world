@@ -1607,15 +1607,37 @@ function renderAmmo(weapons){
   });
   initNumSteppers($('#ammoGrid'));
 }
+// Every character can fight bare-handed (SR2 p.101: Unarmed, (Str)M Stun, Reach 0). It's a melee
+// attack -- a Complex Action (p.83), opposed, both sides rolling against TN 4 (p.100). Without the
+// Unarmed Combat skill the Skill Web defaults it to Quickness at +2 (one circle, p.69). Bone Lacing
+// raises the Power by its rating, or the blow can do Physical damage at half that Power, round up
+// (Shadowtech p.42); Killing Hands does (Str) Physical at the level bought, unaugmented (p.126).
+function unarmedRow(){
+  const str = Number(CHAR.strength) || 0;
+  const lacing = ((CHAR.gear && CHAR.gear.cyber) || []).find(g => g.n === 'Bone Lacing');
+  const power = str + (lacing ? Math.max(1, Math.min(3, Number(lacing.rating) || 1)) : 0);
+  const codes = [{ dmg: `${power}M Stun`, note: lacing ? 'Bone Lacing' : '' }];
+  if (lacing) codes.push({ dmg: `${Math.ceil(power / 2)}M`, note: 'Lacing, Physical' });
+  const killing = powerLevel('Killing Hands');
+  if (killing) codes.push({ dmg: `${str}${AMMO_LEVELS[Math.min(4, killing) - 1]}`, note: 'Killing Hands' });
+  const dmgCell = codes.length === 1 ? esc(codes[0].dmg)
+    : codes.map(c => `<div>${esc(c.dmg)}${c.note ? ` <span class="ammo-gun">${esc(c.note)}</span>` : ''}</div>`).join('');
+  const skill = (CHAR.skills || []).find(s => s.name === 'Unarmed Combat');
+  const rating = skill ? Number(skill.rating) || 0 : 0;
+  const roll = rating > 0 ? `Unarmed Combat ${rating} · TN 4`
+    : `Untrained: Quickness ${Number(CHAR.quickness) || 0} · TN 6`;
+  return `<tr><td>Unarmed<div class="dim-meta" style="font-size:.66rem;" title="Opposed melee test (SR2 p.100); a Complex Action (p.83)">${esc(roll)}</div></td>
+    <td>Unarmed</td><td></td><td>${dmgCell}</td><td></td><td>-</td><td>-</td><td></td><td></td><td></td>
+    <td><span class="dim-meta" style="font-size:.72rem;">—</span></td><td></td></tr>`;
+}
 function renderWeapons(){
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
   renderAmmo(weapons);
   // Every carried weapon shows, equipped or not -- same convention as Armor's (E) badge, rather
   // than hiding unequipped ones. Manage Weapons toggles equip state / removes.
   const rows = weapons.filter(w => { const cat = WEAPON_CAT.get(w.n) || {}; return cat.cat !== 'accessory' && !isWeaponConsumable(cat); });
-  if (!rows.length) { $('#weaponsTbl tbody').innerHTML = `<tr><td colspan="12" class="empty-state">No weapons owned.</td></tr>`; return; }
   const coatBonus = armorConcealBonus();
-  $('#weaponsTbl tbody').innerHTML = rows.map((w,i) => {
+  $('#weaponsTbl tbody').innerHTML = unarmedRow() + rows.map((w,i) => {
     const cat = WEAPON_CAT.get(w.n) || {};
     const equipped = w.equipped !== false;
     const [short, med, long, extreme] = weaponRangeBands(w, cat, CHAR.strength);

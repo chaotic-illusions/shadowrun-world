@@ -2109,6 +2109,36 @@ async function saveCharEdit() {
   }
 }
 
+// -- Team Karma (SR2 p.191) -------------------------------------
+// Shown to everyone; only the GM's +/- buttons (gm-only) change it. Clicks queue so each save
+// starts from the previous one's result.
+let _teamKarma = null;
+let _teamKarmaSaving = 0;
+let _teamKarmaQueue = Promise.resolve();
+function setTeamKarmaDisplay(value) {
+  _teamKarma = value;
+  const el = document.getElementById('sc-team-karma');
+  if (el && el.textContent !== String(value)) el.textContent = value;
+}
+function adjustTeamKarma(delta) {
+  if (_teamKarma == null) return;
+  setTeamKarmaDisplay(Math.max(0, _teamKarma + delta));
+  const target = _teamKarma;
+  _teamKarmaSaving++;
+  _teamKarmaQueue = _teamKarmaQueue.then(async () => {
+    try {
+      const res = await apiFetch(`${API}/campaign/team-karma`, { method: 'PUT', body: JSON.stringify({ team_karma: target }) });
+      if (!res.ok) await apiThrow(res);
+    } catch (e) {
+      wsAlert(`Team Karma not saved: ${e.message}`);
+      const res = await apiFetch(`${API}/campaign/team-karma`).catch(() => null);
+      if (res && res.ok) setTeamKarmaDisplay((await res.json()).team_karma);
+    } finally {
+      _teamKarmaSaving--;
+    }
+  });
+}
+
 // -- Main data load --------------------------------------------
 // Every loadAll gets a sequence number; a response that finishes after a newer load started (a poll
 // in flight while a save calls loadAll) is dropped so it can't put pre-save data back in the stores.
@@ -2116,23 +2146,27 @@ let _loadAllSeq = 0;
 async function loadAll() {
   const seq = ++_loadAllSeq;
   try {
-    const [orgsRes, locsRes, charsRes, contactsRes, statsRes, mineRes] = await Promise.all([
+    const [orgsRes, locsRes, charsRes, contactsRes, statsRes, mineRes, teamKarmaRes] = await Promise.all([
       apiFetch(`${API}/organizations/`),
       apiFetch(`${API}/locations/`),
       apiFetch(`${API}/characters/`),
       apiFetch(`${API}/contacts/`),
       apiFetch(`${API}/runs/party-stats`),
       apiFetch(`${API}/characters/mine`),
+      apiFetch(`${API}/campaign/team-karma`),
     ]);
     for (const [label, res] of [['organizations', orgsRes], ['locations', locsRes], ['characters', charsRes], ['contacts', contactsRes]]) {
       if (!res.ok) throw new Error(`Failed to load ${label} (HTTP ${res.status})`);
     }
-    const [orgs, locs, chars, contacts, stats, mineData] = await Promise.all([
+    const [orgs, locs, chars, contacts, stats, mineData, teamKarma] = await Promise.all([
       orgsRes.json(), locsRes.json(), charsRes.json(), contactsRes.json(),
       statsRes.ok ? statsRes.json() : Promise.resolve(null),
       mineRes.ok ? mineRes.json() : Promise.resolve({ids: []}),
+      teamKarmaRes.ok ? teamKarmaRes.json() : Promise.resolve(null),
     ]);
     if (seq !== _loadAllSeq) return;
+    // A poll landing while a GM's +/- save is still queued would show the pre-click value.
+    if (teamKarma && !_teamKarmaSaving) setTeamKarmaDisplay(teamKarma.team_karma);
     _myCharIds = new Set(mineData.ids || []);
 
     // -- Wire party stats --------------------------------------

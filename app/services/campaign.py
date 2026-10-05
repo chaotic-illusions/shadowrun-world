@@ -57,3 +57,11 @@ async def advance_clock(db: AsyncSession, days: int) -> int:
         raise RuntimeError("campaign_state singleton disappeared during clock advance")
     await db.commit()
     return new_tick
+
+
+async def set_team_karma(db: AsyncSession, value: int) -> int:
+    """Set the team's Karma Pool and return it."""
+    await get_campaign_state(db)
+    await db.execute(update(CampaignState).where(CampaignState.id == 1).values(team_karma=value))
+    await db.commit()
+    return value
