@@ -87,6 +87,10 @@ class Character(Base):
     nuyen: Mapped[int] = mapped_column(Integer, default=0)
     karma_pool: Mapped[int] = mapped_column(Integer, default=1)
     good_karma: Mapped[int] = mapped_column(Integer, default=0)
+    # Every point of Karma ever awarded (SR2 p.190): each award is split 9-in-10 to Good Karma and
+    # 1-in-10 to the Karma Pool, rounding in favor of Good Karma, so the Pool's share is counted
+    # against this running total. Spending Good Karma never lowers it.
+    karma_earned: Mapped[int] = mapped_column(Integer, default=0)
     # Condition monitor: 10-box Physical/Stun tracks (boxes filled, 0-10) plus Physical Overflow
     # (boxes filled beyond the 10th Physical box; capped client-side at the Body attribute).
     physical_damage: Mapped[int] = mapped_column(Integer, default=0)

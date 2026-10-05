@@ -19,7 +19,7 @@ from app.models.organization import Organization
 from app.models.reputation import Reputation
 from app.schemas.character import (
     CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead,
-    CharacterOwnerAssign,
+    CharacterOwnerAssign, KarmaAward, KarmaDonation,
 )
 from app.routers.contacts import contact_type_for_loyalty, serialize_contact, visible_contacts
 from app.schemas.contact import ContactRead
@@ -27,7 +27,8 @@ from app.schemas.deck_builder_state import DeckBuilderStateRead, DeckBuilderStat
 from app.schemas.reputation import ReputationRead
 from app.auth.core import hash_token
 from app.auth.dependencies import get_admin_token, get_any_token
-from app.services.campaign import current_tick
+from app.models.campaign import CampaignState
+from app.services.campaign import current_tick, get_campaign_state
 
 router = APIRouter()
 
@@ -47,7 +48,9 @@ _PLAYER_WRITABLE_FIELDS = _PLAYER_IDENTITY_FIELDS | {
     # a character must already exist (created via /characters/ or committed via /characters/dossier)
     # before any of these become writable -- see _character_create_data, which uses
     # _PLAYER_IDENTITY_FIELDS instead of this full set.
-    "nuyen", "karma_pool", "good_karma", "skills", "gear", "spells",
+    # karma_pool is not here: it moves only by Karma awards and donations (their own endpoints
+    # below), and otherwise only a GM sets it.
+    "nuyen", "good_karma", "skills", "gear", "spells",
     "body", "quickness", "strength", "charisma", "intelligence", "willpower",
     "essence", "body_index", "magic_rating", "lifestyle_level", "lifestyle_permanent",
     "physical_damage", "stun_damage", "physical_overflow",
@@ -924,6 +927,71 @@ async def update_character(
     await db.commit()
     await db.refresh(char)
     return _serialize_character(char, ctx, contact_owner=contact_owner)
+
+
+@router.post("/{character_id}/award-karma", response_model=CharacterRead)
+async def award_karma(
+    character_id: int,
+    body: KarmaAward,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Award Karma (SR2 p.190): 1 point in every 10 earned goes to the Karma Pool and the rest to
+    Good Karma. Counting against the running total rounds in favor of Good Karma and keeps small
+    awards from losing their Pool share. A negative award takes Karma back (a correction): the
+    total drops and the Pool loses any point it no longer reaches. Spending Good Karma on skills,
+    attributes or spells is a plain good_karma PATCH and never touches the total. Owner-or-admin."""
+    char = await _load_character(db, character_id)
+    _assert_character_access(char, ctx)
+    earned = char.karma_earned or 0
+    total = earned + body.karma
+    pool_change = total // 10 - earned // 10
+    good_change = body.karma - pool_change
+    if total < 0 or (char.good_karma or 0) + good_change < 0:
+        raise HTTPException(status_code=422, detail="Only unspent awarded Karma can be taken back")
+    # Guarded on the total this split was computed from, so two awards at once can't both count it.
+    result = await db.execute(
+        sql_update(Character).where(Character.id == char.id, Character.karma_earned == earned).values(
+            karma_earned=total,
+            # A Pool point already donated can't be taken back; the Pool stops at 0.
+            karma_pool=func.max(Character.karma_pool + pool_change, 0),
+            good_karma=Character.good_karma + good_change,
+            version=Character.version + 1,  # keep the optimistic lock honest for concurrent PATCHes
+        )
+    )
+    if result.rowcount != 1:
+        raise HTTPException(status_code=409, detail="Karma changed at the same time -- reload and try again")
+    await db.commit()
+    await db.refresh(char)
+    return _serialize_character(char, ctx)
+
+
+@router.post("/{character_id}/donate-karma", response_model=CharacterRead)
+async def donate_karma(
+    character_id: int,
+    body: KarmaDonation,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Permanently move Karma Pool points to the Team Karma Pool (SR2 p.191). Owner-or-admin;
+    at most what the character's Karma Pool holds."""
+    char = await _load_character(db, character_id)
+    _assert_character_access(char, ctx)
+    await get_campaign_state(db)
+    result = await db.execute(
+        sql_update(Character)
+        .where(Character.id == char.id, Character.karma_pool >= body.points)
+        .values(karma_pool=Character.karma_pool - body.points, version=Character.version + 1)
+    )
+    if result.rowcount != 1:
+        raise HTTPException(status_code=422, detail="Cannot donate more than the Karma Pool holds")
+    await db.execute(
+        sql_update(CampaignState).where(CampaignState.id == 1)
+        .values(team_karma=CampaignState.team_karma + body.points)
+    )
+    await db.commit()
+    await db.refresh(char)
+    return _serialize_character(char, ctx)
 
 
 @router.delete("/{character_id}", status_code=204)

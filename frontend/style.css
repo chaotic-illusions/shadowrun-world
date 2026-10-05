@@ -941,7 +941,12 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .stat-lbl     { font-family: var(--font-display); font-size: var(--fs-md); letter-spacing: 3px; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; }
 .stat-card-nav        { cursor: pointer; transition: border-color .15s, background .15s; }
 .stat-card-nav:hover  { border-color: #1a3a1a; background: rgba(0,255,65,.04); }
-.team-karma-btns      { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
+#sc-team-karma.is-editable { cursor: pointer; }
+/* Beats the global input[type=text] rule so the edit box keeps the stat number's look. */
+.stat-card input.team-karma-input {
+  font-family: var(--font-display); font-size: var(--fs-stat); color: var(--green); line-height: 1;
+  border: 1px solid var(--green); width: 4ch; text-align: center; padding: 0 4px; margin: 0 auto;
+}
 
 .status-bar {
   display: flex; gap: 24px; align-items: center;
