@@ -1486,6 +1486,7 @@
   "chargen": {
     "startEssence": 6,
     "startKarmaPool": 1,
+    "startKarmaPoolMetahuman": 2,
     "startGoodKarma": 0,
     "conditionBoxes": 10,
     "attrFloor": 1,

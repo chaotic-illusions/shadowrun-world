@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
 from app.auth.dependencies import get_admin_token
-from app.schemas.campaign import ClockRead, AdvanceClockRequest, AdvanceClockResult
-from app.services.campaign import current_tick, advance_clock
+from app.schemas.campaign import ClockRead, AdvanceClockRequest, AdvanceClockResult, TeamKarma
+from app.services.campaign import current_tick, advance_clock, get_campaign_state, set_team_karma
 from app.services.lifestyle import settle_all_lifestyles
 
 router = APIRouter()
@@ -31,3 +31,19 @@ async def advance_campaign_clock(
     # Charge lifestyle upkeep for the elapsed time (evicts runners who can't pay).
     await settle_all_lifestyles(db, new_tick)
     return AdvanceClockResult(current_tick=new_tick, days_advanced=body.days)
+
+
+@router.get("/team-karma", response_model=TeamKarma)
+async def get_team_karma(db: AsyncSession = Depends(get_db)):
+    """Return the team's Karma Pool (SR2 p.191)."""
+    return TeamKarma(team_karma=(await get_campaign_state(db)).team_karma)
+
+
+@router.put("/team-karma", response_model=TeamKarma)
+async def put_team_karma(
+    body: TeamKarma,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(get_admin_token),
+):
+    """Set the team's Karma Pool (admin only)."""
+    return TeamKarma(team_karma=await set_team_karma(db, body.team_karma))

@@ -471,6 +471,13 @@ const round2 = (n) => Math.round((Number(n)||0) * 100) / 100;
 // ---- derived / budget --------------------------------------------------------
 function isMeta() { return state.prio.race === "A"; }
 function metatype() { return META[isMeta() ? state.metatype : "Human"] || META.Human; }
+// SR2 p.47: humans start with 1 Karma Pool, metahumans 2 (the More Metahumans option, not used
+// here, would drop them to 1).
+function startKarmaPool() {
+  const meta = isMeta() && state.metatype !== "Human";
+  const key = meta ? "startKarmaPoolMetahuman" : "startKarmaPool";
+  return (CHARGEN && CHARGEN[key] != null) ? CHARGEN[key] : (meta ? 2 : 1);
+}
 function naturalAttr(a) { return state.base[a] + ((metatype().mods||{})[a] || 0); }
 // SR2 p.45: the final (post-racial) rating can't be below 1, so a -2 mod needs a base of 3.
 // Those points are spent normally.
@@ -1965,7 +1972,7 @@ function commitPayload() {
     name: (id.handle || id.name || "Unnamed Runner").slice(0, 200),
     is_pc: true,
     archetype: (id.archetype === "Custom" ? (id.archetypeCustom || "").trim() : id.archetype) || null,
-    race: state.metatype,
+    race: isMeta() ? state.metatype : "Human",
     gender: id.sex || null,
     nationality: id.nationality || null,
     age: Number.isFinite(ageNum) ? ageNum : null,
@@ -1979,7 +1986,7 @@ function commitPayload() {
     tradition: state.tradition || null,
     totem: state.totem || null,
     nuyen: startingCash(),
-    karma_pool: (CHARGEN && CHARGEN.startKarmaPool != null) ? CHARGEN.startKarmaPool : 1,
+    karma_pool: startKarmaPool(),
     good_karma: (CHARGEN && CHARGEN.startGoodKarma != null) ? CHARGEN.startGoodKarma : 0,
     lifestyle_level: lvl >= 0 ? lvl : null,
     lifestyle_permanent: lvl > 0 ? !!state.identity.lifestylePermanent : false,

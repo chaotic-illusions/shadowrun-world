@@ -463,6 +463,14 @@ async def _ensure_campaign_pc_affiliation_backfilled_column():
         print("[startup] Added campaign_state.pc_affiliation_backfilled column")
 
 
+async def _ensure_campaign_team_karma_column():
+    """Startup safety migration for campaign_state.team_karma on SQLite. Must exist before
+    get_campaign_state() emits every mapped column. Idempotent.
+    """
+    if await _ensure_sqlite_column("campaign_state", "team_karma", "INTEGER NOT NULL DEFAULT 2"):
+        print("[startup] Added campaign_state.team_karma column")
+
+
 async def _backfill_pc_affiliation_once():
     """One-time: set is_independent=True for every existing PC (runners default to "Independent"),
     guarded by campaign_state.pc_affiliation_backfilled so a deliberate later "Unknown" is never
@@ -565,6 +573,7 @@ async def lifespan(app: FastAPI):
         await _ensure_adventure_run_number_schema()
         await _ensure_campaign_state_enabled_books_column()
         await _ensure_campaign_pc_affiliation_backfilled_column()
+        await _ensure_campaign_team_karma_column()
         await _ensure_campaign_state()
         await _backfill_pc_affiliation_once()
         await _strip_division_headquarters()
