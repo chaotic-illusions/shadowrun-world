@@ -19,7 +19,7 @@ OUT = Path(__file__).resolve().parent.parent / "app" / "data" / "catalog" / "spe
 
 W = "Willpower (R)"
 B = "Body (R)"
-ORT = "Object Resistance Table"
+ORT = "Object Resistance"
 ONE = "Single target"
 AREA = "Area effect"
 LEVELS = {"L": "Light", "M": "Moderate", "S": "Serious", "D": "Deadly"}
@@ -33,11 +33,19 @@ def drain(mod: int, level: str) -> str:
     return f"[(F/2){'+' if mod > 0 else '-'}{abs(mod)}]{level}"
 
 
-def add(n, cat, src, pg, typ, rng, dur, drn, target, area, desc, effect=(), dmg=None, turns=None):
+# `resist` names what the target rolls against the Force when a Resisted (R) spell isn't resisted
+# by the SR2 default (Willpower against mana spells, Body against physical) or by the Attribute
+# already named in `target`. `resave` says when the target may roll to resist again.
+def add(n, cat, src, pg, typ, rng, dur, drn, target, area, desc, effect=(), dmg=None, turns=None,
+        resist=None, resave=None):
     s = {"n": n, "cat": cat, "typ": typ, "rng": rng, "dur": dur}
     if turns:
         s["turns"] = turns
     s.update({"drn": drn, "target": target, "area": area})
+    if resist:
+        s["resist"] = resist
+    if resave:
+        s["resave"] = resave
     if dmg:
         s["dmg"] = dmg
     s.update({"desc": desc, "effect": list(effect), "src": src, "pg": pg})
@@ -74,9 +82,9 @@ add("Powerball", "combat", "SR2", 151, "P", "LOS", "I", drain(1, "S"), B, AREA,
     dmg="Moderate Physical")
 add("Ram", "combat", "SR2", 151, "P", "LOS", "I", drain(1, "S"), ORT, ONE,
     "Damages inanimate targets.",
-    ["Add the casting's successes to the spell's Force and compare the total to the target's Barrier Rating to find the effect (Barriers, SR2 p.98).",
-     "Against a vehicle, use its Body plus any vehicle armor as the Barrier Rating. Each indicated reduction does Light damage to the vehicle rather than lowering its Body.",
-     "The target number comes from the Object Resistance Table (SR2 p.130)."], dmg="Serious")
+    ["Compare on the Barrier Effect Table (Barriers, SR2 p.98).",
+     "Against a vehicle, use its Body plus any vehicle armor as the Barrier Rating. Each indicated reduction does Light damage to the vehicle rather than lowering its Body."],
+    dmg="Force + successes vs Barrier Rating")
 add("Sleep", "combat", "SR2", 151, "M", "LOS", "I", drain(-1, "S"), W, AREA,
     "An area-effect spell that causes Stun damage to living targets only.", dmg="Moderate Stun")
 
@@ -84,11 +92,10 @@ add("Sleep", "combat", "SR2", 151, "M", "LOS", "I", drain(-1, "S"), W, AREA,
 add("Analyze Device", "detection", "SR2", 153, "P", "Limited", "S", drain(1, "M"), ORT, ONE,
     "The magician can analyze the purpose and basic operation of a device or piece of equipment.",
     ["A specific hypersense spell requiring a voluntary subject.",
-     "The base target number is the object's resistance (Object Resistance Table, SR2 p.130).",
      "Previous familiarity with the device or similar objects reduces the target number by 2."])
 add("Analyze Truth", "detection", "SR2", 153, "M", "Limited", "S", drain(0, "S"), W, ONE,
     "The magician can tell whether a target's statement is the truth or not.",
-    ["A hypersense spell. The target resists with Willpower against the spell's Force, reducing the caster's successes.",
+    ["A hypersense spell.",
      "The caster needs at least 1 success to determine validity.",
      "Does not work on written materials: the magician must hear the statement."])
 add("Clairvoyance", "detection", "SR2", 153, "M", "Limited", "S", drain(0, "M"), "4", ONE,
@@ -110,7 +117,7 @@ add("Detect Enemies", "detection", "SR2", 153, "M", "Limited", "S", drain(1, "M"
     "Within range, detects living beings who have hostile intentions toward the subject of the spell.",
     ["An area-effect, general hypersense spell requiring a voluntary subject.",
      "Would not detect a trap (it is not alive) or a terrorist about to shoot into a crowd at random (the intention is not personal)."])
-add("Detect Individual", "detection", "SR2", 153, "M", "Limited", "S", drain(0, "L"), "10 − target's Essence (or Magic)", AREA,
+add("Detect Individual", "detection", "SR2", 153, "M", "Limited", "S", drain(0, "L"), "10 − Essence (or Magic)", AREA,
     "Detects the presence of a particular individual, named when the spell is cast.",
     ["An area-effect, general hypersense spell requiring a voluntary subject.",
      "Target number is 10 minus the target's Essence if the target is mundane, or 10 minus the target's Magic Rating (or Force or Essence, as appropriate) if the target is magically active."])
@@ -126,7 +133,7 @@ add("Detect (Object)", "detection", "SR2", 153, "P", "Limited", "S", drain(1, "M
     ["An area-effect, general hypersense spell.", "Each variation is a separate spell."])
 add("Mind Probe", "detection", "SR2", 153, "M", "T", "S", drain(2, "D"), "4 (R)", ONE,
     "The magician can telepathically probe a subject's mind.",
-    ["The target resists with Willpower against the spell's Force. The successes left over set how deep the probe goes.",
+    ["Net successes set how deep the probe goes.",
      "1 success: read surface thoughts, what the target is thinking at that instant.",
      "2 successes: find out anything the subject knows consciously. Ask one question, which the target must answer truthfully.",
      "3 or more successes: enter the target's subconscious and obtain the answer to two questions.",
@@ -137,27 +144,28 @@ add("Personal Combat Sense", "detection", "SR2", 153, "P", "Self", "S", drain(1,
 
 # ---------------------------------------------------------------- SR2: health (pp.154-155)
 for lv, turns in zip("LMSD", (5, 10, 15, 20)):
-    add(f"Antidote {lv} Toxin", "health", "SR2", 154, "P", "T", "P", drain(0, lv), "Toxin's Strength", ONE,
+    add(f"Antidote {lv} Toxin", "health", "SR2", 154, "P", "T", "P", drain(0, lv), "Toxin Strength", ONE,
         f"Acts against a toxin (poison or drug) of {LEVELS[lv]} Damage Level in the subject's body.",
         ["Must be used before the toxin damages the victim.",
          "Each success reduces the Strength of the toxin by 1, making the subject's own Resistance Tests easier.",
          "A separate version of the spell exists for each toxin Damage Level."], turns=turns)
 for lv, turns in zip("LMSD", (5, 10, 15, 20)):
-    add(f"Cure {lv} Disease", "health", "SR2", 154, "P", "T", "P", drain(0, lv), "Disease's Virulence", ONE,
+    add(f"Cure {lv} Disease", "health", "SR2", 154, "P", "T", "P", drain(0, lv), "Disease Virulence", ONE,
         f"Kills the germs of a disease of {LEVELS[lv]} Damage Level in the patient's system and eliminates any symptoms at once.",
         ["Can be used at any point after infection.",
          "Each success reduces the Virulence (Power) of the disease by 1, making the subject's own Resistance Tests easier.",
          "Does not heal damage already done by the disease; that takes a separate healing spell.",
          "A separate version of the spell exists for each disease Damage Level."], turns=turns)
 for n, lv in zip((1, 2, 3, 4), "LMSD"):
-    add(f"Decrease -{n} Attribute", "health", "SR2", 154, "P", "T", "S", drain(1, lv), "10 − target's Essence (R)", ONE,
+    add(f"Decrease -{n} Attribute", "health", "SR2", 154, "P", "T", "S", drain(1, lv), "10 − Essence (R)", ONE,
         f"Reduces one of the target's Attributes by {n}.",
-        ["The target resists with the Attribute being attacked, not necessarily Body. The magician needs only 1 net success.",
+        ["The magician needs only 1 net success.",
          "If a Physical Attribute is reduced to 0 the victim is unconscious or paralyzed; at a Mental Attribute of 0 the victim stands about mindlessly.",
          "A separate version of the spell exists for each Physical and Mental Attribute and for Reaction. Other Special Attributes cannot be affected.",
-         "Does not affect targets with cyberware modifiers to the Attribute."])
+         "Does not affect targets with cyberware modifiers to the Attribute."],
+        resist="the Attribute being decreased")
 for lv, turns in zip("LMSD", (5, 10, 15, 20)):
-    add(f"Detox {lv} Toxin", "health", "SR2", 154, "P", "T", "P", drain(-2, lv), "Toxin's Strength", ONE,
+    add(f"Detox {lv} Toxin", "health", "SR2", 154, "P", "T", "P", drain(-2, lv), "Toxin Strength", ONE,
         f"Relieves the effects of a drug or poison of {LEVELS[lv]} Damage Level.",
         ["Must overcome the toxin as the Antidote spell does.",
          "Does not heal damage from toxins, but eliminates their other effects on the victim (dizziness, hallucinations, nausea, pain, and so on).",
@@ -172,29 +180,28 @@ for n, lv in zip((1, 2, 3, 4), "LMSD"):
         effect.append(f"The Increase Reaction version has Drain one level higher: {drain(1, nxt)}, and it raises only the Reaction Rating.")
     else:
         effect.append("There is no Increase Reaction +4 spell.")
-    add(f"Increase +{n} Attribute", "health", "SR2", 154, "M", "T", "S", drain(1, lv), "2 × the Attribute's rating", ONE,
+    add(f"Increase +{n} Attribute", "health", "SR2", 154, "M", "T", "S", drain(1, lv), "2 × Attribute", ONE,
         f"Increases one of the subject's normal Attributes by {n}.", effect)
 for n, lv in zip((1, 2, 3, 4), "LMSD"):
     effect = ["A single success is sufficient.",
               "Works like Increase Attribute, but on Attributes already affected by cybernetics."]
     if n == 4:
         effect.append("Increase Cybered Reaction +4 has a Drain Code of [(F/2)+5]D.")
-    add(f"Increase +{n} Cybered Attribute", "health", "SR2", 155, "P", "T", "S", drain(3, lv), "2 × the Attribute's rating", ONE,
+    add(f"Increase +{n} Cybered Attribute", "health", "SR2", 155, "P", "T", "S", drain(3, lv), "2 × Attribute", ONE,
         f"Increases one of the subject's cybernetically modified Attributes by {n}.", effect)
 for n, lv in zip((1, 2, 3), "MSD"):
-    add(f"+{n} Initiative Di{'e' if n == 1 else 'ce'}", "health", "SR2", 155, "M", "T", "S", drain(0, lv), "2 × subject's Reaction", ONE,
+    add(f"+{n} Initiative Di{'e' if n == 1 else 'ce'}", "health", "SR2", 155, "M", "T", "S", drain(0, lv), "2 × Reaction", ONE,
         f"Increase Reflexes: adds {n} Initiative di{'e' if n == 1 else 'ce'} to a voluntary subject.",
         ["There is no cybered version: characters with cybernetic enhancements that add Initiative dice (such as wired reflexes) cannot be boosted by this spell."])
 HEALING = ["Each success on the Spell Success Test heals 1 box of damage.",
            "The spell must be maintained for a base time set by the subject's wound level: Deadly 20 turns, Serious 15, Moderate 10, Light 5.",
            "Successes can be split between healing boxes of damage and reducing that base time (divide the time by the successes used).",
-           "The Drain Level equals the subject's current Wound Level: Light, Moderate, Serious or Deadly.",
            "A character can be magically treated or healed only once for any single set of injuries, and a successful casting also rules out first aid.",
            "Reduces Physical overflow damage."]
-add("Treat", "health", "SR2", 155, "M", "T", "P", "(F/2)(Wound)", "8 − subject's Essence", ONE,
+add("Treat", "health", "SR2", 155, "M", "T", "P", "(F/2)(Wound)", "8 − Essence", ONE,
     "Heals an injured subject. Must be applied within one hour of the injury.",
     ["Must be applied within one hour of the injury to have any effect; after that, use Heal."] + HEALING)
-add("Heal", "health", "SR2", 155, "M", "T", "P", "(F/2)(Wound)", "10 − subject's Essence", ONE,
+add("Heal", "health", "SR2", 155, "M", "T", "P", "(F/2)(Wound)", "10 − Essence", ONE,
     "Heals an injured subject. May be applied at any time after the injury.",
     ["May be applied at any time, unlike Treat, which must be applied within one hour."] + HEALING)
 
@@ -268,8 +275,7 @@ add("Magic Fingers", "manipulation", "SR2", 157, "P", "LOS", "S", drain(2, "M"),
 add("Poltergeist", "manipulation", "SR2", 157, "P", "LOS", "S", drain(1, "S"), "4 (R)", AREA,
     "Within the area, all small objects and debris up to a kilogram in mass whirl around in random patterns.",
     ["Reduces visibility in the area: +2 to all target numbers.",
-     "Does Light Stun damage. Targets resist with Quickness rather than Body, against the spell's Force.",
-     "Impact armor protects against this damage."], dmg="Light Stun")
+     "Impact armor protects against this damage."], dmg="Light Stun", resist="Quickness")
 add("Armor", "manipulation", "SR2", 158, "P", "Limited", "S", drain(2, "M"), "4", ONE,
     "Gives a voluntary subject built-in armor, knitting their tissues into tougher compounds.",
     ["Treat one-half the successes as a Dermal Armor Rating (added to Body) for as long as the spell is maintained."])
@@ -298,7 +304,7 @@ add("Flame Bomb", "manipulation", "SR2", 158, "P", "LOS", "I", drain(1, "D"), "4
     "An area-effect spell that creates a blast of real flame surrounding the target.", DAMAGING, dmg="(Force)M Physical")
 add("Flamethrower", "manipulation", "SR2", 158, "P", "LOS", "I", drain(1, "S"), "4", ONE,
     "Creates a stream of real flame from the caster to the target.", DAMAGING, dmg="(Force)M Physical")
-add("Ice Sheet", "manipulation", "SR2", 158, "P", "LOS", "I", drain(1, "S"), "4", "Magic × successes, in square meters",
+add("Ice Sheet", "manipulation", "SR2", 158, "P", "LOS", "I", drain(1, "S"), "4", "Magic × successes m²",
     "Creates a flat sheet of ice covering a number of square meters equal to the caster's Magic Rating times the successes.",
     ["Characters crossing the sheet must make a Quickness Test against a Target Number 3 to avoid falling prone.",
      "Vehicles must make a Handling Test to avoid having to make a Crash Test.",
@@ -307,7 +313,7 @@ add("Light", "manipulation", "SR2", 158, "P", "LOS", "S", drain(2, "M"), "4", AR
     "Creates a mobile point of light that illuminates an area equal to the magician's Magic Rating times the successes, in meters.",
     ["Roughly as bright as a good flashlight, but over an area.",
      "Cannot be used to blind, but offsets visibility modifiers for darkness: 2 successes counter a +1 modifier."])
-add("Shadow", "manipulation", "SR2", 158, "P", "LOS", "S", drain(2, "M"), "2 to 6, by lighting", AREA,
+add("Shadow", "manipulation", "SR2", 158, "P", "LOS", "S", drain(2, "M"), "2–6, by lighting", AREA,
     "Creates a pool of darkness equal to one-half the caster's Magic Rating times the successes, in meters.",
     ["Target number depends on local conditions: bright midday 6; day 5; overcast day 4; twilight 3; street light or darker 2.",
      "Every 2 successes impose a +1 target modifier on Combat or Perception Tests against targets within the shadow."])
@@ -316,18 +322,32 @@ add("Spark", "manipulation", "SR2", 158, "P", "LOS", "I", drain(1, "M"), "4", ON
     DAMAGING[:3], dmg="(Force)M Physical")
 
 # ---------------------------------------------------------------- GRIM: combat (pp.126-127)
-FIRE = "Uses the elemental effect of fire."
+# Elemental effects (GRIM pp.112-113): secondary effects are rolled on 2D6 against each chosen
+# non-living target's Object Resistance, modified by spell kind.
+SECONDARY_COMBAT = ("Secondary effects: if anyone is left standing, roll 2D6 for each non-living target the gamemaster "
+                    "chooses. It is affected on a result equal to or greater than its Object Resistance + 4.")
+SECONDARY_MANIP = ("Secondary effects: if anyone is left standing, roll 2D6 for each non-living target the gamemaster "
+                   "chooses. It is affected on a result equal to or greater than its Object Resistance, +4 if the spell "
+                   "did Moderate damage, +2 Serious, +0 Deadly. Light damage has no secondary effects.")
+FIRE = ["Elemental fire (Grimoire p.112): +1 Damage Level against water elementals.",
+        "Ignites flammable materials. Highly flammable ones (gasoline, dry wood, paper, explosives, ammunition) get -1 "
+        "to their Object Resistance. Vehicle fuel may explode; the vehicle gets +2 unless its fuel is exposed to open air.",
+        "Burning clothing does 6M at the end of the first Combat Turn, +2 Power each turn after, until put out. "
+        "Exploding ammunition or grenades count as a weapon hit that armor does not reduce; Combat Pool may help resist."]
+FIRE_COMBAT = FIRE + [SECONDARY_COMBAT]
+FIRE_MANIP = FIRE + [SECONDARY_MANIP]
+ELEMENTAL_RESIST = "Body + ½ impact armor"
 add("Death Touch", "combat", "GRIM", 126, "M", "T", "I", drain(-1, "S"), W, ONE,
     "A particularly lethal combat spell that causes Physical damage to a single target the magician touches.",
     dmg="Deadly Physical")
 add("Fire Bolt", "combat", "GRIM", 126, "P", "LOS", "I", drain(1, "D"), B, ONE,
-    "A powerful bolt of energy that causes Physical damage to a single target.", [FIRE], dmg="Serious Physical")
+    "A powerful bolt of energy that causes Physical damage to a single target.", FIRE_COMBAT, dmg="Serious Physical", resist=ELEMENTAL_RESIST)
 add("Fire Cloud", "combat", "GRIM", 126, "P", "LOS", "I", drain(1, "D"), B, AREA,
-    "An area-effect cloud of magical energy that causes Physical damage.", [FIRE], dmg="Moderate Physical")
+    "An area-effect cloud of magical energy that causes Physical damage.", FIRE_COMBAT, dmg="Moderate Physical", resist=ELEMENTAL_RESIST)
 add("Fire Dart", "combat", "GRIM", 126, "P", "LOS", "I", drain(1, "M"), B, ONE,
-    "An energy dart that causes Physical damage to a single target.", [FIRE], dmg="Light Physical")
+    "An energy dart that causes Physical damage to a single target.", FIRE_COMBAT, dmg="Light Physical", resist=ELEMENTAL_RESIST)
 add("Fire Missile", "combat", "GRIM", 126, "P", "LOS", "I", drain(1, "S"), B, ONE,
-    "A bolt of magical energy that causes Physical damage to a single target.", [FIRE], dmg="Moderate Physical")
+    "A bolt of magical energy that causes Physical damage to a single target.", FIRE_COMBAT, dmg="Moderate Physical", resist=ELEMENTAL_RESIST)
 add("Mana Cloud", "combat", "GRIM", 126, "M", "LOS", "I", drain(0, "S"), W, AREA,
     "An area-effect spell that raises a cloud of magical energy that does Physical damage.", dmg="Moderate Physical")
 add("Manablast", "combat", "GRIM", 126, "M", "LOS", "I", drain(0, "D"), W, AREA,
@@ -338,20 +358,20 @@ add("Powerblast", "combat", "GRIM", 127, "P", "LOS", "I", drain(1, "D"), B, AREA
     ["Uses the elemental effect of blast."], dmg="Moderate Physical")
 add("Ram Touch", "combat", "GRIM", 127, "P", "T", "I", drain(-1, "M"), ORT, ONE,
     "Damages inanimate objects. Works like the Ram spell (SR2 p.151), except that the magician must touch the target.",
-    dmg="Serious")
+    dmg="Force + successes vs Barrier Rating")
 add("Slay (Race/Species)", "combat", "GRIM", 127, "M", "LOS", "I", drain(-1, "S"), W, ONE,
     "Causes Physical damage to a target of one specific race or species.",
     ["Each version has a different, specific formula: slay ork, slay dog, slay western dragon and so forth are all separate spells."],
     dmg="Serious Physical")
 add("Spirit Bolt", "combat", "GRIM", 127, "M", "LOS", "I", drain(-1, "S"), "Force (R)", ONE,
     "A bolt of magical energy that causes Physical damage to a single spirit.",
-    ["Restricted target: spirits only."], dmg="Serious Physical")
+    ["Restricted target: spirits only."], dmg="Serious Physical", resist="Spirit's Force")
 add("Sterilize", "combat", "GRIM", 127, "P", "LOS", "I", drain(1, "D"), "4", AREA,
     "An area-effect spell that kills small life forms such as bacteria and other microorganisms.",
     ["Only 1 success is required.",
      "Also destroys or renders unusable biomaterial such as skin flakes, stray hairs and spilled blood. Affected material cannot be used as a material link for ritual magic.",
      "Does not affect biomaterial attached to a living being, so it does not kill microorganisms living inside a creature.",
-     "Does not affect organisms classified as bioweapons."], dmg="Deadly")
+     "Does not affect organisms classified as bioweapons."], dmg="Deadly, to microorganisms")
 add("Stun Bolt", "combat", "GRIM", 127, "M", "LOS", "I", drain(-1, "D"), W, ONE,
     "A bolt of magical energy that causes Stun damage to a single target.", dmg="Serious Stun")
 add("Stun Cloud", "combat", "GRIM", 127, "M", "LOS", "I", drain(-1, "S"), W, AREA,
@@ -368,9 +388,9 @@ add("Urban Renewal", "combat", "GRIM", 127, "P", "LOS", "I", drain(0, "D"), ORT,
     "An area-effect spell that works like Ram (SR2 p.151) but affects only parts of buildings.",
     ["Restricted target: buildings.",
      "The gamemaster checks the actual effect only against significant objects within the area and uses discretion for the rest."],
-    dmg="Serious")
+    dmg="Force + successes vs Barrier Rating")
 add("Wrecker", "combat", "GRIM", 127, "P", "LOS", "I", drain(0, "S"), ORT, ONE,
-    "Works like Ram (SR2 p.151) but affects only a single vehicle.", ["Restricted target: vehicles."], dmg="Serious")
+    "Works like Ram (SR2 p.151) but affects only a single vehicle.", ["Restricted target: vehicles."], dmg="Force + successes vs vehicle Body + armor")
 
 # ---------------------------------------------------------------- GRIM: detection (p.128)
 BG = "The background count of an area affects ranged detection spells cast within it."
@@ -397,13 +417,14 @@ add("Mindlink (Individual)", "detection", "GRIM", 128, "M", "Limited", "S", drai
 
 # ---------------------------------------------------------------- GRIM: health (p.129)
 for n, lv in zip((1, 2, 3, 4), "LMSD"):
-    add(f"Decrease -{n} Cybered Attribute", "health", "GRIM", 129, "P", "T", "S", drain(3, lv), "10 − target's Essence (R)", ONE,
+    add(f"Decrease -{n} Cybered Attribute", "health", "GRIM", 129, "P", "T", "S", drain(3, lv), "10 − Essence (R)", ONE,
         f"Reduces one of the target's cybernetically modified Attributes by {n}.",
         ["Works like the Decrease Attribute spell (SR2 p.154), except that it affects cybered Attributes.",
-         "The version that affects cybered Reaction has Drain one level higher."])
+         "The version that affects cybered Reaction has Drain one level higher."],
+        resist="the Attribute being decreased")
 for n, mod, lv in ((1, 1, "S"), (2, 1, "D"), (3, 3, "D")):
     add(f"Decrease Reflexes -{n} Initiative Di{'e' if n == 1 else 'ce'}", "health", "GRIM", 129, "M", "LOS", "S",
-        drain(mod, lv), "2 × target's Reaction", ONE,
+        drain(mod, lv), "2 × Reaction", ONE,
         f"Reduces the number of Initiative dice available to the target by {n}.",
         ["Does not affect characters with cybernetic Initiative enhancements.",
          "A character left with no Initiative dice, or a negative number, uses Reaction as Initiative."])
@@ -431,7 +452,7 @@ for name, lv, turns in (("Light", "M", 5), ("Moderate", "S", 10), ("Serious", "D
          "A different spell is needed for each of the Light, Moderate and Serious Condition Levels. A Deadly injury cannot be countered.",
          "The relief does not wear off, but the spell dissipates if the subject's damage rises above this level or the wounds heal."],
         turns=turns)
-add("Stabilize", "health", "GRIM", 129, "P", "LOS", "P", drain(0, "S"), "4 + minutes since the injury", ONE,
+add("Stabilize", "health", "GRIM", 129, "P", "LOS", "P", drain(0, "S"), "4 + minutes since injury", ONE,
     "Applied to a character with Deadly Physical damage, stabilizes their condition so that they do not die.",
     ["Add the number of minutes elapsed since the character took the damage to the target number."], turns=20)
 
@@ -483,20 +504,26 @@ add("Use (Skill)", "manipulation", "GRIM", 131, "P", "LOS", "S", drain(3, "L"), 
     "A limited form of the Magic Fingers spell (SR2 p.157) that allows the caster to use one skill telekinetically.",
     ["The gamemaster determines which skills may be used. Knowledge skills, which need no physical action, are not appropriate.",
      "Works like Magic Fingers, except that the caster's actual Skill Rating determines the effect."])
-ACID = "Uses the elemental effect rules (acid)."
+ACID = ["Elemental acid (Grimoire p.112): ballistic armor does not help, and full-body armor treated against toxic "
+        "materials, such as a firefighter's suit, takes no damage.",
+        "Choking fumes add +4 to all target numbers in double the spell's area for the rest of the turn, and the area "
+        "is treacherous ground.",
+        "Whatever the acid touches may melt into sludge or be badly pitted. Tires flatten, and ballistic and impact "
+        "armor may each permanently lose 1. At Deadly, firearms can corrode into junk.",
+        SECONDARY_MANIP]
 add("Acid", "manipulation", "GRIM", 131, "P", "LOS", "I", drain(1, "S"), B, ONE,
-    "Strikes the target with a spray of acid.", [ACID], dmg="Moderate")
+    "Strikes the target with a spray of acid.", ACID, dmg="Moderate Physical", resist=ELEMENTAL_RESIST)
 add("Acid Bomb", "manipulation", "GRIM", 131, "P", "LOS", "I", drain(1, "D"), B, AREA,
-    "An area-effect spell that strikes targets with a spray of acid.", [ACID], dmg="Moderate")
+    "An area-effect spell that strikes targets with a spray of acid.", ACID, dmg="Moderate Physical", resist=ELEMENTAL_RESIST)
 add("Acid Stream", "manipulation", "GRIM", 131, "P", "LOS", "I", drain(1, "D"), B, ONE,
-    "Strikes the target with a stream of acid.", [ACID], dmg="Serious")
+    "Strikes the target with a stream of acid.", ACID, dmg="Serious Physical", resist=ELEMENTAL_RESIST)
 add("Astral Static", "manipulation", "GRIM", 131, "M", "Limited", "S", drain(1, "D"), "6", AREA,
     "An area-effect spell that creates a cloud of crackling, swirling mana in astral space.",
     ["Generates a background count of 1 for every 2 successes.",
      "The static's rating increases the target numbers of all Astral Success Tests within the area, including the caster's."])
 add("Bind", "manipulation", "GRIM", 131, "P", "LOS", "S", drain(2, "S"), "Quickness (R)", ONE,
     "Entraps and holds the target in bands of mystical energy.",
-    ["The target resists with a Quickness Test against the spell's Force. Net successes in the caster's favor are the Barrier Rating of the bands.",
+    ["Net successes are the Barrier Rating of the bands.",
      "To break free, compare the target's Strength to the Barrier Rating using the barrier rules (SR2 p.98). A Strength Test against the spell's Force adds 1 to effective Strength for every 2 successes.",
      "On breaking free, the target must resist (Strength)L Stun damage from the effort."])
 PERSONAL = "The personal form of this spell has a Drain Code of [(F/2)+2]L."
@@ -516,9 +543,9 @@ add("Fashion", "manipulation", "GRIM", 131, "P", "LOS", "P", drain(2, "M"), "4",
     ["Extra successes measure the degree of style in the tailoring.",
      "Cannot change the clothing's protective value, only its cut, color and fit."], turns=10)
 add("Fire Strike", "manipulation", "GRIM", 132, "P", "LOS", "I", drain(3, "D"), B, AREA,
-    "An area-effect spell that blasts flame into an area.", [FIRE], dmg="Serious")
+    "An area-effect spell that blasts flame into an area.", FIRE_MANIP, dmg="Serious Physical", resist=ELEMENTAL_RESIST)
 add("Flame Burst", "manipulation", "GRIM", 132, "P", "LOS", "I", drain(1, "D"), B, ONE,
-    "Strikes the target with a burst of flame.", [FIRE], dmg="Serious")
+    "Strikes the target with a burst of flame.", FIRE_MANIP, dmg="Serious Physical", resist=ELEMENTAL_RESIST)
 add("Lock", "manipulation", "GRIM", 132, "P", "LOS", "S", drain(2, "M"), ORT, ONE,
     "Holds a door, portal or other closure magically closed for as long as the caster sustains the spell.",
     ["The lock is as strong as the material of the door, so opening it means breaking or blasting through."])
@@ -562,14 +589,13 @@ add("Redirect", "combat", "AWK", 133, "P", "LOS", "I", "(F/2)(Attack − 1)", "4
      "May be anchored to places or objects."], dmg="Stun, at the Damage Code of the original attack")
 add("Rot", "combat", "AWK", 134, "P", "LOS", "I", drain(1, "M"), ORT, ONE,
     "Causes inanimate organic matter such as leather, wood, meat and paper to decay rapidly and disintegrate.",
-    ["Effective against loa zombies, which are animated corpses: base Damage Level Serious, target number the zombie's Body modified by any armor or magic.",
+    ["Effective against loa zombies, which are animated corpses: target number the zombie's Body modified by any armor or magic.",
      "Does not affect ghouls, vampires, banshees and similar altered living creatures, zombies created by zombie dust, or corps cadavres."],
-    dmg="Serious")
+    dmg="Serious, to loa zombies")
 add("Shattershield", "combat", "AWK", 134, "M", "LOS", "I", drain(0, "S"), "Force (R)", ONE,
     "Designed to break through magical barriers such as wards, striking the barrier with a single attack.",
-    ["A successful attack reduces the Barrier or Ward Rating by 1, plus 1 more for every 2 successes beyond the first.",
-     "Against astral barriers such as wards or mana barriers, the caster must be astrally active and able to assense the barrier."],
-    dmg="Deadly")
+    ["Against astral barriers such as wards or mana barriers, the caster must be astrally active and able to assense the barrier."],
+    dmg="Barrier Rating −1, and −1 more per 2 successes beyond the first", resist="Barrier Rating")
 add("Animal Spy", "detection", "AWK", 134, "M", "Limited", "S", drain(0, "L"), "4", ONE,
     "The magician perceives the surroundings using the senses of any non-paranormal animal.",
     ["The animal must be within a radius of Spell Test successes × Magic × 5 meters.",
@@ -585,7 +611,7 @@ add("Catalogue", "detection", "AWK", 134, "P", "LOS", "I", drain(-1, "L"), "4", 
     ["The caster writes or dictates the list in a manner similar to automatic writing. Items the magician would not recognize on sight are listed as unknown.",
      "Cannot catalogue what the caster cannot see: a warehouse full of boxes lists the boxes, not their contents.",
      "The caster forgets the exact items and quantities as soon as the list is produced."])
-add("Diagnose", "detection", "AWK", 134, "M", "Limited", "I", drain(-1, "M"), "10 − subject's Essence", ONE,
+add("Diagnose", "detection", "AWK", 134, "M", "Limited", "I", drain(-1, "M"), "10 − Essence", ONE,
     "Gives the caster information on any illnesses, injuries or other medical problems the subject suffers from.",
     ["1 success: whether the subject is healthy or ill, and a general idea of their Essence.",
      "3 successes: specific illnesses or injuries.",
@@ -615,21 +641,21 @@ for name, lv in SEVERITY:
     add(f"Alleviate {name} Allergy", "health", "AWK", 135, "P", "LOS", "S", drain(0, lv), "6", ONE,
         f"Reduces the effects of a {name} allergy suffered by the target.",
         ["Does not aid against vulnerabilities: it would protect a vampire from sunlight, but not from a wooden weapon."])
-add("Awaken", "health", "AWK", 135, "M", "T", "I", drain(-1, "L"), "10 − subject's Essence", ONE,
+add("Awaken", "health", "AWK", 135, "M", "T", "I", drain(-1, "L"), "10 − Essence", ONE,
     "The target wakes up and is immediately aware of their surroundings.",
     ["Can also revive an unconscious subject, who stays conscious for only one minute per success before lapsing back into unconsciousness."])
 add("Blindness", "health", "AWK", 135, "M", "LOS", "S", drain(1, "D"), B, ONE,
     "Magically renders a subject blind for the duration of the spell.",
     ["Affects the brain's ability to receive visual information, so it affects subjects with cybereyes as well."])
 for name, lv in SEVERITY:
-    add(f"Cause {name} Allergy", "health", "AWK", 135, "M", "LOS", "S", drain(1, lv), "10 − subject's Essence", ONE,
+    add(f"Cause {name} Allergy", "health", "AWK", 135, "M", "LOS", "S", drain(1, lv), "10 − Essence", ONE,
         f"Inflicts on the subject a {name} allergic reaction of the caster's choice, subject to gamemaster approval.",
         ["The allergy must be triggered by a specific material. The subject suffers its standard effects.",
          "Severe allergies to some substances, such as sunlight or iron, may be fatal if sustained long enough.",
          "The Alleviate Allergy spell cancels the effects of this spell."])
 add("Cripple Limb", "health", "AWK", 136, "M", "T", "S", drain(0, "S"), B, ONE,
     "Incapacitates any organic limb the caster touches. The limb is useless for the duration of the spell.")
-add("Fast", "health", "AWK", 136, "M", "T", "P", drain(0, "L"), "Subject's Body", ONE,
+add("Fast", "health", "AWK", 136, "M", "T", "P", drain(0, "L"), "Body", ONE,
     "Lets a voluntary subject ignore feelings of hunger or thirst for 48 hours from the casting.",
     ["Removes only the desire for food and water, not the subject's need for nourishment or hydration."], turns=10)
 add("Intoxication", "health", "AWK", 136, "M", "LOS", "S", drain(2, "M"), B, ONE,
@@ -642,8 +668,9 @@ add("Nutrition", "health", "AWK", 136, "M", "T", "P", drain(0, "L"), "4", ONE,
     ["Does not satisfy feelings of hunger or thirst."], turns=15)
 add("Paralyze", "health", "AWK", 136, "M", "Limited", "S", drain(1, "D"), W, ONE,
     "Overrides all of a subject's voluntary muscles, leaving them unable to move or speak while the spell is sustained.",
-    ["Each round the subject may make a Willpower Test against the spell's Force. If any of those tests yields more successes than the caster's Spell Test, the spell is broken.",
-     "Cyberware that works independently of the body's functions, such as a datajack, dermal plating or tactical computer, may continue to work."])
+    ["The spell breaks if any repeat save yields more successes than the caster's Spell Test.",
+     "Cyberware that works independently of the body's functions, such as a datajack, dermal plating or tactical computer, may continue to work."],
+    resave="every round")
 add("Agonizing Pain", "illusion", "AWK", 136, "M", "LOS", "S", drain(1, "M"), W, ONE,
     "Inflicts crippling pain on a target.",
     ["The target suffers temporary Stun damage of 1 box for each success, and its target modifiers apply to all the target's tests. It is not real damage and needs no recovery.",
@@ -700,8 +727,8 @@ add("Possession", "manipulation", "AWK", 138, "M", "LOS", "S", drain(3, "S"), W,
      "Subjects have no memory of the time the spell was in effect."])
 add("Terrorize", "manipulation", "AWK", 138, "M", "LOS", "S", drain(2, "S"), W, ONE,
     "Fills a single target with fear of the spellcaster.",
-    ["A target who fails to resist must flee from the caster as quickly as possible.",
-     "Once out of sight of the caster, the subject may make a Willpower Test each round to overcome the spell."])
+    ["A target who fails to resist must flee from the caster as quickly as possible."],
+    resave="every round once out of the caster's sight")
 add("Catfall", "manipulation", "AWK", 138, "P", "LOS", "S", drain(2, "L"), "4", ONE,
     "Psychokinetically slows a target's fall and ensures that the subject lands upright.",
     ["The subject may fall successes × the magician's Magic Rating in meters without danger of injury.",
@@ -710,7 +737,7 @@ add("Deflect", "manipulation", "AWK", 138, "P", "T", "S", drain(1, "S"), "6", ON
     "Psychokinetically deflects physical missile attacks against a target.",
     ["Every 2 successes give the target 1 additional Combat Pool die, usable only for Damage Resistance Tests against physical ranged attacks.",
      "Does not protect against energy attacks such as lasers or energy manipulation spells."])
-add("Fling", "manipulation", "AWK", 138, "P", "T", "I", drain(0, "M"), "As a ranged attack", ONE,
+add("Fling", "manipulation", "AWK", 138, "P", "T", "I", drain(0, "M"), "Ranged combat TN", ONE,
     "The caster psychokinetically hurls a single object at a target.",
     ["The caster must touch the item, and its weight in kilograms may not exceed the caster's Magic Rating.",
      "The object is thrown with a Strength equal to the spell's Force.",
@@ -728,20 +755,20 @@ add("Bug Barrier", "manipulation", "AWK", 139, "M", "LOS", "S", drain(2, "D"), "
     ["The Barrier Rating equals the spell's Force.",
      "Any insect spirit touching the shield suffers feedback with a base Damage Code of (Force)L, raised one level for every 2 successes on the casting."],
     dmg="(Force)L to insect spirits")
-add("Clean Air", "manipulation", "AWK", 139, "P", "Limited", "I", drain(1, "S"), "Object Resistance (set by the impurities)", AREA,
+add("Clean Air", "manipulation", "AWK", 139, "P", "Limited", "I", drain(1, "S"), "3–12, by impurity", AREA,
     "An area-effect spell that clears all impurities from the air in the area, leaving it clean and breathable.",
     ["The gamemaster sets the target number by the impurities present: 3 or 4 for smoke or fog, as high as 10 or 12 for complex nerve toxins.",
      "In an open area with moving air, the cleared air quickly mixes with the surrounding air."])
-add("Clean Water", "manipulation", "AWK", 139, "P", "T", "P", drain(0, "S"), "Object Resistance (set by the impurities)", AREA,
+add("Clean Water", "manipulation", "AWK", 139, "P", "T", "P", drain(0, "S"), "3–10, by impurity", AREA,
     "Removes impurities from a sphere of water with a radius equal to the caster's Magic Rating in meters.",
     ["The gamemaster sets the target number by the impurities: 3 for dirt and organic sediment, as high as 10 for industrial chemicals.",
      "In an open body of water, the cleared water quickly mixes with the surrounding water."], turns=10)
-add("Control Fire", "manipulation", "AWK", 139, "P", "LOS", "S", drain(2, "S"), "Power of the flames", ONE,
+add("Control Fire", "manipulation", "AWK", 139, "P", "LOS", "S", drain(2, "S"), "Flame Power", ONE,
     "The caster controls normal flames within line of sight.",
     ["The gamemaster sets the fire's Power: 3 or 4 for a camp fire or a single burning item, as high as 15 to 20 for a burning building or forest fire.",
      "The caster can move the flames up to 1 meter per success, provided there is fuel, make them flare (+1 Power for every 2 successes), or contain them and let them burn out.",
      "Does not affect magically sustained flames such as fire elementals or Firewall spells, but does affect flames started by spells such as Ignite."])
-add("Extinguish Fire", "manipulation", "AWK", 139, "P", "LOS", "I", drain(1, "S"), "Power of the flames", AREA,
+add("Extinguish Fire", "manipulation", "AWK", 139, "P", "LOS", "I", drain(1, "S"), "Flame Power", AREA,
     "An area-effect spell that extinguishes fires.",
     ["The gamemaster sets the fire's Power: 3 or 4 for a camp fire or a single burning item, as high as 15 to 20 for a burning building or forest.",
      "Every 2 successes reduce the fire's Damage Level by 1, starting from (Power)M. Reduced to nothing, the fire is out. Otherwise it regains 1 Damage Level per Combat Turn up to its initial strength.",
@@ -780,7 +807,11 @@ add("Heat Shield", "manipulation", "AWK", 140, "P", "Limited", "S", drain(2, "M"
      "The personal form of this spell has a Drain Code of [(F/2)+2]L."])
 add("Light Ray", "manipulation", "AWK", 140, "M", "LOS", "I", drain(1, "D"), "4", ONE,
     "Fires a beam of light at a target, with effects comparable to those of a laser weapon.",
-    ["At the gamemaster's discretion it may produce elemental light effects."], dmg="Serious")
+    ["Elemental light (Awakenings p.132): the target suffers the Glare penalty (Visibility Table, SR2 p.89) for 1 "
+     "Combat Turn after the attack, unless they have flare compensation (adept power or cyberware).",
+     "Rarely ignites flammable materials, unless the beam passes through glass or a magnifying substance. Overloads "
+     "optical scanners and cameras without shielded, polarized or colored lenses."],
+    dmg="Serious Stun (Deadly Physical vs sunlight-vulnerable)")
 add("Mental Shield", "manipulation", "AWK", 140, "M", "LOS", "S", drain(1, "M"), "4", ONE,
     "Protects against spells and powers that affect the mind.",
     ["For every 2 successes the subject gains 1 extra die to resist mind probe, control manipulations, mana-based illusions, and critter powers such as influence and desire reflection.",
@@ -791,7 +822,7 @@ add("Mist", "manipulation", "AWK", 140, "P", "Limited", "S", drain(2, "S"), "6",
      "When the spell is dropped the mist dissipates quickly, depending on temperature and wind."])
 add("Net", "manipulation", "AWK", 141, "P", "LOS", "S", drain(2, "D"), "Quickness (R)", AREA,
     "An area-effect version of the Bind spell (Grimoire p.131) that traps and holds any target in the area.",
-    ["Targets resist with a Quickness Test against the spell's Force. The net's Barrier Rating equals the caster's net successes.",
+    ["The net's Barrier Rating equals the caster's net successes.",
      "Targets may break out by the standard barrier rules. A Strength Test against the spell's Force adds 1 to Strength for every 2 successes.",
      "After breaking free, the character must resist (Strength)L Stun damage from the effort."])
 add("Sap Strength", "manipulation", "AWK", 141, "P", "LOS", "S", drain(2, "S"), "6", ONE,
