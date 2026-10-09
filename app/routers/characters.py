@@ -28,7 +28,7 @@ from app.schemas.reputation import ReputationRead
 from app.auth.core import hash_token
 from app.auth.dependencies import get_admin_token, get_any_token
 from app.models.campaign import CampaignState
-from app.services.campaign import current_tick, get_campaign_state
+from app.services.campaign import get_campaign_state
 
 router = APIRouter()
 
@@ -344,17 +344,6 @@ async def _create_dossier_contacts(db: AsyncSession, char: Character, contacts) 
         ))
 
 
-async def _stamp_lifestyle_start(db: AsyncSession, char: Character) -> None:
-    """Start the lifestyle upkeep clock for a PC that just became real.
-
-    Stamps ``lifestyle_paid_tick`` to the current campaign tick so the runner is
-    charged rent from commit-time forward (never billed back-rent). No-op for
-    characters without a lifestyle.
-    """
-    if char.lifestyle_level is not None and char.lifestyle_paid_tick is None:
-        char.lifestyle_paid_tick = await current_tick(db)
-
-
 # Cyberware grades a player may commit at character creation. Betaware is a post-chargen
 # career purchase and Deltaware is GM-authorized only, so both are blocked for non-admins.
 _CHARGEN_GRADES_ALLOWED = {None, "", "Standard", "Alpha"}
@@ -623,8 +612,6 @@ async def create_character_dossier(
         _assert_chargen_contacts(body.contacts)
     await _assert_org_exists(db, data)
     char = Character(**data)
-    if not char.is_draft:
-        await _stamp_lifestyle_start(db, char)
     db.add(char)
     await db.flush()
     await _ensure_pc_reputation(db, char)
@@ -680,7 +667,6 @@ async def finalize_character_dossier(
     _assert_chargen_skills(body.skills)
     _assert_chargen_contacts(body.contacts)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
-    await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)
     if body.contacts:
         await _create_dossier_contacts(db, char, body.contacts)
@@ -710,7 +696,6 @@ async def convert_character_dossier(
     _assert_chargen_skills(body.skills)
     _assert_chargen_contacts(body.contacts)
     await _apply_dossier(db, char, body, ctx, keep_draft=False)
-    await _stamp_lifestyle_start(db, char)
     await _ensure_pc_reputation(db, char)
     if body.contacts:
         existing = await db.scalar(

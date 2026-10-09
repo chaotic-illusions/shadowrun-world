@@ -46,7 +46,6 @@ class OrgStandingBase(BaseModel):
     organization_id: int
     standing: int = 0
     standings_updated_at: Optional[date] = None
-    standings_stamped_tick: int = 0
     notes: Optional[str] = None
 
 
@@ -59,7 +58,6 @@ class OrgStandingUpdate(BaseModel):
 
     standing: Optional[int] = None
     standings_updated_at: Optional[date] = None
-    standings_stamped_tick: Optional[int] = None
     notes: Optional[str] = None
 
 

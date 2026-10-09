@@ -212,7 +212,7 @@ This is a flavor/narrative tool -- it does not modify any game state.
 
 ### Tick System
 
-Each run advances the campaign clock by 1-5 ticks (where each tick represents one day in the game world). Ticks drive all decay calculations -- the current campaign tick is the sum of all run `tick_count` values.
+The campaign clock counts ticks (one tick = one day in the game world). Only the GM's Downtime control advances it; logging a run does not. Ticks drive heat and public-awareness decay.
 
 ---
 
@@ -225,15 +225,15 @@ Each run advances the campaign clock by 1-5 ticks (where each tick represents on
 | Heat | Label | Decay Half-Life |
 |---|---|---|
 | 0 | Neutral | inf (no decay) |
-| 1-2 | Noticed | 3 days |
-| 3-4 | Flagged | 7 days |
-| 5-6 | Wanted | 14 days |
+| 1-2 | Noticed | 7 days |
+| 3-4 | Flagged | 10 days |
+| 5-6 | Wanted | 16 days |
 | 7-8 | Hot | 21 days |
 | 9-10 | Nova Hot | 30 days |
 
 Heat decays exponentially based on the current tier's half-life. Higher tiers linger longer. **Inactive PCs (lying low)** decay at 2x the normal rate.
 
-For display purposes, heat values are floored -- a decayed value of 0.9 displays as 0 (Neutral).
+Heat is rounded to the nearest whole value. New heat from a run adds to the *decayed* value (heat 3 that has decayed to 1, plus 2, is 3) and decay restarts from that point.
 
 ---
 
@@ -274,12 +274,12 @@ Public awareness decays exponentially. The half-life depends on the current PA t
 | PA | Label | Half-Life |
 |---|---|---|
 | 0 | Shadow | inf |
-| 1-3 | Seen | 7 days |
+| 1-3 | Seen | 10 days |
 | 4-7 | Recognized | 14 days |
 | 8-12 | In the Spotlight | 21 days |
 | 13+ | Burned | 30 days |
 
-PA values are floored for display -- 0.8 shows as Shadow.
+PA is rounded to the nearest whole value and, like heat, new PA adds to the decayed value.
 
 ---
 
@@ -299,20 +299,9 @@ Each character has a standing (-10 to +10) with each organization:
 
 A standing change with org X propagates at **40%** magnitude (capped at +/-2) to X's documented allies and enemies. Allies of X gain a fraction of your delta; enemies of X lose a fraction.
 
-### Standing Decay
+### No Standing Decay
 
-Standings decay exponentially toward 0. Positive standings (loyalty) decay **1.5x slower** than negative (hostility fades faster in the shadows).
-
-| Magnitude | Positive Half-Life | Negative Half-Life |
-|---|---|---|
-| +/-1-3 | 6 days | 4 days |
-| +/-4-6 | 12 days | 8 days |
-| +/-7-9 | 20 days | 13 days |
-| +/-10 | 28 days | 19 days |
-
-Standing values are ceiled for display -- a decayed +0.3 still reads as +1.
-
-Lying-low PCs decay standings at 2x the normal rate.
+Standings don't decay with time, even for a runner who is lying low. They change only when a run changes them.
 
 ---
 

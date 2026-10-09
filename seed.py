@@ -242,7 +242,6 @@ def export_world_data(database_path):
                 "org_name": org_names_by_id[row["organization_id"]],
                 "standing": row["standing"],
                 "standings_updated_at": row["standings_updated_at"],
-                "standings_stamped_tick": row["standings_stamped_tick"],
                 "notes": row["notes"],
             })
 

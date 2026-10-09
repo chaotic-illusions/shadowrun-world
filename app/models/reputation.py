@@ -36,7 +36,6 @@ class OrgStanding(Base):
     # -10 (openly hunted) to +10 (trusted ally)
     standing: Mapped[int] = mapped_column(Integer, default=0)
     standings_updated_at: Mapped[date | None] = mapped_column(Date, default=None)
-    standings_stamped_tick: Mapped[int] = mapped_column(Integer, default=0)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     __table_args__ = (

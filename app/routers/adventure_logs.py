@@ -23,8 +23,7 @@ from app.services.campaign import current_tick
 from app.services.consequence_engine import suggest
 from app.services.heat_calculator import (
     compute_ripple, heat_label, standing_label,
-    decay_pa, decay_standing, decay_heat, pc_rep_label, team_rep_label, pa_label,
-    LYING_LOW_DECAY_ACCEL,
+    current_heat, current_pa, pc_rep_label, team_rep_label, pa_label,
 )
 from app.auth.dependencies import get_admin_token, get_any_token
 
@@ -156,17 +155,11 @@ async def party_stats(
         rep_by_char = {r.character_id: r for r in reps_result.scalars().all()}
 
         for pc in all_pcs:
-            accel = LYING_LOW_DECAY_ACCEL if not pc.is_active else 1.0
             r = rep_by_char.get(pc.id)
             sc = (r.street_cred if r else 0) or 0
             not_ = (r.notoriety if r else 0) or 0
-            pa_raw = (r.public_awareness if r else 0) or 0
-            heat_raw = (r.heat or 0) if r else 0
-
-            pa_elapsed = tick - ((r.pa_stamped_tick or 0) if r else 0)
-            heat_elapsed = tick - ((r.heat_stamped_tick or 0) if r else 0)
-            pa_eff = max(0, round(decay_pa(pa_raw, pa_elapsed, accel)))
-            heat_eff = max(0, round(decay_heat(heat_raw, heat_elapsed, accel)))
+            pa_eff = current_pa(r.public_awareness, r.pa_stamped_tick, tick, pc.is_active) if r else 0
+            heat_eff = current_heat(r.heat, r.heat_stamped_tick, tick, pc.is_active) if r else 0
             net_rep = max(0, min(40, 20 + sc - not_))
 
             if pc.is_active:
@@ -184,8 +177,7 @@ async def party_stats(
                 "is_active": pc.is_active,
             }
 
-    # Org standings for all PCs
-    pc_active_map = {c.id: c.is_active for c in all_pcs}
+    # Org standings for all PCs (standings don't decay)
     standings_result = await db.execute(
         select(OrgStanding).where(OrgStanding.character_id.in_(pc_ids))
     ) if pc_ids else None
@@ -203,10 +195,7 @@ async def party_stats(
 
     standings_by_char: dict[int, list] = {}
     for s in all_standings:
-        raw = s.standing or 0
-        s_accel = 1.0 if pc_active_map.get(s.character_id, True) else LYING_LOW_DECAY_ACCEL
-        s_elapsed = tick - (s.standings_stamped_tick or 0)
-        eff = round(decay_standing(raw, s_elapsed, s_accel))
+        eff = s.standing or 0
         standings_by_char.setdefault(s.character_id, []).append({
             "id": s.id,
             "org_id": s.organization_id,
@@ -337,18 +326,21 @@ async def _parse_world_context(db: AsyncSession, narrative: str, participant_ids
         if _named_in(text, c.name)
     ]
 
-    def rep_of(cid: int) -> dict:
-        r = reps.get(cid)
+    tick = await current_tick(db)
+
+    def rep_of(c: Character) -> dict:
+        r = reps.get(c.id)
         return {
             "street_cred": r.street_cred if r else 0, "notoriety": r.notoriety if r else 0,
-            "public_awareness": r.public_awareness if r else 0, "heat": r.heat if r else 0,
+            "public_awareness": current_pa(r.public_awareness, r.pa_stamped_tick, tick, c.is_active) if r else 0,
+            "heat": current_heat(r.heat, r.heat_stamped_tick, tick, c.is_active) if r else 0,
         }
 
     return {
-        "campaign": {"current_tick": await current_tick(db)},
+        "campaign": {"current_tick": tick},
         "participants": [
             {
-                "id": c.id, "name": c.name, **rep_of(c.id),
+                "id": c.id, "name": c.name, **rep_of(c),
                 "standings": [
                     {"org_id": s.organization_id, "org_name": org_names.get(s.organization_id),
                      "standing": s.standing}
@@ -450,7 +442,10 @@ async def apply_world_changes(
     """
     char_ids = {ch.character_id for ch in body.changes if ch.character_id is not None}
     org_ids = {ch.org_id for ch in body.changes if ch.type == "org_standing" and ch.org_id}
-    found_chars = set((await db.execute(select(Character.id).where(Character.id.in_(char_ids)))).scalars())
+    active_by_char = dict((await db.execute(
+        select(Character.id, Character.is_active).where(Character.id.in_(char_ids))
+    )).all())
+    found_chars = set(active_by_char)
     found_orgs = set((await db.execute(select(Organization.id).where(Organization.id.in_(org_ids)))).scalars())
     problems = [f"character {i} not found" for i in sorted(char_ids - found_chars)]
     problems += [f"organization {i} not found" for i in sorted(org_ids - found_orgs)]
@@ -465,18 +460,24 @@ async def apply_world_changes(
 
     for ch in body.changes:
         try:
-            if ch.type in ("street_cred", "notoriety", "public_awareness"):
+            if ch.type in ("street_cred", "notoriety"):
                 rep = await _reputation_for(db, ch.character_id)
-                old = getattr(rep, ch.type, 0) or 0
-                setattr(rep, ch.type, max(0, old + ch.delta))
-                if ch.type == "public_awareness":
-                    rep.pa_updated_at = date.today()
-                    rep.pa_stamped_tick = tick
+                setattr(rep, ch.type, max(0, (getattr(rep, ch.type) or 0) + ch.delta))
+                applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
+
+            # Heat and PA build on their decayed value, then restart decay from now.
+            elif ch.type == "public_awareness":
+                rep = await _reputation_for(db, ch.character_id)
+                pa_now = current_pa(rep.public_awareness, rep.pa_stamped_tick, tick, active_by_char[ch.character_id])
+                rep.public_awareness = max(0, pa_now + ch.delta)
+                rep.pa_updated_at = date.today()
+                rep.pa_stamped_tick = tick
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: {ch.type} {ch.delta:+}", "reason": ch.reason})
 
             elif ch.type == "heat":
                 rep = await _reputation_for(db, ch.character_id)
-                rep.heat = min(10, max(0, (rep.heat or 0) + ch.delta))
+                heat_now = current_heat(rep.heat, rep.heat_stamped_tick, tick, active_by_char[ch.character_id])
+                rep.heat = min(10, max(0, heat_now + ch.delta))
                 rep.heat_updated_at = date.today()
                 rep.heat_stamped_tick = tick
                 applied.append({"desc": f"{ch.character_name or ch.character_id}: heat {ch.delta:+} -> {rep.heat}", "reason": ch.reason})
@@ -514,7 +515,6 @@ async def apply_world_changes(
                     )
                     db.add(standing)
                 standing.standings_updated_at = date.today()
-                standing.standings_stamped_tick = tick
                 suffix = " (x2 affiliated)" if affiliated else ""
                 applied.append({"desc": f"{ch.character_name or ch.character_id} <-> {ch.org_name or ch.org_id}: standing {delta:+}{suffix}", "reason": ch.reason})
 

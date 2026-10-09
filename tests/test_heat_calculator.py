@@ -4,7 +4,7 @@ import pytest
 from app.services.heat_calculator import (
     heat_label, standing_label, pc_rep_label, team_rep_label, pa_label,
     compute_heat, compute_ripple,
-    decay_heat, decay_pa, decay_standing,
+    decay_heat, decay_pa, current_heat, current_pa,
     LYING_LOW_DECAY_ACCEL,
 )
 
@@ -123,17 +123,24 @@ class TestDecayPA:
         assert fast < normal
 
 
-class TestDecayStanding:
-    def test_neutral_unchanged(self):
-        assert decay_standing(0, 100) == 0.0
+class TestCurrentValues:
+    def test_current_heat_is_rounded_decayed_value(self):
+        # Heat 3 stamped at tick 1, 14 days later at a 10-day half-life -> 1.14 -> 1
+        assert current_heat(3, 1, 15) == 1
 
-    def test_positive_decays_toward_zero(self):
-        result = decay_standing(8, 20)
-        assert 0 < result < 8
+    def test_current_heat_unstamped_elapsed_zero(self):
+        assert current_heat(4, 10, 10) == 4
 
-    def test_negative_decays_toward_zero(self):
-        result = decay_standing(-8, 20)
-        assert -8 < result < 0
+    def test_inactive_decays_faster(self):
+        assert current_heat(6, 0, 14, active=False) < current_heat(6, 0, 14, active=True)
+
+    def test_none_fields_read_as_zero(self):
+        assert current_heat(None, None, 5) == 0
+        assert current_pa(None, None, 5) == 0
+
+    def test_current_pa(self):
+        assert current_pa(2, 1, 11) == 1  # one 10-day half-life
+        assert current_pa(2, 1, 41) == 0  # four half-lives -> 0.125
 
 
 # -- Faction ripple -----------------------------------------------------------

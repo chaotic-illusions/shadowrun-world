@@ -12,6 +12,7 @@ from app.schemas.reputation import (
     OrgStandingCreate, OrgStandingUpdate, OrgStandingRead,
 )
 from app.services.campaign import current_tick
+from app.services.heat_calculator import current_heat, current_pa
 from app.auth.dependencies import get_admin_token, get_any_token
 
 router = APIRouter()
@@ -37,7 +38,7 @@ async def list_reputations(
     ctx: dict = Depends(get_any_token),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Reputation)
+    q = select(Reputation, Character.is_active).join(Character, Character.id == Reputation.character_id)
     if character_id is not None:
         q = q.where(Reputation.character_id == character_id)
     privileged = _is_privileged_view(ctx)
@@ -45,7 +46,15 @@ async def list_reputations(
         # Inactive NPCs are GM-concealed.
         q = q.where(Reputation.character_id.not_in(_inactive_npc_ids_query()))
     result = await db.execute(q)
-    rows = [ReputationRead.model_validate(r).model_dump() for r in result.scalars().all()]
+    tick = await current_tick(db)
+    rows = []
+    # Heat and PA are reported as they stand now (decayed), so an editor that saves
+    # them back unchanged doesn't resurrect the pre-decay value.
+    for rep, active in result.all():
+        row = ReputationRead.model_validate(rep).model_dump()
+        row["heat"] = current_heat(rep.heat, rep.heat_stamped_tick, tick, active)
+        row["public_awareness"] = current_pa(rep.public_awareness, rep.pa_stamped_tick, tick, active)
+        rows.append(row)
     if not privileged:
         for row in rows:
             row["notes"] = None
@@ -78,14 +87,22 @@ async def update_reputation(
     _: str = Depends(get_admin_token),
 ):
     rep = await get_or_404(db, Reputation, rep_id)
-    # apply_update without committing -- we need to stamp ticks first
-    await apply_update(db, rep, body, commit=False)
-
     tick = await current_tick(db)
-    if body.public_awareness is not None and body.pa_updated_at is None:
+    active = await db.scalar(select(Character.is_active).where(Character.id == rep.character_id))
+    # A heat/PA equal to its current decayed value is an unchanged field echoed back by
+    # the editor -- leave it decaying instead of re-stamping the stored value.
+    skip = set()
+    if body.heat == current_heat(rep.heat, rep.heat_stamped_tick, tick, active):
+        skip.add("heat")
+    if body.public_awareness == current_pa(rep.public_awareness, rep.pa_stamped_tick, tick, active):
+        skip.add("public_awareness")
+    # apply_update without committing -- we need to stamp ticks first
+    await apply_update(db, rep, body, exclude=skip, commit=False)
+
+    if body.public_awareness is not None and "public_awareness" not in skip and body.pa_updated_at is None:
         rep.pa_updated_at = date.today()
         rep.pa_stamped_tick = tick
-    if body.heat is not None and body.heat_updated_at is None:
+    if body.heat is not None and "heat" not in skip and body.heat_updated_at is None:
         rep.heat_updated_at = date.today()
         rep.heat_stamped_tick = tick
 
@@ -167,7 +184,6 @@ async def update_org_standing(
 
     if body.standing is not None:
         standing.standings_updated_at = date.today()
-        standing.standings_stamped_tick = await current_tick(db)
 
     await db.commit()
     await db.refresh(standing)

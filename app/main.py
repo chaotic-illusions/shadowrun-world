@@ -258,7 +258,6 @@ async def _ensure_character_sheet_columns():
         ("karma_earned", "INTEGER NOT NULL DEFAULT 0"),
         ("lifestyle_level", "INTEGER"),
         ("lifestyle_permanent", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("lifestyle_paid_tick", "INTEGER"),
         ("is_draft", "BOOLEAN NOT NULL DEFAULT 0"),
         ("priorities", "JSON NOT NULL DEFAULT '{}'"),
         ("skills", "JSON NOT NULL DEFAULT '[]'"),

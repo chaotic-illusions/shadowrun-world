@@ -5,7 +5,6 @@ from app.dependencies import get_db
 from app.auth.dependencies import get_admin_token
 from app.schemas.campaign import ClockRead, AdvanceClockRequest, AdvanceClockResult, TeamKarma
 from app.services.campaign import current_tick, advance_clock, get_campaign_state, set_team_karma
-from app.services.lifestyle import settle_all_lifestyles
 
 router = APIRouter()
 
@@ -24,12 +23,10 @@ async def advance_campaign_clock(
 ):
     """Advance the campaign clock by N days (admin only).
 
-    This is the single control that moves world time forward -- heat, public
-    awareness, and org-standing decay are all computed from the elapsed ticks.
+    This is the single control that moves world time forward -- heat and public
+    awareness decay are computed from the elapsed ticks.
     """
     new_tick = await advance_clock(db, body.days)
-    # Charge lifestyle upkeep for the elapsed time (evicts runners who can't pay).
-    await settle_all_lifestyles(db, new_tick)
     return AdvanceClockResult(current_tick=new_tick, days_advanced=body.days)
 
 

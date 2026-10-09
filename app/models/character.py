@@ -11,18 +11,9 @@ LIFESTYLE_TIERS = ("Street", "Squatter", "Low", "Middle", "High", "Luxury")
 # SR2 p.245 monthly upkeep per lifestyle tier, indexed like LIFESTYLE_TIERS.
 LIFESTYLE_MONTHLY_COST = (0, 100, 1000, 5000, 10000, 100000)
 
-# Upkeep is charged one "month" at a time; 30 ticks (days) == 1 month.
-LIFESTYLE_UPKEEP_TICKS = 30
-
-# Buying a lifestyle outright (never charged upkeep again) costs this many months.
-LIFESTYLE_PERMANENT_MONTHS = 100
-
 
 def lifestyle_monthly_cost_for(level: int | None, permanent: bool = False) -> int:
-    """Canonical monthly upkeep for a lifestyle tier (0 for Street/unset/out-of-range/permanent).
-
-    Single source of truth shared by the ORM property and the lifestyle service.
-    """
+    """Canonical monthly upkeep for a lifestyle tier (0 for Street/unset/out-of-range/permanent)."""
     if permanent or level is None or not (0 <= level < len(LIFESTYLE_MONTHLY_COST)):
         return 0
     return LIFESTYLE_MONTHLY_COST[level]
@@ -98,12 +89,8 @@ class Character(Base):
     physical_overflow: Mapped[int] = mapped_column(Integer, default=0)
     # Ordinal lifestyle tier (0=Street ... 5=Luxury); None until set. See LIFESTYLE_TIERS.
     lifestyle_level: Mapped[int | None] = mapped_column(Integer, default=None)
-    # Lifestyle bought outright (100 months up front): never charged monthly upkeep again.
+    # Lifestyle bought outright (100 months up front): no monthly upkeep.
     lifestyle_permanent: Mapped[bool] = mapped_column(default=False)
-    # Campaign tick through which lifestyle upkeep has been settled. None until the PC starts
-    # "living" (stamped when a dossier is committed); the upkeep engine advances it 30 ticks at
-    # a time as it charges rent. See app/services/lifestyle.py.
-    lifestyle_paid_tick: Mapped[int | None] = mapped_column(Integer, default=None)
     # In-progress chargen draft: hidden from every character list until the wizard finalizes it.
     # Exists so the Deck Workshop can attach to a real row while the dossier is still being built.
     is_draft: Mapped[bool] = mapped_column(default=False)
