@@ -1,4 +1,4 @@
-"""Integration tests for the lifestyle settle flow and the drafts/convert endpoints.
+"""Integration tests for the drafts/convert dossier endpoints.
 
 Uses a throwaway aiosqlite DB and calls the router/service functions directly (the
 same pattern as tests/test_atomic_world_writes.py) -- no HTTP layer.
@@ -22,7 +22,6 @@ from app.routers.characters import (
     my_draft_characters,
 )
 from app.schemas.character import DossierCommit
-from app.services.lifestyle import settle_all_lifestyles
 from tests.test_chargen_contacts import STARTING_CONTACTS
 
 
@@ -39,28 +38,6 @@ async def _database(path):
         yield sessions
     finally:
         await engine.dispose()
-
-
-def test_settle_all_lifestyles_charges_and_evicts(tmp_path):
-    async def scenario():
-        async with _database(tmp_path / "life.db") as sessions:
-            async with sessions() as db:
-                db.add(Character(name="Payer", is_pc=True, lifestyle_level=3, nuyen=12000, lifestyle_paid_tick=0))
-                db.add(Character(name="Broke", is_pc=True, lifestyle_level=3, nuyen=0, lifestyle_paid_tick=0))
-                await db.commit()
-
-            async with sessions() as db:
-                assert await settle_all_lifestyles(db, 60) == 2  # two months elapsed
-
-            async with sessions() as db:
-                payer = await db.scalar(select(Character).where(Character.name == "Payer"))
-                broke = await db.scalar(select(Character).where(Character.name == "Broke"))
-                # Payer: Middle 5000/mo x 2 = 10000 charged.
-                assert payer.nuyen == 2000 and payer.lifestyle_paid_tick == 60
-                # Broke: evicted twice (Middle -> Low -> Squatter), never charged.
-                assert broke.lifestyle_level == 1 and broke.nuyen == 0 and broke.lifestyle_paid_tick == 60
-
-    asyncio.run(scenario())
 
 
 def test_drafts_endpoint_scopes_to_caller(tmp_path):
@@ -84,7 +61,7 @@ def test_drafts_endpoint_scopes_to_caller(tmp_path):
     asyncio.run(scenario())
 
 
-def test_convert_dossier_overwrites_in_place_and_stamps_lifestyle(tmp_path):
+def test_convert_dossier_overwrites_in_place(tmp_path):
     async def scenario():
         async with _database(tmp_path / "conv.db") as sessions:
             tok = "owner-x"
@@ -104,7 +81,7 @@ def test_convert_dossier_overwrites_in_place_and_stamps_lifestyle(tmp_path):
             async with sessions() as db:
                 pc = await db.scalar(select(Character).where(Character.id == cid))
                 assert pc.name == "NewSheet" and pc.body == 5 and pc.is_draft is False
-                assert pc.lifestyle_level == 2 and pc.lifestyle_paid_tick is not None
+                assert pc.lifestyle_level == 2
                 contacts = await db.scalar(
                     select(func.count()).select_from(Contact).where(Contact.owner_id == cid)
                 )

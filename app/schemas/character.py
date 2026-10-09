@@ -208,7 +208,6 @@ class CharacterRead(CharacterBase):
     organization_name: Optional[str] = None
     lifestyle_name: Optional[str] = None
     lifestyle_monthly_cost: int = 0
-    lifestyle_paid_tick: Optional[int] = None
     is_claimed: bool = False
     # Owning UserToken row id; filled only for admins listing drafts (so a GM can see/reassign owners).
     owner_token_id: Optional[int] = None

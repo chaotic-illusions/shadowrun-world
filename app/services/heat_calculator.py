@@ -7,11 +7,13 @@ the AdventureLog and is computed deterministically from run parameters.
 
 Heat scale:
   0        = Neutral   (baseline, no exposure)
-  1-2      = Noticed   (low heat, half-life 3 days)
-  3-4      = Flagged   (moderate, half-life 7 days)
-  5-6      = Wanted    (high, half-life 14 days)
+  1-2      = Noticed   (low heat, half-life 7 days)
+  3-4      = Flagged   (moderate, half-life 10 days)
+  5-6      = Wanted    (high, half-life 16 days)
   7-8      = Hot       (very high, half-life 21 days)
   9-10     = Nova Hot  (extreme, half-life 30 days)
+
+Org standings never decay: they change only when a run changes them.
 
 Faction ripple: a standing change with org X propagates (at reduced magnitude)
 to X's documented allies and enemies.
@@ -76,9 +78,9 @@ HEAT_THRESHOLDS: list[tuple[int, int, str]] = [
 # Half-life in days per heat tier (used for decay)
 HEAT_HALF_LIVES: list[tuple[int, int, float]] = [
     (0,  0, float('inf')),  # Neutral never decays (already 0)
-    (1,  2, 3.0),            # Noticed
-    (3,  4, 7.0),            # Flagged
-    (5,  6, 14.0),           # Wanted
+    (1,  2, 7.0),            # Noticed
+    (3,  4, 10.0),           # Flagged
+    (5,  6, 16.0),           # Wanted
     (7,  8, 21.0),           # Hot
     (9, 10, 30.0),           # Nova Hot
 ]
@@ -139,7 +141,7 @@ PA_TIERS: list[tuple[int, int, str]] = [
 # Half-life in days per PA tier -- media and public attention fades over time
 PA_HALF_LIVES: list[tuple[int, int, float]] = [
     ( 0,  0, float('inf')),  # Shadow -- nothing to decay
-    ( 1,  3, 7.0),            # Seen -- news cycle moves on quickly
+    ( 1,  3, 10.0),           # Seen -- news cycle moves on quickly
     ( 4,  7, 14.0),           # Recognized
     ( 8, 12, 21.0),           # In the Spotlight
     (13, 99, 30.0),           # Burned -- hard to shake but fades eventually
@@ -150,7 +152,7 @@ PA_HALF_LIVES: list[tuple[int, int, float]] = [
 RIPPLE_FACTOR = 0.4   # fraction of original delta applied to adjacent orgs
 RIPPLE_CAP    = 2     # maximum ripple magnitude in either direction
 
-# Inactive PCs who are "lying low" decay heat/PA/standings twice as fast.
+# Inactive PCs who are "lying low" shed heat/PA twice as fast.
 LYING_LOW_DECAY_ACCEL = 2.0
 
 
@@ -237,53 +239,20 @@ def decay_heat(heat: int, days_ago: int, accel: float = 1.0) -> float:
     return heat * math.exp(-math.log(2) * days_ago / hl)
 
 
-# Half-lives in days for org standings decay.
-# Negative standings (hostility) fade faster; positive (loyalty) take 2x longer.
-# Magnitude of standing drives tier -- both tables are keyed on abs(standing).
-STANDING_HALF_LIVES_NEG: list[tuple[int, int, float]] = [
-    (0,  0, float('inf')),  # neutral -- never decays
-    (1,  3, 4.0),            # unfriendly low   (pos 6.0 / 1.5)
-    (4,  6, 8.0),            # unfriendly high  (pos 12.0 / 1.5)
-    (7,  9, 13.0),           # hostile low-mid  (pos 20.0 / 1.5)
-    (10, 10, 19.0),          # hostile max      (pos 28.0 / 1.5)
-]
-STANDING_HALF_LIVES_POS: list[tuple[int, int, float]] = [
-    (0,  0, float('inf')),
-    (1,  3, 6.0),
-    (4,  6, 12.0),
-    (7,  9, 20.0),
-    (10, 10, 28.0),
-]
+def current_heat(heat: int | None, stamped_tick: int | None, tick: int, active: bool = True) -> int:
+    """Heat as it stands at `tick`: the stored value decayed since it was stamped, rounded.
 
-
-def _standing_half_life(standing: int) -> float:
-    """Return the decay half-life for a standing value (uses abs magnitude)."""
-    mag   = abs(standing)
-    table = STANDING_HALF_LIVES_POS if standing > 0 else STANDING_HALF_LIVES_NEG
-    for lo, hi, hl in table:
-        if lo <= mag <= hi:
-            return hl
-    return 14.0
-
-
-def decay_standing(standing: int, elapsed: int, accel: float = 1.0) -> float:
+    The stored value is only the heat at its stamp; every reader and every new change works
+    from this decayed value, never the stored one.
     """
-    Return the effective standing (float) after exponential decay toward 0.
-    elapsed  : ticks since standing was last changed.
-    Positive standings decay toward 0 from above; negative from below.
-    Neutral (0) is never modified.  Pass elapsed=0 to skip decay.
-    accel > 1.0 compresses the half-life (faster decay, e.g. lying-low runners).
-    """
-    if standing == 0 or elapsed <= 0:
-        return float(standing)
-    hl = _standing_half_life(standing) / max(accel, 1.0)
-    if math.isinf(hl):
-        return float(standing)
-    decayed = standing * math.exp(-math.log(2) * elapsed / hl)
-    # preserve sign; clamp so magnitude never exceeds original
-    if standing > 0:
-        return max(0.0, decayed)
-    return min(0.0, decayed)
+    accel = 1.0 if active else LYING_LOW_DECAY_ACCEL
+    return max(0, round(decay_heat(heat or 0, tick - (stamped_tick or 0), accel)))
+
+
+def current_pa(pa: int | None, stamped_tick: int | None, tick: int, active: bool = True) -> int:
+    """Public awareness as it stands at `tick` (see current_heat)."""
+    accel = 1.0 if active else LYING_LOW_DECAY_ACCEL
+    return max(0, round(decay_pa(pa or 0, tick - (stamped_tick or 0), accel)))
 
 
 def compute_heat(
