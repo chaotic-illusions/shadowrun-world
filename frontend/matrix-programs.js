@@ -52,6 +52,33 @@
     options: program.options || (program.category === 'Operational' ? OPERATIONAL_OPTIONS : []),
   }));
 
+  // Size multiplier per utility (Size = Rating squared x multiplier). Attack's varies by damage level.
+  const MULTIPLIERS = {
+    analyze: 3, browse: 1, crash: 3, defuse: 2, deception: 2, decrypt: 1, disinfect: 2,
+    evaluate: 2, mirrors: 3, read_write: 2, relocate: 2, scanner: 3, validate_pgm: 4,
+    compressor: 2, sleaze: 3, attack: 2, black_hammer: 20, hog: 3, killjoy: 10,
+    lock_on: 3, poison: 3, restrict: 3, reveal: 3, slow: 4, steamroller: 3,
+    armor: 3, camo: 3, cloak: 3, medic: 4, restore: 3, shield: 4,
+  };
+  const ATTACK_DAMAGE_MULTIPLIERS = { Light: 2, Moderate: 3, Serious: 4, Deadly: 5 };
+
+  // Program Prices Table (VR2): nuyen per Mp of program size, and availability (TN / base days)
+  // plus Street Index, all banded by Program Rating. The Street Index is the street-buy multiplier
+  // applied to the Size x price-per-Mp base price; it is NOT a flat 1.5.
+  function pricePerMp(r) {
+    if (r <= 3)  return 100;
+    if (r <= 6)  return 200;
+    if (r <= 9)  return 500;
+    return 1000;
+  }
+  function priceBand(r) {
+    const rr = Math.max(1, parseInt(r, 10) || 1);
+    if (rr <= 3) return { tn: 2,  days: 7,  streetIndex: 1,   availStr: '2/7 days'   };
+    if (rr <= 6) return { tn: 4,  days: 7,  streetIndex: 1.5, availStr: '4/7 days'   };
+    if (rr <= 9) return { tn: 8,  days: 14, streetIndex: 2,   availStr: '8/14 days'  };
+    return         { tn: 16, days: 30, streetIndex: 3,   availStr: '16/30 days' };
+  }
+
   const PROGRAM_BY_KEY = Object.fromEntries(PROGRAMS.map(program => [program.key, program]));
   const PROGRAM_BY_DISPLAY = Object.fromEntries(PROGRAMS.map(program => [program.display.toLowerCase(), program]));
 
@@ -72,6 +99,10 @@
   global.MatrixPrograms = Object.freeze({
     programs: Object.freeze(PROGRAMS.map(Object.freeze)),
     options: Object.freeze(OPTION_DEFS.map(Object.freeze)),
+    multipliers: Object.freeze(MULTIPLIERS),
+    attackDamageMultipliers: Object.freeze(ATTACK_DAMAGE_MULTIPLIERS),
+    pricePerMp,
+    priceBand,
     get,
     keyOf,
   });

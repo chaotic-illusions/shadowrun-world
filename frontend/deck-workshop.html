@@ -713,12 +713,7 @@ function fmtN(n) {
 }
 function fmtY(n) { return '\xA5' + fmtN(Math.round(n)); }
 
-function pfFactor(r) {
-  if (r <= 3)  return 100;
-  if (r <= 6)  return 200;
-  if (r <= 9)  return 500;
-  return 1000;
-}
+function pfFactor(r) { return MatrixPrograms.pricePerMp(r); }
 
 function clampInt(v, minV, maxV) {
   const n = parseInt(v, 10);
@@ -744,21 +739,15 @@ function fastjackStamp() {
   return `${hh}:${mi}:${ss}/${mm}-${dd}-${yy}`;
 }
 
-// MatrixPrograms owns identity, display/category/description, and option metadata. Multipliers
-// remain workshop-only because they are build economics rather than shared program identity.
-const UTILITY_MULTIPLIERS = {
-  analyze: 3, browse: 1, crash: 3, defuse: 2, deception: 2, decrypt: 1, disinfect: 2,
-  evaluate: 2, mirrors: 3, read_write: 2, relocate: 2, scanner: 3, validate_pgm: 4,
-  compressor: 2, sleaze: 3, attack: 2, black_hammer: 20, hog: 3, killjoy: 10,
-  lock_on: 3, poison: 3, restrict: 3, reveal: 3, slow: 4, steamroller: 3,
-  armor: 3, camo: 3, cloak: 3, medic: 4, restore: 3, shield: 4,
-};
+// MatrixPrograms owns identity, display/category/description, option metadata, and the size
+// multipliers (shared with codex.html).
+const UTILITY_MULTIPLIERS = MatrixPrograms.multipliers;
 const UTILITIES = MatrixPrograms.programs.map(program => ({
   name: program.display,
   mult: UTILITY_MULTIPLIERS[program.key],
   cat: program.category,
   note: program.description,
-  ...(program.key === 'attack' ? { dmg_levels: { Light: 2, Moderate: 3, Serious: 4, Deadly: 5 } } : {}),
+  ...(program.key === 'attack' ? { dmg_levels: { ...MatrixPrograms.attackDamageMultipliers } } : {}),
 }));
 const OPTION_DEFS = MatrixPrograms.options.map(option => ({ ...option, note: option.description }));
 
@@ -3093,16 +3082,7 @@ function computeDeckAlaCarteRows(s) {
   if (s.casingLvl > 0) add('casing', 'Deck Casing', 'Lvl ' + s.casingLvl, casing[s.casingLvl]);
   return rows;
 }
-function programPriceBand(r) {
-  // Program Prices Table (vr2_rules.md): availability (TN / base days) and Street
-  // Index, both scaling with Program Rating. The Street Index is the street-buy
-  // multiplier applied to the Size x PF base price; it is NOT a flat 1.5.
-  const rr = Math.max(1, parseInt(r, 10) || 1);
-  if (rr <= 3) return { tn: 2,  days: 7,  streetIndex: 1,   availStr: '2/7 days'   };
-  if (rr <= 6) return { tn: 4,  days: 7,  streetIndex: 1.5, availStr: '4/7 days'   };
-  if (rr <= 9) return { tn: 8,  days: 14, streetIndex: 2,   availStr: '8/14 days'  };
-  return         { tn: 16, days: 30, streetIndex: 3,   availStr: '16/30 days' };
-}
+function programPriceBand(r) { return MatrixPrograms.priceBand(r); }
 function computeDeckAvailability(mpcp, persona) {
   // Hybrid worst-of: MPCP band vs each persona band (longest days, then highest TN).
   // MPCP is the highest rating on the deck, so its band is normally the single worst.

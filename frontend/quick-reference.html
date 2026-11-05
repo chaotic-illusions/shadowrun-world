@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SR2 Quick Reference</title>
+<style>
+  /* One US Letter sheet, single-sided, black on white, built to be printed and handed out.
+     Everything is sized for density, not reading comfort: Arial Narrow, tight leading, three
+     flowing columns. Rules are SR2 core.
+     Rebuild docs/SR2_Quick_Reference.pdf with headless Edge:
+       msedge --headless --no-pdf-header-footer --print-to-pdf=docs\SR2_Quick_Reference.pdf frontend\quick-reference.html */
+  @page { size: letter; margin: 0.28in; }
+  :root { --fs: 8pt; --rule: #000; --shade: #e6e6e6; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body { font-family: "Arial Narrow", "Roboto Condensed", Arial, sans-serif; font-size: var(--fs);
+         line-height: 1.13; }
+  .sheet { width: 7.94in; margin: 0 auto; }
+  @media screen { .sheet { margin: 16px auto; } }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline;
+         border-bottom: 2px solid var(--rule); padding-bottom: 1px; margin-bottom: 3px; }
+  .top h1 { margin: 0; font-size: 13pt; letter-spacing: 1px; text-transform: uppercase; }
+  .top span { font-size: 7.5pt; }
+
+  .cols { column-count: 3; column-gap: 0.14in; column-rule: 0.5px solid #999; column-fill: auto;
+          height: 10.1in; }
+  /* Sections may continue into the next column; headings, tables and list items stay whole. */
+  section { margin: 0 0 2px; }
+  h2, h3, .who { break-after: avoid-column; }
+  table, li, p { break-inside: avoid-column; }
+  h2 { margin: 0 0 1px; padding: 1px 3px; background: #000; color: #fff; font-size: 8.2pt;
+       text-transform: uppercase; letter-spacing: .6px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  h3 { margin: 2px 0 0; font-size: var(--fs); text-transform: uppercase; border-bottom: 0.5px solid #000; }
+  p { margin: 0; }
+  ol, ul { margin: 0 0 1px; padding-left: 11px; }
+  li { margin: 0; }
+  b { font-weight: bold; }
+  .k { font-weight: bold; }
+  .note { font-size: 7.4pt; }
+
+  table.fix { table-layout: fixed; }
+  table { width: 100%; border-collapse: collapse; margin: 1px 0 2px; font-size: var(--fs); }
+  th, td { padding: 0 2px; text-align: left; vertical-align: top; }
+  th { border-bottom: 0.75px solid #000; font-weight: bold; }
+  tr:nth-child(even) td { background: var(--shade); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  td.c, th.c { text-align: center; }
+  td.r, th.r { text-align: right; }
+  .steps { padding-left: 13px; }
+  .who { font-weight: bold; text-transform: uppercase; font-size: 7.6pt; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="top">
+    <h1>Shadowrun 2nd Edition &mdash; Quick Reference</h1>
+    <span>SR2 core rules &middot; TN = target number &middot; never below 2</span>
+  </div>
+
+  <div class="cols">
+
+  <!-- ===================== COLUMN 1 ===================== -->
+  <section>
+    <h2>Dice &amp; Tests</h2>
+    <p><b>Success Test:</b> roll dice = rating vs TN; each die &ge; TN is a success.</p>
+    <p><b>Rule of One:</b> 1s fail; all 1s = disaster. <b>Rule of Six:</b> TN &gt; 6, re-roll 6s and add.</p>
+    <p><b>TN by difficulty:</b> Simple 2 &middot; Routine 3 &middot; Average 4 &middot; Challenging 5 &middot; Difficult 6&ndash;7 &middot; Strenuous 8 &middot; Extreme 9 &middot; Nearly impossible 10+.</p>
+    <p><b>Taking the time:</b> base time &divide; successes.
+       <b>Defaulting:</b> +2 TN per circle along the Skill Web (to a skill or an Attribute).</p>
+    <p><b>Karma Pool</b> (refreshes each encounter), 1 pt each: re-roll all failed dice (each repeat on that test costs 1 more) &middot; make all-1s a plain failure &middot; add a die (max = base dice) &middot; buy a success (needs a real success; the point is gone for good).</p>
+  </section>
+
+  <section>
+    <h2>Combat Turn</h2>
+    <ol class="steps">
+      <li><b>First turn only:</b> everyone's pools refresh (not if surprised).</li>
+      <li><b>Initiative</b> = Reaction + Initiative dice. Injury modifier comes off Reaction first; Reaction 0 = no actions this turn.</li>
+      <li><b>Act, highest total first.</b> Acting character's pools refresh &rarr; declare &rarr; resolve &rarr; Initiative &minus;10. Above 0 = acts again 10 phases later.</li>
+      <li>Nobody left to act &rarr; new Combat Turn. Unused pool dice carry until your first action.</li>
+    </ol>
+    <p><b>Same phase:</b> declare lowest first, resolve highest first. Ties: higher adjusted Reaction, then natural Reaction, else simultaneous.
+       <b>Order:</b> astral, then Matrix, then physical.</p>
+    <p><b>Delay:</b> Free Action; step in at a later phase's declaration; carries over turns; using any pool dice breaks it.</p>
+    <p><b>Surprise:</b> all roll Reaction vs 4 (waiting ambusher &minus;2). Act only against those you out-succeed. Beat nobody and someone beat you: no actions at all for 10 phases.</p>
+  </section>
+
+  <section>
+    <h2>Actions</h2>
+    <p><b>Each phase: 1 Free + either 2 Simple or 1 Complex.</b></p>
+    <p><b>Free:</b> call a shot &middot; change smartgun mode &middot; delay &middot; drop prone &middot; drop object &middot; drop sustained spell &middot; eject smartgun clip &middot; gesture &middot; observe &middot; speak a word.</p>
+    <p><b>Simple:</b> change gun mode &middot; stand up / lie down (wounded: Willpower 2 to stand) &middot; command spirit &middot; fire SS/SA/BF &middot; insert or remove clip &middot; observe in detail &middot; pick up / put down &middot; quick draw (Reaction 4, +2 not holstered, then fire) &middot; ready weapon &middot; shift perception &middot; take aim (&minus;1 TN each, max &frac12; skill) &middot; throw &middot; use simple object.</p>
+    <p><b>Complex:</b> astral projection &middot; cast spell &middot; melee / unarmed attack &middot; fire full-auto &middot; fire mounted / vehicle weapon &middot; reload non-clip weapon &middot; summon nature spirit &middot; use complex object &middot; use skill.</p>
+    <p><b>Move:</b> walk Quickness m (+1 TN, rough ground +2). Run Quickness &times;3 (dwarf, troll &times;2), +4 TN to everything; run in one phase per turn.</p>
+  </section>
+
+  <section>
+    <h2>Dice Pools</h2>
+    <p>Refresh at the start of each of your actions.
+       <b>Combat</b> = (Qui+Int+Wil)&divide;2; attack max = skill, resistance unlimited; heavy armor &minus;1 per Ballistic over Quickness.
+       <b>Magic</b> = Sorcery (+ power focus); spell max = Magic, Drain unlimited, never Conjuring.
+       <b>Hacking</b> = Computer + Reaction (+ response increase). <b>Control</b> = Reaction (VCR).</p>
+  </section>
+
+  <section>
+    <h2>Damage</h2>
+    <table>
+      <tr><th>Level</th><th class="c">Boxes</th><th class="c">Injury TN</th><th class="c">Init</th></tr>
+      <tr><td>Light</td><td class="c">1</td><td class="c">+1</td><td class="c">&minus;1</td></tr>
+      <tr><td>Moderate</td><td class="c">3</td><td class="c">+2</td><td class="c">&minus;2</td></tr>
+      <tr><td>Serious</td><td class="c">6</td><td class="c">+3</td><td class="c">&minus;3</td></tr>
+      <tr><td>Deadly</td><td class="c">10</td><td colspan="2" class="c">unconscious / near death</td></tr>
+    </table>
+    <p class="note">Damage adds up. Modifiers: worst level in each column; Stun and Physical stack. Stun past 10 spills into Physical and knocks you out. Physical past 10: +1 box per 10 min untended; dead past 10 + Body. Injury TN does not apply to resistance tests. <b>Stun recovery:</b> Body or Wil vs 2 (+ injury), 60 min &divide; successes per box, resting.</p>
+  </section>
+
+  <!-- ===================== COLUMN 2 ===================== -->
+  <section>
+    <h2>Ranged Combat</h2>
+    <p class="who">Attacker</p>
+    <ol class="steps">
+      <li>Range to target &rarr; base TN (table below).</li>
+      <li>Add situational modifiers (table).</li>
+      <li>Roll skill + Combat Pool (max skill) vs TN. Count successes.</li>
+    </ol>
+    <p class="who">Defender</p>
+    <ol class="steps" start="4">
+      <li>Roll Body (+ dermal) + remaining Combat Pool vs <b>Power &minus; Ballistic armor</b>.</li>
+    </ol>
+    <p class="who">Result</p>
+    <ol class="steps" start="5">
+      <li>Attacker ahead: +1 Damage Level per 2 net. Defender ahead: &minus;1 per 2 net (below L = none). Tie = base damage. Defender's <b>Combat Pool successes alone</b> beat attacker's = clean miss.</li>
+    </ol>
+    <p><b>Knockdown:</b> Body vs &frac12; Power; need more successes than L1 / M2 / S3. None = prone; some = stagger 1 m. Deadly always knocks down.
+       <b>Called shot:</b> Free Action, +4 TN, +1 Damage Level (SS/SA/BF only).</p>
+  </section>
+
+  <section>
+    <h2>Weapon Ranges (meters)</h2>
+    <table class="fix">
+      <colgroup><col style="width:31%"><col style="width:16%"><col style="width:17%"><col style="width:18%"><col style="width:18%"></colgroup>
+      <tr><th>Weapon</th><th class="c">Short 4</th><th class="c">Med 5</th><th class="c">Long 6</th><th class="c">Extr 9</th></tr>
+      <tr><td>Light / hold-out</td><td class="c">0&ndash;5</td><td class="c">15</td><td class="c">30</td><td class="c">50</td></tr>
+      <tr><td>Heavy pistol</td><td class="c">0&ndash;5</td><td class="c">20</td><td class="c">40</td><td class="c">60</td></tr>
+      <tr><td>Taser</td><td class="c">0&ndash;5</td><td class="c">10</td><td class="c">12</td><td class="c">15</td></tr>
+      <tr><td>SMG</td><td class="c">0&ndash;10</td><td class="c">40</td><td class="c">80</td><td class="c">150</td></tr>
+      <tr><td>Shotgun</td><td class="c">0&ndash;10</td><td class="c">20</td><td class="c">50</td><td class="c">100</td></tr>
+      <tr><td>Assault rifle</td><td class="c">0&ndash;15</td><td class="c">40</td><td class="c">100</td><td class="c">250</td></tr>
+      <tr><td>Sporting rifle</td><td class="c">0&ndash;30</td><td class="c">60</td><td class="c">150</td><td class="c">300</td></tr>
+      <tr><td>Sniper rifle</td><td class="c">0&ndash;40</td><td class="c">80</td><td class="c">200</td><td class="c">400</td></tr>
+      <tr><td>LMG</td><td class="c">0&ndash;20</td><td class="c">40</td><td class="c">80</td><td class="c">150</td></tr>
+      <tr><td>MMG</td><td class="c">0&ndash;40</td><td class="c">150</td><td class="c">300</td><td class="c">500</td></tr>
+      <tr><td>HMG</td><td class="c">0&ndash;40</td><td class="c">150</td><td class="c">400</td><td class="c">800</td></tr>
+      <tr><td>Assault cannon</td><td class="c">0&ndash;50</td><td class="c">150</td><td class="c">450</td><td class="c">1,300</td></tr>
+      <tr><td>Grenade launch.*</td><td class="c">5&ndash;50</td><td class="c">100</td><td class="c">150</td><td class="c">300</td></tr>
+      <tr><td>Missile launch.*</td><td class="c">20&ndash;70</td><td class="c">150</td><td class="c">450</td><td class="c">1,500</td></tr>
+      <tr><td>Bow (Str Min)</td><td class="c">Str</td><td class="c">&times;10</td><td class="c">&times;30</td><td class="c">&times;60</td></tr>
+      <tr><td>Crossbow L/M/H</td><td class="c">&times;2/3/5</td><td class="c">&times;8/12/15</td><td class="c">&times;20/30/40</td><td class="c">&times;40/50/60</td></tr>
+      <tr><td>Throwing knife</td><td class="c">Str</td><td class="c">&times;2</td><td class="c">&times;3</td><td class="c">&times;5</td></tr>
+      <tr><td>Shuriken</td><td class="c">Str</td><td class="c">&times;2</td><td class="c">&times;5</td><td class="c">&times;7</td></tr>
+    </table>
+    <p class="note">Top of each band shown. *Minimum range. Bows/crossbows: &times; Strength Minimum (below it, +1 TN per point); thrown: &times; thrower's Strength. Scope: one band closer per rating.</p>
+  </section>
+
+  <section>
+    <h2>Ranged Modifiers</h2>
+    <table class="fix mods">
+      <colgroup><col style="width:34%"><col style="width:16%"><col style="width:34%"><col style="width:16%"></colgroup>
+      <tr><td>SA second shot</td><td class="r">+1</td><td>Target running</td><td class="r">+2</td></tr>
+      <tr><td>Each burst (BF)</td><td class="r">+3</td><td>Target stationary</td><td class="r">&minus;1</td></tr>
+      <tr><td>FA, per round</td><td class="r">+1</td><td>In melee, per foe</td><td class="r">+2</td></tr>
+      <tr><td>Heavy recoil</td><td class="r">&times;2</td><td>Walking (rough)</td><td class="r">+1 (+2)</td></tr>
+      <tr><td>Blind fire</td><td class="r">+8</td><td>Running (rough)</td><td class="r">+4 (+6)</td></tr>
+      <tr><td>Partial cover</td><td class="r">+4</td><td>Smartlink</td><td class="r">&minus;2</td></tr>
+      <tr><td>Each extra target</td><td class="r">+2</td><td>Goggles / laser</td><td class="r">&minus;1</td></tr>
+      <tr><td>Second firearm</td><td class="r">+2</td><td>Aim, per Simple</td><td class="r">&minus;1</td></tr>
+      <tr><td>Wounded</td><td class="r">injury</td><td>Recoil comp / gyro</td><td class="r">&minus;rating</td></tr>
+    </table>
+    <p class="note">Heavy = MMG, HMG, shotgun: double <i>uncompensated</i> recoil. Second firearm: pistol/SMG only, no smart/laser bonus, shares recoil. Laser: 50 m max, useless in mist, smoke, fog, rain. Gyro offsets recoil and movement.</p>
+    <table>
+      <tr><th>Visibility</th><th class="c">Normal</th><th class="c">Low-light</th><th class="c">Thermo</th></tr>
+      <tr><td>Full darkness</td><td class="c">+8</td><td class="c">+8/+8</td><td class="c">+4/+2</td></tr>
+      <tr><td>Minimal light</td><td class="c">+6</td><td class="c">+4/+2</td><td class="c">+4/+2</td></tr>
+      <tr><td>Partial light</td><td class="c">+2</td><td class="c">+1/0</td><td class="c">+2/+1</td></tr>
+      <tr><td>Glare</td><td class="c">+2</td><td class="c">+4/+2</td><td class="c">+4/+2</td></tr>
+      <tr><td>Mist</td><td class="c">+2</td><td class="c">+2/0</td><td class="c">0</td></tr>
+      <tr><td>Light smoke/fog/rain</td><td class="c">+4</td><td class="c">+4/+2</td><td class="c">0</td></tr>
+      <tr><td>Heavy smoke/fog/rain</td><td class="c">+6</td><td class="c">+6/+4</td><td class="c">+1/0</td></tr>
+    </table>
+    <p class="note">Split: electronic vision / natural. Thermal smoke: as smoke for thermo.</p>
+  </section>
+
+  <section>
+    <h2>Fire Modes &amp; Ammo</h2>
+    <p><b>SS:</b> one shot per phase. <b>SA:</b> Simple each, two per phase, 2nd at +1.
+       <b>BF:</b> Simple, two bursts max, +3 recoil per burst; Power +3 and +1 Damage Level. A 2-round burst: Power +2, no level, +2 recoil.
+       <b>FA:</b> Complex; declare rounds per target (min 3); +1 recoil per round fired that phase; Power +1 per round, +1 level per 3 rounds (max D). Walking fire wastes 1 round per meter between targets (not smartguns).
+       Each burst/shot is its own test and its own Combat Pool allocation.</p>
+    <p><b>Gel:</b> Power &minus;2, Stun, Impact armor, knockdown TN = Power.
+       <b>Explosive:</b> Power +1; all 1s = misfire hits the shooter.
+       <b>Flechette:</b> +1 level vs unarmored; vs armor use the higher of 2&times;Impact or Ballistic.</p>
+  </section>
+
+  <!-- ===================== COLUMN 3 ===================== -->
+  <section>
+    <h2>Melee Combat</h2>
+    <p class="who">Attacker</p>
+    <ol class="steps"><li>Combat skill + Combat Pool vs <b>TN 4</b> + modifiers.</li></ol>
+    <p class="who">Defender</p>
+    <ol class="steps" start="2"><li>Own Combat skill + Combat Pool vs <b>TN 4</b> + the same kinds of modifiers.</li></ol>
+    <p class="who">Result</p>
+    <ol class="steps" start="3">
+      <li>More successes <b>hits</b> (tie: attacker). The defender can win and hit back.</li>
+      <li>Winner: +1 Damage Level per 2 net successes.</li>
+      <li>Hit character: Body vs <b>(Str + weapon) &minus; Impact armor</b>; &minus;1 level per 2 successes.</li>
+    </ol>
+    <table>
+      <tr><td>Each extra friend on your side</td><td class="r">&minus;1 (max &minus;4)</td></tr>
+      <tr><td>Each extra friend they have</td><td class="r">+1 (max +4)</td></tr>
+      <tr><td>Reach longer / shorter, per pt</td><td class="r">&minus;1 / +1</td></tr>
+      <tr><td>Each extra target</td><td class="r">+2</td></tr>
+      <tr><td>Superior position &middot; opponent prone</td><td class="r">&minus;1 &middot; &minus;2</td></tr>
+      <tr><td>Visibility: half table (full dark +8)</td><td class="r">table</td></tr>
+      <tr><td>Wounded &middot; subduing (Stun only)</td><td class="r">injury &middot; +2</td></tr>
+    </table>
+    <p class="note">Trolls +1 Reach. Unarmed (Str)M Stun. <b>Full defense</b> (optional): no pool on your attack test; clean miss if your pool successes alone beat theirs. <b>Knockback:</b> Body vs attacker's Str, need more than L1/M2/S3; some = step back 1 m, none = prone. <b>Stun baton / taser:</b> Impact armor halved; stunned (+2 TN) for Power &minus; &frac12; Impact &minus; successes (Body or Wil vs 4) turns.</p>
+  </section>
+
+
+  <section>
+    <h2>Spellcasting (Complex Action)</h2>
+    <p><b>Declare:</b> split Magic Pool between the spell, Drain, and Spell Defense.</p>
+    <ol class="steps">
+      <li><b>Target in sight</b> (own eyes, optics OK, no cameras). Base TN: living = <b>Willpower</b> (mana) / <b>Body</b> (physical). Objects (physical only): natural 3, low-tech 5, high-tech 8, highly processed 10+. Ranged damaging manipulation: 4.</li>
+      <li><b>Modifiers:</b> injury, cover, visibility; +2 per spell you sustain; +2 per stacked spell. Touch spells: injury only. <b>Warded target:</b> mana barrier +1 per 2 Force; circle or lodge +1 per 2 rating. Doesn't apply to spells from whoever made it.</li>
+      <li><b>Cast:</b> Force + Magic Pool (max Magic Rating). No successes = fizzle; all 1s = Drain TN +2.</li>
+      <li><b>Resist</b> (R spells): target rolls Body/Wil + Spell Defense (or own Magic Pool) vs <b>Force</b>. Damaging manipulation = Damage Resistance like a gun (armor, Combat Pool).</li>
+      <li><b>Result:</b> net successes. Tie = minimum effect. Combat spells: +1 Damage Level per 2 net; armor ignored.</li>
+      <li><b>Drain:</b> Willpower + Magic Pool vs <b>Force &divide; 2 (down) + Drain modifier</b>, no situation modifiers. &minus;1 level per 2 successes. Stun, or <b>Physical if Force &gt; Magic</b>.</li>
+    </ol>
+    <p class="note"><b>Area:</b> radius = Magic m, everyone in it; one roll vs each target. Withhold 2 dice: &minus;1 m; 1 die: +1 m (max Force dice). <b>Limited range</b> (sense spells): Force vs 4, successes &times; Magic m. <b>Sustaining:</b> +2 TN to everything per spell, max = Sorcery. <b>Multiple targets:</b> split Force dice, one Drain test each. <b>Noticing a cast:</b> Int vs 2&times;(Magic&minus;Force). <b>Exclusive:</b> effect at Force +2, Drain at real Force; fetish +1 reusable / +2 expendable.</p>
+  </section>
+
+  <section>
+    <h2>Summoning &amp; Spirits</h2>
+    <p><b>Nature spirit (shaman):</b> Complex Action, only in its domain, one at a time. Conjuring (+ totem, spirit focus) vs <b>Force</b>; successes = services; 0 = no spirit. Leaves at sunrise or sunset.</p>
+    <p><b>Elemental (mage):</b> hermetic circle + conjuring library &ge; Force, materials 1,000&yen; &times; Force, a source (fire, water, air, earth), Force hours. Conjuring (+ spirit focus) vs <b>Force</b>; successes = services. Bound max = Charisma.</p>
+    <p><b>Drain</b> (always, even if nothing comes): <b>Charisma</b> (+ totem, focus) vs <b>Force</b>; &minus;1 level per 2 successes. Magic Pool never helps conjuring.</p>
+    <table>
+      <tr><th>Spirit's Force</th><th>Drain</th></tr>
+      <tr><td>Less than &frac12; Charisma</td><td>L Stun</td></tr>
+      <tr><td>Up to Charisma</td><td>M Stun</td></tr>
+      <tr><td>Over Charisma</td><td>S Physical</td></tr>
+      <tr><td>Over 2 &times; Charisma</td><td>D Physical</td></tr>
+    </table>
+    <ul class="note">
+      <li><b>Knocked out by Drain:</b> nature spirit leaves; elemental goes free, rolls Force vs 4: any success it flees, none it attacks the mage.</li>
+      <li><b>Elemental services:</b> aid sorcery (Force dice: fire combat, water illusion, air detection, earth manipulation, never health) &middot; aid study &middot; sustain a spell (1 turn per Force) &middot; physical &middot; remote. Call: Complex, no spells sustained. Command: Simple. Each 24 hours uses a service.</li>
+      <li><b>Spirit Initiative:</b> Reaction +20 astral / +10 manifest, 1D6.</li>
+      <li><b>Mundane attacks on a manifest spirit:</b> Willpower replaces skill, no pools; vs guns and blasts it has 2&times;Force armor. Magicians may resist spirits with Conjuring.</li>
+      <li><b>Banishing</b> (Complex, as exclusive): Conjuring (+ Charisma if you summoned it) vs Force; spirit rolls Force vs your Magic; per 2 net the loser drops 1 Force or 1 Magic.</li>
+    </ul>
+  </section>
+
+  </div>
+</div>
+</body>
+</html>

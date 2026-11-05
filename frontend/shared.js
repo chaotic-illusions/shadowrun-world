@@ -98,8 +98,9 @@ function _buildMatrixNavGroup() {
     { href: 'matrix-aars.html',     label: 'Host AARs', gmOnly: true },
   ];
 
-  const here = window.location.pathname;
-  const onMatrixPage = childDefs.some(d => here.endsWith(d.href));
+  // Exact filename, not endsWith: 'combat-reference.html' also ends with 'reference.html'.
+  const here = window.location.pathname.split('/').pop();
+  const onMatrixPage = childDefs.some(d => here === d.href);
 
   const group = document.createElement('div');
   group.className = 'nav-group' + (onMatrixPage ? ' active' : '');
@@ -115,8 +116,9 @@ function _buildMatrixNavGroup() {
     const a = document.createElement('a');
     a.href = d.href;
     a.textContent = d.label;
+    if (d.newTab) { a.target = '_blank'; a.rel = 'noopener'; }
     let cls = d.gmOnly ? 'gm-only' : '';
-    if (here.endsWith(d.href)) cls += (cls ? ' ' : '') + 'active';
+    if (here === d.href) cls += (cls ? ' ' : '') + 'active';
     if (cls) a.className = cls;
     menu.appendChild(a);
   });
@@ -197,8 +199,9 @@ function _buildCharactersNavGroup() {
     { href: 'character-builder.html', label: 'New Runner' },
     { href: 'play-sheet.html', label: 'Dossier' },
   ];
-  const here = window.location.pathname;
-  const onCharsPage = childDefs.some(d => here.endsWith(d.href));
+  // Exact filename, not endsWith: 'combat-reference.html' also ends with 'reference.html'.
+  const here = window.location.pathname.split('/').pop();
+  const onCharsPage = childDefs.some(d => here === d.href);
 
   const group = document.createElement('div');
   group.className = 'nav-group nav-group--chars' + (onCharsPage ? ' active' : '');
@@ -214,7 +217,8 @@ function _buildCharactersNavGroup() {
     const a = document.createElement('a');
     a.href = d.href;
     a.textContent = d.label;
-    if (here.endsWith(d.href)) a.className = 'active';
+    if (d.newTab) { a.target = '_blank'; a.rel = 'noopener'; }
+    if (here === d.href) a.className = 'active';
     menu.appendChild(a);
   });
   group.appendChild(toggle);
@@ -249,14 +253,16 @@ function _buildCharactersNavGroup() {
 // The GM-only children carry their own gm-only class instead.
 //
 // Unlike MATRIX/CHARACTERS, none of these have a guaranteed pre-existing flat link on every page
-// (Downtime used to be injected by _injectAuthLabel(), Sourcebooks and Combat Reference are
-// newer), so every child is built fresh from childDefs rather than relying on one always being
-// present to fold in.
+// (Downtime used to be injected by _injectAuthLabel(), Sourcebooks, Combat Reference and
+// Codex are newer), so every child is built fresh from childDefs rather than relying on one
+// always being present to fold in.
 function _buildToolsNavGroup() {
   const nav = document.querySelector('header nav');
   if (!nav || nav.querySelector('.nav-group--tools')) return;
 
   const childDefs = [
+    { href: 'codex.html',              label: 'Codex' },
+    { href: 'quick-reference.html',    label: 'Quick Ref', newTab: true },
     { href: 'combat-reference.html',   label: 'Combat' },
     { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
     { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },
@@ -264,8 +270,9 @@ function _buildToolsNavGroup() {
     { href: 'manage-tokens.html',      label: 'Tokens' },
   ];
 
-  const here = window.location.pathname;
-  const onToolsPage = childDefs.some(d => here.endsWith(d.href));
+  // Exact filename, not endsWith: 'combat-reference.html' also ends with 'reference.html'.
+  const here = window.location.pathname.split('/').pop();
+  const onToolsPage = childDefs.some(d => here === d.href);
 
   const group = document.createElement('div');
   group.className = 'nav-group nav-group--tools' + (onToolsPage ? ' active' : '');
@@ -281,8 +288,9 @@ function _buildToolsNavGroup() {
     const a = document.createElement('a');
     a.href = d.href;
     a.textContent = d.label;
+    if (d.newTab) { a.target = '_blank'; a.rel = 'noopener'; }
     let cls = d.gmOnly ? 'gm-only' : '';
-    if (here.endsWith(d.href)) cls += (cls ? ' ' : '') + 'active';
+    if (here === d.href) cls += (cls ? ' ' : '') + 'active';
     if (cls) a.className = cls;
     menu.appendChild(a);
   });
@@ -1834,7 +1842,7 @@ function matrixReactionInitFormula(quickness, intelligence, deckType, respIncrea
 // for the PDF export); moved here when combat-reference.html needed the same bands, so the two
 // pages can't drift -- same reasoning as the pool formulas above. Strength-based weapons
 // (bows/thrown/crossbows) are computed from a strength passed in by the caller.
-// Band target numbers are Short 4 / Medium 5 / Long 6 / Extreme 8.
+// Band target numbers are Short 4 / Medium 5 / Long 6 / Extreme 9 (SR2 p.88).
 const RANGE_TABLE = {
   'Hold-Out': ['0-5','6-15','16-30','31-50'], 'Hold-Out Pistol': ['0-5','6-15','16-30','31-50'],
   'Light Pistol': ['0-5','6-15','16-30','31-50'], 'Machine Pistol': ['0-5','6-15','16-30','31-50'],

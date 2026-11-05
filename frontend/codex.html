@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex | Shadowrun World Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="shared.js"></script>
+  <script src="catalog-taxonomy.js"></script>
+  <script src="matrix-programs.js"></script>
+  <style>
+    /* Read-only lookup over every catalog. Same list + inspector shape as the gear picker
+       (gc-* classes in style.css) so an item reads the same here as in the shop, minus Buy. */
+    .rf-wrap { max-width: 1400px; }
+    .rf-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+    .rf-title { font-family:var(--font-display); font-size:var(--fs-xl); color:var(--green);
+                letter-spacing:2px; text-transform:uppercase; }
+    .rf-sub { color:var(--text-dim); font-size:var(--fs-xs); letter-spacing:1px; }
+
+    /* Category bar: one button per category, each opening a menu of its groups. */
+    .rf-cats { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+    .rf-cat { position:relative; }
+    .rf-cat > button { background:#0d0d0d; border:1px solid #1a2a1a; color:var(--text);
+                       font-family:inherit; font-size:var(--fs-xs); letter-spacing:1px;
+                       text-transform:uppercase; padding:5px 10px; cursor:pointer; }
+    .rf-cat > button:hover { border-color:var(--green-dim,#7fae86); }
+    .rf-cat.is-active > button { border-color:var(--green); color:var(--green); }
+    .rf-cat > button .n { color:var(--text-dim); margin-left:4px; }
+    .rf-menu { display:none; position:absolute; top:100%; left:0; z-index:30; min-width:200px;
+               background:#0a0f0c; border:1px solid #1c2b22; padding:4px 0; max-height:60vh; overflow:auto; }
+    .rf-cat.open .rf-menu { display:block; }
+    .rf-menu button { display:flex; justify-content:space-between; gap:12px; width:100%;
+                      background:none; border:0; color:var(--text); font-family:inherit;
+                      font-size:var(--fs-sm); text-align:left; padding:4px 12px; cursor:pointer; }
+    .rf-menu button:hover { background:#122019; }
+    .rf-menu button .n { color:var(--text-dim); }
+    .rf-menu .rf-all { color:var(--green); border-bottom:1px solid #142019; }
+
+    .rf-scope { color:var(--cyan); font-size:var(--fs-xs); letter-spacing:1px; text-transform:uppercase; }
+    .rf-clear { background:none; border:1px solid #1c2b22; color:var(--text-dim); font-family:inherit;
+                font-size:var(--fs-xxs); padding:2px 8px; cursor:pointer; }
+    .rf-top { font-size:.6rem; letter-spacing:1.5px; text-transform:uppercase; color:var(--amber);
+              margin:14px 0 2px; border-bottom:1px solid #1a2a1a; padding-bottom:2px; }
+    .rf-top:first-child { margin-top:0; }
+    .gc-item .gc-item__s { color:var(--text-dim); font-size:.66rem; margin-left:6px; }
+    /* Reserve the scrollbar's lane and keep prices clear of it. */
+    #rfList { scrollbar-gutter:stable; padding-right:8px; }
+    #rfInspPanel { position:sticky; top:10px; }
+    #rfInsp { max-height:calc(100vh - 140px); overflow:auto; }
+
+    /* Rating / band tables in the inspector. */
+    .rf-tbl { width:100%; border-collapse:collapse; font-size:.74rem; margin:4px 0; }
+    .rf-tbl th { text-align:left; color:var(--green-dim,#7fae86); font-weight:normal; font-size:.6rem;
+                 letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid #142019; padding:2px 6px; }
+    .rf-tbl td { color:var(--text-dim); padding:2px 6px; border-bottom:1px solid #0f1a14; }
+    .rf-tbl td:first-child { color:var(--text); }
+
+    /* Spell / power / totem stat rows come from shared.js (statRow), which only play-sheet styles. */
+    .rf-body { font-size:.78rem; line-height:1.4; }
+    .rf-body .ps-stat-row { display:flex; gap:10px; padding:2px 0; border-bottom:1px solid #0f1a14; }
+    .rf-body .ps-stat-row .k { color:var(--green-dim,#7fae86); width:90px; flex:none; }
+    .rf-body .ps-stat-row .v { color:var(--text-bright); }
+    .rf-body .dim-meta { font-size:.74rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shadowrun <em>//</em> <span class="text-cyan" style="text-shadow: var(--glow-cyan)">NA/UCAS-SEA-6A23D-PENUMBRA</span></div>
+  <nav>
+    <a href="world-state.html">World State</a>
+    <a href="manage-characters.html">Characters</a>
+    <a href="manage-organizations.html">Organizations</a>
+    <a href="manage-locations.html">Locations</a>
+    <a href="manage-rtgs.html">RTGs</a>
+    <a href="manage-runs.html">Runs</a>
+    <a href="deck-workshop.html">Deck Workshop</a>
+    <a href="matrix-run.html">Matrix Run</a>
+  </nav>
+</header>
+
+<main class="rf-wrap">
+  <div class="rf-head">
+    <span class="rf-title">Codex</span>
+    <span class="rf-sub" id="rfSub">Gear, magic, vehicles &amp; more &mdash; from your enabled sourcebooks</span>
+  </div>
+
+  <div class="rf-cats" id="rfCats"></div>
+
+  <div class="gc-toolbar">
+    <input type="text" id="rfSearch" placeholder="Search everything..." autocomplete="off">
+    <span class="rf-scope" id="rfScope"></span>
+    <button type="button" class="rf-clear" id="rfClear" hidden>Show all</button>
+    <span class="gc-count" id="rfCount"></span>
+  </div>
+
+  <div class="gc-grid gc-grid--2col" id="rfGrid">
+    <div class="gc-panel">
+      <h5 class="gc-panel__h">Items</h5>
+      <div class="gc-list" id="rfList"><div class="loading">Loading catalogs</div></div>
+    </div>
+    <div class="gc-panel" id="rfInspPanel">
+      <h5 class="gc-panel__h"><button type="button" class="gc-back" id="rfBack">&larr; Back to list</button>Details</h5>
+      <div id="rfInsp"><p class="empty-state">Pick an item to see its full entry.</p></div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+const DOT = " · ";
+let VEHICLE_CLASSES = {};   // read by vehicleSkillCategory() in catalog-taxonomy.js
+
+const SPELL_GROUP_ORDER = ["Combat", "Detection", "Health", "Illusion", "Manipulation"];
+const FOCI_GROUP_ORDER = ["Spell Foci", "Spirit Foci", "Power Foci", "Weapon Foci"];
+const PROGRAM_GROUP_ORDER = ["Cyberdecks", "Cyberdeck Components", "Operational Utilities",
+  "Special Utilities", "Offensive Utilities", "Defensive Utilities"];
+
+// Every category on the bar. `group` buckets an item for the list and the category's menu;
+// `order` pins the usual groups first (anything else follows alphabetically).
+const CATS = [
+  { k: "weapons",   label: "Weapons",   group: weaponGroupLabel, order: WEAPON_GROUP_ORDER },
+  { k: "armor",     label: "Armor",     group: armorGroupLabel,  order: ARMOR_GROUP_ORDER },
+  { k: "cyberware", label: "Cyberware", group: cyberGroupLabel,  order: CYBER_GROUP_ORDER },
+  { k: "bioware",   label: "Bioware",   group: () => "Bioware" },
+  { k: "gear",      label: "Gear",      group: gearGroupLabel },
+  { k: "matrix",    label: "Matrix",    group: it => it._grp, order: PROGRAM_GROUP_ORDER },
+  { k: "vehicles",  label: "Vehicles",  group: vehicleSkillCategory, order: VEHICLE_SKILL_ORDER, byPrice: true },
+  { k: "spells",    label: "Spells",    group: it => titleCase(it.cat), order: SPELL_GROUP_ORDER },
+  { k: "adept_powers", label: "Adept Powers", group: () => "Adept Powers" },
+  { k: "foci",      label: "Foci",      group: it => it.sub || "Foci", order: FOCI_GROUP_ORDER },
+  { k: "totems",    label: "Totems",    group: () => "Totems" },
+  { k: "metatypes", label: "Metatypes", group: () => "Metatypes" },
+];
+
+let DATA = {};           // cat key -> [items]
+let scope = null;        // {cat, grp|null} picked from the bar, or null for everything
+let query = "";
+let selected = null;     // {cat, item}
+
+const $ = id => document.getElementById(id);
+const catDef = k => CATS.find(c => c.k === k);
+const groupOf = (k, it) => catDef(k).group(it) || "Other";
+const cmpName = (a, b) => (a.n || "").localeCompare(b.n || "", undefined, { numeric: true });
+
+function orderedGroups(def, items) {
+  const groups = {};
+  items.forEach(it => { const g = groupOf(def.k, it); (groups[g] = groups[g] || []).push(it); });
+  const order = def.order || [];
+  const extra = Object.keys(groups).filter(g => !order.includes(g)).sort();
+  return [...order, ...extra].filter(g => groups[g])
+    .map(g => ({ label: g, items: groups[g].slice().sort(def.byPrice
+      ? (a, b) => parseNum(a.cost) - parseNum(b.cost) || cmpName(a, b) : cmpName) }));
+}
+
+/* ---------- data ---------- */
+// Matrix programs aren't a catalog file; they come from matrix-programs.js, shaped like catalog
+// items so the list and search treat them the same as decks.
+function programItems() {
+  return MatrixPrograms.programs.map(p => ({
+    n: p.display, cat: "program", _grp: `${p.category} Utilities`,
+    _key: p.key, mult: MatrixPrograms.multipliers[p.key], desc: p.description, _opts: p.options,
+  }));
+}
+
+async function loadAll() {
+  const get = url => apiFetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
+  const names = ["weapons", "armor", "cyberware", "bioware", "gear", "spells", "adept_powers", "vehicles", "foci"];
+  const [res, rules, vc, books] = await Promise.all([
+    Promise.all(names.map(n => get("/catalog/" + n))),
+    get("/catalog/rules"), get("/catalog/vehicle-classes"), get("/catalog/books"),
+  ]);
+  names.forEach((n, i) => { DATA[n] = (res[i] && res[i].items) || []; });
+  VEHICLE_CLASSES = (vc && vc.classes) || {};
+  const gear = DATA.gear;
+  DATA.gear = gear.filter(it => it.cat !== "deck");
+  DATA.matrix = gear.filter(it => it.cat === "deck")
+    .map(it => ({ ...it, _grp: it.sub === "Cyberdeck Component" ? "Cyberdeck Components" : "Cyberdecks" }))
+    .concat(programItems());
+  DATA.totems = ((rules && rules.totems) || []).map(t => ({ ...t, cat: "totem", sub: t.env }));
+  DATA.metatypes = Object.entries((rules && rules.metatypes) || {}).map(([n, m]) => ({ n, cat: "metatype", ...m }));
+  if (books && books.enabled) {
+    const on = [books.core.name, ...books.official.filter(b => b.enabled).map(b => b.name)];
+    $("rfSub").textContent = `Books: ${on.join(", ")}`;
+  }
+  renderCats(); readHash(); renderList(); renderInsp(); scrollToSelected();
+}
+function scrollToSelected() {
+  const el = $("rfList").querySelector(".gc-item.is-sel");
+  if (el) el.scrollIntoView({ block: "center" });
+}
+
+/* ---------- category bar ---------- */
+function renderCats() {
+  $("rfCats").innerHTML = CATS.filter(c => (DATA[c.k] || []).length).map(c => {
+    const groups = orderedGroups(c, DATA[c.k]);
+    const menu = groups.length > 1
+      ? groups.map(g => `<button type="button" data-cat="${c.k}" data-grp="${esc(g.label)}">${esc(g.label)}<span class="n">${g.items.length}</span></button>`).join("")
+      : "";
+    return `<div class="rf-cat ${scope && scope.cat === c.k ? "is-active" : ""}" data-k="${c.k}">
+      <button type="button" class="rf-cat__b">${esc(c.label)}<span class="n">${DATA[c.k].length}</span>${menu ? " &#9662;" : ""}</button>
+      ${menu ? `<div class="rf-menu"><button type="button" class="rf-all" data-cat="${c.k}">All ${esc(c.label)}<span class="n">${DATA[c.k].length}</span></button>${menu}</div>` : ""}
+    </div>`;
+  }).join("");
+  $("rfCats").querySelectorAll(".rf-cat").forEach(el => {
+    const k = el.dataset.k;
+    el.querySelector(".rf-cat__b").onclick = e => {
+      e.stopPropagation();
+      if (!el.querySelector(".rf-menu")) { setScope({ cat: k, grp: null }); return; }
+      const open = !el.classList.contains("open");
+      closeMenus();
+      el.classList.toggle("open", open);
+    };
+    el.querySelectorAll("[data-cat]").forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      setScope({ cat: b.dataset.cat, grp: b.dataset.grp || null });
+    });
+  });
+}
+function closeMenus() { document.querySelectorAll(".rf-cat.open").forEach(x => x.classList.remove("open")); }
+document.addEventListener("click", closeMenus);
+
+function setScope(s) {
+  scope = s; query = ""; $("rfSearch").value = "";
+  closeMenus(); renderCats(); renderList();
+}
+
+/* ---------- list ---------- */
+function matches(k, it, q) {
+  return (it.n || "").toLowerCase().includes(q) || (it.sub || "").toLowerCase().includes(q)
+    || groupOf(k, it).toLowerCase().includes(q);
+}
+// What's showing: a search runs across every category (you may know the name but not where it
+// lives); otherwise the picked category/group, or everything.
+function visible() {
+  const q = query.trim().toLowerCase();
+  return CATS.map(def => {
+    let items = DATA[def.k] || [];
+    if (q) items = items.filter(it => matches(def.k, it, q));
+    else if (scope) items = scope.cat !== def.k ? [] : items.filter(it => !scope.grp || groupOf(def.k, it) === scope.grp);
+    return { def, items };
+  }).filter(x => x.items.length);
+}
+function itemCost(k, it) {
+  if (k === "spells") return it.drn || "";
+  if (k === "adept_powers") return it.pp || "";
+  if (k === "metatypes" || k === "totems") return "";
+  if (k === "matrix" && it.cat === "program") return `×${it.mult}`;
+  // Rated items list their cheapest level ("¥105,000+"); the inspector has the full table.
+  const first = it.rated && Array.isArray(it.costTbl) ? it.costTbl[0] : it.rated && it.costUnit != null ? it.costUnit : null;
+  if (first != null) return money(parseNum(first)) + "+";
+  return it.cost != null ? money(parseNum(it.cost)) + (it.rated ? "+" : "") : "";
+}
+function renderList() {
+  const shown = visible();
+  const total = shown.reduce((a, x) => a + x.items.length, 0);
+  $("rfCount").textContent = `${total} item${total === 1 ? "" : "s"}`;
+  $("rfScope").textContent = query.trim() ? "All categories"
+    : scope ? catDef(scope.cat).label + (scope.grp ? " / " + scope.grp : "") : "";
+  $("rfClear").hidden = !(scope || query.trim());
+  const multi = shown.length > 1;
+  const html = shown.map(({ def, items }) => {
+    const body = orderedGroups(def, items).map(g =>
+      `<div class="gc-cat">${esc(g.label)}</div>` + g.items.map(it => {
+        const sel = selected && selected.cat === def.k && selected.item === it;
+        return `<div class="gc-item ${sel ? "is-sel" : ""}" data-k="${def.k}" data-n="${esc(it.n)}">
+          <span>${esc(it.n)}${it.sub && def.k === "vehicles" ? `<span class="gc-item__s">${esc(it.sub)}</span>` : ""}</span>
+          <span class="gc-item__c">${esc(itemCost(def.k, it))}</span></div>`;
+      }).join("")).join("");
+    return (multi ? `<div class="rf-top">${esc(def.label)} <span class="text-dim">${items.length}</span></div>` : "") + body;
+  }).join("");
+  const list = $("rfList");
+  list.innerHTML = html || `<p class="empty-state">No matches.</p>`;
+  list.querySelectorAll("[data-n]").forEach(el => el.onclick = () => {
+    const it = (DATA[el.dataset.k] || []).find(x => x.n === el.dataset.n);
+    select(el.dataset.k, it);
+  });
+}
+function select(k, it) {
+  selected = it ? { cat: k, item: it } : null;
+  history.replaceState(null, "", it ? `#${k}/${encodeURIComponent(it.n)}` : location.pathname);
+  markSelected(); renderInsp();
+}
+function markSelected() {
+  $("rfList").querySelectorAll(".gc-item").forEach(el => el.classList.toggle("is-sel",
+    !!selected && el.dataset.k === selected.cat && el.dataset.n === selected.item.n));
+}
+// #weapons/Ares%20Predator links straight to an entry.
+function readHash() {
+  const m = /^#([a-z_]+)\/(.+)$/.exec(location.hash);
+  if (!m || !DATA[m[1]]) return;
+  const it = DATA[m[1]].find(x => x.n === decodeURIComponent(m[2]));
+  if (!it) return;
+  selected = { cat: m[1], item: it };
+  scope = { cat: m[1], grp: null }; query = ""; $("rfSearch").value = "";
+  renderCats();
+}
+
+/* ---------- inspector ---------- */
+const blk = (title, lines) => lines && lines.length
+  ? `<div class="gc-blk"><h5>${esc(title)}</h5><ul>${lines.map(x => `<li>${esc(String(x))}</li>`).join("")}</ul></div>` : "";
+const chip = (k, v) => v === undefined || v === null || v === "" ? "" : `<span><b>${esc(k)}</b> ${esc(String(v))}</span>`;
+const srcLine = it => it.src ? `${it.src}${it.pg ? " p." + it.pg : ""}` : "";
+const isNA = v => v === null || v === "" || ["NA", "N/A", "-", "—"].includes(String(v).toUpperCase());
+
+function statLine(it) {
+  if (Array.isArray(it.stats) && it.stats.length)
+    return it.stats.map(s => Array.isArray(s) ? `${esc(String(s[0]))} ${esc(String(s[1]))}` : esc(String(s))).join(DOT);
+  const parts = [];
+  [["Conceal", "conceal"], ["Reach", "reach"], ["Dmg", "dmg"], ["Mode", "mode"], ["Ammo", "ammo"],
+   ["Ballistic", "ballistic"], ["Impact", "impact"], ["Weight", "wt"]].forEach(([k, key]) => {
+    if (key in it && !isNA(it[key])) parts.push(`${k} ${esc(String(it[key]))}`);
+  });
+  return parts.join(DOT);
+}
+
+// Rated items: one row per rating so every level's price is visible at once (the shop only
+// shows the level you've picked).
+function ratingTable(it, essLabel) {
+  const max = Math.max(1, Number(it.maxRating) || 1), min = Math.max(1, Number(it.minRating) || 1);
+  const col = (tbl, r) => Array.isArray(tbl) && tbl[r - 1] != null ? tbl[r - 1] : null;
+  const cost = r => col(it.costTbl, r) != null ? parseNum(col(it.costTbl, r))
+    : it.costUnit != null ? parseNum(it.costUnit) * r : it.cost != null ? parseNum(it.cost) : null;
+  const cols = [
+    { h: it.rateLabels ? "Size" : "Rating", v: r => it.rateLabels ? (it.rateLabels[r - 1] ?? r) : r },
+    { h: "Cost", v: r => cost(r) != null ? money(cost(r)) : "—" },
+  ];
+  if (Array.isArray(it.essTbl)) cols.push({ h: essLabel, v: r => col(it.essTbl, r) ?? "—" });
+  if (Array.isArray(it.karmaTbl)) cols.push({ h: "Bond Karma", v: r => col(it.karmaTbl, r) ?? "—" });
+  if (Array.isArray(it.availTbl)) cols.push({ h: "Avail", v: r => col(it.availTbl, r) ?? it.avail ?? "—" });
+  if (Array.isArray(it.indexTbl)) cols.push({ h: "Index", v: r => col(it.indexTbl, r) ?? it.index ?? "—" });
+  const rows = [];
+  for (let r = min; r <= max; r++) rows.push(`<tr>${cols.map(c => `<td>${esc(String(c.v(r)))}</td>`).join("")}</tr>`);
+  return `<div class="gc-blk"><h5>By rating</h5><table class="rf-tbl"><tr>${cols.map(c => `<th>${esc(c.h)}</th>`).join("")}</tr>${rows.join("")}</table></div>`;
+}
+
+function itemBody(k, it) {
+  const essLabel = k === "bioware" ? "Body Index" : "Essence";
+  const meta = [];
+  if (!it.rated || (!it.costTbl && it.costUnit == null)) meta.push(chip("Cost", it.cost != null ? money(parseNum(it.cost)) : null));
+  if (it.rated && it.costUnit != null && !it.costTbl) meta.push(chip("Cost", `${money(parseNum(it.costUnit))} × Rating`));
+  if (it.karma) meta.push(chip("Bond Karma", it.karma));
+  meta.push(chip(essLabel, it.ess != null ? it.ess : it.bio));
+  meta.push(chip("Avail", it.avail), chip("Street Index", it.index), chip("Legal", it.legal), chip("Source", srcLine(it)));
+  if (it.who) meta.push(chip("Used by", it.who));
+  const sl = statLine(it);
+  const opts = Array.isArray(it.options) && it.options.length
+    ? blk("Options", it.options.map(o => [o.n, money(parseNum(o.cost)),
+        o.ess != null ? o.ess + " Ess" : "", o.avail ? "Avail " + o.avail : "", o.index != null ? "Index " + o.index : ""]
+        .filter(Boolean).join(DOT) + (o.desc ? ` — ${o.desc}` : ""))) : "";
+  return `${sl ? `<div class="gc-stat">${sl}</div>` : ""}
+    <div class="gc-meta">${meta.join("")}</div>
+    ${it.desc ? `<div class="gc-desc">${esc(it.desc)}</div>` : ""}
+    ${blk("Requirements", gearRequirementNotes(it))}${blk("Effect", it.effect)}${opts}${blk("Notes", (it.notes || []).filter(x => x !== it.desc))}
+    ${it.rated ? ratingTable(it, essLabel) : ""}`;
+}
+
+function programBody(it) {
+  const rows = [];
+  for (let r = 1; r <= 12; r++) {
+    const size = r * r * it.mult, band = MatrixPrograms.priceBand(r), base = size * MatrixPrograms.pricePerMp(r);
+    rows.push(`<tr><td>${r}</td><td>${size} Mp</td><td>${money(base)}</td><td>${money(Math.round(base * band.streetIndex))}</td><td>${esc(band.availStr)}</td><td>${band.streetIndex}</td></tr>`);
+  }
+  const atk = it._key === "attack" ? Object.entries(MatrixPrograms.attackDamageMultipliers).map(([d, m]) => `${d} ×${m}`).join(DOT) : "";
+  const optNames = (it._opts || []).map(id => (MatrixPrograms.options.find(o => o.id === id) || {}).label || id);
+  return `<div class="gc-meta">${chip("Multiplier", "×" + it.mult)}${chip("Size", "Rating² × multiplier Mp")}${atk ? chip("Attack by damage", atk) : ""}</div>
+    <div class="gc-desc" style="white-space:pre-line">${esc(it.desc)}</div>
+    ${optNames.length ? blk("Allowed options", [optNames.join(", ")]) : ""}
+    <div class="gc-blk"><h5>By rating (no options, Attack at Light)</h5>
+      <table class="rf-tbl"><tr><th>Rating</th><th>Size</th><th>Cost</th><th>Street</th><th>Avail</th><th>Index</th></tr>${rows.join("")}</table></div>
+    <p class="dim-meta">Prices from the VR2 Program Prices table. Options change size and price; build exact programs in the Deck Workshop.</p>`;
+}
+
+function totemBody(it) {
+  return [statRow("Environment", esc(it.env || "—")), statRow("Spells", esc(it.spells || "—")),
+    statRow("Spirits", esc(it.spirits || "—")), statRow("Penalty", it.penalty ? esc(it.penalty) : ""),
+    it.geas ? `<div class="gc-blk"><h5>Totem bonuses &amp; drawbacks</h5><div class="gc-desc">${esc(it.geas)}</div></div>` : ""].join("");
+}
+
+function metatypeBody(it) {
+  const attrs = ["body", "quickness", "strength", "charisma", "intelligence", "willpower"];
+  const sign = v => v > 0 ? `+${v}` : v < 0 ? String(v) : "—";
+  return `<table class="rf-tbl"><tr><th>Attribute</th><th>Modifier</th><th>Racial max</th></tr>${attrs.map(a =>
+      `<tr><td>${titleCase(a)}</td><td>${sign((it.mods || {})[a] || 0)}</td><td>${(it.max || {})[a] ?? "—"}</td></tr>`).join("")}</table>
+    <div class="gc-meta">${chip("Vision", it.vision)}</div>${blk("Notes", it.notes)}`;
+}
+
+function renderInsp() {
+  $("rfGrid").classList.toggle("is-inspecting", !!selected);
+  const box = $("rfInsp");
+  if (!selected) { box.innerHTML = `<p class="empty-state">Pick an item to see its full entry.</p>`; return; }
+  const { cat: k, item: it } = selected;
+  const sub = [catDef(k).label, groupOf(k, it) !== catDef(k).label ? groupOf(k, it) : "",
+    it.sub && it.sub !== groupOf(k, it) && k !== "totems" ? it.sub : ""].filter(Boolean).join(DOT);
+  let body;
+  if (k === "spells") body = spellInfoBody(it, null, null);
+  else if (k === "adept_powers") body = powerInfoBody(it, null);
+  else if (k === "totems") body = totemBody(it);
+  else if (k === "metatypes") body = metatypeBody(it);
+  else if (it.cat === "program") body = programBody(it);
+  else body = itemBody(k, it);
+  box.innerHTML = `<div class="gc-insp__n">${esc(it.n)}</div><div class="gc-insp__sub">${esc(sub)}</div><div class="rf-body">${body}</div>`;
+  box.scrollTop = 0;
+}
+
+/* ---------- boot ---------- */
+let searchTimer = null;
+$("rfSearch").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    query = e.target.value;
+    if (scope) { scope = null; renderCats(); }
+    renderList();
+  }, 150);
+});
+$("rfClear").onclick = () => setScope(null);
+$("rfBack").onclick = () => select(null, null);
+window.addEventListener("hashchange", () => { readHash(); renderList(); renderInsp(); scrollToSelected(); });
+
+bootstrapAuth().then(ctx => { if (ctx) loadAll(); });
+</script>
+<script src="ambiance.js"></script>
+<script>Ambiance.start('coolhaze');</script>
+</body>
+</html>
