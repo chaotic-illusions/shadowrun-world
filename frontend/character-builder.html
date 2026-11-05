@@ -567,19 +567,15 @@ function lifestylePermanentPrice() { return lifestyleMonthly() * LIFESTYLE_PERMA
 function lifestylePermanentCost() { return state.identity.lifestylePermanent ? lifestylePermanentPrice() : 0; }
 function nuyenSpent() { return gearNuyen() + contactsNuyen() + programsNuyen() + fociNuyen() + lifestylePermanentCost(); }
 // ---- deckware programs (SR2 utility cost, mirrors the Deck Workshop buy math) ----
-// buyCost = Rating^2 * multiplier * pfFactor(Rating). Multipliers are workshop-only build economics.
-const PROGRAM_MULT = {
-  analyze:3, browse:1, crash:3, defuse:2, deception:2, decrypt:1, disinfect:2,
-  evaluate:2, mirrors:3, read_write:2, relocate:2, scanner:3, validate_pgm:4,
-  compressor:2, sleaze:3, attack:2, black_hammer:20, hog:3, killjoy:10,
-  lock_on:3, poison:3, restrict:3, reveal:3, slow:4, steamroller:3,
-  armor:3, camo:3, cloak:3, medic:4, restore:3, shield:4,
-};
-const ATTACK_DMG_MULT = { L:2, M:3, S:4, D:5 };
+// buyCost = Rating^2 * multiplier * price per Mp(Rating). The multipliers and price bands live in
+// matrix-programs.js, shared with the Deck Workshop and the Codex.
+const PROGRAM_MULT = MatrixPrograms.multipliers;
+// Loadout lines store Attack's damage level as L/M/S/D; the shared table is keyed by full name.
+const ATTACK_DMG_MULT = Object.fromEntries(
+  Object.entries(MatrixPrograms.attackDamageMultipliers).map(([level, mult]) => [level[0], mult]));
 const PROGRAM_MAX_RATING = 12;
-function programPfFactor(r) { return r<=3 ? 100 : r<=6 ? 200 : r<=9 ? 500 : 1000; }
 function programMult(p) { return p.prog === "attack" ? (ATTACK_DMG_MULT[p.dmg] || 3) : (PROGRAM_MULT[p.prog] || 1); }
-function programCost(p) { const r = Math.max(1, Number(p.rating)||1); return r*r*programMult(p)*programPfFactor(r); }
+function programCost(p) { const r = Math.max(1, Number(p.rating)||1); return r*r*programMult(p)*MatrixPrograms.pricePerMp(r); }
 function programsNuyen() { return (state.programs||[]).reduce((s,p) => s + programCost(p), 0); }
 function programCatalog() { return (window.MatrixPrograms && window.MatrixPrograms.programs) || []; }
 function programDisplay(key) { const p = window.MatrixPrograms && window.MatrixPrograms.get(key); return p ? p.display : key; }

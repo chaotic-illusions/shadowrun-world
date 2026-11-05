@@ -289,7 +289,9 @@ function markSelected() {
 function readHash() {
   const m = /^#([a-z_]+)\/(.+)$/.exec(location.hash);
   if (!m || !DATA[m[1]]) return;
-  const it = DATA[m[1]].find(x => x.n === decodeURIComponent(m[2]));
+  let name;
+  try { name = decodeURIComponent(m[2]); } catch { return; }   // malformed link: just show the list
+  const it = DATA[m[1]].find(x => x.n === name);
   if (!it) return;
   selected = { cat: m[1], item: it };
   scope = { cat: m[1], grp: null }; query = ""; $("rfSearch").value = "";
@@ -381,7 +383,7 @@ function metatypeBody(it) {
   const attrs = ["body", "quickness", "strength", "charisma", "intelligence", "willpower"];
   const sign = v => v > 0 ? `+${v}` : v < 0 ? String(v) : "—";
   return `<table class="rf-tbl"><tr><th>Attribute</th><th>Modifier</th><th>Racial max</th></tr>${attrs.map(a =>
-      `<tr><td>${titleCase(a)}</td><td>${sign((it.mods || {})[a] || 0)}</td><td>${(it.max || {})[a] ?? "—"}</td></tr>`).join("")}</table>
+      `<tr><td>${titleCase(a)}</td><td>${sign((it.mods || {})[a] || 0)}</td><td>${esc(String((it.max || {})[a] ?? "—"))}</td></tr>`).join("")}</table>
     <div class="gc-meta">${chip("Vision", it.vision)}</div>${blk("Notes", it.notes)}`;
 }
 
