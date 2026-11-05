@@ -417,7 +417,12 @@ $("rfClear").onclick = () => setScope(null);
 $("rfBack").onclick = () => select(null, null);
 window.addEventListener("hashchange", () => { readHash(); renderList(); renderInsp(); scrollToSelected(); });
 
-bootstrapAuth().then(ctx => { if (ctx) loadAll(); });
+// A failed load (often a stale cached script after a deploy) says so instead of sitting on "Loading".
+bootstrapAuth().then(ctx => {
+  if (ctx) loadAll().catch(e => {
+    $("rfList").innerHTML = `<p class="empty-state" style="color:var(--red,#ff3333)">Load failed // ${esc(e.message)}. Try Ctrl+F5.</p>`;
+  });
+});
 </script>
 <script src="ambiance.js"></script>
 <script>Ambiance.start('coolhaze');</script>
