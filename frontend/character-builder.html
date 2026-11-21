@@ -88,8 +88,12 @@
   .cbx-perk--bad{color:var(--red);}
   .cbx-totemcard__geas{font-size:var(--fs-xs);color:var(--text-dim);margin:0;}
 
-  .cbx-line{display:flex;align-items:center;gap:10px;padding:6px 8px;background:#0d0d0d;border:1px solid #1a2a1a;margin-bottom:4px;}
-  .cbx-line__n{flex:1;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
+  /* Wraps so a long row (cyberware: rating + grade + three price cells) drops its controls onto a
+     second line instead of running under the shop column; the name keeps a readable width and
+     the delete X stays at the row's right end. */
+  .cbx-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 8px;background:#0d0d0d;border:1px solid #1a2a1a;margin-bottom:4px;}
+  .cbx-line__n{flex:1 1 160px;min-width:0;color:var(--text-bright);font-size:var(--fs-sm);}
+  .cbx-line > .cbx-x{margin-left:auto;}
   .cbx-line__n em{color:var(--text-dim);font-style:normal;font-size:var(--fs-xxs);}
   .cbx-line__f{color:var(--text-dim);font-size:var(--fs-xs);white-space:nowrap;}
   .cbx-x{color:rgba(255,51,51,.6);cursor:pointer;background:none;border:none;font-size:var(--fs-md);font-family:inherit;}
@@ -161,8 +165,11 @@
   .cbx-stat b{color:var(--accent-cyan);font-weight:600;}
   .cbx-shopdesc__act{display:flex;align-items:center;gap:10px;}
 
-  .cbx-resgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-  @media (max-width:900px){.cbx-resgrid{grid-template-columns:1fr;}}
+  /* Loadout | shop side by side only when each gets ~380px; otherwise they stack. The step body can
+     be narrow even on a wide screen (the side panel takes room from 1200px up), so this keys off
+     the grid's own width rather than a viewport media query. */
+  .cbx-resgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;}
+  .cbx-resgrid > *{min-width:0;}
   .cbx-owned-wrap{min-width:0;}
 
   .cbx-form{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:16px;}
