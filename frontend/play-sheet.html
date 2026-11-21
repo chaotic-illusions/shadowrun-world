@@ -3053,6 +3053,15 @@ function openManageMagic(){
   openModal('magic', '// Manage Magic', false);
   renderManageMagic();
 }
+// Highest-rated "Hermetic Library" the runner owns, from any gear bucket (0 = none). Libraries
+// never combine -- learning needs ONE library of Rating >= Force -- so this is a max, not a sum.
+function hermeticLibraryRating(){
+  let best = 0;
+  Object.values(CHAR.gear || {}).forEach(list => (Array.isArray(list) ? list : []).forEach(g => {
+    if (g && g.n === 'Hermetic Library') best = Math.max(best, Number(g.rating) || 1);
+  }));
+  return best;
+}
 function renderManageMagic(){
   const isAdept = CHAR.magic_type === 'Adept';
   let html = '';
@@ -3081,7 +3090,8 @@ function renderManageMagic(){
       <div class="field"><label>Force</label><input id="mgSpellForce" type="number" min="1" max="12" value="3"></div>
       <div class="field"><label>&nbsp;</label><button class="btn btn-green" id="mgSpellBuy" style="width:100%;">Buy</button></div>
     </div>
-    <p class="dim-meta mt-6" id="mgSpellPreview"></p>` +
+    <p class="dim-meta mt-6" id="mgSpellPreview"></p>
+    <p class="dim-meta mt-6 text-amber" id="mgSpellLibrary"></p>` +
     buyShortcutRow('foci', 'Buy Focus');
   $('#modalBody').innerHTML = html;
   initNumSteppers($('#modalBody'));
@@ -3093,6 +3103,16 @@ function renderManageMagic(){
     const info = spellCostInfo(Number($('#mgSpellForce').value) || 1);
     $('#mgSpellPreview').textContent =
       `${money(info.nuyen)} and ${info.karma} Karma (you have ${CHAR.good_karma || 0}) — ${info.days} day${info.days === 1 ? '' : 's'} ÷ successes — Sorcery + Magical Theory vs TN ${info.tn}`;
+    // Hermetic mages learn from a hermetic library (gear catalog "Hermetic Library"). Informational
+    // only -- the app never blocks the purchase, since a library can be borrowed.
+    const lib = $('#mgSpellLibrary');
+    if (CHAR.tradition === 'Hermetic') {
+      const owned = hermeticLibraryRating();
+      lib.textContent = `Hermetic mages need one hermetic library of Rating ${info.force} or higher to learn this spell (their own or a borrowed one) -- lower-rated libraries don't add together. ` +
+        (owned ? `This runner's best library is Rating ${owned}${owned < info.force ? ' -- too low for this Force' : ''}.` : 'This runner owns no library.');
+    } else {
+      lib.textContent = '';
+    }
   };
   $('#mgSpellPick').addEventListener('change', updatePreview);
   $('#mgSpellForce').addEventListener('input', updatePreview);
