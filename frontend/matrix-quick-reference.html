@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SR2 Matrix Quick Reference</title>
+<style>
+  /* Companion to quick-reference.html: one US Letter sheet, single-sided, black on white, for the
+     deckers at the table. Same type and layout rules as that sheet. Rules are Virtual Realities 2.0
+     as the app runs them (app/services/matrix_engine.py, frontend/matrix-programs.js).
+     Rebuild docs/SR2_Matrix_Quick_Reference.pdf with headless Edge:
+       msedge --headless --no-pdf-header-footer --print-to-pdf=docs\SR2_Matrix_Quick_Reference.pdf frontend\matrix-quick-reference.html */
+  @page { size: letter; margin: 0.28in; }
+  :root { --fs: 8pt; --rule: #000; --shade: #e6e6e6; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body { font-family: "Arial Narrow", "Roboto Condensed", Arial, sans-serif; font-size: var(--fs);
+         line-height: 1.13; }
+  .sheet { width: 7.94in; margin: 0 auto; }
+  @media screen { .sheet { margin: 16px auto; } }
+  section.keep { break-inside: avoid-column; }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline;
+         border-bottom: 2px solid var(--rule); padding-bottom: 1px; margin-bottom: 3px; }
+  .top h1 { margin: 0; font-size: 13pt; letter-spacing: 1px; text-transform: uppercase; }
+  .top span { font-size: 7.5pt; }
+
+  .cols { column-count: 3; column-gap: 0.14in; column-rule: 0.5px solid #999; column-fill: auto;
+          height: 10.1in; }
+  /* Sections may continue into the next column; headings, tables and list items stay whole. */
+  section { margin: 0 0 2px; }
+  h2, h3, .who { break-after: avoid-column; }
+  table, li, p, tr { break-inside: avoid-column; }
+  h2 { margin: 0 0 1px; padding: 1px 3px; background: #000; color: #fff; font-size: 8.2pt;
+       text-transform: uppercase; letter-spacing: .6px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  h3 { margin: 2px 0 0; font-size: var(--fs); text-transform: uppercase; border-bottom: 0.5px solid #000; }
+  p { margin: 0; }
+  ol, ul { margin: 0 0 1px; padding-left: 11px; }
+  li { margin: 0; }
+  b { font-weight: bold; }
+  .note { font-size: 7.4pt; }
+
+  table.fix { table-layout: fixed; }
+  table { width: 100%; border-collapse: collapse; margin: 1px 0 2px; font-size: var(--fs); }
+  th, td { padding: 0 2px; text-align: left; vertical-align: top; }
+  th { border-bottom: 0.75px solid #000; font-weight: bold; }
+  tr:nth-child(even) td { background: var(--shade); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  td.c, th.c { text-align: center; }
+  td.r, th.r { text-align: right; }
+  .steps { padding-left: 13px; }
+  /* Program table: name, then what it does at the table. */
+  table.pg td:first-child { white-space: nowrap; font-weight: bold; }
+  tr.cat td { background: none; font-weight: bold; text-transform: uppercase; font-size: 7.6pt;
+              border-bottom: 0.5px solid #000; padding-top: 2px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="top">
+    <h1>Shadowrun 2nd Edition &mdash; Matrix Quick Reference</h1>
+    <span>Virtual Realities 2.0 &middot; TN = target number &middot; never below 2</span>
+  </div>
+
+  <div class="cols">
+
+  <!-- ===================== COLUMN 1 ===================== -->
+  <section>
+    <h2>The Deck &amp; Your Pools</h2>
+    <p><b>Deck:</b> MPCP / Bod / Evasion / Masking / Sensor. No persona program above MPCP; the four together &le; MPCP &times; 3. Utilities cap at MPCP.</p>
+    <p><b>Bod</b> resists icon damage &middot; <b>Evasion</b> combat maneuvers, part of Trace Factor &middot; <b>Masking</b> hides you (Detection Factor) &middot; <b>Sensor</b> spots IC, resists maneuvers.</p>
+    <p><b>Hacking Pool</b> = (Intelligence + MPCP) &divide; 3, round down. Refreshes like other dice pools. Adds to System, attack, defense, maneuver and attribute tests. <b>Not</b> to Initiative, to Body/Willpower vs gray or black IC, or to doctrinal rolls.</p>
+    <p><b>Detection Factor (DF)</b> = (Masking + Sleaze) &divide; 2, round up. No Sleaze running: Masking &divide; 2, round up. Each suppressed IC costs 1 DF (minimum 1).</p>
+  </section>
+
+  <section>
+    <h2>Matrix Turn &amp; Initiative</h2>
+    <p>Normal Combat Turn, shared with the meat world: highest Initiative acts first, then &minus;10 and acts again while above 0.</p>
+    <p><b>Decker Initiative</b> = Reaction + 1D6, plus:</p>
+    <table class="fix">
+      <colgroup><col style="width:44%"><col></colgroup>
+      <tr><th>Source</th><th>Bonus</th></tr>
+      <tr><td>Response Increase (per level, max 3)</td><td>+2 Reaction, +1D6</td></tr>
+      <tr><td>Reality Filter</td><td>+1D6</td></tr>
+      <tr><td>Hot deck, pure DNI</td><td>+1D6</td></tr>
+      <tr><td>Cool deck (manual controls)</td><td>&minus;1D6</td></tr>
+      <tr><td>Tortoise / terminal</td><td>Reaction halved; 1D6 only, no bonuses</td></tr>
+    </table>
+    <p><b>IC Initiative</b> = IC Rating + D6 by host code:
+       Blue 1D6 &middot; Green 2D6 &middot; Orange 3D6 &middot; Red 4D6 &middot; Black 5D6.</p>
+    <p><b>Frames &amp; SKs:</b> Reaction = core rating, 1D6.</p>
+    <h3>Actions</h3>
+    <p><b>Free:</b> speak a word &middot; delay &middot; buffer a message (100 words) &middot; stop an up/download &middot; unload a program &middot; release suppressed IC &middot; suspend/restore icon &middot; Reality Filter on/off (next turn) &middot; Analyze IC/Icon &middot; Retrain.</p>
+    <p><b>Simple:</b> attack &middot; combat maneuver &middot; improvised attack &middot; Swap Memory &middot; Analyze Security / Subsystem &middot; Download, Upload, Edit File &middot; Decrypt Access/File/Slave &middot; Crash Application &middot; Relocate &middot; Monitor Slave &middot; Scan Icon.</p>
+    <p><b>Complex:</b> every Logon &middot; Graceful Logoff &middot; Null Operation &middot; every Locate &middot; Analyze Host &middot; Crash Host &middot; Decoy &middot; Disinfect &middot; Validate / Invalidate Passcode &middot; Dump Log &middot; Redirect Datatrail &middot; Control / Edit Slave &middot; comcalls &middot; Medic &middot; change deck mode.</p>
+    <p class="note"><b>Non-combat runs:</b> actions per turn = Reaction &divide; 10 (round up) + 1 per Initiative die beyond the first. Each action = 1 Complex or 2 Simple (a Free can replace a Simple).</p>
+  </section>
+
+  <section>
+    <h2>System Tests (Opposed)</h2>
+    <table class="fix">
+      <colgroup><col style="width:22%"><col style="width:30%"><col></colgroup>
+      <tr><th>Who</th><th>Dice</th><th>TN</th></tr>
+      <tr><td>Decker</td><td>Computer + Hacking Pool</td><td>Subsystem rating &minus; utility rating</td></tr>
+      <tr><td>Host / grid</td><td>Security Value</td><td>Your Detection Factor</td></tr>
+    </table>
+    <p>More decker successes, or a tie: <b>it works</b>. Every host success, win or lose, goes on your <b>security tally</b>. Probe IC adds its own roll (Probe Rating vs DF) each test.</p>
+    <p><b>Subsystems:</b> Access (logons) &middot; Control (host-wide) &middot; Index (finding things) &middot; Files (data) &middot; Slave (devices). Passive alert: all +2.</p>
+    <p><b>Interrogations</b> (Locate Access Node / File / Paydata / Slave, Dump Log): successes add up across repeats; 5 finds it; 3 tells you it isn't there. Query: very vague +2, vague +1, specific 0, sharp &minus;1 to &minus;2.</p>
+    <p><b>Ongoing</b> (up/download, Locate Paydata): seconds &divide; 3 = Combat Turns. <b>Monitored</b> (Control/Edit/Monitor Slave, comcalls): spend a Free Action every action or it aborts.</p>
+  </section>
+
+  <section>
+    <h2>Tally, Alerts &amp; Trace</h2>
+    <p>The tally crossing a <b>trigger step</b> fires that step's IC and alert changes (several at once if it jumps past several).</p>
+    <p><b>No alert</b> &rarr; reactive/trace IC. <b>Passive</b> &rarr; proactive white/gray IC, subsystems +2. <b>Active</b> &rarr; black IC, security deckers, shutdown.</p>
+    <p><b>Trace IC:</b> <i>Hunt cycle</i> &mdash; attacks vs <b>Trace Factor</b> until it hits; you can fight it. <i>Location cycle</i> &mdash; 10 &divide; its successes turns, then your jackpoint is found (proactive IC &minus;1 TN to hit you; +1 to every later tally increase; security dispatched). Beat it: crash it while hunting; Relocate (Simple, Control Test) spoofs one trace for a turn; Graceful Logoff (+trace rating to TN). Jacking out leaves 1D6 turns on the clock.</p>
+    <p><b>Trace Factor</b> = Evasion &minus; Trace IC rating + Camo + redirects left + jackpoint and bandwidth modifiers.</p>
+  </section>
+
+  <!-- ===================== COLUMN 2 ===================== -->
+  <section>
+    <h2>Cybercombat</h2>
+    <p>Attack any icon that is <b>visible</b> (it attacked you, spoke, or showed itself) or <b>located</b> (Analyze / Locate IC, Locate Decker). Every attack is a <b>Simple Action</b>.</p>
+    <ol class="steps">
+      <li><b>Attack Test:</b> decker rolls utility Rating + Hacking Pool; IC rolls Security Value. TN from the table below, by the <i>target's</i> status.</li>
+      <li><b>Damage Code:</b> decker's Attack = Rating / level coded into it (L/M/S/D). IC = IC Rating / level by host code. +1 level per 2 attack successes.</li>
+      <li><b>Resist:</b> Bod dice (IC: Security Value) vs Power; Armor utility lowers Power. &minus;1 level per 2 successes. Shield successes come off the attacker's.</li>
+    </ol>
+    <table>
+      <tr><th>Host</th><th class="c">TN vs Intruder</th><th class="c">TN vs Legit</th><th class="c">IC damage</th><th class="c">Dump shock</th></tr>
+      <tr><td>Blue</td><td class="c">6</td><td class="c">3</td><td class="c">L</td><td class="c">L</td></tr>
+      <tr><td>Green</td><td class="c">5</td><td class="c">4</td><td class="c">M</td><td class="c">M</td></tr>
+      <tr><td>Orange</td><td class="c">4</td><td class="c">5</td><td class="c">M</td><td class="c">S</td></tr>
+      <tr><td>Red</td><td class="c">3</td><td class="c">6</td><td class="c">S</td><td class="c">D</td></tr>
+      <tr><td>Black</td><td class="c">3</td><td class="c">6</td><td class="c">S</td><td class="c">D</td></tr>
+    </table>
+    <p class="note"><b>Legitimate</b> = logged on with a valid passcode (or a planted one via Validate Passcode). Everyone else is <b>Intruding</b>.</p>
+    <p><b>Icon damage:</b> L 1 box &middot; M 2 &middot; S 3 &middot; D 6. Ten boxes and the icon <b>crashes</b>; a persona crash dumps you. Wound modifiers by total boxes: 1&ndash;2 L, 3&ndash;5 M, 6&ndash;9 S.</p>
+    <p><b>Improvised attack</b> (Simple): move points out of Evasion and/or Bod as Power (&le; MPCP) for this action; Computer Test vs Power: 1 success L, 2 M, 3 S, 4+ D.</p>
+  </section>
+
+  <section>
+    <h2>Maneuvers (Simple)</h2>
+    <p>Opposed: you roll <b>Evasion</b> vs their Sensor (<b>Cloak</b> lowers your TN); they roll <b>Sensor</b> vs your Evasion (their <b>Lock-On</b> lowers theirs). IC rolls Security Value both ways. Ties go to the defender.</p>
+    <p><b>Evade Detection:</b> you vanish from them for net-success turns (each tally increase cuts 1). Not vs reactive IC in its location cycle.</p>
+    <p><b>Parry:</b> +net successes to their TN to hit you, until their next attack.</p>
+    <p><b>Position:</b> &minus;net to your next attack's TN, or +net to its Power. Lose and <i>they</i> get the bonus.</p>
+  </section>
+
+  <section>
+    <h2>Fighting IC</h2>
+    <p><b>Crash IC:</b> its rating goes on your tally (minus Skulk). <b>Suppress</b> instead (declare when it crashes): costs 1 DF until you release it. Decrypting scramble or defusing a bomb adds nothing.</p>
+    <table class="fix">
+      <colgroup><col style="width:28%"><col></colgroup>
+      <tr><th>IC</th><th>What it does</th></tr>
+      <tr><td>Killer</td><td>Icon damage (white). Fills monitor &rarr; dumped.</td></tr>
+      <tr><td>Crippler</td><td>Acid/Binder/Jammer/Marker: SV vs your Bod/Evasion/Sensor/Masking dice (TN = IC rating). &minus;1 per 2 net, until logoff.</td></tr>
+      <tr><td>Ripper</td><td>Gray crippler: also IC rating vs MPCP (+Hardening); &minus;1 chip per success, permanent.</td></tr>
+      <tr><td>Blaster</td><td>As Killer; if it dumps you, IC vs MPCP: &minus;1 MPCP per 2 successes.</td></tr>
+      <tr><td>Sparky</td><td>As Blaster; on crash, (Rating)M Physical to you.</td></tr>
+      <tr><td>Tar Baby / Pit</td><td>Opposed vs an operational utility you use; lose = utility crashes (Pit: all copies corrupted on a success vs MPCP).</td></tr>
+      <tr><td>Scramble</td><td>Guards a file/SAN/slave: Decrypt it first. Poison scramble wipes data if decrypt fails.</td></tr>
+      <tr><td>Data Bomb</td><td>Defuse: Computer vs Files/Slave &minus; Defuse. Missed &rarr; next successful access sets it off: (Rating)M.</td></tr>
+      <tr><td>Probe</td><td>Extra tally roll on every System Test.</td></tr>
+      <tr><td>Worm</td><td>SV vs MPCP on any test on that subsystem; success infects (beat Hardening).</td></tr>
+      <tr><td>Black IC</td><td>As Killer, plus Body (lethal) or Willpower (stun) to resist meat damage. After its first hit, jacking out = Complex Action + Willpower (IC Rating), and it gets one last attack.</td></tr>
+    </table>
+    <p class="note"><b>IC options:</b> Armor &minus;2 Power vs it &middot; Shield +2 TN (Penetration ignores, Chaser +4) &middot; Shift +2 TN (Chaser ignores, Penetration +4).</p>
+  </section>
+
+  <section>
+    <h2>Getting Out</h2>
+    <p><b>Simsense overload</b> (hot deck, icon hit by white/gray IC): Willpower vs L 2 / M 3 / S 5; fail = 1 Stun box. DNI-only +2, ICCM &minus;2. Cool decks and tortoises immune.</p>
+    <p><b>Dump shock</b> (crashed out, or jacking out without Graceful Logoff): Power = host Security Value, level from the table above, resist with Body. Cool deck or ICCM: &minus;2 Power and &minus;1 level each. Tortoise immune.</p>
+  </section>
+
+  <!-- ===================== PROGRAMS ===================== -->
+  <section>
+    <h2>Programs</h2>
+    <p class="note">Operational utilities lower the TN of their System Tests by their Rating. Worn-down programs reload with Swap Memory. &dagger; = not yet in the Deck Workshop.</p>
+    <table class="pg fix">
+      <colgroup><col style="width:28%"><col></colgroup>
+      <tr class="cat"><td colspan="2">Operational</td></tr>
+      <tr><td>Analyze</td><td>Analyze Host/IC/Icon/Security/Subsystem; Locate IC, Slave</td></tr>
+      <tr><td>Browse</td><td>Locate Access Node, Locate File</td></tr>
+      <tr><td>Commlink&dagger;</td><td>Make/Tap Comcall, Retrain</td></tr>
+      <tr><td>Crash</td><td>Crash Application, Crash Host</td></tr>
+      <tr><td>Deception</td><td>All Access Tests: logons, Graceful Logoff; Null Op; command sets</td></tr>
+      <tr><td>Decrypt</td><td>Decrypt Access/File/Slave (beats scramble, no tally)</td></tr>
+      <tr><td>Defuse</td><td>Disarm data bombs</td></tr>
+      <tr><td>Disinfect</td><td>Destroy worms on a subsystem</td></tr>
+      <tr><td>Evaluate</td><td>Locate Paydata. Loses 1D3 rating after each run</td></tr>
+      <tr><td>Mirrors</td><td>Decoy: proactive IC may hit a copy instead</td></tr>
+      <tr><td>Read/Write</td><td>Download, Upload, Edit File</td></tr>
+      <tr><td>Relocate</td><td>Spoof a trace in its location cycle</td></tr>
+      <tr><td>Scanner</td><td>Locate Decker, Locate Frame, Scan Icon</td></tr>
+      <tr><td>Spoof&dagger;</td><td>Control/Edit/Monitor Slave</td></tr>
+      <tr><td>Validate</td><td>Validate/Invalidate Passcode, Dump Log</td></tr>
+      <tr class="cat"><td colspan="2">Special</td></tr>
+      <tr><td>Compressor</td><td>Halves transfer size (max Rating &times; 100 Mp); decompress to use</td></tr>
+      <tr><td>Sleaze</td><td>Passive; raises Detection Factor. Run it all run</td></tr>
+      <tr><td>Track&dagger;</td><td>Trace an enemy decker, like trace IC</td></tr>
+      <tr class="cat"><td colspan="2">Offensive</td></tr>
+      <tr><td>Attack</td><td>Icon damage: Power = Rating, damage level (L/M/S/D) built in</td></tr>
+      <tr><td>Black Hammer</td><td>Lethal black IC vs deckers: Body and Bod resist; on a crash hits MPCP</td></tr>
+      <tr><td>Killjoy</td><td>As Black Hammer, Stun damage</td></tr>
+      <tr><td>Hog</td><td>Virus: target MPCP (Hog) test; &minus;1 to their highest running program per 2 net, every turn until all crash</td></tr>
+      <tr><td>Poison</td><td>&minus;1 target's Bod per 2 net (Bod resists)</td></tr>
+      <tr><td>Restrict</td><td>&minus;1 target's Evasion per 2 net</td></tr>
+      <tr><td>Reveal</td><td>&minus;1 target's Masking per 2 net</td></tr>
+      <tr><td>Slow</td><td>Proactive IC only: &minus;1 action per 2 net; none left = hangs</td></tr>
+      <tr><td>Steamroller</td><td>(Rating)D vs tar baby/pit; tar can't crash it</td></tr>
+      <tr class="cat"><td colspan="2">Defensive</td></tr>
+      <tr><td>Armor</td><td>&minus;Rating to Power vs your icon. &minus;1 rating per hit taken</td></tr>
+      <tr><td>Camo</td><td>+Rating to Trace Factor; helps Redirect Datatrail</td></tr>
+      <tr><td>Cloak</td><td>&minus;Rating to your Evasion TN in maneuvers</td></tr>
+      <tr><td>Lock-On</td><td>&minus;Rating to your Sensor TN when they maneuver</td></tr>
+      <tr><td>Medic</td><td>Complex: TN L4/M5/S6, 1 box healed per success. &minus;1 rating per use</td></tr>
+      <tr><td>Restore</td><td>Fix cut icon attributes: TN = damaging program's rating; 1 pt per 2 successes</td></tr>
+      <tr><td>Shield</td><td>When hit: Shield vs attacker's Computer (IC: SV); successes cut theirs. &minus;1 rating per use</td></tr>
+    </table>
+  </section>
+
+  </div>
+</div>
+</body>
+</html>

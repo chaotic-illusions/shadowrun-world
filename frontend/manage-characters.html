@@ -873,6 +873,23 @@ function applyFilter() {
 }
 
 // -- Modal -----------------------------------------------------
+// ?edit=<id> (e.g. a contact's name on a runner's Dossier): open that character's editor once the
+// list has loaded -- if the viewer may edit it; otherwise just filter the list down to them.
+let _deepLinkDone = false;
+function openDeepLink() {
+  if (_deepLinkDone) return;
+  _deepLinkDone = true;
+  const id = Number(new URLSearchParams(location.search).get('edit'));
+  const ch = id ? allChars.find(c => c.id === id) : null;
+  if (!ch) return;
+  if (isAdminMode() || _myCharIds.has(id) || _myContactIds.has(id)) {
+    openModal(id);
+  } else {
+    document.getElementById('filterInput').value = ch.name;
+    applyFilter();
+  }
+}
+
 function openModal(id) {
   editingId = id || null;
   const ch = id ? allChars.find(c => c.id === id) : null;
@@ -1317,6 +1334,7 @@ async function loadChars() {
     }
 
     applyFilter();
+    openDeepLink();
   } catch(e) {
     document.getElementById('tableWrap').innerHTML =
       `<div class="alert alert-err show">>> CONNECTION FAILED // ${esc(e.message)}</div>`;

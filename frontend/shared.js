@@ -263,6 +263,7 @@ function _buildToolsNavGroup() {
   const childDefs = [
     { href: 'codex.html',              label: 'Codex' },
     { href: 'quick-reference.html',    label: 'Quick Ref', newTab: true },
+    { href: 'matrix-quick-reference.html', label: 'Matrix Ref', newTab: true },
     { href: 'combat-reference.html',   label: 'Combat' },
     { href: 'manage-downtime.html',    label: 'Downtime',    gmOnly: true },
     { href: 'manage-sourcebooks.html', label: 'Sourcebooks', gmOnly: true },

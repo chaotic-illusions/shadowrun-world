@@ -143,7 +143,7 @@ def page_and_errors(_browser, _frontend_port):
 def test_builder_boots_without_errors(page_and_errors):
     page, errors = page_and_errors
     assert errors == [], f"JS errors on boot: {errors}"
-    assert page.locator(".wstep-dot").count() == 7
+    assert page.locator(".wstep-dot").count() == 8
 
 
 def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
@@ -154,7 +154,7 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
     page.wait_for_timeout(80)
 
     # Walk every step via the rail; each must render a non-empty body.
-    for i in range(7):
+    for i in range(8):
         page.locator(f'.wstep-dot[data-step="{i}"]').click()
         page.wait_for_timeout(60)
         assert page.locator("#cbxStepBody").inner_text().strip() != ""
@@ -230,18 +230,21 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
             grade_sel.select_option("Alpha")
             page.wait_for_timeout(60)
 
-    # Finish is blocked until the two starting contacts are picked (SR2 p.43).
-    page.locator('.wstep-dot[data-step="6"]').click()
+    # Finish is blocked until the two starting contacts are picked (SR2 p.43): the Compliance
+    # meter shows 0 / 2, the summary warns with a link to the Contacts step, and commit refuses.
+    assert "0 / 2" in page.locator(".cbx-meter", has_text="Starting contacts").inner_text()
+    page.locator('.wstep-dot[data-step="7"]').click()
     page.wait_for_timeout(60)
     page.fill('[data-id="handle"]', "Testrunner")
     page.locator("#cbxSubmit").click()
     page.wait_for_timeout(150)
     assert "Pick your 2 contacts" in page.locator("#cbxSubmitStatus").inner_text()
 
-    # Back on Resources: two free Contact rows; the note shows until both have a handle and
+    # The Contacts step: two free Contact rows; the note shows until both have a handle and
     # archetype. Upgrading one to a Buddy costs 10,000 and a second Buddy can't be picked.
-    page.locator('.wstep-dot[data-step="5"]').click()
+    page.locator("#cbxGoContacts").click()
     page.wait_for_timeout(60)
+    assert "CONTACTS" in page.locator("#cbxStepBody h3").inner_text().upper()
     assert [page.locator(f'[data-ctype="{i}"]').input_value() for i in (0, 1)] == ["Contact", "Contact"]
     assert page.locator("#cbxContactNote").is_visible()
     contact_costs = lambda: page.locator(".cbx-line:has([data-cname]) .cbx-line__f").all_inner_texts()
@@ -255,6 +258,7 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
         page.wait_for_timeout(40)
         page.fill(f'[data-cname="{i}"]', handle)
     assert not page.locator("#cbxContactNote").is_visible()
+    assert "2 / 2" in page.locator(".cbx-meter", has_text="Starting contacts").inner_text()
     # The Buddy filled one of the free slots, so another Contact costs 5,000.
     page.locator("#cbxAddContact").click()
     page.wait_for_timeout(40)
@@ -262,7 +266,7 @@ def test_builder_walks_all_steps_buys_gear_and_commits(page_and_errors):
     page.locator('[data-delcontact="2"]').click()
     page.wait_for_timeout(40)
 
-    page.locator('.wstep-dot[data-step="6"]').click()
+    page.locator('.wstep-dot[data-step="7"]').click()
     page.wait_for_timeout(60)
     page.locator("#cbxSubmit").click()
     page.wait_for_timeout(150)
@@ -342,7 +346,7 @@ def test_builder_convert_hydrates_and_posts_convert_dossier(_browser, _frontend_
     # Convert mode banner is shown, and the char's priorities hydrated (all five set -> committable).
     assert "Converting" in pg.inner_text("#cbxModeBanner")
     # Commit -> should POST to the convert-dossier endpoint and report "Converted".
-    pg.locator('.wstep-dot[data-step="6"]').click()
+    pg.locator('.wstep-dot[data-step="7"]').click()
     pg.wait_for_timeout(80)
     pg.locator("#cbxSubmit").click()
     pg.wait_for_timeout(200)
@@ -528,7 +532,7 @@ def test_builder_caps_followers_at_five(_browser, _frontend_port):
     pg.wait_for_selector("#cbxNewRunner", timeout=15000)
     pg.locator("#cbxNewRunner").click()
     pg.wait_for_selector(".cbx-priogrid", timeout=15000)
-    pg.locator('.wstep-dot[data-step="5"]').click()
+    pg.locator('.wstep-dot[data-step="6"]').click()
     pg.wait_for_timeout(100)
 
     # Rows 2-7 on top of the two starting contacts; five become Followers (SR2 p.44).

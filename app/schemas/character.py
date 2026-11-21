@@ -118,6 +118,59 @@ class DossierCommit(CharacterCreate):
         return v
 
 
+class DossierRebuild(BaseModel):
+    """Re-edit of a finished PC in the character builder (POST /characters/{id}/rebuild-dossier).
+
+    The builder sends the edited wizard state plus the merged sheet values it computed: items the
+    player didn't touch keep their post-chargen karma raises, items they changed become their new
+    builder value. Good Karma is not sent -- the server refunds exactly the advancement entries the
+    edit dropped. Every field is optional so only what the edit actually changed is written.
+    """
+    model_config = ConfigDict(extra='forbid')
+    chargen_state: dict
+    skills: Optional[list] = None
+    spells: Optional[list] = None
+    adept_powers: Optional[list] = None
+    body: Optional[int] = Field(default=None, ge=1, le=12)
+    quickness: Optional[int] = Field(default=None, ge=1, le=12)
+    strength: Optional[int] = Field(default=None, ge=1, le=20)
+    charisma: Optional[int] = Field(default=None, ge=1, le=20)
+    intelligence: Optional[int] = Field(default=None, ge=1, le=20)
+    willpower: Optional[int] = Field(default=None, ge=1, le=20)
+    name: Optional[str] = Field(default=None, max_length=200)
+    archetype: Optional[str] = Field(default=None, max_length=100)
+    nationality: Optional[str] = Field(default=None, max_length=100)
+    gender: Optional[str] = Field(default=None, max_length=50)
+    age: Optional[int] = Field(default=None, ge=0, le=500)
+    description: Optional[str] = None
+    computer_skill_enabled: Optional[bool] = None
+    computer_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    software_skill_enabled: Optional[bool] = None
+    software_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    matrix_skill_enabled: Optional[bool] = None
+    matrix_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    computer_br_skill_enabled: Optional[bool] = None
+    computer_br_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
+    # Cash change from contacts added in the edit (they spend Resources, which convert to cash at
+    # 10:1). Gear and existing contacts are locked, so an edit can only ever cost cash -- the server
+    # ignores anything positive.
+    nuyen_delta: int = 0
+    contacts: list[DossierContact] = Field(default_factory=list, max_length=50)
+
+    @field_validator("skills", "spells", "adept_powers")
+    @classmethod
+    def _cap_json_fields(cls, v, info):
+        return _cap_json_bytes(v, info.field_name)
+
+    @field_validator("chargen_state")
+    @classmethod
+    def _limit_chargen_state(cls, v: dict) -> dict:
+        size = len(json.dumps(v, separators=(",", ":")).encode("utf-8"))
+        if size > _MAX_CHARGEN_STATE_BYTES:
+            raise ValueError(f"chargen_state is too large ({size} bytes; limit {_MAX_CHARGEN_STATE_BYTES})")
+        return v
+
+
 class CharacterUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     name: Optional[str] = Field(default=None, max_length=200)

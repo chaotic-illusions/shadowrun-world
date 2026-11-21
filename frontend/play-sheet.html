@@ -347,6 +347,8 @@
       </div>
       <div class="ps-header__col ps-header__col--right">
         <button class="btn btn-green" id="exportBtn">&#8595; Export Official PDF</button>
+        <a class="btn btn-ghost" id="editBuilderBtn" hidden style="margin-top:6px"
+           title="Reopen this runner in the character builder to fix creation mistakes. Priorities, metatype, magic and gear stay locked; Karma spent on anything you change is refunded.">Edit in Builder</a>
       </div>
     </div>
 
@@ -784,6 +786,14 @@ async function loadCharacter(id){
   // endpoint. Owner-or-admin only; 404s for a non-owner viewing someone else's sheet, which is fine
   // since rawBaseAttr()'s backfill covers the gap and only the owner can open Manage Attributes anyway.
   CHAR.chargen_state = chargenRes.ok ? (await chargenRes.json()).state || {} : {};
+  // Owner/GM only (the chargen-state fetch 404s for anyone else), and only for a runner the builder
+  // made -- a pre-wizard character goes through Convert on the Characters page instead.
+  const prio = CHAR.chargen_state.prio || {};
+  if (chargenRes.ok && !CHAR.is_draft && Object.keys(prio).length && Object.values(prio).every(Boolean)) {
+    const eb = $('#editBuilderBtn');
+    eb.href = `character-builder.html?edit=${encodeURIComponent(CHAR.id)}`;
+    eb.hidden = false;
+  }
   // Deck Workshop (frontend/deck-workshop.html) keeps its own richer deck records (status, persona,
   // build origin) in deck_builder_state.stores.sr2_decks_v1, separate from gear.matrix -- merge both
   // sources for display since either can hold a deck the player never cross-visited the other page for.
@@ -1089,12 +1099,29 @@ function augAttr(attr){
   ((CHAR.gear && CHAR.gear.bio) || []).forEach(g => apply(g, BIO_CAT, Number(g.rating) || 1));
   return t;
 }
-// Pure pre-racial base (chargen_state.base, or backfilled). Not what karma raises are costed
-// against -- see karmaBaseAttr().
+// Pure pre-racial base: the builder's chargen base plus the Good Karma raises recorded on top of it
+// (chargen_state.advancement.attrs -- kept apart so the builder's re-edit still sees the chargen
+// base), or backfilled from the aggregate. Not what karma raises are costed against -- see
+// karmaBaseAttr().
 function rawBaseAttr(attr){
-  const stored = CHAR.chargen_state && CHAR.chargen_state.base && CHAR.chargen_state.base[attr];
-  if (stored != null) return stored;
+  const cs = CHAR.chargen_state || {};
+  const stored = cs.base && cs.base[attr];
+  if (stored != null) return stored + (((cs.advancement || {}).attrs || {})[attr] || 0);
   return Math.max(1, (CHAR[attr] || 1) - metatypeMod(attr) - augAttr(attr));
+}
+// Record Good Karma spent since chargen against each item ("skill:Etiquette", "attr:body",
+// "spell:Stunbolt") in chargen_state.advancement.karma. The builder's re-edit refunds an item's
+// entry when the player changes that item's chargen value (server: rebuild-dossier). Mutates
+// CHAR.chargen_state in place; returns true when there was anything to record, so the caller
+// knows to send chargen_state with its PATCH.
+function recordKarma(spent){
+  const keys = Object.keys(spent || {}).filter(k => spent[k] > 0);
+  if (!keys.length) return false;
+  CHAR.chargen_state = CHAR.chargen_state || {};
+  const adv = CHAR.chargen_state.advancement = CHAR.chargen_state.advancement || {};
+  adv.karma = adv.karma || {};
+  keys.forEach(k => { adv.karma[k] = (adv.karma[k] || 0) + spent[k]; });
+  return true;
 }
 // What a karma raise is costed against: base + metatype/racial bonus. Only gear/cyberware/bioware
 // bonuses (augAttr) are excluded -- an Elf's +1 Quickness is part of "base" for this purpose, e.g.
@@ -1845,7 +1872,12 @@ function renderContacts(){
     const tagHtml = canToggle && (tag === 'Contact' || tag === 'Buddy')
       ? `<button type="button" class="${cls} contact-tag-toggle" data-contact-toggle="${c.id}" title="Switch to ${tag === 'Buddy' ? 'Contact' : 'Buddy'}">${esc(tag)}</button>`
       : `<span class="${cls}">${esc(tag)}</span>`;
-    return `<div class="ps-stat-row"><span class="k">${esc(c.name)}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>${tagHtml}</div>`;
+    // A person contact has a Known Persons profile (its NPC) -- link straight to it for whoever can
+    // edit this sheet (the runner's owner may edit the contacts their runner made, and the GM all).
+    const name = (CAN_EDIT && c.npc_id)
+      ? `<a class="info-link" href="manage-characters.html?edit=${encodeURIComponent(c.npc_id)}" title="Open ${esc(c.name)}'s profile in Known Persons">${esc(c.name)}</a>`
+      : esc(c.name);
+    return `<div class="ps-stat-row"><span class="k">${name}${c.profession ? ' &mdash; '+esc(c.profession) : ''}</span>${tagHtml}</div>`;
   }).join('');
   $$('[data-contact-toggle]').forEach(b => b.onclick = () => toggleContactType(Number(b.dataset.contactToggle)));
 }
@@ -2239,6 +2271,7 @@ function openManageAttrs(){
   // the pre-cyberware value, but an Elf's racial Quickness bonus *is* part of what's raised.
   Object.values(ATTR_KEYS).forEach(key => draft[key] = karmaBaseAttr(key));
   draft.good_karma = CHAR.good_karma || 0;
+  draft.spent = {};
   openModal('attrs', '// Manage Attributes');
   renderManageAttrs();
 }
@@ -2262,6 +2295,7 @@ function renderManageAttrs(){
     if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
     draft.good_karma -= cost;
     draft[key] += 1;
+    draft.spent['attr:' + key] = (draft.spent['attr:' + key] || 0) + cost;
     renderManageAttrs();
   });
 }
@@ -2282,7 +2316,7 @@ function expandOptions(list, skillName, conc){
   return out;
 }
 function openManageSkills(){
-  draft = { skills: JSON.parse(JSON.stringify(CHAR.skills || [])), good_karma: CHAR.good_karma || 0 };
+  draft = { skills: JSON.parse(JSON.stringify(CHAR.skills || [])), good_karma: CHAR.good_karma || 0, spent: {} };
   openModal('skills', '// Manage Skills');
   renderManageSkills();
 }
@@ -2340,15 +2374,16 @@ function renderManageSkills(){
     <div class="ps-stat-row" style="border:none;padding:0 0 4px;"><span class="k">Good Karma after changes</span>
       <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` + blocks;
 
-  const buy = (cost, apply) => {
+  const buy = (s, cost, apply) => {
     if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
     apply();
     draft.good_karma -= cost;
+    draft.spent['skill:' + s.name] = (draft.spent['skill:' + s.name] || 0) + cost;
     renderManageSkills();
   };
   $$('[data-raise-skill]').forEach(b => b.onclick = () => {
     const s = draft.skills[Number(b.dataset.raiseSkill)], tier = b.dataset.raiseTier;
-    buy(Number(b.dataset.cost), () => {
+    buy(s, Number(b.dataset.cost), () => {
       if (tier === 'general') s.rating = (Number(s.rating) || 0) + 1;
       else (tier === 'conc' ? s.concs : s.specs)[Number(b.dataset.raiseIdx)].rating += 1;
     });
@@ -2356,12 +2391,12 @@ function renderManageSkills(){
   $$('[data-addconc]').forEach(sel => sel.onchange = () => {
     if (!sel.value) return;
     const s = draft.skills[Number(sel.dataset.addconc)], r = newConcRating(s);
-    buy(skillKarmaCost(s, 'conc', r), () => { s.concs = [...(s.concs || []), { name: sel.value, rating: r }]; });
+    buy(s, skillKarmaCost(s, 'conc', r), () => { s.concs = [...(s.concs || []), { name: sel.value, rating: r }]; });
   });
   $$('[data-addspec]').forEach(sel => sel.onchange = () => {
     if (!sel.value) return;
     const s = draft.skills[Number(sel.dataset.addspec)], [conc, name] = JSON.parse(sel.value), r = newSpecRating(s, conc);
-    buy(skillKarmaCost(s, 'spec', r), () => { s.specs = [...(s.specs || []), { name, rating: r, conc }]; });
+    buy(s, skillKarmaCost(s, 'spec', r), () => { s.specs = [...(s.specs || []), { name, rating: r, conc }]; });
   });
 }
 
@@ -3086,7 +3121,9 @@ function renderManageMagic(){
       CHAR.spells = CHAR.spells || [];
       CHAR.spells.push({ name, cat: cat.cat || '', force });
       const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
-      await patchChar({ spells: CHAR.spells, nuyen: nextNuyen, good_karma: karma - info.karma });
+      const fields = { spells: CHAR.spells, nuyen: nextNuyen, good_karma: karma - info.karma };
+      if (recordKarma({ ['spell:' + name]: info.karma })) fields.chargen_state = CHAR.chargen_state;
+      await patchChar(fields);
       renderMagic(); renderHeader(); renderIdentity(); renderManageMagic();
       showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}, ${info.karma} Karma`, false, true);
     } finally {
@@ -3116,20 +3153,37 @@ async function commitModal(){
     // does for CHAR.gear) -- CharacterRead never echoes chargen_state back in the PATCH response,
     // so without this the local copy would go stale and a second raise in the same session would
     // start from the pre-raise base.
+    // A record with a chargen base keeps it untouched and stores the raise in advancement.attrs
+    // instead (the builder's re-edit needs the original build); an older record without one gets
+    // its backfilled base written as before.
     const fields = {};
-    CHAR.chargen_state = CHAR.chargen_state || {};
-    const newBase = { ...(CHAR.chargen_state.base || {}) };
+    const cs = CHAR.chargen_state = CHAR.chargen_state || {};
+    const newBase = { ...(cs.base || {}) };
+    const raises = { ...((cs.advancement || {}).attrs || {}) };
     Object.values(ATTR_KEYS).forEach(key => {
-      newBase[key] = Math.max(1, draft[key] - metatypeMod(key));
+      const pure = Math.max(1, draft[key] - metatypeMod(key));
+      if (cs.base && cs.base[key] != null) {
+        const up = pure - cs.base[key];
+        if (up > 0) raises[key] = up; else delete raises[key];
+      } else {
+        newBase[key] = pure;
+      }
       fields[key] = draft[key] + augAttr(key);
     });
-    CHAR.chargen_state.base = newBase;
+    cs.base = newBase;
+    if (Object.keys(raises).length || cs.advancement) {
+      cs.advancement = cs.advancement || {};
+      cs.advancement.attrs = raises;
+    }
+    recordKarma(draft.spent);
     fields.good_karma = Math.max(0, draft.good_karma);
     fields.chargen_state = CHAR.chargen_state;
     await patchChar(fields);
     renderAttributes(); renderIdentity();
   } else if (currentModalMode === 'skills'){
-    await patchChar({ skills: draft.skills, good_karma: Math.max(0, draft.good_karma) });
+    const fields = { skills: draft.skills, good_karma: Math.max(0, draft.good_karma) };
+    if (recordKarma(draft.spent)) fields.chargen_state = CHAR.chargen_state;
+    await patchChar(fields);
     renderSkills(); renderIdentity();
   } else {
     closeModal(); return;

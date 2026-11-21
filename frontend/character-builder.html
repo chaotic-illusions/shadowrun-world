@@ -65,6 +65,9 @@
   .cbx-note{font-size:var(--fs-xs);color:var(--text-dim);margin:10px 2px 0;}
   .cbx-note.is-warn{color:var(--red);}
   .cbx-note.is-ok{color:var(--green);}
+  .cbx-review{width:100%;border-collapse:collapse;font-size:var(--fs-xs);margin:6px 0;}
+  .cbx-review th,.cbx-review td{padding:3px 6px;text-align:left;border-bottom:1px solid #1a2a1a;}
+  .cbx-review .r{text-align:right;}
 
   .cbx-pillrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
   .cbx-pill{background:var(--bg-input);border:1px solid #1a2a1a;color:var(--text-dim);padding:7px 14px;
@@ -305,7 +308,7 @@
 const LETTERS = ["A","B","C","D","E"];
 const ATTRS = ["body","quickness","strength","charisma","intelligence","willpower"];
 const ALABEL = {body:"Body",quickness:"Quickness",strength:"Strength",charisma:"Charisma",intelligence:"Intelligence",willpower:"Willpower"};
-const STEPS = ["Case Priorities","Subject Classification","Physiological Baseline","Arcane Profile","Trained Capabilities","Asset Manifest","Case File Summary"];
+const STEPS = ["Case Priorities","Subject Classification","Physiological Baseline","Arcane Profile","Trained Capabilities","Asset Manifest","Contacts","Case File Summary"];
 const CHARGEN_SKILL_MAX = 6;
 const LIFESTYLE_TIERS = ["Street","Squatter","Low","Middle","High","Luxury"];
 // SR2 p.245 monthly upkeep per tier; buying a lifestyle outright costs 100 months.
@@ -371,6 +374,7 @@ let dataReady = false;
 
 const KEY = "sr2_dossier_v1";
 let state = normalizeState(load() || freshState());
+let EDIT = null;   // { orig: the stored build, char: the runner's current sheet } while re-editing (?edit=)
 let shopFilter = "";
 let shopInspect = null;    // name of the open item in the Magic step's spell/power/program browse lists
 
@@ -414,6 +418,7 @@ function freshState() {
     programs: [],
     draftId: null,
     convertId: null,
+    editId: null,     // re-editing a finished runner (?edit=) -- see the edit-mode block below
     contacts: [{ name:"", archetype:"", type:"Contact" }, { name:"", archetype:"", type:"Contact" }],
     languages: [],
     identity: { handle:"", name:"", sex:"", age:"", archetype:"", archetypeCustom:"", nationality:"", lifestyle:"Street", lifestylePermanent:false, desc:"" },
@@ -452,7 +457,9 @@ function normalizeState(s) {
 }
 
 function save() {
-  localStorage.setItem(KEY, JSON.stringify(state));
+  // An edit of a finished runner lives only in this tab until it's committed -- never left in
+  // localStorage, where a later fresh builder visit would pick it up.
+  if (!state.editId) localStorage.setItem(KEY, JSON.stringify(state));
   const dot = document.getElementById("cbxSaveDot");
   if (dot) { dot.style.color = "var(--green)"; setTimeout(() => dot.style.color = "", 400); }
   scheduleServerSync();
@@ -544,17 +551,20 @@ function contactCosts() {
 function contactsNuyen() { return contactCosts().reduce((s,n) => s + n, 0); }
 // The two starting contacts must be filled in before the dossier is committed: two Contact/Buddy
 // rows that each have a handle and an archetype. Returns what's missing, or "" when it's met.
+function startingContactsDone() {
+  return state.contacts.filter(c => ["Contact", "Buddy"].includes(c.type || "Contact")
+    && (c.name || "").trim() && (c.archetype || "").trim()).length;
+}
 function contactProblem() {
   const free = (CHARGEN && CHARGEN.freeContacts) || 2;
   if (state.contacts.filter(c => c.type === "Buddy").length > 1) return "Only one Buddy can be taken at character creation.";
   if (state.contacts.filter(c => c.type === "Follower").length > MAX_FOLLOWERS) return `At most ${MAX_FOLLOWERS} Followers can be taken at character creation.`;
-  const done = state.contacts.filter(c => ["Contact", "Buddy"].includes(c.type || "Contact")
-    && (c.name || "").trim() && (c.archetype || "").trim()).length;
-  if (done < free) return `Pick your ${free} contacts, each with a handle and archetype -- one can be upgraded to a Buddy.`;
+  if (startingContactsDone() < free) return `Pick your ${free} contacts, each with a handle and archetype -- one can be upgraded to a Buddy.`;
   return "";
 }
 // Typing a handle doesn't re-render (that would drop focus), so update the note in place.
 function refreshContactNote() {
+  renderBudget();   // the Starting contacts meter -- outside the step body, so focus stays put
   const el = document.getElementById("cbxContactNote");
   if (!el) return;
   el.textContent = contactProblem();
@@ -838,6 +848,8 @@ function renderBudget() {
   let html = "";
   html += meter("Attribute pts", attrSpent(), attrBudget(), "");
   html += meter("Skill pts", skillSpent(), skillBudget(), "");
+  const freeContacts = (CHARGEN && CHARGEN.freeContacts) || 2;
+  html += meter("Starting contacts", Math.min(startingContactsDone(), freeContacts), freeContacts, "", startingContactsDone() >= freeContacts);
   html += `<div class="cbx-meter ${nuyenCommitted()>res().nuyen?"is-over":""}">
     <div class="cbx-meter__top"><span>Resources</span><span>${money(nuyenCommitted())} / ${money(res().nuyen)}</span></div>
     <div class="cbx-meter__bar"><i style="width:${res().nuyen?Math.min(100,(nuyenCommitted()/res().nuyen)*100):0}%"></i></div></div>`;
@@ -1432,6 +1444,24 @@ function stepResources() {
   // panel below the deck/component list; the shop-tab-per-cat and shopInspectRow machinery that used
   // to live here is gone, along with weapon/armor attach-mods (Smartgun System, Gel-Pack Armor, etc.)
   // -- those are bought post-chargen now, via play-sheet's Manage Weapons/Armor MOD controls.
+  return `
+    <p class="cbx-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources||"--"}). Cyberware also deducts
+    Essence; bioware uses Body Index. Prices are reference values from the catalogue.
+    <span class="cbx-cite">(SR2 p.46)</span></p>
+    <div class="cbx-resgrid">
+      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
+      <div>
+        <div id="cbxGearPicker"></div>
+        ${programsPanelHTML()}
+      </div>
+    </div>
+    <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
+      &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
+    <p class="cbx-help">Contacts are on the next step.</p>`;
+}
+
+/* STEP 6 -- CONTACTS (SR2 pp.43-44) */
+function stepContacts() {
   const costs = contactCosts();
   const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
@@ -1461,26 +1491,17 @@ function stepResources() {
   }).join("");
 
   return `
-    <p class="cbx-p">Budget <strong>${money(res().nuyen)}</strong> (priority ${state.prio.resources||"--"}). Cyberware also deducts
-    Essence; bioware uses Body Index. Prices are reference values from the catalogue.
-    <span class="cbx-cite">(SR2 p.46)</span></p>
-    <div class="cbx-resgrid">
-      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
-      <div>
-        <div id="cbxGearPicker"></div>
-        ${programsPanelHTML()}
-      </div>
-    </div>
-    <p class="cbx-note ${over?"is-warn":""}">${money(nuyenSpent())} spent / ${money(res().nuyen)}${over?" -- over budget!":""}
-      &mdash; Essence ${essence().toFixed(2)} / 6 &mdash; Body Index ${bodyIndex().toFixed(2)} / ${naturalAttr("body")}</p>
-
+    <p class="cbx-p">Every runner starts with <strong>two contacts</strong>, each with a handle and an archetype &mdash; one of them
+    can be upgraded to a Buddy. More contacts, gangs, tribes and followers cost Resources.
+    <span class="cbx-cite">(SR2 pp.43-44)</span></p>
     <div class="cbx-h4">Contacts <span class="cbx-h4__note">-- 2 free (upgrade one to a Buddy: 10,000&yen;), then Contact 5,000&yen; / Gang or Tribe 50,000&yen; / Follower 200,000&yen; (up to 5)</span></div>
     <div>${state.contacts.length ? contactRows : `<p class="empty-state">No contacts yet.</p>`}</div>
     <p class="cbx-note is-warn" id="cbxContactNote" ${contactProblem() ? "" : "hidden"}>${esc(contactProblem())}</p>
-    <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>`;
+    <div class="cbx-shop"><button type="button" class="btn btn-ghost btn-sm" id="cbxAddContact">+ Add contact</button></div>
+    <p class="cbx-note">${money(nuyenSpent())} of ${money(res().nuyen)} Resources spent, contacts included.</p>`;
 }
 
-/* STEP 6 -- CASE FILE SUMMARY */
+/* STEP 7 -- CASE FILE SUMMARY */
 // Skill-rating bonuses from installed cyber (e.g. Math SPU): floor(Rating/2) to matching skills.
 function augMagnitude(g) {
   const sb = g.skillBonus; if (!sb) return 0;
@@ -1551,18 +1572,23 @@ function stepFinish() {
         ${state.gear.weapons.length} weapons &middot; ${state.gear.armor.length} armor &middot; ${state.gear.cyber.length} cyber &middot; ${state.gear.bio.length} bio</p>
     </div>
     ${augSummaryHTML()}
-    <button type="button" class="btn btn-green btn-submit" id="cbxSubmit">Commit Dossier to Case File</button>
+    ${contactProblem() ? `<p class="cbx-note is-warn">${esc(contactProblem())} <a href="#" id="cbxGoContacts">Go to Contacts &rsaquo;</a></p>` : ""}
+    <button type="button" class="btn btn-green btn-submit" id="cbxSubmit">${state.editId ? "Review Changes" : "Commit Dossier to Case File"}</button>
+    <div id="cbxEditReview"></div>
     <p class="cbx-note" id="cbxSubmitStatus"></p>
-    <p class="cbx-help">Contacts you added are committed as the runner's Contact records with the dossier.</p>`;
+    <p class="cbx-help">${state.editId
+      ? "Saving replaces each attribute, skill, spell or power you changed with its new value here and refunds the Good Karma spent on it since creation. Everything you left alone keeps its Karma raises."
+      : "Contacts you added are committed as the runner's Contact records with the dossier."}</p>`;
 }
 
 /* ---------- render ---------- */
 function renderStep() {
-  const fns = [stepPriorities, stepMetatype, stepAttributes, stepMagic, stepSkills, stepResources, stepFinish];
+  const fns = [stepPriorities, stepMetatype, stepAttributes, stepMagic, stepSkills, stepResources, stepContacts, stepFinish];
   const body = document.getElementById("cbxStepBody");
   body.innerHTML = `<h3 class="cbx-h4" style="margin-top:0;font-size:var(--fs-md);color:var(--text-bright);letter-spacing:1px">
     Step ${state.step+1} - ${esc(STEPS[state.step])}</h3>` + fns[state.step]();
   wire();
+  applyEditLocks();
 }
 function render() {
   if (!dataReady) return;
@@ -1929,6 +1955,8 @@ function wire() {
   if (permEl) permEl.onchange = () => { state.identity.lifestylePermanent = permEl.checked; save(); render(); };
   const submit = document.getElementById("cbxSubmit");
   if (submit) submit.onclick = commitDossier;
+  const goContacts = document.getElementById("cbxGoContacts");
+  if (goContacts) goContacts.onclick = (e) => { e.preventDefault(); state.step = STEPS.indexOf("Contacts"); save(); render(); };
 }
 
 /* ---------- commit ---------- */
@@ -2111,7 +2139,7 @@ function setModeBanner(html) {
 async function commitDossier() {
   const status = document.getElementById("cbxSubmitStatus");
   if (!prioComplete()) { status.className = "cbx-note is-warn"; status.textContent = "Assign all five priorities before committing."; return; }
-  const viol = budgetViolations();
+  const viol = state.editId ? editBudgetViolations() : budgetViolations();
   if (viol.length) {
     status.className = "cbx-note is-warn";
     status.textContent = "Over budget -- fix before committing: " + viol.join("; ") + ".";
@@ -2140,6 +2168,7 @@ async function commitDossier() {
       + [...lowAttrs, ...lowSkills].join(", ") + ".";
     return;
   }
+  if (state.editId) { await reviewEdit(); return; }
   const converting = !!state.convertId;
   status.className = "cbx-note"; status.textContent = converting ? "Converting..." : "Committing...";
   try {
@@ -2160,6 +2189,259 @@ async function commitDossier() {
   } catch (e) {
     status.className = "cbx-note is-warn";
     status.textContent = (converting ? "Conversion" : "Commit") + " failed: " + (e.message || e);
+  }
+}
+
+/* ---------- re-editing a finished runner (?edit=<id>) ---------- */
+// Lets a player fix chargen mistakes after the fact (missing contacts, skill points spread wrong).
+// Priorities, metatype, magic choices, gear, foci, programs and lifestyle stay as they were, and
+// so do the contacts the runner already has; attributes, skills, spells, powers, identity text and
+// new contacts can change within the original budgets. Saving merges onto the CURRENT sheet: an
+// item the player didn't change keeps its post-chargen Karma raises, a changed item becomes its new
+// builder value and the Good Karma recorded against it (play-sheet.html recordKarma) is refunded.
+// The server re-locks and re-checks all of this (POST /characters/{id}/rebuild-dossier).
+const EDIT_LOCKED_SEL = [
+  "[data-cat]", "[data-kit]", "[data-mt]", "[data-magictype]", "[data-tradition]", "[data-totem]",
+  "[data-addfocus]", "[data-delfocus]", "[data-focusrate]", "[data-focusapplies]",
+  "[data-delgear]", "[data-gearrating]", "[data-gearkind]", "[data-cybergrade]", "[data-cyberrating]",
+  "[data-cyberslot]", "[data-cyberskill]", "[data-biorating]", "[data-bioskill]", "[data-rigger]",
+  "[data-progadd]", "[data-prograte]", "[data-progdmg]", "[data-progdel]",
+  '[data-id="lifestyle"]', "#cbxLifePerm",
+].join(",");
+const EDIT_STEP_NOTES = {
+  0: "Priorities are locked once a runner is made.",
+  1: "Metatype is locked once a runner is made.",
+  3: "Magic type, tradition, totem and foci are locked; spells and powers can change.",
+  5: "Gear and programs are locked -- buy or sell them on the Dossier.",
+  6: "These are the runner's contacts as they stand now, locked; you can add new ones.",
+  7: "Lifestyle is locked.",
+};
+// Budgets the edit can't change (gear is locked): an overrun the runner already had doesn't block
+// saving, unless new contacts make Resources worse.
+const EDIT_LOCKED_BUDGETS = new Set(["Resources", "Cyberware Essence", "Body Index", "Foci count", "Foci total rating"]);
+
+function applyEditLocks() {
+  if (!state.editId) return;
+  const root = document.getElementById("cbxStepBody");
+  const lock = el => {
+    el.disabled = true; el.onclick = el.onchange = el.oninput = null;
+    el.title = "Locked when editing a finished runner";
+  };
+  root.querySelectorAll(EDIT_LOCKED_SEL).forEach(lock);
+  state.contacts.forEach((c, i) => {
+    if (c.locked) root.querySelectorAll(`[data-cname="${i}"],[data-carch="${i}"],[data-ctype="${i}"],[data-delcontact="${i}"]`).forEach(lock);
+  });
+  const picker = document.getElementById("cbxGearPicker");
+  if (picker) picker.hidden = true;
+  const note = EDIT_STEP_NOTES[state.step];
+  if (note) root.querySelector("h3").insertAdjacentHTML("afterend", `<p class="cbx-note is-warn">${esc(note)}</p>`);
+}
+
+// Run a builder computation against another wizard state (every helper reads the global `state`).
+function withState(s, fn) { const keep = state; state = s; try { return fn(); } finally { state = keep; } }
+const sameJSON = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const budgetLabel = v => v.split(" (")[0];
+
+function editBudgetViolations() {
+  const before = new Set(withState(EDIT.orig, budgetViolations).map(budgetLabel));
+  const moreSpent = nuyenSpent() > withState(EDIT.orig, nuyenSpent);
+  return budgetViolations().filter(v => {
+    const l = budgetLabel(v);
+    if (!EDIT_LOCKED_BUDGETS.has(l) || !before.has(l)) return true;
+    return l === "Resources" && moreSpent;
+  });
+}
+
+// The runner's current sheet, stored build and real Contact records. The wizard's own contact list
+// drifts from the records (renamed, added on the Dossier later), so an edit shows the records,
+// locked, and only adds to them.
+async function fetchEditTarget(id) {
+  const q = encodeURIComponent(id);
+  const [cr, sr, kr] = await Promise.all([
+    // Same list (and order) the Dossier shows, so the two pages can't disagree.
+    apiFetch(`/characters/${q}`), apiFetch(`/characters/${q}/chargen-state`), apiFetch(`/characters/${q}/contacts`),
+  ]);
+  const bad = [cr, sr, kr].find(r => !r.ok);
+  if (bad) throw new Error(`could not load runner ${id} (status ${bad.status})`);
+  const list = await kr.json();
+  const contacts = (Array.isArray(list) ? list : []).map(ct => ({
+    name: ct.name || "", archetype: ct.profession || "",
+    type: ct.contact_type || contactTypeForLoyalty(ct.loyalty), locked: true,
+  }));
+  return { char: await cr.json(), cs: (await sr.json()).state || {}, contacts };
+}
+function editOrig(cs, contacts) {
+  const s = normalizeState(cs);
+  s.contacts = contacts.map(c => ({ ...c }));
+  return s;
+}
+
+async function startEdit(id) {
+  try {
+    const { char, cs, contacts } = await fetchEditTarget(id);
+    const prio = cs.prio || {};
+    if (char.is_draft || !Object.keys(prio).length || !Object.values(prio).every(Boolean)) {
+      setModeBanner(`<strong>${esc(char.name || "This runner")}</strong> wasn't made in this builder, so it can't be re-edited here.`);
+      return false;
+    }
+    state = editOrig(cs, contacts);
+    state.editId = Number(id); state.draftId = null; state.convertId = null;
+    EDIT = { orig: editOrig(cs, contacts), char };
+    state.step = 2;
+    setModeBanner(`Editing <strong>${esc(char.name || "runner")}</strong> (id ${esc(String(id))}) to fix creation mistakes &mdash; ` +
+      `priorities, metatype, magic choices and gear are locked. Karma spent on anything you change is refunded.`);
+    return true;
+  } catch (e) {
+    setModeBanner(`Could not load runner: ${esc(e.message || String(e))}`);
+    return false;
+  }
+}
+
+// The sheet values one wizard state commits to, keyed for the per-item merge.
+const powerKey = x => x.name + (x.attr ? ` (${x.attr})` : "");
+function editView(s) {
+  return withState(s, () => {
+    const p = commitPayload();
+    const byKey = (list, key) => Object.fromEntries((list || []).map(x => [key(x), x]));
+    return {
+      p,
+      skills: byKey(p.skills, x => x.name),
+      spells: byKey(p.spells, x => x.name),
+      powers: byKey(p.adept_powers, powerKey),
+      cash: startingCash(),
+    };
+  });
+}
+const skillText = k => !k ? "--" : [String(k.rating), ...(k.concs || []).map(c => `${c.name} ${c.rating}`),
+  ...(k.specs || []).map(x => `${x.name} ${x.rating}`)].join(" / ");
+const spellText = k => !k ? "--" : `Force ${k.force}`;
+const powerText = k => !k ? "--" : (k.lvl ? `level ${k.lvl}` : "taken");
+
+// Merge one list: items whose chargen value is unchanged keep the current sheet's version; changed
+// ones take the new chargen value (or go, if removed in the edit). Each change is logged with its
+// refund (Good Karma recorded against `${kind}:${name}`) and whether the sheet had post-chargen
+// changes on it that were never recorded (made before Karma was tracked, or edited by hand).
+function mergeEditList(kind, label, current, oldMap, newMap, keyOf, text, adv, changes) {
+  const changed = [...new Set([...Object.keys(oldMap), ...Object.keys(newMap)])].filter(k => !sameJSON(oldMap[k], newMap[k]));
+  if (!changed.length) return null;
+  const out = [];
+  (current || []).forEach(item => {
+    const k = keyOf(item);
+    if (!changed.includes(k)) out.push(item);
+    else if (newMap[k]) out.push(newMap[k]);
+  });
+  changed.forEach(k => { if (newMap[k] && !out.some(x => keyOf(x) === k)) out.push(newMap[k]); });
+  changed.forEach(k => {
+    const cur = (current || []).find(x => keyOf(x) === k);
+    const entry = `${kind}:${k}`;
+    const refund = adv.karma[entry] || 0;
+    delete adv.karma[entry];
+    changes.push({ label: `${label}: ${k}`, from: text(cur), to: text(newMap[k]), refund,
+                   unrecorded: !refund && !sameJSON(cur, oldMap[k]) });
+  });
+  return out;
+}
+
+// Work out everything a save would do, against a fresh copy of the runner (Karma may have been
+// spent in another tab since the edit started).
+async function planEdit() {
+  const { char, cs, contacts } = await fetchEditTarget(state.editId);
+  const orig = editOrig(cs, contacts);
+  EDIT = { orig, char };
+  const before = editView(orig), after = editView(state);
+  const adv = { karma: { ...((cs.advancement || {}).karma || {}) }, attrs: { ...((cs.advancement || {}).attrs || {}) } };
+  const changes = [], body = {};
+
+  ATTRS.forEach(a => {
+    if (orig.base[a] === state.base[a]) return;
+    const raised = adv.attrs[a] || 0;
+    body[a] = Math.max(1, (char[a] || 0) + (state.base[a] - orig.base[a]) - raised);
+    const refund = adv.karma[`attr:${a}`] || 0;
+    delete adv.karma[`attr:${a}`]; delete adv.attrs[a];
+    changes.push({ label: ALABEL[a], from: String(char[a]), to: String(body[a]), refund, unrecorded: false });
+  });
+  const skills = mergeEditList("skill", "Skill", char.skills, before.skills, after.skills, x => x.name, skillText, adv, changes);
+  if (skills) body.skills = skills;
+  const spells = mergeEditList("spell", "Spell", char.spells, before.spells, after.spells, x => x.name, spellText, adv, changes);
+  if (spells) body.spells = spells;
+  const powers = mergeEditList("power", "Power", char.adept_powers, before.powers, after.powers, powerKey, powerText, adv, changes);
+  if (powers) body.adept_powers = powers;
+
+  ["name", "archetype", "gender", "nationality", "age", "description"].forEach(f => {
+    if (!sameJSON(before.p[f], after.p[f])) {
+      body[f] = after.p[f];
+      changes.push({ label: f === "name" ? "Handle" : f[0].toUpperCase() + f.slice(1),
+                     from: String(char[f] ?? "--"), to: String(after.p[f] ?? "--"), refund: 0 });
+    }
+  });
+  // The Deck Workshop reads these columns -- refresh them when a skill they derive from changed.
+  if (["Computer", "Computer B/R"].some(n => !sameJSON(before.skills[n], after.skills[n]))) {
+    ["computer", "software", "matrix", "computer_br"].forEach(k => {
+      body[`${k}_skill_enabled`] = after.p[`${k}_skill_enabled`];
+      body[`${k}_skill_rating`] = after.p[`${k}_skill_rating`];
+    });
+  }
+  const added = withState({ ...state, contacts: state.contacts.filter(c => !c.locked) }, () => commitPayload().contacts);
+  added.forEach(c => changes.push({ label: "New contact", from: "--",
+    to: `${c.name}${c.profession ? ` (${c.profession})` : ""} -- ${c.contact_type}`, refund: 0 }));
+  body.contacts = added;
+  body.nuyen_delta = Math.min(0, after.cash - before.cash);
+
+  const sendState = JSON.parse(JSON.stringify(state));
+  sendState.contacts.forEach(c => delete c.locked);
+  sendState.editId = null;
+  sendState.advancement = adv;
+  body.chargen_state = sendState;
+  return { body, changes, refund: changes.reduce((t, c) => t + (c.refund || 0), 0), char };
+}
+
+async function reviewEdit() {
+  const status = document.getElementById("cbxSubmitStatus");
+  const box = document.getElementById("cbxEditReview");
+  let plan;
+  try { plan = await planEdit(); }
+  catch (e) { status.className = "cbx-note is-warn"; status.textContent = "Could not prepare the save: " + (e.message || e); return; }
+  if (!plan.changes.length) {
+    box.innerHTML = ""; status.className = "cbx-note"; status.textContent = "Nothing has changed yet.";
+    return;
+  }
+  const rows = plan.changes.map(c => `<tr><td>${esc(c.label)}</td><td>${esc(c.from)}</td><td>${esc(c.to)}</td>
+    <td class="r">${c.refund ? `+${c.refund}` : (c.unrecorded ? "0 *" : "")}</td></tr>`).join("");
+  const cash = plan.body.nuyen_delta;
+  const karmaNow = plan.char.good_karma || 0, cashNow = plan.char.nuyen || 0;
+  box.innerHTML = `<div class="cbx-summary">
+      <div class="cbx-summary__h" style="font-size:var(--fs-sm)">Changes to ${esc(plan.char.name || "runner")}</div>
+      <table class="cbx-review"><thead><tr><th>Item</th><th>On the sheet now</th><th>After saving</th><th class="r">Karma back</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="cbx-summary__line">Good Karma: ${karmaNow} &rarr; <strong>${karmaNow + plan.refund}</strong>${cash
+        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (new contacts)` : ""}</p>
+      ${plan.changes.some(c => c.unrecorded) ? `<p class="cbx-help">* Changed on the sheet after creation with no recorded Karma spend (before Karma was tracked, or edited by hand), so nothing is refunded automatically. Ask the GM if Karma is owed.</p>` : ""}
+      <button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>
+    </div>`;
+  status.className = "cbx-note"; status.textContent = "";
+  document.getElementById("cbxEditConfirm").onclick = () => saveEdit(plan);
+}
+
+async function saveEdit(plan) {
+  const status = document.getElementById("cbxSubmitStatus");
+  const btn = document.getElementById("cbxEditConfirm");
+  if (btn) btn.disabled = true;
+  status.className = "cbx-note"; status.textContent = "Saving...";
+  try {
+    const res = await apiFetch(`/characters/${state.editId}/rebuild-dossier`, { method: "POST", body: JSON.stringify(plan.body) });
+    if (!res.ok) await apiThrow(res);
+    const out = await res.json();
+    // Later edits in this session start from what was just saved (contacts added are now existing ones).
+    state.contacts.forEach(c => { if ((c.name || "").trim()) c.locked = true; });
+    render();
+    const st = document.getElementById("cbxSubmitStatus");
+    st.className = "cbx-note is-ok";
+    st.innerHTML = `Saved <strong>${esc(out.name)}</strong>${out.karma_refunded ? ` &mdash; ${out.karma_refunded} Good Karma refunded` : ""}. ` +
+      `<a href="play-sheet.html?id=${out.id}">Open Dossier &rsaquo;</a>`;
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    status.className = "cbx-note is-warn";
+    status.textContent = "Save failed: " + (e.message || e);
   }
 }
 
@@ -2205,12 +2487,12 @@ function draftHasContent() {
     || GEAR_KEYS.some(k => (state.gear[k] || []).length > 0);
 }
 function scheduleServerSync() {
-  if (!dataReady || state.convertId) return;   // conversions commit in place, never as a draft
+  if (!dataReady || state.convertId || state.editId) return;   // conversions/edits commit in place, never as a draft
   clearTimeout(_syncTimer);
   _syncTimer = setTimeout(() => doServerSync(false), 1500);
 }
 async function doServerSync(force) {
-  if (state.convertId) return;
+  if (state.convertId || state.editId) return;
   if (!force && !state.draftId && !draftHasContent()) return;   // don't spawn an empty draft
   const label = document.getElementById("cbxSaveLabel");
   const hadId = !!state.draftId;
@@ -2229,7 +2511,8 @@ async function doServerSync(force) {
 }
 function wizardChrome(show) {
   const disp = show ? "" : "none";
-  const bar = document.querySelector(".cbx-savebar"); if (bar) bar.style.display = disp;
+  // An edit saves only through Review Changes -> Save, so the draft save/reset bar doesn't apply.
+  const bar = document.querySelector(".cbx-savebar"); if (bar) bar.style.display = state.editId ? "none" : disp;
   const panes = document.querySelector(".md3-panes"); if (panes) panes.style.display = disp;
 }
 function landingCardHTML(d) {
@@ -2341,6 +2624,7 @@ document.getElementById("cbxReset").onclick = async () => {
 document.getElementById("cbxSaveServer").onclick = async () => {
   // Flush the debounced auto-save immediately (the server draft is the source of truth).
   if (state.convertId) { setModeBanner("Converting an existing character -- finish the commit to save."); return; }
+  if (state.editId) { setModeBanner("Editing a finished runner -- review and save your changes on the last step."); return; }
   clearTimeout(_syncTimer);
   await doServerSync(true);
 };
@@ -2352,7 +2636,10 @@ bootstrapAuth().then(async (u) => {
     const params = new URLSearchParams(location.search);
     const convertId = params.get("convert");
     const resumeId = params.get("resume");
-    if (convertId || resumeId) {
+    const editId = params.get("edit");
+    if (editId) {
+      if (await startEdit(editId)) showWizard(); else showLanding();
+    } else if (convertId || resumeId) {
       // Load an existing character into the wizard: convert overwrites it; resume continues a draft.
       const id = convertId || resumeId;
       try {

@@ -18,8 +18,8 @@ from app.models.contact import Contact
 from app.models.organization import Organization
 from app.models.reputation import Reputation
 from app.schemas.character import (
-    CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, ChargenStateRead,
-    CharacterOwnerAssign, KarmaAward, KarmaDonation,
+    CharacterCreate, CharacterUpdate, CharacterRead, CharacterSummary, DossierCommit, DossierRebuild,
+    ChargenStateRead, CharacterOwnerAssign, KarmaAward, KarmaDonation,
 )
 from app.routers.contacts import contact_type_for_loyalty, serialize_contact, visible_contacts
 from app.schemas.contact import ContactRead
@@ -126,6 +126,17 @@ def _body_index_used(gear: dict) -> float:
     return total
 
 
+def _karma_base_attr(chargen_state: dict, attr: str) -> float | None:
+    """Pre-augmentation, pre-racial rating of ``attr``: the builder's chargen base plus any Good
+    Karma raises the play sheet recorded on top of it (chargen_state.advancement.attrs). None when
+    the record has no chargen base at all (older, pre-wizard characters)."""
+    base = (chargen_state.get("base") or {}).get(attr)
+    if base is None:
+        return None
+    raised = ((chargen_state.get("advancement") or {}).get("attrs") or {}).get(attr) or 0
+    return float(base) + float(raised)
+
+
 def _validate_hard_gear_caps(char: Character, submitted: dict) -> None:
     """Reject a PATCH whose (post-update) gear would push Essence or Body Index past its cap --
     closes the gap where a direct PATCH with a hand-picked gear+essence pair could bypass the
@@ -142,7 +153,7 @@ def _validate_hard_gear_caps(char: Character, submitted: dict) -> None:
     # chargen_state.base -- a record still missing that snapshot skips this half of the check rather
     # than cap against the wrong (augmented) number.
     chargen_state = submitted.get("chargen_state", char.chargen_state) or {}
-    base_body = (chargen_state.get("base") or {}).get("body")
+    base_body = _karma_base_attr(chargen_state, "body")
     if base_body is not None:
         body_used = _body_index_used(gear)
         if body_used > float(base_body) + 1e-6:
@@ -706,6 +717,91 @@ async def convert_character_dossier(
     await db.commit()
     await db.refresh(char, attribute_names=["organization"])
     return _serialize_character(char, ctx)
+
+
+# Wizard-state keys a builder re-edit may not change: priorities, metatype and magic choices, and
+# everything bought with nuyen. The server restores them from the stored build whatever is sent.
+_REBUILD_LOCKED_KEYS = ("prio", "metatype", "magicType", "tradition", "totem", "gear", "foci", "programs")
+# Play-sheet bookkeeping stored alongside the wizard state; never the builder's to change, except
+# that a re-edit drops the advancement entries it refunds (checked in _rebuild_advancement).
+_REBUILD_PLAY_SHEET_KEYS = ("magic_rating_base",)
+
+
+def _rebuild_advancement(stored: dict, submitted: dict) -> tuple[dict, int]:
+    """Validate the advancement record a re-edit sends back and work out its karma refund.
+
+    ``advancement.karma`` maps an item ("skill:Etiquette", "attr:body", "spell:Stunbolt") to the
+    Good Karma spent on it since chargen; ``advancement.attrs`` holds the attribute raises bought
+    on top of the chargen base. Changing an item in the builder replaces it outright, so the
+    builder drops that item's entries -- it may only remove entries, never add or alter one, and
+    the refund is exactly what was recorded against the entries it removed.
+    """
+    old = stored.get("advancement") or {}
+    new = submitted.get("advancement") or {}
+    for part in ("karma", "attrs"):
+        old_part, new_part = old.get(part) or {}, new.get(part) or {}
+        for key, value in new_part.items():
+            if key not in old_part or old_part[key] != value:
+                raise HTTPException(status_code=422, detail=f"advancement.{part}.{key} doesn't match the stored record")
+    old_karma, new_karma = old.get("karma") or {}, new.get("karma") or {}
+    refund = sum(int(v or 0) for k, v in old_karma.items() if k not in new_karma)
+    return {"karma": dict(new_karma), "attrs": dict(new.get("attrs") or {})}, refund
+
+
+@router.post("/{character_id}/rebuild-dossier")
+async def rebuild_character_dossier(
+    character_id: int,
+    body: DossierRebuild,
+    db: AsyncSession = Depends(get_db),
+    ctx: dict = Depends(get_any_token),
+):
+    """Re-edit a finished PC in the character builder to correct chargen mistakes.
+
+    Priorities, metatype, magic choices, gear and lifestyle stay locked (restored from the stored
+    build). Contacts are only ever added -- this never touches the runner's existing Contact rows. Attributes, skills,
+    spells, adept powers and identity text can be reshuffled within the original budgets (the
+    builder enforces those). Good Karma spent on an item the edit changed is refunded. Owner or GM.
+    """
+    char = await _load_character(db, character_id)
+    if not _is_owner_or_admin(char, ctx):
+        raise HTTPException(status_code=404, detail="Character not found")
+    if char.is_draft or not char.is_pc:
+        raise HTTPException(status_code=400, detail="Only a finished runner can be re-edited in the builder")
+    stored = dict(char.chargen_state or {})
+    if not (stored.get("prio") or {}) or not all((stored.get("prio") or {}).values()):
+        raise HTTPException(status_code=400, detail="This runner wasn't made in the builder -- use Convert instead")
+
+    new_state = dict(body.chargen_state)
+    for key in _REBUILD_LOCKED_KEYS + _REBUILD_PLAY_SHEET_KEYS:
+        if key in stored:
+            new_state[key] = stored[key]
+        else:
+            new_state.pop(key, None)
+    for key in ("lifestyle", "lifestylePermanent"):
+        if key in (stored.get("identity") or {}):
+            new_state["identity"] = {**(new_state.get("identity") or {}), key: stored["identity"][key]}
+    new_state["advancement"], refund = _rebuild_advancement(stored, new_state)
+    new_state.update(draftId=None, convertId=None, editId=None)
+
+    fields = body.model_dump(exclude={"chargen_state", "nuyen_delta", "contacts"}, exclude_none=True)
+    for key, value in fields.items():
+        setattr(char, key, value)
+    char.chargen_state = new_state
+    char.good_karma = (char.good_karma or 0) + refund
+    char.nuyen = max(0, (char.nuyen or 0) + min(0, body.nuyen_delta))
+    _validate_hard_gear_caps(char, {})
+    if body.contacts:
+        await _create_dossier_contacts(db, char, body.contacts)
+        await db.flush()
+    # The builder's contact list is a snapshot of the runner's real Contact rows (the Dossier's
+    # list), rebuilt here rather than taken from the client, whose view can omit GM-hidden contacts.
+    rows = (await db.execute(select(Contact).where(Contact.owner_id == char.id).order_by(Contact.id))).scalars().all()
+    char.chargen_state = {**new_state, "contacts": [
+        {"name": c.name or "", "archetype": c.profession or "",
+         "type": c.contact_type or contact_type_for_loyalty(c.loyalty or 1)} for c in rows]}
+    await db.commit()
+    return {"id": char.id, "name": char.name, "karma_refunded": refund,
+            "good_karma": char.good_karma, "nuyen": char.nuyen}
 
 
 @router.get("/{character_id}", response_model=CharacterRead)
