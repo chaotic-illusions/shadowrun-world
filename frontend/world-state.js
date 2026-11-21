@@ -25,6 +25,7 @@ let archModalCharId = null;
 
 function selectArchOpt(label) {
   selectedArch = label;
+  archSaver.schedule(0);
   document.querySelectorAll('.arch-opt').forEach(el => {
     el.classList.toggle('arch-opt-selected', el.dataset.label === label);
   });
@@ -74,32 +75,58 @@ function openArchModal(charId) {
   document.getElementById('editModalTitle').textContent = 'Select Archetype';
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  archSaver.open();
 }
 
 function closeEditModal() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
   archModalCharId = null;
+  wsReloadIfSaved();
 }
 
 function editOverlayClick(e) {
-  if (e.target === document.getElementById('editOverlay')) closeEditModal();
+  if (e.target === document.getElementById('editOverlay')) requestCloseArch();
 }
 
-async function saveEditModal() {
-  const val = selectedArch === 'Custom'
+function archPickedValue() {
+  return selectedArch === 'Custom'
     ? document.getElementById('archCustomInput').value.trim()
     : selectedArch;
-  if (archModalCharId && val !== (charMapStore[archModalCharId]?.archetype || '')) {
-    await apiFetch(`${API}/characters/${archModalCharId}`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({archetype: val || null})
-    });
-    loadAll();
-  }
-  closeEditModal();
+}
+
+// Auto-save target: picking an archetype (or typing a custom one) saves it.
+async function saveEditModal() {
+  const val = archPickedValue();
+  if (!archModalCharId || val === (charMapStore[archModalCharId]?.archetype || '')) return;
+  const res = await apiFetch(`${API}/characters/${archModalCharId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({archetype: val || null})
+  });
+  if (!res.ok) await apiThrow(res);
+  if (charMapStore[archModalCharId]) charMapStore[archModalCharId].archetype = val || null;
+  _wsSaved = true;
+}
+
+// -- Edit-modal auto-save (makeManageAutoSave, shared.js) ------
+// Every World State edit modal saves as you go; OK / x / backdrop / Escape close it after flushing
+// any pending save, and the page reloads its data once on close if anything was saved.
+let _wsSaved = false;
+function wsReloadIfSaved() {
+  if (!_wsSaved) return;
+  _wsSaved = false;
+  loadAll();
+}
+function wsSaver(overlayId, footId, save, snapshot) {
+  return makeManageAutoSave({ overlayId, foot: () => document.getElementById(footId), save, snapshot });
+}
+const wsIsOpen = id => document.getElementById(id).classList.contains('open');
+
+const archSaver = wsSaver('editOverlay', 'archFoot', saveEditModal, () => archPickedValue());
+async function requestCloseArch() {
+  if (wsIsOpen('editOverlay') && await archSaver.flush()) closeEditModal();
 }
 
 // -- Tooltip definitions ---------------------------------------
@@ -327,9 +354,9 @@ function openNpcModal(charId) {
 
   // Show footer (Save Notes / Cancel) for GMs only
   const foot = document.getElementById('npcModalFoot');
+  _npcModalCharId = charId;
   if (isAdmin()) {
     foot.style.display = '';
-    document.getElementById('npcNotesSaveBtn').onclick = () => saveNpcNotes(charId);
   } else {
     foot.style.display = 'none';
   }
@@ -342,31 +369,42 @@ function openNpcModal(charId) {
 
   document.getElementById('npcOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (isAdmin()) npcSaver.open();
 }
 
 function closeNpcModal() {
+  if (!wsIsOpen('npcOverlay')) return;
+  npcSaver.cancel();
   resumePoll();
   document.getElementById('npcOverlay').classList.remove('open');
   document.body.style.overflow = '';
+  wsReloadIfSaved();
 }
 
-async function saveNpcNotes(charId) {
-  const note = document.getElementById('npcNotesInput')?.value.trim() || null;
+let _npcModalCharId = null;
+const npcNotesValue = () => document.getElementById('npcNotesInput')?.value.trim() || null;
+// Auto-save target: the GM Notes box.
+async function saveNpcNotes() {
+  const charId = _npcModalCharId;
+  if (!charId) return;
+  const note = npcNotesValue();
   const res = await apiFetch(`${API}/characters/${charId}`, {
     method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ notes: note })
   });
-  if (res.ok) {
-    if (charMapStore[charId]) charMapStore[charId].notes = note;
-    const a = document.getElementById('npcNotesAlert');
-    if (a) { a.textContent = '// notes saved'; a.className = 'alert show'; setTimeout(() => a.className = 'alert', 2000); }
-  }
+  if (!res.ok) await apiThrow(res);
+  if (charMapStore[charId]) charMapStore[charId].notes = note;
+  _wsSaved = true;
+}
+const npcSaver = wsSaver('npcOverlay', 'npcModalFoot', saveNpcNotes, () => String(npcNotesValue()));
+async function requestCloseNpc() {
+  if (wsIsOpen('npcOverlay') && await npcSaver.flush()) closeNpcModal();
 }
 
 // Generic boolean field reveal toggle -- pass any PATCH-able boolean field name.
 // Usage: toggleDataReveal(charId, 'show_background', currentBoolValue)
 async function toggleDataReveal(charId, field, currentState) {
+  await npcSaver.flush();
   const res = await apiFetch(`${API}/characters/${charId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
@@ -380,6 +418,7 @@ async function toggleDataReveal(charId, field, currentState) {
 
 // Same as toggleDataReveal but refreshes the PC dossier modal instead of the NPC modal.
 async function togglePcReveal(charId, field, currentState) {
+  await charEditSaver.flush();
   const res = await apiFetch(`${API}/characters/${charId}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
@@ -392,10 +431,13 @@ async function togglePcReveal(charId, field, currentState) {
 }
 
 function npcOverlayClick(e) {
-  if (e.target === document.getElementById('npcOverlay')) closeNpcModal();
+  if (e.target === document.getElementById('npcOverlay')) requestCloseNpc();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeNpcModal(); closeEditModal(); closeOrgEditModal(); closeLocEditModal(); closeCharEditModal(); } });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  requestCloseNpc(); requestCloseArch(); requestCloseOrgEdit(); requestCloseLocEdit(); requestCloseCharEdit(); requestCloseStanding();
+});
 
 // -- Contact Promotion (NPC modal) -----------------------------
 function renderPromoteSection(charId) {
@@ -953,11 +995,13 @@ function openStandingEditor(charId) {
       org_name:   o.name,
       standing_id: standingByOrg[o.id]?.id ?? null,
       standing:   standingByOrg[o.id]?.standing ?? 0,
+      saved:      standingByOrg[o.id]?.standing ?? 0,   // value on the server (auto-save diff)
     }));
   document.getElementById('seTitle').textContent = `Faction Standings // ${charName}`;
   document.getElementById('sePcBadge').innerHTML = '';
   renderStandingEditor();
   document.getElementById('standingEditorOverlay').classList.add('open');
+  standingSaver.open();
 }
 
 function renderStandingEditor() {
@@ -990,49 +1034,56 @@ function seUpdateLabel(input, idx) {
 }
 
 function closeStandingEditor() {
+  if (!wsIsOpen('standingEditorOverlay')) return;
   resumePoll();
   document.getElementById('standingEditorOverlay').classList.remove('open');
+  wsReloadIfSaved();
 }
 
+// Auto-save target: write only the rows whose value changed since the last save. A row that goes
+// back to 0 is deleted; a new non-zero row is created and remembers its id, so a later edit
+// updates it instead of creating a duplicate.
 async function saveStandingEditor() {
-  // Only send rows that differ from 0 or have an existing standing_id
-  const changes = _seOrgData.filter(o => o.standing !== 0 || o.standing_id !== null);
-  let errors = 0;
+  const changes = _seOrgData.filter(o => o.standing !== o.saved);
+  const failed = [];
   for (const o of changes) {
+    const want = o.standing;
     try {
-      if (o.standing_id !== null) {
-        // Update existing
+      if (o.standing_id !== null && want === 0) {
+        const r = await apiFetch(`${API}/reputation/standings/${o.standing_id}`, { method: 'DELETE' });
+        if (!r.ok && r.status !== 204) await apiThrow(r);
+        o.standing_id = null;
+      } else if (o.standing_id !== null) {
         const r = await apiFetch(`${API}/reputation/standings/${o.standing_id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ standing: o.standing }),
+          body: JSON.stringify({ standing: want }),
         });
         if (!r.ok) await apiThrow(r);
-        // Delete if zeroed out
-        if (o.standing === 0) {
-          await apiFetch(`${API}/reputation/standings/${o.standing_id}`, {
-            method: 'DELETE',
-          });
-        }
-      } else if (o.standing !== 0) {
-        // Create new
+      } else if (want !== 0) {
         const r = await apiFetch(`${API}/reputation/standings`, {
           method: 'POST',
           body: JSON.stringify({
             character_id:    _seCharId,
             organization_id: o.org_id,
-            standing:        o.standing,
+            standing:        want,
           }),
         });
         if (!r.ok) await apiThrow(r);
+        o.standing_id = (await r.json()).id ?? null;
       }
+      o.saved = want;
+      _wsSaved = true;
     } catch(e) {
-      errors++;
+      failed.push(o.org_name);
       console.warn(`Standing save failed for ${o.org_name}:`, e);
     }
   }
-  await loadAll();
-  closeStandingEditor();
-  if (errors) wsAlert(`${errors} standing(s) failed to save -- check console.`);
+  if (failed.length) throw new Error(`${failed.length} standing(s) failed (${failed.join(', ')})`);
+}
+const standingSaver = wsSaver('standingEditorOverlay', 'standingFoot', saveStandingEditor,
+  () => JSON.stringify(_seOrgData.map(o => o.standing)));
+async function requestCloseStanding() {
+  if (wsIsOpen('standingEditorOverlay') && await standingSaver.flush()) closeStandingEditor();
 }
 
 async function resetPcData() {
@@ -1663,13 +1714,17 @@ function openOrgEditModal(orgId) {
   orgEditOverlayEl.classList.add(orgClass(org.org_type));
   document.getElementById('orgEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  orgEditSaver.open();
 }
 
 function closeOrgEditModal() {
+  if (!wsIsOpen('orgEditOverlay')) return;
+  orgEditSaver.cancel();
   resumePoll();
   document.getElementById('orgEditOverlay').classList.remove('open');
   document.body.style.overflow = '';
   oeEditingId = null;
+  wsReloadIfSaved();
 }
 
 function setOeReadOnly(isReadOnly) {
@@ -1679,14 +1734,8 @@ function setOeReadOnly(isReadOnly) {
   document.getElementById('orgEditFoot').style.display = isReadOnly ? 'none' : '';
 }
 
-async function saveOrgEdit() {
+function buildOrgEditPayload() {
   const name = document.getElementById('oe-name').value.trim();
-  if (!name) {
-    const a = document.getElementById('oeAlert');
-    a.textContent = 'ERROR // Designation is required.';
-    a.className = 'alert show alert-err';
-    return;
-  }
   const payload = {
     name,
     org_type:     (() => { const v = document.getElementById('oe-org_type').value; return v === 'Custom' ? (document.getElementById('oe-org_type-custom').value.trim() || null) : (v || null); })(),
@@ -1703,19 +1752,23 @@ async function saveOrgEdit() {
     revealed_ally_ids:   oeGetRevealed('oeAllyList'),
     revealed_enemy_ids:  oeGetRevealed('oeEnemyList'),
     ltgs:         oeGetLTGs(),
-  };
-  try {
-    const res = await apiFetch(`${API}/organizations/${oeEditingId}`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-    });
-    if (!res.ok) await apiThrow(res);
-    closeOrgEditModal();
-    loadAll();
-  } catch(e) {
-    const a = document.getElementById('oeAlert');
-    a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
-    a.className = 'alert show alert-err';
-  }
+  };  return payload;
+}
+
+// Auto-save target (GM view only). Throws on failure; the footer shows the reason.
+async function saveOrgEdit() {
+  if (!oeEditingId) return;
+  const payload = buildOrgEditPayload();
+  if (!payload.name) throw new Error('Designation is required');
+  const res = await apiFetch(`${API}/organizations/${oeEditingId}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  });
+  if (!res.ok) await apiThrow(res);
+  _wsSaved = true;
+}
+const orgEditSaver = wsSaver('orgEditOverlay', 'orgEditFoot', saveOrgEdit, () => JSON.stringify(buildOrgEditPayload()));
+async function requestCloseOrgEdit() {
+  if (wsIsOpen('orgEditOverlay') && await orgEditSaver.flush()) closeOrgEditModal();
 }
 
 // -- Location Edit Modal ---------------------------------------
@@ -1793,6 +1846,7 @@ function openLocEditModal(locId) {
     sel.innerHTML = '<option value="">-- Independent / Unknown --</option>' +
       Object.values(orgStore).map(o => `<option value="${o.id}"${o.id===loc.controlling_org_id?' selected':''}>${esc(o.name)}</option>`).join('');
     document.getElementById('leAlert').className = 'alert';
+    locEditSaver.open();
   } else {
     document.getElementById('locFormContent').style.display = 'none';
     document.getElementById('locEditFoot').style.display = 'none';
@@ -1811,12 +1865,15 @@ function openLocEditModal(locId) {
 }
 
 function closeLocEditModal() {
+  if (!wsIsOpen('locEditOverlay')) return;
+  locEditSaver.cancel();
   resumePoll();
   document.getElementById('locEditOverlay').classList.remove('open');
   document.getElementById('locDossierView').style.display = 'none';
   document.getElementById('locFormContent').style.display = '';
   document.body.style.overflow = '';
   leEditingId = null;
+  wsReloadIfSaved();
 }
 
 async function saveLocNotes() {
@@ -1834,19 +1891,12 @@ async function saveLocNotes() {
   }
 }
 
-async function saveLocEdit() {
-  const name = document.getElementById('le-name').value.trim();
-  if (!name) {
-    const a = document.getElementById('leAlert');
-    a.textContent = 'ERROR // Name is required.';
-    a.className = 'alert show alert-err';
-    return;
-  }
+function buildLocEditPayload() {
   const ctrlVal = document.getElementById('le-controlling_org_id').value;
   let leLocType = document.getElementById('le-location_type').value;
   if (leLocType === 'Custom') leLocType = document.getElementById('le-location_type-custom').value.trim() || null;
-  const payload = {
-    name,
+  return {
+    name:               document.getElementById('le-name').value.trim(),
     location_type:      leLocType,
     city:               document.getElementById('le-city').value.trim() || null,
     district:           document.getElementById('le-district').value.trim() || null,
@@ -1855,18 +1905,22 @@ async function saveLocEdit() {
     description:        document.getElementById('le-description').value.trim() || null,
     notes:              document.getElementById('le-notes').value.trim() || null,
   };
-  try {
-    const res = await apiFetch(`${API}/locations/${leEditingId}`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-    });
-    if (!res.ok) await apiThrow(res);
-    closeLocEditModal();
-    loadAll();
-  } catch(e) {
-    const a = document.getElementById('leAlert');
-    a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
-    a.className = 'alert show alert-err';
-  }
+}
+
+// Auto-save target (GM view only). Throws on failure; the footer shows the reason.
+async function saveLocEdit() {
+  if (!leEditingId) return;
+  const payload = buildLocEditPayload();
+  if (!payload.name) throw new Error('Name is required');
+  const res = await apiFetch(`${API}/locations/${leEditingId}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  });
+  if (!res.ok) await apiThrow(res);
+  _wsSaved = true;
+}
+const locEditSaver = wsSaver('locEditOverlay', 'locEditFoot', saveLocEdit, () => JSON.stringify(buildLocEditPayload()));
+async function requestCloseLocEdit() {
+  if (wsIsOpen('locEditOverlay') && await locEditSaver.flush()) closeLocEditModal();
 }
 
 // -- Character Edit Modal --------------------------------------
@@ -1995,10 +2049,10 @@ function openCharEditModal(charId) {
       `<div class="npc-modal-gm-banner gm-only">// GM EYES ONLY //</div>` +
       `<div class="field gm-only"><textarea id="pcNotesInput" rows="4" class="ws-notes-ta">${esc(char.notes || '')}</textarea></div>`;
 
-    document.getElementById('ceSaveBtn').textContent = '>> Save Notes';
     document.getElementById('ceAlert').className = 'alert';
     document.getElementById('charEditOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
+    if (isAdminMode()) charEditSaver.open();
     return;
 
   } else {
@@ -2024,52 +2078,31 @@ function openCharEditModal(charId) {
     }
 
     setCeDossierMode(false);
-    document.getElementById('ceSaveBtn').textContent = '>> Save Changes';
     cePcToggle();
   }
 
   document.getElementById('ceAlert').className = 'alert';
   document.getElementById('charEditOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (isAdminMode()) charEditSaver.open();
 }
 
 function closeCharEditModal() {
+  if (!wsIsOpen('charEditOverlay')) return;
+  charEditSaver.cancel();
   resumePoll();
   document.getElementById('charEditOverlay').classList.remove('open');
   document.body.style.overflow = '';
   ceEditingId = null;
+  wsReloadIfSaved();
 }
 
-async function saveCharEdit() {
+// What the open modal would save: a PC dossier saves only its GM Notes; an NPC its whole record.
+function buildCharEditPayload() {
   const char = charMapStore[ceEditingId];
-
-  // -- PC DOSSIER MODE: only save GM Notes ----------------------
-  if (char?.is_pc) {
-    try {
-      const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
-        method: 'PATCH', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ notes: document.getElementById('pcNotesInput').value.trim() || null }),
-      });
-      if (!res.ok) await apiThrow(res);
-      closeCharEditModal();
-      loadAll();
-    } catch(e) {
-      const a = document.getElementById('ceAlert');
-      a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
-      a.className = 'alert show alert-err';
-    }
-    return;
-  }
-
-  // -- NPC EDIT MODE: full save ----------------------------------
+  if (char?.is_pc) return { notes: document.getElementById('pcNotesInput')?.value.trim() || null };
   const name  = document.getElementById('ce-name').value.trim();
   const title = document.getElementById('ce-title').value.trim();
-  if (!name || !title) {
-    const a = document.getElementById('ceAlert');
-    a.textContent = `ERROR // ${!name ? 'Name' : 'Title'} is required.`;
-    a.className = 'alert show alert-err';
-    return;
-  }
   const archSel = document.getElementById('ce-archetype');
   const arch = archSel.value === 'Custom'
     ? document.getElementById('ce-arch-custom').value.trim()
@@ -2095,18 +2128,26 @@ async function saveCharEdit() {
   };
   payload.connection     = parseInt(document.getElementById('ce-connection').value) || 1;
   payload.contact_skills = document.getElementById('ce-contact_skills').value.split('\n').map(s => s.trim()).filter(Boolean);
-  try {
-    const res = await apiFetch(`${API}/characters/${ceEditingId}`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-    });
-    if (!res.ok) await apiThrow(res);
-    closeCharEditModal();
-    loadAll();
-  } catch(e) {
-    const a = document.getElementById('ceAlert');
-    a.textContent = `>> TRANSMISSION FAILED // ${e.message}`;
-    a.className = 'alert show alert-err';
-  }
+  return payload;
+}
+
+// Auto-save target (GM view only). Throws on failure; the footer shows the reason.
+async function saveCharEdit() {
+  if (!ceEditingId) return;
+  const id = ceEditingId;
+  const payload = buildCharEditPayload();
+  if (!charMapStore[id]?.is_pc && !payload.name) throw new Error('Name is required');
+  const res = await apiFetch(`${API}/characters/${id}`, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  });
+  if (!res.ok) await apiThrow(res);
+  // Keep the cached record current: the PC dossier re-renders from it (e.g. after a reveal toggle).
+  if (charMapStore[id]) Object.assign(charMapStore[id], payload);
+  _wsSaved = true;
+}
+const charEditSaver = wsSaver('charEditOverlay', 'charEditFoot', saveCharEdit, () => JSON.stringify(buildCharEditPayload()));
+async function requestCloseCharEdit() {
+  if (wsIsOpen('charEditOverlay') && await charEditSaver.flush()) closeCharEditModal();
 }
 
 // -- Team Karma (SR2 p.191) -------------------------------------

@@ -38,7 +38,7 @@
           <option value="">All Continents</option>
         </select>
       </div>
-      <button class="btn btn-green gm-only" onclick="openModal()">+ New RTG</button>
+      <button class="btn btn-green gm-only" onclick="newRTG()">+ New RTG</button>
     </div>
 
     <div id="tableWrap">
@@ -52,7 +52,7 @@
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New RTG</div>
-      <button class="btn btn-red" onclick="closeModal()">x</button>
+      <button class="btn btn-red" onclick="requestClose()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
@@ -109,10 +109,9 @@
         <textarea id="f-notes" rows="3" placeholder="Campaign notes, special rules..."></textarea>
       </div>
     </div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green flex-1" onclick="saveRTG()">&gt;&gt; Save Entry</button>
+    <div class="edit-modal-foot" id="editFoot" data-noautosave>
       <button class="btn btn-red" id="deleteBtn" style="display:none" onclick="deleteRTG()">&gt;&gt; Delete</button>
-      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="requestClose()">OK</button>
     </div>
   </div>
 </div>
@@ -206,23 +205,49 @@ function openModal(id) {
   pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  rtgSaver.open();
+}
+
+// "+ New RTG" creates the record straight away (codes are unique, so it starts as NEW-<n>), then
+// opens it; every edit auto-saves.
+async function newRTG() {
+  try {
+    const taken = new Set(allRTGs.map(r => r.code));
+    let n = 1;
+    while (taken.has(`NEW-${n}`)) n++;
+    const res = await apiFetch(`${API}/rtgs/`, { method: 'POST', body: JSON.stringify({ code: `NEW-${n}`, region: '' }) });
+    if (!res.ok) await apiThrow(res);
+    const created = await res.json();
+    allRTGs.push(created);
+    openModal(created.id);
+    document.getElementById('f-code').select();
+  } catch (e) {
+    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+  }
 }
 
 function closeModal() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
+  loadRTGs();
+}
+
+// OK, backdrop click and Escape: save anything pending first; stay open if that save fails.
+async function requestClose() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
+  if (await rtgSaver.flush()) closeModal();
 }
 
 function overlayClick(e) {
-  if (e.target === document.getElementById('editOverlay')) closeModal();
+  if (e.target === document.getElementById('editOverlay')) requestClose();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') requestClose(); });
 
-async function saveRTG() {
+function buildRTGPayload() {
   const code = document.getElementById('f-code').value.trim();
-  if (!code) { showAlert(document.getElementById('modalAlert'), 'RTG Code is required.', true); return; }
 
   const payload = {
     code,
@@ -237,30 +262,41 @@ async function saveRTG() {
     canonical:        document.getElementById('f-canonical').checked,
     notes:            document.getElementById('f-notes').value.trim() || null,
   };
+  return payload;
+}
 
-  try {
-    const url    = editingId ? `${API}/rtgs/${editingId}` : `${API}/rtgs/`;
-    const method = editingId ? 'PATCH' : 'POST';
-    const res = await apiFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok) await apiThrow(res);
-    closeModal();
-    showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // RTG "${code}" saved.`, false);
-    await loadRTGs();
-  } catch(e) {
-    showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
+// Auto-save target (makeManageAutoSave). Throws on failure; the footer shows the reason.
+async function saveRTG() {
+  if (!editingId) return;
+  const payload = buildRTGPayload();
+  if (!payload.code) throw new Error('RTG Code is required');
+  const res = await apiFetch(`${API}/rtgs/${editingId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!res.ok) await apiThrow(res);
+  const saved = await res.json().catch(() => null);
+  if (saved && saved.id) {
+    const k = allRTGs.findIndex(r => r.id === saved.id);
+    if (k >= 0) allRTGs[k] = saved;
+    document.getElementById('modalTitle').textContent = `Edit: ${saved.code}`;
   }
 }
+
+const rtgSaver = makeManageAutoSave({
+  overlayId: 'editOverlay',
+  foot: document.getElementById('editFoot'),
+  save: saveRTG,
+  snapshot: () => JSON.stringify(buildRTGPayload()),
+});
 
 async function deleteRTG() {
   if (!editingId) return;
   const code = document.getElementById('f-code').value;
     if (!await showConfirm(`DELETE RTG "${code}"? This cannot be undone.`, 'Confirm')) return;
   try {
+    rtgSaver.cancel();
     const res = await apiFetch(`${API}/rtgs/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await apiThrow(res);
+    if (!res.ok && res.status !== 204) { rtgSaver.open(); await apiThrow(res); }
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // RTG "${code}" deleted.`, false);
-    await loadRTGs();
   } catch(e) {
     showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
   }

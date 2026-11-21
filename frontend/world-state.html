@@ -79,12 +79,11 @@
         <div class="ltg-modal-title" id="npcModalName"></div>
         <div id="npcModalBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red self-center" onclick="closeNpcModal()">x Close</button>
+      <button class="btn btn-red self-center" onclick="requestCloseNpc()">x Close</button>
     </div>
     <div class="ltg-modal-body" id="npcModalBody"></div>
-    <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none">
-      <button class="btn btn-green flex-1 flex-center" id="npcNotesSaveBtn">>> Save Notes</button>
-      <button class="btn btn-red" onclick="closeNpcModal()">Cancel</button>
+    <div class="edit-modal-foot gm-only" id="npcModalFoot" style="display:none" data-noautosave>
+      <button class="btn btn-green" onclick="requestCloseNpc()">OK</button>
     </div>
   </div>
 </div>
@@ -97,23 +96,22 @@
     <div class="arch-opt-list" id="archOptList"></div>
     <input type="text" id="archCustomInput" class="edit-modal-input" placeholder="Enter archetype..." style="display:none"
       oninput="selectedArch=this.value"
-      onkeydown="if(event.key==='Enter')saveEditModal();if(event.key==='Escape')closeEditModal();">
-    <div class="edit-modal-btns">
-      <button class="btn btn-green" onclick="saveEditModal()">Save</button>
-      <button class="btn btn-red" onclick="closeEditModal()">Cancel</button>
+      onkeydown="if(event.key==='Enter'||event.key==='Escape')requestCloseArch();">
+    <div class="edit-modal-btns" id="archFoot" data-noautosave>
+      <button class="btn btn-green" onclick="requestCloseArch()">OK</button>
     </div>
   </div>
 </div>
 
 <!-- -- ORG EDIT MODAL --------------------------------------- -->
-<div id="orgEditOverlay" class="edit-overlay" onclick="if(event.target===this)closeOrgEditModal()">
+<div id="orgEditOverlay" class="edit-overlay" onclick="if(event.target===this)requestCloseOrgEdit()">
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div>
         <div class="edit-modal-title" id="oeTitle">Edit Organization</div>
         <div id="oeDossierBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red" onclick="closeOrgEditModal()">x</button>
+      <button class="btn btn-red" onclick="requestCloseOrgEdit()">x</button>
     </div>
     <div class="edit-modal-body" id="orgEditBody">
       <div id="oeAlert" class="alert"></div>
@@ -253,22 +251,21 @@
       </div>
       </div><!-- /orgFormContent -->
     </div>
-    <div class="edit-modal-foot" id="orgEditFoot">
-      <button class="btn btn-green flex-1 flex-center" onclick="saveOrgEdit()">&gt;&gt; Save Changes</button>
-      <button class="btn btn-red" onclick="closeOrgEditModal()">Cancel</button>
+    <div class="edit-modal-foot" id="orgEditFoot" data-noautosave>
+      <button class="btn btn-green" onclick="requestCloseOrgEdit()">OK</button>
     </div>
   </div>
 </div>
 
 <!-- -- LOCATION EDIT MODAL ---------------------------------- -->
-<div id="locEditOverlay" class="ltg-overlay loc-overlay" onclick="if(event.target===this)closeLocEditModal()">
+<div id="locEditOverlay" class="ltg-overlay loc-overlay" onclick="if(event.target===this)requestCloseLocEdit()">
   <div class="ltg-modal loc-modal">
     <div class="ltg-modal-head loc-modal-head">
       <div>
         <div class="ltg-modal-title loc-modal-title" id="leTitle">Site Report // Location</div>
         <div id="leBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red self-center" onclick="closeLocEditModal()">x Close</button>
+      <button class="btn btn-red self-center" onclick="requestCloseLocEdit()">x Close</button>
     </div>
     <!-- Runner dossier view -->
     <div id="locDossierView" class="ltg-modal-body" style="display:none"></div>
@@ -371,22 +368,21 @@
       <div class="field"><label>Notes (GM Only)</label><textarea id="le-notes" rows="3" placeholder="Secret details, plot hooks..."></textarea></div>
     </div>
     </div><!-- /locFormContent -->
-    <div class="edit-modal-foot" id="locEditFoot">
-      <button class="btn btn-green flex-1 flex-center" onclick="saveLocEdit()">&gt;&gt; Save Changes</button>
-      <button class="btn btn-red" onclick="closeLocEditModal()">Cancel</button>
+    <div class="edit-modal-foot" id="locEditFoot" data-noautosave>
+      <button class="btn btn-green" onclick="requestCloseLocEdit()">OK</button>
     </div>
   </div>
 </div>
 
 <!-- -- CHARACTER EDIT MODAL --------------------------------- -->
-<div id="charEditOverlay" class="ltg-overlay" onclick="if(event.target===this)closeCharEditModal()">
+<div id="charEditOverlay" class="ltg-overlay" onclick="if(event.target===this)requestCloseCharEdit()">
   <div class="ltg-modal">
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="ceTitle">Edit Character</div>
         <div id="ceBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red self-center" onclick="closeCharEditModal()">x Close</button>
+      <button class="btn btn-red self-center" onclick="requestCloseCharEdit()">x Close</button>
     </div>
     <div class="ltg-modal-body" id="charEditBody">
       <div id="ceAlert" class="alert"></div>
@@ -486,9 +482,8 @@
         <div class="field gm-only"><label>GM Notes</label><textarea id="ce-notes" rows="3" placeholder="GM notes..."></textarea></div>
       </div><!-- /ceFormBody -->
     </div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green gm-only flex-1 flex-center" id="ceSaveBtn" onclick="saveCharEdit()">&gt;&gt; Save Changes</button>
-      <button class="btn btn-red gm-only" onclick="closeCharEditModal()">Cancel</button>
+    <div class="edit-modal-foot" id="charEditFoot" data-noautosave>
+      <button class="btn btn-green gm-only" onclick="requestCloseCharEdit()">OK</button>
     </div>
   </div>
 </div>
@@ -519,19 +514,18 @@
 
 <!-- -- PROMPT DIALOG -------------------------------------- -->
 <!-- -- STANDING EDITOR MODAL ------------------------------------------ -->
-<div id="standingEditorOverlay" class="ltg-overlay" style="z-index:2500" onclick="if(event.target===this)closeStandingEditor()">
+<div id="standingEditorOverlay" class="ltg-overlay" style="z-index:2500" onclick="if(event.target===this)requestCloseStanding()">
   <div class="ltg-modal" style="max-width:540px">
     <div class="ltg-modal-head">
       <div>
         <div class="ltg-modal-title" id="seTitle">Faction Standings</div>
         <div id="sePcBadge" class="mt-4"></div>
       </div>
-      <button class="btn btn-red self-center" onclick="closeStandingEditor()">x Close</button>
+      <button class="btn btn-red self-center" onclick="requestCloseStanding()">x Close</button>
     </div>
     <div class="ltg-modal-body" id="seBody" style="max-height:60vh;overflow-y:auto"></div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green flex-1 flex-center" onclick="saveStandingEditor()">>> Save Changes</button>
-      <button class="btn btn-red" onclick="closeStandingEditor()">Cancel</button>
+    <div class="edit-modal-foot" id="standingFoot" data-noautosave>
+      <button class="btn btn-green" onclick="requestCloseStanding()">OK</button>
     </div>
   </div>
 </div>

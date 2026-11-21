@@ -51,7 +51,7 @@
         </select>
       </span>
     </div>
-    <button class="btn btn-green mob-hide" id="newNpcBtn" style="display:none" onclick="openModal()">+ New NPC</button>
+    <button class="btn btn-green mob-hide" id="newNpcBtn" style="display:none" onclick="newNpc()">+ New NPC</button>
   </div>
 
   <div id="tableWrap">
@@ -64,7 +64,7 @@
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New Dossier</div>
-      <button class="btn btn-red" onclick="closeModal()">x</button>
+      <button class="btn btn-red" onclick="requestClose()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
@@ -312,7 +312,7 @@
         <hr class="rule my-14">
         <div class="section-head" style="margin-bottom:10px">Runner Contacts <span style="font-size:0.6rem;color:var(--text-dim);letter-spacing:1px">// LINK TO PCs</span></div>
         <div id="contactLinksWrap" style="margin-bottom:10px"></div>
-        <div id="addLinkForm" style="display:none">
+        <div id="addLinkForm" style="display:none" data-noautosave>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
             <div class="field">
               <label>Runner</label>
@@ -385,11 +385,10 @@
         </div>
       </div>
     </div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green flex-1" onclick="saveChar()">&gt;&gt; Save Entry</button>
+    <div class="edit-modal-foot" id="editFoot" data-noautosave>
       <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteChar()">&gt;&gt; Delete</button>
       <button class="btn mob-hide" id="unclaimBtn" style="display:none;color:var(--amber);border-color:var(--amber)" onclick="unclaimChar()">&gt;&gt; Unclaim</button>
-      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="requestClose()">OK</button>
     </div>
   </div>
 </div>
@@ -400,6 +399,9 @@ let allChars    = [];
 let allOrgs     = [];
 let allContacts = [];
 let editingId   = null;
+let isNewRecord = false;
+let _repLoadedFor = null;  // character id whose reputation row is loaded into the form
+let _repSavedJSON = null;  // that row as last loaded/saved (skip unchanged writes)   // this modal session started from "+ New NPC" (record already created)
 
 const CONNECTION_TIPS = [
   '',
@@ -433,7 +435,7 @@ async function loadContactArchetypes() {
 // starting point. Never overwrites skills the GM has already typed, and never touches an
 // existing NPC's skills just because its archetype changed.
 function onNpcArchetypeChange() {
-  if (editingId) return;
+  if (!isNewRecord) return;
   const skillsEl = document.getElementById('f-contact_skills');
   if (skillsEl.value.trim()) return;
   const starter = ARCHETYPE_STARTER_SKILLS[document.getElementById('f-archetype').value];
@@ -890,8 +892,9 @@ function openDeepLink() {
   }
 }
 
-function openModal(id) {
+function openModal(id, fresh = false) {
   editingId = id || null;
+  isNewRecord = !!fresh;
   const ch = id ? allChars.find(c => c.id === id) : null;
   const isPC = ch ? (ch.is_pc !== false) : false;   // create path is NPC-only; PCs are built in the character-builder
   document.getElementById('modalTitle').textContent = ch ? `Edit: ${ch.name}` : 'New NPC';
@@ -985,6 +988,7 @@ function openModal(id) {
   renderContactLinks();
 
   // Load reputation for existing PCs (admin mode only)
+  _repLoadedFor = null; _repSavedJSON = null;
   if (ch && isPC && isAdminMode()) {
     document.getElementById('f-street_cred').value = 0;
     document.getElementById('f-notoriety').value = 0;
@@ -1000,32 +1004,59 @@ function openModal(id) {
         document.getElementById('f-public_awareness').value = rep.public_awareness ?? 0;
         document.getElementById('f-heat').value = rep.heat ?? 0;
         updateRepPreview();
+        if (editingId === ch.id) { _repLoadedFor = ch.id; _repSavedJSON = JSON.stringify(buildRepPayload()); }
       });
   }
 
   pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  charSaver.open();
+}
+
+// "+ New NPC" creates the record straight away (no name needed -- it can be renamed or deleted),
+// then opens it like any other: every edit from there auto-saves.
+async function newNpc() {
+  try {
+    const res = await apiFetch(`${API}/characters/`, { method: 'POST', body: JSON.stringify({ name: 'New NPC', is_pc: false }) });
+    if (!res.ok) await apiThrow(res);
+    const created = await res.json();
+    allChars.push(created);
+    openModal(created.id, true);
+    document.getElementById('f-name').select();
+  } catch (e) {
+    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+  }
 }
 
 function closeModal() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
+  isNewRecord = false;
+  loadChars();
+}
+
+// OK, a backdrop click and Escape all close the same way: save anything still pending first, and
+// stay open (showing why) if that save fails.
+async function requestClose() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
+  if (await charSaver.flush()) closeModal();
 }
 
 function overlayClick(e) {
-  if (e.target === document.getElementById('editOverlay')) closeModal();
+  if (e.target === document.getElementById('editOverlay')) requestClose();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') requestClose(); });
 
-async function saveChar() {
+// The record fields as the server takes them for this caller (GM / player's own PC / player's
+// contact NPC). Pure -- also the auto-saver's snapshot.
+function buildCharPayload() {
   const name  = document.getElementById('f-name').value.trim();
   const isPC = document.getElementById('f-is_pc').checked;
   const title = document.getElementById('f-title').value.trim();
-  if (!name)  { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
-  if (!isPC && !title) { showAlert(document.getElementById('modalAlert'), 'Title is required.', true); return; }
 
   const orgVal = document.getElementById('f-organization_id').value;
   const skillsRaw = document.getElementById('f-contact_skills').value;
@@ -1133,64 +1164,81 @@ async function saveChar() {
         willpower: isPC ? Math.min(20, Math.max(0, parseInt(document.getElementById('f-willpower').value) || 0)) : 0,
         body: isPC ? Math.min(12, Math.max(0, parseInt(document.getElementById('f-body').value) || 0)) : 0,
       };
+  return payload;
+}
 
-  try {
-    const url    = editingId ? `${API}/characters/${editingId}` : `${API}/characters/`;
-    const method = editingId ? 'PATCH' : 'POST';
-    const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
-    if (!res.ok) await apiThrow(res);
-    const saved = await res.json().catch(() => ({}));
+// The PC's Street Cred / Notoriety / Awareness / Heat row (GM view only), or null when it isn't
+// shown or hasn't finished loading -- so an early edit can't write zeros over the real values.
+function buildRepPayload() {
+  if (!_repLoadedFor || _repLoadedFor !== editingId) return null;
+  return {
+    street_cred:      Math.min(20, Math.max(0, parseInt(document.getElementById('f-street_cred').value) || 0)),
+    notoriety:        Math.min(20, Math.max(0, parseInt(document.getElementById('f-notoriety').value) || 0)),
+    public_awareness: Math.min(13, Math.max(0, parseInt(document.getElementById('f-public_awareness').value) || 0)),
+    heat:             Math.min(10, Math.max(0, parseInt(document.getElementById('f-heat').value) || 0)),
+  };
+}
 
-    // Guard against silent schema drift: if new skill fields are dropped server-side,
-    // fail loudly so the issue is fixed immediately instead of appearing to save.
-    if (isAdminMode() && isPC) {
-      const expectedEnabled = !!payload.computer_br_skill_enabled;
-      const expectedRating = expectedEnabled ? (payload.computer_br_skill_rating || 0) : 0;
-      const gotEnabled = !!saved.computer_br_skill_enabled;
-      const gotRating = gotEnabled ? (saved.computer_br_skill_rating || 0) : 0;
-      if (expectedEnabled !== gotEnabled || expectedRating !== gotRating) {
-        throw new Error('Computer B/R was not persisted by the API. Rebuild/restart backend and verify character schema/route wiring.');
+// Auto-save target (makeManageAutoSave): PATCH the record, then the reputation row if it changed.
+// Throws on failure; the modal footer shows the reason.
+async function saveChar() {
+  if (!editingId) return;
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) throw new Error('Name is required');
+  const payload = buildCharPayload();
+  const isPC = document.getElementById('f-is_pc').checked;
+  const res = await apiFetch(`${API}/characters/${editingId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!res.ok) await apiThrow(res);
+  const saved = await res.json().catch(() => ({}));
+
+  // Guard against silent schema drift: if new skill fields are dropped server-side,
+  // fail loudly so the issue is fixed immediately instead of appearing to save.
+  if (isAdminMode() && isPC) {
+    const expectedEnabled = !!payload.computer_br_skill_enabled;
+    const expectedRating = expectedEnabled ? (payload.computer_br_skill_rating || 0) : 0;
+    const gotEnabled = !!saved.computer_br_skill_enabled;
+    const gotRating = gotEnabled ? (saved.computer_br_skill_rating || 0) : 0;
+    if (expectedEnabled !== gotEnabled || expectedRating !== gotRating) {
+      throw new Error('Computer B/R was not persisted by the API. Rebuild/restart backend and verify character schema/route wiring.');
+    }
+  }
+  if (saved && saved.id) {
+    const k = allChars.findIndex(c => c.id === saved.id);
+    if (k >= 0) allChars[k] = saved;
+    document.getElementById('modalTitle').textContent = `Edit: ${saved.name}`;
+  }
+
+  const repPayload = (isPC && isAdminMode()) ? buildRepPayload() : null;
+  if (repPayload && JSON.stringify(repPayload) !== _repSavedJSON) {
+    try {
+      const existing = await apiFetch(`${API}/reputation/?character_id=${editingId}`).then(r => r.ok ? r.json() : []);
+      if (existing.length) {
+        await apiFetch(`${API}/reputation/${existing[0].id}`, { method: 'PATCH', body: JSON.stringify(repPayload) });
+      } else {
+        await apiFetch(`${API}/reputation/`, { method: 'POST', body: JSON.stringify({ ...repPayload, character_id: editingId }) });
       }
-    }
-
-    const savedId = editingId || saved?.id;
-
-    // Save reputation for PCs (admin mode only)
-    if (isPC && isAdminMode() && savedId) {
-      const repPayload = {
-        street_cred:      Math.min(20, Math.max(0, parseInt(document.getElementById('f-street_cred').value) || 0)),
-        notoriety:        Math.min(20, Math.max(0, parseInt(document.getElementById('f-notoriety').value) || 0)),
-        public_awareness: Math.min(13, Math.max(0, parseInt(document.getElementById('f-public_awareness').value) || 0)),
-        heat:             Math.min(10, Math.max(0, parseInt(document.getElementById('f-heat').value) || 0)),
-      };
-      try {
-        const existing = await apiFetch(`${API}/reputation/?character_id=${savedId}`).then(r => r.ok ? r.json() : []);
-        if (existing.length) {
-          await apiFetch(`${API}/reputation/${existing[0].id}`, { method: 'PATCH', body: JSON.stringify(repPayload) });
-        } else {
-          await apiFetch(`${API}/reputation/`, { method: 'POST', body: JSON.stringify({ ...repPayload, character_id: savedId }) });
-        }
-      } catch(_e) { /* rep save errors are non-fatal */ }
-    }
-
-    closeModal();
-    showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // "${name}" saved.`, false);
-    await loadChars();
-  } catch(e) {
-    showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
+      _repSavedJSON = JSON.stringify(repPayload);
+    } catch(_e) { /* rep save errors are non-fatal */ }
   }
 }
+
+const charSaver = makeManageAutoSave({
+  overlayId: 'editOverlay',
+  foot: document.getElementById('editFoot'),
+  save: saveChar,
+  snapshot: () => JSON.stringify([buildCharPayload(), buildRepPayload()]),
+});
 
 async function deleteChar() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
     if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
+    charSaver.cancel();
     const res = await apiFetch(`${API}/characters/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await apiThrow(res);
+    if (!res.ok && res.status !== 204) { charSaver.open(); await apiThrow(res); }
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
-    await loadChars();
   } catch(e) {
     showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
   }
@@ -1201,11 +1249,11 @@ async function unclaimChar() {
   const name = document.getElementById('f-name').value;
     if (!await showConfirm(`Unclaim "${name}"? The player will lose ownership but their data is preserved.`, 'Confirm')) return;
   try {
+    if (!await charSaver.flush()) return;   // pending edits first; a failed save stays on screen
     const res = await apiFetch(`${API}/characters/${editingId}/unclaim`, { method: 'POST' });
-    if (!res.ok) await apiThrow(res);
+    if (!res.ok) { charSaver.open(); await apiThrow(res); }
     closeModal();
     showAlert(document.getElementById('alert'), `>> UNCLAIMED // "${name}" is now available.`, false);
-    await loadChars();
   } catch(e) {
     showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
   }

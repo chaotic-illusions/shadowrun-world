@@ -47,7 +47,7 @@
         </select>
       </span>
     </div>
-    <button class="btn btn-green gm-only mob-hide" onclick="openModal()">+ New Location</button>
+    <button class="btn btn-green gm-only mob-hide" onclick="newLoc()">+ New Location</button>
   </div>
 
   <div id="tableWrap">
@@ -60,7 +60,7 @@
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div class="edit-modal-title" id="modalTitle">New Location</div>
-      <button class="btn btn-red" onclick="closeModal()">x</button>
+      <button class="btn btn-red" onclick="requestClose()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="modalAlert" class="alert"></div>
@@ -190,10 +190,9 @@
         <datalist id="adventureList"></datalist>
       </div>
     </div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green flex-1" onclick="saveLoc()">&gt;&gt; Save Entry</button>
+    <div class="edit-modal-foot" id="editFoot" data-noautosave>
       <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteLoc()">&gt;&gt; Delete</button>
-      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="requestClose()">OK</button>
     </div>
   </div>
 </div>
@@ -321,23 +320,45 @@ function openModal(id) {
   pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  locSaver.open();
+}
+
+// "+ New Location" creates the record straight away, then opens it; every edit auto-saves.
+async function newLoc() {
+  try {
+    const res = await apiFetch(`${API}/locations/`, { method: 'POST', body: JSON.stringify({ name: 'New Location' }) });
+    if (!res.ok) await apiThrow(res);
+    const created = await res.json();
+    allLocs.push(created);
+    openModal(created.id);
+    document.getElementById('f-name').select();
+  } catch (e) {
+    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
+  }
 }
 
 function closeModal() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
+  loadAll();
+}
+
+// OK, backdrop click and Escape: save anything pending first; stay open if that save fails.
+async function requestClose() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
+  if (await locSaver.flush()) closeModal();
 }
 
 function overlayClick(e) {
-  if (e.target === document.getElementById('editOverlay')) closeModal();
+  if (e.target === document.getElementById('editOverlay')) requestClose();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') requestClose(); });
 
-async function saveLoc() {
+function buildLocPayload() {
   const name = document.getElementById('f-name').value.trim();
-  if (!name) { showAlert(document.getElementById('modalAlert'), 'Name is required.', true); return; }
 
   const orgId = parseInt(document.getElementById('f-controlling_org_id').value) || null;
   let locType = document.getElementById('f-location_type').value;
@@ -357,30 +378,41 @@ async function saveLoc() {
     notes:              document.getElementById('f-notes').value.trim() || null,
     source_adventure:   document.getElementById('f-source_adventure').value.trim() || null,
   };
+  return payload;
+}
 
-  try {
-    const url    = editingId ? `${API}/locations/${editingId}` : `${API}/locations/`;
-    const method = editingId ? 'PATCH' : 'POST';
-    const res = await apiFetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok) await apiThrow(res);
-    closeModal();
-    showAlert(document.getElementById('alert'), `>> ${editingId ? 'UPDATED' : 'REGISTERED'} // Location "${name}" saved.`, false);
-    await loadAll();
-  } catch(e) {
-    showAlert(document.getElementById('modalAlert'), `>> FAILED // ${e.message}`, true);
+// Auto-save target (makeManageAutoSave). Throws on failure; the footer shows the reason.
+async function saveLoc() {
+  if (!editingId) return;
+  const payload = buildLocPayload();
+  if (!payload.name) throw new Error('Name is required');
+  const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!res.ok) await apiThrow(res);
+  const saved = await res.json().catch(() => null);
+  if (saved && saved.id) {
+    const k = allLocs.findIndex(l => l.id === saved.id);
+    if (k >= 0) allLocs[k] = saved;
+    document.getElementById('modalTitle').textContent = `Edit: ${saved.name}`;
   }
 }
+
+const locSaver = makeManageAutoSave({
+  overlayId: 'editOverlay',
+  foot: document.getElementById('editFoot'),
+  save: saveLoc,
+  snapshot: () => JSON.stringify(buildLocPayload()),
+});
 
 async function deleteLoc() {
   if (!editingId) return;
   const name = document.getElementById('f-name').value;
     if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
+    locSaver.cancel();
     const res = await apiFetch(`${API}/locations/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await apiThrow(res);
+    if (!res.ok && res.status !== 204) { locSaver.open(); await apiThrow(res); }
     closeModal();
     showAlert(document.getElementById('alert'), `>> PURGED // "${name}" deleted.`, false);
-    await loadAll();
   } catch(e) {
     showAlert(document.getElementById('modalAlert'), `>> DELETE FAILED // ${e.message}`, true);
   }

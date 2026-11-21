@@ -943,84 +943,110 @@ async function apiThrow(res) {
 }
 
 
-// -- Manage-page auto-save -----------------------------------------------------
-// Replaces a CRUD modal's Save/Cancel buttons with a debounced auto-save plus a
-// quiet status line. A brand-new record is CREATED (POST) as soon as the required
-// field(s) are valid; every later edit silently PATCHes. All page-specific logic
-// (payload shape, list refresh, edit-mode flip) stays in the page via cfg.commit.
+// -- Edit-modal auto-save -----------------------------------------------------
+// Edit modals save as you go: typing saves ~0.7s after the last keystroke, a select / checkbox /
+// stepper / blur saves right away, and closing the modal (OK, backdrop click, Escape) first
+// flushes whatever is still pending. A failed save keeps the modal open with the reason in the
+// footer, so a bad value is never dropped silently. New records are created up front by the page
+// (POST, then open the modal on the new id), so every save here is an update.
 //
 // cfg = {
-//   overlayId,            // id of the .edit-overlay that wraps the modal
-//   statusId,             // id to give the injected status <span>
-//   foot(),              // () => the .edit-modal-foot element to host the status line
-//   idleMsg,             // text shown while required fields are still blank
-//   active(),           // () => bool : only arm when true (e.g. isAdminMode())
-//   valid(),            // () => bool : required fields present
-//   editingId(),        // () => current record id, or null/undefined for a new record
-//   commit(isCreate),   // async () : POST (create) or PATCH (update). On create it MUST
-//                       //   set the page's editingId + flip the modal to edit mode, and
-//                       //   should refresh the list silently. Throw on failure.
+//   overlayId,       // the modal's overlay element id; only events inside it trigger a save
+//   foot,            // the element (or () => element) hosting the status line: the modal footer
+//   save,            // async () => void : write the record (same payload the old Save button
+//                    //   sent). Throw an Error to report "Not saved: <message>".
+//   snapshot,        // optional () => string : current form state; a save is skipped when it
+//                    //   equals the last successful one (blur after a debounced save, etc.)
+//   delay,           // optional debounce ms for typing (default 700)
 // }
+// Returns { open(), flush(): Promise<boolean>, cancel(), schedule(ms) }:
+//   open()  -- call after filling the form; resets state and shows the status line
+//   flush() -- save anything pending; resolves true when the record is saved (safe to close)
+//   cancel()-- drop pending work (e.g. before deleting the record)
+// Inputs inside the overlay that aren't record fields (a select's search box, a sub-form with its
+// own Add button, the footer) are skipped: mark them data-noautosave, or they carry .sel-search
+// already. With a snapshot, button clicks inside the overlay also schedule a (deduped) save.
 function makeManageAutoSave(cfg) {
-  let timer = null, inFlight = false, pending = false, ready = false;
-
-  function status(state) {
-    const el = document.getElementById(cfg.statusId);
-    if (!el) return;
+  let timer = null, chain = Promise.resolve(), lastSnap = null, ok = true, live = false, dirty = false;
+  const statusEl = () => {
+    const foot = typeof cfg.foot === 'function' ? cfg.foot() : cfg.foot;
+    let el = foot.querySelector('.ws-save-status');
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'ws-save-status';
+      el.style.flex = '1';
+      foot.insertBefore(el, foot.firstChild);
+    }
+    return el;
+  };
+  function status(state, msg) {
+    const el = statusEl();
     el.className = 'ws-save-status ' + state;
     el.textContent = state === 'saving' ? 'Saving...'
-      : state === 'error' ? 'Save failed -- retrying...'
-      : state === 'idle'  ? (cfg.idleMsg || 'Waiting for input...')
-      : 'All changes saved OK';
+      : state === 'error' ? 'Not saved: ' + msg
+      : state === 'idle' ? 'Changes save automatically'
+      : 'All changes saved';
   }
+  const snap = () => { try { return cfg.snapshot ? cfg.snapshot() : null; } catch (_) { return null; } };
 
-  function arm() {
-    const foot = cfg.foot();
-    if (!foot || (cfg.active && !cfg.active())) { ready = false; return; }
-    let s = document.getElementById(cfg.statusId);
-    if (!s) {
-      s = document.createElement('span');
-      s.id = cfg.statusId;
-      s.className = 'ws-save-status';
-      s.style.flex = '1';
-      foot.insertBefore(s, foot.firstChild);
+  async function doSave() {
+    clearTimeout(timer); timer = null;
+    if (!live) return ok;
+    const before = snap();
+    dirty = false;
+    if (before !== null && before === lastSnap) {   // nothing changed since the last good save
+      if (!ok) { ok = true; status('saved'); }
+      return ok;
     }
-    ready = true;
-    status(cfg.valid() ? 'saved' : 'idle');
-  }
-
-  function disarm() { ready = false; clearTimeout(timer); }
-
-  function schedule() {
-    if (!ready) return;
-    const ov = document.getElementById(cfg.overlayId);
-    if (!ov || !ov.classList.contains('open')) return;
-    if (!cfg.valid()) { clearTimeout(timer); status('idle'); return; }
     status('saving');
-    clearTimeout(timer);
-    timer = setTimeout(saveNow, 1000);
-  }
-
-  async function saveNow() {
-    if (!ready || !cfg.valid()) return;
-    if (inFlight) { pending = true; return; }
-    inFlight = true;
-    const isCreate = cfg.editingId() == null;
     try {
-      await cfg.commit(isCreate);
+      await cfg.save();
+      lastSnap = before;
+      ok = true;
       status('saved');
     } catch (e) {
-      status('error');
-    } finally {
-      inFlight = false;
-      if (pending) { pending = false; schedule(); }
+      ok = false;
+      status('error', (e && e.message) || String(e));
     }
+    return ok;
   }
+  const run = () => (chain = chain.then(doSave, doSave));
 
-  document.addEventListener('input',  e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
-  document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#' + cfg.overlayId)) schedule(); });
+  function schedule(ms) {
+    if (!live) return;
+    dirty = true;
+    clearTimeout(timer);
+    timer = setTimeout(run, ms == null ? (cfg.delay || 700) : ms);
+  }
+  function open() {
+    clearTimeout(timer); timer = null;
+    live = true; ok = true; dirty = false;
+    chain = chain.then(() => true, () => true);   // a failure from the previous record doesn't carry over
+    lastSnap = snap();
+    status('idle');
+  }
+  async function flush() {
+    if (!live) return true;
+    if (timer || dirty) run();
+    return chain;
+  }
+  function cancel() { clearTimeout(timer); timer = null; live = false; dirty = false; }
 
-  return { arm, disarm, schedule };
+  const inside = t => {
+    if (!live || !t || !t.closest) return false;
+    if (!t.closest('#' + cfg.overlayId)) return false;
+    return !(t.classList.contains('sel-search') || t.closest('[data-noautosave]'));
+  };
+  document.addEventListener('input',  e => { if (inside(e.target)) schedule(); });
+  document.addEventListener('change', e => { if (inside(e.target)) schedule(0); });
+  // Some modals edit through buttons (tier dots, add/remove a row). With a snapshot to compare
+  // against, a click inside the modal schedules a save that is skipped when nothing changed.
+  if (cfg.snapshot) document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button');
+    if (b && inside(b)) schedule(300);
+  });
+
+  return { open, flush, cancel, schedule };
 }
 
 

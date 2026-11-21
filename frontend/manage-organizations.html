@@ -65,21 +65,21 @@
         </select>
       </span>
     </div>
-    <button class="btn btn-green mob-hide" id="btnNewOrg" onclick="openModal()">+ New Organization</button>
+    <button class="btn btn-green mob-hide" id="btnNewOrg" onclick="newOrg()">+ New Organization</button>
   </div>
 
   <div id="tableWrap"><div class="loading">Loading organizations</div></div>
 </main>
 
 <!-- -- EDIT MODAL -------------------------------------------- -->
-<div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)closeModal()">
+<div id="editOverlay" class="edit-overlay" onclick="if(event.target===this)requestClose()">
   <div class="edit-modal">
     <div class="edit-modal-head">
       <div>
         <div class="edit-modal-title" id="modalTitle">New Organization</div>
         <div id="modalBadge" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px"></div>
       </div>
-      <button class="btn btn-red" onclick="closeModal()">x</button>
+      <button class="btn btn-red" onclick="requestClose()">x</button>
     </div>
     <div class="edit-modal-body">
       <div id="alert" class="alert"></div>
@@ -87,7 +87,7 @@
       <!-- Full org editing (identity, command structure, relationships, LTG
            network) is desktop-only for now -- mobile exposes the Description
            and Field Notes below for a quick touch-up. Left in the DOM (not
-           removed) so submitForm() still round-trips every other field
+           removed) so saveOrg() still round-trips every other field
            unchanged. -->
       <div class="mob-hide">
       <!-- -- CORE IDENTITY -- -->
@@ -275,10 +275,9 @@
       </div>
       </div><!-- /.mob-hide (Command Structure -> LTG Network) -->
     </div>
-    <div class="edit-modal-foot">
-      <button class="btn btn-green flex-1 flex-center" onclick="submitForm()" id="submitBtn">&gt;&gt; Submit to Database</button>
+    <div class="edit-modal-foot" id="editFoot" data-noautosave>
       <button class="btn btn-red mob-hide" id="deleteBtn" style="display:none" onclick="deleteOrg()">&gt;&gt; Delete</button>
-      <button class="btn btn-red" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="requestClose()">OK</button>
     </div>
   </div>
 </div>
@@ -566,24 +565,44 @@ function getRevealed(containerId) {
 // -- Modal open/close ------------------------------------------
 function openModal(id) {
   const requestId = ++orgEditRequestId;
-  if (id) {
-    loadOrgForEdit(id, requestId);
-  } else {
-    resetForm();
-  }
+  orgSaver.cancel();          // re-armed by populateForm once the record has loaded
+  resetForm();
+  loadOrgForEdit(id, requestId);
   pausePoll();
   document.getElementById('editOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
+// "+ New Organization" creates the record straight away, then opens it; every edit auto-saves.
+async function newOrg() {
+  try {
+    const res = await apiFetch(`${API}/organizations/`, { method: 'POST', body: JSON.stringify({ name: 'New Organization' }) });
+    if (!res.ok) await apiThrow(res);
+    const created = await res.json();
+    allOrgs.push(created);
+    openModal(created.id);
+  } catch (e) {
+    showAlert(document.getElementById('mainAlert'), `>> FAILED // ${e.message}`, true);
+  }
+}
+
 function closeModal() {
   orgEditRequestId++;
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
+  orgSaver.cancel();
   resumePoll();
   document.getElementById('editOverlay').classList.remove('open');
   document.body.style.overflow = '';
+  loadOrgs();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+// OK, backdrop click and Escape: save anything pending first; stay open if that save fails.
+async function requestClose() {
+  if (!document.getElementById('editOverlay').classList.contains('open')) return;
+  if (await orgSaver.flush()) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') requestClose(); });
 
 // -- Form population -------------------------------------------
 function resetForm() {
@@ -607,7 +626,6 @@ function resetForm() {
   document.getElementById('telecomBody').innerHTML = '<tr id="emptyTelecom"><td colspan="5" class="empty-msg">None defined</td></tr>';
   document.getElementById('hostBody').innerHTML = '<tr id="emptyHost"><td colspan="8" class="empty-msg">None defined</td></tr>';
   leaderCount = divisionCount = telecomCount = hostCount = 0;
-  document.getElementById('submitBtn').textContent = '>> Submit to Database';
   document.getElementById('deleteBtn').style.display = 'none';
   document.getElementById('alert').className = 'alert';
   document.getElementById('modalBadge').innerHTML = '';
@@ -676,11 +694,11 @@ function populateForm(org) {
     new Set(org.revealed_enemy_ids || [])
   );
 
-  document.getElementById('submitBtn').textContent  = '>> Update Database Entry';
   document.getElementById('deleteBtn').style.display = '';
   document.getElementById('alert').className = 'alert';
   updateModalBadge(org.org_type, org.tier || 1, org.is_active !== false);
   renderOrgAffiliations(org.id);
+  orgSaver.open();
 }
 
 // -- Affiliated Runners (gang/tribe only) ----------------------
@@ -934,21 +952,19 @@ async function deleteOrg() {
   const name = document.getElementById('name').value || 'this organization';
     if (!await showConfirm(`DELETE "${name}"? This cannot be undone.`, 'Confirm')) return;
   try {
+    orgSaver.cancel();
     const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await apiThrow(res);
+    if (!res.ok && res.status !== 204) { orgSaver.open(); await apiThrow(res); }
     closeModal();
-    await loadOrgs();
     showAlert(document.getElementById('mainAlert'), `>> ENTRY PURGED // "${name}" deleted.`, false);
   } catch(e) {
     showAlert(document.getElementById('alert'), `>> DELETE FAILED // ${e.message}`, true);
   }
 }
 
-// -- Submit ----------------------------------------------------
-async function submitForm() {
-  const topAlert = document.getElementById('alert');
+// -- Save (auto-save target) -----------------------------------
+function buildOrgPayload() {
   const name = document.getElementById('name').value.trim();
-  if (!name) { showAlert(topAlert, 'ERROR // Designation is required.', true); return; }
 
   let orgTypeVal = document.getElementById('org_type').value;
   if (orgTypeVal === 'Custom') {
@@ -975,30 +991,29 @@ async function submitForm() {
     revealed_enemy_ids: getRevealed('enemyList'),
     ltgs:              getLTGs(),
   };
+  return payload;
+}
 
-  const submitBtn = document.getElementById('submitBtn');
-  submitBtn.textContent = '>> Transmitting...';
-  submitBtn.disabled = true;
-
-  try {
-    const url    = editingId ? `${API}/organizations/${editingId}` : `${API}/organizations/`;
-    const method = editingId ? 'PATCH' : 'POST';
-    const res = await apiFetch(url, {
-      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-    });
-    if (!res.ok) await apiThrow(res);
-    const saved = await res.json();
-    const verb = editingId ? 'UPDATED' : 'REGISTERED';
-    closeModal();
-    await loadOrgs();
-    showAlert(document.getElementById('mainAlert'), `>> ACCESS GRANTED // "${saved.name}" ${verb}.`, false);
-  } catch(err) {
-    showAlert(topAlert, `>> TRANSMISSION FAILED // ${err.message}`, true);
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = editingId ? '>> Update Database Entry' : '>> Submit to Database';
+// Throws on failure; the modal footer shows the reason.
+async function saveOrg() {
+  if (!editingId) return;
+  const payload = buildOrgPayload();
+  if (!payload.name) throw new Error('Designation is required');
+  const res = await apiFetch(`${API}/organizations/${editingId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  if (!res.ok) await apiThrow(res);
+  const saved = await res.json().catch(() => null);
+  if (saved && saved.id) {
+    document.getElementById('modalTitle').textContent = `Edit // ${saved.name}`;
+    updateModalBadge(saved.org_type, saved.tier || 1, saved.is_active !== false);
   }
 }
+
+const orgSaver = makeManageAutoSave({
+  overlayId: 'editOverlay',
+  foot: document.getElementById('editFoot'),
+  save: saveOrg,
+  snapshot: () => JSON.stringify(buildOrgPayload()),
+});
 
 // -- Init ------------------------------------------------------
 bootstrapAuth().then(async u => {

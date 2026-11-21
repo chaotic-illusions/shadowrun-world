@@ -75,17 +75,16 @@
   </div>
 
   <!-- -- Rename modal -------------------------------------------------------- -->
-  <div id="renameModal" class="modal-overlay">
+  <div id="renameModal" class="modal-overlay" onclick="if(event.target===this)requestCloseRename()">
     <div style="background:var(--bg-card);border:1px solid #1a3a1a;border-top:2px solid var(--green-dim);padding:28px 32px;width:100%;max-width:420px">
       <div style="font-size:.85rem;letter-spacing:2px;color:var(--green);margin-bottom:16px">&gt;&gt; RENAME TOKEN</div>
       <div class="field mb-16">
         <label>New Label</label>
         <input type="text" id="renameInput" maxlength="200" placeholder="e.g. Sam's token"
-          onkeydown="if(event.key==='Enter') submitRename()">
+          onkeydown="if(event.key==='Enter') requestCloseRename(); else if(event.key==='Escape') requestCloseRename()">
       </div>
-      <div class="flex-row-8">
-        <button class="btn btn-green flex-1" onclick="submitRename()">&gt;&gt; Save</button>
-        <button class="btn btn-red" onclick="closeRenameModal()">Cancel</button>
+      <div class="flex-row-8" id="renameFoot" data-noautosave>
+        <button class="btn btn-green" onclick="requestCloseRename()">OK</button>
       </div>
     </div>
   </div>
@@ -249,6 +248,7 @@ function openRenameModal(id, currentLabel) {
   document.getElementById('renameInput').value = currentLabel;
   pausePoll();
   document.getElementById('renameModal').style.display = 'flex';
+  renameSaver.open();
   setTimeout(() => document.getElementById('renameInput').select(), 50);
 }
 
@@ -256,22 +256,33 @@ function closeRenameModal() {
   resumePoll();
   document.getElementById('renameModal').style.display = 'none';
   _renameId = null;
+  loadTokens();
 }
 
-async function submitRename() {
-  const label = document.getElementById('renameInput').value.trim() || null;
-  try {
-    const res = await apiFetch(`/auth/tokens/${_renameId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ label }),
-    });
-    if (!res.ok) await apiThrow(res);
-    closeRenameModal();
-    await loadTokens();
-  } catch(e) {
-    showAlert(document.getElementById('alert'), `>> FAILED // ${e.message}`, true);
-  }
+// OK, Enter, Escape and a backdrop click: save the label if it changed, then close (stays open
+// showing the reason if the save fails).
+async function requestCloseRename() {
+  if (document.getElementById('renameModal').style.display !== 'flex') return;
+  if (await renameSaver.flush()) closeRenameModal();
 }
+
+// Auto-save target (makeManageAutoSave). Throws on failure; the footer shows the reason.
+async function submitRename() {
+  if (_renameId == null) return;
+  const label = document.getElementById('renameInput').value.trim() || null;
+  const res = await apiFetch(`/auth/tokens/${_renameId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+  if (!res.ok) await apiThrow(res);
+}
+
+const renameSaver = makeManageAutoSave({
+  overlayId: 'renameModal',
+  foot: document.getElementById('renameFoot'),
+  save: submitRename,
+  snapshot: () => document.getElementById('renameInput').value.trim(),
+});
 
 // -- Regenerate ----------------------------------------------------------------
 
