@@ -10,15 +10,9 @@ let _lastWorldHtml = null;   // cached HTML to skip DOM rebuild when data unchan
 let npcModalCharId = null;
 
 // -- Archetype Edit Modal --------------------------------------
-const ARCHETYPES = [
-  { label: 'Street Samurai', cls: 'arch-samurai' },
-  { label: 'Decker',         cls: 'arch-decker'  },
-  { label: 'Rigger',         cls: 'arch-rigger'  },
-  { label: 'Mage',           cls: 'arch-mage'    },
-  { label: 'Shaman',         cls: 'arch-shaman'  },
-  { label: 'Adept',          cls: 'arch-adept'   },
-  { label: 'Custom',         cls: 'arch-custom'  },
-];
+// The official runner archetypes (shared.js RUNNER_ARCHETYPES) + Custom, last. Each colour class
+// comes from archetypeClass(), the same name match the runner cards use.
+const ARCHETYPES = [...RUNNER_ARCHETYPES, 'Custom'].map(label => ({ label, cls: archetypeClass(label) }));
 
 let selectedArch = '';
 let archModalCharId = null;

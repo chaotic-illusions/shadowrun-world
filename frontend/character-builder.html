@@ -352,9 +352,9 @@ let CONTACT_ARCHETYPE_LIST = [];   // flattened, for membership checks
 // 200,000 and must be one of a fixed archetype set, each usable at most once.
 const CONTACT_TYPES = ["Contact", "Buddy", "Gang", "Tribe", "Follower"];
 const CONTACT_TYPE_COST = { Gang: 50000, Tribe: 50000, Follower: 200000 };
-// PC archetypes offered at chargen -- mirrors the runner options on manage-characters so new
-// builds line up with the world-state cards. "Custom" reveals a free-text field.
-const PC_ARCHETYPES = RUNNER_ARCHETYPES;   // shared.js
+// PC archetypes offered at chargen: the official runner archetypes (shared.js, the same list the
+// GM's Characters editor and the Dossier offer). "Custom" reveals a free-text field.
+const PC_ARCHETYPES = RUNNER_ARCHETYPES;
 // Followers draw from the same CONTACT_ARCHETYPES pool as regular contacts/buddies -- see
 // contactRows() -- the only Follower-specific rule is that each archetype can be used once.
 // Renders <optgroup> blocks (grouped/ordered per CONTACT_ARCHETYPES) for a contact archetype

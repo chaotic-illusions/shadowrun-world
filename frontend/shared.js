@@ -520,14 +520,15 @@ function money(n) {
   return '¥' + (Number(n) || 0).toLocaleString('en-US');
 }
 
+// The official runner archetypes -- the one list (their World State card colours key off these
+// names). Every PC archetype picker offers these plus "Custom...", which alone allows free text:
+// the builder's Identity step, the GM's Characters editor, World State's archetype editor and the
+// Dossier's Manage Identity.
+const RUNNER_ARCHETYPES = ['Street Samurai', 'Decker', 'Rigger', 'Mage', 'Shaman', 'Adept'];
+
 /** An individual contact's type from its Loyalty (6 Follower, 3-5 Buddy, 1-2 Contact) -- for a
  *  contact row with no stored contact_type. Same tie the API applies on every Loyalty change
  *  (app/routers/contacts.py contact_type_for_loyalty). */
-// The official runner archetypes (their World State card colours key off these names). Every PC
-// archetype picker offers these plus "Custom...", which alone allows free text: the builder's
-// Identity step, the GM's Characters editor and the Dossier's Manage Identity.
-const RUNNER_ARCHETYPES = ['Street Samurai', 'Decker', 'Rigger', 'Mage', 'Shaman', 'Adept'];
-
 function contactTypeForLoyalty(loyalty) {
   const n = Number(loyalty) || 1;
   return n >= 6 ? 'Follower' : n >= 3 ? 'Buddy' : 'Contact';

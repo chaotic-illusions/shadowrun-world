@@ -88,16 +88,9 @@
         </div>
         <div class="field" id="f-archetype-wrap">
           <label id="f-archetype-lbl">Archetype</label>
-          <!-- PC archetype: 7 runner options matching world-state card colors -->
-          <select id="f-archetype-pc" onchange="onPCArchetypeChange()" style="display:none">
-            <option value="Street Samurai">Street Samurai</option>
-            <option value="Decker">Decker</option>
-            <option value="Rigger">Rigger</option>
-            <option value="Mage">Mage</option>
-            <option value="Shaman">Shaman</option>
-            <option value="Adept">Adept</option>
-            <option value="Custom">Custom...</option>
-          </select>
+          <!-- PC archetype: the official runner archetypes (shared.js RUNNER_ARCHETYPES, matching the
+               world-state card colours) + Custom; options filled in from PC_ARCHETYPES below. -->
+          <select id="f-archetype-pc" onchange="onPCArchetypeChange()" style="display:none"></select>
           <div id="f-archetype-pc-custom-wrap" style="display:none;margin-top:6px">
             <input type="text" id="f-archetype-pc-custom" placeholder="Enter archetype..." maxlength="100" oninput="onPCArchetypeChange()">
           </div>
@@ -443,6 +436,8 @@ function onNpcArchetypeChange() {
 }
 
 const PC_ARCHETYPES = [...RUNNER_ARCHETYPES, 'Custom'];   // shared.js
+document.getElementById('f-archetype-pc').innerHTML = PC_ARCHETYPES
+  .map(a => `<option value="${esc(a)}">${esc(a === 'Custom' ? 'Custom...' : a)}</option>`).join('');
 const PC_SKILL_KEYS = ['computer', 'software', 'matrix', 'computer_br'];
 
 // Build "Title, OrgName" cell; Independent/Unknown fallback per the stored affiliation flag
