@@ -2264,7 +2264,8 @@ function openManageIdentity(){
         </select>
         <input type="text" id="mgArchetypeCustom" class="mt-6${archSel==='Custom'?'':' hidden'}" maxlength="100"
           placeholder="Enter archetype..." value="${esc(named ? '' : arch)}"></div>
-      <div class="field"><label>Race</label><input type="text" id="mgRace" value="${esc(draft.race)}"></div>
+      <div class="field"><label>Race</label><input type="text" id="mgRace" class="text-dim" value="${esc(draft.race)}" readonly
+        title="Race is the runner's metatype, a builder choice -- change it with Edit in Builder (or the GM's Characters editor)."></div>
       <div class="field"><label>Sex</label><input type="text" id="mgSex" value="${esc(draft.gender)}"></div>
     </div>
     <div class="grid2">
@@ -3191,7 +3192,7 @@ async function commitModal(){
     const archPick = $('#mgArchetype').value;
     await patchChar({
       archetype: (archPick === 'Custom' ? $('#mgArchetypeCustom').value.trim() : archPick) || null,
-      race: $('#mgRace').value.trim(),
+      // Race is read-only here (it's the metatype -- a builder choice), so it's never sent.
       gender: $('#mgSex').value.trim(),
       age: Number($('#mgAge').value) || 0,
       lifestyle_level: Number($('#mgLifestyle').value),

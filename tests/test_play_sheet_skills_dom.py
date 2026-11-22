@@ -212,10 +212,14 @@ def test_manage_identity_archetype_is_a_picker_with_custom_text(_browser, _front
     opts = pg.eval_on_selector("#mgArchetype", "el => Array.from(el.options).map(o => o.value)")
     assert opts == ["", "Street Samurai", "Decker", "Rigger", "Mage", "Shaman", "Adept", "Custom"]
     assert not pg.is_visible("#mgArchetypeCustom")
+    # Race is the metatype, a builder choice: shown, read-only, never sent.
+    assert pg.get_attribute("#mgRace", "readonly") is not None
+    assert pg.input_value("#mgRace") == "Human"
     pg.select_option("#mgArchetype", "Decker")
     pg.locator("#modalCommitBtn").click()
     pg.wait_for_timeout(300)
     assert patches[-1]["archetype"] == "Decker"
+    assert "race" not in patches[-1]
 
     pg.locator("#manageIdentityBtn").click()
     pg.wait_for_selector("#mgArchetype", timeout=5000)
