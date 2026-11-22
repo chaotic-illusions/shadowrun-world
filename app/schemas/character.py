@@ -133,7 +133,7 @@ class DossierRebuild(CharacterCreate):
     sends). Good Karma, nuyen, Karma Pool and notes are never taken from the sheet fields here:
     the server adds ``karma_refund`` (Karma spent raising attributes and skills since creation,
     worked out by the builder) and ``nuyen_delta`` (the change in starting cash) to the current
-    values instead.
+    values instead. A negative ``nuyen_delta`` must be covered by the runner's current cash.
     """
     contacts: list[RebuildContact] = Field(default_factory=list, max_length=60)
     chargen_state: dict = Field(default_factory=dict)

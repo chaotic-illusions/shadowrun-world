@@ -111,6 +111,11 @@ build) still use Convert, unchanged.
   Starting cash is leftover Resources at 10:1.
 - So removing gear in the edit gives back its leftover-Resources value as cash, and adding gear
   costs it.
+- **The cash has to be there.** Re-spending Resources that were left unspent at creation takes
+  back the cash they became, so the runner must still have it. If current nuyen can't cover a
+  negative change, the Review says so and offers no Save, and the server refuses (422). Nuyen is
+  one number, so money earned in play counts the same as leftover starting cash; telling them
+  apart would need a spending ledger the app doesn't keep.
 - Players or the GM fix the sheet by hand if it's out of whack.
 
 ## 5. Kept as-is

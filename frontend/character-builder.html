@@ -2465,16 +2465,25 @@ async function reviewEdit() {
     <td class="r">${c.refund ? `+${c.refund}` : ""}</td></tr>`).join("");
   const cash = plan.body.nuyen_delta;
   const karmaNow = plan.char.good_karma || 0, cashNow = plan.char.nuyen || 0;
+  // Re-spending Resources left unspent at creation gives back the cash they became (10:1), which the
+  // runner must still have (the server refuses the save too).
+  const short = cashNow + cash < 0;
+  const shortNote = short
+    ? `<p class="cbx-note is-warn">Not enough cash: this rebuild spends ${money(-cash * 10)} more of the starting Resources,
+        which costs ${money(-cash)} of the runner's cash (10:1), and the runner has ${money(cashNow)}.
+        Remove something, or leave more Resources unspent.</p>`
+    : "";
   box.innerHTML = `<div class="cbx-summary">
       <div class="cbx-summary__h" style="font-size:var(--fs-sm)">Changes to ${esc(plan.char.name || "runner")}</div>
       <table class="cbx-review"><thead><tr><th>Item</th><th>On the sheet now</th><th>After saving</th><th class="r">Karma back</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <p class="cbx-summary__line">Good Karma: ${karmaNow} &rarr; <strong>${karmaNow + plan.refund}</strong>${cash
-        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (starting cash changes by ${cash > 0 ? "+" : ""}${money(cash)})` : ""}</p>
-      <button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>
+        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(cashNow + cash)}</strong> (starting cash changes by ${cash > 0 ? "+" : ""}${money(cash)})` : ""}</p>
+      ${short ? shortNote : `<button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>`}
     </div>`;
   status.className = "cbx-note"; status.textContent = "";
-  document.getElementById("cbxEditConfirm").onclick = () => saveEdit(plan);
+  const confirm = document.getElementById("cbxEditConfirm");
+  if (confirm) confirm.onclick = () => saveEdit(plan);
 }
 
 async function saveEdit(plan) {

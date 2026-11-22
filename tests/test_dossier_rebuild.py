@@ -100,8 +100,14 @@ def test_rebuild_writes_the_sheet_and_adjusts_karma_and_nuyen(tmp_path):
     assert row.chargen_state["editId"] is None
 
 
-def test_nuyen_never_goes_below_zero_and_can_rise(tmp_path):
-    _, row, _, _ = _run(tmp_path, _body(nuyen_delta=-5000, contacts=_SAME_CONTACTS))
+def test_respent_resources_must_be_covered_by_cash_on_hand(tmp_path):
+    # The runner has 1,000 cash. Re-spending 50,000 of leftover starting Resources takes back the
+    # 5,000 cash it became, which isn't there: refused, nothing written.
+    with pytest.raises(HTTPException) as e:
+        _run(tmp_path, _body(nuyen_delta=-5000, contacts=_SAME_CONTACTS))
+    assert e.value.status_code == 422 and "Not enough cash" in e.value.detail
+    # Exactly what's on hand is fine (down to 0), and freeing Resources adds cash.
+    _, row, _, _ = _run(tmp_path, _body(nuyen_delta=-1000, contacts=_SAME_CONTACTS), db_name="all.db")
     assert row.nuyen == 0
     _, row, _, _ = _run(tmp_path, _body(nuyen_delta=2500, contacts=_SAME_CONTACTS), db_name="up.db")
     assert row.nuyen == 3500

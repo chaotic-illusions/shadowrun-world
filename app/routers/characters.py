@@ -837,6 +837,15 @@ async def rebuild_character_dossier(
                             "(Karma spent or the sheet edited elsewhere) -- review the changes again before saving.")
     _assert_chargen_skills(body.skills)
     _assert_rebuild_grades_allowed(body.gear, char.gear, ctx["is_admin"])
+    # Re-spending starting Resources the runner left unspent at creation gives back the cash they
+    # became (10:1) -- which the runner must still have. Once that cash is spent, the Resources
+    # aren't there to spend again.
+    cash = char.nuyen or 0
+    if cash + body.nuyen_delta < 0:
+        raise HTTPException(status_code=422, detail=(
+            f"Not enough cash: this rebuild spends {-body.nuyen_delta * 10:,} nuyen more of the starting "
+            f"Resources, which costs {-body.nuyen_delta:,} nuyen of cash (10:1), and the runner has {cash:,}. "
+            "Remove something, or leave more Resources unspent."))
 
     data = _strip_gm_dossier_fields(body.model_dump(exclude=_REBUILD_NOT_WRITTEN, exclude_unset=True), ctx)
     await _assert_org_exists(db, data)
@@ -848,7 +857,7 @@ async def rebuild_character_dossier(
     for key, value in data.items():
         setattr(char, key, value)
     char.good_karma = (char.good_karma or 0) + body.karma_refund
-    char.nuyen = max(0, (char.nuyen or 0) + body.nuyen_delta)
+    char.nuyen = cash + body.nuyen_delta
     _validate_hard_gear_caps(char, {})
     await _apply_rebuild_contacts(db, char, body.contacts, ctx)
 

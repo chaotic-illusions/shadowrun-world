@@ -49,7 +49,7 @@ _CONTACTS = [{"id": 1, "name": "Fixer Joe", "profession": "Fixer", "contact_type
              {"id": 2, "name": "Doc", "profession": "Street Doc", "contact_type": "Contact", "loyalty": 1}]
 
 
-def _rebuild_route(posts, contacts=_CONTACTS):
+def _rebuild_route(posts, contacts=_CONTACTS, char=_CHAR):
     def route(r):
         req, path = r.request, r.request.url.split("?")[0]
         if path.endswith((".js", ".css", ".html")) or "/fonts/" in path:
@@ -62,7 +62,7 @@ def _rebuild_route(posts, contacts=_CONTACTS):
         elif path.endswith("/characters/7/contacts"):
             r.fulfill(json=contacts)
         elif path.endswith("/characters/7"):
-            r.fulfill(json=_CHAR)
+            r.fulfill(json=char)
         else:
             _route(r)
     return route
@@ -172,6 +172,36 @@ def test_rebuild_allows_the_buddies_the_runner_already_had(_browser, _frontend_p
     pg.locator("#cbxEditConfirm").click()
     pg.wait_for_timeout(400)
     assert [c["contact_type"] for c in posts[0]["contacts"]] == ["Contact", "Buddy", "Buddy"]
+    assert errors == [], f"JS errors during the rebuild: {errors}"
+    ctx.close()
+
+
+@pytest.mark.skipif(sync_playwright is None, reason="playwright not installed")
+@pytest.mark.parametrize("cash,can_save", [(300, False), (600, True)])
+def test_respending_leftover_resources_needs_the_cash_they_became(_browser, _frontend_port, cash, can_save):
+    """Loaded with 91,000 Resources unspent (starting cash 9,100). A third contact (5,000 Resources)
+    takes back 500 cash: refused with 300 on hand, fine with 600."""
+    char = {**_CHAR, "nuyen": cash, "gear": {"vehicles": [{**_CAR_X, "primary": True}], "cyber": [_DATAJACK]}}
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    posts: list[dict] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _rebuild_route(posts, char=char))
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html?edit=7")
+    pg.wait_for_selector("#cbxModeBanner:has-text('Rebuilding')", timeout=15000)
+    _step(pg, 6)
+    pg.locator("#cbxAddContact").click()
+    pg.wait_for_timeout(50)
+    pg.fill('[data-cname="2"]', "Lou")
+    pg.select_option('[data-carch="2"]', "Fixer")
+    _submit(pg)
+    review = pg.inner_text("#cbxEditReview")
+    assert ("Not enough cash" in review) is (not can_save)
+    assert (pg.locator("#cbxEditConfirm").count() == 1) is can_save
+    if not can_save:
+        assert "5,000" in review and "500" in review and "300" in review
     assert errors == [], f"JS errors during the rebuild: {errors}"
     ctx.close()
 
