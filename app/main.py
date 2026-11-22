@@ -463,6 +463,16 @@ async def _ensure_campaign_pc_affiliation_backfilled_column():
         print("[startup] Added campaign_state.pc_affiliation_backfilled column")
 
 
+async def _ensure_campaign_adept_attrs_backfilled_column():
+    """Startup safety migration for campaign_state.adept_attrs_backfilled on SQLite. Must exist
+    before get_campaign_state() emits every mapped column. Idempotent.
+    """
+    if await _ensure_sqlite_column(
+        "campaign_state", "adept_attrs_backfilled", "BOOLEAN NOT NULL DEFAULT 0"
+    ):
+        print("[startup] Added campaign_state.adept_attrs_backfilled column")
+
+
 async def _ensure_campaign_team_karma_column():
     """Startup safety migration for campaign_state.team_karma on SQLite. Must exist before
     get_campaign_state() emits every mapped column. Idempotent.
@@ -488,6 +498,54 @@ async def _backfill_pc_affiliation_once():
         await db.commit()
         if result.rowcount:
             print(f"[startup] Backfilled {result.rowcount} PC(s) to Independent affiliation")
+
+def _adept_attr_bonus(adept_powers) -> dict[str, int]:
+    """Improved Physical Attributes levels per attribute on an adept's power lines: a catalog
+    ``modsAttr`` power adds level x modsAttr to the line's ``attr`` (Body when unset, as the
+    builder reads it). Mirrors shared.js adeptPowerMod."""
+    from app.data import catalog as cat
+    mods = {p["n"]: p["modsAttr"] for p in cat.get_catalog("adept_powers") if p.get("modsAttr")}
+    out: dict[str, int] = {}
+    for line in adept_powers or []:
+        if not isinstance(line, dict) or line.get("name") not in mods:
+            continue
+        # Power lines are player-written JSON: a level that isn't a sane whole number is skipped
+        # rather than allowed to stop the server from starting.
+        try:
+            lvl = int(line.get("lvl") or 1)
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= lvl <= 20:
+            continue
+        attr = line.get("attr") or "body"
+        out[attr] = out.get(attr, 0) + int(mods[line["name"]]) * lvl
+    return out
+
+
+async def _backfill_adept_attrs_once():
+    """One-time: the stored attribute columns now include Improved Physical Attributes (the
+    builder's finalAttr adds it, the play sheet writes it back), but adepts committed before that
+    were stored without it. Add each one's levels to its column, guarded by
+    campaign_state.adept_attrs_backfilled so a restart never adds them twice. Goes through the ORM
+    so the optimistic-lock version bumps.
+    """
+    async with async_session() as db:
+        state = await get_campaign_state(db)
+        if state.adept_attrs_backfilled:
+            return
+        fixed = 0
+        for char in (await db.execute(select(Character))).scalars():
+            bonus = _adept_attr_bonus(char.adept_powers)
+            for attr, levels in bonus.items():
+                if levels and attr in ("body", "strength", "quickness"):
+                    setattr(char, attr, (getattr(char, attr) or 0) + levels)
+            if any(bonus.values()):
+                fixed += 1
+        state.adept_attrs_backfilled = True
+        await db.commit()
+        if fixed:
+            print(f"[startup] Added Improved Physical Attributes to the stored attributes of {fixed} adept(s)")
+
 
 async def _strip_division_headquarters():
     """Divisions no longer have a ``headquarters`` field, and the division schema forbids unknown
@@ -573,9 +631,11 @@ async def lifespan(app: FastAPI):
         await _ensure_adventure_run_number_schema()
         await _ensure_campaign_state_enabled_books_column()
         await _ensure_campaign_pc_affiliation_backfilled_column()
+        await _ensure_campaign_adept_attrs_backfilled_column()
         await _ensure_campaign_team_karma_column()
         await _ensure_campaign_state()
         await _backfill_pc_affiliation_once()
+        await _backfill_adept_attrs_once()
         await _strip_division_headquarters()
         await _stamp_unversioned_db()
         yield

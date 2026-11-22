@@ -30,5 +30,8 @@ class CampaignState(Base):
     # One-time marker: existing PCs were backfilled to is_independent=True (runners default to
     # "Independent" affiliation). Prevents a startup backfill from re-flipping a deliberate "Unknown".
     pc_affiliation_backfilled: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # One-time marker: existing adepts' stored attributes were raised by their Improved Physical
+    # Attributes levels (the stored attribute now always includes them). Prevents adding them twice.
+    adept_attrs_backfilled: Mapped[bool] = mapped_column(default=False, nullable=False)
     # The team's Karma Pool (SR2 p.191); a new team starts with 2 (p.47). GM-edited only.
     team_karma: Mapped[int] = mapped_column(Integer, nullable=False, default=2)

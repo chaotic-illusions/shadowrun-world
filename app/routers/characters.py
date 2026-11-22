@@ -586,9 +586,20 @@ async def list_characters(
     if source_adventure:
         q = q.where(Character.source_adventure == source_adventure)
     result = await db.execute(q.order_by(Character.name))
+    chars = result.scalars().all()
     my_pcs = set() if _is_privileged_view(ctx) else await _caller_pc_ids(db, ctx)
-    return [_serialize_character(char, ctx, contact_owner=bool(not char.is_pc and char.origin_pc_id in my_pcs))
-            for char in result.scalars().all()]
+    out = [_serialize_character(char, ctx, contact_owner=bool(not char.is_pc and char.origin_pc_id in my_pcs))
+           for char in chars]
+    # Each PC's player, by the label on the token that owns it (the world-state Team cards show it).
+    owned = {c.owner_token for c in chars if c.is_pc and c.owner_token}
+    if owned:
+        labels = dict((await db.execute(
+            select(UserToken.token_hash, UserToken.label).where(UserToken.token_hash.in_(owned))
+        )).all())
+        for row, char in zip(out, chars):
+            if char.is_pc and labels.get(char.owner_token):
+                row["owner_name"] = labels[char.owner_token]
+    return out
 
 
 @router.post("/", response_model=CharacterRead, status_code=201)

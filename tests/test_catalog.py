@@ -14,7 +14,7 @@ EXPECTED_COUNTS = {
     "weapons": 183,
     "armor": 34,
     "bioware": 25,
-    "gear": 100,
+    "gear": 115,
     "spells": 223,
     "adept_powers": 37,
     "vehicles": 169,
@@ -128,3 +128,18 @@ def test_magic_catalog_text_has_no_markup(name):
     for item in cat.get_catalog(name):
         for text in [item["desc"], *item["effect"]]:
             assert not re.search(r"</?[a-z]+>", text), f"{item['n']}: {text}"
+
+
+def test_weapon_foci_priced_by_reach():
+    """(Reach + 1) x 100,000 + Rating x 90,000: Small = Reach 0, Medium = Reach 1, Large = Reach 2,
+    each showing the Reach breakdown; the foci feed carries Availability and Index."""
+    import asyncio
+    from app.routers.catalog import get_foci
+
+    items = {i["n"]: i for i in asyncio.run(get_foci())["items"]}
+    for size, reach in (("Small", 0), ("Medium", 1), ("Large", 2)):
+        f = items[f"Weapon Focus ({size})"]
+        assert f["costTbl"][2] == (reach + 1) * 100_000 + 3 * 90_000        # Rating 3
+        assert any(n.startswith("Reach 2 (Large)") for n in f["notes"])
+        assert (f["avail"], f["index"]) == ("8/72 hrs", 3)
+    assert items["Power Focus"]["avail"] == "6/72 hrs"

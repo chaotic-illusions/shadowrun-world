@@ -237,3 +237,219 @@ def test_manage_identity_archetype_is_a_picker_with_custom_text(_browser, _front
     assert pg.input_value("#mgArchetypeCustom") == "Bounty Hunter"
     assert errors == [], f"JS errors on the play sheet: {errors}"
     ctx.close()
+
+
+def test_mystic_armor_adds_its_level_to_impact(_browser, _frontend_port):
+    """Mystic Armor (GRIM p.34) stacks with worn armor: level 1 over a Lined Coat (4/2) is 4/3,
+    shown as its own row so the total adds up."""
+    char = {**_CHAR, "magic_type": "Adept", "magic_rating": 6,
+            "gear": {"armor": [{"n": "Lined Coat", "equipped": True}]},
+            "adept_powers": [{"name": "Mystic Armor", "rated": True, "lvl": 1, "ppEach": 1, "pp": 1}]}
+    inner = _route_for([])
+
+    def route(r):
+        path = r.request.url.split("?")[0]
+        if path.endswith("/characters/7") and r.request.method == "GET":
+            r.fulfill(json=char)
+        else:
+            inner(r)
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+    assert pg.inner_text("#armorTotal") == "4/3"
+    assert "Mystic Armor" in pg.inner_text("#armorList")
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()
+
+
+def test_adept_and_cyber_bonuses_sit_on_top_of_the_base(_browser, _frontend_port):
+    """Permanent bonuses are kept apart from the base. Improved Physical Attributes is in the stored
+    Strength, and per SR2 p.125 a Karma raise costs the total including it. Reaction/Initiative take
+    the greater of cyber and adept power. Improved Ability dice show on the skill and its
+    Concentration, a Reflex Recorder on its skill, and none of it changes a skill rating."""
+    char = {**_CHAR, "magic_type": "Adept", "magic_rating": 5, "essence": 4.0,
+            "quickness": 5, "intelligence": 5, "strength": 6,         # Strength 4 + Improved Physical Attributes 2
+            "chargen_state": {"base": {"body": 3, "quickness": 5, "strength": 4, "charisma": 4,
+                                       "intelligence": 5, "willpower": 5}},
+            "skills": [
+                {"name": "Unarmed Combat", "attr": "strength", "group": "combat", "rating": 5,
+                 "concs": [{"name": "Boxing", "rating": 7}], "specs": []},
+                {"name": "Stealth", "attr": "quickness", "group": "physical", "rating": 3, "concs": [], "specs": []},
+            ],
+            "gear": {"cyber": [{"n": "Wired Reflexes", "rating": 1, "modsPer": {"reaction": 2, "initDice": 1}}],
+                     "bio": [{"n": "Reflex Recorder (General)", "skill": "Stealth"}]},
+            "adept_powers": [
+                {"name": "Improved Physical Attributes", "attr": "strength", "rated": True, "lvl": 2},
+                {"name": "Increased Reaction", "rated": True, "lvl": 3},       # beats Wired Reflexes' +2
+                {"name": "Increased Reflexes", "rated": True, "lvl": 2},       # beats Wired Reflexes' +1D6
+                {"name": "Improved Ability", "skill": "Unarmed Combat", "rated": True, "lvl": 1},
+            ]}
+    patches: list[dict] = []
+    inner = _route_for(patches)
+
+    def route(r):
+        path = r.request.url.split("?")[0]
+        if path.endswith("/characters/7") and r.request.method == "GET":
+            r.fulfill(json=char)
+        elif path.endswith("/characters/7") and r.request.method == "PATCH":
+            patches.append(r.request.post_data_json)
+            r.fulfill(json={**char, **r.request.post_data_json})
+        else:
+            inner(r)
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+
+    assert pg.inner_text("#atS") == "6"
+    assert pg.inner_text("#dvReaction") == "8"                   # (5+5)/2 + max(2, 3)
+    assert pg.inner_text("#dvInit") == "3D6"                     # 1 + max(1, 2)
+    unarmed = pg.inner_text('#skillList .sk-row:has-text("Unarmed Combat")')
+    assert unarmed.count("+1 (Improved Ability)") == 2           # general skill and Boxing
+    assert "5" in unarmed and "7" in unarmed                     # ratings stay the base
+    assert "+1 (Reflex Recorder)" in pg.inner_text('#skillList .sk-row:has-text("Stealth")')
+
+    pg.locator("#manageAttrsBtn").click()
+    pg.wait_for_selector('[data-raise="strength"]', timeout=5000)
+    label = pg.text_content('[data-raise="strength"]')
+    assert "Raise to 5" in label and "7 karma" in label          # natural 5 + 2 magical = 7
+    pg.locator('[data-raise="strength"]').click()
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    sent = next(p for p in patches if "strength" in p)
+    assert sent["strength"] == 7 and sent["good_karma"] == 30 - 7
+    # The stub serves no stored build, so the base was backed out of the stored total
+    # (6 - Improved Physical Attributes 2 = 4) and written back raised.
+    assert sent["chargen_state"]["base"]["strength"] == 5
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()
+
+
+def test_spell_needing_a_fetish_and_lodge_rating(_browser, _frontend_port):
+    """A spell marked as needing a fetish shows whether a fetish of its category is owned; a fetish
+    bought on the sheet asks nothing (its category is in its name); the toggle lives in Manage
+    Magic. A Medicine Lodge lists as "Medicine Lodge 3"."""
+    char = {**_CHAR, "magic_type": "Full Mage", "tradition": "Shamanic", "magic_rating": 6, "nuyen": 1000,
+            "spells": [{"name": "Stunbolt", "cat": "combat", "force": 4, "fetish": True},
+                       {"name": "Heal", "cat": "health", "force": 3, "fetish": True},
+                       {"name": "Detect Life", "cat": "detection", "force": 2}],
+            "gear": {"gear": [
+                {"n": "Expendable Fetish (Combat)", "sub": "Fetish", "cost": 20, "spellCat": "combat"},
+                {"n": "Medicine Lodge", "sub": "Lodge", "rated": True, "rating": 3, "maxRating": 10,
+                 "costTbl": [500 * r for r in range(1, 11)]},
+            ]}}
+    patches: list[dict] = []
+    inner = _route_for(patches)
+
+    def route(r):
+        path = r.request.url.split("?")[0]
+        if path.endswith("/characters/7") and r.request.method == "GET":
+            r.fulfill(json=char)
+        elif path.endswith("/characters/7") and r.request.method == "PATCH":
+            patches.append(r.request.post_data_json)
+            r.fulfill(json={**char, **r.request.post_data_json})
+        else:
+            inner(r)
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#spellsTbl tbody tr", timeout=15000)
+
+    fetish_cell = lambda spell: pg.inner_text(f'#spellsTbl tbody tr:has-text("{spell}") td:nth-child(6)')
+    assert fetish_cell("Stunbolt") == "Needed"                   # a Combat fetish is owned
+    assert "none owned" in fetish_cell("Heal")                    # no Healing fetish
+    assert fetish_cell("Detect Life") == "—"
+    assert "Medicine Lodge 3" in pg.inner_text("#gearList")
+
+    # Buying a fetish needs no prompt: its category is part of the item.
+    pg.locator("#manageGearBtn").click()
+    pg.locator('[data-buy-shortcut="gear"]').click()
+    pg.locator('[data-pick="Reusable Fetish (Healing)"]').click()
+    pg.locator("#gcBuy").click()
+    pg.wait_for_timeout(400)
+    sent = next(p for p in patches if "gear" in p)
+    assert sent["gear"]["gear"][-1]["spellCat"] == "health"
+    pg.locator("#modalCancelBtn").click()
+    assert fetish_cell("Heal") == "Needed"
+
+    # Manage Magic can make a spell need a fetish (after a confirm), but never undo it.
+    pg.locator("#manageMagicBtn").click()
+    assert pg.locator('[data-spellfetish="0"]').count() == 0     # Stunbolt already needs one: no control
+    pg.locator('[data-spellfetish="2"]').click()                  # Detect Life
+    pg.locator("#_sharedConfirmOk").click()
+    pg.wait_for_timeout(300)
+    spells = next(p for p in reversed(patches) if "spells" in p)["spells"]
+    assert [s.get("fetish", False) for s in spells] == [True, True, True]
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()
+
+
+def _sheet(_browser, _frontend_port, char, patches, fail_powers=False):
+    inner = _route_for(patches)
+
+    def route(r):
+        path = r.request.url.split("?")[0]
+        if fail_powers and path.endswith("/catalog/adept_powers"):
+            r.fulfill(status=500, json={"detail": "down"})
+        elif path.endswith("/characters/7") and r.request.method == "GET":
+            r.fulfill(json=char)
+        elif path.endswith("/characters/7") and r.request.method == "PATCH":
+            patches.append(r.request.post_data_json)
+            r.fulfill(json={**char, **r.request.post_data_json})
+        else:
+            inner(r)
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+    return ctx, pg, errors
+
+
+def test_attribute_save_refused_without_the_power_list(_browser, _frontend_port):
+    """If the adept power list fails to load, an adept's attribute raise is refused rather than saved
+    without Improved Physical Attributes."""
+    char = {**_CHAR, "magic_type": "Adept", "magic_rating": 6, "strength": 6,
+            "adept_powers": [{"name": "Improved Physical Attributes", "attr": "strength", "rated": True, "lvl": 2}]}
+    patches: list[dict] = []
+    ctx, pg, errors = _sheet(_browser, _frontend_port, char, patches, fail_powers=True)
+    pg.locator("#manageAttrsBtn").click()
+    pg.locator('[data-raise="body"]').click()
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    assert not any("body" in p for p in patches)
+    assert "did not load" in pg.inner_text("#modalAlert")
+    assert errors == [], f"JS errors: {errors}"
+    ctx.close()
+
+
+def test_rigged_reaction_gets_only_the_vcr(_browser, _frontend_port):
+    """Rigged Reaction is the base (Q+I)/2 -- attributes as they stand, Muscle Replacement's +1
+    Quickness included -- plus only the VCR: Wired Reflexes' Reaction counts for the physical line only."""
+    char = {**_CHAR, "quickness": 5, "intelligence": 5,
+            "chargen_state": {"base": {"body": 3, "quickness": 4, "strength": 3, "charisma": 4,
+                                       "intelligence": 5, "willpower": 5}},
+            "gear": {"cyber": [{"n": "Vehicle Control Rig", "rating": 1, "modsPer": {"reaction": 2, "initDice": 1}},
+                               {"n": "Wired Reflexes", "rating": 1, "modsPer": {"reaction": 2, "initDice": 1}},
+                               {"n": "Muscle Replacement", "rating": 1, "modsPer": {"quickness": 1, "strength": 1}}]}}
+    ctx, pg, errors = _sheet(_browser, _frontend_port, char, [])
+    assert pg.inner_text("#dvReaction") == "7 / 7"               # (5+5)/2 + Wired 2 | (5+5)/2 + VCR 2
+    assert pg.inner_text("#dvInit") == "2D6 / 2D6"               # 1 + Wired 1 | 1 + VCR 1
+    assert errors == [], f"JS errors: {errors}"
+    ctx.close()

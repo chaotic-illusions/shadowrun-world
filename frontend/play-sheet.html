@@ -515,7 +515,7 @@
             </div>
             <div id="spellsWrap" style="display:none;">
               <div class="dim-label mb-8">Spells</div>
-              <table class="ps-data mb-8" id="spellsTbl"><thead><tr><th>Spell</th><th>Category</th><th>Force</th><th>Drain</th><th>Focus</th></tr></thead><tbody></tbody></table>
+              <table class="ps-data mb-8" id="spellsTbl"><thead><tr><th>Spell</th><th>Category</th><th>Force</th><th>Drain</th><th>Focus</th><th>Fetish</th></tr></thead><tbody></tbody></table>
             </div>
             <div id="powersWrap" style="display:none;">
               <div class="dim-label mb-8">Adept Powers <span class="ghost-note">(bought at chargen only)</span></div>
@@ -1064,14 +1064,19 @@ function primaryDeck(){
 function reactionInit(){
   const Q = CHAR.quickness||0, INT = CHAR.intelligence||0, W = CHAR.willpower||0;
   const vcr = vcrLevel();
-  const reactionPhys = Math.floor((Q+INT)/2);
-  const reactionRig = controlPoolFormula(reactionPhys, vcr);
+  // Physical Reaction and Initiative dice add the greater of the cyber/bio boost and the adept
+  // power (Increased Reaction / Increased Reflexes) -- they don't stack. Rigging gets no Reaction
+  // bonus but the VCR's (house ruling 2026-11-22): the base (Q+I)/2 plus the VCR.
+  const reactionBase = Math.floor((Q+INT)/2);
+  const reactionPhys = reactionBase + reflexBonus(augAttr('reaction', isRiggingOnlyAug), powerMod('reaction'));
+  const initDicePhys = 1 + reflexBonus(augAttr('initDice', isRiggingOnlyAug), powerMod('initDice'));
+  const reactionRig = controlPoolFormula(reactionBase, vcr);
   // Base (Q+I+W)/2, plus the Combat Sense adept power and any cyberware Combat Pool bonus (Tactical
   // Computer), minus a Heavy/Military armor encumbrance penalty.
   const combatPool = Math.max(0, combatPoolFormula(Q, INT, W, powerLevel('Combat Sense') + poolBonus('combat')) - armorTotals().cpPenalty);
   const deck = primaryDeck();
   const matrix = (deck && deck.deckType) ? matrixReactionInitFormula(Q, INT, deck.deckType, deck.respIncrease, deck.realityFilter) : null;
-  return { reactionPhys, reactionRig, combatPool, vcr, matrix };
+  return { reactionPhys, initDicePhys, reactionRig, combatPool, vcr, matrix };
 }
 function vcrLevel(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -1079,7 +1084,7 @@ function vcrLevel(){
   return vcr ? (Number(vcr.rating) || 0) : 0;
 }
 // CHAR.body/.../.willpower are the FINAL aggregate (base + metatype racial mod + cyberware/bioware
-// augmentation), baked in at chargen submission (see character-builder.html's finalAttr()). The true
+// augmentation + Improved Physical Attributes), baked in at chargen submission (see character-builder.html's finalAttr()). The true
 // pre-augmentation base only survives in CHAR.chargen_state.base -- reconstruct it if that's missing
 // (older records) by reversing the same math, so karma-raise costs are always keyed off base, never
 // off a total that's inflated by an encephalon/wired reflexes/etc.
@@ -1087,9 +1092,11 @@ function metatypeMod(attr){
   const mt = RULES && RULES.metatypes ? RULES.metatypes[CHAR.race] : null;
   return (mt && mt.mods && mt.mods[attr]) || 0;
 }
-function augAttr(attr){
+// `skip(g)`: leave a line out (the physical Reaction / Initiative skip the VCR, isRiggingOnlyAug).
+function augAttr(attr, skip){
   let t = 0;
   const apply = (g, cat, rating) => {
+    if (skip && skip(g)) return;
     if (g.mods) t += Number(g.mods[attr]) || 0;
     if (g.modsPer) t += (Number(g.modsPer[attr]) || 0) * rating;
     const src = cat.get(g.n) || g;   // modsTbl (e.g. Encephalon) isn't copied onto the owned line
@@ -1107,8 +1114,18 @@ function rawBaseAttr(attr){
   const cs = CHAR.chargen_state || {};
   const stored = cs.base && cs.base[attr];
   if (stored != null) return stored + (((cs.advancement || {}).attrs || {})[attr] || 0);
-  return Math.max(1, (CHAR[attr] || 1) - metatypeMod(attr) - augAttr(attr));
+  return Math.max(1, (CHAR[attr] || 1) - metatypeMod(attr) - augAttr(attr) - powerMod(attr));
 }
+// Permanent stat bonus from the adept's powers (shared.js adeptPowerMod): Improved Physical
+// Attributes on an attribute, Increased Reaction on "reaction", Increased Reflexes on "initDice".
+// The stored attribute columns include the attribute part (the builder commits it, the startup
+// backfill added it to older adepts), like cyber/bio.
+function powerMod(key){ return adeptPowerMod(CHAR.adept_powers, n => POWER_CAT.get(n), key); }
+// Whether powerMod() can be trusted: false when the runner has adept powers but the power catalog
+// didn't load. Every attribute write includes Improved Physical Attributes, so it must refuse then --
+// otherwise it would save the attribute without the bonus (and price a Karma raise too low).
+function powerCatalogReady(){ return !(CHAR.adept_powers || []).length || POWER_CAT.size > 0; }
+const POWER_CATALOG_MISSING = 'The adept power list did not load, so attributes can\'t be saved right now. Reload the page and try again.';
 // Record Good Karma spent since chargen against each item ("skill:Etiquette", "attr:body",
 // "spell:Stunbolt") in chargen_state.advancement.karma. The builder's re-edit refunds an item's
 // entry when the player changes that item's chargen value (server: rebuild-dossier). Returns a
@@ -1129,7 +1146,11 @@ function karmaRecorded(cs, spent){
 // bonuses (augAttr) are excluded -- an Elf's +1 Quickness is part of "base" for this purpose, e.g.
 // a 3-base Quickness Elf has a karma-base of 4, and raising to 5 costs (4+1)x2 = 10 karma.
 function karmaBaseAttr(attr){ return rawBaseAttr(attr) + metatypeMod(attr); }
-function finalAttr(attr){ return karmaBaseAttr(attr) + augAttr(attr); }
+function finalAttr(attr){ return karmaBaseAttr(attr) + augAttr(attr) + powerMod(attr); }
+// The Good Karma a raise of `attr` to karma-base `next` costs: the new rating, which counts
+// Improved Physical Attributes (SR2 p.125: "the cost is based on the total rating, including the
+// magical improvement") but never cyber/bio.
+function attrRaiseCost(attr, next){ return attrKarmaCost(next + powerMod(attr)); }
 
 // Skill-rating bonuses from installed cyber/bio with a `skillBonus` (e.g. Math SPU: +floor(rating/2)
 // to matching skills). Applied only for display -- CHAR.skills[].rating stays pure base, so the
@@ -1145,6 +1166,29 @@ function skillAugSources(skillName){
     const rating = Number(g.rating) || 1;
     const mag = sb.per === 'halfRating' ? Math.floor(rating / 2) : sb.per === 'rating' ? rating : (Number(sb.flat) || 0);
     if (mag > 0) out.push({ n: g.n, mag });
+  });
+  return out;
+}
+
+// Permanent extra dice on one part of a skill (display only -- CHAR.skills ratings stay the base,
+// so Karma raises never count them), as [{n, mag}] for `part` (a skillParts() entry of `s`):
+// - Improved Ability (adept power): its level, on the general skill AND equally on each of its
+//   Concentrations/Specializations (SR2 p.125).
+// - Reflex Recorder (bioware): +1 die. General: on the general skill. Concentration: on the
+//   Concentration it recorded, or on the general skill when the recorded name is the skill itself.
+// - cyber/bio `skillBonus` (Math SPU, Synthacardium...): on the general skill (skillAugSources).
+function skillDiceBonuses(s, part){
+  const out = part.tier === 'general' ? skillAugSources(s.name) : [];
+  (CHAR.adept_powers || []).forEach(p => {
+    const c = POWER_CAT.get(p.name);
+    if (c && c.skillChoice && p.skill === s.name) out.push({ n: p.name, mag: Number(p.lvl) || 1 });
+  });
+  ((CHAR.gear && CHAR.gear.bio) || []).concat((CHAR.gear && CHAR.gear.cyber) || []).forEach(g => {
+    if (!/^Reflex Recorder/.test(g.n || '') || !g.skill) return;
+    const conc = /Concentration/.test(g.n);
+    const hit = part.tier === 'general' ? g.skill === s.name && (!conc || !(s.concs || []).some(c => c.name === g.skill))
+      : part.tier === 'conc' && conc && g.skill === part.name;
+    if (hit) out.push({ n: 'Reflex Recorder', mag: 1 });
   });
   return out;
 }
@@ -1231,14 +1275,14 @@ function renderAttributes(){
   $('#atCH').textContent = CHAR.charisma; $('#atINT').textContent = CHAR.intelligence; $('#atW').textContent = CHAR.willpower;
   $('#dvEssence').textContent = Number(CHAR.essence||0).toFixed(2);
   $('#dvMagic').textContent = CHAR.magic_rating > 0 ? CHAR.magic_rating : '—';
-  const { reactionPhys, reactionRig, combatPool, vcr, matrix } = reactionInit();
+  const { reactionPhys, initDicePhys, reactionRig, combatPool, vcr, matrix } = reactionInit();
   // Physical, then Rigged (Vehicle Control Rig) if owned, then Matrix (jacked into the primary
   // deck) if owned -- same slash-separated convention as a rigger's Phys/Rig split, extended with
   // a third segment when both a VCR and a deck are in play. A tooltip spells out which is which
   // since three unlabeled numbers separated by slashes gets ambiguous fast.
   const modeLabels = ['Physical'];
   const reactionParts = [reactionPhys];
-  const initParts = ['1D6'];
+  const initParts = [`${initDicePhys}D6`];
   if (vcr) { modeLabels.push('Rigged'); reactionParts.push(reactionRig); initParts.push(`${1+vcr}D6`); }
   if (matrix) { modeLabels.push('Matrix'); reactionParts.push(matrix.matrixReaction); initParts.push(`${matrix.initiativeDice}D6`); }
   const modeTitle = modeLabels.length > 1 ? modeLabels.join(' / ') : '';
@@ -1375,11 +1419,15 @@ function armorTotals(){
     if (cat.cp_penalty_per) cpPenalty += Math.floor(Math.max(0, b - Q) / (Number(cat.cp_penalty_per)||1));
   });
   const bio = bioArmorBonus();
-  return { ballistic: bestB + addB + bio.ballistic, impact: bestI + addI + bio.impact, cpPenalty };
+  // Mystic Armor (adept power, GRIM p.34): +1 Impact per level, cumulative with worn armor. It's
+  // the adept's own skin, so it never counts toward the encumbrance penalty above.
+  const mystic = powerLevel('Mystic Armor');
+  return { ballistic: bestB + addB + bio.ballistic, impact: bestI + addI + bio.impact + mystic, cpPenalty };
 }
 function renderArmor(){
   const armor = (CHAR.gear && CHAR.gear.armor) || [];
-  if (!armor.length) { $('#armorList').innerHTML = '<p class="empty-state" style="padding:8px 10px;">No armor owned.</p>'; }
+  const mystic = powerLevel('Mystic Armor');
+  if (!armor.length) { $('#armorList').innerHTML = mystic ? '' : '<p class="empty-state" style="padding:8px 10px;">No armor owned.</p>'; }
   else {
     // Flat list on the main sheet -- no slot sub-headings/dividers, that grouping only lives in
     // Manage Armor where equip-slot exclusivity actually needs explaining.
@@ -1393,6 +1441,9 @@ function renderArmor(){
         <span class="v">${cat.ballistic ?? '-'}/${cat.impact ?? '-'} &middot; Conceal ${conceal}</span></div>`;
     }).join('');
   }
+  // Mystic Armor has no item of its own: its own row, so the total's extra Impact is accounted for.
+  if (mystic) $('#armorList').insertAdjacentHTML('beforeend', `<div class="ps-stat-row"><span class="k">Mystic Armor <span class="dim-meta">(adept power)</span></span>
+        <span class="v">0/${mystic}</span></div>`);
   const { ballistic, impact } = armorTotals();
   $('#armorTotal').textContent = `${ballistic}/${impact}`;
 }
@@ -1464,10 +1515,11 @@ function renderManageCyber(){
     if (src.modsTbl) Object.keys(src.modsTbl).forEach(a => touchedAttrs.add(a));
     const baseSnapshot = {};
     touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
+    if (Object.keys(baseSnapshot).length && !powerCatalogReady()) { showAlert($('#modalAlert'), POWER_CATALOG_MISSING, true, true); return; }
 
     CHAR.gear[bucket].splice(Number(idx), 1);
     const patch = { gear: CHAR.gear };
-    Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
+    Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a) + powerMod(a); });
     if (bucket === 'cyber') {
       patch.essence = Math.round(essenceRemaining() * 100) / 100;
       if (awakened()) { patch.magic_rating = recomputedMagicRating(); patch.chargen_state = CHAR.chargen_state; }
@@ -1824,6 +1876,8 @@ function renderWeapons(){
 }
 
 // ---------------------------------------------------------------- gear
+// A gear line's name with its rating, when it has one: "Hermetic Library 4", "Medicine Lodge 3".
+function gearItemName(g){ return g.rated ? `${g.n} ${Number(g.rating) || 1}` : g.n; }
 function renderGear(){
   const gear = (CHAR.gear && CHAR.gear.gear) || [];
   const weapons = (CHAR.gear && CHAR.gear.weapons) || [];
@@ -1832,7 +1886,8 @@ function renderGear(){
   // pattern -- they don't also get listed here. Cyberdecks have their own Cyberdeck panel too.
   const foci = (CHAR.gear && CHAR.gear.foci) || [];
   const all = [
-    ...gear.map(g => ({ n:g.n, kind:g.kind||'', tag:g.kind ? g.kind : 'Gear', mount:null })),
+    // A rated item shows its rating (Hermetic Library 6, Medicine Lodge 3).
+    ...gear.map(g => ({ n:gearItemName(g), kind:g.kind||'', tag:g.kind ? g.kind : 'Gear', mount:null })),
     // A weapon-mod accessory (WEAPON_MOD_NAMES) attached via the Weapons table's MOD button carries
     // hostId -- resolve it to the host's name so it groups (and displays) separately from an
     // identical unattached copy still sitting loose in inventory.
@@ -1997,12 +2052,11 @@ function renderSkills(){
   const part = (cls, name, rating, note = '') =>
     `<span class="sk-part ${cls}">${esc(name)}<span class="sk-rating">${rating}</span>${note}</span>`;
   const sep = '<span class="sk-sep">|</span>';
+  // "+N (sources)": permanent extra dice on that part (skillDiceBonuses); the rating stays the base.
+  const diceNote = list => list.length
+    ? ` <span class="sk-note">+${list.reduce((a,x)=>a+x.mag,0)} (${list.map(x=>esc(x.n)).join(', ')})</span>` : '';
   [...skills].sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(s => {
-    const aug = skillAugSources(s.name);
-    const augNote = aug.length ? ` <span class="sk-note">+${aug.reduce((a,x)=>a+x.mag,0)} (${aug.map(x=>esc(x.n)).join(', ')})</span>` : '';
-    const row = skillParts(s).map(p => p.tier === 'general'
-      ? part('', p.name, p.rating, augNote)
-      : part(p.tier, p.name, p.rating)).join(sep);
+    const row = skillParts(s).map(p => part(p.tier === 'general' ? '' : p.tier, p.name, p.rating, diceNote(skillDiceBonuses(s, p)))).join(sep);
     rows.push(`<div class="sk-row">${row}</div>`);
   });
   // Skillwire/skillsoft-granted skills never enter CHAR.skills -- they live only as gear.cyber
@@ -2073,8 +2127,14 @@ function renderMagic(){
       const fociCell = foci.length
         ? `<span class="spell-focus" title="${esc(foci.map(f => `${f.n || f.type} R${Number(f.rating)||1}`).join(', '))}: extra dice for casting and Drain Resistance">+${foci.reduce((t, f) => t + (Number(f.rating)||1), 0)}</span>`
         : '—';
-      return `<tr><td><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a></td><td>${category ? esc(titleCase(category)) : '—'}</td><td>${s.force ?? '—'}</td><td>${drainCell}</td><td>${fociCell}</td></tr>`;
-    }).join('') : `<tr><td colspan="5" class="empty-state">No spells known.</td></tr>`;
+      // A spell marked as needing a fetish can't be cast without one of its category (shared.js
+      // ownsFetishFor) -- any owned fetish of that category will do.
+      const fetishCell = !s.fetish ? '—'
+        : ownsFetishFor(CHAR.gear, category)
+          ? `<span class="text-green" title="Needs a ${esc(spellCatLabel(category))} fetish to cast; one is owned">Needed</span>`
+          : `<span class="text-red" title="Needs a ${esc(spellCatLabel(category))} fetish to cast; none owned">Needed &middot; none owned</span>`;
+      return `<tr><td><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a></td><td>${category ? esc(titleCase(category)) : '—'}</td><td>${s.force ?? '—'}</td><td>${drainCell}</td><td>${fociCell}</td><td>${fetishCell}</td></tr>`;
+    }).join('') : `<tr><td colspan="6" class="empty-state">No spells known.</td></tr>`;
   }
   const powers = CHAR.adept_powers || [];
   $('#powersTbl tbody').innerHTML = powers.length ? powers.map(p =>
@@ -2087,8 +2147,13 @@ function powerCostLabel(p){
   const cost = adeptPowerCost(p, POWER_CAT.get(p.name) || {}, null);
   return cost == null ? null : String(Math.round(cost * 100) / 100);
 }
-// " (Strength)" for a power bought per Physical Attribute (Improved Physical Attributes).
-function powerAttrLabel(p){ return p.attr ? ` <span class="dim-meta">(${esc(titleCase(p.attr))})</span>` : ''; }
+// " (Strength)" for a power bought per Physical Attribute (Improved Physical Attributes, Attribute
+// Boost), " (Unarmed Combat)" for one bought per skill (Improved Ability), or the listed pick
+// (Quick Draw's " (Firearms)", Improved Physical Senses' " (Low-Light Vision)").
+function powerAttrLabel(p){
+  const pick = p.attr ? titleCase(p.attr) : (p.skill || p.pick);
+  return pick ? ` <span class="dim-meta">(${esc(pick)})</span>` : '';
+}
 // Delegated once (not re-bound per render, since these tbodies redraw on every renderMagic() call) --
 // [data-spellinfo]/[data-powerinfo] links live inside both the main sheet's spellsTbl/powersTbl and
 // Manage Magic's owned-spell/power lists, so this is bound at the document level to catch both.
@@ -2302,13 +2367,14 @@ function racialMaxAttr(attr){
 }
 function renderManageAttrs(){
   $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Raising an attribute costs the new rating in Good Karma, up to the racial maximum.
-    Cost is keyed off base + metatype/racial bonus; gear/cyberware/bioware bonuses shown in parentheses never affect what a raise costs.</p>
+    Cost is keyed off base + metatype/racial bonus, plus Improved Physical Attributes (SR2 p.125: the magical improvement counts);
+    gear/cyberware/bioware bonuses never affect what a raise costs.</p>
     <div class="ps-stat-row" style="border:none;padding:0 0 12px;"><span class="k">Good Karma after changes</span>
       <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` +
     Object.entries(ATTR_KEYS).map(([label,key]) => {
-      const cur = draft[key], cost = attrKarmaCost(cur + 1);
-      const max = racialMaxAttr(key), atMax = max != null && cur >= max;
-      const bonus = augAttr(key);
+      const cur = draft[key], cost = attrRaiseCost(key, cur + 1);   // (a commit refuses when the power list is missing)
+      const max = racialMaxAttr(key), atMax = max != null && cur >= max;   // caps the natural rating
+      const bonus = augAttr(key) + powerMod(key);
       const totalNow = cur + bonus;
       // The row label already shows the aggregate ("base (N total)") -- keep the button's own text
       // as short and uniform as the Manage Skills raise buttons so the shared width fits everything.
@@ -2545,7 +2611,7 @@ function renderManageGear(){
     ? `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);margin-top:10px;padding-top:10px;"><span class="k" style="color:var(--text-bright);">${esc(title)}</span></div>${rows.join('')}`
     : '';
 
-  const gearRows = gear.map((g,i) => `<div class="ps-stat-row"><span class="k">${esc(g.kind ? g.n+' - '+g.kind : g.n)}</span>
+  const gearRows = gear.map((g,i) => `<div class="ps-stat-row"><span class="k">${esc(g.kind ? gearItemName(g)+' - '+g.kind : gearItemName(g))}</span>
     <button class="row-x" data-remove-gear="${i}" title="Remove">&#10005;</button></div>`);
   const accRows = accessories.map(w => {
     const i = weapons.indexOf(w);
@@ -2909,13 +2975,18 @@ const SPELL_CATEGORIES = () => [...new Set([...SPELL_CAT.values()].map(s => s.ca
 // category, or a spirit type respectively) -- tag it on the line so the dedup check can enforce
 // "one per target" instead of blocking the item outright.
 async function assignFocusTarget(line, item){
-  if (item.n === 'Specific Spell Focus') {
+  if (item.n === 'Specific Spell Focus' || item.n === 'Spell Lock') {
     const names = (CHAR.spells || []).map(s => s.name).filter(Boolean).sort();
-    const chosen = await showPrompt(`Which known spell is this focus for?`, '', { title: '// SPECIFIC SPELL FOCUS', options: names, okLabel: 'Set' });
-    if (chosen) line.target = chosen;
+    if (!names.length) return;
+    const what = item.n === 'Spell Lock' ? 'Which known spell does this Spell Lock hold?' : 'Which known spell is this focus for?';
+    const chosen = await showPrompt(what, '', { title: `// ${item.n.toUpperCase()}`, options: names, okLabel: 'Set' });
+    if (chosen && names.includes(chosen)) line.target = chosen;
   } else if (item.n === 'Spell Category Focus') {
-    const chosen = await showPrompt(`Which spell category is this focus for?`, '', { title: '// SPELL CATEGORY FOCUS', options: SPELL_CATEGORIES(), okLabel: 'Set' });
-    if (chosen) line.target = chosen;
+    // Shown as Combat / Detection / Healing / ...; stored as the catalog's category (spellFoci matches on it).
+    const labels = SPELL_CATEGORIES().map(c => spellCatLabel(c));
+    const chosen = await showPrompt(`Which spell category is this focus for?`, '', { title: '// SPELL CATEGORY FOCUS', options: labels, okLabel: 'Set' });
+    const cat = SPELL_CATEGORIES().find(c => spellCatLabel(c) === chosen);
+    if (cat) line.target = cat;
   } else if (item.n === 'Spirit Focus') {
     const chosen = await showPrompt(`Which spirit type is this focus for?`, '', { title: '// SPIRIT FOCUS', options: SPIRIT_TYPES(), okLabel: 'Set' });
     if (chosen) line.target = chosen;
@@ -2937,6 +3008,7 @@ async function purchaseGear(entries){
   });
   const baseSnapshot = {};
   touchedAttrs.forEach(a => { if (Object.values(ATTR_KEYS).includes(a)) baseSnapshot[a] = karmaBaseAttr(a); });
+  if (Object.keys(baseSnapshot).length && !powerCatalogReady()) return POWER_CATALOG_MISSING;
 
   let boughtCyber = false, boughtBio = false, boughtArmor = false, notesTouched = false, added = 0;
   const skipped = [];
@@ -3032,7 +3104,7 @@ async function purchaseGear(entries){
           skipped.push(`${item.n} — ${line.kind} (already owned)`); continue;
         }
       }
-      if (item.n === 'Specific Spell Focus' || item.n === 'Spell Category Focus' || item.n === 'Spirit Focus') {
+      if (item.n === 'Specific Spell Focus' || item.n === 'Spell Category Focus' || item.n === 'Spirit Focus' || item.n === 'Spell Lock') {
         await assignFocusTarget(line, item);
         if (line.target == null) { skipped.push(`${item.n} (no target chosen)`); continue; }
         if (dupeCheck(gear, bucket, item.n, [['target', line.target, 'ci']])) {
@@ -3065,7 +3137,7 @@ async function purchaseGear(entries){
   if (boughtArmor) enforceArmorSlotExclusivity();
   const patch = { gear };
   // baseSnapshot already includes metatype (it's karma-base, not raw base) -- don't add it twice.
-  Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a); });
+  Object.entries(baseSnapshot).forEach(([a, base]) => { patch[a] = base + augAttr(a) + powerMod(a); });
   if (boughtCyber) patch.essence = Math.round(essenceRemaining() * 100) / 100;
   if (boughtBio) patch.body_index = Math.round(ownedBioIndexTotal() * 100) / 100;
   if (boughtCyber && awakened()) { patch.magic_rating = recomputedMagicRating(); patch.chargen_state = CHAR.chargen_state; }
@@ -3112,7 +3184,11 @@ function renderManageMagic(){
     Force. The test is shown for reference &mdash; the app does not roll it.</p>` +
     (spells.length ? spells.map((s,i) => {
       const cat = SPELL_CAT.get(s.name) || {};
-      return `<div class="ps-stat-row"><span class="k"><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a> <span style="color:var(--text-dim);font-size:.66rem;">${esc(s.cat || cat.cat || '')} &middot; Force ${s.force ?? '-'}</span></span>
+      const category = s.cat || cat.cat || '';
+      return `<div class="ps-stat-row"><span class="k"><a href="#" class="info-link" data-spellinfo="${esc(s.name)}">${esc(s.name)}</a> <span style="color:var(--text-dim);font-size:.66rem;">${esc(category)} &middot; Force ${s.force ?? '-'}</span></span>
+        ${s.fetish
+          ? `<span class="text-amber dim-meta" title="Can only be cast with a ${esc(spellCatLabel(category))} fetish. Permanent once in play; only a rebuild in the builder can change it.">Needs fetish</span>`
+          : `<button class="btn btn-sm btn-ghost" data-spellfetish="${i}" title="Make this spell castable only with a ${esc(spellCatLabel(category))} fetish (permanent)">Require fetish</button>`}
         <button class="row-x" data-delspell="${i}" title="Remove">&#10005;</button></div>`;
     }).join('') : '<p class="empty-state">No spells known.</p>') +
     `<div class="ps-stat-row" style="border-top:1px solid var(--border-dark);margin-top:10px;padding-top:10px;"><span class="k" style="color:var(--text-bright);">+ Learn a Spell</span></div>
@@ -3126,6 +3202,16 @@ function renderManageMagic(){
     buyShortcutRow('foci', 'Buy Focus');
   $('#modalBody').innerHTML = html;
   initNumSteppers($('#modalBody'));
+  // Make a spell need a fetish. One-way in play: it's a permanent change, so there's no control to
+  // undo it here -- only a rebuild in the builder can clear it. A fresh list, not an in-place edit,
+  // so a failed save leaves CHAR as it was.
+  $$('[data-spellfetish]').forEach(b => b.onclick = async () => {
+    const i = Number(b.dataset.spellfetish), sp = (CHAR.spells || [])[i]; if (!sp || sp.fetish) return;
+    const cat = spellCatLabel(sp.cat || (SPELL_CAT.get(sp.name) || {}).cat);
+    if (!await showConfirm(`Make ${sp.name} castable only with a ${cat} fetish? This is permanent: only a rebuild in the builder can undo it.`, 'Require fetish', 'btn-amber')) return;
+    const spells = CHAR.spells.map((x, j) => j === i ? { ...x, fetish: true } : x);
+    patchChar({ spells }, $('#modalAlert')).then(ok => { if (ok) { renderMagic(); renderManageMagic(); } });
+  });
   $$('[data-delspell]').forEach(b => b.onclick = () => {
     CHAR.spells.splice(Number(b.dataset.delspell), 1);
     patchChar({ spells: CHAR.spells }).then(() => { renderMagic(); renderManageMagic(); });
@@ -3199,6 +3285,7 @@ async function commitModal(){
     });
     renderIdentity(); renderHeader();
   } else if (currentModalMode === 'attrs'){
+    if (!powerCatalogReady()) { showAlert($('#modalAlert'), POWER_CATALOG_MISSING, true, true); return; }
     // draft[key] is the new KARMA-BASE rating (natural base + metatype). Back the metatype bonus
     // back out before writing chargen_state.base (which stores the pure pre-racial base), and write
     // the recomputed aggregate (karma-base + aug) into the top-level field everything else on the
@@ -3221,7 +3308,7 @@ async function commitModal(){
       } else {
         newBase[key] = pure;
       }
-      fields[key] = draft[key] + augAttr(key);
+      fields[key] = draft[key] + augAttr(key) + powerMod(key);
     });
     let next = { ...cs, base: newBase };
     if (Object.keys(raises).length || cs.advancement) next.advancement = { ...(cs.advancement || {}), attrs: raises };

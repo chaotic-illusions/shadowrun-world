@@ -97,7 +97,7 @@ ROWS = [
     ("bioware.json", "Platelet Factory", "Body Test at +1 TN per use (thrombosis risk)", "+1 TN Body test per use (cumulative)", "cumulative_use_penalty", "Gear note"),
     # ---- adept_powers.json ----
     ("adept_powers.json", "Combat Sense", "+1/2/3 Combat Pool dice", "+N Combat Pool dice", "combat_pool_bonus", "Combat Pool"),
-    ("adept_powers.json", "Mystic Armor", "+1 armor vs ALL attacks per level", "+N Ballistic & Impact", "mystic_armor_bonus", "Armor total"),
+    ("adept_powers.json", "Mystic Armor", "+1 Impact armor per level (no Ballistic)", "+N Impact", "mystic_armor_bonus", "Armor total"),
     ("adept_powers.json", "Iron Will", "+1 die resist Control/Illusion/Influence per lvl", "+N spell-resist dice (categories)", "spell_resist_dice_bonus", "Powers note"),
     ("adept_powers.json", "Magic Resistance", "+1 die resist any hostile sorcery per lvl", "+N general spell-resist dice", "spell_resist_dice_bonus", "Powers note"),
     ("adept_powers.json", "Quick Draw", "eliminates +2 TN for draw-and-fire", "Removes +2 draw-and-fire TN", "negate_draw_and_fire_penalty", "Weapon modifiers"),

@@ -332,6 +332,38 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
                 return num(p.get("lvl") or 1)
         return 0
 
+    # Permanent bonuses, as the play sheet computes them (play-sheet.html augAttr / powerMod,
+    # shared.js adeptPowerMod / reflexBonus): cyber/bio `mods` / `modsPer` x rating / `modsTbl`, and
+    # adept powers' catalog `modsAttr` (Improved Physical Attributes, on the line's attr) and
+    # `modsPer` (Increased Reaction / Increased Reflexes) x level.
+    _pw_cat = _catalog("adept_powers")
+
+    def _aug_stat(key, physical=False):
+        t = 0
+        for g in aug_all:
+            if physical and (g.get("n") or "").startswith("Vehicle Control Rig"):
+                continue   # the VCR's Reaction / Initiative bonuses apply only while rigging
+            r = max(1, num(g.get("rating") or 1))
+            if isinstance(g.get("mods"), dict):
+                t += num(g["mods"].get(key))
+            if isinstance(g.get("modsPer"), dict):
+                t += num(g["modsPer"].get(key)) * r
+            tbl = (g.get("modsTbl") or {}).get(key) if isinstance(g.get("modsTbl"), dict) else None
+            if isinstance(tbl, list) and tbl:
+                t += num(tbl[min(r, len(tbl)) - 1])
+        return t
+
+    def _power_mod(key):
+        t = 0
+        for p in adept:
+            src = _find(_pw_cat, p.get("name") or p.get("n")) or {}
+            lvl = num(p.get("lvl") or 1)
+            if src.get("modsAttr") and (p.get("attr") or "body") == key:
+                t += num(src["modsAttr"]) * lvl
+            if isinstance(src.get("modsPer"), dict) and src["modsPer"].get(key):
+                t += num(src["modsPer"][key]) * lvl
+        return t
+
     # Combat Pool: base (Q+I+W)/2, plus Combat Sense dice, minus a Heavy/Military armor penalty
     # (cp_penalty_per points of Ballistic above Quickness).
     armor_cat = _catalog("armor")
@@ -381,11 +413,19 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
     ri = num(deck.get("respIncrease")) if deck else 0
     if deck and not ri:
         ri = assume_ri
-    modes = [(reaction, 1)]                             # physical (no wired reflexes here)
+    # The rated "Vehicle Control Rig" line (the builder / play sheet shape) carries its level in rating.
+    for g in cyber:
+        if (g.get("n") or "") == "Vehicle Control Rig":
+            vcr = max(vcr, max(1, num(g.get("rating") or 1)))
+    # Physical: the greater of the cyber/bio boost and the adept power counts (house ruling
+    # 2026-11-22). Rigging: the base (Q+I)/2 plus only the VCR -- no other Reaction bonus.
+    phys = (reaction + max(_aug_stat("reaction", physical=True), _power_mod("reaction")),
+            1 + max(_aug_stat("initDice", physical=True), _power_mod("initDice")))
+    modes = [phys]                                     # physical
     if deck:
         modes.append((reaction + ri * 2, 1 + ri))      # matrix
     if vcr:
-        modes.append((reaction + vcr * 2, 1 + vcr))    # rigging
+        modes.append((reaction + vcr * 2, 1 + vcr))    # rigging: VCR bonuses only
     if c.get("magic_type") == "Full Mage":
         modes.append((INT, 1))                         # astral
     put("Reaction", " / ".join(str(m[0]) for m in modes))
@@ -433,8 +473,8 @@ def build_fields(c, contacts, primary_vehicle=None, legal_name=None, assume_ri=0
             return tbl[min(r, len(tbl)) - 1]
         return num(g.get(f"{which}_bonus"))
 
-    mystic = _power_level("Mystic Armor")   # adept Mystic Armor adds to both armor tracks
-    body_b = sum(_armor_bonus(g, "ballistic") for g in aug_all) + mystic
+    mystic = _power_level("Mystic Armor")   # adept Mystic Armor: +1 Impact per level, no Ballistic
+    body_b = sum(_armor_bonus(g, "ballistic") for g in aug_all)
     body_i = sum(_armor_bonus(g, "impact") for g in aug_all) + mystic
 
     for idx, a in enumerate(worn, start=1):

@@ -1178,9 +1178,30 @@ function makeGearLine(item, catalogName, grade) {
     if (Array.isArray(item.costTbl)) line.costTbl = item.costTbl.slice();
     if (Array.isArray(item.rateLabels)) line.rateLabels = item.rateLabels.slice();
   }
+  if (item.spellCat) line.spellCat = item.spellCat;   // a fetish's spell category (ownsFetishFor)
   if (item.cat === 'deck') line.mpcp = statVal(item, 'MPCP');
   if (catalogName === 'vehicles') { line.body = vehicleStatBody(item); line.rigger = false; }
   return line;
+}
+
+// Spell categories as the catalog stores them (spells.json `cat`) and as players read them.
+const SPELL_CATEGORY_LABEL = { combat: 'Combat', detection: 'Detection', health: 'Healing', illusion: 'Illusion', manipulation: 'Manipulation' };
+function spellCatLabel(cat){ return SPELL_CATEGORY_LABEL[cat] || (cat ? String(cat)[0].toUpperCase() + String(cat).slice(1) : ''); }
+// Whether the runner owns a fetish (expendable or reusable) for spell category `cat`. A spell marked
+// as needing a fetish (`fetish: true` on the owned spell) can only be cast with one; a fetish isn't
+// tied to a particular spell, owning one of the category is enough (house rule, 2026-11-22).
+function ownsFetishFor(gear, cat){
+  return ((gear && gear.gear) || []).some(g => g.spellCat && g.spellCat === cat);
+}
+// The real picks a focus is bound to (rules catalog `target`): a known spell (Specific Spell Focus,
+// Spell Lock), a spell category (Spell Category Focus) or a spirit type (Spirit Focus), as
+// [{value, label}]. Null for a focus with no such pick (Power Focus, Weapon Foci).
+function focusTargetOptions(def, spells, spiritTypes){
+  const t = def && def.target;
+  if (t === 'spell') return [...new Set((spells || []).map(s => s.name).filter(Boolean))].sort().map(n => ({ value: n, label: n }));
+  if (t === 'category') return Object.keys(SPELL_CATEGORY_LABEL).map(c => ({ value: c, label: SPELL_CATEGORY_LABEL[c] }));
+  if (t === 'spirit') return [...new Set(spiritTypes || [])].sort().map(n => ({ value: n, label: n }));
+  return null;
 }
 
 // ---- Ownership/prerequisite battery -- shared by play-sheet.html's post-chargen purchaseGear()
@@ -1557,7 +1578,7 @@ function powerInfoBody(pw, owned){
   const effectList = (pw.effect || []).map(e => `<li>${esc(String(e))}</li>`).join('');
   return [
     owned && pw.rated ? statRow('Level', esc(String(owned.lvl ?? 1))) : '',
-    statRow('Cost', pw.pp ? esc(String(pw.pp)) + ' PP' : ''),
+    statRow('Cost', pw.pp ? esc(String(pw.pp)) : ''),   // the catalog text already says "PP"
     statRow('Activation', pw.act ? esc(pw.act) : ''),
     pw.tiers ? statRow('Tiers', esc(pw.tiers)) : '',
     pw.desc ? `<p class="dim-meta mt-6">${esc(pw.desc)}</p>` : '',
@@ -1566,26 +1587,61 @@ function powerInfoBody(pw, owned){
   ].join('');
 }
 // Whether a catalog adept power is bought in levels -- the one rule for the builder's shop and its
-// archetype kits. The catalog's own `rated` flag wins; older entries only say so in their price
+// archetype kits. The catalog's own `rated` flag wins either way (Improved Physical Senses is
+// `rated: false`: one line per sense, not levels); older entries only say so in their price
 // ("0.5 PP per level", "2 / 3 / 4 PP") or tiers text.
 function adeptPowerIsRated(pw){
+  if (pw.rated === false) return false;
   return !!pw.rated || /\//.test(String(pw.pp || '')) || /per\s+level/i.test(String(pw.pp || '')) || /level/i.test(String(pw.tiers || ''));
 }
-// Total Power Point cost of an owned power line (`p`: {name, lvl, rated, ppEach, pp}) against its
-// catalog entry `pw`. A `ppTbl` power costs its level's table entry (Combat Sense 2/3/4), not
-// level x the first price. A `ppTier` power (Improved Physical Attributes, Increased Reaction)
-// prices each +1 by where the resulting rating falls against the Racial Maximum (SR2 pp.125-126):
-// `tierBase` is [unimproved rating, Racial Maximum], which only the builder knows -- without it
-// the cost the builder stored on the line (`pp`) is used, or null when there isn't one.
+// Total Power Point cost of an owned power line (`p`: {name, lvl, rated, ppEach, pp, doubled})
+// against its catalog entry `pw`. A `ppTbl` power costs its level's table entry (Combat Sense
+// 2/3/4), not level x the first price. A `ppTier` power (Improved Physical Attributes, Increased
+// Reaction) prices each +1 by where the resulting rating falls against the Racial Maximum (SR2
+// pp.125-126): `tierBase` is [unimproved rating, Racial Maximum], which only the builder knows --
+// without it the cost the builder stored on the line (`pp`) is used, or null when there isn't one.
+// A `skillChoice` power (Improved Ability) costs its chosen skill's per-die price x level; a line
+// with no skill on it (bought before the power took one) keeps its old per-die price, `ppEach`.
+// A line's own `rated` flag counts too, so a line saved in levels keeps the price it was charged.
+// `doubled` (Killing Hands / Distance Strike bought second, AWK p.116) doubles the whole cost.
 function adeptPowerCost(p, pw, tierBase){
-  const lvl = p.rated ? (Number(p.lvl) || 1) : 1;
+  const cost = adeptPowerBaseCost(p, pw, tierBase);
+  return cost != null && p.doubled ? cost * 2 : cost;
+}
+// Permanent stat bonus from owned adept power lines, read off each line's catalog entry (`catOf(name)`):
+// `modsAttr` adds level x n to the line's chosen Physical Attribute (Improved Physical Attributes;
+// a line from before the pick existed counts as Body), `modsPer` adds level x n to a stat (Increased
+// Reaction: reaction, Increased Reflexes: initDice). Attribute Boost has neither -- it's temporary.
+function adeptPowerMod(lines, catOf, key){
+  let t = 0;
+  (lines || []).forEach(p => {
+    const c = catOf(p.name) || {}, lvl = Number(p.lvl) || 1;
+    if (c.modsAttr && (p.attr || 'body') === key) t += Number(c.modsAttr) * lvl;
+    if (c.modsPer && c.modsPer[key]) t += Number(c.modsPer[key]) * lvl;
+  });
+  return t;
+}
+// Reaction / extra Initiative dice from cyber/bio and from adept powers don't add up: whichever is
+// greater counts (house ruling, 2026-11-22).
+function reflexBonus(augmented, power){ return Math.max(Number(augmented) || 0, Number(power) || 0); }
+// The Vehicle Control Rig's +2 Reaction / +1D6 per level (its catalog modsPer, copied onto the line)
+// apply only while rigging, so the physical Reaction / Initiative sums leave it out.
+function isRiggingOnlyAug(g){ return !!g && g.n === 'Vehicle Control Rig'; }
+function adeptPowerBaseCost(p, pw, tierBase){
+  const lvl = (p.rated || adeptPowerIsRated(pw)) ? (Number(p.lvl) || 1) : 1;
+  if (pw.skillChoice && pw.skillChoice[p.skill] != null) return pw.skillChoice[p.skill] * lvl;
   if (pw.ppTier) {
-    if (!tierBase) return p.pp != null ? Number(p.pp) : null;
+    if (!tierBase) return p.pp != null ? Number(p.pp) / (p.doubled ? 2 : 1) : null;
     let cost = 0;
     for (let r = tierBase[0] + 1; r <= tierBase[0] + lvl; r++) cost += pw.ppTier[r <= tierBase[1] / 2 ? 0 : r <= tierBase[1] ? 1 : 2];
     return cost;
   }
-  return pw.ppTbl ? (pw.ppTbl[Math.min(lvl, pw.ppTbl.length) - 1] || 0) : (Number(p.ppEach) || 0) * lvl;
+  if (pw.ppTbl) return pw.ppTbl[Math.min(lvl, pw.ppTbl.length) - 1] || 0;
+  // The catalog's current price wins (a house-ruled price change reaches lines already bought);
+  // the line's own ppEach (the price when it was bought) only when the catalog entry isn't known.
+  // A skill-priced power with no skill picked keeps its ppEach (see above).
+  const each = (pw.pp && !pw.skillChoice) ? parseNum(pw.pp) : Number(p.ppEach);
+  return (each || 0) * lvl;
 }
 
 // ---- Specialization targets (SR2 p.70): a "(SW)" / "(SV)" entry in the GM skill-spec overlay

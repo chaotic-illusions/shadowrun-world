@@ -187,6 +187,9 @@
   "foci": [
     {
       "n": "Specific Spell Focus",
+      "avail": "4/48 hrs",
+      "index": 2,
+      "target": "spell",
       "who": "mage",
       "rated": true,
       "nuyenPer": 45000,
@@ -196,6 +199,9 @@
     },
     {
       "n": "Spell Category Focus",
+      "avail": "5/48 hrs",
+      "index": 2,
+      "target": "category",
       "who": "mage",
       "rated": true,
       "nuyenPer": 75000,
@@ -205,6 +211,9 @@
     },
     {
       "n": "Spirit Focus",
+      "avail": "4/48 hrs",
+      "index": 2,
+      "target": "spirit",
       "who": "mage",
       "rated": true,
       "nuyenPer": 60000,
@@ -214,6 +223,8 @@
     },
     {
       "n": "Power Focus",
+      "avail": "6/72 hrs",
+      "index": 2,
       "who": "mage",
       "rated": true,
       "nuyenPer": 105000,
@@ -223,6 +234,9 @@
     },
     {
       "n": "Spell Lock",
+      "avail": "2/48 hrs",
+      "index": 2,
+      "target": "spell",
       "who": "mage",
       "rated": false,
       "nuyenFlat": 45000,
@@ -232,23 +246,57 @@
     },
     {
       "n": "Weapon Focus (Small)",
+      "avail": "8/72 hrs",
+      "index": 3,
       "who": "adept",
       "rated": true,
       "nuyenBase": 100000,
       "nuyenPer": 90000,
       "karmaPer": 4,
-      "applies": "a Reach-0 melee weapon (knife, etc.)",
-      "fx": "the weapon counts as magical and adds +Rating dice to attacks"
+      "applies": "a Reach-0 melee weapon (Knife, Sap, Survival Knife, etc.)",
+      "fx": "the weapon counts as magical and adds +Rating dice to attacks",
+      "notes": [
+        "Cost: (Reach + 1) x 100,000 + Rating x 90,000 nuyen",
+        "Reach 0 (Small): 100,000 + Rating x 90,000 -- Knife, Sap, Forearm Snap-Blades, Survival Knife, Shock Glove",
+        "Reach 1 (Medium): 200,000 + Rating x 90,000 -- Katana, Sword, Club, Stun Baton, Monofilament Sword, Laser Crescent Axe, AZ-150 Super Stun Baton",
+        "Reach 2 (Large): 300,000 + Rating x 90,000 -- Pole Arm, Staff, Monofilament Whip, Combat Axe"
+      ]
     },
     {
-      "n": "Weapon Focus (Large)",
+      "n": "Weapon Focus (Medium)",
+      "avail": "8/72 hrs",
+      "index": 3,
       "who": "adept",
       "rated": true,
       "nuyenBase": 200000,
       "nuyenPer": 90000,
       "karmaPer": 5,
-      "applies": "a Reach-1+ melee weapon (sword, staff, etc.)",
-      "fx": "the weapon counts as magical and adds +Rating dice to attacks"
+      "applies": "a Reach-1 melee weapon (Katana, Sword, Club, Stun Baton, etc.)",
+      "fx": "the weapon counts as magical and adds +Rating dice to attacks",
+      "notes": [
+        "Cost: (Reach + 1) x 100,000 + Rating x 90,000 nuyen",
+        "Reach 0 (Small): 100,000 + Rating x 90,000 -- Knife, Sap, Forearm Snap-Blades, Survival Knife, Shock Glove",
+        "Reach 1 (Medium): 200,000 + Rating x 90,000 -- Katana, Sword, Club, Stun Baton, Monofilament Sword, Laser Crescent Axe, AZ-150 Super Stun Baton",
+        "Reach 2 (Large): 300,000 + Rating x 90,000 -- Pole Arm, Staff, Monofilament Whip, Combat Axe"
+      ]
+    },
+    {
+      "n": "Weapon Focus (Large)",
+      "avail": "8/72 hrs",
+      "index": 3,
+      "who": "adept",
+      "rated": true,
+      "nuyenBase": 300000,
+      "nuyenPer": 90000,
+      "karmaPer": 6,
+      "applies": "a Reach-2 melee weapon (Pole Arm, Staff, Monofilament Whip, Combat Axe)",
+      "fx": "the weapon counts as magical and adds +Rating dice to attacks",
+      "notes": [
+        "Cost: (Reach + 1) x 100,000 + Rating x 90,000 nuyen",
+        "Reach 0 (Small): 100,000 + Rating x 90,000 -- Knife, Sap, Forearm Snap-Blades, Survival Knife, Shock Glove",
+        "Reach 1 (Medium): 200,000 + Rating x 90,000 -- Katana, Sword, Club, Stun Baton, Monofilament Sword, Laser Crescent Axe, AZ-150 Super Stun Baton",
+        "Reach 2 (Large): 300,000 + Rating x 90,000 -- Pole Arm, Staff, Monofilament Whip, Combat Axe"
+      ]
     }
   ],
   "persona": [

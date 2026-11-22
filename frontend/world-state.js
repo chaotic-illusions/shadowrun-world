@@ -852,7 +852,7 @@ function buildCharCard(char, orgMap = {}) {
       ${overlay}
       <div class="ch-name">${esc(char.name)}</div>
       ${char.is_pc
-        ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" data-tip="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}</span></div>`
+        ? `<div><span class="cc-race-prof ${archetypeClass(archetype)}${isAdminMode() ? ' badge-archetype-clickable' : ''}"${isAdminMode() ? ` onclick="event.stopPropagation();editCharArchetype(${char.id})" data-tip="Click to change archetype"` : ''}>${esc(raceProf || archetype || 'UNKNOWN')}${char.owner_name ? ` <span class="cc-owner" data-tip="Player">(${esc(char.owner_name)})</span>` : ''}</span></div>`
         : (raceProf ? `<div><span class="cc-race-prof">${esc(raceProf)}</span></div>` : '')}
       ${!char.is_pc ? (() => { const org = char.organization_id ? orgMap[char.organization_id] : null; return `<div class="cc-org" style="margin-bottom:4px"><span class="cc-org-lbl">Affiliation</span><span class="cc-org-sep"> // </span>${esc(affiliationLabel(org, char.is_independent))}</div>`; })() : ''}
       <div class="ch-meta">

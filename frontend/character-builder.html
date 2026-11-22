@@ -498,9 +498,11 @@ function attrMinBase(a) { return Math.max(1, 1 - ((metatype().mods||{})[a] || 0)
 function enforceAttrMins() { ATTRS.forEach(a => { state.base[a] = Math.max(state.base[a], attrMinBase(a)); }); }
 // Augmentation bonuses from installed cyberware + bioware: fixed `mods`, per-rating `modsPer`, and
 // a per-level `modsTbl` (e.g. Encephalon's non-linear +Int) resolved from the catalog if not copied.
-function augAttr(a) {
+// `skip(g)`: leave a line out (the physical Reaction / Initiative skip the VCR, isRiggingOnlyAug).
+function augAttr(a, skip) {
   let t = 0;
   const apply = (g, listName, rating) => {
+    if (skip && skip(g)) return;
     if (g.mods) t += Number(g.mods[a]) || 0;
     if (g.modsPer) t += (Number(g.modsPer[a]) || 0) * rating;
     const src = ((CAT[listName] || []).find(x => x.n === g.n)) || g;
@@ -512,7 +514,15 @@ function augAttr(a) {
 }
 // Shown/exported attributes include augmentation. Body Index cap + capBody ratings use naturalAttr
 // so a +Body augmentation can never raise the bioware Body-Index capacity.
-function finalAttr(a) { return naturalAttr(a) + augAttr(a); }
+// ...plus permanent adept powers (Improved Physical Attributes). Attribute points are still spent
+// on the base only (attrSpent).
+function finalAttr(a) { return naturalAttr(a) + augAttr(a) + powerMod(a); }
+// Permanent stat bonus from the adept powers bought (shared.js adeptPowerMod): an attribute,
+// "reaction" or "initDice".
+function powerMod(key) {
+  if (state.magicType !== "Adept") return 0;
+  return adeptPowerMod(state.powers, n => ((CAT && CAT.adept_powers) || []).find(x => x.n === n), key);
+}
 function attrBudget() { return (PR.attributes||{})[state.prio.attributes] || 0; }
 // SR2 p.42: attribute points ARE the total of your six ratings (each starts at a mandatory 1).
 function attrSpent() { return ATTRS.reduce((s,a) => s + state.base[a], 0); }
@@ -768,22 +778,99 @@ function powerCatalog(p) { return ((CAT && CAT.adept_powers) || []).find(x => x.
 // Reaction has no printed maximum, so it is derived from the Quickness and Intelligence maximums
 // the same way Reaction itself is.
 const POWER_ATTRS = ["body", "strength", "quickness"];
+// A power bought once per pick: per Physical Attribute (catalog `attrChoice`: Improved Physical
+// Attributes, Attribute Boost), per skill (`skillChoice`: Improved Ability, priced by the skill) or
+// per entry of a fixed list (`pickChoice`: Quick Draw's Firearms / Melee Weapons, Improved Physical
+// Senses' senses). Returns the line field holding the pick, its options and the picker's label, or
+// null for a power bought only once. Each pick can be taken by only one line of the power.
+function powerChoice(c) {
+  if (c.attrChoice) return { field: "attr", opts: POWER_ATTRS, label: "Attribute" };
+  if (c.skillChoice) return { field: "skill", opts: Object.keys(c.skillChoice), label: "Skill" };
+  if (c.pickChoice) return { field: "pick", opts: c.pickChoice.opts || [], label: c.pickChoice.label || "Choice" };
+  return null;
+}
+// A line's pick. A line from before the pick existed reads as the first option -- for Improved
+// Ability that's Athletics, the 0.25 PP/die price such a line was charged.
+function powerPick(p) {
+  const ch = powerChoice(powerCatalog(p));
+  return ch ? (p[ch.field] || ch.opts[0]) : null;
+}
+function powerPickLabel(c, opt) {
+  return c.skillChoice ? `${opt} (${c.skillChoice[opt]} PP/die)` : c.attrChoice ? titleCase(opt) : opt;
+}
+// Improved Ability for a Combat Skill can't add more dice than the character's rating in that
+// skill (SR2 p.125: Firearms 4 allows at most 4 extra dice). That's the GENERAL rating the skill
+// commits as (skillTiers), which a Concentration / Specialization puts 1-2 below the line's own
+// rating. Null when the pick isn't capped.
+function powerSkillCap(p) {
+  const c = powerCatalog(p), skill = powerPick(p);
+  if (!(c.skillCap || []).includes(skill)) return null;
+  const s = state.skills.find(x => x.name === skill);
+  return s ? skillTiers(s)[0].rating : 0;
+}
+// Power lines over their Combat Skill cap -- blocks the commit, since the skill can drop after the
+// power is bought.
+function powerProblem() {
+  const bad = state.powers.filter(p => { const cap = powerSkillCap(p); return cap != null && (Number(p.lvl) || 1) > cap; })
+    .map(p => { const cap = powerSkillCap(p), skill = powerPick(p);
+      return cap ? `${p.name} (${skill}) has ${p.lvl} dice but ${skill} is only rated ${cap}`
+                 : `${p.name} (${skill}) needs the ${skill} skill`; });
+  return bad.length ? `Improved Ability can't add more dice than the Combat Skill's rating: ${bad.join("; ")}.` : "";
+}
 function powerTierBase(p) {
   const c = powerCatalog(p);
   if (!c.ppTier) return null;
   const max = metatype().max || {};
-  if (c.attrChoice) { const a = p.attr || POWER_ATTRS[0]; return [naturalAttr(a), max[a] || 6]; }
+  if (c.attrChoice) { const a = powerPick(p); return [naturalAttr(a), max[a] || 6]; }
   return [Math.floor((naturalAttr("quickness") + naturalAttr("intelligence")) / 2),
           Math.floor(((max.quickness || 6) + (max.intelligence || 6)) / 2)];
 }
 function powerMaxLevel(p) {
   const base = powerTierBase(p);
-  return base ? Math.max(1, Math.floor(base[1] * 1.5) - base[0]) : (powerCatalog(p).maxLevel || 6);
+  const max = base ? Math.max(1, Math.floor(base[1] * 1.5) - base[0]) : (powerCatalog(p).maxLevel || 6);
+  // Mystic Armor (catalog `maxMagic`): no more levels than the Magic Rating (GRIM p.34).
+  const cap = powerCatalog(p).maxMagic ? magicRating() : powerSkillCap(p);
+  return cap == null ? max : Math.max(1, Math.min(max, cap));
 }
-function powerCost(p) { return adeptPowerCost(p, powerCatalog(p), powerTierBase(p)) || 0; }
+// Whether a line is bought in levels: the catalog decides, so a line saved before a power became
+// rated (Improved Ability) gets its stepper and one saved in levels before a power became one line
+// per pick (Improved Physical Senses) drops to a single pick. The line's own flag only counts for a
+// power no longer in the catalog.
+function powerRated(p) {
+  const c = powerCatalog(p);
+  return c.n ? adeptPowerIsRated(c) : !!p.rated;
+}
+// Killing Hands and Distance Strike (catalog `doublesWith`): whichever is bought second costs double
+// (AWK p.116) -- here, the one further down the list.
+function powerDoubled(p) {
+  const other = powerCatalog(p).doublesWith, i = state.powers.indexOf(p);
+  return !!other && i > 0 && state.powers.slice(0, i).some(x => x.name === other);
+}
+// Default pick for a new line: the highest-rated skill the character has among the options (or
+// the first option) that no other line of this power has taken yet; null when all are taken.
+function powerDefaultPick(c) {
+  const ch = powerChoice(c);
+  const taken = state.powers.filter(x => x.name === c.n).map(powerPick);
+  const free = ch.opts.filter(o => !taken.includes(o));
+  if (!free.length) return null;
+  if (ch.field !== "skill") return free[0];
+  const rating = o => { const s = state.skills.find(x => x.name === o); return s ? skillTiers(s)[0].rating : 0; };
+  return free.slice().sort((a, b) => rating(b) - rating(a))[0];
+}
+// A fresh power line for catalog entry `c`, with its pick filled in; null when every pick is taken.
+function newPowerLine(c) {
+  const line = { name:c.n, ppEach:parseNum(c.pp), rated:adeptPowerIsRated(c), lvl:1 };
+  const ch = powerChoice(c);
+  if (ch) { line[ch.field] = powerDefaultPick(c); if (!line[ch.field]) return null; }
+  return line;
+}
+function powerCost(p) {
+  return adeptPowerCost({ ...p, rated: powerRated(p), doubled: powerDoubled(p) }, powerCatalog(p), powerTierBase(p)) || 0;
+}
 function ppSpent() { return state.powers.reduce((s,p) => s + powerCost(p), 0); }
-function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + augAttr("reaction"); }
-function initDice() { return 1 + augAttr("initDice"); }
+// Cyber/bio and adept-power Reaction / Initiative bonuses don't add up: the greater counts.
+function reaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2) + reflexBonus(augAttr("reaction", isRiggingOnlyAug), powerMod("reaction")); }
+function initDice() { return 1 + reflexBonus(augAttr("initDice", isRiggingOnlyAug), powerMod("initDice")); }
 function combatPool() { return combatPoolFormula(finalAttr("quickness"), finalAttr("intelligence"), finalAttr("willpower"), poolBonus("combat")); }
 // Dice-pool bonuses from installed cyber/bio: Encephalon/Cerebral Booster -> task, Math SPU -> hack,
 // Tactical Computer -> combat. poolTbl[name] is an array indexed by the item's effective rating.
@@ -807,7 +894,10 @@ function vcrLevel() {  // rating of the owned Vehicle Control Rig (0 = none)
 }
 function hasSorcery() { return (state.skills || []).some(s => s.name === "Sorcery"); }
 function hackingPool() { const m = deckMpcp(); return m ? hackingPoolFormula(finalAttr("intelligence"), m, poolBonus("hack")) : null; }  // needs a cyberdeck; Math SPU (Shadowtech) adds half-rating to the pool
-function controlPool() { const v = vcrLevel(); return v ? controlPoolFormula(reaction(), v) : null; }                                                             // needs a VCR (Control Pool = rigging Reaction, RIG2 p.261)
+// Rigging Reaction: the base (Q+I)/2 from the attributes as they stand, before any Reaction bonus --
+// cyber/bio and adept reflex boosts don't apply while rigging, only the VCR's (house ruling 2026-11-22).
+function rigReaction() { return Math.floor((finalAttr("quickness") + finalAttr("intelligence")) / 2); }
+function controlPool() { const v = vcrLevel(); return v ? controlPoolFormula(rigReaction(), v) : null; }                                                             // needs a VCR (Control Pool = rigging Reaction, RIG2 p.261)
 function astralPool() { return state.magicType === "Full Mage" ? astralPoolFormula(finalAttr("intelligence"), finalAttr("willpower"), finalAttr("charisma")) : null; }  // needs astral projection
 function spellPool() { return hasSorcery() ? spellPoolFormula(finalAttr("intelligence"), finalAttr("willpower"), magicRating()) : null; }  // needs Sorcery
 function activePools() {
@@ -820,12 +910,13 @@ function activePools() {
   add("Spell Pool", spellPool());
   return out;
 }
-// Reaction / Initiative by mode: physical always; rigging adds VCR bonuses (+2 Reaction and +1 init
-// die per level, SR2 p.261); a Full Mage also has an astral line. Slash-joined for the summary card.
+// Reaction / Initiative by mode: physical always; rigging is the unboosted Reaction plus only the
+// VCR's bonuses (+2 Reaction and +1 init die per level, SR2 p.261); a Full Mage also has an astral
+// line. Slash-joined for the summary card.
 function reactionModes() {
   const modes = [{ label: "Physical", reaction: reaction(), dice: initDice() }];
   const vcr = vcrLevel();
-  if (vcr) modes.push({ label: "Rigging", reaction: reaction() + vcr * 2, dice: initDice() + vcr });
+  if (vcr) modes.push({ label: "Rigging", reaction: rigReaction() + vcr * 2, dice: 1 + vcr });
   if (state.magicType === "Full Mage") modes.push({ label: "Astral", reaction: finalAttr("intelligence"), dice: 1 });
   return modes;
 }
@@ -994,6 +1085,31 @@ function totemBlockHTML() {
   }
   return `<div class="cbx-h4">Tradition</div><div class="cbx-pillrow">${tradPills}</div>${totemUI}`;
 }
+// Spirit types a Spirit Focus can be bound to: the GM's Conjuring concentrations/specializations
+// (same source as the play sheet's SPIRIT_TYPES).
+function chargenSpiritTypes() { return Object.values(SKILL_SPECS["Conjuring"] || {}).flat(); }
+// Foci whose catalog `target` needs a real pick and don't have a valid one (blocks the commit) --
+// including a spell focus / Spell Lock when the runner knows no spell to bind it to. A spirit focus
+// is only checked when there are spirit types to pick from (the GM's Conjuring overlay), since
+// there'd be no way to satisfy it otherwise.
+function fociUnbound() {
+  return state.foci.filter(x => {
+    const def = focusDef(x.type);
+    const opts = focusTargetOptions(def, state.spells, chargenSpiritTypes());
+    if (!opts) return false;
+    if (!opts.length) return def.target !== "spirit";
+    return !opts.some(o => o.value === x.applies);
+  }).map(x => {
+    const def = focusDef(x.type);
+    return def && def.target === "spell" && !state.spells.length ? `${x.type} (learn a spell first)` : x.type;
+  });
+}
+// For an Adept: the weapon foci's Reach/cost breakdown (rules catalog `notes` on the weapon foci).
+function weaponFocusNote() {
+  if (state.magicType !== "Adept") return "";
+  const f = (FOCI || []).find(x => x.who === "adept" && Array.isArray(x.notes));
+  return f ? `<ul class="cbx-p">${f.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : "";
+}
 // Foci shop -- costs nuyen AND Force Points (bonding karma). SR2 p.137 / p.263.
 function fociSectionHTML() {
   const all = FOCI || [];
@@ -1006,7 +1122,14 @@ function fociSectionHTML() {
     const rateCtrl = f.rated
       ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-focusrate="${i}" data-d="-1">-</button><span class="cbx-attr__base">${x.rating}</span><button type="button" class="cbx-step-btn" data-focusrate="${i}" data-d="1">+</button></span>`
       : `<span class="cbx-line__f">Rating 1</span>`;
-    const applies = f.applies
+    // A spell / category / spirit focus (and a Spell Lock) binds to a real pick from a list; only the
+    // weapon foci keep a typed description of the weapon.
+    const opts = focusTargetOptions(f, state.spells, chargenSpiritTypes());
+    const bound = opts && opts.some(o => o.value === x.applies);
+    const applies = opts
+      ? `<div class="cbx-skillfocus"><select data-focusapplies="${i}" title="${esc(f.applies)}">${bound ? "" : `<option value="" selected>-- ${esc(f.applies)} --</option>`}${
+          opts.map(o => `<option value="${esc(o.value)}"${o.value === x.applies ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>`
+      : f.applies
       ? `<div class="cbx-skillfocus"><input type="text" data-focusapplies="${i}" value="${esc(x.applies||"")}" placeholder="Applies to: ${esc(f.applies)}"></div>`
       : "";
     return `<div class="cbx-skill"><div class="cbx-line"><span class="cbx-line__n">${esc(f.n)}</span>${rateCtrl}
@@ -1024,6 +1147,7 @@ function fociSectionHTML() {
   return `<div class="cbx-h4">Foci <span class="cbx-help" style="text-transform:none;letter-spacing:0">-- nuyen + Force Points (bonding karma)</span></div>
     <p class="cbx-p">${state.magicType === "Adept" ? "Adepts may bond only a Weapon Focus. " : "Weapon Foci are Adept-only, so they're not offered here. "}Each focus costs <strong>nuyen</strong> (from Resources) and <strong>Force Points</strong> equal to its bonding karma. <span class="cbx-cite">(SR2 p.137, p.263)</span></p>
     ${capNote}
+    ${weaponFocusNote()}
     <div>${state.foci.length ? chosen : `<p class="empty-state">No foci.</p>`}</div>
     <div class="cbx-shop"><div class="cbx-shoplist">${shop}</div></div>`;
 }
@@ -1052,7 +1176,9 @@ function stepMagic() {
     <div class="cbx-pillrow">${pills}</div>`;
   if (state.magicType === "Full Mage") {
     body += totemBlockHTML();
+    // "Needs fetish": the spell can only be cast with a fetish of its category (owned, not tied to it).
     const chosenSpells = state.spells.map((s,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenspellinfo="${esc(s.name)}">${esc(s.name)}</a> <em>${esc(s.cat||"")}</em></span>
+      <label class="cbx-line__f" title="Can only be cast with a ${esc(spellCatLabel(s.cat))} fetish"><input type="checkbox" data-spellfetish="${i}"${s.fetish ? " checked" : ""}> Needs fetish</label>
       <span class="cbx-line__f">Force</span>
       <span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-spellforce="${i}" data-d="-1" ${s.force<=1?"disabled":""}>-</button>
         <span class="cbx-attr__base">${s.force}</span><button type="button" class="cbx-step-btn" data-spellforce="${i}" data-d="1" ${s.force>=6?"disabled":""}>+</button></span>
@@ -1072,18 +1198,26 @@ function stepMagic() {
     body += fociSectionHTML();
   } else if (state.magicType === "Adept") {
     body += `<p class="cbx-p">Magic Rating <strong>${magicRating()}</strong> = <strong>${ppBudget()}</strong> Power Points to spend.</p>`;
-    const takenAttrs = name => state.powers.filter(x => x.name === name).map(x => x.attr || POWER_ATTRS[0]);
+    const takenPicks = name => state.powers.filter(x => x.name === name).map(powerPick);
+    const pickSelect = (p, i) => {
+      const c = powerCatalog(p), ch = powerChoice(c), cur = powerPick(p);
+      if (!ch) return "";
+      return `<select class="cbx-mini" style="width:auto" data-powerpick="${i}" title="${esc(ch.label)}">${ch.opts.map(o =>
+        `<option value="${esc(o)}"${cur===o?" selected":""}${cur!==o && takenPicks(p.name).includes(o)?" disabled":""}>${esc(powerPickLabel(c, o))}</option>`).join("")}</select>`;
+    };
     const chosen = state.powers.map((p,i) => `<div class="cbx-line"><span class="cbx-line__n"><a href="#" class="info-link" data-chargenpowerinfo="${esc(p.name)}">${esc(p.name)}</a></span>
-      ${powerCatalog(p).attrChoice ? `<select class="cbx-mini" style="width:auto" data-powerattr="${i}" title="Attribute">${POWER_ATTRS.map(a =>
-        `<option value="${a}"${(p.attr||POWER_ATTRS[0])===a?" selected":""}${(p.attr||POWER_ATTRS[0])!==a && takenAttrs(p.name).includes(a)?" disabled":""}>${titleCase(a)}</option>`).join("")}</select>` : ""}
-      ${p.rated ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button>
+      ${pickSelect(p, i)}
+      ${powerRated(p) ? `<span class="cbx-stepper"><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="-1">-</button>
         <span class="cbx-attr__base">${p.lvl||1}</span><button type="button" class="cbx-step-btn" data-powerlvl="${i}" data-d="1">+</button></span>` : ""}
+      ${powerDoubled(p) ? `<span class="dim-meta" title="Bought after ${esc(powerCatalog(p).doublesWith)}: costs double (AWK p.116)">x2</span>` : ""}
       <span class="cbx-line__f">${round2(powerCost(p))} PP</span>
       <button type="button" class="cbx-x" data-delpower="${i}">&#10005;</button></div>`).join("");
-    const shop = (CAT.adept_powers||[]).filter(matchesFilter).map((p) =>
-      magicInspectRow(p, "power", p.attrChoice ? takenAttrs(p.n).length >= POWER_ATTRS.length : state.powers.some(x=>x.name===p.n))).join("");
+    // `noChargen` powers (Enhanced Centering: initiates only) can't be bought at creation.
+    const shop = (CAT.adept_powers||[]).filter(p => !p.noChargen).filter(matchesFilter).map((p) =>
+      magicInspectRow(p, "power", powerChoice(p) ? takenPicks(p.n).length >= powerChoice(p).opts.length : state.powers.some(x=>x.name===p.n))).join("");
     body += `<div class="cbx-h4">Adept Powers</div>
       <div>${state.powers.length ? chosen : `<p class="empty-state">No powers yet.</p>`}</div>
+      ${powerProblem() ? `<p class="cbx-note is-warn">${esc(powerProblem())}</p>` : ""}
       <div class="cbx-shop"><input type="text" class="cbx-search" id="cbxShopSearch" placeholder="Search powers..." value="${esc(shopFilter)}">
         <div class="cbx-shoplist">${shop}</div></div>`;
     body += fociSectionHTML();
@@ -1598,6 +1732,7 @@ function stepFinish() {
     </div>
     ${augSummaryHTML()}
     ${contactProblem() ? `<p class="cbx-note is-warn">${esc(contactProblem())} <a href="#" id="cbxGoContacts">Go to Contacts &rsaquo;</a></p>` : ""}
+    ${state.magicType === "Adept" && powerProblem() ? `<p class="cbx-note is-warn">${esc(powerProblem())}</p>` : ""}
     <button type="button" class="btn btn-green btn-submit" id="cbxSubmit">${state.editId ? "Review Changes" : "Commit Dossier to Case File"}</button>
     <div id="cbxEditReview"></div>
     <p class="cbx-note" id="cbxSubmitStatus"></p>
@@ -1638,9 +1773,11 @@ function applyKit(kit) {
     const d = (CAT.spells||[]).find(x => x.n === n) || {};
     return { name:n, cat:d.cat||"", force:f };
   });
-  state.powers = (kit.powers||[]).map(n => {
-    const d = (CAT.adept_powers||[]).find(x => x.n === n) || {};
-    return { name:n, ppEach:parseNum(d.pp), rated:adeptPowerIsRated(d), lvl:1 };
+  state.powers = [];
+  (kit.powers||[]).forEach(n => {
+    const d = (CAT.adept_powers||[]).find(x => x.n === n) || { n };
+    const line = newPowerLine(d);   // picks the kit's best-rated skill for Improved Ability
+    if (line) state.powers.push(line);
   });
   state.gear = { weapons:[], armor:[], cyber:[], bio:[], gear:[], vehicles:[], matrix:[] };
   // Kit gear buckets use the reference names (weapons/armor/cyber/other/vehicles); map "other" -> "gear".
@@ -1797,6 +1934,11 @@ function wire() {
     state.spells.push({ name:s.n, cat:s.cat||"", force:3 }); save(); render();
   });
   root.querySelectorAll("[data-delspell]").forEach(el => el.onclick = () => { state.spells.splice(Number(el.dataset.delspell),1); save(); render(); });
+  root.querySelectorAll("[data-spellfetish]").forEach(el => el.onchange = () => {
+    const sp = state.spells[Number(el.dataset.spellfetish)]; if (!sp) return;
+    if (el.checked) sp.fetish = true; else delete sp.fetish;
+    save(); render();
+  });
   root.querySelectorAll("[data-chargenspellinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenSpellInfo(el.dataset.chargenspellinfo); });
   root.querySelectorAll("[data-chargenpowerinfo]").forEach(el => el.onclick = (e) => { e.preventDefault(); chargenOpenPowerInfo(el.dataset.chargenpowerinfo); });
   root.querySelectorAll("[data-spellforce]").forEach(el => {
@@ -1808,18 +1950,17 @@ function wire() {
   });
   root.querySelectorAll("[data-addpower]").forEach(el => el.onclick = () => {
     const p = (CAT.adept_powers||[]).find(x => x.n === el.dataset.addpower); if (!p) return;
-    const line = { name:p.n, ppEach:parseNum(p.pp), rated:adeptPowerIsRated(p), lvl:1 };
-    // One line per Physical Attribute: start on the first one this power isn't already bought for.
-    if (p.attrChoice) {
-      const taken = state.powers.filter(x => x.name === p.n).map(x => x.attr || POWER_ATTRS[0]);
-      line.attr = POWER_ATTRS.find(a => !taken.includes(a));
-      if (!line.attr) return;
-    }
+    // One line per Physical Attribute / skill: start on one this power isn't already bought for.
+    const line = newPowerLine(p); if (!line) return;
     state.powers.push(line); save(); render();
   });
-  root.querySelectorAll("[data-powerattr]").forEach(el => el.onchange = () => {
-    const p = state.powers[Number(el.dataset.powerattr)]; if (!p) return;
-    p.attr = el.value; p.lvl = clamp(p.lvl||1, 1, powerMaxLevel(p)); save(); render();
+  root.querySelectorAll("[data-powerpick]").forEach(el => el.onchange = () => {
+    const p = state.powers[Number(el.dataset.powerpick)]; if (!p) return;
+    const ch = powerChoice(powerCatalog(p)); if (!ch) return;
+    // Only a listed pick that no other line of this power has taken.
+    const takenElsewhere = state.powers.some(x => x !== p && x.name === p.name && powerPick(x) === el.value);
+    if (!ch.opts.includes(el.value) || takenElsewhere) { render(); return; }
+    p[ch.field] = el.value; p.lvl = clamp(p.lvl||1, 1, powerMaxLevel(p)); save(); render();
   });
   root.querySelectorAll("[data-delpower]").forEach(el => el.onclick = () => { state.powers.splice(Number(el.dataset.delpower),1); save(); render(); });
   root.querySelectorAll("[data-powerlvl]").forEach(el => {
@@ -1840,7 +1981,13 @@ function wire() {
       x.rating = clamp((x.rating||1)+d,1,6); save(); render();
     });
   });
-  root.querySelectorAll("[data-focusapplies]").forEach(el => el.oninput = () => { state.foci[Number(el.dataset.focusapplies)].applies = el.value; save(); });
+  root.querySelectorAll("input[data-focusapplies]").forEach(el => el.oninput = () => { state.foci[Number(el.dataset.focusapplies)].applies = el.value; save(); });
+  root.querySelectorAll("select[data-focusapplies]").forEach(el => el.onchange = () => {
+    const x = state.foci[Number(el.dataset.focusapplies)]; if (!x) return;
+    const opts = focusTargetOptions(focusDef(x.type), state.spells, chargenSpiritTypes()) || [];
+    if (opts.some(o => o.value === el.value)) x.applies = el.value;   // only a listed pick
+    save(); render();
+  });
   root.querySelectorAll("[data-delfocus]").forEach(el => el.onclick = () => { state.foci.splice(Number(el.dataset.delfocus),1); save(); render(); });
   root.querySelectorAll("[data-addskill]").forEach(el => el.onclick = () => {
     const existing = state.skills.findIndex(s => s.name === el.dataset.addskill);
@@ -2058,7 +2205,15 @@ function commitPayload() {
     spells: state.spells,
     // Each line carries its total cost (`pp`): a tier-priced power's depends on the chargen
     // attributes and Racial Maximum, which the play sheet can't recompute.
-    adept_powers: state.powers.map(p => ({ ...p, pp: round2(powerCost(p)) })),
+    // The pick and the rated flag are stamped too, so a line saved before its power took a skill
+    // (Improved Ability) leaves with the one shown on screen.
+    adept_powers: state.powers.map(p => {
+      const ch = powerChoice(powerCatalog(p));
+      const line = { ...p, ...(ch ? { [ch.field]: powerPick(p) } : {}), rated: powerRated(p), pp: round2(powerCost(p)) };
+      if (!line.rated) line.lvl = 1;
+      if (powerDoubled(p)) line.doubled = true; else delete line.doubled;
+      return line;
+    }),
     gear: { ...state.gear, foci: state.foci, programs: state.programs || [] },
     contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => {
       const t = c.type || "Contact";
@@ -2107,7 +2262,9 @@ function hydrateStateFromCharacter(c) {
   state.totem = c.totem || null;
   // Stored attributes are final (base + racial mods); back the mods out to editable base.
   const mods = (metatype().mods) || {};
-  ATTRS.forEach(a => { state.base[a] = Math.max(attrMinBase(a), (Number(c[a]) || 1) - (mods[a] || 0)); });
+  // The stored total includes Improved Physical Attributes too (see finalAttr): back that out.
+  const ipa = a => adeptPowerMod(c.adept_powers, n => ((CAT && CAT.adept_powers) || []).find(x => x.n === n), a);
+  ATTRS.forEach(a => { state.base[a] = Math.max(attrMinBase(a), (Number(c[a]) || 1) - (mods[a] || 0) - ipa(a)); });
   const g = c.gear || {};
   state.gear = {
     weapons: g.weapons || [], armor: g.armor || [], cyber: g.cyber || [],
@@ -2183,6 +2340,18 @@ async function commitDossier() {
   if (contactMsg) {
     status.className = "cbx-note is-warn";
     status.textContent = contactMsg;
+    return;
+  }
+  const unbound = fociUnbound();
+  if (unbound.length) {
+    status.className = "cbx-note is-warn";
+    status.textContent = "Pick what each focus is bound to: " + unbound.join(", ") + ".";
+    return;
+  }
+  const powerMsg = state.magicType === "Adept" ? powerProblem() : "";
+  if (powerMsg) {
+    status.className = "cbx-note is-warn";
+    status.textContent = powerMsg;
     return;
   }
   // Older drafts can predate the rating floors the steppers now enforce.
@@ -2377,7 +2546,7 @@ function editRefunds(char, cs) {
 // ---- the Review: what a save changes ----
 const skillText = k => !k ? "--" : [String(k.rating), ...(k.concs || []).map(c => `${c.name} ${c.rating}`),
   ...(k.specs || []).map(x => `${x.name} ${x.rating}`)].join(" / ");
-const powerKey = x => x.name + (x.attr ? ` (${x.attr})` : "");
+const powerKey = x => x.name + ((x.attr || x.skill || x.pick) ? ` (${x.attr || x.skill || x.pick})` : "");
 const nameCounts = list => (list || []).reduce((m, x) => { const n = x.n || x.type || x.name || "?"; m[n] = (m[n] || 0) + 1; return m; }, {});
 // Added/removed rows between two lists, matched by `keyOf` (counting duplicates).
 function listDiff(label, before, after, keyOf, changes) {

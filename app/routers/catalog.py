@@ -128,6 +128,7 @@ async def get_foci():
             notes.append(fx)
         if applies:
             notes.append(f"Applies to: {applies}")
+        notes.extend(f.get("notes") or [])   # e.g. the weapon foci's Reach/cost breakdown
         notes.append("Post-chargen: nuyen from cash, plus bonding Karma from the Karma Pool (SR2 p.137).")
         item = {
             "n": f["n"],
@@ -140,6 +141,8 @@ async def get_foci():
             "notes": notes,
             "src": "SR2",
             "pg": 263,
+            "avail": f.get("avail"),
+            "index": f.get("index"),
         }
         if rated:
             item["maxRating"] = max_rating

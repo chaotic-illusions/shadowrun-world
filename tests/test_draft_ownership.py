@@ -190,3 +190,28 @@ def test_drafts_cannot_be_unclaimed(tmp_path):
                 assert (await db.get(Character, 11)).owner_token is None
 
     asyncio.run(scenario())
+
+
+def test_character_list_names_each_pcs_player(tmp_path):
+    """The world-state Team cards show each runner's player: the owning token's label, for PCs only,
+    to players and GM alike. The token itself never leaves the server."""
+    from app.routers.characters import list_characters
+
+    async def scenario():
+        async with _database(tmp_path / "t.db") as sessions:
+            await _seed(sessions)
+            async with sessions() as db:
+                db.add_all([Character(id=12, name="Loose", is_pc=True),
+                            Character(id=13, name="Fixer", is_pc=False, owner_token=hash_token(OLD))])
+                await db.commit()
+            for ctx in ({"is_admin": False, "is_user": True, "user_token": NEW},
+                        {"is_admin": True, "is_user": True, "user_token": "gm", "view_as_player": False}):
+                async with sessions() as db:
+                    rows = await list_characters(is_pc=None, is_active=None, source_adventure=None, ctx=ctx, db=db)
+                by_name = {r["name"]: r for r in rows}
+                assert by_name["Final"]["owner_name"] == "Sam (old)"
+                assert by_name["Loose"]["owner_name"] is None          # unclaimed
+                assert by_name["Fixer"]["owner_name"] is None          # NPCs never
+                assert "owner_token" not in by_name["Final"]
+
+    asyncio.run(scenario())

@@ -69,3 +69,39 @@ def test_create_all_database_is_stamped_for_alembic(tmp_path, monkeypatch):
     current = subprocess.run([sys.executable, "-m", "alembic", "current"],
                              capture_output=True, text=True, env=env, check=True)
     assert f"{main._alembic_head()} (head)" in current.stdout
+
+
+def test_adept_attrs_backfilled_once(tmp_path, monkeypatch):
+    """Adepts stored before attributes included Improved Physical Attributes get their levels added
+    once; Attribute Boost (temporary) and other characters are untouched; a restart adds nothing."""
+    from sqlalchemy import select
+    from app.models.character import Character
+
+    powers = [
+        {"name": "Improved Physical Attributes", "attr": "strength", "rated": True, "lvl": 2},
+        {"name": "Improved Physical Attributes", "rated": True, "lvl": 1},      # no pick: Body
+        {"name": "Attribute Boost", "attr": "quickness", "rated": True, "lvl": 3},
+        {"name": "Improved Physical Attributes", "attr": "quickness", "rated": True, "lvl": "3a"},  # garbled: skipped
+        {"name": "Improved Physical Attributes", "attr": "quickness", "rated": True, "lvl": 9999},  # absurd: skipped
+    ]
+
+    async def scenario():
+        engine = _use_database(tmp_path / "t.db", monkeypatch)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with main.async_session() as db:
+                db.add(Character(id=1, name="Adept", body=4, strength=4, quickness=5, adept_powers=powers))
+                db.add(Character(id=2, name="Sam", body=4, strength=4, quickness=5, adept_powers=[]))
+                await db.commit()
+            await main._backfill_adept_attrs_once()
+            await main._backfill_adept_attrs_once()  # guarded: no second add
+            async with main.async_session() as db:
+                rows = {c.id: c for c in (await db.execute(select(Character))).scalars()}
+            assert (rows[1].body, rows[1].strength, rows[1].quickness) == (5, 6, 5)
+            assert rows[1].version == rows[2].version + 1     # through the ORM: optimistic lock bumped once
+            assert (rows[2].body, rows[2].strength, rows[2].quickness) == (4, 4, 5)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(scenario())
