@@ -1,9 +1,10 @@
-"""Re-editing a finished runner in the character builder (POST /characters/{id}/rebuild-dossier).
+"""Rebuilding a finished runner from the character builder (POST /characters/{id}/rebuild-dossier).
 
-The edit can't touch the locked parts of the build (priorities, metatype, magic choices, gear,
-lifestyle, existing contacts), refunds exactly the Good Karma recorded against the items it
-changed, and can only cost cash. Throwaway aiosqlite DB, router functions called directly (same
-pattern as tests/test_dossier_gm_fields.py).
+The builder sends the whole new sheet. The server writes it, adds the builder's Karma refund to
+Good Karma and its starting-cash change to nuyen, keeps the Karma Pool and notes, edits contacts
+in place, lets an existing GM-approved Beta/Delta implant stay (but not a new one), and refuses a
+stale save. Throwaway aiosqlite DB, router functions called directly (same pattern as
+tests/test_dossier_gm_fields.py).
 """
 import asyncio
 
@@ -15,232 +16,238 @@ from app.auth.core import hash_token
 from app.models.character import Character
 from app.models.contact import Contact
 from app.routers.characters import rebuild_character_dossier
-from app.schemas.character import DossierRebuild
+from app.schemas.character import CharacterRead, DossierRebuild
 from tests.test_dossier_gm_fields import ADMIN, OTHER, PLAYER, _database
 
 BUILD = {
     "prio": {"race": "E", "magic": "E", "attributes": "B", "skills": "A", "resources": "C"},
-    "metatype": "Human",
-    "magicType": "Mundane",
+    "metatype": "Human", "magicType": "Mundane",
     "base": {"body": 4, "quickness": 4, "strength": 3, "charisma": 3, "intelligence": 5, "willpower": 5},
     "skills": [{"name": "Etiquette", "attr": "Charisma", "group": "social", "rating": 1, "conc": "Street", "spec": ""}],
     "gear": {"weapons": [{"n": "Ares Predator"}]},
-    "contacts": [{"name": "Fixer Joe", "archetype": "Fixer", "type": "Contact"},
-                 {"name": "", "archetype": "", "type": "Contact"}],
     "identity": {"handle": "Wraith", "lifestyle": "Low", "lifestylePermanent": False},
     "magic_rating_base": 0,
-    "advancement": {"karma": {"skill:Etiquette": 2, "attr:body": 10}, "attrs": {"body": 1}},
+    "advancement": {"karma": {"skill:Etiquette": 2}, "attrs": {"body": 1}},
 }
+SHEET_GEAR = {"weapons": [{"n": "Ares Predator", "id": "w1", "equipped": True}],
+              "cyber": [{"n": "Wired Reflexes", "grade": "Delta", "baseEss": 2, "baseCost": 55000}],
+              "foci": [], "programs": [], "odd_bucket": [{"n": "Kept as-is"}]}
 
 
-def _run(tmp_path, body, ctx=PLAYER, db_name="t.db", **char):
+def _body(**over):
+    """A rebuild payload: the new sheet as the builder's commitPayload() sends it."""
+    b = {"name": "Wraith", "is_pc": True, "body": 5, "quickness": 4, "strength": 3, "charisma": 3,
+         "intelligence": 5, "willpower": 5, "essence": 6.0, "magic_rating": 0,
+         "skills": [{"name": "Etiquette", "rating": 1, "concs": [], "specs": []}],
+         "spells": [], "gear": {"weapons": [{"n": "Ares Predator", "id": "w1", "equipped": True}],
+                                "cyber": [{"n": "Wired Reflexes", "grade": "Delta", "baseEss": 2, "baseCost": 55000}],
+                                "foci": [], "programs": []},
+         # Never taken from the payload: these are adjusted / kept server-side.
+         "good_karma": 0, "nuyen": 5, "karma_pool": 1, "notes": "builder notes",
+         "chargen_state": {**BUILD, "advancement": {"karma": {}, "attrs": {}}},
+         "contacts": []}
+    b.update(over)
+    return b
+
+
+def _setup(db):
+    db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"), good_karma=3,
+                     nuyen=1000, karma_pool=4, notes="table notes", body=5, magic_rating=0,
+                     chargen_state=BUILD, gear=SHEET_GEAR))
+    db.add(Character(id=20, name="Fixer Joe", is_pc=False, archetype="Fixer", origin_pc_id=10))
+    db.add(Character(id=21, name="Mr. Q (real name)", is_pc=False, archetype="Doc", origin_pc_id=10))
+    db.add(Contact(id=1, owner_id=10, npc_id=20, name="Fixer Joe", profession="Fixer", contact_type="Contact", loyalty=2))
+    db.add(Contact(id=2, owner_id=10, npc_id=21, name="Doc", profession="Street Doc", contact_type="Buddy", loyalty=3))
+    db.add(Contact(id=3, owner_id=10, name="Red Hot Nukes", contact_type="Gang", loyalty=1))
+    db.add(Contact(id=4, owner_id=10, name="GM secret", profession="Mole", contact_type="Contact",
+                   loyalty=1, is_active=False))
+
+
+def _run(tmp_path, body, ctx=PLAYER, db_name="t.db", setup=_setup):
     async def scenario():
         async with _database(tmp_path / db_name) as sessions:
             async with sessions() as db:
-                db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"),
-                                 good_karma=3, nuyen=1000, body=5, chargen_state=BUILD, **char))
+                setup(db)
                 await db.commit()
             async with sessions() as db:
                 out = await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=ctx)
             async with sessions() as db:
                 row = await db.get(Character, 10)
-                contacts = (await db.execute(select(Contact).where(Contact.owner_id == 10))).scalars().all()
-                return out, row, contacts
+                contacts = {c.id: c for c in (await db.execute(select(Contact).where(Contact.owner_id == 10))).scalars()}
+                npcs = {c.id: c for c in (await db.execute(select(Character).where(Character.is_pc == False))).scalars()}  # noqa: E712
+                return out, row, contacts, npcs
     return asyncio.run(scenario())
 
 
-def _edited(**changes):
-    return {**BUILD, **changes}
+_SAME_CONTACTS = [{"id": 1, "name": "Fixer Joe", "profession": "Fixer", "contact_type": "Contact"},
+                  {"id": 2, "name": "Doc", "profession": "Street Doc", "contact_type": "Buddy"},
+                  {"id": 3, "name": "Red Hot Nukes", "contact_type": "Gang"}]
 
 
-def test_refunds_exactly_the_dropped_entries(tmp_path):
-    adv = {"karma": {"attr:body": 10}, "attrs": {"body": 1}}   # Etiquette changed -> its 2 karma back
-    skills = [{"name": "Etiquette", "rating": 2, "concs": [], "specs": []}]
-    out, row, _ = _run(tmp_path, {"chargen_state": _edited(advancement=adv), "skills": skills})
-    assert out["karma_refunded"] == 2
-    assert row.good_karma == 5
-    assert row.skills == skills
-    assert row.chargen_state["advancement"] == adv
+def test_rebuild_writes_the_sheet_and_adjusts_karma_and_nuyen(tmp_path):
+    body = _body(skills=[{"name": "Etiquette", "rating": 3, "concs": [], "specs": []}],
+                 karma_refund=12, nuyen_delta=-300, contacts=_SAME_CONTACTS)
+    out, row, _, _ = _run(tmp_path, body)
+    assert out["karma_refunded"] == 12
+    assert row.skills[0]["rating"] == 3
+    assert row.good_karma == 3 + 12                     # current + refund, not the payload's 0
+    assert row.nuyen == 1000 - 300                      # current + delta, not the payload's 5
+    assert row.karma_pool == 4 and row.notes == "table notes"
+    assert row.gear["odd_bucket"] == [{"n": "Kept as-is"}]   # a bucket the builder doesn't carry
+    assert row.gear["weapons"] == [{"n": "Ares Predator", "id": "w1", "equipped": True}]
+    # The new build is the baseline: nothing left to refund, magic ceiling restarts.
+    assert row.chargen_state["advancement"] == {} and row.chargen_state["magic_rating_base"] == 0
+    assert row.chargen_state["editId"] is None
 
 
-def test_unchanged_edit_refunds_nothing(tmp_path):
-    out, row, _ = _run(tmp_path, {"chargen_state": BUILD})
-    assert out["karma_refunded"] == 0 and row.good_karma == 3
+def test_nuyen_never_goes_below_zero_and_can_rise(tmp_path):
+    _, row, _, _ = _run(tmp_path, _body(nuyen_delta=-5000, contacts=_SAME_CONTACTS))
+    assert row.nuyen == 0
+    _, row, _, _ = _run(tmp_path, _body(nuyen_delta=2500, contacts=_SAME_CONTACTS), db_name="up.db")
+    assert row.nuyen == 3500
 
 
-@pytest.mark.parametrize("adv", [
-    {"karma": {"skill:Etiquette": 1, "attr:body": 10}},              # altered amount
-    {"karma": {"skill:Etiquette": 2, "attr:body": 10, "x": 5}},      # invented entry
-    {"karma": {"skill:Etiquette": 2, "attr:body": 10}, "attrs": {"body": 2}},
-], ids=["altered", "invented", "attr raise altered"])
-def test_advancement_can_only_lose_entries(tmp_path, adv):
+def test_contacts_are_edited_in_place(tmp_path):
+    contacts = [
+        {"id": 1, "name": "Fixer Joey", "profession": "Fence", "contact_type": "Buddy"},   # rename + Contact->Buddy
+        {"id": 2, "name": "Doc", "profession": "Street Doc", "contact_type": "Gang"},     # person -> Gang
+        {"id": 3, "name": "Red Hot Nukes", "profession": "Talismonger", "contact_type": "Contact"},  # Gang -> person
+        {"name": "Big Mike", "profession": "Bodyguard", "contact_type": "Follower", "loyalty": 6},  # new
+    ]
+    _, _, rows, npcs = _run(tmp_path, _body(contacts=contacts))
+    joe = rows[1]
+    assert (joe.name, joe.profession, joe.contact_type) == ("Fixer Joey", "Fence", "Buddy")
+    assert joe.loyalty == 3 + 1                         # Buddy's 3, plus the 1 point raised in play
+    assert (npcs[20].name, npcs[20].archetype) == ("Fixer Joey", "Fence")   # NPC followed the rename
+    assert rows[2].npc_id is None and 21 in npcs        # unlinked, but the NPC stays a Person of Interest
+    assert rows[3].npc_id is not None and npcs[rows[3].npc_id].name == "Red Hot Nukes"
+    assert any(c.name == "Big Mike" and c.npc_id for c in rows.values())
+    assert 4 in rows                                    # the GM-hidden contact is never touched
+
+
+def test_npc_the_gm_renamed_keeps_its_name(tmp_path):
+    contacts = [{"id": 1, "name": "Fixer Joe", "profession": "Fixer", "contact_type": "Contact"},
+                {"id": 2, "name": "Doc Holliday", "profession": "Street Doc", "contact_type": "Buddy"},
+                {"id": 3, "name": "Red Hot Nukes", "contact_type": "Gang"}]
+    _, _, rows, npcs = _run(tmp_path, _body(contacts=contacts))
+    assert rows[2].name == "Doc Holliday"
+    assert npcs[21].name == "Mr. Q (real name)"         # the GM's name for the NPC wins
+    assert rows[2].loyalty == 3                          # same type: loyalty unchanged
+
+
+def test_contact_left_out_is_deleted_and_its_npc_kept(tmp_path):
+    _, _, rows, npcs = _run(tmp_path, _body(contacts=_SAME_CONTACTS[1:]))
+    assert 1 not in rows and 20 in npcs
+    assert 4 in rows                                    # hidden from the player, so not "left out"
+
+
+@pytest.mark.parametrize("contacts", [
+    [{"id": 99, "name": "Stranger", "contact_type": "Contact"}],                    # not this runner's
+    [{"id": 4, "name": "GM secret", "contact_type": "Contact"}],                    # hidden from the player
+    [{"id": 1, "name": "A", "contact_type": "Contact"}, {"id": 1, "name": "B", "contact_type": "Contact"}],
+])
+def test_bad_contact_ids_are_refused(tmp_path, contacts):
     with pytest.raises(HTTPException) as e:
-        _run(tmp_path, {"chargen_state": _edited(advancement=adv)})
+        _run(tmp_path, _body(contacts=contacts))
     assert e.value.status_code == 422
 
 
-def test_locked_keys_restored(tmp_path):
-    tampered = _edited(prio={**BUILD["prio"], "resources": "A"}, metatype="Troll", magicType="Full Mage",
-                       gear={"weapons": []}, magic_rating_base=6,
-                       identity={**BUILD["identity"], "handle": "Ghost", "lifestyle": "Luxury"})
-    _, row, _ = _run(tmp_path, {"chargen_state": tampered})
-    cs = row.chargen_state
-    for key in ("prio", "metatype", "magicType", "gear", "magic_rating_base"):
-        assert cs[key] == BUILD[key], key
-    assert cs["identity"]["lifestyle"] == "Low"
-    assert cs["identity"]["handle"] == "Ghost"   # identity text stays editable
-
-
-def test_new_contacts_are_created_and_cost_cash(tmp_path):
-    contacts = [BUILD["contacts"][0], {"name": "Doc Wagon", "archetype": "Street Doc", "type": "Contact"}]
-    new = [{"name": "Doc Wagon", "profession": "Street Doc", "contact_type": "Contact"}]
-    _, row, rows = _run(tmp_path, {"chargen_state": _edited(contacts=contacts), "contacts": new, "nuyen_delta": -500})
-    assert [c.name for c in rows] == ["Doc Wagon"]
-    assert row.nuyen == 500
-    # The saved builder list mirrors the real Contact rows, not whatever the client sent.
-    assert row.chargen_state["contacts"] == [{"name": "Doc Wagon", "archetype": "Street Doc", "type": "Contact"}]
-
-
-def test_edit_never_adds_cash(tmp_path):
-    _, row, _ = _run(tmp_path, {"chargen_state": BUILD, "nuyen_delta": 50000})
-    assert row.nuyen == 1000
+def test_existing_delta_implant_may_stay_but_a_new_one_is_refused(tmp_path):
+    _run(tmp_path, _body(contacts=_SAME_CONTACTS))                 # the sheet's Delta Wired Reflexes: fine
+    gear = {"cyber": [{"n": "Wired Reflexes", "grade": "Delta", "baseEss": 2, "baseCost": 55000},
+                      {"n": "Datajack", "grade": "Delta", "baseEss": 0.2, "baseCost": 1000}]}
+    with pytest.raises(HTTPException) as e:
+        _run(tmp_path, _body(gear=gear, contacts=_SAME_CONTACTS), db_name="new.db")
+    assert e.value.status_code == 400 and "Delta" in e.value.detail
+    _run(tmp_path, _body(gear=gear, contacts=_SAME_CONTACTS), ctx=ADMIN, db_name="gm.db")   # a GM may
 
 
 def test_owner_or_gm_only(tmp_path):
     with pytest.raises(HTTPException) as e:
-        _run(tmp_path, {"chargen_state": BUILD}, ctx=OTHER)
+        _run(tmp_path, _body(), ctx=OTHER)
     assert e.value.status_code == 404
-    out, _, _ = _run(tmp_path, {"chargen_state": BUILD}, ctx=ADMIN, db_name="gm.db")
+    out, _, _, _ = _run(tmp_path, _body(contacts=_SAME_CONTACTS), ctx=ADMIN, db_name="gm.db")
     assert out["id"] == 10
 
 
 def test_pre_wizard_runner_must_convert(tmp_path):
-    async def scenario():
-        async with _database(tmp_path / "t.db") as sessions:
-            async with sessions() as db:
-                db.add(Character(id=10, name="Old", is_pc=True, owner_token=hash_token("runner"), chargen_state={}))
-                await db.commit()
-            async with sessions() as db:
-                await rebuild_character_dossier(10, DossierRebuild(chargen_state={}), db=db, ctx=PLAYER)
+    def setup(db):
+        db.add(Character(id=10, name="Old", is_pc=True, owner_token=hash_token("runner"), chargen_state={}))
     with pytest.raises(HTTPException) as e:
-        asyncio.run(scenario())
+        _run(tmp_path, _body(), setup=setup)
     assert e.value.status_code == 400
 
 
-def _rebuild_at_version(tmp_path, pick_version):
-    """Create the runner, bump its version once (a Dossier PATCH), then rebuild with
-    expected_version = pick_version(version_now). Returns (karma_refunded, row) or raises."""
-    async def scenario():
-        async with _database(tmp_path / "v.db") as sessions:
+def test_stale_save_is_refused_and_a_current_one_goes_through(tmp_path):
+    async def scenario(pick, name):
+        async with _database(tmp_path / name) as sessions:
             async with sessions() as db:
-                db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"),
-                                 good_karma=3, nuyen=1000, body=5, chargen_state=BUILD))
+                _setup(db)
                 await db.commit()
             async with sessions() as db:          # e.g. Karma spent on the Dossier in another tab
                 row = await db.get(Character, 10)
                 row.nuyen = 900
                 await db.commit()
                 now = row.version
-            adv = {"karma": {"attr:body": 10}, "attrs": {"body": 1}}
-            body = {"chargen_state": _edited(advancement=adv), "expected_version": pick_version(now),
-                    "skills": [{"name": "Etiquette", "rating": 2, "concs": [], "specs": []}]}
             async with sessions() as db:
-                out = await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=PLAYER)
-            async with sessions() as db:
-                return out, await db.get(Character, 10)
-    return asyncio.run(scenario())
-
-
-def test_save_refused_when_runner_changed_since_review(tmp_path):
-    with pytest.raises(HTTPException) as e:
-        _rebuild_at_version(tmp_path, lambda now: now - 1)
-    assert e.value.status_code == 409
-    # Nothing was written: no refund, the sheet's skills untouched.
-    async def check():
-        async with _database(tmp_path / "v.db") as sessions:
+                body = _body(contacts=_SAME_CONTACTS, karma_refund=2, expected_version=pick(now))
+                await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=PLAYER)
             async with sessions() as db:
                 return await db.get(Character, 10)
-    row = asyncio.run(check())
-    assert row.good_karma == 3 and row.skills in (None, [])
-
-
-def test_save_goes_through_when_version_matches(tmp_path):
-    out, row = _rebuild_at_version(tmp_path, lambda now: now)
-    assert out["karma_refunded"] == 2
-    assert row.good_karma == 5 and row.skills[0]["rating"] == 2
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(scenario(lambda now: now - 1, "stale.db"))
+    assert e.value.status_code == 409
+    row = asyncio.run(scenario(lambda now: now, "current.db"))
+    assert row.good_karma == 5
 
 
 def test_character_read_exposes_version_for_the_review():
-    from app.schemas.character import CharacterRead
     assert "version" in CharacterRead.model_fields
 
 
-# ---- selling starting gear back (gear_sold) ----
-_GEAR_BUILD = {**BUILD, "gear": {
-    "weapons": [{"n": "Ares Predator"}, {"n": "Regular Ammo", "rating": 1}, {"n": "Regular Ammo", "rating": 1}],
-    "vehicles": [{"n": "Ford Americar", "cost": 16000}],
-    "cyber": [{"n": "Datajack", "ess": 0.2}],
-}}
-# The Dossier adds its own fields (ids, equipped, rounds) and has used up one box of ammo.
-_SHEET_GEAR = {
-    "weapons": [{"n": "Ares Predator", "id": "w1", "equipped": True}, {"n": "Regular Ammo", "rating": "1", "rounds": 7}],
-    "vehicles": [{"n": "Ford Americar", "cost": 16000, "primary": True}],
-    "cyber": [{"n": "Datajack", "ess": 0.2}],
-}
+def _setup_untyped(db):
+    """A runner whose contacts' types were never stored: loyalty raised in play makes one look
+    like a Buddy (4) and one like a Follower (6). The GM's notes etc. sit on the records."""
+    db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"), good_karma=3,
+                     nuyen=1000, chargen_state=BUILD, gear=SHEET_GEAR))
+    db.add(Contact(id=1, owner_id=10, name="Joe", profession="Fence", contact_type=None, loyalty=4,
+                   connection=3, notes="GM: owes the runner", description="Pawn shop on 5th"))
+    db.add(Contact(id=2, owner_id=10, name="Rook", profession="Bodyguard", contact_type=None, loyalty=6))
+    db.add(Contact(id=3, owner_id=10, name="Doc", profession="Street Doc", contact_type="Buddy", loyalty=3))
 
 
-def _sell(tmp_path, sold, nuyen_delta=0):
-    body = {"chargen_state": _GEAR_BUILD, "gear_sold": sold, "nuyen_delta": nuyen_delta}
-    return _run_with(tmp_path, body, chargen_state=_GEAR_BUILD, gear=_SHEET_GEAR)
-
-
-def _run_with(tmp_path, body, **char):
-    async def scenario():
-        async with _database(tmp_path / "g.db") as sessions:
-            async with sessions() as db:
-                db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"),
-                                 good_karma=3, nuyen=1000, body=5, **char))
-                await db.commit()
-            async with sessions() as db:
-                out = await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=PLAYER)
-            async with sessions() as db:
-                return out, await db.get(Character, 10)
-    return asyncio.run(scenario())
-
-
-def test_sold_gear_leaves_the_sheet_and_the_build_and_can_add_cash(tmp_path):
-    _, row = _sell(tmp_path, [{"bucket": "vehicles", "index": 0}], nuyen_delta=1600)
-    assert row.gear["vehicles"] == []
-    assert row.chargen_state["gear"]["vehicles"] == []
-    assert row.gear["weapons"] == _SHEET_GEAR["weapons"]            # everything else untouched
-    assert row.chargen_state["gear"]["weapons"] == _GEAR_BUILD["gear"]["weapons"]
-    assert row.nuyen == 2600                                        # leftover Resources -> cash
-
-
-def test_selling_matches_by_name_and_rating_and_respects_used_up_lines(tmp_path):
-    # Two starting ammo boxes, one left on the sheet: one can be sold, not both.
-    _, row = _sell(tmp_path, [{"bucket": "weapons", "index": 2}])
-    assert [g["n"] for g in row.gear["weapons"]] == ["Ares Predator"]
-    assert [g["n"] for g in row.chargen_state["gear"]["weapons"]] == ["Ares Predator", "Regular Ammo"]
-    (tmp_path / "both").mkdir()
-    with pytest.raises(HTTPException) as e:
-        _sell(tmp_path / "both", [{"bucket": "weapons", "index": 1}, {"bucket": "weapons", "index": 2}])
-    assert e.value.status_code == 422 and "isn't on the sheet" in e.value.detail
-
-
-@pytest.mark.parametrize("sold", [
-    [{"bucket": "cyber", "index": 0}],                                          # implants stay locked
-    [{"bucket": "vehicles", "index": 5}],                                       # no such line
-    [{"bucket": "vehicles", "index": 0}, {"bucket": "vehicles", "index": 0}],   # sold twice
+@pytest.mark.parametrize("contact_id,new_type,loyalty", [
+    (1, "Contact", 4),    # untyped loyalty 4 (shown as Buddy): all 3 points above 1 were raised in play
+    (1, "Follower", 6),   # 6 + 3 raised, capped at 6
+    (2, "Buddy", 6),      # untyped loyalty 6 (shown as Follower) -> Buddy: 3 + 5 raised, capped
+    (3, "Contact", 1),    # a stored Buddy at its creation loyalty becomes a plain Contact
 ])
-def test_invalid_sales_are_refused(tmp_path, sold):
-    with pytest.raises(HTTPException) as e:
-        _sell(tmp_path, sold)
-    assert e.value.status_code == 422
+def test_type_change_keeps_loyalty_raised_in_play(tmp_path, contact_id, new_type, loyalty):
+    contacts = [{"id": 1, "name": "Joe", "profession": "Fence", "contact_type": "Buddy"},
+                {"id": 2, "name": "Rook", "profession": "Bodyguard", "contact_type": "Follower"},
+                {"id": 3, "name": "Doc", "profession": "Street Doc", "contact_type": "Buddy"}]
+    for c in contacts:
+        if c["id"] == contact_id:
+            c["contact_type"] = new_type
+    _, _, rows, _ = _run(tmp_path, _body(contacts=contacts), setup=_setup_untyped)
+    assert rows[contact_id].loyalty == loyalty and rows[contact_id].contact_type == new_type
 
 
-def test_gear_missing_from_the_sheet_cannot_be_sold(tmp_path):
-    body = {"chargen_state": _GEAR_BUILD, "gear_sold": [{"bucket": "vehicles", "index": 0}]}
-    with pytest.raises(HTTPException) as e:
-        _run_with(tmp_path, body, chargen_state=_GEAR_BUILD, gear={**_SHEET_GEAR, "vehicles": []})
-    assert e.value.status_code == 422
+def test_unchanged_untyped_contacts_keep_their_loyalty(tmp_path):
+    contacts = [{"id": 1, "name": "Joe", "profession": "Fence", "contact_type": "Buddy"},
+                {"id": 2, "name": "Rook", "profession": "Bodyguard", "contact_type": "Follower"},
+                {"id": 3, "name": "Doc", "profession": "Street Doc", "contact_type": "Buddy"}]
+    _, _, rows, _ = _run(tmp_path, _body(contacts=contacts), setup=_setup_untyped)
+    assert (rows[1].loyalty, rows[2].loyalty, rows[3].loyalty) == (4, 6, 3)
+
+
+def test_editing_a_contact_keeps_everything_else_on_the_record(tmp_path):
+    # A Fence renamed and turned into a Data Broker: same record, same relationship.
+    contacts = [{"id": 1, "name": "Joey Two-Times", "profession": "Data Broker", "contact_type": "Buddy"},
+                {"id": 2, "name": "Rook", "profession": "Bodyguard", "contact_type": "Follower"},
+                {"id": 3, "name": "Doc", "profession": "Street Doc", "contact_type": "Buddy"}]
+    _, _, rows, _ = _run(tmp_path, _body(contacts=contacts), setup=_setup_untyped)
+    joe = rows[1]
+    assert (joe.name, joe.profession) == ("Joey Two-Times", "Data Broker")
+    assert (joe.loyalty, joe.connection) == (4, 3)
+    assert joe.notes == "GM: owes the runner" and joe.description == "Pawn shop on 5th"

@@ -325,11 +325,10 @@ const LIFESTYLE_PERMANENT_MONTHS = 100;
 // Cyberware grades available AT CHARGEN only: Standard and Alphaware. Beta (career) and
 // Delta (GM) are never buyable during character creation, so they're not offered here.
 // Alpha requires the Street Samurai Catalog (SSC) book toggle. Bioware has no grades.
-// Grade table per Cybertechnology p.44 (essence reduction / cost multiplier).
-const GRADES = {
-  Standard: { ess: 1.0, nuyen: 1, book: null },
-  Alpha:    { ess: 0.8, nuyen: 3, book: "SSC" },
-};
+// Grade table per Cybertechnology p.44 (essence reduction / cost multiplier) -- the grades offered
+// here. Prices use shared.js CYBER_GRADE_TABLE, which also has Beta/Delta: a rebuilt runner can
+// carry a GM-approved Beta/Delta implant from the sheet (kept, never newly offered).
+const GRADES = { Standard: CYBER_GRADE_TABLE.Standard, Alpha: CYBER_GRADE_TABLE.Alpha };
 const GRADE_ORDER = ["Standard","Alpha"];
 
 // Shop tab key -> catalog endpoint name + state.gear bucket. Bucket === tab key.
@@ -381,7 +380,7 @@ let dataReady = false;
 
 const KEY = "sr2_dossier_v1";
 let state = normalizeState(load() || freshState());
-let EDIT = null;   // { orig: the stored build, char: the runner's current sheet } while re-editing (?edit=)
+let EDIT = null;   // { orig: the runner as loaded (the budget baseline), char: its sheet, cs: its stored build } while re-editing (?edit=)
 let shopFilter = "";
 let shopInspect = null;    // name of the open item in the Magic step's spell/power/program browse lists
 
@@ -456,7 +455,7 @@ function normalizeState(s) {
   // Migrate cyber lines from a pre-grade draft (flat ess/cost) to the graded model.
   out.gear.cyber.forEach(g => {
     if (g.grade === undefined) g.grade = "Standard";
-    if (!GRADES[g.grade]) g.grade = "Standard";   // Beta/Delta are no longer offered at chargen
+    if (!CYBER_GRADE_TABLE[g.grade]) g.grade = "Standard";   // unknown grade; Beta/Delta from a rebuilt sheet stay
     if (g.baseEss === undefined) g.baseEss = Number(g.ess) || 0;
     if (g.baseCost === undefined) g.baseCost = Number(g.cost) || 0;
   });
@@ -537,6 +536,14 @@ function vehicleLineCost(g) { return (Number(g.cost)||0) + (g.rigger ? riggerGea
 // the Buddy price, and only one Buddy can be taken at creation. More Contacts cost the Contact
 // price each; Gang/Tribe/Follower are fixed-price extras on top, up to five Followers (p.44).
 const MAX_FOLLOWERS = 5;
+// How many Buddies / Followers the contact list may hold: 1 and 5 at creation. A rebuild loads the
+// runner's real contacts, which can already have more (loyalty raised in play, a GM-added Buddy), so
+// there the limit is whichever is higher -- the creation cap or what the runner had when loaded.
+const typeCount = (list, t) => (list || []).filter(c => c.type === t).length;
+function contactTypeLimit(t) {
+  const cap = t === "Buddy" ? 1 : MAX_FOLLOWERS;
+  return (state.editId && EDIT) ? Math.max(cap, typeCount(EDIT.orig.contacts, t)) : cap;
+}
 function contactUnitCost(c) {
   const t = (c && c.type) || "Contact";
   if (CONTACT_TYPE_COST[t] != null) return CONTACT_TYPE_COST[t];
@@ -564,8 +571,11 @@ function startingContactsDone() {
 }
 function contactProblem() {
   const free = (CHARGEN && CHARGEN.freeContacts) || 2;
-  if (state.contacts.filter(c => c.type === "Buddy").length > 1) return "Only one Buddy can be taken at character creation.";
-  if (state.contacts.filter(c => c.type === "Follower").length > MAX_FOLLOWERS) return `At most ${MAX_FOLLOWERS} Followers can be taken at character creation.`;
+  const buddies = contactTypeLimit("Buddy"), followers = contactTypeLimit("Follower");
+  if (typeCount(state.contacts, "Buddy") > buddies) return buddies === 1 ? "Only one Buddy can be taken at character creation."
+    : `At most ${buddies} Buddies (as many as the runner already had).`;
+  if (typeCount(state.contacts, "Follower") > followers) return followers === MAX_FOLLOWERS
+    ? `At most ${MAX_FOLLOWERS} Followers can be taken at character creation.` : `At most ${followers} Followers (as many as the runner already had).`;
   if (startingContactsDone() < free) return `Pick your ${free} contacts, each with a handle and archetype -- one can be upgraded to a Buddy.`;
   return "";
 }
@@ -636,23 +646,28 @@ function startingCash() { return Math.floor(nuyenLeftover() / 10); }
 function fpSpent() { return state.spells.reduce((s,x) => s + Number(x.force||0), 0) + fociFp(); }
 function fpBudget() { return res().fp || 0; }
 // Over-budget checks blocking a final commit (drafts may exceed; committing may not).
-function budgetViolations() {
-  const v = [];
-  if (attrSpent() > attrBudget()) v.push(`Attributes (${attrSpent()}/${attrBudget()} points)`);
-  if (skillSpent() > skillBudget()) v.push(`Skills (${skillSpent()}/${skillBudget()} points)`);
-  if (nuyenSpent() > res().nuyen) v.push(`Resources (${money(nuyenSpent())}/${money(res().nuyen)})`);
-  if (fpSpent() > fpBudget() && (state.magicType === "Full Mage" || (state.foci && state.foci.length))) v.push(`Force Points (${fpSpent()}/${fpBudget()})`);
+// Each budget as {label, over, text}: `over` > 0 is how far past it the build is. A rebuild
+// compares these against the runner as loaded (editBudgetViolations).
+function budgetChecks() {
+  const c = [];
+  const add = (label, spent, budget, detail) => c.push({ label, over: spent - budget, text: `${label} (${detail})` });
+  add("Attributes", attrSpent(), attrBudget(), `${attrSpent()}/${attrBudget()} points`);
+  add("Skills", skillSpent(), skillBudget(), `${skillSpent()}/${skillBudget()} points`);
+  add("Resources", nuyenSpent(), res().nuyen, `${money(nuyenSpent())}/${money(res().nuyen)}`);
+  if (state.magicType === "Full Mage" || (state.foci && state.foci.length)) add("Force Points", fpSpent(), fpBudget(), `${fpSpent()}/${fpBudget()}`);
   if (awakened() && state.foci.length) {
     const mr = magicRating();
-    if (state.foci.length > mr) v.push(`Foci count (${state.foci.length}/${mr} = Magic Rating)`);
-    if (fociRatingSum() > mr * 5) v.push(`Foci total rating (${fociRatingSum()}/${mr * 5} = Magic x5)`);
+    add("Foci count", state.foci.length, mr, `${state.foci.length}/${mr} = Magic Rating`);
+    add("Foci total rating", fociRatingSum(), mr * 5, `${fociRatingSum()}/${mr * 5} = Magic x5`);
   }
-  if (state.magicType === "Adept" && ppSpent() > ppBudget()) v.push(`Power Points (${round2(ppSpent())}/${ppBudget()})`);
+  if (state.magicType === "Adept") add("Power Points", ppSpent(), ppBudget(), `${round2(ppSpent())}/${ppBudget()}`);
   const cyberEss = state.gear.cyber.reduce((s,g) => s + effCyberEss(g), 0);
-  if (cyberEss > 6) v.push(`Cyberware Essence (${cyberEss.toFixed(2)}/6.00)`);
-  if (bodyIndex() > naturalAttr("body")) v.push(`Body Index (${bodyIndex().toFixed(2)}/${naturalAttr("body")} = natural Body)`);
-  return v;
+  add("Cyberware Essence", cyberEss, 6, `${cyberEss.toFixed(2)}/6.00`);
+  add("Body Index", bodyIndex(), naturalAttr("body"), `${bodyIndex().toFixed(2)}/${naturalAttr("body")} = natural Body`);
+  return c;
 }
+const BUDGET_EPS = 1e-6;
+function budgetViolations() { return budgetChecks().filter(x => x.over > BUDGET_EPS).map(x => x.text); }
 // ---- foci (SR2 p.137 bonding karma / p.263 nuyen) ----------------------------
 function focusDef(name) { return (FOCI||[]).find(f => f.n === name) || null; }
 function focusNuyen(f, rating) { if (!f) return 0; if (f.nuyenFlat != null) return f.nuyenFlat; return (f.nuyenBase||0) + (f.nuyenPer||0) * (Number(rating)||1); }
@@ -704,8 +719,8 @@ function clearStaleMagicSelections(next){
 // shape, but every call site on this page still wants the plain 1-arg form.
 // minRating supports band entries (e.g. Skillwire Plus R4-6): the picker and tables start at minRating.
 function cyberRating(g) { return clampedRating(g); }
-function effCyberEss(g) { return gradedCyberEssence(g, GRADES); }
-function effCyberCost(g) { return gradedCyberCost(g, GRADES); }
+function effCyberEss(g) { return gradedCyberEssence(g, CYBER_GRADE_TABLE); }
+function effCyberCost(g) { return gradedCyberCost(g, CYBER_GRADE_TABLE); }
 // Bioware Rating (Body Index cost + nuyen), mirroring the cyber rating helpers. Bioware has no grades.
 // Rating ceiling: capBody items cap at the character's (natural, unaugmented) Body.
 function bioMaxRating(g) { return g.capBody ? Math.max(1, naturalAttr("body")) : (Number(g.maxRating) || 1); }
@@ -1315,7 +1330,9 @@ function magicInspectRow(it, kind, owned) {
 }
 function cyberLineHTML(g, i) {
   const grade = g.grade || "Standard";
-  const opts = GRADE_ORDER.map(gr => {
+  // A Beta/Delta implant carried over from the sheet in a rebuild: shown, kept, never offered.
+  const carried = GRADE_ORDER.includes(grade) ? "" : `<option value="${esc(grade)}" selected>${esc(grade)} (on the sheet)</option>`;
+  const opts = carried + GRADE_ORDER.map(gr => {
     const note = gradeNote(gr);
     const label = gr + (note ? " (" + note + ")" : "");
     const enabled = gradeSelectable(gr) || gr === grade;
@@ -1397,11 +1414,7 @@ function toggleShopInspect(root, key) {
 }
 function stepResources() {
   const over = nuyenCommitted() > res().nuyen;
-  // Re-edit: only starting gear still on the sheet is listed; what's sellable gets a live X.
-  const editing = !!(state.editId && EDIT);
-  let hiddenLines = 0;
-  const lines = (k) => { const onSheet = editing ? editGearOnSheet(k) : null; return state.gear[k].map((g,i) => {
-    if (onSheet && !onSheet.has(i)) { hiddenLines++; return ""; }
+  const lines = (k) => state.gear[k].map((g,i) => {
     if (k === "cyber") return cyberLineHTML(g, i);
     const showEss = (k === "bio");
     // Kit/Shop/Facility are generic until the player names what kind (e.g. "Programming Shop").
@@ -1440,9 +1453,8 @@ function stepResources() {
       ${rig}
       ${showEss ? `<span class="cbx-line__f">BI ${bioBaseEss(g).toFixed(2)}</span>` : ""}
       <span class="cbx-line__f">${money(k === "bio" ? bioCost(g) : gearLineCost(g))}</span>
-      <button type="button" class="cbx-x" data-delgear="${k}:${i}"${editing && EDIT_SELLABLE_GEAR.has(k)
-        ? ` data-sellback="1" title="Sell back for its build price"` : ""}>&#10005;</button></div>`;
-  }).join(""); };
+      <button type="button" class="cbx-x" data-delgear="${k}:${i}">&#10005;</button></div>`;
+  }).join("");
   const owned = GEAR_KEYS.map(k => {
     const gearLines = state.gear[k].length ? lines(k) : "";
     // Owned Matrix programs are inventory too -- list them under the Matrix gear (with cyberdecks).
@@ -1450,9 +1462,6 @@ function stepResources() {
     if (!gearLines && !progLines) return "";
     return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
   }).join("") || `<p class="empty-state">Nothing acquired yet.</p>`;
-  const hiddenNote = hiddenLines
-    ? `<p class="cbx-help">${hiddenLines} starting item${hiddenLines === 1 ? " isn't" : "s aren't"} on the sheet any more (used up, sold or changed on the Dossier), so ${hiddenLines === 1 ? "it's" : "they're"} not listed. ${hiddenLines === 1 ? "It still counts" : "They still count"} toward Resources.</p>`
-    : "";
   // Weapons/armor/cyber/bio/gear/matrix/vehicles browsing and purchasing is the shared gear picker
   // (gear-picker.js), mounted into #cbxGearPicker by wire() once this HTML is in the DOM -- see
   // chargenBuyGear(). Matrix programs (deckware) aren't a catalog item, so they still get their own
@@ -1464,7 +1473,7 @@ function stepResources() {
     Essence; bioware uses Body Index. Prices are reference values from the catalogue.
     <span class="cbx-cite">(SR2 p.46)</span></p>
     <div class="cbx-resgrid">
-      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}${hiddenNote}</div>
+      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
       <div>
         <div id="cbxGearPicker"></div>
         ${programsPanelHTML()}
@@ -1481,10 +1490,11 @@ function stepContacts() {
   const usedFollowerArch = new Set(state.contacts.filter(c => c.type === "Follower" && c.archetype).map(c => c.archetype));
   const contactRows = state.contacts.map((c,i) => {
     const t = c.type || "Contact";
-    const buddyTaken = t !== "Buddy" && state.contacts.some(o => o.type === "Buddy");
-    const followersFull = t !== "Follower" && state.contacts.filter(o => o.type === "Follower").length >= MAX_FOLLOWERS;
-    const blocked = tp => tp === "Buddy" && buddyTaken ? "Only one Buddy at character creation"
-      : tp === "Follower" && followersFull ? `At most ${MAX_FOLLOWERS} Followers` : "";
+    const buddyTaken = t !== "Buddy" && typeCount(state.contacts, "Buddy") >= contactTypeLimit("Buddy");
+    const followersFull = t !== "Follower" && typeCount(state.contacts, "Follower") >= contactTypeLimit("Follower");
+    const blocked = tp => tp === "Buddy" && buddyTaken
+      ? (contactTypeLimit("Buddy") === 1 ? "Only one Buddy at character creation" : `At most ${contactTypeLimit("Buddy")} Buddies`)
+      : tp === "Follower" && followersFull ? `At most ${contactTypeLimit("Follower")} Followers` : "";
     const typeSel = `<select class="cbx-mini" style="width:auto" data-ctype="${i}">${CONTACT_TYPES.map(tp =>
       `<option value="${esc(tp)}" ${t===tp?"selected":""} ${blocked(tp)?`disabled title="${blocked(tp)}"`:""}>${esc(tp)}</option>`).join("")}</select>`;
     let mid = "";
@@ -1592,7 +1602,7 @@ function stepFinish() {
     <div id="cbxEditReview"></div>
     <p class="cbx-note" id="cbxSubmitStatus"></p>
     <p class="cbx-help">${state.editId
-      ? "Saving replaces each attribute, skill, spell or power you changed with its new value here and refunds the Good Karma spent on it since creation. Everything you left alone keeps its Karma raises."
+      ? "Saving rebuilds the runner from this build. The Good Karma spent raising attributes and skills since creation is refunded; the Karma Pool, notes, damage and anything the builder doesn't show stay as they are."
       : "Contacts you added are committed as the runner's Contact records with the dossier."}</p>`;
 }
 
@@ -1603,7 +1613,7 @@ function renderStep() {
   body.innerHTML = `<h3 class="cbx-h4" style="margin-top:0;font-size:var(--fs-md);color:var(--text-bright);letter-spacing:1px">
     Step ${state.step+1} - ${esc(STEPS[state.step])}</h3>` + fns[state.step]();
   wire();
-  applyEditLocks();
+  applyEditNotes();
 }
 function render() {
   if (!dataReady) return;
@@ -2053,6 +2063,7 @@ function commitPayload() {
     contacts: (state.contacts || []).filter(c => (c.name || "").trim()).map(c => {
       const t = c.type || "Contact";
       return {
+        ...(c.id ? { id: c.id } : {}),   // rebuild: an existing Contact record, edited in place
         name: c.name.slice(0, 200),
         profession: (t === "Gang" || t === "Tribe") ? null : (c.archetype || null),
         contact_type: t,
@@ -2208,125 +2219,82 @@ async function commitDossier() {
 }
 
 /* ---------- re-editing a finished runner (?edit=<id>) ---------- */
-// Lets a player fix chargen mistakes after the fact (missing contacts, skill points spread wrong).
-// Priorities, metatype, magic choices, gear, foci, programs and lifestyle stay as they were, and
-// so do the contacts the runner already has; attributes, skills, spells, powers, identity text and
-// new contacts can change within the original budgets. Saving merges onto the CURRENT sheet: an
-// item the player didn't change keeps its post-chargen Karma raises, a changed item becomes its new
-// builder value and the Good Karma recorded against it (play-sheet.html karmaRecorded) is refunded.
-// The server re-locks and re-checks all of this (POST /characters/{id}/rebuild-dossier).
-const EDIT_LOCKED_SEL = [
-  "[data-cat]", "[data-kit]", "[data-mt]", "[data-magictype]", "[data-tradition]", "[data-totem]",
-  "[data-addfocus]", "[data-delfocus]", "[data-focusrate]", "[data-focusapplies]",
-  "[data-delgear]:not([data-sellback])", "[data-gearrating]", "[data-gearkind]", "[data-cybergrade]", "[data-cyberrating]",
-  "[data-cyberslot]", "[data-cyberskill]", "[data-biorating]", "[data-bioskill]", "[data-rigger]",
-  "[data-progadd]", "[data-prograte]", "[data-progdmg]", "[data-progdel]",
-  '[data-id="lifestyle"]', "#cbxLifePerm",
-].join(",");
+// A full rebuild. The builder loads the runner as it is NOW:
+// - attributes and skills at their creation values; the Good Karma spent raising them since
+//   creation is refunded when the rebuild is saved (editRefunds);
+// - the sheet's current spells, adept powers, gear, cyberware, bioware, foci and programs, all
+//   treated as creation picks (they count toward the creation budgets);
+// - the runner's real Contact records, edited in place (each row carries its Contact id).
+// Everything is editable, priorities and metatype included. Whatever budget the runner was
+// already over when loaded is the baseline: saving is allowed as long as the edit doesn't make
+// that overrun worse (editBudgetViolations). The server writes the whole sheet
+// (POST /characters/{id}/rebuild-dossier), keeping the Karma Pool, notes and damage.
 const EDIT_STEP_NOTES = {
-  0: "Priorities are locked once a runner is made.",
-  1: "Metatype is locked once a runner is made.",
-  3: "Magic type, tradition, totem and foci are locked; spells and powers can change.",
-  5: "Starting gear still on the sheet can be sold back (the X) for its build price, which frees Resources -- e.g. "
-   + "to pay for a new contact. Nothing new can be bought here, and cyberware, bioware and programs stay locked; "
-   + "use the Dossier for those. Starting gear that's no longer on the sheet isn't listed.",
-  6: "These are the runner's contacts as they stand now, locked; you can add new ones.",
-  7: "Lifestyle is locked.",
+  2: "Attributes are back at their creation values. The Karma spent raising them since creation is refunded when you save.",
+  3: "Spells and powers are the runner's current ones, including any learned in play; here they count as creation picks.",
+  4: "Skills are back at their creation values. The Karma spent raising them since creation is refunded when you save.",
+  5: "This is the runner's current inventory, including anything bought in play; here it all counts toward Resources. Anything you don't remove stays.",
+  6: "These are the runner's contacts as they stand now; changes here edit the same contact records.",
 };
-// Budgets the edit can't change (gear is locked, bar selling starting gear back): an overrun the runner already had doesn't block
-// saving, unless new contacts make Resources worse.
-const EDIT_LOCKED_BUDGETS = new Set(["Resources", "Cyberware Essence", "Body Index", "Foci count", "Foci total rating"]);
-
-// Starting gear a re-edit can sell back (server: _REBUILD_SELLABLE_GEAR). Cyberware/bioware stay
-// locked -- removing an implant is surgery on the Dossier (Essence, Body Index, attributes).
-const EDIT_SELLABLE_GEAR = new Set(["weapons", "armor", "gear", "matrix", "vehicles"]);
-// How a starting-gear line is matched to the sheet: name + rating (the Dossier adds its own fields
-// to the lines it holds). Same rule as the server's _gear_match_key().
-function editGearKey(g) {
-  const r = g.rating;
-  const rt = (r == null || r === "") ? "" : (Number.isFinite(Number(r)) ? String(Number(r)) : String(r));
-  return `${g.n || ""}|${rt}`;
-}
-// Each wizard gear line remembers its index in the stored build (`_ix`), which is how a save names
-// the lines sold back (gear_sold). Re-run after a save, when the stored build has those lines gone.
-function tagEditGear() {
-  GEAR_KEYS.forEach(k => (state.gear[k] || []).forEach((g, ix) => { g._ix = ix; }));
-}
-// The stored-build lines (indexes into EDIT.orig.gear[k]) the edit has sold back so far.
-function editSoldIx(k) {
-  const kept = new Set((state.gear[k] || []).map(g => g._ix));
-  return ((EDIT.orig.gear || {})[k] || []).map((_, ix) => ix).filter(ix => !kept.has(ix));
-}
-// Which of a bucket's wizard lines (indexes into state.gear[k]) are still on the runner's sheet:
-// each sheet line backs one starting line of the same name + rating, less those already sold.
-// The rest were used up, sold or changed on the Dossier -- hidden, though they still count
-// toward Resources, and can't be sold back.
-function editGearOnSheet(k) {
-  const avail = {};
-  ((EDIT.char.gear || {})[k] || []).forEach(g => { const key = editGearKey(g); avail[key] = (avail[key] || 0) + 1; });
-  editSoldIx(k).forEach(ix => { const key = editGearKey(EDIT.orig.gear[k][ix]); avail[key] = (avail[key] || 0) - 1; });
-  const shown = new Set();
-  (state.gear[k] || []).forEach((g, i) => {
-    const key = editGearKey(g);
-    if ((avail[key] || 0) > 0) { avail[key]--; shown.add(i); }
-  });
-  return shown;
-}
-
-function applyEditLocks() {
+function applyEditNotes() {
   if (!state.editId) return;
-  const root = document.getElementById("cbxStepBody");
-  const lock = el => {
-    el.disabled = true; el.onclick = el.onchange = el.oninput = null;
-    el.title = "Locked when editing a finished runner";
-  };
-  root.querySelectorAll(EDIT_LOCKED_SEL).forEach(lock);
-  state.contacts.forEach((c, i) => {
-    if (c.locked) root.querySelectorAll(`[data-cname="${i}"],[data-carch="${i}"],[data-ctype="${i}"],[data-delcontact="${i}"]`).forEach(lock);
-  });
-  const picker = document.getElementById("cbxGearPicker");
-  if (picker) picker.hidden = true;
   const note = EDIT_STEP_NOTES[state.step];
-  if (note) root.querySelector("h3").insertAdjacentHTML("afterend", `<p class="cbx-note is-warn">${esc(note)}</p>`);
+  const h = document.querySelector("#cbxStepBody h3");
+  if (note && h) h.insertAdjacentHTML("afterend", `<p class="cbx-note">${esc(note)}</p>`);
 }
 
 // Run a builder computation against another wizard state (every helper reads the global `state`).
 function withState(s, fn) { const keep = state; state = s; try { return fn(); } finally { state = keep; } }
 const sameJSON = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-const budgetLabel = v => v.split(" (")[0];
+const deepCopy = v => JSON.parse(JSON.stringify(v ?? null));
 
+// A budget blocks the save only if it's over and the runner wasn't already at least that far over
+// when loaded.
 function editBudgetViolations() {
-  const before = new Set(withState(EDIT.orig, budgetViolations).map(budgetLabel));
-  const moreSpent = nuyenSpent() > withState(EDIT.orig, nuyenSpent);
-  return budgetViolations().filter(v => {
-    const l = budgetLabel(v);
-    if (!EDIT_LOCKED_BUDGETS.has(l) || !before.has(l)) return true;
-    return l === "Resources" && moreSpent;
-  });
+  const before = Object.fromEntries(withState(EDIT.orig, budgetChecks).map(c => [c.label, c.over]));
+  return budgetChecks()
+    .filter(c => c.over > BUDGET_EPS && !((before[c.label] || 0) > BUDGET_EPS && c.over <= before[c.label] + BUDGET_EPS))
+    .map(c => c.text);
 }
 
-// The runner's current sheet, stored build and real Contact records. The wizard's own contact list
-// drifts from the records (renamed, added on the Dossier later), so an edit shows the records,
-// locked, and only adds to them.
+// The runner's current sheet, stored build and real Contact records (the list the Dossier shows,
+// in its order; GM-hidden contacts aren't in it and the server never touches them).
 async function fetchEditTarget(id) {
   const q = encodeURIComponent(id);
   const [cr, sr, kr] = await Promise.all([
-    // Same list (and order) the Dossier shows, so the two pages can't disagree.
     apiFetch(`/characters/${q}`), apiFetch(`/characters/${q}/chargen-state`), apiFetch(`/characters/${q}/contacts`),
   ]);
   const bad = [cr, sr, kr].find(r => !r.ok);
   if (bad) throw new Error(`could not load runner ${id} (status ${bad.status})`);
   const list = await kr.json();
   const contacts = (Array.isArray(list) ? list : []).map(ct => ({
-    name: ct.name || "", archetype: ct.profession || "",
-    type: ct.contact_type || contactTypeForLoyalty(ct.loyalty), locked: true,
+    id: ct.id, name: ct.name || "", archetype: ct.profession || "",
+    type: ct.contact_type || contactTypeForLoyalty(ct.loyalty),
   }));
   return { char: await cr.json(), cs: (await sr.json()).state || {}, contacts };
 }
-function editOrig(cs, contacts) {
-  // A deep copy: the wizard state and the stored-build snapshot are both made from one `cs`, and
-  // must not share gear arrays (selling a line back would otherwise remove it from both).
-  const s = normalizeState(JSON.parse(JSON.stringify(cs)));
+// The wizard state a rebuild starts from (also the budget baseline): the stored build's creation
+// choices, attributes and skills, with the sheet's current spells, powers, inventory, identity
+// text, lifestyle and contacts. Always a fresh deep copy.
+function editLoad(char, cs, contacts) {
+  const g = deepCopy(char.gear) || {};
+  const raw = deepCopy(cs) || {};
+  raw.gear = Object.fromEntries(GEAR_KEYS.map(k => [k, Array.isArray(g[k]) ? g[k] : []]));
+  raw.foci = (Array.isArray(g.foci) ? g.foci : []).map(f => ({ ...f, type: f.type || f.n }));
+  raw.programs = Array.isArray(g.programs) ? g.programs : [];
+  raw.spells = deepCopy(char.spells) || [];
+  raw.powers = deepCopy(char.adept_powers) || [];
+  const s = normalizeState(raw);
+  const lvl = Number(char.lifestyle_level);
+  Object.assign(s.identity, {
+    handle: char.name || s.identity.handle,
+    sex: char.gender ?? s.identity.sex,
+    age: char.age != null ? String(char.age) : s.identity.age,
+    nationality: char.nationality ?? s.identity.nationality,
+    desc: char.description ?? s.identity.desc,
+    lifestyle: LIFESTYLE_TIERS[lvl] || s.identity.lifestyle,
+    lifestylePermanent: char.lifestyle_permanent != null ? !!char.lifestyle_permanent : s.identity.lifestylePermanent,
+  });
   s.contacts = contacts.map(c => ({ ...c }));
   return s;
 }
@@ -2339,13 +2307,13 @@ async function startEdit(id) {
       setModeBanner(`<strong>${esc(char.name || "This runner")}</strong> wasn't made in this builder, so it can't be re-edited here.`);
       return false;
     }
-    state = editOrig(cs, contacts);
+    state = editLoad(char, cs, contacts);
     state.editId = Number(id); state.draftId = null; state.convertId = null;
-    EDIT = { orig: editOrig(cs, contacts), char };
-    tagEditGear();
-    state.step = 2;
-    setModeBanner(`Editing <strong>${esc(char.name || "runner")}</strong> (id ${esc(String(id))}) to fix creation mistakes &mdash; ` +
-      `priorities, metatype, magic choices and gear are locked (starting gear can be sold back). Karma spent on anything you change is refunded.`);
+    EDIT = { orig: editLoad(char, cs, contacts), char, cs };
+    state.step = 0;
+    setModeBanner(`Rebuilding <strong>${esc(char.name || "runner")}</strong> (id ${esc(String(id))}) &mdash; everything can change. ` +
+      `Attributes and skills are back at their creation values (the Karma spent raising them is refunded); ` +
+      `spells, powers and inventory are the runner's current ones and count as creation picks.`);
     return true;
   } catch (e) {
     setModeBanner(`Could not load runner: ${esc(e.message || String(e))}`);
@@ -2353,115 +2321,129 @@ async function startEdit(id) {
   }
 }
 
-// The sheet values one wizard state commits to, keyed for the per-item merge.
-const powerKey = x => x.name + (x.attr ? ` (${x.attr})` : "");
-function editView(s) {
-  return withState(s, () => {
-    const p = commitPayload();
-    const byKey = (list, key) => Object.fromEntries((list || []).map(x => [key(x), x]));
-    return {
-      p,
-      skills: byKey(p.skills, x => x.name),
-      spells: byKey(p.spells, x => x.name),
-      powers: byKey(p.adept_powers, powerKey),
-      cash: startingCash(),
-    };
-  });
+// ---- the Karma refund: raises bought since creation, priced with the Dossier's rules ----
+// shared.js attrKarmaCost (new rating) and skillKarmaCost (general 2x, Concentration 1.5x rounded
+// up, Specialization 1x, language 1x the new rating), summed over each step from the creation value
+// to the sheet's. Where the Dossier recorded what was actually paid for an item
+// (chargen_state.advancement.karma, recorded since 2026-11-21), the larger of the two is refunded.
+function priceSteps(from, to, costOf) {
+  let t = 0;
+  for (let n = Math.max(0, from) + 1; n <= to; n++) t += costOf(n);
+  return t;
 }
-const skillText = k => !k ? "--" : [String(k.rating), ...(k.concs || []).map(c => `${c.name} ${c.rating}`),
-  ...(k.specs || []).map(x => `${x.name} ${x.rating}`)].join(" / ");
-const spellText = k => !k ? "--" : `Force ${k.force}`;
-const powerText = k => !k ? "--" : (k.lvl ? `level ${k.lvl}` : "taken");
-
-// Merge one list: items whose chargen value is unchanged keep the current sheet's version; changed
-// ones take the new chargen value (or go, if removed in the edit). Each change is logged with its
-// refund (Good Karma recorded against `${kind}:${name}`) and whether the sheet had post-chargen
-// changes on it that were never recorded (made before Karma was tracked, or edited by hand).
-function mergeEditList(kind, label, current, oldMap, newMap, keyOf, text, adv, changes) {
-  const changed = [...new Set([...Object.keys(oldMap), ...Object.keys(newMap)])].filter(k => !sameJSON(oldMap[k], newMap[k]));
-  if (!changed.length) return null;
-  const out = [];
-  (current || []).forEach(item => {
-    const k = keyOf(item);
-    if (!changed.includes(k)) out.push(item);
-    else if (newMap[k]) out.push(newMap[k]);
+// One skill, creation (sheet shape, or undefined if bought in play) -> now. A Concentration or
+// Specialization bought in play is priced from what it builds on as it stands now -- the least it
+// could have cost.
+function skillRaiseKarma(created, now) {
+  const r0 = created ? Number(created.rating) || 0 : 0, r1 = Number(now.rating) || 0;
+  let t = priceSteps(r0, r1, n => skillKarmaCost(now, "general", n));
+  const concNow = {};
+  (now.concs || []).forEach(c => {
+    const old = created && (created.concs || []).find(x => x.name === c.name);
+    concNow[c.name] = Number(c.rating) || 0;
+    t += priceSteps(old ? Number(old.rating) || 0 : r1, concNow[c.name], n => skillKarmaCost(now, "conc", n));
   });
-  changed.forEach(k => { if (newMap[k] && !out.some(x => keyOf(x) === k)) out.push(newMap[k]); });
-  changed.forEach(k => {
-    const cur = (current || []).find(x => keyOf(x) === k);
-    const entry = `${kind}:${k}`;
-    const refund = adv.karma[entry] || 0;
-    delete adv.karma[entry];
-    changes.push({ label: `${label}: ${k}`, from: text(cur), to: text(newMap[k]), refund,
-                   unrecorded: !refund && !sameJSON(cur, oldMap[k]) });
+  (now.specs || []).forEach(sp => {
+    const old = created && (created.specs || []).find(x => x.name === sp.name && x.conc === sp.conc);
+    const from = old ? Number(old.rating) || 0 : (concNow[sp.conc] != null ? concNow[sp.conc] : r1);
+    t += priceSteps(from, Number(sp.rating) || 0, n => skillKarmaCost(now, "spec", n));
+  });
+  return t;
+}
+// [{key, label, karma}] for every attribute and skill raised since creation.
+function editRefunds(char, cs) {
+  const adv = cs.advancement || {}, recorded = adv.karma || {}, raises = adv.attrs || {};
+  const mods = ((META || {})[cs.metatype] || {}).mods || {};
+  const out = [];
+  ATTRS.forEach(a => {
+    const k0 = (Number((cs.base || {})[a]) || 0) + (mods[a] || 0);
+    const priced = priceSteps(k0, k0 + (Number(raises[a]) || 0), attrKarmaCost);
+    const karma = Math.max(priced, Number(recorded[`attr:${a}`]) || 0);
+    if (karma) out.push({ key: `attr:${a}`, label: ALABEL[a], karma });
+  });
+  const created = Object.fromEntries(withState(normalizeState(deepCopy(cs)), commitSkills).map(x => [x.name, x]));
+  (char.skills || []).forEach(now => {
+    const karma = Math.max(skillRaiseKarma(created[now.name], now), Number(recorded[`skill:${now.name}`]) || 0);
+    if (karma) out.push({ key: `skill:${now.name}`, label: now.name, karma });
   });
   return out;
 }
 
-// Work out everything a save would do, against a fresh copy of the runner (Karma may have been
-// spent in another tab since the edit started).
+// ---- the Review: what a save changes ----
+const skillText = k => !k ? "--" : [String(k.rating), ...(k.concs || []).map(c => `${c.name} ${c.rating}`),
+  ...(k.specs || []).map(x => `${x.name} ${x.rating}`)].join(" / ");
+const powerKey = x => x.name + (x.attr ? ` (${x.attr})` : "");
+const nameCounts = list => (list || []).reduce((m, x) => { const n = x.n || x.type || x.name || "?"; m[n] = (m[n] || 0) + 1; return m; }, {});
+// Added/removed rows between two lists, matched by `keyOf` (counting duplicates).
+function listDiff(label, before, after, keyOf, changes) {
+  const b = {}, a = {};
+  (before || []).forEach(x => { const k = keyOf(x); b[k] = (b[k] || 0) + 1; });
+  (after || []).forEach(x => { const k = keyOf(x); a[k] = (a[k] || 0) + 1; });
+  new Set([...Object.keys(b), ...Object.keys(a)]).forEach(k => {
+    const d = (a[k] || 0) - (b[k] || 0);
+    for (let i = 0; i < Math.abs(d); i++) changes.push({ label, from: d < 0 ? k : "--", to: d > 0 ? k : "--" });
+  });
+}
+function editChanges(orig, char, refunds) {
+  const changes = [];
+  const refundOf = Object.fromEntries(refunds.map(r => [r.key, r.karma]));
+  const prioText = p => ["race", "magic", "attributes", "skills", "resources"].map(k => `${k[0].toUpperCase()}${k.slice(1)} ${p[k] || "-"}`).join(", ");
+  if (!sameJSON(orig.prio, state.prio)) changes.push({ label: "Priorities", from: prioText(orig.prio), to: prioText(state.prio) });
+  [["metatype", "Metatype"], ["magicType", "Magic"], ["tradition", "Tradition"], ["totem", "Totem"]].forEach(([k, l]) => {
+    if (!sameJSON(orig[k], state[k])) changes.push({ label: l, from: String(orig[k] || "--"), to: String(state[k] || "--") });
+  });
+  ATTRS.forEach(a => {
+    const now = char[a], after = finalAttr(a), karma = refundOf[`attr:${a}`] || 0;
+    if (now !== after || karma) changes.push({ label: ALABEL[a], from: String(now ?? "--"), to: String(after), refund: karma });
+  });
+  const nowSkills = Object.fromEntries((char.skills || []).map(x => [x.name, x]));
+  const newSkills = Object.fromEntries(commitSkills().map(x => [x.name, x]));
+  new Set([...Object.keys(nowSkills), ...Object.keys(newSkills)]).forEach(n => {
+    const karma = refundOf[`skill:${n}`] || 0;
+    const from = skillText(nowSkills[n]), to = skillText(newSkills[n]);
+    if (from !== to || karma) changes.push({ label: `Skill: ${n}`, from, to, refund: karma });
+  });
+  listDiff("Spell", orig.spells, state.spells, x => `${x.name} (Force ${x.force})`, changes);
+  listDiff("Power", orig.powers, state.powers, x => powerKey(x) + (x.lvl ? ` level ${x.lvl}` : ""), changes);
+  GEAR_KEYS.forEach(k => listDiff(SHOP_DEFS.find(d => d.k === k).label, orig.gear[k], state.gear[k],
+    g => (g.n || "?") + (g.rating ? ` R${g.rating}` : "") + (g.grade && g.grade !== "Standard" ? ` (${g.grade})` : ""), changes));
+  listDiff("Focus", orig.foci, state.foci, f => `${f.type || f.n} ${f.rating || 1}`, changes);
+  listDiff("Program", orig.programs, state.programs, p => `${p.name || p.prog || "?"} ${p.rating || 1}`, changes);
+  const ctText = c => `${c.name}${c.archetype ? ` (${c.archetype})` : ""} -- ${c.type || "Contact"}`;
+  const kept = new Map(state.contacts.filter(c => c.id).map(c => [c.id, c]));
+  orig.contacts.forEach(c => {
+    const now = kept.get(c.id);
+    if (!now || !(now.name || "").trim()) changes.push({ label: "Contact removed", from: ctText(c), to: "--" });
+    else if (ctText(now) !== ctText(c)) changes.push({ label: "Contact", from: ctText(c), to: ctText(now) });
+  });
+  state.contacts.filter(c => !c.id && (c.name || "").trim()).forEach(c => changes.push({ label: "New contact", from: "--", to: ctText(c) }));
+  [["handle", "Handle"], ["sex", "Gender"], ["nationality", "Nationality"], ["age", "Age"], ["desc", "Description"],
+   ["lifestyle", "Lifestyle"], ["archetype", "Archetype"]].forEach(([k, l]) => {
+    if (!sameJSON(orig.identity[k], state.identity[k])) changes.push({ label: l, from: String(orig.identity[k] || "--"), to: String(state.identity[k] || "--") });
+  });
+  return changes;
+}
+
+// Work out everything a save would do, against a fresh copy of the runner (it may have changed in
+// another tab since the edit started; the server also refuses a stale save).
 async function planEdit() {
   const { char, cs, contacts } = await fetchEditTarget(state.editId);
-  const orig = editOrig(cs, contacts);
-  EDIT = { orig, char };
-  const before = editView(orig), after = editView(state);
-  const adv = { karma: { ...((cs.advancement || {}).karma || {}) }, attrs: { ...((cs.advancement || {}).attrs || {}) } };
-  const changes = [], body = {};
-
-  ATTRS.forEach(a => {
-    if (orig.base[a] === state.base[a]) return;
-    const raised = adv.attrs[a] || 0;
-    body[a] = Math.max(1, (char[a] || 0) + (state.base[a] - orig.base[a]) - raised);
-    const refund = adv.karma[`attr:${a}`] || 0;
-    delete adv.karma[`attr:${a}`]; delete adv.attrs[a];
-    changes.push({ label: ALABEL[a], from: String(char[a]), to: String(body[a]), refund, unrecorded: false });
-  });
-  const skills = mergeEditList("skill", "Skill", char.skills, before.skills, after.skills, x => x.name, skillText, adv, changes);
-  if (skills) body.skills = skills;
-  const spells = mergeEditList("spell", "Spell", char.spells, before.spells, after.spells, x => x.name, spellText, adv, changes);
-  if (spells) body.spells = spells;
-  const powers = mergeEditList("power", "Power", char.adept_powers, before.powers, after.powers, powerKey, powerText, adv, changes);
-  if (powers) body.adept_powers = powers;
-
-  ["name", "archetype", "gender", "nationality", "age", "description"].forEach(f => {
-    if (!sameJSON(before.p[f], after.p[f])) {
-      body[f] = after.p[f];
-      changes.push({ label: f === "name" ? "Handle" : f[0].toUpperCase() + f.slice(1),
-                     from: String(char[f] ?? "--"), to: String(after.p[f] ?? "--"), refund: 0 });
-    }
-  });
-  // The Deck Workshop reads these columns -- refresh them when a skill they derive from changed.
-  if (["Computer", "Computer B/R"].some(n => !sameJSON(before.skills[n], after.skills[n]))) {
-    ["computer", "software", "matrix", "computer_br"].forEach(k => {
-      body[`${k}_skill_enabled`] = after.p[`${k}_skill_enabled`];
-      body[`${k}_skill_rating`] = after.p[`${k}_skill_rating`];
-    });
-  }
-  const added = withState({ ...state, contacts: state.contacts.filter(c => !c.locked) }, () => commitPayload().contacts);
-  added.forEach(c => changes.push({ label: "New contact", from: "--",
-    to: `${c.name}${c.profession ? ` (${c.profession})` : ""} -- ${c.contact_type}`, refund: 0 }));
-  body.contacts = added;
-  // Starting gear sold back: named by its index in the stored build (the server checks each is
-  // still on the sheet and removes it there too). Its build price goes back into Resources.
-  const sold = [];
-  [...EDIT_SELLABLE_GEAR].forEach(k => editSoldIx(k).forEach(ix => sold.push({ bucket: k, index: ix, line: orig.gear[k][ix] })));
-  sold.forEach(({ bucket, line }) => {
-    const price = withState(orig, () => bucket === "vehicles" ? vehicleLineCost(line) : gearLineCost(line));
-    changes.push({ label: "Sold back", from: line.n + (line.rating ? ` R${line.rating}` : ""),
-                   to: `-- (+${money(price)} Resources)`, refund: 0 });
-  });
-  if (sold.length) body.gear_sold = sold.map(({ bucket, index }) => ({ bucket, index }));
-  // Only selling gear back can raise the leftover Resources (and so the cash they convert to).
-  body.nuyen_delta = sold.length ? after.cash - before.cash : Math.min(0, after.cash - before.cash);
-  // The server refuses the save (409) if the runner changes between this Review and Save.
+  const orig = editLoad(char, cs, contacts);
+  EDIT = { orig, char, cs };
+  const refunds = editRefunds(char, cs);
+  const refund = refunds.reduce((t, r) => t + r.karma, 0);
+  const changes = editChanges(orig, char, refunds);
+  const body = commitPayload();
+  // Good Karma and nuyen are adjusted server-side; the Karma Pool and notes are the Dossier's.
+  ["good_karma", "nuyen", "karma_pool", "notes"].forEach(k => delete body[k]);
+  body.karma_refund = refund;
+  body.nuyen_delta = startingCash() - withState(orig, startingCash);
   if (char.version != null) body.expected_version = char.version;
-
-  const sendState = JSON.parse(JSON.stringify(state));
-  sendState.contacts.forEach(c => delete c.locked);
+  const sendState = deepCopy(state);
+  sendState.contacts.forEach(c => delete c.id);
   sendState.editId = null;
-  sendState.advancement = adv;
   body.chargen_state = sendState;
-  return { body, changes, refund: changes.reduce((t, c) => t + (c.refund || 0), 0), char };
+  return { body, changes, refund, char };
 }
 
 async function reviewEdit() {
@@ -2475,7 +2457,7 @@ async function reviewEdit() {
     return;
   }
   const rows = plan.changes.map(c => `<tr><td>${esc(c.label)}</td><td>${esc(c.from)}</td><td>${esc(c.to)}</td>
-    <td class="r">${c.refund ? `+${c.refund}` : (c.unrecorded ? "0 *" : "")}</td></tr>`).join("");
+    <td class="r">${c.refund ? `+${c.refund}` : ""}</td></tr>`).join("");
   const cash = plan.body.nuyen_delta;
   const karmaNow = plan.char.good_karma || 0, cashNow = plan.char.nuyen || 0;
   box.innerHTML = `<div class="cbx-summary">
@@ -2483,8 +2465,7 @@ async function reviewEdit() {
       <table class="cbx-review"><thead><tr><th>Item</th><th>On the sheet now</th><th>After saving</th><th class="r">Karma back</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <p class="cbx-summary__line">Good Karma: ${karmaNow} &rarr; <strong>${karmaNow + plan.refund}</strong>${cash
-        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (leftover Resources convert at 10:1)` : ""}</p>
-      ${plan.changes.some(c => c.unrecorded) ? `<p class="cbx-help">* Changed on the sheet after creation with no recorded Karma spend (before Karma was tracked, or edited by hand), so nothing is refunded automatically. Ask the GM if Karma is owed.</p>` : ""}
+        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (starting cash changes by ${cash > 0 ? "+" : ""}${money(cash)})` : ""}</p>
       <button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>
     </div>`;
   status.className = "cbx-note"; status.textContent = "";
@@ -2502,15 +2483,9 @@ async function saveEdit(plan) {
     if (res.status === 409) document.getElementById("cbxEditReview").innerHTML = "";
     if (!res.ok) await apiThrow(res);
     const out = await res.json();
-    // Later edits in this session start from what was just saved (contacts added are now existing
-    // ones; gear sold back is gone from the stored build and the sheet, so re-index what's left).
-    state.contacts.forEach(c => { if ((c.name || "").trim()) c.locked = true; });
-    try {
-      const t = await fetchEditTarget(state.editId);
-      EDIT = { orig: editOrig(t.cs, t.contacts), char: t.char };
-    } catch (_) { /* the next Review re-fetches anyway */ }
-    tagEditGear();
-    render();
+    // Later edits in this session start from what was just saved (the new baseline, contact ids).
+    const step = state.step;
+    if (await startEdit(state.editId)) { state.step = step; render(); }
     const st = document.getElementById("cbxSubmitStatus");
     st.className = "cbx-note is-ok";
     st.innerHTML = `Saved <strong>${esc(out.name)}</strong>${out.karma_refunded ? ` &mdash; ${out.karma_refunded} Good Karma refunded` : ""}. ` +

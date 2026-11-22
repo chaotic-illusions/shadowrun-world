@@ -348,7 +348,7 @@
       <div class="ps-header__col ps-header__col--right">
         <button class="btn btn-green" id="exportBtn">&#8595; Export Official PDF</button>
         <a class="btn btn-ghost" id="editBuilderBtn" hidden style="margin-top:6px"
-           title="Reopen this runner in the character builder to fix creation mistakes. Priorities, metatype, magic and gear stay locked (starting gear can be sold back); Karma spent on anything you change is refunded.">Edit in Builder</a>
+           title="Reopen this runner in the character builder with everything editable. Attributes and skills go back to their creation values and the Karma spent raising them is refunded; spells, powers and inventory carry over as creation picks.">Edit in Builder</a>
       </div>
     </div>
 
@@ -1160,12 +1160,7 @@ function skillAugSources(skillName){
 // sourcebook -- see openManageBuyGear's gradeBooks below and CHAR.beta_grade_approved/
 // delta_grade_approved (server-enforced too, see _assert_gear_grades_allowed in characters router).
 // Grade table per Cybertechnology p.44 (essence reduction / cost multiplier).
-const ESS_GRADE_MULT = {
-  Standard: { ess: 1.0, nuyen: 1, book: null },
-  Alpha:    { ess: 0.8, nuyen: 3, book: "SSC" },
-  Beta:     { ess: 0.6, nuyen: 7, book: "Beta Approval" },
-  Delta:    { ess: 0.5, nuyen: 10, book: "Delta Approval" },
-};
+const ESS_GRADE_MULT = CYBER_GRADE_TABLE;   // shared.js
 function ownedCyberEss(g){ return gradedCyberEssence(g, ESS_GRADE_MULT); }
 function essenceRemaining(){
   const cyber = (CHAR.gear && CHAR.gear.cyber) || [];
@@ -2269,7 +2264,7 @@ function openManageIdentity(){
   initNumSteppers($('#modalBody'));
 }
 
-// ---- Manage Attributes (draft/commit, real karma-cost placeholder) ----
+// ---- Manage Attributes (draft/commit; cost = new rating, up to the racial maximum) ----
 const ATTR_KEYS = { Body:'body', Quickness:'quickness', Strength:'strength', Charisma:'charisma', Intelligence:'intelligence', Willpower:'willpower' };
 function openManageAttrs(){
   draft = {};
@@ -2282,23 +2277,35 @@ function openManageAttrs(){
   openModal('attrs', '// Manage Attributes');
   renderManageAttrs();
 }
+// The metatype's racial maximum for an attribute (rules.metatypes[race].max), or null if unknown.
+function racialMaxAttr(attr){
+  const mt = RULES && RULES.metatypes ? RULES.metatypes[CHAR.race] : null;
+  const max = mt && mt.max ? Number(mt.max[attr]) : NaN;
+  return Number.isFinite(max) ? max : null;
+}
 function renderManageAttrs(){
-  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Illustrative cost only (new rating &times; 2 karma) &mdash; placeholder pending the real SR2 advancement table.
+  $('#modalBody').innerHTML = `<p class="dim-meta mb-16">Raising an attribute costs the new rating in Good Karma, up to the racial maximum.
     Cost is keyed off base + metatype/racial bonus; gear/cyberware/bioware bonuses shown in parentheses never affect what a raise costs.</p>
     <div class="ps-stat-row" style="border:none;padding:0 0 12px;"><span class="k">Good Karma after changes</span>
       <span class="v computed" style="color:${draft.good_karma<0?'var(--red)':'var(--cyan)'};">${draft.good_karma}</span></div>` +
     Object.entries(ATTR_KEYS).map(([label,key]) => {
-      const cur = draft[key], cost = (cur+1)*2;
+      const cur = draft[key], cost = attrKarmaCost(cur + 1);
+      const max = racialMaxAttr(key), atMax = max != null && cur >= max;
       const bonus = augAttr(key);
       const totalNow = cur + bonus;
       // The row label already shows the aggregate ("base (N total)") -- keep the button's own text
       // as short and uniform as the Manage Skills raise buttons so the shared width fits everything.
       const afford = draft.good_karma >= cost;
+      const btn = atMax
+        ? `<button class="btn btn-ghost raise-action" disabled title="Racial maximum for ${esc(CHAR.race || 'this metatype')}">Racial max (${max})</button>`
+        : `<button class="btn btn-amber raise-action" data-raise="${key}" data-cost="${cost}" ${afford?'':'disabled title="Not enough karma"'}>Raise to ${cur+1} &mdash; ${cost} karma</button>`;
       return `<div class="ps-stat-row"><span class="k">${label} <span style="color:var(--text-bright);">${cur}</span>${bonus ? ` <span style="color:var(--text-dim);font-size:.7rem;">base (${totalNow} total)</span>` : ''}</span>
-        <button class="btn btn-amber raise-action" data-raise="${key}" data-cost="${cost}" ${afford?'':'disabled title="Not enough karma"'}>Raise to ${cur+1} &mdash; ${cost} karma</button></div>`;
+        ${btn}</div>`;
     }).join('');
   $$('[data-raise]').forEach(b => b.onclick = () => {
     const key = b.dataset.raise, cost = Number(b.dataset.cost);
+    const max = racialMaxAttr(key);
+    if (max != null && draft[key] >= max) return;
     if (draft.good_karma < cost) { showAlert($('#modalAlert'), `Not enough karma — need ${cost}, have ${draft.good_karma}.`, true, true); return; }
     draft.good_karma -= cost;
     draft[key] += 1;

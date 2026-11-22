@@ -1661,6 +1661,9 @@ function vehiclesForConc(vehicles, classes, skillName, conc) {
 // one above its Concentration, or the general skill when the character doesn't have that one.
 // Buying either never lowers the general skill, and a skill can have any number of them -- the
 // one-of-each limit is for starting characters only (p.70).
+// Good Karma to raise an attribute one point: the new rating (house rule), counted on base +
+// metatype bonus (never cyberware/bioware). Capped at the metatype's racial maximum by the caller.
+function attrKarmaCost(newRating){ return Math.max(0, Number(newRating) || 0); }
 function skillKarmaCost(skill, tier, newRating){
   if (tier === 'conc') return Math.ceil(newRating * 1.5);
   if (tier === 'spec' || skill.group === 'language') return newRating;
@@ -1810,6 +1813,16 @@ function gradeEssenceCost(baseEss, essMult) {
 function gradeNuyenCost(baseCost, nuyenMult) {
   return Math.round((Number(baseCost) || 0) * nuyenMult);
 }
+// Cyberware grade multipliers (Cybertechnology p.44): Essence and nuyen. Standard and Alpha can be
+// bought at chargen (Alpha needs the SSC book); Beta (career, GM approval) and Delta (GM only) only
+// after. The play sheet prices with the whole table; the builder offers only Standard/Alpha but
+// prices with it too, so a rebuilt runner's Beta/Delta implants keep their real cost.
+const CYBER_GRADE_TABLE = {
+  Standard: { ess: 1.0, nuyen: 1, book: null },
+  Alpha:    { ess: 0.8, nuyen: 3, book: "SSC" },
+  Beta:     { ess: 0.6, nuyen: 7, book: "Beta Approval" },
+  Delta:    { ess: 0.5, nuyen: 10, book: "Delta Approval" },
+};
 // Final Essence/nuyen cost of an owned cyberware line. gradeTable maps grade name -> {ess, nuyen}
 // multipliers; g.noGrade items (e.g. skillsoft chips) skip grading entirely. Named gradedCyber* --
 // not effCyberEss/effCyberCost -- because character-builder.html defines its own 1-arg wrappers

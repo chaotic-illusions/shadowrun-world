@@ -159,3 +159,36 @@ def test_failed_commit_records_no_karma_and_retry_records_it_once(_browser, _fro
     assert not pg.is_visible("#editOverlay.open")
     assert errors == [], f"JS errors on the play sheet: {errors}"
     ctx.close()
+
+
+def test_manage_attributes_costs_the_new_rating_up_to_the_racial_maximum(_browser, _frontend_port):
+    """Raising an attribute costs the new rating in Good Karma, and stops at the metatype's
+    racial maximum (Human: 6)."""
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    patches: list[dict] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route_for(patches))
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+    pg.locator("#manageAttrsBtn").click()
+    pg.wait_for_selector('[data-raise="body"]', timeout=5000)
+
+    label = pg.text_content('[data-raise="body"]')            # raw text (the button is CSS-uppercased)
+    assert "Raise to 4" in label and "4 karma" in label
+    pg.locator('[data-raise="body"]').click()                 # Body 3 -> 4: 4 karma
+    pg.locator('[data-raise="willpower"]').click()            # Willpower 5 -> 6: 6 karma
+    # Willpower is now at the Human racial maximum: no raise button, a disabled cap marker.
+    assert pg.locator('[data-raise="willpower"]').count() == 0
+    assert "Racial max (6)" in pg.text_content("#modalBody")
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+
+    sent = next(p for p in patches if "willpower" in p)
+    assert sent["body"] == 4 and sent["willpower"] == 6
+    assert sent["good_karma"] == 30 - 4 - 6
+    assert sent["chargen_state"]["advancement"]["karma"] == {"attr:body": 4, "attr:willpower": 6}
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()

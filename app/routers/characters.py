@@ -719,85 +719,93 @@ async def convert_character_dossier(
     return _serialize_character(char, ctx)
 
 
-# Wizard-state keys a builder re-edit may not change: priorities, metatype and magic choices, and
-# everything bought with nuyen. The server restores them from the stored build whatever is sent
-# (then applies any gear_sold sale-backs to the restored gear).
-_REBUILD_LOCKED_KEYS = ("prio", "metatype", "magicType", "tradition", "totem", "gear", "foci", "programs")
-# Starting-gear buckets a re-edit may sell back from (gear_sold). Cyberware and bioware stay locked
-# -- removing an implant changes Essence/Body Index and attributes, which is surgery on the Dossier.
-_REBUILD_SELLABLE_GEAR = ("weapons", "armor", "gear", "matrix", "vehicles")
+# Fields of a rebuild's sheet the server never takes from the payload: Good Karma and nuyen are
+# adjusted from their current values (karma_refund / nuyen_delta), the Karma Pool and the
+# Dossier's notes stay as they are, and the rest are the rebuild's own bookkeeping.
+_REBUILD_NOT_WRITTEN = {"contacts", "chargen_state", "karma_refund", "nuyen_delta", "expected_version",
+                        "good_karma", "nuyen", "karma_pool", "notes", "owner_token"}
+# A contact type's creation loyalty (builder: Contact 1, Buddy 3, Follower 6).
+_CONTACT_TYPE_LOYALTY = {"Contact": 1, "Buddy": 3, "Follower": 6, "Gang": 1, "Tribe": 1}
 
 
-def _gear_match_key(line: dict) -> str:
-    """How a starting-gear line is matched to the sheet: name + rating. The Dossier adds its own
-    fields to the lines it holds (weapon ids, equipped, rounds left), so the lines themselves can't
-    be compared. Same rule as the builder's editGearKey()."""
-    rating = line.get("rating")
-    if rating is None or rating == "":
-        text = ""
-    else:
-        try:
-            num = float(rating)
-            text = str(int(num)) if num.is_integer() else str(num)
-        except (TypeError, ValueError):
-            text = str(rating)
-    return f"{line.get('n') or ''}|{text}"
+def _assert_rebuild_grades_allowed(gear: dict | None, sheet_gear: dict | None, is_admin: bool) -> None:
+    """Like _assert_chargen_grades_allowed, but a GM-gated grade (Beta/Delta) implant the runner
+    already has on the sheet may stay: each such line in the rebuild must match one on the sheet
+    (same name and grade). Only new Beta/Delta lines are refused for a player."""
+    if is_admin:
+        return
+    have: dict[tuple, int] = {}
+    for line in ((sheet_gear or {}).get("cyber") or []):
+        if isinstance(line, dict) and line.get("grade") not in _CHARGEN_GRADES_ALLOWED:
+            key = (line.get("n"), line.get("grade"))
+            have[key] = have.get(key, 0) + 1
+    for line in ((gear or {}).get("cyber") or []):
+        grade = line.get("grade") if isinstance(line, dict) else None
+        if grade in _CHARGEN_GRADES_ALLOWED:
+            continue
+        key = (line.get("n") if isinstance(line, dict) else None, grade)
+        if have.get(key, 0) > 0:
+            have[key] -= 1
+            continue
+        raise HTTPException(status_code=400, detail=(
+            f"Cyberware grade '{grade}' requires GM authorization and can't be newly added in the builder"))
 
 
-def _sell_back_gear(stored_gear: dict, sheet_gear: dict, sold) -> tuple[dict, dict]:
-    """Remove the sold starting-gear lines from the stored build and one matching line each from
-    the sheet. Returns (new build gear, new sheet gear) as fresh objects (JSON columns are
-    reassigned, never mutated in place)."""
-    build = {k: list(v) if isinstance(v, list) else v for k, v in (stored_gear or {}).items()}
-    sheet = {k: list(v) if isinstance(v, list) else v for k, v in (sheet_gear or {}).items()}
-    by_bucket: dict[str, set[int]] = {}
-    for sale in sold:
-        if sale.bucket not in _REBUILD_SELLABLE_GEAR:
-            raise HTTPException(status_code=422, detail=f"{sale.bucket} can't be sold back in the builder -- use the Dossier")
-        lines = build.get(sale.bucket) or []
-        if sale.index >= len(lines) or sale.index in by_bucket.get(sale.bucket, set()):
-            raise HTTPException(status_code=422, detail=f"No starting {sale.bucket} line {sale.index} to sell back")
-        by_bucket.setdefault(sale.bucket, set()).add(sale.index)
-    for bucket, indexes in by_bucket.items():
-        lines = build.get(bucket) or []
-        on_sheet = list(sheet.get(bucket) or [])
-        for i in sorted(indexes):
-            key = _gear_match_key(lines[i])
-            hit = next((j for j, g in enumerate(on_sheet) if isinstance(g, dict) and _gear_match_key(g) == key), None)
-            if hit is None:
-                name = lines[i].get("n") or "That item"
-                raise HTTPException(status_code=422, detail=f"{name} isn't on the sheet any more (used up, sold or "
-                                    "changed on the Dossier), so it can't be sold back")
-            on_sheet.pop(hit)
-        build[bucket] = [g for i, g in enumerate(lines) if i not in indexes]
-        sheet[bucket] = on_sheet
-    return build, sheet
+async def _apply_rebuild_contacts(db: AsyncSession, char: Character, submitted, ctx: dict) -> None:
+    """Edit the runner's contacts in place from the builder's list.
 
-
-# Play-sheet bookkeeping stored alongside the wizard state; never the builder's to change, except
-# that a re-edit drops the advancement entries it refunds (checked in _rebuild_advancement).
-_REBUILD_PLAY_SHEET_KEYS = ("magic_rating_base",)
-
-
-def _rebuild_advancement(stored: dict, submitted: dict) -> tuple[dict, int]:
-    """Validate the advancement record a re-edit sends back and work out its karma refund.
-
-    ``advancement.karma`` maps an item ("skill:Etiquette", "attr:body", "spell:Stunbolt") to the
-    Good Karma spent on it since chargen; ``advancement.attrs`` holds the attribute raises bought
-    on top of the chargen base. Changing an item in the builder replaces it outright, so the
-    builder drops that item's entries -- it may only remove entries, never add or alter one, and
-    the refund is exactly what was recorded against the entries it removed.
+    A row with an ``id`` updates that Contact (name, profession, type; and its Known Persons NPC's
+    name/archetype where the NPC still matches the old contact). A row without one is created. A
+    contact the caller can see but the list leaves out is deleted, its NPC staying a Person of
+    Interest. Contacts hidden from the caller are never touched. Changing the type sets the new
+    type's creation loyalty plus whatever loyalty was raised in play on top of the old one.
     """
-    old = stored.get("advancement") or {}
-    new = submitted.get("advancement") or {}
-    for part in ("karma", "attrs"):
-        old_part, new_part = old.get(part) or {}, new.get(part) or {}
-        for key, value in new_part.items():
-            if key not in old_part or old_part[key] != value:
-                raise HTTPException(status_code=422, detail=f"advancement.{part}.{key} doesn't match the stored record")
-    old_karma, new_karma = old.get("karma") or {}, new.get("karma") or {}
-    refund = sum(int(v or 0) for k, v in old_karma.items() if k not in new_karma)
-    return {"karma": dict(new_karma), "attrs": dict(new.get("attrs") or {})}, refund
+    rows = (await db.execute(select(Contact).where(Contact.owner_id == char.id))).scalars().all()
+    visible = {c.id for c in await visible_contacts(db, rows, ctx)}
+    by_id = {c.id: c for c in rows}
+    kept: set[int] = set()
+    new = []
+    for c in submitted:
+        if c.id is None:
+            new.append(c)
+            continue
+        row = by_id.get(c.id)
+        if row is None or row.id not in visible or row.id in kept:
+            raise HTTPException(status_code=422, detail=f"Contact {c.id} isn't one of this runner's contacts")
+        kept.add(row.id)
+        old_name, old_prof = row.name, row.profession
+        old_type = row.contact_type or contact_type_for_loyalty(row.loyalty or 1)
+        new_type = c.contact_type or "Contact"
+        if new_type != old_type:
+            # A contact with no stored type only *looks* like a Buddy/Follower because of its
+            # loyalty: all of it above a plain Contact's 1 was raised in play, and is kept.
+            old_base = _CONTACT_TYPE_LOYALTY.get(row.contact_type, 1) if row.contact_type else 1
+            raised = max(0, (row.loyalty or 1) - old_base)
+            row.loyalty = min(6, _CONTACT_TYPE_LOYALTY.get(new_type, 1) + raised)
+        row.name, row.profession, row.contact_type = c.name, c.profession, new_type
+        person = new_type in _POI_PROMOTED_CONTACT_TYPES
+        if person and row.npc_id:
+            npc = await db.get(Character, row.npc_id)
+            if npc is not None:
+                # Only follow the contact where the GM hasn't renamed/re-described the NPC.
+                if npc.name == old_name:
+                    npc.name = c.name
+                if npc.archetype == old_prof:
+                    npc.archetype = c.profession
+        elif person:
+            poi = Character(name=c.name, is_pc=False, archetype=c.profession, connection=row.connection or 1,
+                            origin_pc_id=char.id)
+            db.add(poi)
+            await db.flush()
+            row.npc_id = poi.id
+        elif row.npc_id:
+            row.npc_id = None   # now a Gang/Tribe: the NPC stays a Person of Interest
+    for row in rows:
+        if row.id in visible and row.id not in kept:
+            await db.delete(row)
+    if new:
+        await _create_dossier_contacts(db, char, new)
+    await db.flush()
 
 
 @router.post("/{character_id}/rebuild-dossier")
@@ -807,13 +815,14 @@ async def rebuild_character_dossier(
     db: AsyncSession = Depends(get_db),
     ctx: dict = Depends(get_any_token),
 ):
-    """Re-edit a finished PC in the character builder to correct chargen mistakes.
+    """Rebuild a finished PC from the character builder, with everything editable.
 
-    Priorities, metatype, magic choices, gear and lifestyle stay locked (restored from the stored
-    build), except that starting gear still on the sheet can be sold back (gear_sold), freeing
-    its Resources. Contacts are only ever added -- this never touches the runner's existing Contact rows. Attributes, skills,
-    spells, adept powers and identity text can be reshuffled within the original budgets (the
-    builder enforces those). Good Karma spent on an item the edit changed is refunded. Owner or GM.
+    The builder loaded the runner as it is now (creation attributes and skills; current spells,
+    powers and inventory counted as creation picks) and sends the whole new sheet, which replaces
+    the old one. Good Karma grows by ``karma_refund`` (Karma spent raising attributes and skills
+    since creation), nuyen changes by ``nuyen_delta``; Karma Pool, notes, damage, portrait, GM
+    fields and anything else the builder doesn't carry are kept. Contacts are edited in place
+    (_apply_rebuild_contacts). Owner or GM.
     """
     char = await _load_character(db, character_id)
     if not _is_owner_or_admin(char, ctx):
@@ -826,33 +835,27 @@ async def rebuild_character_dossier(
     if body.expected_version is not None and body.expected_version != char.version:
         raise HTTPException(status_code=409, detail="This runner changed after you reviewed the edit "
                             "(Karma spent or the sheet edited elsewhere) -- review the changes again before saving.")
+    _assert_chargen_skills(body.skills)
+    _assert_rebuild_grades_allowed(body.gear, char.gear, ctx["is_admin"])
 
-    new_state = dict(body.chargen_state)
-    for key in _REBUILD_LOCKED_KEYS + _REBUILD_PLAY_SHEET_KEYS:
-        if key in stored:
-            new_state[key] = stored[key]
-        else:
-            new_state.pop(key, None)
-    for key in ("lifestyle", "lifestylePermanent"):
-        if key in (stored.get("identity") or {}):
-            new_state["identity"] = {**(new_state.get("identity") or {}), key: stored["identity"][key]}
-    if body.gear_sold:
-        new_state["gear"], char.gear = _sell_back_gear(stored.get("gear") or {}, char.gear or {}, body.gear_sold)
-    new_state["advancement"], refund = _rebuild_advancement(stored, new_state)
-    new_state.update(draftId=None, convertId=None, editId=None)
-
-    fields = body.model_dump(exclude={"chargen_state", "nuyen_delta", "contacts", "expected_version", "gear_sold"},
-                             exclude_none=True)
-    for key, value in fields.items():
+    data = _strip_gm_dossier_fields(body.model_dump(exclude=_REBUILD_NOT_WRITTEN, exclude_unset=True), ctx)
+    await _assert_org_exists(db, data)
+    if "gear" in data:
+        # Sheet gear buckets the builder doesn't carry (if any) are kept as they are.
+        data["gear"] = {**{k: v for k, v in (char.gear or {}).items() if k not in (data["gear"] or {})},
+                        **(data["gear"] or {})}
+    data["is_pc"] = True
+    for key, value in data.items():
         setattr(char, key, value)
-    char.chargen_state = new_state
-    char.good_karma = (char.good_karma or 0) + refund
-    cash = body.nuyen_delta if body.gear_sold else min(0, body.nuyen_delta)
-    char.nuyen = max(0, (char.nuyen or 0) + cash)
+    char.good_karma = (char.good_karma or 0) + body.karma_refund
+    char.nuyen = max(0, (char.nuyen or 0) + body.nuyen_delta)
     _validate_hard_gear_caps(char, {})
-    if body.contacts:
-        await _create_dossier_contacts(db, char, body.contacts)
-        await db.flush()
+    await _apply_rebuild_contacts(db, char, body.contacts, ctx)
+
+    # The new build is the new baseline: nothing bought since creation is left to refund, and the
+    # Dossier's Magic Rating ceiling restarts from the rebuilt rating.
+    new_state = {**body.chargen_state, "draftId": None, "convertId": None, "editId": None,
+                 "advancement": {}, "magic_rating_base": char.magic_rating or 0}
     # The builder's contact list is a snapshot of the runner's real Contact rows (the Dossier's
     # list), rebuilt here rather than taken from the client, whose view can omit GM-hidden contacts.
     rows = (await db.execute(select(Contact).where(Contact.owner_id == char.id).order_by(Contact.id))).scalars().all()
@@ -860,7 +863,7 @@ async def rebuild_character_dossier(
         {"name": c.name or "", "archetype": c.profession or "",
          "type": c.contact_type or contact_type_for_loyalty(c.loyalty or 1)} for c in rows]}
     await db.commit()
-    return {"id": char.id, "name": char.name, "karma_refunded": refund,
+    return {"id": char.id, "name": char.name, "karma_refunded": body.karma_refund,
             "good_karma": char.good_karma, "nuyen": char.nuyen}
 
 

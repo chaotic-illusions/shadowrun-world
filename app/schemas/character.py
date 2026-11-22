@@ -118,64 +118,31 @@ class DossierCommit(CharacterCreate):
         return v
 
 
-class GearSale(BaseModel):
-    """One starting-gear line a builder re-edit sells back: its index in the stored build's
-    chargen_state.gear[bucket] list."""
-    model_config = ConfigDict(extra='forbid')
-    bucket: str = Field(max_length=20)
-    index: int = Field(ge=0, le=10000)
+class RebuildContact(DossierContact):
+    """A contact in a builder rebuild: ``id`` names an existing Contact row to edit in place;
+    without one a new contact is created."""
+    id: Optional[int] = Field(default=None, ge=1)
 
 
-class DossierRebuild(BaseModel):
-    """Re-edit of a finished PC in the character builder (POST /characters/{id}/rebuild-dossier).
+class DossierRebuild(CharacterCreate):
+    """Full rebuild of a finished PC in the character builder (POST /characters/{id}/rebuild-dossier).
 
-    The builder sends the edited wizard state plus the merged sheet values it computed: items the
-    player didn't touch keep their post-chargen karma raises, items they changed become their new
-    builder value. Good Karma is not sent -- the server refunds exactly the advancement entries the
-    edit dropped. Every field is optional so only what the edit actually changed is written.
+    The builder loads the runner as it is now -- creation attributes and skills, plus the
+    sheet's current spells, powers and inventory, all treated as creation picks -- lets the
+    player change anything, and sends the whole new sheet (the same fields a chargen commit
+    sends). Good Karma, nuyen, Karma Pool and notes are never taken from the sheet fields here:
+    the server adds ``karma_refund`` (Karma spent raising attributes and skills since creation,
+    worked out by the builder) and ``nuyen_delta`` (the change in starting cash) to the current
+    values instead.
     """
-    model_config = ConfigDict(extra='forbid')
-    chargen_state: dict
-    skills: Optional[list] = None
-    spells: Optional[list] = None
-    adept_powers: Optional[list] = None
-    body: Optional[int] = Field(default=None, ge=1, le=12)
-    quickness: Optional[int] = Field(default=None, ge=1, le=12)
-    strength: Optional[int] = Field(default=None, ge=1, le=20)
-    charisma: Optional[int] = Field(default=None, ge=1, le=20)
-    intelligence: Optional[int] = Field(default=None, ge=1, le=20)
-    willpower: Optional[int] = Field(default=None, ge=1, le=20)
-    name: Optional[str] = Field(default=None, max_length=200)
-    archetype: Optional[str] = Field(default=None, max_length=100)
-    nationality: Optional[str] = Field(default=None, max_length=100)
-    gender: Optional[str] = Field(default=None, max_length=50)
-    age: Optional[int] = Field(default=None, ge=0, le=500)
-    description: Optional[str] = None
-    computer_skill_enabled: Optional[bool] = None
-    computer_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
-    software_skill_enabled: Optional[bool] = None
-    software_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
-    matrix_skill_enabled: Optional[bool] = None
-    matrix_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
-    computer_br_skill_enabled: Optional[bool] = None
-    computer_br_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
-    # Cash change from the edit's Resources (unspent Resources convert to cash at 10:1): new
-    # contacts spend Resources, starting gear sold back frees them. Only an edit that sells gear
-    # back can add cash -- without a sale the server ignores anything positive.
-    nuyen_delta: int = 0
-    contacts: list[DossierContact] = Field(default_factory=list, max_length=50)
-    # Starting gear sold back for its build price. Each line must still be on the runner's sheet;
-    # the server removes it from both the sheet and the stored build.
-    gear_sold: list[GearSale] = Field(default_factory=list, max_length=200)
+    contacts: list[RebuildContact] = Field(default_factory=list, max_length=60)
+    chargen_state: dict = Field(default_factory=dict)
+    karma_refund: int = Field(default=0, ge=0, le=100000)
+    nuyen_delta: int = Field(default=0, ge=-100_000_000, le=100_000_000)
     # The runner's `version` when the builder built its Review. A save is refused (409) if the
-    # runner changed since -- e.g. Karma spent on the Dossier in another tab -- so the merge never
-    # writes back a sheet the player didn't review. Optional for older clients.
+    # runner changed since -- e.g. Karma spent on the Dossier in another tab -- so the rebuild
+    # never overwrites a sheet the player didn't review. Optional for older clients.
     expected_version: Optional[int] = Field(default=None, ge=0)
-
-    @field_validator("skills", "spells", "adept_powers")
-    @classmethod
-    def _cap_json_fields(cls, v, info):
-        return _cap_json_bytes(v, info.field_name)
 
     @field_validator("chargen_state")
     @classmethod

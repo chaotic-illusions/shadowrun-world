@@ -1,6 +1,6 @@
 # Plan: full re-edit of a finished runner in the builder
 
-Status: DECISIONS SETTLED (2026-11-21), awaiting "go". Edit anything here first if you like.
+Status: IMPLEMENTED (2026-11-21). Kept as the design record.
 
 ## Goal
 
@@ -91,8 +91,13 @@ build) still use Convert, unchanged.
   - Specialization: 1 x each new rating;
   - languages: 1 x each new rating.
 - **Recorded vs worked out:** where `chargen_state.advancement.karma` has a recorded spend for an
-  item, that is used instead (it's what was actually paid). The record only exists since today,
-  and few awards have been given, so working it out from the prices is fine for the rest.
+  item, the **larger** of the recorded amount and the worked-out price is refunded. The record
+  only exists since 2026-11-21, so it can be partial (earlier raises unrecorded), or higher than
+  today's price (attribute raises recorded at the old placeholder price).
+- **Contacts the runner already had:** a contact with no stored type is shown as a Buddy (loyalty
+  3+) or Follower (loyalty 6) by its loyalty. The one-Buddy / five-Follower limits allow as many
+  as the runner had when loaded. Changing such a contact's type keeps all the loyalty above a
+  plain Contact's 1 as raised in play.
 - **Not refunded:** spells and powers learned in play, because they stay on the sheet as
   creation picks.
 - **Result:** new Good Karma = current Good Karma + refund. Karma Pool keeps its current value.
