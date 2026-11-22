@@ -2286,6 +2286,11 @@ function editLoad(char, cs, contacts) {
   raw.powers = deepCopy(char.adept_powers) || [];
   const s = normalizeState(raw);
   const lvl = Number(char.lifestyle_level);
+  // The Dossier's Archetype is free text: a listed one selects it, anything else goes in Custom
+  // (same mapping as Convert).
+  const arch = char.archetype || "";
+  if (arch) Object.assign(s.identity, PC_ARCHETYPES.includes(arch)
+    ? { archetype: arch, archetypeCustom: "" } : { archetype: "Custom", archetypeCustom: arch });
   Object.assign(s.identity, {
     handle: char.name || s.identity.handle,
     sex: char.gender ?? s.identity.sex,

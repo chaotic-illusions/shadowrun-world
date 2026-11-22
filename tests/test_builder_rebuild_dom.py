@@ -37,6 +37,7 @@ _CHAR = {
     "id": 7, "name": "Oversight", "is_pc": True, "is_draft": False, "is_claimed": True, "version": 4,
     "race": "Human", "body": 5, "quickness": 4, "strength": 4, "charisma": 4, "intelligence": 4,
     "willpower": 4, "essence": 5.9, "good_karma": 2, "nuyen": 500, "karma_pool": 3, "lifestyle_level": 2,
+    "archetype": "Bounty Hunter",   # typed on the Dossier after creation (free text)
     # Firearms 3 -> 5 raised in play before Karma was recorded: 2x4 + 2x5 = 18 to refund.
     "skills": [{"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 5, "concs": [], "specs": []}],
     "spells": [], "adept_powers": [],
@@ -138,6 +139,7 @@ def test_rebuild_loads_current_runner_refunds_raises_and_keeps_the_baseline(_bro
     assert [(c.get("id"), c["name"]) for c in sent["contacts"]] == [(1, "Fixer Joe"), (2, "Doc Holliday"), (None, "Big Mike")]
     for kept_server_side in ("good_karma", "nuyen", "karma_pool", "notes"):
         assert kept_server_side not in sent
+    assert sent["archetype"] == "Bounty Hunter"               # the Dossier's edit isn't reverted
     assert sent["nuyen_delta"] == 0                           # over budget before and after: no starting cash either way
     assert "Saved" in pg.inner_text("#cbxSubmitStatus")
 
