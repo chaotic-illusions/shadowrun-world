@@ -114,3 +114,48 @@ def test_manage_skills_buys_concentrations_and_specializations_with_karma(_brows
     assert "Shotguns" in row and "Ares Predator" in row
     assert errors == [], f"JS errors on the play sheet: {errors}"
     ctx.close()
+
+
+def test_failed_commit_records_no_karma_and_retry_records_it_once(_browser, _frontend_port):
+    """A failed save must not leave its Karma spend on the local advancement record: the modal
+    stays open with the reason, and the retry records the spend exactly once (a later builder
+    re-edit refunds whatever is recorded, so a doubled entry would refund Karma never spent)."""
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    patches: list[dict] = []
+    attempts: list[dict] = []
+    inner = _route_for(patches)
+
+    def _route(route):
+        req = route.request
+        if (req.method == "PATCH" and req.url.split("?")[0].endswith("/characters/7")
+                and "skills" in (req.post_data_json or {}) and not attempts):
+            attempts.append(req.post_data_json)
+            route.fulfill(status=500, json={"detail": "Database is busy"})
+        else:
+            inner(route)
+
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+    pg.locator("#manageSkillsBtn").click()
+    pg.wait_for_selector('[data-raise-skill="0"][data-raise-tier="general"]', timeout=5000)
+    pg.locator('[data-raise-skill="0"][data-raise-tier="general"]').click()   # Firearms 2 -> 3: 6 karma
+
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    assert attempts and attempts[0]["chargen_state"]["advancement"]["karma"] == {"skill:Firearms": 6}
+    assert pg.is_visible("#editOverlay.open"), "a failed save should keep the modal open to retry"
+    assert "Database is busy" in pg.inner_text("#modalAlert")
+
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    sent = next(p for p in patches if "skills" in p)
+    assert sent["chargen_state"]["advancement"]["karma"] == {"skill:Firearms": 6}   # not 12
+    assert sent["good_karma"] == 30 - 6
+    assert not pg.is_visible("#editOverlay.open")
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()

@@ -720,8 +720,60 @@ async def convert_character_dossier(
 
 
 # Wizard-state keys a builder re-edit may not change: priorities, metatype and magic choices, and
-# everything bought with nuyen. The server restores them from the stored build whatever is sent.
+# everything bought with nuyen. The server restores them from the stored build whatever is sent
+# (then applies any gear_sold sale-backs to the restored gear).
 _REBUILD_LOCKED_KEYS = ("prio", "metatype", "magicType", "tradition", "totem", "gear", "foci", "programs")
+# Starting-gear buckets a re-edit may sell back from (gear_sold). Cyberware and bioware stay locked
+# -- removing an implant changes Essence/Body Index and attributes, which is surgery on the Dossier.
+_REBUILD_SELLABLE_GEAR = ("weapons", "armor", "gear", "matrix", "vehicles")
+
+
+def _gear_match_key(line: dict) -> str:
+    """How a starting-gear line is matched to the sheet: name + rating. The Dossier adds its own
+    fields to the lines it holds (weapon ids, equipped, rounds left), so the lines themselves can't
+    be compared. Same rule as the builder's editGearKey()."""
+    rating = line.get("rating")
+    if rating is None or rating == "":
+        text = ""
+    else:
+        try:
+            num = float(rating)
+            text = str(int(num)) if num.is_integer() else str(num)
+        except (TypeError, ValueError):
+            text = str(rating)
+    return f"{line.get('n') or ''}|{text}"
+
+
+def _sell_back_gear(stored_gear: dict, sheet_gear: dict, sold) -> tuple[dict, dict]:
+    """Remove the sold starting-gear lines from the stored build and one matching line each from
+    the sheet. Returns (new build gear, new sheet gear) as fresh objects (JSON columns are
+    reassigned, never mutated in place)."""
+    build = {k: list(v) if isinstance(v, list) else v for k, v in (stored_gear or {}).items()}
+    sheet = {k: list(v) if isinstance(v, list) else v for k, v in (sheet_gear or {}).items()}
+    by_bucket: dict[str, set[int]] = {}
+    for sale in sold:
+        if sale.bucket not in _REBUILD_SELLABLE_GEAR:
+            raise HTTPException(status_code=422, detail=f"{sale.bucket} can't be sold back in the builder -- use the Dossier")
+        lines = build.get(sale.bucket) or []
+        if sale.index >= len(lines) or sale.index in by_bucket.get(sale.bucket, set()):
+            raise HTTPException(status_code=422, detail=f"No starting {sale.bucket} line {sale.index} to sell back")
+        by_bucket.setdefault(sale.bucket, set()).add(sale.index)
+    for bucket, indexes in by_bucket.items():
+        lines = build.get(bucket) or []
+        on_sheet = list(sheet.get(bucket) or [])
+        for i in sorted(indexes):
+            key = _gear_match_key(lines[i])
+            hit = next((j for j, g in enumerate(on_sheet) if isinstance(g, dict) and _gear_match_key(g) == key), None)
+            if hit is None:
+                name = lines[i].get("n") or "That item"
+                raise HTTPException(status_code=422, detail=f"{name} isn't on the sheet any more (used up, sold or "
+                                    "changed on the Dossier), so it can't be sold back")
+            on_sheet.pop(hit)
+        build[bucket] = [g for i, g in enumerate(lines) if i not in indexes]
+        sheet[bucket] = on_sheet
+    return build, sheet
+
+
 # Play-sheet bookkeeping stored alongside the wizard state; never the builder's to change, except
 # that a re-edit drops the advancement entries it refunds (checked in _rebuild_advancement).
 _REBUILD_PLAY_SHEET_KEYS = ("magic_rating_base",)
@@ -758,7 +810,8 @@ async def rebuild_character_dossier(
     """Re-edit a finished PC in the character builder to correct chargen mistakes.
 
     Priorities, metatype, magic choices, gear and lifestyle stay locked (restored from the stored
-    build). Contacts are only ever added -- this never touches the runner's existing Contact rows. Attributes, skills,
+    build), except that starting gear still on the sheet can be sold back (gear_sold), freeing
+    its Resources. Contacts are only ever added -- this never touches the runner's existing Contact rows. Attributes, skills,
     spells, adept powers and identity text can be reshuffled within the original budgets (the
     builder enforces those). Good Karma spent on an item the edit changed is refunded. Owner or GM.
     """
@@ -770,6 +823,9 @@ async def rebuild_character_dossier(
     stored = dict(char.chargen_state or {})
     if not (stored.get("prio") or {}) or not all((stored.get("prio") or {}).values()):
         raise HTTPException(status_code=400, detail="This runner wasn't made in the builder -- use Convert instead")
+    if body.expected_version is not None and body.expected_version != char.version:
+        raise HTTPException(status_code=409, detail="This runner changed after you reviewed the edit "
+                            "(Karma spent or the sheet edited elsewhere) -- review the changes again before saving.")
 
     new_state = dict(body.chargen_state)
     for key in _REBUILD_LOCKED_KEYS + _REBUILD_PLAY_SHEET_KEYS:
@@ -780,15 +836,19 @@ async def rebuild_character_dossier(
     for key in ("lifestyle", "lifestylePermanent"):
         if key in (stored.get("identity") or {}):
             new_state["identity"] = {**(new_state.get("identity") or {}), key: stored["identity"][key]}
+    if body.gear_sold:
+        new_state["gear"], char.gear = _sell_back_gear(stored.get("gear") or {}, char.gear or {}, body.gear_sold)
     new_state["advancement"], refund = _rebuild_advancement(stored, new_state)
     new_state.update(draftId=None, convertId=None, editId=None)
 
-    fields = body.model_dump(exclude={"chargen_state", "nuyen_delta", "contacts"}, exclude_none=True)
+    fields = body.model_dump(exclude={"chargen_state", "nuyen_delta", "contacts", "expected_version", "gear_sold"},
+                             exclude_none=True)
     for key, value in fields.items():
         setattr(char, key, value)
     char.chargen_state = new_state
     char.good_karma = (char.good_karma or 0) + refund
-    char.nuyen = max(0, (char.nuyen or 0) + min(0, body.nuyen_delta))
+    cash = body.nuyen_delta if body.gear_sold else min(0, body.nuyen_delta)
+    char.nuyen = max(0, (char.nuyen or 0) + cash)
     _validate_hard_gear_caps(char, {})
     if body.contacts:
         await _create_dossier_contacts(db, char, body.contacts)

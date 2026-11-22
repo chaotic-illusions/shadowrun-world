@@ -125,3 +125,122 @@ def test_pre_wizard_runner_must_convert(tmp_path):
     with pytest.raises(HTTPException) as e:
         asyncio.run(scenario())
     assert e.value.status_code == 400
+
+
+def _rebuild_at_version(tmp_path, pick_version):
+    """Create the runner, bump its version once (a Dossier PATCH), then rebuild with
+    expected_version = pick_version(version_now). Returns (karma_refunded, row) or raises."""
+    async def scenario():
+        async with _database(tmp_path / "v.db") as sessions:
+            async with sessions() as db:
+                db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"),
+                                 good_karma=3, nuyen=1000, body=5, chargen_state=BUILD))
+                await db.commit()
+            async with sessions() as db:          # e.g. Karma spent on the Dossier in another tab
+                row = await db.get(Character, 10)
+                row.nuyen = 900
+                await db.commit()
+                now = row.version
+            adv = {"karma": {"attr:body": 10}, "attrs": {"body": 1}}
+            body = {"chargen_state": _edited(advancement=adv), "expected_version": pick_version(now),
+                    "skills": [{"name": "Etiquette", "rating": 2, "concs": [], "specs": []}]}
+            async with sessions() as db:
+                out = await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=PLAYER)
+            async with sessions() as db:
+                return out, await db.get(Character, 10)
+    return asyncio.run(scenario())
+
+
+def test_save_refused_when_runner_changed_since_review(tmp_path):
+    with pytest.raises(HTTPException) as e:
+        _rebuild_at_version(tmp_path, lambda now: now - 1)
+    assert e.value.status_code == 409
+    # Nothing was written: no refund, the sheet's skills untouched.
+    async def check():
+        async with _database(tmp_path / "v.db") as sessions:
+            async with sessions() as db:
+                return await db.get(Character, 10)
+    row = asyncio.run(check())
+    assert row.good_karma == 3 and row.skills in (None, [])
+
+
+def test_save_goes_through_when_version_matches(tmp_path):
+    out, row = _rebuild_at_version(tmp_path, lambda now: now)
+    assert out["karma_refunded"] == 2
+    assert row.good_karma == 5 and row.skills[0]["rating"] == 2
+
+
+def test_character_read_exposes_version_for_the_review():
+    from app.schemas.character import CharacterRead
+    assert "version" in CharacterRead.model_fields
+
+
+# ---- selling starting gear back (gear_sold) ----
+_GEAR_BUILD = {**BUILD, "gear": {
+    "weapons": [{"n": "Ares Predator"}, {"n": "Regular Ammo", "rating": 1}, {"n": "Regular Ammo", "rating": 1}],
+    "vehicles": [{"n": "Ford Americar", "cost": 16000}],
+    "cyber": [{"n": "Datajack", "ess": 0.2}],
+}}
+# The Dossier adds its own fields (ids, equipped, rounds) and has used up one box of ammo.
+_SHEET_GEAR = {
+    "weapons": [{"n": "Ares Predator", "id": "w1", "equipped": True}, {"n": "Regular Ammo", "rating": "1", "rounds": 7}],
+    "vehicles": [{"n": "Ford Americar", "cost": 16000, "primary": True}],
+    "cyber": [{"n": "Datajack", "ess": 0.2}],
+}
+
+
+def _sell(tmp_path, sold, nuyen_delta=0):
+    body = {"chargen_state": _GEAR_BUILD, "gear_sold": sold, "nuyen_delta": nuyen_delta}
+    return _run_with(tmp_path, body, chargen_state=_GEAR_BUILD, gear=_SHEET_GEAR)
+
+
+def _run_with(tmp_path, body, **char):
+    async def scenario():
+        async with _database(tmp_path / "g.db") as sessions:
+            async with sessions() as db:
+                db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"),
+                                 good_karma=3, nuyen=1000, body=5, **char))
+                await db.commit()
+            async with sessions() as db:
+                out = await rebuild_character_dossier(10, DossierRebuild(**body), db=db, ctx=PLAYER)
+            async with sessions() as db:
+                return out, await db.get(Character, 10)
+    return asyncio.run(scenario())
+
+
+def test_sold_gear_leaves_the_sheet_and_the_build_and_can_add_cash(tmp_path):
+    _, row = _sell(tmp_path, [{"bucket": "vehicles", "index": 0}], nuyen_delta=1600)
+    assert row.gear["vehicles"] == []
+    assert row.chargen_state["gear"]["vehicles"] == []
+    assert row.gear["weapons"] == _SHEET_GEAR["weapons"]            # everything else untouched
+    assert row.chargen_state["gear"]["weapons"] == _GEAR_BUILD["gear"]["weapons"]
+    assert row.nuyen == 2600                                        # leftover Resources -> cash
+
+
+def test_selling_matches_by_name_and_rating_and_respects_used_up_lines(tmp_path):
+    # Two starting ammo boxes, one left on the sheet: one can be sold, not both.
+    _, row = _sell(tmp_path, [{"bucket": "weapons", "index": 2}])
+    assert [g["n"] for g in row.gear["weapons"]] == ["Ares Predator"]
+    assert [g["n"] for g in row.chargen_state["gear"]["weapons"]] == ["Ares Predator", "Regular Ammo"]
+    (tmp_path / "both").mkdir()
+    with pytest.raises(HTTPException) as e:
+        _sell(tmp_path / "both", [{"bucket": "weapons", "index": 1}, {"bucket": "weapons", "index": 2}])
+    assert e.value.status_code == 422 and "isn't on the sheet" in e.value.detail
+
+
+@pytest.mark.parametrize("sold", [
+    [{"bucket": "cyber", "index": 0}],                                          # implants stay locked
+    [{"bucket": "vehicles", "index": 5}],                                       # no such line
+    [{"bucket": "vehicles", "index": 0}, {"bucket": "vehicles", "index": 0}],   # sold twice
+])
+def test_invalid_sales_are_refused(tmp_path, sold):
+    with pytest.raises(HTTPException) as e:
+        _sell(tmp_path, sold)
+    assert e.value.status_code == 422
+
+
+def test_gear_missing_from_the_sheet_cannot_be_sold(tmp_path):
+    body = {"chargen_state": _GEAR_BUILD, "gear_sold": [{"bucket": "vehicles", "index": 0}]}
+    with pytest.raises(HTTPException) as e:
+        _run_with(tmp_path, body, chargen_state=_GEAR_BUILD, gear={**_SHEET_GEAR, "vehicles": []})
+    assert e.value.status_code == 422

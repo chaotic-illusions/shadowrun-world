@@ -118,6 +118,14 @@ class DossierCommit(CharacterCreate):
         return v
 
 
+class GearSale(BaseModel):
+    """One starting-gear line a builder re-edit sells back: its index in the stored build's
+    chargen_state.gear[bucket] list."""
+    model_config = ConfigDict(extra='forbid')
+    bucket: str = Field(max_length=20)
+    index: int = Field(ge=0, le=10000)
+
+
 class DossierRebuild(BaseModel):
     """Re-edit of a finished PC in the character builder (POST /characters/{id}/rebuild-dossier).
 
@@ -151,11 +159,18 @@ class DossierRebuild(BaseModel):
     matrix_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
     computer_br_skill_enabled: Optional[bool] = None
     computer_br_skill_rating: Optional[int] = Field(default=None, ge=0, le=20)
-    # Cash change from contacts added in the edit (they spend Resources, which convert to cash at
-    # 10:1). Gear and existing contacts are locked, so an edit can only ever cost cash -- the server
-    # ignores anything positive.
+    # Cash change from the edit's Resources (unspent Resources convert to cash at 10:1): new
+    # contacts spend Resources, starting gear sold back frees them. Only an edit that sells gear
+    # back can add cash -- without a sale the server ignores anything positive.
     nuyen_delta: int = 0
     contacts: list[DossierContact] = Field(default_factory=list, max_length=50)
+    # Starting gear sold back for its build price. Each line must still be on the runner's sheet;
+    # the server removes it from both the sheet and the stored build.
+    gear_sold: list[GearSale] = Field(default_factory=list, max_length=200)
+    # The runner's `version` when the builder built its Review. A save is refused (409) if the
+    # runner changed since -- e.g. Karma spent on the Dossier in another tab -- so the merge never
+    # writes back a sheet the player didn't review. Optional for older clients.
+    expected_version: Optional[int] = Field(default=None, ge=0)
 
     @field_validator("skills", "spells", "adept_powers")
     @classmethod
@@ -256,6 +271,8 @@ class CharacterUpdate(BaseModel):
 
 class CharacterRead(CharacterBase):
     id: int
+    # Optimistic-lock counter; the builder's re-edit echoes it back as DossierRebuild.expected_version.
+    version: int = 0
     created_at: datetime
     updated_at: datetime
     organization_name: Optional[str] = None

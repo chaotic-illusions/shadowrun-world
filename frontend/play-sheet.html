@@ -348,7 +348,7 @@
       <div class="ps-header__col ps-header__col--right">
         <button class="btn btn-green" id="exportBtn">&#8595; Export Official PDF</button>
         <a class="btn btn-ghost" id="editBuilderBtn" hidden style="margin-top:6px"
-           title="Reopen this runner in the character builder to fix creation mistakes. Priorities, metatype, magic and gear stay locked; Karma spent on anything you change is refunded.">Edit in Builder</a>
+           title="Reopen this runner in the character builder to fix creation mistakes. Priorities, metatype, magic and gear stay locked (starting gear can be sold back); Karma spent on anything you change is refunded.">Edit in Builder</a>
       </div>
     </div>
 
@@ -1111,17 +1111,19 @@ function rawBaseAttr(attr){
 }
 // Record Good Karma spent since chargen against each item ("skill:Etiquette", "attr:body",
 // "spell:Stunbolt") in chargen_state.advancement.karma. The builder's re-edit refunds an item's
-// entry when the player changes that item's chargen value (server: rebuild-dossier). Mutates
-// CHAR.chargen_state in place; returns true when there was anything to record, so the caller
-// knows to send chargen_state with its PATCH.
-function recordKarma(spent){
+// entry when the player changes that item's chargen value (server: rebuild-dossier). Returns a
+// COPY of `cs` with the spend added (null when there's nothing to record) for the caller to send
+// with its PATCH and adopt into CHAR.chargen_state only once the PATCH succeeds -- recording into
+// CHAR first would leave a failed save's spend on the local record, where the next successful
+// save would persist it and a later re-edit would refund Karma that was never spent.
+function karmaRecorded(cs, spent){
   const keys = Object.keys(spent || {}).filter(k => spent[k] > 0);
-  if (!keys.length) return false;
-  CHAR.chargen_state = CHAR.chargen_state || {};
-  const adv = CHAR.chargen_state.advancement = CHAR.chargen_state.advancement || {};
-  adv.karma = adv.karma || {};
+  if (!keys.length) return null;
+  const next = { ...(cs || {}) };
+  const adv = next.advancement = { ...(next.advancement || {}) };
+  adv.karma = { ...(adv.karma || {}) };
   keys.forEach(k => { adv.karma[k] = (adv.karma[k] || 0) + spent[k]; });
-  return true;
+  return next;
 }
 // What a karma raise is costed against: base + metatype/racial bonus. Only gear/cyberware/bioware
 // bonuses (augAttr) are excluded -- an Elf's +1 Quickness is part of "base" for this purpose, e.g.
@@ -2187,14 +2189,19 @@ function setDmgMode(mode){
 }
 
 // ---------------------------------------------------------------- PATCH helpers
-async function patchChar(fields){
+// Resolves true once the server has the change; on failure shows the error (in `alertEl`, e.g. a
+// modal's own alert) and resolves false, so callers can keep local state in step with the server.
+async function patchChar(fields, alertEl){
   try {
     const res = await apiFetch(`/characters/${CHAR.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
     if (!res.ok) await apiThrow(res);
     const updated = await res.json();
     Object.assign(CHAR, updated);
+    return true;
   } catch (e) {
-    showAlert($('#alert'), e.message, true);
+    if (alertEl) showAlert(alertEl, e.message, true, true);
+    else showAlert($('#alert'), e.message, true);
+    return false;
   }
 }
 function patchGear(){ return patchChar({ gear: CHAR.gear }); }
@@ -3138,12 +3145,13 @@ function renderManageMagic(){
     // only deducted once. Mirrors gear-picker.js's own Buy button, which guards for this same reason.
     buyBtn.disabled = true;
     try {
-      CHAR.spells = CHAR.spells || [];
-      CHAR.spells.push({ name, cat: cat.cat || '', force });
       const nextNuyen = Math.max(0, (CHAR.nuyen||0) - info.nuyen);
-      const fields = { spells: CHAR.spells, nuyen: nextNuyen, good_karma: karma - info.karma };
-      if (recordKarma({ ['spell:' + name]: info.karma })) fields.chargen_state = CHAR.chargen_state;
-      await patchChar(fields);
+      const fields = { spells: [...(CHAR.spells || []), { name, cat: cat.cat || '', force }],
+                       nuyen: nextNuyen, good_karma: karma - info.karma };
+      const cs = karmaRecorded(CHAR.chargen_state, { ['spell:' + name]: info.karma });
+      if (cs) fields.chargen_state = cs;
+      if (!(await patchChar(fields, $('#modalAlert')))) return;
+      if (cs) CHAR.chargen_state = cs;
       renderMagic(); renderHeader(); renderIdentity(); renderManageMagic();
       showAlert($('#modalAlert'), `>> LEARNED // ${name} (Force ${force}) — ${money(info.nuyen)}, ${info.karma} Karma`, false, true);
     } finally {
@@ -3169,15 +3177,15 @@ async function commitModal(){
     // draft[key] is the new KARMA-BASE rating (natural base + metatype). Back the metatype bonus
     // back out before writing chargen_state.base (which stores the pure pre-racial base), and write
     // the recomputed aggregate (karma-base + aug) into the top-level field everything else on the
-    // sheet reads directly. Mutate CHAR.chargen_state in place *before* patching (like patchGear()
-    // does for CHAR.gear) -- CharacterRead never echoes chargen_state back in the PATCH response,
-    // so without this the local copy would go stale and a second raise in the same session would
-    // start from the pre-raise base.
+    // sheet reads directly. CharacterRead never echoes chargen_state back in the PATCH response,
+    // so the new state is built as a copy and adopted into CHAR.chargen_state once the PATCH
+    // succeeds -- otherwise a second raise in the same session would start from the pre-raise base
+    // (and a failed PATCH must leave the local copy as it was).
     // A record with a chargen base keeps it untouched and stores the raise in advancement.attrs
     // instead (the builder's re-edit needs the original build); an older record without one gets
     // its backfilled base written as before.
     const fields = {};
-    const cs = CHAR.chargen_state = CHAR.chargen_state || {};
+    const cs = CHAR.chargen_state || {};
     const newBase = { ...(cs.base || {}) };
     const raises = { ...((cs.advancement || {}).attrs || {}) };
     Object.values(ATTR_KEYS).forEach(key => {
@@ -3190,20 +3198,21 @@ async function commitModal(){
       }
       fields[key] = draft[key] + augAttr(key);
     });
-    cs.base = newBase;
-    if (Object.keys(raises).length || cs.advancement) {
-      cs.advancement = cs.advancement || {};
-      cs.advancement.attrs = raises;
-    }
-    recordKarma(draft.spent);
+    let next = { ...cs, base: newBase };
+    if (Object.keys(raises).length || cs.advancement) next.advancement = { ...(cs.advancement || {}), attrs: raises };
+    next = karmaRecorded(next, draft.spent) || next;
     fields.good_karma = Math.max(0, draft.good_karma);
-    fields.chargen_state = CHAR.chargen_state;
-    await patchChar(fields);
+    fields.chargen_state = next;
+    // A failed save keeps the modal (and its draft) open to retry, with the reason shown in it.
+    if (!(await patchChar(fields, $('#modalAlert')))) return;
+    CHAR.chargen_state = next;
     renderAttributes(); renderIdentity();
   } else if (currentModalMode === 'skills'){
     const fields = { skills: draft.skills, good_karma: Math.max(0, draft.good_karma) };
-    if (recordKarma(draft.spent)) fields.chargen_state = CHAR.chargen_state;
-    await patchChar(fields);
+    const cs = karmaRecorded(CHAR.chargen_state, draft.spent);
+    if (cs) fields.chargen_state = cs;
+    if (!(await patchChar(fields, $('#modalAlert')))) return;
+    if (cs) CHAR.chargen_state = cs;
     renderSkills(); renderIdentity();
   } else {
     closeModal(); return;

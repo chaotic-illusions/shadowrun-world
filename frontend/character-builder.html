@@ -1397,7 +1397,11 @@ function toggleShopInspect(root, key) {
 }
 function stepResources() {
   const over = nuyenCommitted() > res().nuyen;
-  const lines = (k) => state.gear[k].map((g,i) => {
+  // Re-edit: only starting gear still on the sheet is listed; what's sellable gets a live X.
+  const editing = !!(state.editId && EDIT);
+  let hiddenLines = 0;
+  const lines = (k) => { const onSheet = editing ? editGearOnSheet(k) : null; return state.gear[k].map((g,i) => {
+    if (onSheet && !onSheet.has(i)) { hiddenLines++; return ""; }
     if (k === "cyber") return cyberLineHTML(g, i);
     const showEss = (k === "bio");
     // Kit/Shop/Facility are generic until the player names what kind (e.g. "Programming Shop").
@@ -1436,8 +1440,9 @@ function stepResources() {
       ${rig}
       ${showEss ? `<span class="cbx-line__f">BI ${bioBaseEss(g).toFixed(2)}</span>` : ""}
       <span class="cbx-line__f">${money(k === "bio" ? bioCost(g) : gearLineCost(g))}</span>
-      <button type="button" class="cbx-x" data-delgear="${k}:${i}">&#10005;</button></div>`;
-  }).join("");
+      <button type="button" class="cbx-x" data-delgear="${k}:${i}"${editing && EDIT_SELLABLE_GEAR.has(k)
+        ? ` data-sellback="1" title="Sell back for its build price"` : ""}>&#10005;</button></div>`;
+  }).join(""); };
   const owned = GEAR_KEYS.map(k => {
     const gearLines = state.gear[k].length ? lines(k) : "";
     // Owned Matrix programs are inventory too -- list them under the Matrix gear (with cyberdecks).
@@ -1445,6 +1450,9 @@ function stepResources() {
     if (!gearLines && !progLines) return "";
     return `<div class="cbx-h4">${esc(SHOP_DEFS.find(d=>d.k===k).label)}</div>${gearLines}${progLines}`;
   }).join("") || `<p class="empty-state">Nothing acquired yet.</p>`;
+  const hiddenNote = hiddenLines
+    ? `<p class="cbx-help">${hiddenLines} starting item${hiddenLines === 1 ? " isn't" : "s aren't"} on the sheet any more (used up, sold or changed on the Dossier), so ${hiddenLines === 1 ? "it's" : "they're"} not listed. ${hiddenLines === 1 ? "It still counts" : "They still count"} toward Resources.</p>`
+    : "";
   // Weapons/armor/cyber/bio/gear/matrix/vehicles browsing and purchasing is the shared gear picker
   // (gear-picker.js), mounted into #cbxGearPicker by wire() once this HTML is in the DOM -- see
   // chargenBuyGear(). Matrix programs (deckware) aren't a catalog item, so they still get their own
@@ -1456,7 +1464,7 @@ function stepResources() {
     Essence; bioware uses Body Index. Prices are reference values from the catalogue.
     <span class="cbx-cite">(SR2 p.46)</span></p>
     <div class="cbx-resgrid">
-      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}</div>
+      <div class="cbx-owned-wrap"><div class="cbx-h4">Loadout</div>${owned}${hiddenNote}</div>
       <div>
         <div id="cbxGearPicker"></div>
         ${programsPanelHTML()}
@@ -2205,12 +2213,12 @@ async function commitDossier() {
 // so do the contacts the runner already has; attributes, skills, spells, powers, identity text and
 // new contacts can change within the original budgets. Saving merges onto the CURRENT sheet: an
 // item the player didn't change keeps its post-chargen Karma raises, a changed item becomes its new
-// builder value and the Good Karma recorded against it (play-sheet.html recordKarma) is refunded.
+// builder value and the Good Karma recorded against it (play-sheet.html karmaRecorded) is refunded.
 // The server re-locks and re-checks all of this (POST /characters/{id}/rebuild-dossier).
 const EDIT_LOCKED_SEL = [
   "[data-cat]", "[data-kit]", "[data-mt]", "[data-magictype]", "[data-tradition]", "[data-totem]",
   "[data-addfocus]", "[data-delfocus]", "[data-focusrate]", "[data-focusapplies]",
-  "[data-delgear]", "[data-gearrating]", "[data-gearkind]", "[data-cybergrade]", "[data-cyberrating]",
+  "[data-delgear]:not([data-sellback])", "[data-gearrating]", "[data-gearkind]", "[data-cybergrade]", "[data-cyberrating]",
   "[data-cyberslot]", "[data-cyberskill]", "[data-biorating]", "[data-bioskill]", "[data-rigger]",
   "[data-progadd]", "[data-prograte]", "[data-progdmg]", "[data-progdel]",
   '[data-id="lifestyle"]', "#cbxLifePerm",
@@ -2219,13 +2227,51 @@ const EDIT_STEP_NOTES = {
   0: "Priorities are locked once a runner is made.",
   1: "Metatype is locked once a runner is made.",
   3: "Magic type, tradition, totem and foci are locked; spells and powers can change.",
-  5: "Gear and programs are locked -- buy or sell them on the Dossier.",
+  5: "Starting gear still on the sheet can be sold back (the X) for its build price, which frees Resources -- e.g. "
+   + "to pay for a new contact. Nothing new can be bought here, and cyberware, bioware and programs stay locked; "
+   + "use the Dossier for those. Starting gear that's no longer on the sheet isn't listed.",
   6: "These are the runner's contacts as they stand now, locked; you can add new ones.",
   7: "Lifestyle is locked.",
 };
-// Budgets the edit can't change (gear is locked): an overrun the runner already had doesn't block
+// Budgets the edit can't change (gear is locked, bar selling starting gear back): an overrun the runner already had doesn't block
 // saving, unless new contacts make Resources worse.
 const EDIT_LOCKED_BUDGETS = new Set(["Resources", "Cyberware Essence", "Body Index", "Foci count", "Foci total rating"]);
+
+// Starting gear a re-edit can sell back (server: _REBUILD_SELLABLE_GEAR). Cyberware/bioware stay
+// locked -- removing an implant is surgery on the Dossier (Essence, Body Index, attributes).
+const EDIT_SELLABLE_GEAR = new Set(["weapons", "armor", "gear", "matrix", "vehicles"]);
+// How a starting-gear line is matched to the sheet: name + rating (the Dossier adds its own fields
+// to the lines it holds). Same rule as the server's _gear_match_key().
+function editGearKey(g) {
+  const r = g.rating;
+  const rt = (r == null || r === "") ? "" : (Number.isFinite(Number(r)) ? String(Number(r)) : String(r));
+  return `${g.n || ""}|${rt}`;
+}
+// Each wizard gear line remembers its index in the stored build (`_ix`), which is how a save names
+// the lines sold back (gear_sold). Re-run after a save, when the stored build has those lines gone.
+function tagEditGear() {
+  GEAR_KEYS.forEach(k => (state.gear[k] || []).forEach((g, ix) => { g._ix = ix; }));
+}
+// The stored-build lines (indexes into EDIT.orig.gear[k]) the edit has sold back so far.
+function editSoldIx(k) {
+  const kept = new Set((state.gear[k] || []).map(g => g._ix));
+  return ((EDIT.orig.gear || {})[k] || []).map((_, ix) => ix).filter(ix => !kept.has(ix));
+}
+// Which of a bucket's wizard lines (indexes into state.gear[k]) are still on the runner's sheet:
+// each sheet line backs one starting line of the same name + rating, less those already sold.
+// The rest were used up, sold or changed on the Dossier -- hidden, though they still count
+// toward Resources, and can't be sold back.
+function editGearOnSheet(k) {
+  const avail = {};
+  ((EDIT.char.gear || {})[k] || []).forEach(g => { const key = editGearKey(g); avail[key] = (avail[key] || 0) + 1; });
+  editSoldIx(k).forEach(ix => { const key = editGearKey(EDIT.orig.gear[k][ix]); avail[key] = (avail[key] || 0) - 1; });
+  const shown = new Set();
+  (state.gear[k] || []).forEach((g, i) => {
+    const key = editGearKey(g);
+    if ((avail[key] || 0) > 0) { avail[key]--; shown.add(i); }
+  });
+  return shown;
+}
 
 function applyEditLocks() {
   if (!state.editId) return;
@@ -2278,7 +2324,9 @@ async function fetchEditTarget(id) {
   return { char: await cr.json(), cs: (await sr.json()).state || {}, contacts };
 }
 function editOrig(cs, contacts) {
-  const s = normalizeState(cs);
+  // A deep copy: the wizard state and the stored-build snapshot are both made from one `cs`, and
+  // must not share gear arrays (selling a line back would otherwise remove it from both).
+  const s = normalizeState(JSON.parse(JSON.stringify(cs)));
   s.contacts = contacts.map(c => ({ ...c }));
   return s;
 }
@@ -2294,9 +2342,10 @@ async function startEdit(id) {
     state = editOrig(cs, contacts);
     state.editId = Number(id); state.draftId = null; state.convertId = null;
     EDIT = { orig: editOrig(cs, contacts), char };
+    tagEditGear();
     state.step = 2;
     setModeBanner(`Editing <strong>${esc(char.name || "runner")}</strong> (id ${esc(String(id))}) to fix creation mistakes &mdash; ` +
-      `priorities, metatype, magic choices and gear are locked. Karma spent on anything you change is refunded.`);
+      `priorities, metatype, magic choices and gear are locked (starting gear can be sold back). Karma spent on anything you change is refunded.`);
     return true;
   } catch (e) {
     setModeBanner(`Could not load runner: ${esc(e.message || String(e))}`);
@@ -2392,7 +2441,20 @@ async function planEdit() {
   added.forEach(c => changes.push({ label: "New contact", from: "--",
     to: `${c.name}${c.profession ? ` (${c.profession})` : ""} -- ${c.contact_type}`, refund: 0 }));
   body.contacts = added;
-  body.nuyen_delta = Math.min(0, after.cash - before.cash);
+  // Starting gear sold back: named by its index in the stored build (the server checks each is
+  // still on the sheet and removes it there too). Its build price goes back into Resources.
+  const sold = [];
+  [...EDIT_SELLABLE_GEAR].forEach(k => editSoldIx(k).forEach(ix => sold.push({ bucket: k, index: ix, line: orig.gear[k][ix] })));
+  sold.forEach(({ bucket, line }) => {
+    const price = withState(orig, () => bucket === "vehicles" ? vehicleLineCost(line) : gearLineCost(line));
+    changes.push({ label: "Sold back", from: line.n + (line.rating ? ` R${line.rating}` : ""),
+                   to: `-- (+${money(price)} Resources)`, refund: 0 });
+  });
+  if (sold.length) body.gear_sold = sold.map(({ bucket, index }) => ({ bucket, index }));
+  // Only selling gear back can raise the leftover Resources (and so the cash they convert to).
+  body.nuyen_delta = sold.length ? after.cash - before.cash : Math.min(0, after.cash - before.cash);
+  // The server refuses the save (409) if the runner changes between this Review and Save.
+  if (char.version != null) body.expected_version = char.version;
 
   const sendState = JSON.parse(JSON.stringify(state));
   sendState.contacts.forEach(c => delete c.locked);
@@ -2421,7 +2483,7 @@ async function reviewEdit() {
       <table class="cbx-review"><thead><tr><th>Item</th><th>On the sheet now</th><th>After saving</th><th class="r">Karma back</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <p class="cbx-summary__line">Good Karma: ${karmaNow} &rarr; <strong>${karmaNow + plan.refund}</strong>${cash
-        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (new contacts)` : ""}</p>
+        ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(Math.max(0, cashNow + cash))}</strong> (leftover Resources convert at 10:1)` : ""}</p>
       ${plan.changes.some(c => c.unrecorded) ? `<p class="cbx-help">* Changed on the sheet after creation with no recorded Karma spend (before Karma was tracked, or edited by hand), so nothing is refunded automatically. Ask the GM if Karma is owed.</p>` : ""}
       <button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>
     </div>`;
@@ -2436,10 +2498,18 @@ async function saveEdit(plan) {
   status.className = "cbx-note"; status.textContent = "Saving...";
   try {
     const res = await apiFetch(`/characters/${state.editId}/rebuild-dossier`, { method: "POST", body: JSON.stringify(plan.body) });
+    // The runner changed since the Review was built: drop the stale Review so it can't be re-sent.
+    if (res.status === 409) document.getElementById("cbxEditReview").innerHTML = "";
     if (!res.ok) await apiThrow(res);
     const out = await res.json();
-    // Later edits in this session start from what was just saved (contacts added are now existing ones).
+    // Later edits in this session start from what was just saved (contacts added are now existing
+    // ones; gear sold back is gone from the stored build and the sheet, so re-index what's left).
     state.contacts.forEach(c => { if ((c.name || "").trim()) c.locked = true; });
+    try {
+      const t = await fetchEditTarget(state.editId);
+      EDIT = { orig: editOrig(t.cs, t.contacts), char: t.char };
+    } catch (_) { /* the next Review re-fetches anyway */ }
+    tagEditGear();
     render();
     const st = document.getElementById("cbxSubmitStatus");
     st.className = "cbx-note is-ok";
