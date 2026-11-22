@@ -442,7 +442,7 @@ function onNpcArchetypeChange() {
   if (starter && starter.length) skillsEl.value = starter.join('\n');
 }
 
-const PC_ARCHETYPES = ['Street Samurai','Decker','Rigger','Mage','Shaman','Adept','Custom'];
+const PC_ARCHETYPES = [...RUNNER_ARCHETYPES, 'Custom'];   // shared.js
 const PC_SKILL_KEYS = ['computer', 'software', 'matrix', 'computer_br'];
 
 // Build "Title, OrgName" cell; Independent/Unknown fallback per the stored affiliation flag

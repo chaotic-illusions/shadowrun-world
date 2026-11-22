@@ -2250,9 +2250,20 @@ function closeModal(){ $('#editOverlay').classList.remove('open'); }
 function openManageIdentity(){
   draft = { archetype: CHAR.archetype||'', race: CHAR.race||'', gender: CHAR.gender||'', age: CHAR.age||0, lifestyle_level: CHAR.lifestyle_level };
   openModal('identity', '// Manage Identity');
+  // Same picker as the builder and the GM's Characters editor: an official archetype, or
+  // "Custom..." for free text (shared.js RUNNER_ARCHETYPES).
+  const arch = draft.archetype, named = RUNNER_ARCHETYPES.includes(arch);
+  const archSel = arch ? (named ? arch : 'Custom') : '';
   $('#modalBody').innerHTML = `
     <div class="grid3">
-      <div class="field"><label>Archetype</label><input type="text" id="mgArchetype" value="${esc(draft.archetype)}"></div>
+      <div class="field"><label>Archetype</label>
+        <select id="mgArchetype">
+          <option value="" ${archSel===''?'selected':''}>-- select --</option>
+          ${RUNNER_ARCHETYPES.map(a => `<option value="${esc(a)}" ${archSel===a?'selected':''}>${esc(a)}</option>`).join('')}
+          <option value="Custom" ${archSel==='Custom'?'selected':''}>Custom...</option>
+        </select>
+        <input type="text" id="mgArchetypeCustom" class="mt-6${archSel==='Custom'?'':' hidden'}" maxlength="100"
+          placeholder="Enter archetype..." value="${esc(named ? '' : arch)}"></div>
       <div class="field"><label>Race</label><input type="text" id="mgRace" value="${esc(draft.race)}"></div>
       <div class="field"><label>Sex</label><input type="text" id="mgSex" value="${esc(draft.gender)}"></div>
     </div>
@@ -2261,6 +2272,11 @@ function openManageIdentity(){
       <div class="field"><label>Lifestyle</label>
         <select id="mgLifestyle">${LIFESTYLE_TIERS.map((t,i) => `<option value="${i}" ${i===draft.lifestyle_level?'selected':''}>${t}</option>`).join('')}</select></div>
     </div>`;
+  $('#mgArchetype').onchange = e => {
+    const custom = e.target.value === 'Custom';
+    $('#mgArchetypeCustom').classList.toggle('hidden', !custom);
+    if (custom) $('#mgArchetypeCustom').focus();
+  };
   initNumSteppers($('#modalBody'));
 }
 
@@ -3172,8 +3188,9 @@ function renderManageMagic(){
 async function commitModal(){
   if (currentModalMode === 'donate') return commitDonation();
   if (currentModalMode === 'identity'){
+    const archPick = $('#mgArchetype').value;
     await patchChar({
-      archetype: $('#mgArchetype').value.trim(),
+      archetype: (archPick === 'Custom' ? $('#mgArchetypeCustom').value.trim() : archPick) || null,
       race: $('#mgRace').value.trim(),
       gender: $('#mgSex').value.trim(),
       age: Number($('#mgAge').value) || 0,

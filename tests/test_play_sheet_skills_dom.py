@@ -192,3 +192,44 @@ def test_manage_attributes_costs_the_new_rating_up_to_the_racial_maximum(_browse
     assert sent["chargen_state"]["advancement"]["karma"] == {"attr:body": 4, "attr:willpower": 6}
     assert errors == [], f"JS errors on the play sheet: {errors}"
     ctx.close()
+
+
+def test_manage_identity_archetype_is_a_picker_with_custom_text(_browser, _frontend_port):
+    """Same rule as the builder and the GM's Characters editor: an official archetype from the
+    list, free text only under "Custom...". A custom archetype reopens as Custom with its text."""
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    patches: list[dict] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+    pg.route("**/*", _route_for(patches))
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/play-sheet.html?id=7")
+    pg.wait_for_selector("#skillList .sk-row", timeout=15000)
+
+    pg.locator("#manageIdentityBtn").click()
+    pg.wait_for_selector("#mgArchetype", timeout=5000)
+    opts = pg.eval_on_selector("#mgArchetype", "el => Array.from(el.options).map(o => o.value)")
+    assert opts == ["", "Street Samurai", "Decker", "Rigger", "Mage", "Shaman", "Adept", "Custom"]
+    assert not pg.is_visible("#mgArchetypeCustom")
+    pg.select_option("#mgArchetype", "Decker")
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    assert patches[-1]["archetype"] == "Decker"
+
+    pg.locator("#manageIdentityBtn").click()
+    pg.wait_for_selector("#mgArchetype", timeout=5000)
+    assert pg.eval_on_selector("#mgArchetype", "el => el.value") == "Decker"
+    pg.select_option("#mgArchetype", "Custom")
+    assert pg.is_visible("#mgArchetypeCustom")
+    pg.fill("#mgArchetypeCustom", "Bounty Hunter")
+    pg.locator("#modalCommitBtn").click()
+    pg.wait_for_timeout(300)
+    assert patches[-1]["archetype"] == "Bounty Hunter"
+
+    pg.locator("#manageIdentityBtn").click()
+    pg.wait_for_selector("#mgArchetype", timeout=5000)
+    assert pg.eval_on_selector("#mgArchetype", "el => el.value") == "Custom"
+    assert pg.input_value("#mgArchetypeCustom") == "Bounty Hunter"
+    assert errors == [], f"JS errors on the play sheet: {errors}"
+    ctx.close()
