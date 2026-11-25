@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_or_404, apply_update
+from app.data.catalog import get_rules
 from app.models.auth import UserToken
 from app.models.character import Character
 from app.models.contact import Contact
@@ -819,6 +820,16 @@ async def _apply_rebuild_contacts(db: AsyncSession, char: Character, submitted, 
     await db.flush()
 
 
+def _rebuild_refund_cap(char: Character) -> int:
+    """The most Good Karma a rebuild may refund: what the runner has actually spent -- every point
+    awarded (karma_earned) plus the starting Good Karma, less what is still unspent. The builder
+    prices raises from the gap between the stored build and the sheet, and a gap that wasn't bought
+    with Karma (a hand edit, or a creation pick an older Convert dropped from the build) would
+    otherwise be refunded as if it had been."""
+    start = int(((get_rules() or {}).get("chargen") or {}).get("startGoodKarma") or 0)
+    return max(0, (char.karma_earned or 0) + start - (char.good_karma or 0))
+
+
 @router.post("/{character_id}/rebuild-dossier")
 async def rebuild_character_dossier(
     character_id: int,
@@ -851,6 +862,12 @@ async def rebuild_character_dossier(
     # Re-spending starting Resources the runner left unspent at creation gives back the cash they
     # became (10:1) -- which the runner must still have. Once that cash is spent, the Resources
     # aren't there to spend again.
+    refund_cap = _rebuild_refund_cap(char)
+    if body.karma_refund > refund_cap:
+        raise HTTPException(status_code=422, detail=(
+            f"Karma back ({body.karma_refund}) is more than this runner has spent ({refund_cap}: Karma awarded "
+            "plus starting Good Karma, less what's unspent). Karma given by editing Good Karma directly "
+            "isn't counted -- award it instead."))
     cash = char.nuyen or 0
     if cash + body.nuyen_delta < 0:
         raise HTTPException(status_code=422, detail=(

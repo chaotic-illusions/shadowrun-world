@@ -51,8 +51,9 @@ def _body(**over):
 
 
 def _setup(db):
+    # 20 Karma awarded, 3 unspent: up to 17 can come back in a rebuild.
     db.add(Character(id=10, name="Wraith", is_pc=True, owner_token=hash_token("runner"), good_karma=3,
-                     nuyen=1000, karma_pool=4, notes="table notes", body=5, magic_rating=0,
+                     karma_earned=20, nuyen=1000, karma_pool=4, notes="table notes", body=5, magic_rating=0,
                      chargen_state=BUILD, gear=SHEET_GEAR))
     db.add(Character(id=20, name="Fixer Joe", is_pc=False, archetype="Fixer", origin_pc_id=10))
     db.add(Character(id=21, name="Mr. Q (real name)", is_pc=False, archetype="Doc", origin_pc_id=10))
@@ -257,3 +258,17 @@ def test_editing_a_contact_keeps_everything_else_on_the_record(tmp_path):
     assert (joe.name, joe.profession) == ("Joey Two-Times", "Data Broker")
     assert (joe.loyalty, joe.connection) == (4, 3)
     assert joe.notes == "GM: owes the runner" and joe.description == "Pawn shop on 5th"
+
+
+def test_refund_is_capped_at_the_karma_actually_spent(tmp_path):
+    """Awarded 20, 3 unspent: 17 spent, so a rebuild can give back at most 17 -- a gap between the
+    stored build and the sheet that wasn't bought with Karma can't be refunded as if it had been."""
+    with pytest.raises(HTTPException) as e:
+        _run(tmp_path, _body(contacts=_SAME_CONTACTS, karma_refund=18))
+    assert e.value.status_code == 422 and "more than this runner has spent (17" in e.value.detail
+    out, row, _, _ = _run(tmp_path, _body(contacts=_SAME_CONTACTS, karma_refund=17), db_name="cap.db")
+    assert out["karma_refunded"] == 17 and row.good_karma == 20
+
+
+def test_character_read_exposes_karma_earned_for_the_cap():
+    assert "karma_earned" in CharacterRead.model_fields

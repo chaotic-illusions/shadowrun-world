@@ -133,7 +133,8 @@ class DossierRebuild(CharacterCreate):
     sends). Good Karma, nuyen, Karma Pool and notes are never taken from the sheet fields here:
     the server adds ``karma_refund`` (Karma spent raising attributes and skills since creation,
     worked out by the builder) and ``nuyen_delta`` (the change in starting cash) to the current
-    values instead. A negative ``nuyen_delta`` must be covered by the runner's current cash.
+    values instead. A negative ``nuyen_delta`` must be covered by the runner's current cash, and
+    ``karma_refund`` can't exceed the Karma the runner has actually spent (_rebuild_refund_cap).
     """
     contacts: list[RebuildContact] = Field(default_factory=list, max_length=60)
     chargen_state: dict = Field(default_factory=dict)
@@ -240,6 +241,9 @@ class CharacterRead(CharacterBase):
     id: int
     # Optimistic-lock counter; the builder's re-edit echoes it back as DossierRebuild.expected_version.
     version: int = 0
+    # Total Karma ever awarded (POST /award-karma). A rebuild can refund at most what has been
+    # spent of it: awarded + starting Good Karma - unspent Good Karma.
+    karma_earned: int = 0
     created_at: datetime
     updated_at: datetime
     organization_name: Optional[str] = None

@@ -2440,7 +2440,34 @@ async function fetchEditTarget(id) {
     id: ct.id, name: ct.name || "", archetype: ct.profession || "",
     type: ct.contact_type || contactTypeForLoyalty(ct.loyalty),
   }));
-  return { char: await cr.json(), cs: (await sr.json()).state || {}, contacts };
+  const char = await cr.json(), cs = (await sr.json()).state || {};
+  adoptDroppedPicks(cs, char);
+  return { char, cs, contacts };
+}
+// A Concentration/Specialization the sheet has but the stored build lacks, where the sheet skill
+// is exactly the creation split of the build's rating with that pick (skillTiers) and no Karma is
+// recorded against the skill: a creation pick the build lost (Convert dropped them before
+// 2026-10-04). Put it back into the build (in place) so a rebuild keeps it instead of pricing the
+// gap as a Karma purchase and stripping it.
+function adoptDroppedPicks(cs, char) {
+  const recorded = (cs.advancement || {}).karma || {};
+  const sheet = Object.fromEntries((char.skills || []).map(x => [x.name, x]));
+  const norm = s => ({
+    rating: Number(s.rating) || 0,
+    concs: (s.concs || []).map(c => ({ name: c.name, rating: Number(c.rating) || 0 })),
+    specs: (s.specs || []).map(x => ({ name: x.name, rating: Number(x.rating) || 0, conc: x.conc || "" })),
+  });
+  (cs.skills || []).forEach(b => {
+    const now = sheet[b.name];
+    if (!now || recorded[`skill:${b.name}`]) return;
+    const concs = now.concs || [], specs = now.specs || [];
+    if (concs.length > 1 || specs.length > 1) return;         // more than creation can hold
+    const conc = concs.length ? concs[0].name : "", spec = specs.length ? specs[0].name : "";
+    if ((b.conc || "") === conc && (b.spec || "") === spec) return;
+    if ((b.conc && b.conc !== conc) || (b.spec && b.spec !== spec)) return;   // a different pick: leave it
+    if (spec && specs[0].conc !== conc) return;
+    if (sameJSON(norm(storedSkill({ ...b, conc, spec })), norm(now))) { b.conc = conc; b.spec = spec; }
+  });
 }
 // The wizard state a rebuild starts from (also the budget baseline): the stored build's creation
 // choices, attributes and skills, with the sheet's current spells, powers, inventory, identity
@@ -2605,7 +2632,13 @@ async function planEdit() {
   const orig = editLoad(char, cs, contacts);
   EDIT = { orig, char, cs };
   const refunds = editRefunds(char, cs);
-  const refund = refunds.reduce((t, r) => t + r.karma, 0);
+  const priced = refunds.reduce((t, r) => t + r.karma, 0);
+  // Never more than the runner has actually spent (server: _rebuild_refund_cap): every point
+  // awarded plus the starting Good Karma, less what's unspent. A gap between build and sheet that
+  // wasn't bought with Karma (a hand edit) would otherwise be refunded as if it had been.
+  const startGK = (CHARGEN && CHARGEN.startGoodKarma) || 0;
+  const cap = Math.max(0, (char.karma_earned || 0) + startGK - (char.good_karma || 0));
+  const refund = Math.min(priced, cap);
   const changes = editChanges(orig, char, refunds);
   const body = commitPayload();
   // Good Karma and nuyen are adjusted server-side; the Karma Pool and notes are the Dossier's.
@@ -2617,7 +2650,7 @@ async function planEdit() {
   sendState.contacts.forEach(c => delete c.id);
   sendState.editId = null;
   body.chargen_state = sendState;
-  return { body, changes, refund, char };
+  return { body, changes, refund, priced, cap, char };
 }
 
 async function reviewEdit() {
@@ -2646,6 +2679,9 @@ async function reviewEdit() {
       <div class="cbx-summary__h" style="font-size:var(--fs-sm)">Changes to ${esc(plan.char.name || "runner")}</div>
       <table class="cbx-review"><thead><tr><th>Item</th><th>On the sheet now</th><th>After saving</th><th class="r">Karma back</th></tr></thead>
       <tbody>${rows}</tbody></table>
+      ${plan.priced > plan.refund ? `<p class="cbx-note">The raises above price at ${plan.priced} Karma, but this runner has
+        only spent ${plan.cap} (Karma awarded, less what's unspent), so ${plan.refund} comes back. Anything else was a hand
+        edit, not a Karma purchase.</p>` : ""}
       <p class="cbx-summary__line">Good Karma: ${karmaNow} &rarr; <strong>${karmaNow + plan.refund}</strong>${cash
         ? ` &middot; Cash: ${money(cashNow)} &rarr; <strong>${money(cashNow + cash)}</strong> (starting cash changes by ${cash > 0 ? "+" : ""}${money(cash)})` : ""}</p>
       ${short ? shortNote : `<button type="button" class="btn btn-green" id="cbxEditConfirm">Save Changes</button>`}

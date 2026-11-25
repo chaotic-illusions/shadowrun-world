@@ -104,6 +104,17 @@ build) still use Convert, unchanged.
   The advancement record is cleared after the refund, since the rebuilt sheet is the new
   baseline.
 - **Review:** the Review screen lists each refunded item and its Karma.
+- **Capped at Karma actually spent** (added 2026-11-24, after Night Shift was refunded 31 Karma
+  he never spent). The refund can't exceed every point awarded (`karma_earned`) plus the starting
+  Good Karma, less what's unspent. The builder caps it and says so in the Review; the server
+  refuses anything higher (422). A gap between build and sheet that wasn't bought with Karma (a
+  hand edit) can't be refunded. Karma given by editing Good Karma directly isn't counted, so
+  give Karma with the award instead.
+- **Creation picks the stored build lost** (added 2026-11-24). Convert dropped Concentrations and
+  Specializations from the stored build before 2026-10-04. When the sheet has one the build
+  lacks, the sheet skill is exactly the creation split of the build's rating with it, and no
+  Karma is recorded for the skill, the builder puts the pick back into the build as it loads. So
+  the rebuild neither strips it nor prices it as a purchase.
 
 ## 4. Nuyen
 

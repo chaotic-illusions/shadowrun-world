@@ -37,6 +37,7 @@ _CHAR = {
     "id": 7, "name": "Oversight", "is_pc": True, "is_draft": False, "is_claimed": True, "version": 4,
     "race": "Human", "body": 5, "quickness": 4, "strength": 4, "charisma": 4, "intelligence": 4,
     "willpower": 4, "essence": 5.9, "good_karma": 2, "nuyen": 500, "karma_pool": 3, "lifestyle_level": 2,
+    "karma_earned": 30,             # 30 awarded, 2 unspent: 28 spent, exactly what the raises price at
     "archetype": "Bounty Hunter",   # typed on the Dossier after creation (free text)
     # Firearms 3 -> 5 raised in play before Karma was recorded: 2x4 + 2x5 = 18 to refund.
     "skills": [{"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 5, "concs": [], "specs": []}],
@@ -202,6 +203,74 @@ def test_respending_leftover_resources_needs_the_cash_they_became(_browser, _fro
     assert (pg.locator("#cbxEditConfirm").count() == 1) is can_save
     if not can_save:
         assert "5,000" in review and "500" in review and "300" in review
+    assert errors == [], f"JS errors during the rebuild: {errors}"
+    ctx.close()
+
+
+# Night Shift's case: a runner Converted before 2026-10-04, whose stored build lost creation picks.
+_DROPPED_BUILD = {
+    "prio": {"race": "E", "magic": "D", "attributes": "B", "skills": "C", "resources": "A"},
+    "metatype": "Human", "magicType": "Mundane",
+    "base": {"body": 4, "quickness": 4, "strength": 4, "charisma": 4, "intelligence": 4, "willpower": 4},
+    # The sheet had Interrogation/Verbal and Firearms/Pistols/Ares Predator from creation.
+    "skills": [{"name": "Interrogation", "attr": "charisma", "group": "social", "rating": 2, "conc": "", "spec": ""},
+               {"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 4, "conc": "Pistols", "spec": ""}],
+    "gear": {"weapons": [], "armor": [], "cyber": [], "bio": [], "gear": [], "matrix": [], "vehicles": []},
+    "contacts": [], "identity": {"handle": "Night Shift", "lifestyle": "Low", "lifestylePermanent": False},
+    "advancement": {"karma": {"attr:willpower": 4}, "attrs": {"willpower": 1}},
+}
+_DROPPED_CHAR = {
+    **_CHAR, "name": "Night Shift", "willpower": 5, "good_karma": 0, "karma_earned": 6, "nuyen": 0,
+    "archetype": None, "gear": {},
+    "skills": [
+        {"name": "Interrogation", "attr": "charisma", "group": "social", "rating": 1,
+         "concs": [{"name": "Verbal", "rating": 3}], "specs": []},
+        {"name": "Firearms", "attr": "quickness", "group": "combat", "rating": 2,   # build 4 + conc + spec -> 2/4/6
+         "concs": [{"name": "Pistols", "rating": 4}], "specs": [{"name": "Ares Predator", "rating": 6, "conc": "Pistols"}]},
+        {"name": "Stealth", "attr": "quickness", "group": "physical", "rating": 2, "concs": [], "specs": []},   # hand-added
+    ],
+}
+
+
+@pytest.mark.skipif(sync_playwright is None, reason="playwright not installed")
+def test_rebuild_keeps_dropped_creation_picks_and_caps_the_refund(_browser, _frontend_port):
+    """Picks the sheet has from creation but the stored build lost load back as creation picks
+    (no refund, not stripped). The refund is capped at what was actually spent: 6 awarded, none
+    unspent, though the raises price at 11 (Willpower 4->5 at today's price 5, over the 4 recorded;
+    Stealth 2+4, hand-added)."""
+    posts: list[dict] = []
+    ctx = _browser.new_context()
+    ctx.add_init_script("localStorage.clear(); sessionStorage.clear(); localStorage.setItem('sr_admin_token','tok');")
+    pg = ctx.new_page()
+    errors: list[str] = []
+    pg.on("pageerror", lambda exc: errors.append(str(exc)))
+
+    def route(r):
+        path = r.request.url.split("?")[0]
+        if path.endswith("/characters/7/chargen-state"):
+            r.fulfill(json={"state": _DROPPED_BUILD})
+        else:
+            _rebuild_route(posts, char=_DROPPED_CHAR)(r)
+    pg.route("**/*", route)
+    pg.goto(f"http://127.0.0.1:{_frontend_port}/character-builder.html?edit=7")
+    pg.wait_for_selector("#cbxModeBanner:has-text('Rebuilding')", timeout=15000)
+    _submit(pg)
+    review = pg.inner_text("#cbxEditReview")
+    assert "Interrogation" not in review and "Firearms" not in review   # creation picks: nothing to change or refund
+    assert "Stealth" in review and "Willpower" in review
+    assert "price at 11" in review and "only spent 6" in review
+    pg.locator("#cbxEditConfirm").click()
+    pg.wait_for_timeout(400)
+
+    sent = posts[0]
+    DossierRebuild(**sent)
+    assert sent["karma_refund"] == 6
+    skills = {s["name"]: s for s in sent["skills"]}
+    assert skills["Interrogation"]["concs"] == [{"name": "Verbal", "rating": 3}]
+    assert skills["Firearms"]["specs"] == [{"name": "Ares Predator", "rating": 6, "conc": "Pistols"}]
+    assert "Stealth" not in skills                                      # not a creation pick: back to the build
+    build = {s["name"]: s for s in sent["chargen_state"]["skills"]}
+    assert build["Interrogation"]["conc"] == "Verbal" and build["Firearms"]["spec"] == "Ares Predator"
     assert errors == [], f"JS errors during the rebuild: {errors}"
     ctx.close()
 
