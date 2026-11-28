@@ -693,14 +693,15 @@ async function boot(){
 
     if (ids.length === 0) { $('#emptyWrap').style.display = ''; return; }
     if (ids.length === 1) { await loadCharacter(ids[0]); return; }
-    const allRes = await apiFetch('/characters/?is_pc=true&is_active=true');
+    // All of the player's runners, inactive included -- Active never gates viewing your own sheet.
+    const allRes = await apiFetch('/characters/?is_pc=true');
     const all = allRes.ok ? await allRes.json() : [];
     const mySet = new Set(ids);
     const mine2 = all.filter(c => mySet.has(c.id));
     $('#pickerWrap').style.display = '';
     $('#pickerList').innerHTML = mine2.map(c => `
       <div class="picker-card" data-id="${c.id}">
-        <div style="color:var(--text-bright);font-size:.9rem;">${esc(c.name)}</div>
+        <div style="color:var(--text-bright);font-size:.9rem;">${esc(c.name)}${c.is_active === false ? ' <span class="ch-badge badge-inactive">Inactive</span>' : ''}</div>
         <div class="dim-meta">${esc(c.archetype||'Runner')}${c.race?' &middot; '+esc(c.race):''}</div>
       </div>`).join('');
     $$('.picker-card').forEach(el => el.onclick = () => { location.search = '?id=' + el.dataset.id; });

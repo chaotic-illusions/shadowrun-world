@@ -839,12 +839,11 @@ function buildCharCard(char, orgMap = {}) {
     ? `<button class="btn ws-card-action" style="color:var(--red);border-color:var(--red)" onclick="event.stopPropagation();releaseChar(${char.id})">Release</button>`
     : '';
 
-  const cardClass = `char-card ${char.is_pc ? `is-pc${isActive ? ' npc-clickable' : ''}` : 'npc-clickable'}`;
-  const clickAttr = char.is_pc && (isAdminMode() || isActive)
+  // Every PC's dossier opens regardless of Active -- Active only greys the card (overlay above).
+  const cardClass = `char-card ${char.is_pc ? 'is-pc ' : ''}npc-clickable`;
+  const clickAttr = char.is_pc
     ? `onclick="openCharEditModal(${char.id})" data-tip="View dossier" style="cursor:pointer;position:relative"`
-    : char.is_pc
-      ? `style="cursor:default;position:relative"`
-      : `onclick="openNpcModal(${char.id})" data-tip="View dossier"`;
+    : `onclick="openNpcModal(${char.id})" data-tip="View dossier"`;
 
   return `
     <div class="${cardClass}" ${clickAttr}>
