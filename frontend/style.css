@@ -1529,6 +1529,18 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .manage-table tr:hover td { background: rgba(0,255,65,.02); }
 .manage-table .td-act     { white-space: nowrap; }
 
+/* Known Persons roster: each runner is a collapsible header row, its contacts indented beneath. */
+.mc-roster .mc-runner-row td,
+.mc-roster .mc-group-row td    { background: rgba(0,255,65,.035); border-top: 1px solid #1a2a1a; }
+.mc-roster .mc-runner-name     { color: var(--text-bright); font-family: var(--font-display); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+.mc-roster .mc-group-row td    { color: var(--text-dim); }
+.mc-roster .mc-toggle          { cursor: pointer; user-select: none; }
+.mc-roster .mc-toggle:hover    { color: var(--green); }
+.mc-roster .mc-caret           { display: inline-block; width: 1.2em; color: var(--green); font-size: .7em; }
+.mc-roster .mc-count           { color: var(--text-dim); font-size: .8em; letter-spacing: 0; }
+.mc-roster .mc-contact-name    { color: var(--text-bright); padding-left: 34px; border-left: 2px solid #1a2a1a; }
+.mc-roster .mc-row-inactive td { opacity: .5; }
+
 /* Leadership / executive tables (inside org edit modal) */
 .lead-wrap   { margin: 12px 0; }
 .lead-table  { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }

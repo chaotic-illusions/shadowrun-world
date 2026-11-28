@@ -781,64 +781,144 @@ let _loadedOrgVal = '';
 function isPlayerContact(ch) { return !!ch && !ch.is_pc && !isAdminMode() && _myContactIds.has(ch.id); }
 let _lastTableHtml = null;
 
-function getMyCharIds() {
-  return _myCharIds;
+// -- Grouped roster ---------------------------------------------
+// Known Persons is grouped by runner: each PC is a collapsible header row with every contact linked
+// to it indented beneath -- a Contact link row (whoever made it), or an NPC that runner's builder
+// made (origin_pc_id). Only builder-made contacts are player-editable (_myContactIds; the server
+// enforces the same in _owns_contact_npc). NPCs nobody holds as a contact go under "Other Known
+// Persons", which only the GM ever has rows for.
+const _MC_COLLAPSE_KEY = 'mc-collapsed-groups';
+let _collapsedGroups = new Set();
+try { _collapsedGroups = new Set(JSON.parse(localStorage.getItem(_MC_COLLAPSE_KEY) || '[]')); } catch (_) {}
+
+function toggleGroup(key) {
+  if (_collapsedGroups.has(key)) _collapsedGroups.delete(key); else _collapsedGroups.add(key);
+  try { localStorage.setItem(_MC_COLLAPSE_KEY, JSON.stringify([..._collapsedGroups])); } catch (_) {}
+  applyFilter();
 }
 
-function renderTable(data) {
-  const wrap = document.getElementById('tableWrap');
-  let newHtml;
+// A roster entry: {ch, contact}. ch is the character record (null for a contact with no NPC
+// record); contact is the runner's link row (null for a PC, or a builder NPC with no link).
+function entryName(e) { return (e.ch ? e.ch.name : e.contact.name) || ''; }
 
-  if (!data.length) {
-    newHtml = '<div class="loading">No characters found</div>';
+function contactOrgName(k) { return allOrgs.find(o => o.id === k.organization_id)?.name || ''; }
+
+// The contacts listed under runner `pc`, sorted by name.
+function contactsOfRunner(pc, byId) {
+  const out = [];
+  const seen = new Set();
+  allContacts.forEach(k => {
+    if (k.owner_id !== pc.id) return;
+    if (k.npc_id == null) {
+      // Gang/Tribe markers are faction ties for rep weighting, not people (as on World State).
+      if (k.contact_type !== 'Gang' && k.contact_type !== 'Tribe') out.push({ ch: null, contact: k });
+      return;
+    }
+    const ch = byId.get(k.npc_id);
+    if (!ch || ch.is_pc || seen.has(ch.id)) return;
+    seen.add(ch.id);
+    out.push({ ch, contact: k });
+  });
+  allChars.forEach(c => {
+    if (!c.is_pc && c.origin_pc_id === pc.id && !seen.has(c.id)) {
+      seen.add(c.id);
+      out.push({ ch: c, contact: null });
+    }
+  });
+  return out.sort((a, b) => entryName(a).localeCompare(entryName(b)));
+}
+
+function entryTextMatch(q, e) {
+  if (!q) return true;
+  const hay = e.ch
+    ? [e.ch.name, e.ch.archetype, titleOrgCell(e.ch)]
+    : [e.contact.name, e.contact.profession, contactOrgName(e.contact)];
+  return hay.some(s => (s || '').toLowerCase().includes(q));
+}
+
+// GM-concealed: the character is inactive, or the runner's link to them is.
+function entryActive(e) {
+  return (!e.ch || e.ch.is_active !== false) && (!e.contact || e.contact.is_active !== false);
+}
+
+function entryEditBtn(e) {
+  const c = e.ch;
+  if (!c) return '';   // a contact with no NPC record has no dossier to edit here
+  const btnStyle = 'padding:4px 10px;font-size:.65rem';
+  const canEdit = isAdminMode() || (c.is_pc ? _myCharIds.has(c.id) : _myContactIds.has(c.id));
+  if (canEdit) return `<button class="btn btn-amber" style="${btnStyle}" onclick="openModal(${c.id})">Edit</button>`;
+  const tip = c.is_pc ? 'Not your character' : 'Linked by the GM -- not editable';
+  return `<button class="btn" style="${btnStyle};color:#333;border-color:#222;cursor:default" disabled data-tip="${tip}">Edit</button>`;
+}
+
+function convertBtnFor(c) {
+  // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a full
+  // chargen sheet (priorities are only ever set by the builder).
+  const canEdit = isAdminMode() || _myCharIds.has(c.id);
+  const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
+  return (canEdit && !builtInChargen)
+    ? `<a class="btn btn-cyan" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
+    : '';
+}
+
+function caretSpan(count, expanded) {
+  return `<span class="mc-caret">${count ? (expanded ? '&#9660;' : '&#9654;') : ''}</span>`;
+}
+
+// One table row. kind: 'runner' (PC header), 'contact' (indented under a header), or 'flat'
+// (the NPCs Only list).
+function entryRow(e, kind, extraCell, groupKey, count, expanded) {
+  const c = e.ch;
+  const inactive = entryActive(e) ? '' : ' mc-row-inactive';
+  const archetype = c ? c.archetype : e.contact.profession;
+  const race = c ? c.race : e.contact.race;
+  const org = c ? titleOrgCell(c) : contactOrgName(e.contact);
+  let nameCell;
+  if (kind === 'runner') {
+    const toggle = count
+      ? ` class="mc-runner-name mc-toggle" onclick="toggleGroup('${groupKey}')" data-tip="${expanded ? 'Collapse' : 'Expand'} contacts"`
+      : ' class="mc-runner-name"';
+    nameCell = `<td${toggle}>${caretSpan(count, expanded)}${esc(c.name)}`
+      + (count ? ` <span class="mc-count">(${count})</span>` : '') + '</td>';
   } else {
-  const myIds = typeof getMyCharIds === 'function' ? getMyCharIds() : new Set();
-  newHtml = `
-    <table class="manage-table">
+    nameCell = `<td class="${kind === 'contact' ? 'mc-contact-name' : 'text-bright'}">${esc(entryName(e))}</td>`;
+  }
+  return `
+          <tr class="mc-${kind}-row${inactive}">
+            ${nameCell}
+            <td class="text-dim">${esc(archetype || '--')}</td>
+            <td class="dim-meta">${esc(race || '--')}</td>
+            <td class="dim-meta">${esc(org || '--')}</td>
+            <td class="dim-meta">${extraCell}</td>
+            <td class="td-act">${c && c.is_pc ? convertBtnFor(c) : ''}${entryEditBtn(e)}</td>
+          </tr>`;
+}
+
+function loyConnCell(e) {
+  if (!e.contact) return '';
+  const { loyalty, connection } = e.contact;
+  return `<span data-tip="Loyalty ${loyalty} (to this runner) / Connection ${connection} (reach &amp; resources)">L${loyalty} / C${connection}</span>`;
+}
+
+function renderTable(rows, lastColLabel, lastColTip = '') {
+  const wrap = document.getElementById('tableWrap');
+  const newHtml = !rows.length
+    ? '<div class="loading">No characters found</div>'
+    : `
+    <table class="manage-table mc-roster">
       <thead>
         <tr>
           <th>Name</th>
-          <th>Type</th>
           <th>Archetype</th>
           <th>Race</th>
           <th>Title &amp; Organization</th>
-          <th>Status</th>
+          <th${lastColTip ? ` data-tip="${lastColTip}"` : ''}>${lastColLabel}</th>
           <th class="td-act"></th>
         </tr>
       </thead>
-      <tbody>
-        ${data.map(c => {
-          let editBtn = '';
-          const canEdit = c.is_pc && (isAdminMode() || myIds.has(c.id));
-          const ownContact = !c.is_pc && _myContactIds.has(c.id);
-          // Convert is a migration path for thin/pre-wizard PCs -- hide it once a character has a
-          // full chargen sheet (priorities are only ever set by the builder).
-          const builtInChargen = c.priorities && Object.keys(c.priorities).length > 0;
-          const convertBtn = (canEdit && !builtInChargen)
-            ? `<a class="btn btn-cyan" style="padding:4px 10px;font-size:.65rem;margin-right:6px" href="character-builder.html?convert=${c.id}" title="Open in the builder and overwrite this sheet">Convert</a>`
-            : '';
-          if (isAdminMode()) {
-            editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
-          } else if ((c.is_pc && myIds.has(c.id)) || ownContact) {
-            editBtn = `<button class="btn btn-amber" style="padding:4px 10px;font-size:.65rem" onclick="openModal(${c.id})">Edit</button>`;
-          } else if (c.is_pc) {
-            editBtn = `<button class="btn" style="padding:4px 10px;font-size:.65rem;color:#333;border-color:#222;cursor:default" disabled data-tip="Not your character">Edit</button>`;
-          }
-          return `
-          <tr>
-            <td style="color:var(--text-bright)">${esc(c.name)}</td>
-            <td><span class="ch-badge ${c.is_pc ? 'badge-pc' : 'badge-npc'}" style="display:inline-block">${c.is_pc ? 'PC' : 'NPC'}</span></td>
-            <td class="text-dim">${esc(c.archetype||'--')}</td>
-            <td class="dim-meta">${esc(c.race||'--')}</td>
-            <td class="dim-meta">${esc(titleOrgCell(c))}</td>
-            <td style="color:${c.is_active ? 'var(--green)' : 'var(--text-dim)'};font-size:.65rem;letter-spacing:1px">${c.is_active ? 'ACTIVE' : 'INACTIVE'}</td>
-            <td class="td-act">${convertBtn}${editBtn}</td>
-          </tr>`;
-        }).join('')}
+      <tbody>${rows.join('')}
       </tbody>
     </table>`;
-  }
-
   if (newHtml === _lastTableHtml) return;
   _lastTableHtml = newHtml;
   wrap.innerHTML = newHtml;
@@ -850,23 +930,73 @@ function applyFilter() {
   buildAdventureFilter('filterAdventure', allChars);
   const adv = document.getElementById('filterAdventure').value;
   // Status is an admin filter, hidden (and unapplied) for players -- who only see their own runners
-  // and the contacts those runners made at chargen.
+  // and those runners' contacts.
   const status = isAdminMode() ? document.getElementById('filterStatus').value : '';
-  const mine = c => isAdminMode() || _myCharIds.has(c.id) || _myContactIds.has(c.id);
-  let filtered = allChars.filter(c =>
-    mine(c) &&
-    (!q || c.name.toLowerCase().includes(q) || (c.archetype||'').toLowerCase().includes(q) || (c.organization_name||'').toLowerCase().includes(q)) &&
-    (!t || (t === 'pc' && c.is_pc) || (t === 'npc' && !c.is_pc)) &&
-    (!status || (status === 'active') === (c.is_active !== false)) &&
-    adventureFilterMatch(adv, c)
-  );
-  // Sort: PCs first, then active NPCs, then inactive NPCs; alphabetical within each group
-  filtered.sort((a, b) => {
-    if (a.is_pc !== b.is_pc) return a.is_pc ? -1 : 1;
-    if (!a.is_pc && (a.is_active !== false) !== (b.is_active !== false)) return (a.is_active !== false) ? -1 : 1;
-    return a.name.localeCompare(b.name);
+  const byId = new Map(allChars.map(c => [c.id, c]));
+  const statusOk = e => !status || (status === 'active') === entryActive(e);
+  const advOk = e => adventureFilterMatch(adv, e.ch || {});
+  const rowOk = e => entryTextMatch(q, e) && statusOk(e) && advOk(e);
+  const byActiveThenName = (a, b) => (entryActive(b) - entryActive(a)) || entryName(a).localeCompare(entryName(b));
+  // While searching, every group with a match is expanded so the match isn't hidden.
+  const expandedFor = key => !!q || !_collapsedGroups.has(key);
+
+  const runners = sortByName(allChars.filter(c => c.is_pc && (isAdminMode() || _myCharIds.has(c.id))));
+  const groups = runners.map(pc => ({ pc: { ch: pc, contact: null }, contacts: contactsOfRunner(pc, byId) }));
+  const rows = [];
+
+  if (t === 'npc') {
+    // Flat NPC list; the last column names whose contact each one is.
+    const keyOf = e => e.ch ? 'n' + e.ch.id : 'k' + e.contact.id;
+    const ownersOf = new Map();
+    const entries = [];
+    groups.forEach(g => g.contacts.forEach(e => {
+      if (!ownersOf.has(keyOf(e))) { ownersOf.set(keyOf(e), []); entries.push(e); }
+      ownersOf.get(keyOf(e)).push(g.pc.ch.name);
+    }));
+    if (isAdminMode()) {
+      allChars.forEach(c => {
+        if (!c.is_pc && !ownersOf.has('n' + c.id)) { ownersOf.set('n' + c.id, []); entries.push({ ch: c, contact: null }); }
+      });
+    }
+    entries.filter(rowOk).sort(byActiveThenName)
+      .forEach(e => rows.push(entryRow(e, 'flat', esc(ownersOf.get(keyOf(e)).join(', ') || '--'))));
+    renderTable(rows, 'Contact Of');
+    return;
+  }
+
+  groups.forEach(g => {
+    const key = 'pc-' + g.pc.ch.id;
+    if (t === 'pc') {
+      if (rowOk(g.pc)) rows.push(entryRow(g.pc, 'runner', '', key, 0, false));
+      return;
+    }
+    // A runner that matches the search keeps all its contacts; otherwise only the matching contacts
+    // show, still under their runner so none appear orphaned.
+    const shown = g.contacts.filter(entryTextMatch(q, g.pc) ? (e => statusOk(e) && advOk(e)) : rowOk);
+    if (!rowOk(g.pc) && !shown.length) return;
+    const expanded = expandedFor(key);
+    rows.push(entryRow(g.pc, 'runner', '', key, shown.length, expanded));
+    if (expanded) shown.forEach(e => rows.push(entryRow(e, 'contact', loyConnCell(e))));
   });
-  renderTable(filtered);
+
+  if (isAdminMode() && t !== 'pc') {
+    const placed = new Set();
+    groups.forEach(g => g.contacts.forEach(e => { if (e.ch) placed.add(e.ch.id); }));
+    const others = allChars
+      .filter(c => !c.is_pc && !placed.has(c.id))
+      .map(c => ({ ch: c, contact: null }))
+      .filter(rowOk)
+      .sort(byActiveThenName);
+    if (others.length) {
+      const expanded = expandedFor('other');
+      rows.push(`
+          <tr class="mc-group-row">
+            <td colspan="6" class="mc-runner-name mc-toggle" onclick="toggleGroup('other')" data-tip="${expanded ? 'Collapse' : 'Expand'}">${caretSpan(others.length, expanded)}Other Known Persons <span class="mc-count">(${others.length})</span></td>
+          </tr>`);
+      if (expanded) others.forEach(e => rows.push(entryRow(e, 'contact', '')));
+    }
+  }
+  renderTable(rows, 'Loy / Conn', 'Loyalty: how far the contact will go for this runner. Connection: their reach and resources. Both 1-6.');
 }
 
 // -- Modal -----------------------------------------------------
